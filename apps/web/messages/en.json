@@ -1,0 +1,15 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "app_name": "Semestra",
+  "home_title": "Semestra",
+  "home_tagline": "Your academic life, in one place.",
+  "home_api_status": "API status",
+  "home_api_ok": "Connected",
+  "home_api_error": "Cannot reach the API",
+  "home_api_loading": "Checking…",
+  "home_retry": "Retry",
+  "error_common_internal": "Something went wrong. Please try again.",
+  "error_common_not_found": "We couldn't find that.",
+  "error_common_validation": "Some fields are invalid.",
+  "error_unknown": "Unexpected error."
+}

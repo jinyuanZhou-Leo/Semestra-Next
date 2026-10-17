@@ -1,0 +1,22 @@
+{
+  "name": "semestra-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @semestra/web --filter @semestra/api dev",
+    "build": "pnpm --filter @semestra/web build",
+    "lint": "pnpm --filter @semestra/web lint && pnpm --filter @semestra/api lint",
+    "format": "pnpm --filter @semestra/web format && pnpm --filter @semestra/api format",
+    "typecheck": "pnpm --filter @semestra/web typecheck && pnpm --filter @semestra/api typecheck",
+    "test": "pnpm --filter @semestra/web test && pnpm --filter @semestra/api test",
+    "gen:api": "pnpm --filter @semestra/api openapi && pnpm --filter @semestra/api-client generate"
+  },
+  "devDependencies": {
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0"
+  },
+  "engines": {
+    "node": ">=26"
+  },
+  "packageManager": "pnpm@12.14.0"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@semestra/api",
+  "private": true,
+  "version": "0.1.0",
+  "description": "pnpm wrapper so the Python backend takes part in root scripts; the real project is pyproject.toml",
+  "scripts": {
+    "dev": "uv run semestra dev",
+    "lint": "uv run ruff check . && uv run ruff format --check .",
+    "format": "uv run ruff check --fix . && uv run ruff format .",
+    "typecheck": "uv run pyright",
+    "test": "uv run pytest -q",
+    "migrate": "uv run alembic upgrade head",
+    "openapi": "uv run semestra openapi > ../../packages/api-client/openapi.json"
+  }
+}

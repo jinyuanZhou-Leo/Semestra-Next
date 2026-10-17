@@ -1,0 +1,73 @@
+[project]
+name = "semestra-api"
+version = "0.1.0"
+description = "Semestra-Next backend (FastAPI)"
+requires-python = ">=3.15.0"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.20.0",
+    "argon2-cffi>=25.1.0",
+    "cryptography>=50.0.2",
+    "fastapi>=0.143.3",
+    "httptools>=0.9.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.0",
+    "pyjwt>=2.15.1",
+    "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
+    "sqlalchemy[asyncio]>=2.1.5",
+    "sse-starlette>=3.5.0",
+    "structlog>=26.1.0",
+    "uvicorn>=0.54.0",
+    "uvloop>=0.23.0",
+    "watchfiles>=1.3.0",
+    "websockets>=17.2",
+]
+
+[project.scripts]
+semestra = "semestra.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.10.10,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "semestra"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+    "ruff>=0.17.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "src"]
+markers = ["live: hits real external services; skipped in CI"]
+addopts = "-m 'not live'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py315"
+src = ["src", "tests"]
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.15"
+typeCheckingMode = "basic"
+strict = ["src/semestra/core"]
+venvPath = "."
+venv = ".venv"

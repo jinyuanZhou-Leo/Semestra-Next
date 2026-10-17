@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100,
+  "ignorePatterns": [
+    "**/node_modules",
+    "**/dist",
+    "**/.venv",
+    "apps/api",
+    "apps/web/src/ui",
+    "apps/web/src/paraglide",
+    "apps/web/src/routeTree.gen.ts",
+    "packages/api-client/src/generated",
+    "packages/api-client/openapi.json",
+    "pnpm-lock.yaml",
+    "docs"
+  ]
+}

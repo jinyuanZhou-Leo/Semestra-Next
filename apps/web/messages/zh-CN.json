@@ -1,0 +1,15 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "app_name": "Semestra",
+  "home_title": "Semestra",
+  "home_tagline": "你的学业生活，尽在一处。",
+  "home_api_status": "API 状态",
+  "home_api_ok": "已连接",
+  "home_api_error": "无法连接到 API",
+  "home_api_loading": "检查中…",
+  "home_retry": "重试",
+  "error_common_internal": "出了点问题，请重试。",
+  "error_common_not_found": "找不到相关内容。",
+  "error_common_validation": "部分字段无效。",
+  "error_unknown": "发生未知错误。"
+}

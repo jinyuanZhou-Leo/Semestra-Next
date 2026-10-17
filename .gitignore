@@ -1,0 +1,26 @@
+# deps / build
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# local data and secrets
+.env
+.env.*
+!.env.example
+apps/api/data/
+data/
+
+# generated, not committed
+apps/web/src/paraglide/
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
+playwright-report/
+test-results/
