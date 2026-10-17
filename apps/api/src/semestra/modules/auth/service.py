@@ -22,6 +22,7 @@ from semestra.modules.auth.models import (
     AuthIdentity,
     AuthPersonalAccessToken,
     AuthSession,
+    AuthUsedRefreshToken,
     AuthUser,
 )
 from semestra.modules.auth.schemas import (
@@ -45,6 +46,7 @@ EMAIL_START_PER_EMAIL = (10, timedelta(hours=1))
 EMAIL_START_PER_IP = (30, timedelta(hours=1))
 LOGIN_PER_EMAIL = (10, timedelta(minutes=15))
 LOGIN_PER_IP = (50, timedelta(minutes=15))
+CHANGE_EMAIL_PER_USER = (10, timedelta(hours=1))
 
 Client = Literal["web", "native"]
 
@@ -347,7 +349,9 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
     if session is None:
         replayed = (
             await ctx.db.execute(
-                select(AuthSession).where(AuthSession.previous_refresh_token_hash == digest)
+                select(AuthSession)
+                .join(AuthUsedRefreshToken, AuthUsedRefreshToken.session_id == AuthSession.id)
+                .where(AuthUsedRefreshToken.token_hash == digest)
             )
         ).scalar_one_or_none()
         if replayed is not None and replayed.revoked_at is None:
@@ -362,7 +366,7 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
         raise expired
 
     new_token = crypto.new_token(crypto.REFRESH_PREFIX)
-    session.previous_refresh_token_hash = digest
+    ctx.db.add(AuthUsedRefreshToken(token_hash=digest, session_id=session.id, used_at=ctx.now))
     session.refresh_token_hash = crypto.hash_token(new_token)
     session.last_used_at = ctx.now
     session.expires_at = ctx.now + timedelta(days=ctx.settings.refresh_token_ttl_days)
@@ -601,6 +605,12 @@ async def change_email_start(ctx: Ctx, new_email: str, meta: RequestMeta) -> Ema
         raise AppError("auth.email_in_use", 409)
     if await user_by_email(ctx.db, new_email) is not None:
         raise AppError("auth.email_in_use", 409)
+    # Capabilities carry no client IP, so cap the signed-in user instead: otherwise one account
+    # could mail arbitrarily many different addresses.
+    count, window = CHANGE_EMAIL_PER_USER
+    await ratelimit.hit(
+        ctx.db, ctx.settings, ctx.now, "change_email_user", user.id, limit=count, window=window
+    )
     return await start_challenge(
         ctx, email=new_email, purpose="change_email", meta=meta, user_id=user.id
     )

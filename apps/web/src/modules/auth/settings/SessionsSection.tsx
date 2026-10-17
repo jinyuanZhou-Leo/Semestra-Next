@@ -11,6 +11,7 @@ import { deviceLabel } from '@/lib/device'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { useAuth } from '../useAuth'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Separator } from '@/ui/separator'
@@ -21,6 +22,7 @@ type Target = { kind: 'one'; id: string } | { kind: 'others' }
 
 export function SessionsSection() {
   const queryClient = useQueryClient()
+  const { signOut } = useAuth()
   const sessions = useQuery(accountSessionsListOptions())
   const [target, setTarget] = useState<Target | null>(null)
 
@@ -89,9 +91,13 @@ export function SessionsSection() {
                     variant="outline"
                     size="sm"
                     aria-label={m.auth_account_sessions_revoke_aria({ device })}
-                    onClick={() => setTarget({ kind: 'one', id: s.id })}
+                    // Revoking the session we are using is a sign-out: it must clear the cookies
+                    // and leave the page instead of refetching into a 401.
+                    onClick={() =>
+                      s.current ? void signOut() : setTarget({ kind: 'one', id: s.id })
+                    }
                   >
-                    {m.auth_account_sessions_revoke()}
+                    {s.current ? m.auth_account_signout() : m.auth_account_sessions_revoke()}
                   </Button>
                 </div>
               </li>

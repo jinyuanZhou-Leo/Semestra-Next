@@ -207,6 +207,30 @@ async def test_refresh_token_rotates_and_replay_revokes_the_session(
     assert legit.status_code == 401
 
 
+async def test_replaying_an_older_rotated_refresh_token_revokes_the_session(
+    client: AsyncClient, make_user: MakeUser
+) -> None:
+    await make_user(email="ios@example.com", password=PASSWORD)
+    login = await client.post(
+        "/auth/password/login?client=native",
+        json={"email": "ios@example.com", "password": PASSWORD},
+    )
+    t1 = login.json()["tokens"]
+    t2 = (
+        await client.post("/auth/token/refresh", json={"refresh_token": t1["refresh_token"]})
+    ).json()
+    t3 = (
+        await client.post("/auth/token/refresh", json={"refresh_token": t2["refresh_token"]})
+    ).json()
+    bearer = {"Authorization": f"Bearer {t3['access_token']}"}
+    assert (await client.get("/account/me", headers=bearer)).status_code == 200
+
+    # t1 is two rotations old; replaying it must still kill the live session.
+    replay = await client.post("/auth/token/refresh", json={"refresh_token": t1["refresh_token"]})
+    assert replay.status_code == 401
+    assert (await client.get("/account/me", headers=bearer)).status_code == 401
+
+
 async def test_native_logout_revokes_the_access_token(
     client: AsyncClient, make_user: MakeUser, bearer_for: BearerFor
 ) -> None:
@@ -426,6 +450,22 @@ async def test_setting_a_first_password_needs_a_recent_login(
 
 
 # --- email change -----------------------------------------------------------------------------
+
+
+async def test_change_email_start_is_limited_per_user(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, mailer: MemoryMailer
+) -> None:
+    await login_as(client, await make_user(email="old@example.com"))
+    for i in range(10):
+        ok = await client.post(
+            "/account/email/change-start", json={"new_email": f"n{i}@example.com"}
+        )
+        assert ok.status_code == 200
+    blocked = await client.post(
+        "/account/email/change-start", json={"new_email": "n11@example.com"}
+    )
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "common.rate_limited"
 
 
 async def test_change_email_flow(

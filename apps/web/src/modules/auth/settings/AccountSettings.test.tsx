@@ -33,14 +33,34 @@ const token = {
   expires_at: null,
 }
 
-function mount() {
+function mount(signOut: () => Promise<void> = async () => {}) {
   server.use(http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })))
   return renderWithRouter(
-    <AuthContext.Provider value={{ user, isLoading: false, signOut: async () => {} }}>
+    <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <AccountSettings />
     </AuthContext.Provider>,
   )
 }
+
+test('signing out the current device goes through the normal sign-out flow', async () => {
+  const revoked = vi.fn<(id: string) => void>()
+  const signOut = vi.fn<() => Promise<void>>(async () => {})
+  server.use(
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/account/sessions`, () =>
+      HttpResponse.json({ items: [session({ id: 's1', current: true })] }),
+    ),
+    http.delete(`${API}/account/sessions/:id`, ({ params }) => {
+      revoked(String(params.id))
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  mount(signOut)
+
+  await userEvent.click(await screen.findByRole('button', { name: /Sign out of Chrome · macOS/ }))
+  expect(signOut).toHaveBeenCalledTimes(1)
+  expect(revoked).not.toHaveBeenCalled()
+})
 
 test('lists devices and signs one out after confirmation', async () => {
   let sessions = [session({ id: 's1', current: true }), session({ id: 's2', kind: 'native' })]
