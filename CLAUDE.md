@@ -66,4 +66,8 @@ docs/                设计稿与模块规格
 ## 已完成的模块
 
 - M00（环境部分）：monorepo、配置、数据库基础（PRAGMA、UUIDv7、UTC 类型、mixin）、统一错误信封、`/healthz` `/readyz`、Alembic、OpenAPI 生成链路、i18n 与 shadcn 骨架、lint/测试工具链。
-  **尚未实现**：Capability 注册表、任务队列、事件总线与 SSE、存储抽象、扩展契约宿主（`defineModule`）、示例模块 —— 这些仍属于 M00 的交付内容。
+  **尚未实现**：任务队列、事件总线与 SSE、存储抽象、扩展契约宿主（`defineModule`）、示例模块 —— 这些仍属于 M00 的交付内容。
+- M01 认证与账户：`apps/api/src/semestra/modules/auth/`（邮箱验证码、密码、Google、Cookie 会话 + CSRF、原生 JWT/refresh、PAT、DB 持久化限流）与 `apps/web/src/modules/auth/`（登录流程、会话过期对话框、`/settings/account` 各分区）。同时落地了 M00 缺的最小 Capability 注册表（`core/capability.py`，生成 REST 路由与 operationId）和邮件渲染（`core/i18n.py`）。
+  新模块的受保护路由放在 `routes/_authed.*`；API 调用统一走 `src/app/api.ts`（自动带 CSRF 头、401 时触发会话过期对话框）。
+  本地开发注意：① 沙箱里 Paraglide 的 inlang 插件 CDN 拉不到时，把 `apps/web/project.inlang/settings.json` 临时指向本地副本，且不要提交；② `src/ui/` 里 M01 新增的组件是手写的（shadcn registry 不可达），见 M01 规格第 12 节。
+  **仍缺 M00**：任务队列、事件总线与 SSE、存储抽象、`defineModule`、示例模块。

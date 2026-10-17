@@ -1,9 +1,11 @@
 """Outgoing email backends (M01 §6): Resend (hosted), SMTP (self-hosted), console (dev)."""
 
 import asyncio
+import json
 import smtplib
 from dataclasses import dataclass, field
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Protocol
 
 import httpx
@@ -28,11 +30,30 @@ class Mailer(Protocol):
 
 
 class ConsoleMailer:
-    """Development backend: prints the email (including the code) to the log."""
+    """Development backend: logs the email (including the code).
+
+    Outside prod the message is also appended to `<data_dir>/dev-outbox.jsonl` so that scripts
+    and end-to-end tests can read the code without scraping logs.
+    """
+
+    def __init__(self, outbox: Path | None = None) -> None:
+        self._outbox = outbox
 
     async def send(self, msg: OutgoingEmail) -> str | None:
         log.info("email.console", to=msg.to, subject=msg.content.subject, body=msg.content.text)
+        if self._outbox is not None:
+            line = json.dumps(
+                {"to": msg.to, "subject": msg.content.subject, "text": msg.content.text},
+                ensure_ascii=False,
+            )
+            await asyncio.to_thread(self._append, line)
         return None
+
+    def _append(self, line: str) -> None:
+        assert self._outbox is not None
+        self._outbox.parent.mkdir(parents=True, exist_ok=True)
+        with self._outbox.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
 
 
 @dataclass
@@ -98,4 +119,6 @@ def build_mailer(settings: Settings) -> Mailer:
         case "smtp":
             return SmtpMailer(settings)
         case _:
-            return ConsoleMailer()
+            return ConsoleMailer(
+                None if settings.is_prod else settings.data_dir / "dev-outbox.jsonl"
+            )

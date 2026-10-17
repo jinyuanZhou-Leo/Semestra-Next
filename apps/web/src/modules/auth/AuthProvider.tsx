@@ -1,0 +1,42 @@
+import { accountMeGetOptions, authLogoutMutation } from '@semestra/api-client/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { useEffect, type ReactNode } from 'react'
+import { setSignedIn } from '@/app/session-expiry'
+import { SessionExpiredDialog } from './components/SessionExpiredDialog'
+import { AuthContext, type AuthState } from './useAuth'
+
+/** Loads the current user once at startup and hosts the "session expired" dialog. */
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const me = useQuery({ ...accountMeGetOptions(), retry: false, staleTime: 60_000 })
+  const { mutateAsync: logOut } = useMutation(authLogoutMutation())
+
+  const user = me.data
+  useEffect(() => {
+    setSignedIn(user !== undefined)
+  }, [user])
+
+  // The React Compiler memoizes this; no manual useMemo.
+  const value: AuthState = {
+    user,
+    isLoading: me.isPending,
+    signOut: async () => {
+      try {
+        await logOut({})
+      } finally {
+        setSignedIn(false)
+        queryClient.clear()
+        await navigate({ to: '/login' })
+      }
+    },
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <SessionExpiredDialog />
+    </AuthContext.Provider>
+  )
+}
