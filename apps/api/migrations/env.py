@@ -17,10 +17,12 @@ if config.config_file_name is not None:
 
 # Import every module's models here so autogenerate and `alembic check` see them.
 from semestra.core.config import get_settings  # noqa: E402
-from semestra.core.db import Base  # noqa: E402
+from semestra.core.db import Base, ensure_sqlite_dir  # noqa: E402
 
 target_metadata = Base.metadata
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+database_url = get_settings().database_url
+ensure_sqlite_dir(database_url)
+config.set_main_option("sqlalchemy.url", database_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

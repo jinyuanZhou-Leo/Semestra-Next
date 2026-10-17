@@ -1,10 +1,11 @@
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, String, event
-from sqlalchemy.engine import Dialect
+from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -69,8 +70,16 @@ def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
     cursor.close()
 
 
+def ensure_sqlite_dir(database_url: str) -> None:
+    """SQLite will not create missing parent directories; do it before connecting."""
+    url = make_url(database_url)
+    if url.get_backend_name() == "sqlite" and url.database not in (None, "", ":memory:"):
+        Path(url.database).parent.mkdir(parents=True, exist_ok=True)
+
+
 def make_engine(settings: Settings | None = None) -> AsyncEngine:
     settings = settings or get_settings()
+    ensure_sqlite_dir(settings.database_url)
     engine = create_async_engine(settings.database_url)
     if engine.dialect.name == "sqlite":
         event.listen(engine.sync_engine, "connect", _set_sqlite_pragmas)

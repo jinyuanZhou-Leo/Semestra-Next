@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 from httpx import AsyncClient
 from sqlalchemy import text
 
 from semestra.core.config import Settings
-from semestra.core.db import make_engine, new_id
+from semestra.core.db import ensure_sqlite_dir, make_engine, new_id
 
 
 async def test_healthz(client: AsyncClient) -> None:
@@ -56,3 +57,9 @@ def test_openapi_has_health_operations(settings: Settings) -> None:
 
 def test_now_is_aware() -> None:
     assert datetime.now(UTC).tzinfo is not None
+
+
+def test_ensure_sqlite_dir_creates_parent(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / "dir" / "x.db"
+    ensure_sqlite_dir(f"sqlite+aiosqlite:///{target}")
+    assert target.parent.is_dir()
