@@ -53,7 +53,7 @@ jobs:
           load: true
           tags: semestra-api:ci
           cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
+          cache-to: type=gha,scope=api,mode=max,ignore-error=true
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -62,7 +62,7 @@ jobs:
           load: true
           tags: semestra-allinone:ci
           cache-from: type=gha,scope=allinone
-          cache-to: type=gha,scope=allinone,mode=max
+          cache-to: type=gha,scope=allinone,mode=max,ignore-error=true
 
       - name: API image runs as a non-root user
         run: test "$(docker run --rm --entrypoint id semestra-api:ci -u)" = 10001

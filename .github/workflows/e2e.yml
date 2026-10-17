@@ -23,7 +23,7 @@ jobs:
           load: true
           tags: semestra-allinone:e2e
           cache-from: type=gha,scope=allinone
-          cache-to: type=gha,scope=allinone,mode=max
+          cache-to: type=gha,scope=allinone,mode=max,ignore-error=true
       - name: Start the container
         run: |
           docker run -d --name semestra -p 8000:8000 \

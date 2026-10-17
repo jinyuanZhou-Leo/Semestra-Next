@@ -63,7 +63,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max,ignore-error=true
 
   deploy:
     needs: images
