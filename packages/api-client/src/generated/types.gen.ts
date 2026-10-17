@@ -5,6 +5,108 @@ export type ClientOptions = {
 };
 
 /**
+ * AuthConfig
+ */
+export type AuthConfig = {
+    /**
+     * Google Client Id
+     */
+    google_client_id: string | null;
+};
+
+/**
+ * AuthResult
+ */
+export type AuthResult = {
+    /**
+     * Status
+     */
+    status: 'signed_in' | 'needs_profile';
+    user?: UserOut | null;
+    /**
+     * Registration Token
+     */
+    registration_token?: string | null;
+    tokens?: TokenPair | null;
+};
+
+/**
+ * Done
+ */
+export type Done = {
+    /**
+     * Ok
+     */
+    ok?: true;
+};
+
+/**
+ * EmailChangeConfirmInputBody
+ */
+export type EmailChangeConfirmInputBody = {
+    /**
+     * Code
+     *
+     * The 6-digit code sent to the new address
+     */
+    code: string;
+};
+
+/**
+ * EmailChangeStartInputBody
+ */
+export type EmailChangeStartInputBody = {
+    /**
+     * New Email
+     *
+     * The new email address; a code is sent to it
+     */
+    new_email: string;
+};
+
+/**
+ * EmailStartIn
+ */
+export type EmailStartIn = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Purpose
+     */
+    purpose?: 'continue' | 'reset_password';
+};
+
+/**
+ * EmailStartResult
+ */
+export type EmailStartResult = {
+    /**
+     * Resend In Seconds
+     */
+    resend_in_seconds: number;
+    /**
+     * Expires In Seconds
+     */
+    expires_in_seconds: number;
+};
+
+/**
+ * EmailVerifyIn
+ */
+export type EmailVerifyIn = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
  * ErrorBody
  */
 export type ErrorBody = {
@@ -32,6 +134,38 @@ export type ErrorResponse = {
 };
 
 /**
+ * GoogleLinkInputBody
+ */
+export type GoogleLinkInputBody = {
+    /**
+     * Id Token
+     *
+     * Google Identity Services ID token
+     */
+    id_token: string;
+};
+
+/**
+ * GoogleLoginIn
+ */
+export type GoogleLoginIn = {
+    /**
+     * Id Token
+     */
+    id_token: string;
+};
+
+/**
+ * HTTPValidationError
+ */
+export type HttpValidationError = {
+    /**
+     * Detail
+     */
+    detail?: Array<ValidationError>;
+};
+
+/**
  * Health
  */
 export type Health = {
@@ -39,6 +173,92 @@ export type Health = {
      * Status
      */
     status: 'ok';
+};
+
+/**
+ * IdentityOut
+ */
+export type IdentityOut = {
+    /**
+     * Provider
+     */
+    provider: 'google';
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * PasswordChangeInputBody
+ */
+export type PasswordChangeInputBody = {
+    /**
+     * Current Password
+     *
+     * Current password; omit when the account has none yet
+     */
+    current_password?: string | null;
+    /**
+     * New Password
+     *
+     * The new password
+     */
+    new_password: string;
+};
+
+/**
+ * PasswordLoginIn
+ */
+export type PasswordLoginIn = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Password
+     */
+    password: string;
+};
+
+/**
+ * PasswordResetIn
+ */
+export type PasswordResetIn = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * New Password
+     */
+    new_password: string;
+};
+
+/**
+ * ProfileUpdateInputBody
+ */
+export type ProfileUpdateInputBody = {
+    /**
+     * Display Name
+     *
+     * New display name
+     */
+    display_name?: string | null;
+    /**
+     * Avatar Url
+     *
+     * HTTPS URL of the avatar image; send null to fall back to initials
+     */
+    avatar_url?: string | null;
 };
 
 /**
@@ -53,6 +273,290 @@ export type Ready = {
      * Database
      */
     database: 'ok';
+};
+
+/**
+ * RefreshIn
+ */
+export type RefreshIn = {
+    /**
+     * Refresh Token
+     */
+    refresh_token: string;
+};
+
+/**
+ * RegisterCompleteIn
+ */
+export type RegisterCompleteIn = {
+    /**
+     * Registration Token
+     */
+    registration_token: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Password
+     */
+    password?: string | null;
+};
+
+/**
+ * Revoked
+ */
+export type Revoked = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
+ * SessionList
+ */
+export type SessionList = {
+    /**
+     * Items
+     */
+    items: Array<SessionOut>;
+};
+
+/**
+ * SessionOut
+ */
+export type SessionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'web' | 'native';
+    /**
+     * User Agent
+     */
+    user_agent: string | null;
+    /**
+     * Ip
+     */
+    ip: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Current
+     */
+    current: boolean;
+};
+
+/**
+ * TokenCreateInputBody
+ */
+export type TokenCreateInputBody = {
+    /**
+     * Name
+     *
+     * A label, e.g. the client name
+     */
+    name: string;
+    /**
+     * Scopes
+     *
+     * `read` allows read capabilities only; `write` also allows changes
+     */
+    scopes?: Array<'read' | 'write'>;
+    /**
+     * Expires In Days
+     *
+     * Lifetime in days; omit for no expiry
+     */
+    expires_in_days?: number | null;
+};
+
+/**
+ * TokenCreated
+ */
+export type TokenCreated = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<'read' | 'write'>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Token
+     *
+     * The plaintext token. Shown once, never stored.
+     */
+    token: string;
+};
+
+/**
+ * TokenList
+ */
+export type TokenList = {
+    /**
+     * Items
+     */
+    items: Array<TokenOut>;
+};
+
+/**
+ * TokenOut
+ */
+export type TokenOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<'read' | 'write'>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+};
+
+/**
+ * TokenPair
+ */
+export type TokenPair = {
+    /**
+     * Access Token
+     */
+    access_token: string;
+    /**
+     * Refresh Token
+     */
+    refresh_token: string;
+    /**
+     * Token Type
+     */
+    token_type?: 'Bearer';
+    /**
+     * Expires In
+     *
+     * Access token lifetime in seconds
+     */
+    expires_in: number;
+};
+
+/**
+ * UserOut
+ */
+export type UserOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Avatar Url
+     */
+    avatar_url: string | null;
+    /**
+     * Locale
+     */
+    locale: string | null;
+    /**
+     * Has Password
+     */
+    has_password: boolean;
+    /**
+     * Identities
+     */
+    identities: Array<IdentityOut>;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * ValidationError
+ */
+export type ValidationError = {
+    /**
+     * Location
+     */
+    loc: Array<string | number>;
+    /**
+     * Message
+     */
+    msg: string;
+    /**
+     * Error Type
+     */
+    type: string;
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
 export type HealthzData = {
@@ -95,3 +599,584 @@ export type ReadyzResponses = {
 };
 
 export type ReadyzResponse = ReadyzResponses[keyof ReadyzResponses];
+
+export type AuthConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/config';
+};
+
+export type AuthConfigResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthConfig;
+};
+
+export type AuthConfigResponse = AuthConfigResponses[keyof AuthConfigResponses];
+
+export type AuthEmailStartData = {
+    body: EmailStartIn;
+    path?: never;
+    query?: never;
+    url: '/auth/email/start';
+};
+
+export type AuthEmailStartErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthEmailStartError = AuthEmailStartErrors[keyof AuthEmailStartErrors];
+
+export type AuthEmailStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailStartResult;
+};
+
+export type AuthEmailStartResponse = AuthEmailStartResponses[keyof AuthEmailStartResponses];
+
+export type AuthEmailVerifyData = {
+    body: EmailVerifyIn;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/email/verify';
+};
+
+export type AuthEmailVerifyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthEmailVerifyError = AuthEmailVerifyErrors[keyof AuthEmailVerifyErrors];
+
+export type AuthEmailVerifyResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthEmailVerifyResponse = AuthEmailVerifyResponses[keyof AuthEmailVerifyResponses];
+
+export type AuthRegisterCompleteData = {
+    body: RegisterCompleteIn;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/register/complete';
+};
+
+export type AuthRegisterCompleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthRegisterCompleteError = AuthRegisterCompleteErrors[keyof AuthRegisterCompleteErrors];
+
+export type AuthRegisterCompleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthRegisterCompleteResponse = AuthRegisterCompleteResponses[keyof AuthRegisterCompleteResponses];
+
+export type AuthPasswordLoginData = {
+    body: PasswordLoginIn;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/password/login';
+};
+
+export type AuthPasswordLoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthPasswordLoginError = AuthPasswordLoginErrors[keyof AuthPasswordLoginErrors];
+
+export type AuthPasswordLoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthPasswordLoginResponse = AuthPasswordLoginResponses[keyof AuthPasswordLoginResponses];
+
+export type AuthPasswordResetData = {
+    body: PasswordResetIn;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/password/reset';
+};
+
+export type AuthPasswordResetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthPasswordResetError = AuthPasswordResetErrors[keyof AuthPasswordResetErrors];
+
+export type AuthPasswordResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthPasswordResetResponse = AuthPasswordResetResponses[keyof AuthPasswordResetResponses];
+
+export type AuthGoogleLoginData = {
+    body: GoogleLoginIn;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/google';
+};
+
+export type AuthGoogleLoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthGoogleLoginError = AuthGoogleLoginErrors[keyof AuthGoogleLoginErrors];
+
+export type AuthGoogleLoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthGoogleLoginResponse = AuthGoogleLoginResponses[keyof AuthGoogleLoginResponses];
+
+export type AuthTokenRefreshData = {
+    body: RefreshIn;
+    path?: never;
+    query?: never;
+    url: '/auth/token/refresh';
+};
+
+export type AuthTokenRefreshErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthTokenRefreshError = AuthTokenRefreshErrors[keyof AuthTokenRefreshErrors];
+
+export type AuthTokenRefreshResponses = {
+    /**
+     * Successful Response
+     */
+    200: TokenPair;
+};
+
+export type AuthTokenRefreshResponse = AuthTokenRefreshResponses[keyof AuthTokenRefreshResponses];
+
+export type AuthLogoutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/logout';
+};
+
+export type AuthLogoutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Done;
+};
+
+export type AuthLogoutResponse = AuthLogoutResponses[keyof AuthLogoutResponses];
+
+export type AccountEmailChangeConfirmData = {
+    body: EmailChangeConfirmInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/email/change-confirm';
+};
+
+export type AccountEmailChangeConfirmErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountEmailChangeConfirmError = AccountEmailChangeConfirmErrors[keyof AccountEmailChangeConfirmErrors];
+
+export type AccountEmailChangeConfirmResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountEmailChangeConfirmResponse = AccountEmailChangeConfirmResponses[keyof AccountEmailChangeConfirmResponses];
+
+export type AccountEmailChangeStartData = {
+    body: EmailChangeStartInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/email/change-start';
+};
+
+export type AccountEmailChangeStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountEmailChangeStartError = AccountEmailChangeStartErrors[keyof AccountEmailChangeStartErrors];
+
+export type AccountEmailChangeStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailStartResult;
+};
+
+export type AccountEmailChangeStartResponse = AccountEmailChangeStartResponses[keyof AccountEmailChangeStartResponses];
+
+export type AccountGoogleLinkData = {
+    body: GoogleLinkInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/google/link';
+};
+
+export type AccountGoogleLinkErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountGoogleLinkError = AccountGoogleLinkErrors[keyof AccountGoogleLinkErrors];
+
+export type AccountGoogleLinkResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountGoogleLinkResponse = AccountGoogleLinkResponses[keyof AccountGoogleLinkResponses];
+
+export type AccountGoogleUnlinkData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/google/unlink';
+};
+
+export type AccountGoogleUnlinkErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountGoogleUnlinkError = AccountGoogleUnlinkErrors[keyof AccountGoogleUnlinkErrors];
+
+export type AccountGoogleUnlinkResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountGoogleUnlinkResponse = AccountGoogleUnlinkResponses[keyof AccountGoogleUnlinkResponses];
+
+export type AccountMeGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/me';
+};
+
+export type AccountMeGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountMeGetError = AccountMeGetErrors[keyof AccountMeGetErrors];
+
+export type AccountMeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountMeGetResponse = AccountMeGetResponses[keyof AccountMeGetResponses];
+
+export type AccountPasswordChangeData = {
+    body: PasswordChangeInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/password/change';
+};
+
+export type AccountPasswordChangeErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasswordChangeError = AccountPasswordChangeErrors[keyof AccountPasswordChangeErrors];
+
+export type AccountPasswordChangeResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountPasswordChangeResponse = AccountPasswordChangeResponses[keyof AccountPasswordChangeResponses];
+
+export type AccountProfileUpdateData = {
+    body: ProfileUpdateInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/profile';
+};
+
+export type AccountProfileUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountProfileUpdateError = AccountProfileUpdateErrors[keyof AccountProfileUpdateErrors];
+
+export type AccountProfileUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountProfileUpdateResponse = AccountProfileUpdateResponses[keyof AccountProfileUpdateResponses];
+
+export type AccountSessionsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/sessions';
+};
+
+export type AccountSessionsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountSessionsListError = AccountSessionsListErrors[keyof AccountSessionsListErrors];
+
+export type AccountSessionsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionList;
+};
+
+export type AccountSessionsListResponse = AccountSessionsListResponses[keyof AccountSessionsListResponses];
+
+export type AccountSessionsRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         *
+         * Id of the session to sign out
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/account/sessions/{session_id}';
+};
+
+export type AccountSessionsRevokeErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountSessionsRevokeError = AccountSessionsRevokeErrors[keyof AccountSessionsRevokeErrors];
+
+export type AccountSessionsRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    200: Revoked;
+};
+
+export type AccountSessionsRevokeResponse = AccountSessionsRevokeResponses[keyof AccountSessionsRevokeResponses];
+
+export type AccountSessionsRevokeOthersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/sessions/revoke-others';
+};
+
+export type AccountSessionsRevokeOthersErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountSessionsRevokeOthersError = AccountSessionsRevokeOthersErrors[keyof AccountSessionsRevokeOthersErrors];
+
+export type AccountSessionsRevokeOthersResponses = {
+    /**
+     * Successful Response
+     */
+    200: Revoked;
+};
+
+export type AccountSessionsRevokeOthersResponse = AccountSessionsRevokeOthersResponses[keyof AccountSessionsRevokeOthersResponses];
+
+export type AccountTokensListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/tokens';
+};
+
+export type AccountTokensListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountTokensListError = AccountTokensListErrors[keyof AccountTokensListErrors];
+
+export type AccountTokensListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TokenList;
+};
+
+export type AccountTokensListResponse = AccountTokensListResponses[keyof AccountTokensListResponses];
+
+export type AccountTokensCreateData = {
+    body: TokenCreateInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/tokens';
+};
+
+export type AccountTokensCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountTokensCreateError = AccountTokensCreateErrors[keyof AccountTokensCreateErrors];
+
+export type AccountTokensCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TokenCreated;
+};
+
+export type AccountTokensCreateResponse = AccountTokensCreateResponses[keyof AccountTokensCreateResponses];
+
+export type AccountTokensRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Id of the token to revoke
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/account/tokens/{id}';
+};
+
+export type AccountTokensRevokeErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountTokensRevokeError = AccountTokensRevokeErrors[keyof AccountTokensRevokeErrors];
+
+export type AccountTokensRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    200: Revoked;
+};
+
+export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];

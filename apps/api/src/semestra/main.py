@@ -9,10 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from semestra.core.capability import mount_http
 from semestra.core.config import Settings, get_settings
-from semestra.core.db import make_engine, make_sessionmaker
+from semestra.core.db import make_engine, make_sessionmaker, utcnow
 from semestra.core.errors import ErrorResponse, install_error_handlers
 from semestra.core.logging import configure_logging
+from semestra.modules import register_all
 
 
 class Health(BaseModel):
@@ -39,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
+    app.state.now = utcnow  # tests replace this clock
 
     app.add_middleware(
         CORSMiddleware,
@@ -77,4 +80,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await session.execute(text("SELECT 1"))
         return Ready(status="ok", database="ok")
 
+    register_all(app)
+    mount_http(app)
     return app
