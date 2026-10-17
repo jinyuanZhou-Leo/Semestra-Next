@@ -47,6 +47,21 @@ docs/                设计稿与模块规格
 - 前端依赖精确版本锁定（`pnpm-workspace.yaml` 里 `savePrefix: ''`）。
 - 根目录 `oxlint` 不带路径会异常变慢，lint 脚本都显式指定目录。
 
+## 已知坑（别再踩）
+
+- **Python 版本**：见上，a7 不能用；`apps/api/.python-version` 是 `3.15`，uv 会选已安装的最新 3.15.x。装不上时先 `uv self update`。
+- **uvicorn**：不要写 `uvicorn[standard]`（会拉 PyYAML，没有 3.15 wheel，会退回源码编译并失败）。
+- **OpenAPI 生成器与 TS 7**：`@hey-api/openapi-ts` 在 TS 7 下直接崩（`Cannot read properties of undefined (reading 'AnyKeyword')`）。生成器依赖的 `typescript@6.0.3` 只放在 `packages/api-client`，不要升级或删除；也不要把它引入 `apps/web`。
+- **`@hey-api/client-fetch` 包已内置**，不要再单独安装这个依赖，配置里直接写插件名即可。
+- **改了后端接口后必须跑 `pnpm gen:api` 并提交生成结果**，否则 CI 的 contract 检查会失败。
+- **TanStack Router**：`src/routeTree.gen.ts` 要提交（`typecheck` 依赖它）；Paraglide 产物 `src/paraglide/` 不提交，`typecheck` 与 `test` 脚本会先 `pnpm i18n:compile`。
+- **shadcn CLI**：非交互运行必须 `CI=1 pnpm dlx shadcn@latest init ... </dev/null`，否则会无限挂起。它默认把组件放到 `src/components/ui`，本项目约定放 `src/ui`（`components.json` 的 `aliases.ui` 已设为 `@/ui`），新增后检查位置。shadcn 4.x 生成的组件从 `cn` 包导入 `cn`，这是正常的。
+- **Vitest 只跑 `src/**/*.test.{ts,tsx}`**（见 `vitest.config.ts`）；`e2e/` 下是 Playwright 用例，被 Vitest 收进去会报错。
+- **pnpm**：根 `package.json` 的 `packageManager` 字段会强制 pnpm 版本，升级 pnpm 要同步改它。依赖要精确版本，`pnpm add` 前确认 `pnpm-workspace.yaml` 里 `savePrefix: ''` 还在。
+- **Node 通过 nvm 管理**：切换 Node 版本不会带走全局包（`pnpm`、`@openai/codex` 等需要重装）；非交互 shell 的 PATH 可能仍指向旧版本。
+- **macOS 没有 `timeout` 命令**；长时间运行的命令用后台任务，不要用 `timeout N cmd`。
+- Alembic 的 `env.py` 里要手动 import 各模块的 models，否则 autogenerate 与 `alembic check` 看不到它们；新增模块时记得加。
+
 ## 已完成的模块
 
 - M00（环境部分）：monorepo、配置、数据库基础（PRAGMA、UUIDv7、UTC 类型、mixin）、统一错误信封、`/healthz` `/readyz`、Alembic、OpenAPI 生成链路、i18n 与 shadcn 骨架、lint/测试工具链。
