@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import subprocess
+import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -162,3 +164,24 @@ def test_sentry_scrub_drops_request_content_and_user() -> None:
     assert out["request"] == {"url": "https://x/y"}
     assert "user" not in out
     assert "exception" in out
+
+
+def test_settings_read_generated_secrets_file(tmp_path: Path) -> None:
+    """Processes started with `docker exec` skip the entrypoint but must still find the keys."""
+    (tmp_path / "secrets.env").write_text(
+        "SEMESTRA_SECRET_KEY=from-file\nSEMESTRA_ENCRYPTION_KEY=abc=\n"
+    )
+    env = {"PATH": os.environ["PATH"], "SEMESTRA_ENV": "prod", "SEMESTRA_DATA_DIR": str(tmp_path)}
+    code = (
+        "from semestra.core.config import Settings; s = Settings();"
+        "print(s.secret_key, s.encryption_key)"
+    )
+    out = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", code],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert out.stdout.split() == ["from-file", "abc="]
