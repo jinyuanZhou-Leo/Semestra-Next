@@ -1,0 +1,118 @@
+name: Deploy check
+# Everything under deploy/ must keep working: configs parse, scripts pass shellcheck, the images
+# build, start as a non-root user, migrate, and survive a restart without regenerating secrets.
+on:
+  push: { branches: [main] }
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: shellcheck
+        run: shellcheck deploy/docker/entrypoint.sh deploy/hosted/deploy.sh deploy/hosted/bootstrap-vm.sh
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+      - name: Compose files
+        run: |
+          cp deploy/hosted/.env.example deploy/hosted/.env
+          sed -i 's/^ACME_EMAIL=$/ACME_EMAIL=ci@example.com/' deploy/hosted/.env
+          docker compose --project-directory deploy/hosted -f deploy/hosted/docker-compose.yml --profile staging config -q
+          cp deploy/selfhost/.env.example deploy/selfhost/.env
+          docker compose --project-directory deploy/selfhost -f deploy/selfhost/docker-compose.yml config -q
+          docker compose --project-directory deploy/selfhost -f deploy/selfhost/docker-compose.yml \
+            --profile https --profile ai-local config -q
+      - name: Caddyfiles
+        run: |
+          cp deploy/hosted/conf.d/staging.caddy.example deploy/hosted/conf.d/staging.caddy
+          docker run --rm -e ACME_EMAIL=ci@example.com \
+            -v "$PWD/deploy/hosted/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$PWD/deploy/hosted/conf.d:/etc/caddy/conf.d:ro" \
+            caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker run --rm -e SEMESTRA_DOMAIN=semestra.example.com \
+            -v "$PWD/deploy/selfhost/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: JSON configs
+        run: |
+          jq empty apps/web/vercel.json deploy/hosted/gcs-lifecycle.json
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: api
+          load: true
+          tags: semestra-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: allinone
+          load: true
+          tags: semestra-allinone:ci
+          cache-from: type=gha,scope=allinone
+          cache-to: type=gha,scope=allinone,mode=max
+
+      - name: API image runs as a non-root user
+        run: test "$(docker run --rm --entrypoint id semestra-api:ci -u)" = 10001
+
+      - name: API image refuses to start in prod without keys
+        run: |
+          if docker run --rm semestra-api:ci 2>&1 | grep -q "must be set in prod"; then exit 0; fi
+          echo "::error::expected the prod settings validator to stop the container"
+          exit 1
+
+      - name: API image bootstraps secrets, migrates and serves
+        run: |
+          docker volume create semestra-ci-data
+          docker run -d --name api -p 8000:8000 -v semestra-ci-data:/data \
+            -e SEMESTRA_AUTO_SECRETS=true semestra-api:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/readyz; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8000/readyz
+          test "$(docker exec api stat -c '%a' /data/secrets.env)" = 600
+          before="$(docker exec api sha256sum /data/secrets.env)"
+          docker exec api semestra backup /data/backups --db-only
+          docker exec api sh -c 'ls /data/backups/db/semestra-*.sqlite'
+          docker restart api
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/readyz; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8000/readyz
+          test "$before" = "$(docker exec api sha256sum /data/secrets.env)"
+          docker rm -f api
+
+      - name: All-in-one image serves the web app from the same origin
+        run: |
+          docker run -d --name allinone -p 8001:8000 -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8001/healthz; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8001/healthz
+          curl -fsS -H 'Accept: text/html' http://localhost:8001/p/some/deep/link | grep -qi '<div id="root">'
+          asset="$(curl -fsS -H 'Accept: text/html' http://localhost:8001/ | grep -o '/assets/[^"]*\.js' | head -n 1)"
+          curl -fsSI "http://localhost:8001${asset}" | grep -i 'cache-control: .*immutable'
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' http://localhost:8001/definitely-missing)"
+          test "$code" = 404
+          docker rm -f allinone
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker logs api || true
+          docker logs allinone || true

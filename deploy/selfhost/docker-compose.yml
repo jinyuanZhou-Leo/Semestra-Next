@@ -1,0 +1,81 @@
+# Self-hosted Semestra: one container serves both the API and the web app.
+#
+#   docker compose up -d                      # http://localhost:8000
+#   docker compose --profile https up -d      # automatic HTTPS for your own domain (see README)
+#   docker compose --profile ai-local up -d   # plus a local Ollama for chat/embeddings
+#
+# Settings go in a .env file next to this one (copy .env.example). Everything has a default.
+name: semestra
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  semestra:
+    image: ghcr.io/jinyuanzhou-leo/semestra-allinone:${SEMESTRA_VERSION:-latest}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Secrets are generated on first start into /data/secrets.env. Back that file up.
+      SEMESTRA_AUTO_SECRETS: "true"
+      # Web and API share one origin, so no cookie domain or CORS setup is needed.
+      SEMESTRA_PUBLIC_WEB_ORIGIN: ${SEMESTRA_PUBLIC_URL:-http://localhost:8000}
+      SEMESTRA_PUBLIC_API_ORIGIN: ${SEMESTRA_PUBLIC_URL:-http://localhost:8000}
+      SEMESTRA_CORS_ORIGINS: '["${SEMESTRA_PUBLIC_URL:-http://localhost:8000}"]'
+      SEMESTRA_EMAIL_BACKEND: ${SEMESTRA_EMAIL_BACKEND:-console}
+      SEMESTRA_USER_STORAGE_QUOTA_BYTES: ${SEMESTRA_USER_STORAGE_QUOTA_BYTES:-0}
+      SEMESTRA_ALLOW_PRIVATE_EGRESS: ${SEMESTRA_ALLOW_PRIVATE_EGRESS:-true}
+      SEMESTRA_SINGLE_USER: ${SEMESTRA_SINGLE_USER:-false}
+      FORWARDED_ALLOW_IPS: "*"
+      # Local Ollama as the instance-wide AI provider (only meaningful with --profile ai-local).
+      SEMESTRA_INSTANCE_AI_KIND: ${SEMESTRA_INSTANCE_AI_KIND:-}
+      SEMESTRA_INSTANCE_AI_BASE_URL: ${SEMESTRA_INSTANCE_AI_BASE_URL:-}
+      SEMESTRA_INSTANCE_AI_CHAT_MODEL: ${SEMESTRA_INSTANCE_AI_CHAT_MODEL:-}
+      SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL: ${SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL:-}
+    volumes:
+      - semestra-data:/data
+      # Optional built-in daily backup: uncomment, `mkdir backups && sudo chown 10001 backups`,
+      # and set SEMESTRA_BACKUP_DIR=/backups in .env.
+      # - ./backups:/backups
+    ports:
+      - "${SEMESTRA_BIND:-0.0.0.0}:${SEMESTRA_PORT:-8000}:8000"
+    logging: *logging
+
+  caddy:
+    profiles: [https]
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SEMESTRA_DOMAIN: ${SEMESTRA_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      semestra:
+        condition: service_healthy
+    logging: *logging
+
+  ollama:
+    profiles: [ai-local]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    logging: *logging
+
+volumes:
+  semestra-data:
+  caddy_data:
+  caddy_config:
+  ollama:

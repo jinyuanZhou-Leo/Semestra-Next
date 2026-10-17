@@ -8,7 +8,7 @@
 2. 统一的模型调用接口：对话补全（含流式、工具调用）、**结构化输出**（直接得到 Pydantic 对象）、多模态输入（图片/PDF 页面）、embedding。
 3. 按用途（purpose）选择模型：`chat`（Agent 对话）、`extraction`（结构化抽取）、`vision`（OCR/读图）、`embedding`、`title`（短文本生成，如会话标题）。
 4. 用量记录：每次调用记录 token 与估算费用，为将来的付费 plan 预留；**付费 plan 只需在 `resolve_provider` 中增加分支**。
-5. 托管版暂只支持 BYOK；自部署可用环境变量配置"实例级默认提供方"（所有用户共享，例如本地 Ollama）。
+5. 托管版暂只支持 BYOK；自部署可用环境变量配置"实例级默认提供方"（所有用户共享，例如本地 Ollama）：`SEMESTRA_INSTANCE_AI_KIND`（如 `ollama`）、`SEMESTRA_INSTANCE_AI_BASE_URL`、`SEMESTRA_INSTANCE_AI_CHAT_MODEL`、`SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL`、`SEMESTRA_INSTANCE_AI_API_KEY`（可选）。变量名是 M15 自部署 compose（`ai-local` profile）约定的契约。
 
 ## 2. 支持的提供方
 | provider | 说明 | 能力 |

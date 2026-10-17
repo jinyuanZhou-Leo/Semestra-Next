@@ -1,0 +1,52 @@
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+# Usage: import api_site <upstream>
+(api_site) {
+	import security_headers
+
+	# 50 MB file quota per upload plus multipart overhead.
+	request_body {
+		max_size 60MB
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	# Server-sent events must not be buffered or compressed.
+	@sse path /events/stream
+	handle @sse {
+		reverse_proxy {args[0]} {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy {args[0]} {
+			health_uri /healthz
+			health_interval 30s
+		}
+	}
+}
+
+{$API_DOMAIN:api.semestra.jyleo.cc} {
+	import api_site api:8000
+}
+
+# Extra sites (e.g. staging.caddy, copied from staging.caddy.example) are dropped in here.
+import /etc/caddy/conf.d/*.caddy
