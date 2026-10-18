@@ -5,7 +5,8 @@ import { useUiPref } from '@/app/ui-pref'
 import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Sheet, SheetContent, SheetTitle } from '@/ui/sheet'
+import { AppSheetContent } from '@/components/AppSheetContent'
+import { Sheet, SheetTitle } from '@/ui/sheet'
 import { useProgram } from '../queries'
 import { useIsNarrow } from './media'
 import { Sidebar } from './Sidebar'
@@ -37,10 +38,10 @@ export function AppShell({ programId, children }: { programId: string; children:
           <span className="truncate font-heading text-sm font-semibold">{programName}</span>
         </header>
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <SheetContent side="left" closeLabel={m.common_close()} className="p-0">
+          <AppSheetContent side="left" className="p-0">
             <SheetTitle className="sr-only">{m.academics_sidebar_label()}</SheetTitle>
             <Sidebar programId={programId} drawer onNavigate={() => setDrawerOpen(false)} />
-          </SheetContent>
+          </AppSheetContent>
         </Sheet>
         <main className="min-w-0 flex-1">
           {PHONE_PAGE.test(pathname) ? (

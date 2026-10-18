@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { AppDialogContent } from '@/components/AppDialogContent'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TextField } from '@/components/TextField'
@@ -18,14 +19,7 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Card, CardContent } from '@/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Switch } from '@/ui/switch'
 import { CAPABILITY_TITLES, KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
@@ -52,7 +46,7 @@ function EditProviderDialog({
 }) {
   return (
     <Dialog open={provider !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.ai_provider_edit_title()}</DialogTitle>
           <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
@@ -60,7 +54,7 @@ function EditProviderDialog({
         {provider ? (
           <EditProviderForm key={provider.id} provider={provider} onDone={onClose} />
         ) : null}
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }
@@ -262,13 +256,13 @@ export function ProvidersSection() {
         </Button>
       </CardContent>
       <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent closeLabel={m.common_close()}>
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{m.ai_provider_add()}</DialogTitle>
             <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
           </DialogHeader>
           <ProviderForm onSaved={() => setAdding(false)} />
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
       <EditProviderDialog provider={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
