@@ -6,6 +6,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
 import { AddCourseDialog } from '../components/AddCourseDialog'
 import { coursePath } from '../paths'
@@ -28,24 +29,21 @@ export default function TermCoursesCard({ scope }: CardProps) {
             {m.academics_term_no_courses()}
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="sr-only">
-              <tr>
-                <th>{m.academics_course_code()}</th>
-                <th>{m.academics_course_title()}</th>
+          <Table>
+            <TableHeader className="sr-only">
+              <TableRow>
+                <TableHead>{m.academics_course_code()}</TableHead>
+                <TableHead>{m.academics_course_title()}</TableHead>
                 {extra.map((column) => (
-                  <th key={column.id}>{column.header()}</th>
+                  <TableHead key={column.id}>{column.header()}</TableHead>
                 ))}
-                <th>{m.academics_course_credits()}</th>
-              </tr>
-            </thead>
-            <tbody>
+                <TableHead>{m.academics_course_credits()}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(courses ?? []).map((course) => (
-                <tr
-                  key={course.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/50"
-                >
-                  <td className="py-2 pr-3 whitespace-nowrap">
+                <TableRow key={course.id}>
+                  <TableCell className="py-2 pr-3 pl-0">
                     <HistoryLink
                       href={coursePath(programId, course.id, undefined, termId)}
                       className="flex items-center gap-2 font-medium hover:underline"
@@ -63,22 +61,22 @@ export default function TermCoursesCard({ scope }: CardProps) {
                         />
                       ) : null}
                     </HistoryLink>
-                  </td>
-                  <td className="w-full max-w-0 truncate py-2 pr-3 text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="w-full max-w-0 truncate py-2 pr-3 pl-0 text-muted-foreground">
                     {course.code ? course.title : null}
-                  </td>
+                  </TableCell>
                   {extra.map((column) => (
-                    <td key={column.id} className="py-2 pr-3 whitespace-nowrap">
+                    <TableCell key={column.id} className="py-2 pr-3 pl-0">
                       {column.cell(course)}
-                    </td>
+                    </TableCell>
                   ))}
-                  <td className="py-2 text-right whitespace-nowrap text-muted-foreground tabular-nums">
+                  <TableCell className="px-0 py-2 text-right text-muted-foreground tabular-nums">
                     {formatCredits(course.credits)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </div>
       <div>

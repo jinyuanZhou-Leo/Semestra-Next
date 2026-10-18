@@ -2,11 +2,11 @@ import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { LoaderCircle } from 'lucide-react'
-import { ProgressBar } from '@/components/Progress'
 import { jobStageLabel } from '@/hooks/use-job'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Progress } from '@/ui/progress'
 import type { StatusItem, StatusItemContribution } from '../extensions'
 import { useStatusItems } from '../registry'
 
@@ -44,11 +44,14 @@ function StatusLine({ item }: { item: StatusItem }) {
         <span className="truncate">{item.label}</span>
       </span>
       {item.progress != null ? (
-        <ProgressBar
+        <Progress
           value={item.progress}
-          label={item.label}
-          tone={item.tone}
-          className="mt-1 h-0.5"
+          aria-label={item.label}
+          className={cn(
+            'mt-1 [&_[data-slot=progress-track]]:h-0.5',
+            item.tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+            item.tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+          )}
         />
       ) : null}
     </>

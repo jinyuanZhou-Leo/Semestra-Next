@@ -7,14 +7,15 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
-import { useState, type FormEvent } from 'react'
-import { TextField } from '@/components/TextField'
+import { useId, useState, type FormEvent } from 'react'
+import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { EmailField } from './EmailField'
-import { FormError } from './FormError'
 import { useCountdown } from './useCountdown'
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
@@ -24,6 +25,7 @@ type Props = { initialEmail?: string; onSignedIn: (user: UserOut) => void }
 /** Forgot password: email → code + new password → signed in (M01 §4.4). */
 export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
   const queryClient = useQueryClient()
+  const id = useId()
   const [email, setEmail] = useState(initialEmail)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [resendAt, setResendAt] = useState<number | null>(null)
@@ -83,7 +85,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
             error={emailError}
             ref={focusOnMount}
           />
-          <FormError error={start.error} />
+          <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {start.isPending ? m.auth_sending() : m.auth_reset_send()}
           </Button>
@@ -93,6 +95,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
     )
   }
 
+  const resetError = reset.error ?? start.error
   return (
     <form onSubmit={submitReset} noValidate>
       <div className="mb-6 space-y-1.5">
@@ -119,14 +122,19 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
             ))}
           </InputOTPGroup>
         </InputOTP>
-        <TextField
-          type="password"
-          autoComplete="new-password"
-          label={m.auth_reset_new_password_label()}
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-        />
-        <FormError error={reset.error ?? start.error} />
+        <Field>
+          <FieldLabel htmlFor={`${id}-new-password`}>
+            {m.auth_reset_new_password_label()}
+          </FieldLabel>
+          <Input
+            id={`${id}-new-password`}
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </Field>
+        <FieldError>{resetError ? errorMessage(resetError) : null}</FieldError>
         <Button
           type="submit"
           className="w-full"

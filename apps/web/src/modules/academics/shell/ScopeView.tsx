@@ -4,9 +4,9 @@ import type { Scope } from '@/app/extensions'
 import { ScopePage } from '@/app/host/ScopePage'
 import { SearchX } from 'lucide-react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { EmptyState } from '@/components/EmptyState'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { courseTermId, useCourse, useCourses, useProgram, useTerms } from '../queries'
 import { useCourseSwitchHotkey } from './hotkeys'
 import { ScopeHeader } from './ScopeHeader'
@@ -15,7 +15,16 @@ const OVERVIEW = 'overview'
 
 /** A term or course that does not exist (any more) or is not in this Program. */
 export function NotFound() {
-  return <EmptyState icon={SearchX} title={m.academics_not_found()} />
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <SearchX aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle>{m.academics_not_found()}</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
+  )
 }
 
 export function ProgramView({

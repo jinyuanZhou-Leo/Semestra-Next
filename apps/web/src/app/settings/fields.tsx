@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { m } from '@/paraglide/messages'
+import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { Switch } from '@/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { FieldDescriptor } from './schema'
 import { optionLabel } from './texts'
 
@@ -62,11 +63,9 @@ function NumberControl({ field, id, labelId, value, onChange }: ControlProps) {
           }
         }}
       />
-      {problem ? (
-        <p id={`${id}-error`} role="alert" className="text-xs text-destructive">
-          {problem}
-        </p>
-      ) : null}
+      <FieldError id={`${id}-error`} className="text-xs">
+        {problem}
+      </FieldError>
     </div>
   )
 }
@@ -85,15 +84,21 @@ export function FieldControlView(props: ControlProps) {
       )
     case 'segmented':
       return (
-        <SegmentedControl
+        <ToggleGroup
           aria-labelledby={labelId}
-          value={String(value)}
-          onValueChange={(next) => onChange(field.options.find((o) => String(o) === next))}
-          options={field.options.map((o) => ({
-            value: String(o),
-            label: optionLabel(namespace, field.key, o),
-          }))}
-        />
+          value={[String(value)]}
+          onValueChange={(next) => {
+            if (next[0]) onChange(field.options.find((o) => String(o) === next[0]))
+          }}
+          variant="outline"
+          size="sm"
+        >
+          {field.options.map((o) => (
+            <ToggleGroupItem key={String(o)} value={String(o)}>
+              {optionLabel(namespace, field.key, o)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       )
     case 'select':
       return (

@@ -5,7 +5,6 @@ import { useBlocker, useRouter } from '@tanstack/react-router'
 import { Check, Import, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
-import { TextField } from '@/components/TextField'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatCredits, formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -26,9 +25,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseLabel } from '../color'
 import { BreaksEditor, completeBreaks } from '../components/BreaksEditor'
 import { termPath } from '../paths'
@@ -121,6 +122,9 @@ export function TermWizard({
   const problems = basicsProblems(draft)
   const rowsInvalid = filledRows.some((row) => !row.title.trim() || creditsProblem(row.credits))
   const defaultCredits = program?.default_course_credits ?? 0.5
+  const startError = touched ? problems.start : null
+  const endError = touched ? problems.end : null
+  const nameError = touched ? problems.name : null
 
   const create = useMutation({
     ...academicsTermCreateMutation(),
@@ -263,30 +267,52 @@ export function TermWizard({
       {draft.step === 0 ? (
         <section className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label={m.academics_term_start()}
-              type="date"
-              value={draft.start}
-              onChange={(event) => setDates(event.target.value, draft.end)}
-              error={touched ? problems.start : null}
-            />
-            <TextField
-              label={m.academics_term_end()}
-              type="date"
-              min={draft.start || undefined}
-              value={draft.end}
-              onChange={(event) => setDates(draft.start, event.target.value)}
-              error={touched ? problems.end : null}
-            />
+            <Field data-invalid={startError ? true : undefined}>
+              <FieldLabel htmlFor={`${id}-start`}>{m.academics_term_start()}</FieldLabel>
+              <Input
+                id={`${id}-start`}
+                type="date"
+                aria-invalid={startError ? true : undefined}
+                aria-describedby={startError ? `${id}-start-error` : undefined}
+                value={draft.start}
+                onChange={(event) => setDates(event.target.value, draft.end)}
+              />
+              {startError ? <FieldError id={`${id}-start-error`}>{startError}</FieldError> : null}
+            </Field>
+            <Field data-invalid={endError ? true : undefined}>
+              <FieldLabel htmlFor={`${id}-end`}>{m.academics_term_end()}</FieldLabel>
+              <Input
+                id={`${id}-end`}
+                type="date"
+                min={draft.start || undefined}
+                aria-invalid={endError ? true : undefined}
+                aria-describedby={endError ? `${id}-end-error` : undefined}
+                value={draft.end}
+                onChange={(event) => setDates(draft.start, event.target.value)}
+              />
+              {endError ? <FieldError id={`${id}-end-error`}>{endError}</FieldError> : null}
+            </Field>
           </div>
-          <TextField
-            label={m.academics_term_name()}
-            placeholder={m.academics_term_name_placeholder()}
-            value={draft.name}
-            onChange={(event) => patch({ name: event.target.value, nameEdited: true })}
-            error={touched ? problems.name : null}
-            hint={draft.nameEdited ? null : m.academics_term_name_suggested()}
-          />
+          <Field data-invalid={nameError ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-name`}>{m.academics_term_name()}</FieldLabel>
+            <Input
+              id={`${id}-name`}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={
+                nameError ? `${id}-name-error` : draft.nameEdited ? undefined : `${id}-name-hint`
+              }
+              placeholder={m.academics_term_name_placeholder()}
+              value={draft.name}
+              onChange={(event) => patch({ name: event.target.value, nameEdited: true })}
+            />
+            {nameError ? (
+              <FieldError id={`${id}-name-error`}>{nameError}</FieldError>
+            ) : draft.nameEdited ? null : (
+              <FieldDescription id={`${id}-name-hint`}>
+                {m.academics_term_name_suggested()}
+              </FieldDescription>
+            )}
+          </Field>
           <div className="space-y-2">
             <Label>{m.academics_term_breaks()}</Label>
             <BreaksEditor
@@ -296,13 +322,16 @@ export function TermWizard({
               max={draft.end || undefined}
             />
           </div>
-          <label className="flex items-center gap-3 text-sm">
+          <Field orientation="horizontal">
             <Switch
+              id={`${id}-count-break-weeks`}
               checked={draft.countBreakWeeks}
               onCheckedChange={(on) => patch({ countBreakWeeks: on })}
             />
-            {m.academics_term_count_break_weeks()}
-          </label>
+            <FieldLabel htmlFor={`${id}-count-break-weeks`} className="font-normal">
+              {m.academics_term_count_break_weeks()}
+            </FieldLabel>
+          </Field>
         </section>
       ) : null}
 
@@ -347,8 +376,9 @@ export function TermWizard({
               </legend>
               <p className="text-xs text-muted-foreground">{m.academics_wizard_continue_hint()}</p>
               {candidates.map((course) => (
-                <label key={course.id} className="flex items-center gap-2 text-sm">
+                <Field key={course.id} orientation="horizontal">
                   <Checkbox
+                    id={`${id}-continue-${course.id}`}
                     checked={!draft.skipContinue.includes(course.id)}
                     onCheckedChange={(on) =>
                       patch({
@@ -358,43 +388,45 @@ export function TermWizard({
                       })
                     }
                   />
-                  <span className="font-medium">{courseLabel(course)}</span>
-                  {course.code ? (
-                    <span className="text-muted-foreground">{course.title}</span>
-                  ) : null}
-                </label>
+                  <FieldLabel htmlFor={`${id}-continue-${course.id}`} className="font-normal">
+                    <span className="font-medium">{courseLabel(course)}</span>
+                    {course.code ? (
+                      <span className="text-muted-foreground">{course.title}</span>
+                    ) : null}
+                  </FieldLabel>
+                </Field>
               ))}
             </fieldset>
           ) : null}
 
           <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
                     {m.academics_course_code()}
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
+                  </TableHead>
+                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
                     {m.academics_course_title()}
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
+                  </TableHead>
+                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
                     {m.academics_course_credits()}
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
+                  </TableHead>
+                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
                     {m.academics_course_year_long_short()}
-                  </th>
-                  <th scope="col" className="w-10 px-3 py-2">
+                  </TableHead>
+                  <TableHead scope="col" className="h-auto w-10 py-2">
                     <span className="sr-only">{m.common_remove()}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {draft.rows.map((row, index) => {
                   const titleMissing = touched && !rowIsEmpty(row) && !row.title.trim()
                   const creditsBad = touched && creditsProblem(row.credits)
                   return (
-                    <tr key={row.key} className="border-t border-border">
-                      <td className="px-2 py-1.5">
+                    <TableRow key={row.key} className="hover:bg-transparent">
+                      <TableCell className="px-2 py-1.5">
                         <Input
                           aria-label={m.academics_wizard_row_code({ row: index + 1 })}
                           placeholder="APS105H1"
@@ -402,16 +434,16 @@ export function TermWizard({
                           value={row.code}
                           onChange={(event) => updateRow(row.key, { code: event.target.value })}
                         />
-                      </td>
-                      <td className="px-2 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5">
                         <Input
                           aria-label={m.academics_wizard_row_title({ row: index + 1 })}
                           aria-invalid={titleMissing || undefined}
                           value={row.title}
                           onChange={(event) => updateRow(row.key, { title: event.target.value })}
                         />
-                      </td>
-                      <td className="px-2 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5">
                         <Input
                           type="number"
                           inputMode="decimal"
@@ -424,15 +456,15 @@ export function TermWizard({
                           value={row.credits}
                           onChange={(event) => updateRow(row.key, { credits: event.target.value })}
                         />
-                      </td>
-                      <td className="px-3 py-1.5">
+                      </TableCell>
+                      <TableCell className="py-1.5">
                         <Checkbox
                           aria-label={m.academics_wizard_row_year_long({ row: index + 1 })}
                           checked={row.yearLong}
                           onCheckedChange={(on) => updateRow(row.key, { yearLong: on })}
                         />
-                      </td>
-                      <td className="px-2 py-1.5">
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5">
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -443,12 +475,12 @@ export function TermWizard({
                         >
                           <Trash2 aria-hidden />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="border-t border-border p-2">
               <Button variant="ghost" size="sm" onClick={addRow}>
                 <Plus aria-hidden />
@@ -456,11 +488,9 @@ export function TermWizard({
               </Button>
             </div>
           </div>
-          {touched && rowsInvalid ? (
-            <p role="alert" className="text-sm text-destructive">
-              {m.academics_wizard_rows_invalid()}
-            </p>
-          ) : null}
+          <FieldError>
+            {touched && rowsInvalid ? m.academics_wizard_rows_invalid() : null}
+          </FieldError>
         </section>
       ) : null}
 
@@ -496,11 +526,7 @@ export function TermWizard({
           {continueIds.length > 0 ? (
             <p>{m.academics_wizard_summary_continued({ count: continueIds.length })}</p>
           ) : null}
-          {create.error ? (
-            <p role="alert" className="text-destructive">
-              {errorMessage(create.error)}
-            </p>
-          ) : null}
+          <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
         </section>
       ) : null}
 
