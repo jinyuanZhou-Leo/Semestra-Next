@@ -38,8 +38,18 @@
 
 1. **GCP**：创建项目与计费、VM、数据盘、静态 IP、服务账号、备份 bucket → [`hosted/GCP-SETUP.md`](hosted/GCP-SETUP.md)
 2. **DNS**：`api.semestra.jyleo.cc` 的 A 记录指向 VM 静态 IP；`semestra.jyleo.cc` 按 Vercel 提示配置。
-3. **生成并保管密钥**：`SEMESTRA_SECRET_KEY`、`SEMESTRA_ENCRYPTION_KEY`，**ENCRYPTION_KEY 要离线备份**（丢失后用户保存的 AI/Canvas 密钥无法解密）。
-4. **VM 上的 `.env`**：按 [`hosted/.env.example`](hosted/.env.example) 填写（Resend、Google Client ID、Sentry DSN 等第三方账户也要你自己注册）。
+3. **密钥**：可以直接沿用老项目的值（对应关系见下表），不需要重新注册第三方账户；**ENCRYPTION_KEY 要离线备份**（丢失后用户保存的 AI/Canvas 密钥无法解密）。
+4. **VM 上的 `.env`**：按 [`hosted/.env.example`](hosted/.env.example) 填写，把老项目的值填进去（值只放在 VM 的 `.env` 里，不要贴进聊天或提交到仓库）。
+
+   | 老项目（`backend/.env`） | 新项目 | 说明 |
+   |---|---|---|
+   | `JWT_SECRET_KEY` | `SEMESTRA_SECRET_KEY` | 直接沿用即可；老会话本来就不会迁移 |
+   | `LMS_CREDENTIALS_ENCRYPTION_KEY` | `SEMESTRA_ENCRYPTION_KEY` | 老的是 base64 的 32 字节 AES 密钥，格式恰好也是合法的 Fernet 密钥，可以直接用；老数据不会迁移，所以沿用只是省事，不是必须。没有的话用 `deploy/.env.example` 里的命令生成 |
+   | `RESEND_API_KEY` | `SEMESTRA_RESEND_API_KEY` | 同一个 Resend 账户和已验证的发信域名 |
+   | `AUTH_EMAIL_FROM` | `SEMESTRA_EMAIL_FROM` | 发信域名要和 Resend 里已验证的一致 |
+   | `GOOGLE_CLIENT_ID` | `SEMESTRA_GOOGLE_CLIENT_ID`（后端）和 `VITE_GOOGLE_CLIENT_ID`（Vercel） | 还要到 Google Cloud 控制台，在这个 OAuth 客户端的"已获授权的 JavaScript 来源"里加上 `https://semestra.jyleo.cc` |
+   | `AUTH_EMAIL_CODE_SECRET`、`AUTH_RATE_LIMIT_KEY_SECRET` | 暂无 | 由 M01 实现时定义新变量名，到时再补进 `.env.example`；值同样可以沿用 |
+   | `DATABASE_URL`、`FRONTEND_URL`、`ALLOWED_HOSTS` 等 | 不用带 | 新项目由 compose 和 `SEMESTRA_PUBLIC_*` 决定 |
 5. **GitHub**：创建 Environment `production`（勾选 Required reviewers），配置 secrets：`DEPLOY_HOST`、`DEPLOY_USER`（`deploy`）、`DEPLOY_SSH_KEY`、`DEPLOY_SSH_KNOWN_HOSTS`；GHCR 镜像若为私有，VM 需要 `docker login ghcr.io`（`read:packages` token）。
 6. **Vercel**：导入仓库、Root Directory 设为 `apps/web`、环境变量与域名 → [`hosted/VERCEL.md`](hosted/VERCEL.md)
 7. **监控**：UptimeRobot（或 GCP Uptime Check）监控 `https://api.semestra.jyleo.cc/healthz` 与 `https://semestra.jyleo.cc`。
