@@ -19,7 +19,6 @@ import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { EmptyState } from '@/components/EmptyState'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
@@ -33,9 +32,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
 import { coursePath, programPath } from '../paths'
 import { invalidateAcademics, useCourses, useProgram, useTerms } from '../queries'
@@ -80,7 +81,16 @@ export function AllCoursesPage({ programId }: { programId: string }) {
       <AsyncBoundary
         query={courses}
         isEmpty={(page) => page.items.length === 0}
-        empty={<EmptyState icon={BookOpen} title={m.academics_courses_empty()} />}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <BookOpen aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        }
       >
         {(page) => <CoursesTable programId={programId} courses={page.items} />}
       </AsyncBoundary>
@@ -336,15 +346,15 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
       ) : null}
 
       <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left">
+        <Table>
+          <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((group) => (
-              <tr key={group.id}>
+              <TableRow key={group.id} className="hover:bg-transparent">
                 {group.headers.map((h) => {
                   const sorted = h.column.getIsSorted()
                   const canSort = h.column.getCanSort()
                   return (
-                    <th
+                    <TableHead
                       key={h.id}
                       scope="col"
                       aria-sort={
@@ -355,7 +365,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                             : undefined
                       }
                       className={cn(
-                        'px-3 py-2 font-medium whitespace-nowrap text-muted-foreground',
+                        'h-auto py-2 text-muted-foreground',
                         h.column.id === 'select' && 'w-10',
                       )}
                     >
@@ -375,34 +385,34 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                       ) : (
                         <table.FlexRender header={h} />
                       )}
-                    </th>
+                    </TableHead>
                   )
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </thead>
-          <tbody>
+          </TableHeader>
+          <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <tr
+              <TableRow
                 key={row.id}
                 onClick={(event) => {
                   if ((event.target as HTMLElement).closest('button,a,input,[role=checkbox]'))
                     return
                   router.history.push(coursePath(programId, row.original.id))
                 }}
-                className="cursor-pointer border-t border-border hover:bg-muted/40"
+                className="cursor-pointer"
               >
                 {row.getAllCells().map((cell) => (
                   // The row's click is a mouse shortcut; the title link is the accessible way in.
                   // oxlint-disable-next-line jsx-a11y/control-has-associated-label
-                  <td key={cell.id} className="px-3 py-2">
+                  <TableCell key={cell.id} className="py-2 whitespace-normal">
                     <table.FlexRender cell={cell} />
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
         {visible.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {m.academics_courses_no_match()}

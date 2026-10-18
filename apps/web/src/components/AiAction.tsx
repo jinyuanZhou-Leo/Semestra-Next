@@ -1,10 +1,12 @@
-import { Check, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
+import { Check, RotateCcw, Sparkles, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { ProgressBar, ProgressRing } from './Progress'
+import { Progress } from '@/ui/progress'
+import { Spinner } from '@/ui/spinner'
+import { ProgressRing } from './Progress'
 
 export type AiActionState = 'idle' | 'running' | 'success' | 'error'
 export type AiActionVariant = 'integrated' | 'anchored' | 'radial'
@@ -77,16 +79,11 @@ export function AiAction({
   // Screen readers get the real value; the smoothed one is only visual.
   const statusText = running && hasProgress ? `${text}, ${Math.round(progress)}%` : text
   const clickable = !disabled && (shown === 'idle' || shown === 'error') && onClick != null
-  const Icon = { idle: Sparkles, running: LoaderCircle, success: Check, error: RotateCcw }[shown]
-  const icon = (
-    <Icon
-      aria-hidden="true"
-      className={cn(
-        'size-4',
-        running && 'motion-safe:animate-spin',
-        shown === 'success' && 'text-success',
-      )}
-    />
+  const Icon = shown === 'success' ? Check : shown === 'error' ? RotateCcw : Sparkles
+  const icon = running ? (
+    <Spinner aria-hidden className="motion-reduce:animate-none" />
+  ) : (
+    <Icon aria-hidden="true" className={cn('size-4', shown === 'success' && 'text-success')} />
   )
   // Re-key by the text without numbers so counts like 3/12 don't re-run the fade.
   const labelNode = (
@@ -138,11 +135,13 @@ export function AiAction({
           {labelNode}
           {percentNode}
         </Button>
-        <ProgressBar
+        <Progress
           value={shown === 'success' ? 100 : running ? displayed : 0}
-          tone={shown === 'success' ? 'success' : 'default'}
-          label={statusText}
-          className="rounded-none"
+          aria-label={statusText}
+          className={cn(
+            '[&_[data-slot=progress-track]]:h-1 [&_[data-slot=progress-track]]:rounded-none',
+            shown === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+          )}
         />
       </div>
     ) : (

@@ -5,17 +5,25 @@ import {
   accountSessionsRevokeOthersMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { deviceLabel } from '@/lib/device'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { useAuth } from '../useAuth'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Separator } from '@/ui/separator'
-import { FormError } from '../components/FormError'
+import { FieldError } from '@/ui/field'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { SettingsCard } from './SettingsCard'
 
 type Target = { kind: 'one'; id: string } | { kind: 'others' }
@@ -50,21 +58,21 @@ export function SessionsSection() {
         <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
       ) : sessions.isError ? (
         <div className="space-y-2">
-          <FormError error={sessions.error} />
+          <FieldError>{errorMessage(sessions.error)}</FieldError>
           <Button variant="outline" size="sm" onClick={() => void sessions.refetch()}>
             {m.common_retry()}
           </Button>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ItemGroup className="gap-0">
           {items.map((s, i) => {
             const device = deviceLabel(s.user_agent) ?? m.auth_account_sessions_unknown_device()
             return (
-              <li key={s.id}>
-                {i > 0 ? <Separator className="mb-3" /> : null}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-sm font-medium">
+              <Fragment key={s.id}>
+                {i > 0 ? <ItemSeparator /> : null}
+                <Item className="px-0">
+                  <ItemContent className="min-w-0">
+                    <ItemTitle>
                       <span className="truncate">{device}</span>
                       <Badge variant="secondary">
                         {s.kind === 'native'
@@ -72,8 +80,8 @@ export function SessionsSection() {
                           : m.auth_account_sessions_web()}
                       </Badge>
                       {s.current ? <Badge>{m.common_current()}</Badge> : null}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
+                    </ItemTitle>
+                    <ItemDescription>
                       {[
                         s.ip,
                         m.auth_account_sessions_last_active({
@@ -82,25 +90,27 @@ export function SessionsSection() {
                       ]
                         .filter(Boolean)
                         .join(' · ')}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={m.auth_account_sessions_revoke_aria({ device })}
-                    // Revoking the session we are using is a sign-out: it must clear the cookies
-                    // and leave the page instead of refetching into a 401.
-                    onClick={() =>
-                      s.current ? void signOut() : setTarget({ kind: 'one', id: s.id })
-                    }
-                  >
-                    {s.current ? m.auth_account_signout() : m.auth_account_sessions_revoke()}
-                  </Button>
-                </div>
-              </li>
+                    </ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={m.auth_account_sessions_revoke_aria({ device })}
+                      // Revoking the session we are using is a sign-out: it must clear the cookies
+                      // and leave the page instead of refetching into a 401.
+                      onClick={() =>
+                        s.current ? void signOut() : setTarget({ kind: 'one', id: s.id })
+                      }
+                    >
+                      {s.current ? m.auth_account_signout() : m.auth_account_sessions_revoke()}
+                    </Button>
+                  </ItemActions>
+                </Item>
+              </Fragment>
             )
           })}
-        </ul>
+        </ItemGroup>
       )}
       {hasOthers ? (
         <Button variant="destructive" size="sm" onClick={() => setTarget({ kind: 'others' })}>

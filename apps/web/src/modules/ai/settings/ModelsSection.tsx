@@ -7,7 +7,7 @@ import {
   aiStatusOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent } from 'react'
+import { Fragment, useId, useState, type FormEvent } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { toastError } from '@/lib/errors'
@@ -15,6 +15,15 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Card, CardContent } from '@/ui/card'
 import { Input } from '@/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { PURPOSE_HINTS, PURPOSE_TITLES, canServe } from '../labels'
 import { invalidateAi } from '../queries'
@@ -168,15 +177,13 @@ function PurposeRow({
   }
 
   return (
-    <li className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <p id={labelId} className="text-sm font-medium">
-          {PURPOSE_TITLES[purpose]()}
-        </p>
-        <p className="text-xs text-muted-foreground">{PURPOSE_HINTS[purpose]()}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{statusLine(status)}</p>
-      </div>
-      <div className="flex flex-col gap-2 sm:items-end">
+    <Item>
+      <ItemContent className="min-w-0 basis-64">
+        <ItemTitle id={labelId}>{PURPOSE_TITLES[purpose]()}</ItemTitle>
+        <ItemDescription>{PURPOSE_HINTS[purpose]()}</ItemDescription>
+        <ItemDescription>{statusLine(status)}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="w-full flex-col items-stretch sm:w-auto sm:items-end">
         <Select
           value={providerId ?? RECOMMENDED}
           items={providerItems}
@@ -207,8 +214,8 @@ function PurposeRow({
             onPick={(model) => update.mutate({ body: { purpose, provider_id: providerId, model } })}
           />
         ) : null}
-      </div>
-    </li>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -224,16 +231,18 @@ export function ModelsSection() {
         <p className="text-sm text-muted-foreground">{m.ai_models_intro()}</p>
         <AsyncBoundary query={assignments}>
           {(data) => (
-            <ul className="divide-y divide-border rounded-2xl border border-border">
-              {data.items.map((assignment) => (
-                <PurposeRow
-                  key={assignment.purpose}
-                  assignment={assignment}
-                  providers={providers.data?.items ?? []}
-                  status={status.data?.items.find((s) => s.purpose === assignment.purpose)}
-                />
+            <ItemGroup className="gap-0 rounded-2xl border">
+              {data.items.map((assignment, index) => (
+                <Fragment key={assignment.purpose}>
+                  {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                  <PurposeRow
+                    assignment={assignment}
+                    providers={providers.data?.items ?? []}
+                    status={status.data?.items.find((s) => s.purpose === assignment.purpose)}
+                  />
+                </Fragment>
               ))}
-            </ul>
+            </ItemGroup>
           )}
         </AsyncBoundary>
       </CardContent>
