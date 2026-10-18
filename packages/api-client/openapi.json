@@ -2338,25 +2338,102 @@
         }
       }
     },
-    "/habit/instances/{instance_id}/checkins/toggle": {
-      "post": {
+    "/layouts/boards/{scope_type}/{scope_id}": {
+      "get": {
         "tags": [
-          "habit"
+          "layouts"
         ],
-        "summary": "Check or uncheck a habit for a day (today or the past 7 days).",
-        "description": "Use when the user says they did a habit (\"check in my reading habit\"). Find the\ninstance_id with layouts.board.get (the habit card of the course, term, Program or today board).\nCalling it on a day that is already checked removes the check-in, so read habit.checkins.list\nfirst when the user only wants it checked. Days older than 7 days or in the future are refused.",
-        "operationId": "habitCheckinToggle",
+        "summary": "Get the cards on a Program, term or course overview, or on the Today page.",
+        "description": "Use to find card instances (their instance_id and settings), e.g. which\nsticky notes or habit trackers a course has, before calling a card-specific tool.",
+        "operationId": "layoutsBoardGet",
         "parameters": [
           {
-            "name": "instance_id",
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "program, term or course overview; 'today' is the Program's Today page",
+              "title": "Scope Type"
+            },
+            "description": "program, term or course overview; 'today' is the Program's Today page"
+          },
+          {
+            "name": "scope_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Habit card instance id",
-              "title": "Instance Id"
+              "description": "Program, term or course id; for 'today' the Program id",
+              "title": "Scope Id"
             },
-            "description": "Habit card instance id"
+            "description": "Program, term or course id; for 'today' the Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Board"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Replace the card layout of a board (positions, sizes, added and removed cards).",
+        "description": "Cards left out of the list are deleted together with their data.",
+        "operationId": "layoutsBoardUpdate",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Board scope type",
+              "title": "Scope Type"
+            },
+            "description": "Board scope type"
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Board scope id",
+              "title": "Scope Id"
+            },
+            "description": "Board scope id"
           }
         ],
         "requestBody": {
@@ -2364,7 +2441,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CheckinToggleInputBody"
+                "$ref": "#/components/schemas/BoardUpdateInputBody"
               }
             }
           }
@@ -2375,7 +2452,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CheckinToggleResult"
+                  "$ref": "#/components/schemas/Board"
                 }
               }
             }
@@ -2393,137 +2470,53 @@
         }
       }
     },
-    "/habit/instances/{instance_id}/checkins": {
-      "get": {
-        "tags": [
-          "habit"
-        ],
-        "summary": "List the checked days of a habit within a date range.",
-        "description": "Use to see which days a habit was done. The range is at most 400 days and in the\nProgram's time zone.",
-        "operationId": "habitCheckinsList",
-        "parameters": [
-          {
-            "name": "instance_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Habit card instance id",
-              "title": "Instance Id"
-            },
-            "description": "Habit card instance id"
-          },
-          {
-            "name": "from_date",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date",
-              "description": "First day to list (inclusive)",
-              "title": "From Date"
-            },
-            "description": "First day to list (inclusive)"
-          },
-          {
-            "name": "to_date",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date",
-              "description": "Last day to list (inclusive)",
-              "title": "To Date"
-            },
-            "description": "Last day to list (inclusive)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CheckinList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/habit/instances/{instance_id}/stats": {
-      "get": {
-        "tags": [
-          "habit"
-        ],
-        "summary": "Current streak, longest streak and total check-ins of a habit.",
-        "description": "Use to answer how long the user's streak is or how often they did a habit. For a\nweekly goal the streaks count weeks that reached the weekly target; a streak stays alive while\nthe running day (or week) is still open. Also returns today's date in the Program's time zone.",
-        "operationId": "habitStats",
-        "parameters": [
-          {
-            "name": "instance_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Habit card instance id",
-              "title": "Instance Id"
-            },
-            "description": "Habit card instance id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HabitStats"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/pomodoro/sessions": {
+    "/layouts/boards/{scope_type}/{scope_id}/cards": {
       "post": {
         "tags": [
-          "pomodoro"
+          "layouts"
         ],
-        "summary": "Record a finished pomodoro focus session.",
-        "description": "Called by the pomodoro card when a focus session completes. Do not use it to\nlog time the user only mentions in chat: sessions come from the timer.",
-        "operationId": "pomodoroSessionRecord",
+        "summary": "Add a card to a board, e.g. a sticky note to a course overview.",
+        "description": "Use when the user asks to put a card (sticky note, pomodoro timer, habit\ntracker, ...) on an overview or the Today page. The card goes to the first free spot. Check\nwith plugins.catalog.list that its plugin is installed.",
+        "operationId": "layoutsCardAdd",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "program, term or course overview; 'today' is the Program's Today page",
+              "title": "Scope Type"
+            },
+            "description": "program, term or course overview; 'today' is the Program's Today page"
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program, term or course id; for 'today' the Program id",
+              "title": "Scope Id"
+            },
+            "description": "Program, term or course id; for 'today' the Program id"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SessionRecordInputBody"
+                "$ref": "#/components/schemas/CardAddInputBody"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2531,7 +2524,451 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionRecorded"
+                  "$ref": "#/components/schemas/BoardCard"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/cards/{instance_id}": {
+      "delete": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Remove a card from its board, deleting its data.",
+        "description": "Use when the user asks to remove a card. Find its instance_id with\nlayouts.board.get.",
+        "operationId": "layoutsCardRemove",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id (from layouts.board.get)",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id (from layouts.board.get)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Removed"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/cards/{instance_id}/settings": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the settings of a card instance.",
+        "description": "layouts.board.get already includes every card's settings.",
+        "operationId": "layoutsCardSettingsGet",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id (from layouts.board.get)",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id (from layouts.board.get)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Replace the settings of a card instance.",
+        "description": "The settings are validated against the card's schema.",
+        "operationId": "layoutsCardSettingsUpdate",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardSettingsUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/nav/{scope_type}": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the order and hidden pages of the tab bar of a scope type.",
+        "description": "Applies to every Program, every term or every course alike.",
+        "operationId": "layoutsNavGet",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Scope type whose tab bar to read",
+              "title": "Scope Type"
+            },
+            "description": "Scope type whose tab bar to read"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Nav"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Set the order and hidden pages of the tab bar of a scope type.",
+        "description": "Applies to every Program, every term or every course alike.",
+        "operationId": "layoutsNavUpdate",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Scope type whose tab bar to change",
+              "title": "Scope Type"
+            },
+            "description": "Scope type whose tab bar to change"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NavUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Nav"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/templates/{scope_type}": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the default card layout new boards of a scope type start from.",
+        "description": "Either the user's own default or the built-in one.",
+        "operationId": "layoutsTemplateGet",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the default layout",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the default layout"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Go back to the built-in default layout of a scope type.",
+        "description": "Boards that were never changed follow it at once.",
+        "operationId": "layoutsTemplateReset",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the default layout",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the default layout"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/templates/{scope_type}:from-board": {
+      "post": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Make a board's layout the default for its scope type.",
+        "description": "Boards that were never changed follow it at once; changed boards keep theirs.",
+        "operationId": "layoutsTemplateSaveFromBoard",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the board and template",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the board and template"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateFromBoardInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/plugins/catalog": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "List the app's modules and plugins, and which plugins the user has installed.",
+        "description": "Use to check whether a plugin (e.g. pomodoro, habit tracker, sticky notes) is\ninstalled before suggesting its cards, or to tell the user what plugins exist. Core modules are\nalways installed.",
+        "operationId": "pluginsCatalogList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginCatalog"
                 }
               }
             }
@@ -2549,88 +2986,25 @@
         }
       }
     },
-    "/pomodoro/stats": {
-      "get": {
+    "/plugins/{plugin_id}/installation": {
+      "put": {
         "tags": [
-          "pomodoro"
+          "plugins"
         ],
-        "summary": "Focus time per day and per course from the pomodoro timer.",
-        "description": "Use to answer how long the user focused, e.g. \"how long did I study APS105 this\nweek\". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the\nlast 7 days. Days follow the Program's time zone.",
-        "operationId": "pomodoroStats",
+        "summary": "Install a plugin for the user's account.",
+        "description": "Installing an already installed plugin does nothing.",
+        "operationId": "pluginsInstall",
         "parameters": [
           {
-            "name": "from_date",
-            "in": "query",
-            "required": false,
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "First day (inclusive); defaults to 6 days before to_date",
-              "title": "From Date"
+              "type": "string",
+              "description": "Plugin id, e.g. 'pomodoro'",
+              "title": "Plugin Id"
             },
-            "description": "First day (inclusive); defaults to 6 days before to_date"
-          },
-          {
-            "name": "to_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Last day (inclusive); defaults to today",
-              "title": "To Date"
-            },
-            "description": "Last day (inclusive); defaults to today"
-          },
-          {
-            "name": "course_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only count focus time spent on this course",
-              "title": "Course Id"
-            },
-            "description": "Only count focus time spent on this course"
-          },
-          {
-            "name": "program_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Program whose time zone defines the days; defaults to the active Program",
-              "title": "Program Id"
-            },
-            "description": "Program whose time zone defines the days; defaults to the active Program"
+            "description": "Plugin id, e.g. 'pomodoro'"
           }
         ],
         "responses": {
@@ -2639,7 +3013,62 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PomodoroStats"
+                  "$ref": "#/components/schemas/PluginOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Uninstall a plugin; optionally delete its data.",
+        "description": "Hides the plugin's pages, cards and features. Without purge_data its data is\nkept and comes back on reinstall.",
+        "operationId": "pluginsUninstall",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Plugin id, e.g. 'pomodoro'",
+              "title": "Plugin Id"
+            },
+            "description": "Plugin id, e.g. 'pomodoro'"
+          },
+          {
+            "name": "purge_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also delete the plugin's data (cards, settings, records); cannot be undone",
+              "default": false,
+              "title": "Purge Data"
+            },
+            "description": "Also delete the plugin's data (cards, settings, records); cannot be undone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginOut"
                 }
               }
             }
@@ -3083,122 +3512,6 @@
           }
         }
       }
-    },
-    "/sticky/notes": {
-      "get": {
-        "tags": [
-          "sticky"
-        ],
-        "summary": "List the sticky notes on a Program, term or course board.",
-        "description": "Use to find a note before reading or changing it (\"what is in my note for this\ncourse\"). Returns each note's instance_id and Markdown text.",
-        "operationId": "stickyNoteList",
-        "parameters": [
-          {
-            "name": "scope_type",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "enum": [
-                "program",
-                "term",
-                "course"
-              ],
-              "type": "string",
-              "description": "Kind of board the note sits on",
-              "title": "Scope Type"
-            },
-            "description": "Kind of board the note sits on"
-          },
-          {
-            "name": "scope_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Id of that Program, term or course",
-              "title": "Scope Id"
-            },
-            "description": "Id of that Program, term or course"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NoteList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/sticky/notes/{instance_id}": {
-      "put": {
-        "tags": [
-          "sticky"
-        ],
-        "summary": "Replace the text of a sticky note.",
-        "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"). It replaces the whole text, so call sticky.note.list first and send\nthe old text with the new lines added. At most 10 000 characters.",
-        "operationId": "stickyNoteUpdate",
-        "parameters": [
-          {
-            "name": "instance_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Sticky note card instance id",
-              "title": "Instance Id"
-            },
-            "description": "Sticky note card instance id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NoteUpdateInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Note"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
     }
   },
   "components": {
@@ -3270,6 +3583,199 @@
           "status"
         ],
         "title": "AuthResult"
+      },
+      "Board": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "program",
+              "term",
+              "course",
+              "today"
+            ],
+            "title": "Scope Type"
+          },
+          "scope_id": {
+            "type": "string",
+            "title": "Scope Id"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/BoardCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "customized": {
+            "type": "boolean",
+            "title": "Customized",
+            "description": "False while the board still follows the template"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "scope_id",
+          "cards",
+          "customized",
+          "updated_at"
+        ],
+        "title": "Board"
+      },
+      "BoardCard": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id",
+            "description": "Card instance id; pass it to card capabilities"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id",
+            "description": "Which card, e.g. 'sticky.note'"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size",
+            "description": "s=1x1, m=2x1, l=2x2, xl=4x2 on a 4-column grid"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X",
+            "description": "Column, 0-3"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y",
+            "description": "Row, from 0"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings",
+            "description": "The card's settings as stored"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "card_id",
+          "size",
+          "x",
+          "y",
+          "settings"
+        ],
+        "title": "BoardCard"
+      },
+      "BoardCardInput": {
+        "properties": {
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id",
+            "description": "Existing instance; null adds a new card"
+          },
+          "card_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Card Id",
+            "description": "Card id"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size",
+            "description": "Card size"
+          },
+          "x": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "X",
+            "description": "Column, 0-3"
+          },
+          "y": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "description": "Row"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings",
+            "description": "Settings of a new card (ignored for existing ones)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "size",
+          "x",
+          "y"
+        ],
+        "title": "BoardCardInput"
+      },
+      "BoardUpdateInputBody": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/BoardCardInput"
+            },
+            "type": "array",
+            "maxItems": 60,
+            "title": "Cards",
+            "description": "The whole layout; cards left out are deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cards"
+        ],
+        "title": "BoardUpdateInputBody"
       },
       "Break": {
         "properties": {
@@ -3419,62 +3925,95 @@
         ],
         "title": "CalendarInfo"
       },
-      "CheckinList": {
+      "CardAddInputBody": {
         "properties": {
-          "items": {
-            "items": {
-              "type": "string",
-              "format": "date"
+          "card_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Card Id",
+            "description": "Card to add, e.g. 'sticky.note' or 'pomodoro.timer'"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "s",
+                  "m",
+                  "l",
+                  "xl"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size",
+            "description": "Size; default is the card's own"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings",
+            "description": "Initial settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id"
+        ],
+        "title": "CardAddInputBody"
+      },
+      "CardSettings": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "card_id",
+          "settings"
+        ],
+        "title": "CardSettings"
+      },
+      "CardSettingsUpdateInputBody": {
+        "properties": {
+          "settings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
             },
-            "type": "array",
-            "title": "Items",
-            "description": "Checked days, ascending"
+            "type": "object",
+            "title": "Settings",
+            "description": "The card's whole settings object"
           }
         },
         "type": "object",
         "required": [
-          "items"
+          "settings"
         ],
-        "title": "CheckinList"
-      },
-      "CheckinToggleInputBody": {
-        "properties": {
-          "date": {
-            "type": "string",
-            "format": "date",
-            "title": "Date",
-            "description": "Day to check or uncheck, in the Program's time zone: today or up to 7 days ago"
-          }
-        },
-        "type": "object",
-        "required": [
-          "date"
-        ],
-        "title": "CheckinToggleInputBody"
-      },
-      "CheckinToggleResult": {
-        "properties": {
-          "date": {
-            "type": "string",
-            "format": "date",
-            "title": "Date"
-          },
-          "checked": {
-            "type": "boolean",
-            "title": "Checked",
-            "description": "Whether the day is checked after the call"
-          },
-          "stats": {
-            "$ref": "#/components/schemas/HabitStats"
-          }
-        },
-        "type": "object",
-        "required": [
-          "date",
-          "checked",
-          "stats"
-        ],
-        "title": "CheckinToggleResult"
+        "title": "CardSettingsUpdateInputBody"
       },
       "Course": {
         "properties": {
@@ -3738,8 +4277,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
-                "minLength": 1
+                "maxLength": 500
               },
               {
                 "type": "null"
@@ -3884,8 +4422,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
-                "minLength": 1
+                "maxLength": 500
               },
               {
                 "type": "null"
@@ -4049,8 +4586,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
-                "minLength": 1
+                "maxLength": 500
               },
               {
                 "type": "null"
@@ -4074,37 +4610,6 @@
         ],
         "title": "CourseFields",
         "description": "Fields shared by course creation inputs."
-      },
-      "CourseFocus": {
-        "properties": {
-          "course_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Course Id",
-            "description": "Null for focus time not tied to a course"
-          },
-          "focus_sec": {
-            "type": "integer",
-            "title": "Focus Sec"
-          },
-          "sessions": {
-            "type": "integer",
-            "title": "Sessions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_id",
-          "focus_sec",
-          "sessions"
-        ],
-        "title": "CourseFocus"
       },
       "CourseList": {
         "properties": {
@@ -4340,8 +4845,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
-                "minLength": 1
+                "maxLength": 500
               },
               {
                 "type": "null"
@@ -4379,30 +4883,6 @@
         },
         "type": "object",
         "title": "CourseUpdateInputBody"
-      },
-      "DayFocus": {
-        "properties": {
-          "date": {
-            "type": "string",
-            "format": "date",
-            "title": "Date"
-          },
-          "focus_sec": {
-            "type": "integer",
-            "title": "Focus Sec"
-          },
-          "sessions": {
-            "type": "integer",
-            "title": "Sessions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "date",
-          "focus_sec",
-          "sessions"
-        ],
-        "title": "DayFocus"
       },
       "Deleted": {
         "properties": {
@@ -4599,80 +5079,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "HabitStats": {
-        "properties": {
-          "goal": {
-            "type": "string",
-            "enum": [
-              "daily",
-              "weekly"
-            ],
-            "title": "Goal"
-          },
-          "weekly_target": {
-            "type": "integer",
-            "title": "Weekly Target",
-            "description": "Check-ins needed per week (weekly goal)"
-          },
-          "current_streak": {
-            "type": "integer",
-            "title": "Current Streak",
-            "description": "Days (daily goal) or weeks (weekly goal) in a row"
-          },
-          "longest_streak": {
-            "type": "integer",
-            "title": "Longest Streak"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total",
-            "description": "All checked days"
-          },
-          "period_done": {
-            "type": "integer",
-            "title": "Period Done",
-            "description": "Check-ins in the current day (daily) or week (weekly)"
-          },
-          "period_target": {
-            "type": "integer",
-            "title": "Period Target",
-            "description": "1 for a daily goal, the weekly target otherwise"
-          },
-          "today": {
-            "type": "string",
-            "format": "date",
-            "title": "Today",
-            "description": "Today in the Program's time zone"
-          },
-          "week_start": {
-            "type": "integer",
-            "enum": [
-              1,
-              7
-            ],
-            "title": "Week Start",
-            "description": "First day of the week: 1 Monday, 7 Sunday"
-          },
-          "checked_today": {
-            "type": "boolean",
-            "title": "Checked Today"
-          }
-        },
-        "type": "object",
-        "required": [
-          "goal",
-          "weekly_target",
-          "current_streak",
-          "longest_streak",
-          "total",
-          "period_done",
-          "period_target",
-          "today",
-          "week_start",
-          "checked_today"
-        ],
-        "title": "HabitStats"
       },
       "Health": {
         "properties": {
@@ -4955,65 +5361,73 @@
         "title": "JobPage"
       },
       "JsonValue": {},
-      "Note": {
+      "Nav": {
         "properties": {
-          "instance_id": {
+          "scope_type": {
             "type": "string",
-            "title": "Instance Id"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          },
-          "color": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "program",
+              "term",
+              "course"
             ],
-            "title": "Color"
-          }
-        },
-        "type": "object",
-        "required": [
-          "instance_id",
-          "content"
-        ],
-        "title": "Note"
-      },
-      "NoteList": {
-        "properties": {
-          "items": {
+            "title": "Scope Type"
+          },
+          "order": {
             "items": {
-              "$ref": "#/components/schemas/Note"
+              "type": "string"
             },
             "type": "array",
-            "title": "Items"
+            "title": "Order",
+            "description": "Page ids in tab order; pages not listed come last"
+          },
+          "hidden": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hidden",
+            "description": "Hidden page ids"
           }
         },
         "type": "object",
         "required": [
-          "items"
+          "scope_type",
+          "order",
+          "hidden"
         ],
-        "title": "NoteList"
+        "title": "Nav"
       },
-      "NoteUpdateInputBody": {
+      "NavUpdateInputBody": {
         "properties": {
-          "content": {
-            "type": "string",
-            "maxLength": 10000,
-            "title": "Content",
-            "description": "The new Markdown text of the note; replaces the old text"
+          "order": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Order",
+            "description": "Page ids in tab order"
+          },
+          "hidden": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Hidden",
+            "description": "Page ids to hide"
           }
         },
         "type": "object",
         "required": [
-          "content"
+          "order",
+          "hidden"
         ],
-        "title": "NoteUpdateInputBody"
+        "title": "NavUpdateInputBody"
       },
       "PaletteColor": {
         "properties": {
@@ -5107,65 +5521,135 @@
         ],
         "title": "PasswordResetIn"
       },
-      "PomodoroStats": {
+      "PluginCatalog": {
         "properties": {
-          "from_date": {
-            "type": "string",
-            "format": "date",
-            "title": "From Date"
-          },
-          "to_date": {
-            "type": "string",
-            "format": "date",
-            "title": "To Date"
-          },
-          "today": {
-            "type": "string",
-            "format": "date",
-            "title": "Today",
-            "description": "Today in the time zone used for the days"
-          },
-          "timezone": {
-            "type": "string",
-            "title": "Timezone"
-          },
-          "total_focus_sec": {
-            "type": "integer",
-            "title": "Total Focus Sec"
-          },
-          "total_sessions": {
-            "type": "integer",
-            "title": "Total Sessions"
-          },
-          "days": {
+          "items": {
             "items": {
-              "$ref": "#/components/schemas/DayFocus"
+              "$ref": "#/components/schemas/PluginOut"
             },
             "type": "array",
-            "title": "Days",
-            "description": "Days with focus time, ascending"
-          },
-          "by_course": {
-            "items": {
-              "$ref": "#/components/schemas/CourseFocus"
-            },
-            "type": "array",
-            "title": "By Course",
-            "description": "Focus time per course, longest first"
+            "title": "Items"
           }
         },
         "type": "object",
         "required": [
-          "from_date",
-          "to_date",
-          "today",
-          "timezone",
-          "total_focus_sec",
-          "total_sessions",
-          "days",
-          "by_course"
+          "items"
         ],
-        "title": "PomodoroStats"
+        "title": "PluginCatalog"
+      },
+      "PluginOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "core",
+              "plugin"
+            ],
+            "title": "Kind",
+            "description": "core modules cannot be uninstalled"
+          },
+          "name_key": {
+            "type": "string",
+            "title": "Name Key",
+            "description": "Frontend message key of the name"
+          },
+          "description_key": {
+            "type": "string",
+            "title": "Description Key",
+            "description": "Frontend message key of the description"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One English sentence on what the plugin does"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "default_installed": {
+            "type": "boolean",
+            "title": "Default Installed"
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed",
+            "description": "Always true for core modules"
+          },
+          "installed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          },
+          "provides": {
+            "$ref": "#/components/schemas/PluginProvides"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name_key",
+          "description_key",
+          "summary",
+          "version",
+          "author",
+          "default_installed",
+          "installed",
+          "installed_at",
+          "provides"
+        ],
+        "title": "PluginOut"
+      },
+      "PluginProvides": {
+        "properties": {
+          "pages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "Page ids the plugin adds to scope tab bars"
+          },
+          "cards": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cards",
+            "description": "Card ids the plugin adds to boards"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "description": "Capability names gated by the plugin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "cards",
+          "capabilities"
+        ],
+        "title": "PluginProvides"
       },
       "Preferences": {
         "properties": {
@@ -5575,7 +6059,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 10000.0,
+                "maximum": 100.0,
                 "minimum": 0.0
               },
               {
@@ -5678,7 +6162,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 10000.0,
+                "maximum": 100.0,
                 "minimum": 0.0
               },
               {
@@ -5780,6 +6264,19 @@
           "display_name"
         ],
         "title": "RegisterCompleteIn"
+      },
+      "Removed": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id"
+        ],
+        "title": "Removed"
       },
       "ResolvedSettings": {
         "properties": {
@@ -5936,87 +6433,6 @@
         ],
         "title": "SessionOut"
       },
-      "SessionRecordInputBody": {
-        "properties": {
-          "instance_id": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Instance Id",
-            "description": "Pomodoro card instance id"
-          },
-          "course_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Course Id",
-            "description": "Course the focus time was spent on, if any"
-          },
-          "started_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Started At",
-            "description": "When the session started (UTC, timezone-aware)"
-          },
-          "ended_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Ended At",
-            "description": "When the session ended (UTC, timezone-aware)"
-          },
-          "duration_sec": {
-            "type": "integer",
-            "maximum": 14400.0,
-            "minimum": 1.0,
-            "title": "Duration Sec",
-            "description": "Seconds actually spent, without pauses"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "focus",
-              "short_break",
-              "long_break"
-            ],
-            "title": "Mode",
-            "description": "Only focus sessions count towards statistics",
-            "default": "focus"
-          }
-        },
-        "type": "object",
-        "required": [
-          "instance_id",
-          "started_at",
-          "ended_at",
-          "duration_sec"
-        ],
-        "title": "SessionRecordInputBody"
-      },
-      "SessionRecorded": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "duplicate": {
-            "type": "boolean",
-            "title": "Duplicate",
-            "description": "True when this session had been recorded before"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "duplicate"
-        ],
-        "title": "SessionRecorded"
-      },
       "SettingsSchemaList": {
         "properties": {
           "items": {
@@ -6127,6 +6543,89 @@
           "color"
         ],
         "title": "SubjectColorInputBody"
+      },
+      "Template": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "program",
+              "term",
+              "course",
+              "today"
+            ],
+            "title": "Scope Type"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "customized": {
+            "type": "boolean",
+            "title": "Customized",
+            "description": "True when the user saved their own default layout"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "cards",
+          "customized"
+        ],
+        "title": "Template"
+      },
+      "TemplateCard": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "size",
+          "x",
+          "y"
+        ],
+        "title": "TemplateCard"
+      },
+      "TemplateFromBoardInputBody": {
+        "properties": {
+          "scope_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Scope Id",
+            "description": "The board whose layout becomes the default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_id"
+        ],
+        "title": "TemplateFromBoardInputBody"
       },
       "Term": {
         "properties": {

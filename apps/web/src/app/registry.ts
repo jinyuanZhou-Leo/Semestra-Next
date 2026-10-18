@@ -1,14 +1,19 @@
 import { createContext, useContext } from 'react'
 import academics from '@/modules/academics/manifest'
 import auth from '@/modules/auth/manifest'
+import counter from '@/modules/plugin-counter/manifest'
+import habitStreak from '@/modules/plugin-habit-streak/manifest'
+import pomodoro from '@/modules/plugin-pomodoro/manifest'
+import stickyNote from '@/modules/plugin-sticky-note/manifest'
+import worldClock from '@/modules/plugin-world-clock/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
+  BoardKind,
   CardContribution,
   ModuleManifest,
   PageContribution,
   QueryKeyPrefix,
   Scope,
-  ScopeKind,
   SettingsLevel,
   SettingsSectionContribution,
   StatusItemContribution,
@@ -18,7 +23,16 @@ import type {
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
  * `modules/_template` is a starting point to copy and is deliberately not listed.
  */
-const builtInModules: readonly ModuleManifest[] = [auth, settings, academics]
+export const builtInModules: readonly ModuleManifest[] = [
+  auth,
+  settings,
+  academics,
+  habitStreak,
+  pomodoro,
+  stickyNote,
+  counter,
+  worldClock,
+]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
 export const ModuleRegistry = createContext<readonly ModuleManifest[]>(builtInModules)
@@ -39,10 +53,10 @@ export function usePages(scope: Scope): PageContribution[] {
     .sort(byOrder)
 }
 
-export function useCards(scope: ScopeKind): CardContribution[] {
+export function useCards(board: BoardKind): CardContribution[] {
   return useModules()
     .flatMap((m) => m.cards ?? [])
-    .filter((c) => c.scopes.includes(scope))
+    .filter((c) => c.scopes.includes(board))
 }
 
 export function useSettingsSections(level: SettingsLevel): SettingsSectionContribution[] {

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HabitCheckinsListData, HabitCheckinsListErrors, HabitCheckinsListResponses, HabitCheckinToggleData, HabitCheckinToggleErrors, HabitCheckinToggleResponses, HabitStatsData, HabitStatsErrors, HabitStatsResponses, HealthzData, HealthzResponses, PomodoroSessionRecordData, PomodoroSessionRecordErrors, PomodoroSessionRecordResponses, PomodoroStatsData, PomodoroStatsErrors, PomodoroStatsResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses, StickyNoteListData, StickyNoteListErrors, StickyNoteListResponses, StickyNoteUpdateData, StickyNoteUpdateErrors, StickyNoteUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, LayoutsBoardGetData, LayoutsBoardGetErrors, LayoutsBoardGetResponses, LayoutsBoardUpdateData, LayoutsBoardUpdateErrors, LayoutsBoardUpdateResponses, LayoutsCardAddData, LayoutsCardAddErrors, LayoutsCardAddResponses, LayoutsCardRemoveData, LayoutsCardRemoveErrors, LayoutsCardRemoveResponses, LayoutsCardSettingsGetData, LayoutsCardSettingsGetErrors, LayoutsCardSettingsGetResponses, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateErrors, LayoutsCardSettingsUpdateResponses, LayoutsNavGetData, LayoutsNavGetErrors, LayoutsNavGetResponses, LayoutsNavUpdateData, LayoutsNavUpdateErrors, LayoutsNavUpdateResponses, LayoutsTemplateGetData, LayoutsTemplateGetErrors, LayoutsTemplateGetResponses, LayoutsTemplateResetData, LayoutsTemplateResetErrors, LayoutsTemplateResetResponses, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardErrors, LayoutsTemplateSaveFromBoardResponses, PluginsCatalogListData, PluginsCatalogListErrors, PluginsCatalogListResponses, PluginsInstallData, PluginsInstallErrors, PluginsInstallResponses, PluginsUninstallData, PluginsUninstallErrors, PluginsUninstallResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -523,15 +523,20 @@ export const coreJobList = <ThrowOnError extends boolean = false>(options?: Opti
 export const coreStorageUsage = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageUsageData, ThrowOnError>): RequestResult<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError>({ url: '/storage/usage', ...options });
 
 /**
- * Check or uncheck a habit for a day (today or the past 7 days).
+ * Get the cards on a Program, term or course overview, or on the Today page.
  *
- * Use when the user says they did a habit ("check in my reading habit"). Find the
- * instance_id with layouts.board.get (the habit card of the course, term, Program or today board).
- * Calling it on a day that is already checked removes the check-in, so read habit.checkins.list
- * first when the user only wants it checked. Days older than 7 days or in the future are refused.
+ * Use to find card instances (their instance_id and settings), e.g. which
+ * sticky notes or habit trackers a course has, before calling a card-specific tool.
  */
-export const habitCheckinToggle = <ThrowOnError extends boolean = false>(options: Options<HabitCheckinToggleData, ThrowOnError>): RequestResult<HabitCheckinToggleResponses, HabitCheckinToggleErrors, ThrowOnError> => (options.client ?? client).post<HabitCheckinToggleResponses, HabitCheckinToggleErrors, ThrowOnError>({
-    url: '/habit/instances/{instance_id}/checkins/toggle',
+export const layoutsBoardGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsBoardGetData, ThrowOnError>): RequestResult<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError>({ url: '/layouts/boards/{scope_type}/{scope_id}', ...options });
+
+/**
+ * Replace the card layout of a board (positions, sizes, added and removed cards).
+ *
+ * Cards left out of the list are deleted together with their data.
+ */
+export const layoutsBoardUpdate = <ThrowOnError extends boolean = false>(options: Options<LayoutsBoardUpdateData, ThrowOnError>): RequestResult<LayoutsBoardUpdateResponses, LayoutsBoardUpdateErrors, ThrowOnError> => (options.client ?? client).put<LayoutsBoardUpdateResponses, LayoutsBoardUpdateErrors, ThrowOnError>({
+    url: '/layouts/boards/{scope_type}/{scope_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -540,30 +545,14 @@ export const habitCheckinToggle = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * List the checked days of a habit within a date range.
+ * Add a card to a board, e.g. a sticky note to a course overview.
  *
- * Use to see which days a habit was done. The range is at most 400 days and in the
- * Program's time zone.
+ * Use when the user asks to put a card (sticky note, pomodoro timer, habit
+ * tracker, ...) on an overview or the Today page. The card goes to the first free spot. Check
+ * with plugins.catalog.list that its plugin is installed.
  */
-export const habitCheckinsList = <ThrowOnError extends boolean = false>(options: Options<HabitCheckinsListData, ThrowOnError>): RequestResult<HabitCheckinsListResponses, HabitCheckinsListErrors, ThrowOnError> => (options.client ?? client).get<HabitCheckinsListResponses, HabitCheckinsListErrors, ThrowOnError>({ url: '/habit/instances/{instance_id}/checkins', ...options });
-
-/**
- * Current streak, longest streak and total check-ins of a habit.
- *
- * Use to answer how long the user's streak is or how often they did a habit. For a
- * weekly goal the streaks count weeks that reached the weekly target; a streak stays alive while
- * the running day (or week) is still open. Also returns today's date in the Program's time zone.
- */
-export const habitStats = <ThrowOnError extends boolean = false>(options: Options<HabitStatsData, ThrowOnError>): RequestResult<HabitStatsResponses, HabitStatsErrors, ThrowOnError> => (options.client ?? client).get<HabitStatsResponses, HabitStatsErrors, ThrowOnError>({ url: '/habit/instances/{instance_id}/stats', ...options });
-
-/**
- * Record a finished pomodoro focus session.
- *
- * Called by the pomodoro card when a focus session completes. Do not use it to
- * log time the user only mentions in chat: sessions come from the timer.
- */
-export const pomodoroSessionRecord = <ThrowOnError extends boolean = false>(options: Options<PomodoroSessionRecordData, ThrowOnError>): RequestResult<PomodoroSessionRecordResponses, PomodoroSessionRecordErrors, ThrowOnError> => (options.client ?? client).post<PomodoroSessionRecordResponses, PomodoroSessionRecordErrors, ThrowOnError>({
-    url: '/pomodoro/sessions',
+export const layoutsCardAdd = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardAddData, ThrowOnError>): RequestResult<LayoutsCardAddResponses, LayoutsCardAddErrors, ThrowOnError> => (options.client ?? client).post<LayoutsCardAddResponses, LayoutsCardAddErrors, ThrowOnError>({
+    url: '/layouts/boards/{scope_type}/{scope_id}/cards',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -572,13 +561,106 @@ export const pomodoroSessionRecord = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * Focus time per day and per course from the pomodoro timer.
+ * Remove a card from its board, deleting its data.
  *
- * Use to answer how long the user focused, e.g. "how long did I study APS105 this
- * week". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the
- * last 7 days. Days follow the Program's time zone.
+ * Use when the user asks to remove a card. Find its instance_id with
+ * layouts.board.get.
  */
-export const pomodoroStats = <ThrowOnError extends boolean = false>(options?: Options<PomodoroStatsData, ThrowOnError>): RequestResult<PomodoroStatsResponses, PomodoroStatsErrors, ThrowOnError> => (options?.client ?? client).get<PomodoroStatsResponses, PomodoroStatsErrors, ThrowOnError>({ url: '/pomodoro/stats', ...options });
+export const layoutsCardRemove = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardRemoveData, ThrowOnError>): RequestResult<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError>({ url: '/layouts/cards/{instance_id}', ...options });
+
+/**
+ * Get the settings of a card instance.
+ *
+ * layouts.board.get already includes every card's settings.
+ */
+export const layoutsCardSettingsGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardSettingsGetData, ThrowOnError>): RequestResult<LayoutsCardSettingsGetResponses, LayoutsCardSettingsGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsCardSettingsGetResponses, LayoutsCardSettingsGetErrors, ThrowOnError>({ url: '/layouts/cards/{instance_id}/settings', ...options });
+
+/**
+ * Replace the settings of a card instance.
+ *
+ * The settings are validated against the card's schema.
+ */
+export const layoutsCardSettingsUpdate = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardSettingsUpdateData, ThrowOnError>): RequestResult<LayoutsCardSettingsUpdateResponses, LayoutsCardSettingsUpdateErrors, ThrowOnError> => (options.client ?? client).put<LayoutsCardSettingsUpdateResponses, LayoutsCardSettingsUpdateErrors, ThrowOnError>({
+    url: '/layouts/cards/{instance_id}/settings',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsNavGetData, ThrowOnError>): RequestResult<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError>({ url: '/layouts/nav/{scope_type}', ...options });
+
+/**
+ * Set the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavUpdate = <ThrowOnError extends boolean = false>(options: Options<LayoutsNavUpdateData, ThrowOnError>): RequestResult<LayoutsNavUpdateResponses, LayoutsNavUpdateErrors, ThrowOnError> => (options.client ?? client).put<LayoutsNavUpdateResponses, LayoutsNavUpdateErrors, ThrowOnError>({
+    url: '/layouts/nav/{scope_type}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Go back to the built-in default layout of a scope type.
+ *
+ * Boards that were never changed follow it at once.
+ */
+export const layoutsTemplateReset = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateResetData, ThrowOnError>): RequestResult<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError>({ url: '/layouts/templates/{scope_type}', ...options });
+
+/**
+ * Get the default card layout new boards of a scope type start from.
+ *
+ * Either the user's own default or the built-in one.
+ */
+export const layoutsTemplateGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateGetData, ThrowOnError>): RequestResult<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError>({ url: '/layouts/templates/{scope_type}', ...options });
+
+/**
+ * Make a board's layout the default for its scope type.
+ *
+ * Boards that were never changed follow it at once; changed boards keep theirs.
+ */
+export const layoutsTemplateSaveFromBoard = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateSaveFromBoardData, ThrowOnError>): RequestResult<LayoutsTemplateSaveFromBoardResponses, LayoutsTemplateSaveFromBoardErrors, ThrowOnError> => (options.client ?? client).post<LayoutsTemplateSaveFromBoardResponses, LayoutsTemplateSaveFromBoardErrors, ThrowOnError>({
+    url: '/layouts/templates/{scope_type}:from-board',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the app's modules and plugins, and which plugins the user has installed.
+ *
+ * Use to check whether a plugin (e.g. pomodoro, habit tracker, sticky notes) is
+ * installed before suggesting its cards, or to tell the user what plugins exist. Core modules are
+ * always installed.
+ */
+export const pluginsCatalogList = <ThrowOnError extends boolean = false>(options?: Options<PluginsCatalogListData, ThrowOnError>): RequestResult<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError> => (options?.client ?? client).get<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError>({ url: '/plugins/catalog', ...options });
+
+/**
+ * Uninstall a plugin; optionally delete its data.
+ *
+ * Hides the plugin's pages, cards and features. Without purge_data its data is
+ * kept and comes back on reinstall.
+ */
+export const pluginsUninstall = <ThrowOnError extends boolean = false>(options: Options<PluginsUninstallData, ThrowOnError>): RequestResult<PluginsUninstallResponses, PluginsUninstallErrors, ThrowOnError> => (options.client ?? client).delete<PluginsUninstallResponses, PluginsUninstallErrors, ThrowOnError>({ url: '/plugins/{plugin_id}/installation', ...options });
+
+/**
+ * Install a plugin for the user's account.
+ *
+ * Installing an already installed plugin does nothing.
+ */
+export const pluginsInstall = <ThrowOnError extends boolean = false>(options: Options<PluginsInstallData, ThrowOnError>): RequestResult<PluginsInstallResponses, PluginsInstallErrors, ThrowOnError> => (options.client ?? client).put<PluginsInstallResponses, PluginsInstallErrors, ThrowOnError>({ url: '/plugins/{plugin_id}/installation', ...options });
 
 /**
  * Get the user's personal preferences.
@@ -676,27 +758,3 @@ export const settingsValuesUpdate = <ThrowOnError extends boolean = false>(optio
  * Not available to agents.
  */
 export const settingsValuesReset = <ThrowOnError extends boolean = false>(options: Options<SettingsValuesResetData, ThrowOnError>): RequestResult<SettingsValuesResetResponses, SettingsValuesResetErrors, ThrowOnError> => (options.client ?? client).delete<SettingsValuesResetResponses, SettingsValuesResetErrors, ThrowOnError>({ url: '/settings/{namespace}/keys/{key}', ...options });
-
-/**
- * List the sticky notes on a Program, term or course board.
- *
- * Use to find a note before reading or changing it ("what is in my note for this
- * course"). Returns each note's instance_id and Markdown text.
- */
-export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Options<StickyNoteListData, ThrowOnError>): RequestResult<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError> => (options.client ?? client).get<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError>({ url: '/sticky/notes', ...options });
-
-/**
- * Replace the text of a sticky note.
- *
- * Use when the user asks to jot something down in a note ("note the midterm scope
- * in this course's sticky"). It replaces the whole text, so call sticky.note.list first and send
- * the old text with the new lines added. At most 10 000 characters.
- */
-export const stickyNoteUpdate = <ThrowOnError extends boolean = false>(options: Options<StickyNoteUpdateData, ThrowOnError>): RequestResult<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError> => (options.client ?? client).put<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError>({
-    url: '/sticky/notes/{instance_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});

@@ -31,6 +31,134 @@ export type AuthResult = {
 };
 
 /**
+ * Board
+ */
+export type Board = {
+    /**
+     * Scope Type
+     */
+    scope_type: 'program' | 'term' | 'course' | 'today';
+    /**
+     * Scope Id
+     */
+    scope_id: string;
+    /**
+     * Cards
+     */
+    cards: Array<BoardCard>;
+    /**
+     * Customized
+     *
+     * False while the board still follows the template
+     */
+    customized: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string | null;
+};
+
+/**
+ * BoardCard
+ */
+export type BoardCard = {
+    /**
+     * Instance Id
+     *
+     * Card instance id; pass it to card capabilities
+     */
+    instance_id: string;
+    /**
+     * Card Id
+     *
+     * Which card, e.g. 'sticky.note'
+     */
+    card_id: string;
+    /**
+     * Size
+     *
+     * s=1x1, m=2x1, l=2x2, xl=4x2 on a 4-column grid
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     *
+     * Column, 0-3
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Row, from 0
+     */
+    y: number;
+    /**
+     * Settings
+     *
+     * The card's settings as stored
+     */
+    settings: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * BoardCardInput
+ */
+export type BoardCardInput = {
+    /**
+     * Instance Id
+     *
+     * Existing instance; null adds a new card
+     */
+    instance_id?: string | null;
+    /**
+     * Card Id
+     *
+     * Card id
+     */
+    card_id: string;
+    /**
+     * Size
+     *
+     * Card size
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     *
+     * Column, 0-3
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Row
+     */
+    y: number;
+    /**
+     * Settings
+     *
+     * Settings of a new card (ignored for existing ones)
+     */
+    settings?: {
+        [key: string]: JsonValue;
+    } | null;
+};
+
+/**
+ * BoardUpdateInputBody
+ */
+export type BoardUpdateInputBody = {
+    /**
+     * Cards
+     *
+     * The whole layout; cards left out are deleted
+     */
+    cards: Array<BoardCardInput>;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -133,44 +261,63 @@ export type CalendarInfo = {
 };
 
 /**
- * CheckinList
+ * CardAddInputBody
  */
-export type CheckinList = {
+export type CardAddInputBody = {
     /**
-     * Items
+     * Card Id
      *
-     * Checked days, ascending
+     * Card to add, e.g. 'sticky.note' or 'pomodoro.timer'
      */
-    items: Array<string>;
+    card_id: string;
+    /**
+     * Size
+     *
+     * Size; default is the card's own
+     */
+    size?: 's' | 'm' | 'l' | 'xl' | null;
+    /**
+     * Settings
+     *
+     * Initial settings
+     */
+    settings?: {
+        [key: string]: JsonValue;
+    } | null;
 };
 
 /**
- * CheckinToggleInputBody
+ * CardSettings
  */
-export type CheckinToggleInputBody = {
+export type CardSettings = {
     /**
-     * Date
-     *
-     * Day to check or uncheck, in the Program's time zone: today or up to 7 days ago
+     * Instance Id
      */
-    date: string;
+    instance_id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Settings
+     */
+    settings: {
+        [key: string]: unknown;
+    };
 };
 
 /**
- * CheckinToggleResult
+ * CardSettingsUpdateInputBody
  */
-export type CheckinToggleResult = {
+export type CardSettingsUpdateInputBody = {
     /**
-     * Date
-     */
-    date: string;
-    /**
-     * Checked
+     * Settings
      *
-     * Whether the day is checked after the call
+     * The card's whole settings object
      */
-    checked: boolean;
-    stats: HabitStats;
+    settings: {
+        [key: string]: JsonValue;
+    };
 };
 
 /**
@@ -506,26 +653,6 @@ export type CourseFields = {
 };
 
 /**
- * CourseFocus
- */
-export type CourseFocus = {
-    /**
-     * Course Id
-     *
-     * Null for focus time not tied to a course
-     */
-    course_id: string | null;
-    /**
-     * Focus Sec
-     */
-    focus_sec: number;
-    /**
-     * Sessions
-     */
-    sessions: number;
-};
-
-/**
  * CourseList
  */
 export type CourseList = {
@@ -663,24 +790,6 @@ export type CourseUpdateInputBody = {
      * Default position within a term
      */
     sort_order?: number | null;
-};
-
-/**
- * DayFocus
- */
-export type DayFocus = {
-    /**
-     * Date
-     */
-    date: string;
-    /**
-     * Focus Sec
-     */
-    focus_sec: number;
-    /**
-     * Sessions
-     */
-    sessions: number;
 };
 
 /**
@@ -826,66 +935,6 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
-};
-
-/**
- * HabitStats
- */
-export type HabitStats = {
-    /**
-     * Goal
-     */
-    goal: 'daily' | 'weekly';
-    /**
-     * Weekly Target
-     *
-     * Check-ins needed per week (weekly goal)
-     */
-    weekly_target: number;
-    /**
-     * Current Streak
-     *
-     * Days (daily goal) or weeks (weekly goal) in a row
-     */
-    current_streak: number;
-    /**
-     * Longest Streak
-     */
-    longest_streak: number;
-    /**
-     * Total
-     *
-     * All checked days
-     */
-    total: number;
-    /**
-     * Period Done
-     *
-     * Check-ins in the current day (daily) or week (weekly)
-     */
-    period_done: number;
-    /**
-     * Period Target
-     *
-     * 1 for a daily goal, the weekly target otherwise
-     */
-    period_target: number;
-    /**
-     * Today
-     *
-     * Today in the Program's time zone
-     */
-    today: string;
-    /**
-     * Week Start
-     *
-     * First day of the week: 1 Monday, 7 Sunday
-     */
-    week_start: 1 | 7;
-    /**
-     * Checked Today
-     */
-    checked_today: boolean;
 };
 
 /**
@@ -1043,43 +1092,43 @@ export type JobPage = {
 export type JsonValue = unknown;
 
 /**
- * Note
+ * Nav
  */
-export type Note = {
+export type Nav = {
     /**
-     * Instance Id
+     * Scope Type
      */
-    instance_id: string;
+    scope_type: 'program' | 'term' | 'course';
     /**
-     * Content
-     */
-    content: string;
-    /**
-     * Color
-     */
-    color?: string | null;
-};
-
-/**
- * NoteList
- */
-export type NoteList = {
-    /**
-     * Items
-     */
-    items: Array<Note>;
-};
-
-/**
- * NoteUpdateInputBody
- */
-export type NoteUpdateInputBody = {
-    /**
-     * Content
+     * Order
      *
-     * The new Markdown text of the note; replaces the old text
+     * Page ids in tab order; pages not listed come last
      */
-    content: string;
+    order: Array<string>;
+    /**
+     * Hidden
+     *
+     * Hidden page ids
+     */
+    hidden: Array<string>;
+};
+
+/**
+ * NavUpdateInputBody
+ */
+export type NavUpdateInputBody = {
+    /**
+     * Order
+     *
+     * Page ids in tab order
+     */
+    order: Array<string>;
+    /**
+     * Hidden
+     *
+     * Page ids to hide
+     */
+    hidden: Array<string>;
 };
 
 /**
@@ -1145,47 +1194,94 @@ export type PasswordResetIn = {
 };
 
 /**
- * PomodoroStats
+ * PluginCatalog
  */
-export type PomodoroStats = {
+export type PluginCatalog = {
     /**
-     * From Date
+     * Items
      */
-    from_date: string;
+    items: Array<PluginOut>;
+};
+
+/**
+ * PluginOut
+ */
+export type PluginOut = {
     /**
-     * To Date
+     * Id
      */
-    to_date: string;
+    id: string;
     /**
-     * Today
+     * Kind
      *
-     * Today in the time zone used for the days
+     * core modules cannot be uninstalled
      */
-    today: string;
+    kind: 'core' | 'plugin';
     /**
-     * Timezone
-     */
-    timezone: string;
-    /**
-     * Total Focus Sec
-     */
-    total_focus_sec: number;
-    /**
-     * Total Sessions
-     */
-    total_sessions: number;
-    /**
-     * Days
+     * Name Key
      *
-     * Days with focus time, ascending
+     * Frontend message key of the name
      */
-    days: Array<DayFocus>;
+    name_key: string;
     /**
-     * By Course
+     * Description Key
      *
-     * Focus time per course, longest first
+     * Frontend message key of the description
      */
-    by_course: Array<CourseFocus>;
+    description_key: string;
+    /**
+     * Summary
+     *
+     * One English sentence on what the plugin does
+     */
+    summary: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Default Installed
+     */
+    default_installed: boolean;
+    /**
+     * Installed
+     *
+     * Always true for core modules
+     */
+    installed: boolean;
+    /**
+     * Installed At
+     */
+    installed_at: string | null;
+    provides: PluginProvides;
+};
+
+/**
+ * PluginProvides
+ */
+export type PluginProvides = {
+    /**
+     * Pages
+     *
+     * Page ids the plugin adds to scope tab bars
+     */
+    pages: Array<string>;
+    /**
+     * Cards
+     *
+     * Card ids the plugin adds to boards
+     */
+    cards: Array<string>;
+    /**
+     * Capabilities
+     *
+     * Capability names gated by the plugin
+     */
+    capabilities: Array<string>;
 };
 
 /**
@@ -1509,6 +1605,16 @@ export type RegisterCompleteIn = {
 };
 
 /**
+ * Removed
+ */
+export type Removed = {
+    /**
+     * Instance Id
+     */
+    instance_id: string;
+};
+
+/**
  * ResolvedSettings
  */
 export type ResolvedSettings = {
@@ -1601,64 +1707,6 @@ export type SessionOut = {
 };
 
 /**
- * SessionRecordInputBody
- */
-export type SessionRecordInputBody = {
-    /**
-     * Instance Id
-     *
-     * Pomodoro card instance id
-     */
-    instance_id: string;
-    /**
-     * Course Id
-     *
-     * Course the focus time was spent on, if any
-     */
-    course_id?: string | null;
-    /**
-     * Started At
-     *
-     * When the session started (UTC, timezone-aware)
-     */
-    started_at: string;
-    /**
-     * Ended At
-     *
-     * When the session ended (UTC, timezone-aware)
-     */
-    ended_at: string;
-    /**
-     * Duration Sec
-     *
-     * Seconds actually spent, without pauses
-     */
-    duration_sec: number;
-    /**
-     * Mode
-     *
-     * Only focus sessions count towards statistics
-     */
-    mode?: 'focus' | 'short_break' | 'long_break';
-};
-
-/**
- * SessionRecorded
- */
-export type SessionRecorded = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Duplicate
-     *
-     * True when this session had been recorded before
-     */
-    duplicate: boolean;
-};
-
-/**
  * SettingsSchemaList
  */
 export type SettingsSchemaList = {
@@ -1728,6 +1776,60 @@ export type SubjectColorInputBody = {
      * Palette slot or custom hex color
      */
     color: PaletteColor | HexColor;
+};
+
+/**
+ * Template
+ */
+export type Template = {
+    /**
+     * Scope Type
+     */
+    scope_type: 'program' | 'term' | 'course' | 'today';
+    /**
+     * Cards
+     */
+    cards: Array<TemplateCard>;
+    /**
+     * Customized
+     *
+     * True when the user saved their own default layout
+     */
+    customized: boolean;
+};
+
+/**
+ * TemplateCard
+ */
+export type TemplateCard = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Size
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     */
+    x: number;
+    /**
+     * Y
+     */
+    y: number;
+};
+
+/**
+ * TemplateFromBoardInputBody
+ */
+export type TemplateFromBoardInputBody = {
+    /**
+     * Scope Id
+     *
+     * The board whose layout becomes the default
+     */
+    scope_id: string;
 };
 
 /**
@@ -3700,189 +3802,471 @@ export type CoreStorageUsageResponses = {
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
 
-export type HabitCheckinToggleData = {
-    body: CheckinToggleInputBody;
+export type LayoutsBoardGetData = {
+    body?: never;
     path: {
         /**
-         * Instance Id
+         * Scope Type
          *
-         * Habit card instance id
+         * program, term or course overview; 'today' is the Program's Today page
          */
-        instance_id: string;
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Program, term or course id; for 'today' the Program id
+         */
+        scope_id: string;
     };
     query?: never;
-    url: '/habit/instances/{instance_id}/checkins/toggle';
+    url: '/layouts/boards/{scope_type}/{scope_id}';
 };
 
-export type HabitCheckinToggleErrors = {
+export type LayoutsBoardGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type HabitCheckinToggleError = HabitCheckinToggleErrors[keyof HabitCheckinToggleErrors];
+export type LayoutsBoardGetError = LayoutsBoardGetErrors[keyof LayoutsBoardGetErrors];
 
-export type HabitCheckinToggleResponses = {
+export type LayoutsBoardGetResponses = {
     /**
      * Successful Response
      */
-    200: CheckinToggleResult;
+    200: Board;
 };
 
-export type HabitCheckinToggleResponse = HabitCheckinToggleResponses[keyof HabitCheckinToggleResponses];
+export type LayoutsBoardGetResponse = LayoutsBoardGetResponses[keyof LayoutsBoardGetResponses];
 
-export type HabitCheckinsListData = {
+export type LayoutsBoardUpdateData = {
+    body: BoardUpdateInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Board scope type
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Board scope id
+         */
+        scope_id: string;
+    };
+    query?: never;
+    url: '/layouts/boards/{scope_type}/{scope_id}';
+};
+
+export type LayoutsBoardUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsBoardUpdateError = LayoutsBoardUpdateErrors[keyof LayoutsBoardUpdateErrors];
+
+export type LayoutsBoardUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Board;
+};
+
+export type LayoutsBoardUpdateResponse = LayoutsBoardUpdateResponses[keyof LayoutsBoardUpdateResponses];
+
+export type LayoutsCardAddData = {
+    body: CardAddInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * program, term or course overview; 'today' is the Program's Today page
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Program, term or course id; for 'today' the Program id
+         */
+        scope_id: string;
+    };
+    query?: never;
+    url: '/layouts/boards/{scope_type}/{scope_id}/cards';
+};
+
+export type LayoutsCardAddErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardAddError = LayoutsCardAddErrors[keyof LayoutsCardAddErrors];
+
+export type LayoutsCardAddResponses = {
+    /**
+     * Successful Response
+     */
+    200: BoardCard;
+};
+
+export type LayoutsCardAddResponse = LayoutsCardAddResponses[keyof LayoutsCardAddResponses];
+
+export type LayoutsCardRemoveData = {
     body?: never;
     path: {
         /**
          * Instance Id
          *
-         * Habit card instance id
+         * Card instance id (from layouts.board.get)
          */
         instance_id: string;
     };
-    query: {
-        /**
-         * From Date
-         *
-         * First day to list (inclusive)
-         */
-        from_date: string;
-        /**
-         * To Date
-         *
-         * Last day to list (inclusive)
-         */
-        to_date: string;
-    };
-    url: '/habit/instances/{instance_id}/checkins';
+    query?: never;
+    url: '/layouts/cards/{instance_id}';
 };
 
-export type HabitCheckinsListErrors = {
+export type LayoutsCardRemoveErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type HabitCheckinsListError = HabitCheckinsListErrors[keyof HabitCheckinsListErrors];
+export type LayoutsCardRemoveError = LayoutsCardRemoveErrors[keyof LayoutsCardRemoveErrors];
 
-export type HabitCheckinsListResponses = {
+export type LayoutsCardRemoveResponses = {
     /**
      * Successful Response
      */
-    200: CheckinList;
+    200: Removed;
 };
 
-export type HabitCheckinsListResponse = HabitCheckinsListResponses[keyof HabitCheckinsListResponses];
+export type LayoutsCardRemoveResponse = LayoutsCardRemoveResponses[keyof LayoutsCardRemoveResponses];
 
-export type HabitStatsData = {
+export type LayoutsCardSettingsGetData = {
     body?: never;
     path: {
         /**
          * Instance Id
          *
-         * Habit card instance id
+         * Card instance id (from layouts.board.get)
          */
         instance_id: string;
     };
     query?: never;
-    url: '/habit/instances/{instance_id}/stats';
+    url: '/layouts/cards/{instance_id}/settings';
 };
 
-export type HabitStatsErrors = {
+export type LayoutsCardSettingsGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type HabitStatsError = HabitStatsErrors[keyof HabitStatsErrors];
+export type LayoutsCardSettingsGetError = LayoutsCardSettingsGetErrors[keyof LayoutsCardSettingsGetErrors];
 
-export type HabitStatsResponses = {
+export type LayoutsCardSettingsGetResponses = {
     /**
      * Successful Response
      */
-    200: HabitStats;
+    200: CardSettings;
 };
 
-export type HabitStatsResponse = HabitStatsResponses[keyof HabitStatsResponses];
+export type LayoutsCardSettingsGetResponse = LayoutsCardSettingsGetResponses[keyof LayoutsCardSettingsGetResponses];
 
-export type PomodoroSessionRecordData = {
-    body: SessionRecordInputBody;
+export type LayoutsCardSettingsUpdateData = {
+    body: CardSettingsUpdateInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}/settings';
+};
+
+export type LayoutsCardSettingsUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardSettingsUpdateError = LayoutsCardSettingsUpdateErrors[keyof LayoutsCardSettingsUpdateErrors];
+
+export type LayoutsCardSettingsUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardSettings;
+};
+
+export type LayoutsCardSettingsUpdateResponse = LayoutsCardSettingsUpdateResponses[keyof LayoutsCardSettingsUpdateResponses];
+
+export type LayoutsNavGetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type whose tab bar to read
+         */
+        scope_type: 'program' | 'term' | 'course';
+    };
+    query?: never;
+    url: '/layouts/nav/{scope_type}';
+};
+
+export type LayoutsNavGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsNavGetError = LayoutsNavGetErrors[keyof LayoutsNavGetErrors];
+
+export type LayoutsNavGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Nav;
+};
+
+export type LayoutsNavGetResponse = LayoutsNavGetResponses[keyof LayoutsNavGetResponses];
+
+export type LayoutsNavUpdateData = {
+    body: NavUpdateInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type whose tab bar to change
+         */
+        scope_type: 'program' | 'term' | 'course';
+    };
+    query?: never;
+    url: '/layouts/nav/{scope_type}';
+};
+
+export type LayoutsNavUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsNavUpdateError = LayoutsNavUpdateErrors[keyof LayoutsNavUpdateErrors];
+
+export type LayoutsNavUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Nav;
+};
+
+export type LayoutsNavUpdateResponse = LayoutsNavUpdateResponses[keyof LayoutsNavUpdateResponses];
+
+export type LayoutsTemplateResetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the default layout
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}';
+};
+
+export type LayoutsTemplateResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateResetError = LayoutsTemplateResetErrors[keyof LayoutsTemplateResetErrors];
+
+export type LayoutsTemplateResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateResetResponse = LayoutsTemplateResetResponses[keyof LayoutsTemplateResetResponses];
+
+export type LayoutsTemplateGetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the default layout
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}';
+};
+
+export type LayoutsTemplateGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateGetError = LayoutsTemplateGetErrors[keyof LayoutsTemplateGetErrors];
+
+export type LayoutsTemplateGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateGetResponse = LayoutsTemplateGetResponses[keyof LayoutsTemplateGetResponses];
+
+export type LayoutsTemplateSaveFromBoardData = {
+    body: TemplateFromBoardInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the board and template
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}:from-board';
+};
+
+export type LayoutsTemplateSaveFromBoardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateSaveFromBoardError = LayoutsTemplateSaveFromBoardErrors[keyof LayoutsTemplateSaveFromBoardErrors];
+
+export type LayoutsTemplateSaveFromBoardResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateSaveFromBoardResponse = LayoutsTemplateSaveFromBoardResponses[keyof LayoutsTemplateSaveFromBoardResponses];
+
+export type PluginsCatalogListData = {
+    body?: never;
     path?: never;
     query?: never;
-    url: '/pomodoro/sessions';
+    url: '/plugins/catalog';
 };
 
-export type PomodoroSessionRecordErrors = {
+export type PluginsCatalogListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type PomodoroSessionRecordError = PomodoroSessionRecordErrors[keyof PomodoroSessionRecordErrors];
+export type PluginsCatalogListError = PluginsCatalogListErrors[keyof PluginsCatalogListErrors];
 
-export type PomodoroSessionRecordResponses = {
+export type PluginsCatalogListResponses = {
     /**
      * Successful Response
      */
-    200: SessionRecorded;
+    200: PluginCatalog;
 };
 
-export type PomodoroSessionRecordResponse = PomodoroSessionRecordResponses[keyof PomodoroSessionRecordResponses];
+export type PluginsCatalogListResponse = PluginsCatalogListResponses[keyof PluginsCatalogListResponses];
 
-export type PomodoroStatsData = {
+export type PluginsUninstallData = {
     body?: never;
-    path?: never;
+    path: {
+        /**
+         * Plugin Id
+         *
+         * Plugin id, e.g. 'pomodoro'
+         */
+        plugin_id: string;
+    };
     query?: {
         /**
-         * From Date
+         * Purge Data
          *
-         * First day (inclusive); defaults to 6 days before to_date
+         * Also delete the plugin's data (cards, settings, records); cannot be undone
          */
-        from_date?: string | null;
-        /**
-         * To Date
-         *
-         * Last day (inclusive); defaults to today
-         */
-        to_date?: string | null;
-        /**
-         * Course Id
-         *
-         * Only count focus time spent on this course
-         */
-        course_id?: string | null;
-        /**
-         * Program Id
-         *
-         * Program whose time zone defines the days; defaults to the active Program
-         */
-        program_id?: string | null;
+        purge_data?: boolean;
     };
-    url: '/pomodoro/stats';
+    url: '/plugins/{plugin_id}/installation';
 };
 
-export type PomodoroStatsErrors = {
+export type PluginsUninstallErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type PomodoroStatsError = PomodoroStatsErrors[keyof PomodoroStatsErrors];
+export type PluginsUninstallError = PluginsUninstallErrors[keyof PluginsUninstallErrors];
 
-export type PomodoroStatsResponses = {
+export type PluginsUninstallResponses = {
     /**
      * Successful Response
      */
-    200: PomodoroStats;
+    200: PluginOut;
 };
 
-export type PomodoroStatsResponse = PomodoroStatsResponses[keyof PomodoroStatsResponses];
+export type PluginsUninstallResponse = PluginsUninstallResponses[keyof PluginsUninstallResponses];
+
+export type PluginsInstallData = {
+    body?: never;
+    path: {
+        /**
+         * Plugin Id
+         *
+         * Plugin id, e.g. 'pomodoro'
+         */
+        plugin_id: string;
+    };
+    query?: never;
+    url: '/plugins/{plugin_id}/installation';
+};
+
+export type PluginsInstallErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PluginsInstallError = PluginsInstallErrors[keyof PluginsInstallErrors];
+
+export type PluginsInstallResponses = {
+    /**
+     * Successful Response
+     */
+    200: PluginOut;
+};
+
+export type PluginsInstallResponse = PluginsInstallResponses[keyof PluginsInstallResponses];
 
 export type SettingsPreferencesGetData = {
     body?: never;
@@ -4143,73 +4527,3 @@ export type SettingsValuesResetResponses = {
 };
 
 export type SettingsValuesResetResponse = SettingsValuesResetResponses[keyof SettingsValuesResetResponses];
-
-export type StickyNoteListData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Scope Type
-         *
-         * Kind of board the note sits on
-         */
-        scope_type: 'program' | 'term' | 'course';
-        /**
-         * Scope Id
-         *
-         * Id of that Program, term or course
-         */
-        scope_id: string;
-    };
-    url: '/sticky/notes';
-};
-
-export type StickyNoteListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type StickyNoteListError = StickyNoteListErrors[keyof StickyNoteListErrors];
-
-export type StickyNoteListResponses = {
-    /**
-     * Successful Response
-     */
-    200: NoteList;
-};
-
-export type StickyNoteListResponse = StickyNoteListResponses[keyof StickyNoteListResponses];
-
-export type StickyNoteUpdateData = {
-    body: NoteUpdateInputBody;
-    path: {
-        /**
-         * Instance Id
-         *
-         * Sticky note card instance id
-         */
-        instance_id: string;
-    };
-    query?: never;
-    url: '/sticky/notes/{instance_id}';
-};
-
-export type StickyNoteUpdateErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type StickyNoteUpdateError = StickyNoteUpdateErrors[keyof StickyNoteUpdateErrors];
-
-export type StickyNoteUpdateResponses = {
-    /**
-     * Successful Response
-     */
-    200: Note;
-};
-
-export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];

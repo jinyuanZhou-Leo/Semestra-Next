@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, habitCheckinsList, habitCheckinToggle, habitStats, healthz, type Options, pomodoroSessionRecord, pomodoroStats, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate, stickyNoteList, stickyNoteUpdate } from '../sdk.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HabitCheckinsListData, HabitCheckinsListError, HabitCheckinsListResponse, HabitCheckinToggleData, HabitCheckinToggleError, HabitCheckinToggleResponse, HabitStatsData, HabitStatsError, HabitStatsResponse, HealthzData, HealthzResponse, PomodoroSessionRecordData, PomodoroSessionRecordError, PomodoroSessionRecordResponse, PomodoroStatsData, PomodoroStatsError, PomodoroStatsResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse, StickyNoteListData, StickyNoteListError, StickyNoteListResponse, StickyNoteUpdateData, StickyNoteUpdateError, StickyNoteUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -1082,18 +1082,36 @@ export const coreStorageUsageOptions = (options?: Options<CoreStorageUsageData>)
     queryKey: coreStorageUsageQueryKey(options)
 });
 
+export const layoutsBoardGetQueryKey = (options: Options<LayoutsBoardGetData>) => createQueryKey('layoutsBoardGet', options);
+
 /**
- * Check or uncheck a habit for a day (today or the past 7 days).
+ * Get the cards on a Program, term or course overview, or on the Today page.
  *
- * Use when the user says they did a habit ("check in my reading habit"). Find the
- * instance_id with layouts.board.get (the habit card of the course, term, Program or today board).
- * Calling it on a day that is already checked removes the check-in, so read habit.checkins.list
- * first when the user only wants it checked. Days older than 7 days or in the future are refused.
+ * Use to find card instances (their instance_id and settings), e.g. which
+ * sticky notes or habit trackers a course has, before calling a card-specific tool.
  */
-export const habitCheckinToggleMutation = (options?: Partial<Options<HabitCheckinToggleData>>): UseMutationOptions<HabitCheckinToggleResponse, HabitCheckinToggleError, Options<HabitCheckinToggleData>> => {
-    const mutationOptions: UseMutationOptions<HabitCheckinToggleResponse, HabitCheckinToggleError, Options<HabitCheckinToggleData>> = {
+export const layoutsBoardGetOptions = (options: Options<LayoutsBoardGetData>) => queryOptions<LayoutsBoardGetResponse, LayoutsBoardGetError, LayoutsBoardGetResponse, ReturnType<typeof layoutsBoardGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsBoardGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsBoardGetQueryKey(options)
+});
+
+/**
+ * Replace the card layout of a board (positions, sizes, added and removed cards).
+ *
+ * Cards left out of the list are deleted together with their data.
+ */
+export const layoutsBoardUpdateMutation = (options?: Partial<Options<LayoutsBoardUpdateData>>): UseMutationOptions<LayoutsBoardUpdateResponse, LayoutsBoardUpdateError, Options<LayoutsBoardUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsBoardUpdateResponse, LayoutsBoardUpdateError, Options<LayoutsBoardUpdateData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await habitCheckinToggle({
+            const { data } = await layoutsBoardUpdate({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1104,59 +1122,17 @@ export const habitCheckinToggleMutation = (options?: Partial<Options<HabitChecki
     return mutationOptions;
 };
 
-export const habitCheckinsListQueryKey = (options: Options<HabitCheckinsListData>) => createQueryKey('habitCheckinsList', options);
-
 /**
- * List the checked days of a habit within a date range.
+ * Add a card to a board, e.g. a sticky note to a course overview.
  *
- * Use to see which days a habit was done. The range is at most 400 days and in the
- * Program's time zone.
+ * Use when the user asks to put a card (sticky note, pomodoro timer, habit
+ * tracker, ...) on an overview or the Today page. The card goes to the first free spot. Check
+ * with plugins.catalog.list that its plugin is installed.
  */
-export const habitCheckinsListOptions = (options: Options<HabitCheckinsListData>) => queryOptions<HabitCheckinsListResponse, HabitCheckinsListError, HabitCheckinsListResponse, ReturnType<typeof habitCheckinsListQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await habitCheckinsList({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: habitCheckinsListQueryKey(options)
-});
-
-export const habitStatsQueryKey = (options: Options<HabitStatsData>) => createQueryKey('habitStats', options);
-
-/**
- * Current streak, longest streak and total check-ins of a habit.
- *
- * Use to answer how long the user's streak is or how often they did a habit. For a
- * weekly goal the streaks count weeks that reached the weekly target; a streak stays alive while
- * the running day (or week) is still open. Also returns today's date in the Program's time zone.
- */
-export const habitStatsOptions = (options: Options<HabitStatsData>) => queryOptions<HabitStatsResponse, HabitStatsError, HabitStatsResponse, ReturnType<typeof habitStatsQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await habitStats({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: habitStatsQueryKey(options)
-});
-
-/**
- * Record a finished pomodoro focus session.
- *
- * Called by the pomodoro card when a focus session completes. Do not use it to
- * log time the user only mentions in chat: sessions come from the timer.
- */
-export const pomodoroSessionRecordMutation = (options?: Partial<Options<PomodoroSessionRecordData>>): UseMutationOptions<PomodoroSessionRecordResponse, PomodoroSessionRecordError, Options<PomodoroSessionRecordData>> => {
-    const mutationOptions: UseMutationOptions<PomodoroSessionRecordResponse, PomodoroSessionRecordError, Options<PomodoroSessionRecordData>> = {
+export const layoutsCardAddMutation = (options?: Partial<Options<LayoutsCardAddData>>): UseMutationOptions<LayoutsCardAddResponse, LayoutsCardAddError, Options<LayoutsCardAddData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardAddResponse, LayoutsCardAddError, Options<LayoutsCardAddData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await pomodoroSessionRecord({
+            const { data } = await layoutsCardAdd({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1167,18 +1143,36 @@ export const pomodoroSessionRecordMutation = (options?: Partial<Options<Pomodoro
     return mutationOptions;
 };
 
-export const pomodoroStatsQueryKey = (options?: Options<PomodoroStatsData>) => createQueryKey('pomodoroStats', options);
+/**
+ * Remove a card from its board, deleting its data.
+ *
+ * Use when the user asks to remove a card. Find its instance_id with
+ * layouts.board.get.
+ */
+export const layoutsCardRemoveMutation = (options?: Partial<Options<LayoutsCardRemoveData>>): UseMutationOptions<LayoutsCardRemoveResponse, LayoutsCardRemoveError, Options<LayoutsCardRemoveData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardRemoveResponse, LayoutsCardRemoveError, Options<LayoutsCardRemoveData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsCardRemove({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsCardSettingsGetQueryKey = (options: Options<LayoutsCardSettingsGetData>) => createQueryKey('layoutsCardSettingsGet', options);
 
 /**
- * Focus time per day and per course from the pomodoro timer.
+ * Get the settings of a card instance.
  *
- * Use to answer how long the user focused, e.g. "how long did I study APS105 this
- * week". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the
- * last 7 days. Days follow the Program's time zone.
+ * layouts.board.get already includes every card's settings.
  */
-export const pomodoroStatsOptions = (options?: Options<PomodoroStatsData>) => queryOptions<PomodoroStatsResponse, PomodoroStatsError, PomodoroStatsResponse, ReturnType<typeof pomodoroStatsQueryKey>>({
+export const layoutsCardSettingsGetOptions = (options: Options<LayoutsCardSettingsGetData>) => queryOptions<LayoutsCardSettingsGetResponse, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, ReturnType<typeof layoutsCardSettingsGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await pomodoroStats({
+        const { data } = await layoutsCardSettingsGet({
             ...options,
             ...queryKey[0],
             signal,
@@ -1186,8 +1180,185 @@ export const pomodoroStatsOptions = (options?: Options<PomodoroStatsData>) => qu
         });
         return data;
     },
-    queryKey: pomodoroStatsQueryKey(options)
+    queryKey: layoutsCardSettingsGetQueryKey(options)
 });
+
+/**
+ * Replace the settings of a card instance.
+ *
+ * The settings are validated against the card's schema.
+ */
+export const layoutsCardSettingsUpdateMutation = (options?: Partial<Options<LayoutsCardSettingsUpdateData>>): UseMutationOptions<LayoutsCardSettingsUpdateResponse, LayoutsCardSettingsUpdateError, Options<LayoutsCardSettingsUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardSettingsUpdateResponse, LayoutsCardSettingsUpdateError, Options<LayoutsCardSettingsUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsCardSettingsUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsNavGetQueryKey = (options: Options<LayoutsNavGetData>) => createQueryKey('layoutsNavGet', options);
+
+/**
+ * Get the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavGetOptions = (options: Options<LayoutsNavGetData>) => queryOptions<LayoutsNavGetResponse, LayoutsNavGetError, LayoutsNavGetResponse, ReturnType<typeof layoutsNavGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsNavGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsNavGetQueryKey(options)
+});
+
+/**
+ * Set the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavUpdateMutation = (options?: Partial<Options<LayoutsNavUpdateData>>): UseMutationOptions<LayoutsNavUpdateResponse, LayoutsNavUpdateError, Options<LayoutsNavUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsNavUpdateResponse, LayoutsNavUpdateError, Options<LayoutsNavUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsNavUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Go back to the built-in default layout of a scope type.
+ *
+ * Boards that were never changed follow it at once.
+ */
+export const layoutsTemplateResetMutation = (options?: Partial<Options<LayoutsTemplateResetData>>): UseMutationOptions<LayoutsTemplateResetResponse, LayoutsTemplateResetError, Options<LayoutsTemplateResetData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsTemplateResetResponse, LayoutsTemplateResetError, Options<LayoutsTemplateResetData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsTemplateReset({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsTemplateGetQueryKey = (options: Options<LayoutsTemplateGetData>) => createQueryKey('layoutsTemplateGet', options);
+
+/**
+ * Get the default card layout new boards of a scope type start from.
+ *
+ * Either the user's own default or the built-in one.
+ */
+export const layoutsTemplateGetOptions = (options: Options<LayoutsTemplateGetData>) => queryOptions<LayoutsTemplateGetResponse, LayoutsTemplateGetError, LayoutsTemplateGetResponse, ReturnType<typeof layoutsTemplateGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsTemplateGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsTemplateGetQueryKey(options)
+});
+
+/**
+ * Make a board's layout the default for its scope type.
+ *
+ * Boards that were never changed follow it at once; changed boards keep theirs.
+ */
+export const layoutsTemplateSaveFromBoardMutation = (options?: Partial<Options<LayoutsTemplateSaveFromBoardData>>): UseMutationOptions<LayoutsTemplateSaveFromBoardResponse, LayoutsTemplateSaveFromBoardError, Options<LayoutsTemplateSaveFromBoardData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsTemplateSaveFromBoardResponse, LayoutsTemplateSaveFromBoardError, Options<LayoutsTemplateSaveFromBoardData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsTemplateSaveFromBoard({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const pluginsCatalogListQueryKey = (options?: Options<PluginsCatalogListData>) => createQueryKey('pluginsCatalogList', options);
+
+/**
+ * List the app's modules and plugins, and which plugins the user has installed.
+ *
+ * Use to check whether a plugin (e.g. pomodoro, habit tracker, sticky notes) is
+ * installed before suggesting its cards, or to tell the user what plugins exist. Core modules are
+ * always installed.
+ */
+export const pluginsCatalogListOptions = (options?: Options<PluginsCatalogListData>) => queryOptions<PluginsCatalogListResponse, PluginsCatalogListError, PluginsCatalogListResponse, ReturnType<typeof pluginsCatalogListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await pluginsCatalogList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: pluginsCatalogListQueryKey(options)
+});
+
+/**
+ * Uninstall a plugin; optionally delete its data.
+ *
+ * Hides the plugin's pages, cards and features. Without purge_data its data is
+ * kept and comes back on reinstall.
+ */
+export const pluginsUninstallMutation = (options?: Partial<Options<PluginsUninstallData>>): UseMutationOptions<PluginsUninstallResponse, PluginsUninstallError, Options<PluginsUninstallData>> => {
+    const mutationOptions: UseMutationOptions<PluginsUninstallResponse, PluginsUninstallError, Options<PluginsUninstallData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pluginsUninstall({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Install a plugin for the user's account.
+ *
+ * Installing an already installed plugin does nothing.
+ */
+export const pluginsInstallMutation = (options?: Partial<Options<PluginsInstallData>>): UseMutationOptions<PluginsInstallResponse, PluginsInstallError, Options<PluginsInstallData>> => {
+    const mutationOptions: UseMutationOptions<PluginsInstallResponse, PluginsInstallError, Options<PluginsInstallData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pluginsInstall({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const settingsPreferencesGetQueryKey = (options?: Options<SettingsPreferencesGetData>) => createQueryKey('settingsPreferencesGet', options);
 
@@ -1347,48 +1518,6 @@ export const settingsValuesResetMutation = (options?: Partial<Options<SettingsVa
     const mutationOptions: UseMutationOptions<SettingsValuesResetResponse, SettingsValuesResetError, Options<SettingsValuesResetData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await settingsValuesReset({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const stickyNoteListQueryKey = (options: Options<StickyNoteListData>) => createQueryKey('stickyNoteList', options);
-
-/**
- * List the sticky notes on a Program, term or course board.
- *
- * Use to find a note before reading or changing it ("what is in my note for this
- * course"). Returns each note's instance_id and Markdown text.
- */
-export const stickyNoteListOptions = (options: Options<StickyNoteListData>) => queryOptions<StickyNoteListResponse, StickyNoteListError, StickyNoteListResponse, ReturnType<typeof stickyNoteListQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await stickyNoteList({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: stickyNoteListQueryKey(options)
-});
-
-/**
- * Replace the text of a sticky note.
- *
- * Use when the user asks to jot something down in a note ("note the midterm scope
- * in this course's sticky"). It replaces the whole text, so call sticky.note.list first and send
- * the old text with the new lines added. At most 10 000 characters.
- */
-export const stickyNoteUpdateMutation = (options?: Partial<Options<StickyNoteUpdateData>>): UseMutationOptions<StickyNoteUpdateResponse, StickyNoteUpdateError, Options<StickyNoteUpdateData>> => {
-    const mutationOptions: UseMutationOptions<StickyNoteUpdateResponse, StickyNoteUpdateError, Options<StickyNoteUpdateData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await stickyNoteUpdate({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

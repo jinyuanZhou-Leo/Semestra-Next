@@ -100,6 +100,14 @@ export default defineModule({
       multiple: false,
     },
   ],
+  defaultBoard: {
+    program: [
+      { card: 'academics.pinned', size: 'm' },
+      { card: 'academics.terms', size: 'l' },
+    ],
+    term: [{ card: 'academics.termCourses', size: 'xl' }],
+    course: [{ card: 'academics.courseInfo', size: 'l' }],
+  },
   settingsSections: [
     {
       id: 'program-basics',
