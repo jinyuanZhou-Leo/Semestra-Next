@@ -72,6 +72,10 @@ const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
   list: 'listWeek',
 }
 
+// Module constants: FullCalendar resets its view (and reports the dates again) when these change.
+const PLUGINS = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
+const LOCALES = [zhCnLocale]
+
 const wall = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm:ss")
 
 /** The term calendar (M04 §5.2). */
@@ -399,12 +403,12 @@ function TermCalendar({
                 // starts a fresh calendar on it.
                 key={view}
                 ref={calendarRef}
-                plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+                plugins={PLUGINS}
                 initialView={FC_VIEW[view]}
                 initialDate={anchor}
                 headerToolbar={false}
                 height="auto"
-                locales={[zhCnLocale]}
+                locales={LOCALES}
                 locale={getLocale().startsWith('zh') ? 'zh-cn' : 'en'}
                 firstDay={firstDayOfWeek() % 7}
                 weekends={settings.show_weekends}
@@ -442,7 +446,9 @@ function TermCalendar({
                 eventResize={onChange}
                 eventContent={(arg) => <EventContent arg={arg} />}
                 datesSet={(arg) => {
-                  setRange({ start: isoDay(arg.start), end: isoDay(arg.end) })
+                  const start = isoDay(arg.start)
+                  const end = isoDay(arg.end)
+                  setRange((r) => (r?.start === start && r.end === end ? r : { start, end }))
                   setTitle(arg.view.title)
                   const type = arg.view.type
                   const nextView =

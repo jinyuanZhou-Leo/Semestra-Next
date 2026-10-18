@@ -1,6 +1,6 @@
 import { TriangleAlert } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { firstDayOfWeek } from '@/lib/format'
+import { firstDayOfWeek, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { weekdayName } from '../time'
@@ -124,7 +124,7 @@ export function WeekGrid({
             className="absolute right-1 -translate-y-1/2 text-[0.7rem] text-muted-foreground tabular-nums"
             style={{ top: top(h * 60) }}
           >
-            {h === from / 60 ? '' : `${String(h).padStart(2, '0')}:00`}
+            {h === from / 60 ? '' : formatTime(`${String(h % 24).padStart(2, '0')}:00`)}
           </span>
         ))}
       </div>

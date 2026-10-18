@@ -145,6 +145,15 @@ export default defineModule({
         import('./settings/EventTypesSection').then((s) => ({ default: s.EventTypesSection })),
       ),
     },
+    ...(['program', 'term'] as const).map((level) => ({
+      id: 'calendar',
+      level,
+      group: 'general' as const,
+      title: m.schedule_settings_calendar,
+      icon: Settings2,
+      order: 40,
+      namespace: 'calendar',
+    })),
     {
       id: 'calendar',
       level: 'account',
