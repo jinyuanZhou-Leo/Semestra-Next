@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, calendarOccurrences, calendarToday, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, scheduleConflicts, scheduleEventCreate, scheduleEventDelete, scheduleEventList, scheduleEventTypeCreate, scheduleEventTypeDelete, scheduleEventTypeList, scheduleEventTypeReorder, scheduleEventTypeUpdate, scheduleEventUpdate, scheduleExceptionDelete, scheduleExceptionUpsert, scheduleFeedCreate, scheduleFeedList, scheduleFeedRevoke, scheduleMeetingCreate, scheduleMeetingCreateMany, scheduleMeetingDelete, scheduleMeetingList, scheduleMeetingSetEnabled, scheduleMeetingUpdate, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CalendarOccurrencesData, CalendarOccurrencesError, CalendarOccurrencesResponse, CalendarTodayData, CalendarTodayError, CalendarTodayResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, ScheduleConflictsData, ScheduleConflictsError, ScheduleConflictsResponse, ScheduleEventCreateData, ScheduleEventCreateError, ScheduleEventCreateResponse, ScheduleEventDeleteData, ScheduleEventDeleteError, ScheduleEventDeleteResponse, ScheduleEventListData, ScheduleEventListError, ScheduleEventListResponse, ScheduleEventTypeCreateData, ScheduleEventTypeCreateError, ScheduleEventTypeCreateResponse, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteError, ScheduleEventTypeDeleteResponse, ScheduleEventTypeListData, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ScheduleEventTypeReorderData, ScheduleEventTypeReorderError, ScheduleEventTypeReorderResponse, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateError, ScheduleEventTypeUpdateResponse, ScheduleEventUpdateData, ScheduleEventUpdateError, ScheduleEventUpdateResponse, ScheduleExceptionDeleteData, ScheduleExceptionDeleteError, ScheduleExceptionDeleteResponse, ScheduleExceptionUpsertData, ScheduleExceptionUpsertError, ScheduleExceptionUpsertResponse, ScheduleFeedCreateData, ScheduleFeedCreateError, ScheduleFeedCreateResponse, ScheduleFeedListData, ScheduleFeedListError, ScheduleFeedListResponse, ScheduleFeedRevokeData, ScheduleFeedRevokeError, ScheduleFeedRevokeResponse, ScheduleMeetingCreateData, ScheduleMeetingCreateError, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyError, ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateResponse, ScheduleMeetingDeleteData, ScheduleMeetingDeleteError, ScheduleMeetingDeleteResponse, ScheduleMeetingListData, ScheduleMeetingListError, ScheduleMeetingListResponse, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledError, ScheduleMeetingSetEnabledResponse, ScheduleMeetingUpdateData, ScheduleMeetingUpdateError, ScheduleMeetingUpdateResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, calendarOccurrences, calendarToday, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, scheduleConflicts, scheduleEventCreate, scheduleEventDelete, scheduleEventList, scheduleEventTypeCreate, scheduleEventTypeDelete, scheduleEventTypeList, scheduleEventTypeReorder, scheduleEventTypeUpdate, scheduleEventUpdate, scheduleExceptionDelete, scheduleExceptionUpsert, scheduleFeedCreate, scheduleFeedList, scheduleFeedRevoke, scheduleMeetingCreate, scheduleMeetingCreateMany, scheduleMeetingDelete, scheduleMeetingList, scheduleMeetingSetEnabled, scheduleMeetingUpdate, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CalendarOccurrencesData, CalendarOccurrencesError, CalendarOccurrencesResponse, CalendarTodayData, CalendarTodayError, CalendarTodayResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, ScheduleConflictsData, ScheduleConflictsError, ScheduleConflictsResponse, ScheduleEventCreateData, ScheduleEventCreateError, ScheduleEventCreateResponse, ScheduleEventDeleteData, ScheduleEventDeleteError, ScheduleEventDeleteResponse, ScheduleEventListData, ScheduleEventListError, ScheduleEventListResponse, ScheduleEventTypeCreateData, ScheduleEventTypeCreateError, ScheduleEventTypeCreateResponse, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteError, ScheduleEventTypeDeleteResponse, ScheduleEventTypeListData, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ScheduleEventTypeReorderData, ScheduleEventTypeReorderError, ScheduleEventTypeReorderResponse, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateError, ScheduleEventTypeUpdateResponse, ScheduleEventUpdateData, ScheduleEventUpdateError, ScheduleEventUpdateResponse, ScheduleExceptionDeleteData, ScheduleExceptionDeleteError, ScheduleExceptionDeleteResponse, ScheduleExceptionUpsertData, ScheduleExceptionUpsertError, ScheduleExceptionUpsertResponse, ScheduleFeedCreateData, ScheduleFeedCreateError, ScheduleFeedCreateResponse, ScheduleFeedListData, ScheduleFeedListError, ScheduleFeedListResponse, ScheduleFeedRevokeData, ScheduleFeedRevokeError, ScheduleFeedRevokeResponse, ScheduleMeetingCreateData, ScheduleMeetingCreateError, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyError, ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateResponse, ScheduleMeetingDeleteData, ScheduleMeetingDeleteError, ScheduleMeetingDeleteResponse, ScheduleMeetingListData, ScheduleMeetingListError, ScheduleMeetingListResponse, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledError, ScheduleMeetingSetEnabledResponse, ScheduleMeetingUpdateData, ScheduleMeetingUpdateError, ScheduleMeetingUpdateResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -965,6 +965,202 @@ export const accountTokensRevokeMutation = (options?: Partial<Options<AccountTok
     };
     return mutationOptions;
 };
+
+export const aiAssignmentGetQueryKey = (options?: Options<AiAssignmentGetData>) => createQueryKey('aiAssignmentGet', options);
+
+/**
+ * The model chosen for each AI purpose, with the recommended default.
+ *
+ * Not for agents.
+ */
+export const aiAssignmentGetOptions = (options?: Options<AiAssignmentGetData>) => queryOptions<AiAssignmentGetResponse, AiAssignmentGetError, AiAssignmentGetResponse, ReturnType<typeof aiAssignmentGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await aiAssignmentGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: aiAssignmentGetQueryKey(options)
+});
+
+/**
+ * Choose the provider and model for one AI purpose.
+ *
+ * provider_id null removes the choice so the default applies. Not for agents.
+ */
+export const aiAssignmentUpdateMutation = (options?: Partial<Options<AiAssignmentUpdateData>>): UseMutationOptions<AiAssignmentUpdateResponse, AiAssignmentUpdateError, Options<AiAssignmentUpdateData>> => {
+    const mutationOptions: UseMutationOptions<AiAssignmentUpdateResponse, AiAssignmentUpdateError, Options<AiAssignmentUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await aiAssignmentUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const aiProviderListQueryKey = (options?: Options<AiProviderListData>) => createQueryKey('aiProviderList', options);
+
+/**
+ * List the user's AI providers (keys masked).
+ *
+ * Providers the user connected with their own API keys. Not for agents.
+ */
+export const aiProviderListOptions = (options?: Options<AiProviderListData>) => queryOptions<AiProviderListResponse, AiProviderListError, AiProviderListResponse, ReturnType<typeof aiProviderListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await aiProviderList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: aiProviderListQueryKey(options)
+});
+
+/**
+ * Connect an AI provider with the user's own key.
+ *
+ * Checks the key and URL by listing the provider's models before saving; a failed
+ * check returns ai.provider_check_failed with the reason. Not for agents.
+ */
+export const aiProviderCreateMutation = (options?: Partial<Options<AiProviderCreateData>>): UseMutationOptions<AiProviderCreateResponse, AiProviderCreateError, Options<AiProviderCreateData>> => {
+    const mutationOptions: UseMutationOptions<AiProviderCreateResponse, AiProviderCreateError, Options<AiProviderCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await aiProviderCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remove an AI provider and the model choices that use it.
+ *
+ * Not for agents.
+ */
+export const aiProviderDeleteMutation = (options?: Partial<Options<AiProviderDeleteData>>): UseMutationOptions<AiProviderDeleteResponse, AiProviderDeleteError, Options<AiProviderDeleteData>> => {
+    const mutationOptions: UseMutationOptions<AiProviderDeleteResponse, AiProviderDeleteError, Options<AiProviderDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await aiProviderDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Rename, re-key, reconfigure or turn off an AI provider.
+ *
+ * A new key or base URL is checked again before saving. Not for agents.
+ */
+export const aiProviderUpdateMutation = (options?: Partial<Options<AiProviderUpdateData>>): UseMutationOptions<AiProviderUpdateResponse, AiProviderUpdateError, Options<AiProviderUpdateData>> => {
+    const mutationOptions: UseMutationOptions<AiProviderUpdateResponse, AiProviderUpdateError, Options<AiProviderUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await aiProviderUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const aiProviderModelsQueryKey = (options: Options<AiProviderModelsData>) => createQueryKey('aiProviderModels', options);
+
+/**
+ * List the models a provider offers.
+ *
+ * Cached for an hour. Not for agents.
+ */
+export const aiProviderModelsOptions = (options: Options<AiProviderModelsData>) => queryOptions<AiProviderModelsResponse, AiProviderModelsError, AiProviderModelsResponse, ReturnType<typeof aiProviderModelsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await aiProviderModels({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: aiProviderModelsQueryKey(options)
+});
+
+/**
+ * Check that a provider's key and URL still work.
+ *
+ * Records the result on the provider. Not for agents.
+ */
+export const aiProviderTestMutation = (options?: Partial<Options<AiProviderTestData>>): UseMutationOptions<AiProviderTestResponse, AiProviderTestError, Options<AiProviderTestData>> => {
+    const mutationOptions: UseMutationOptions<AiProviderTestResponse, AiProviderTestError, Options<AiProviderTestData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await aiProviderTest({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const aiStatusQueryKey = (options?: Options<AiStatusData>) => createQueryKey('aiStatus', options);
+
+/**
+ * Whether each AI purpose is available and which model serves it.
+ *
+ * The frontend enables or greys out AI features with it. Not for agents.
+ */
+export const aiStatusOptions = (options?: Options<AiStatusData>) => queryOptions<AiStatusResponse, AiStatusError, AiStatusResponse, ReturnType<typeof aiStatusQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await aiStatus({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: aiStatusQueryKey(options)
+});
+
+export const aiUsageSummaryQueryKey = (options?: Options<AiUsageSummaryData>) => createQueryKey('aiUsageSummary', options);
+
+/**
+ * Token use and estimated cost by day, purpose, module and model.
+ *
+ * Defaults to the last 30 days. Not for agents.
+ */
+export const aiUsageSummaryOptions = (options?: Options<AiUsageSummaryData>) => queryOptions<AiUsageSummaryResponse, AiUsageSummaryError, AiUsageSummaryResponse, ReturnType<typeof aiUsageSummaryQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await aiUsageSummary({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: aiUsageSummaryQueryKey(options)
+});
 
 export const calendarOccurrencesQueryKey = (options: Options<CalendarOccurrencesData>) => createQueryKey('calendarOccurrences', options);
 

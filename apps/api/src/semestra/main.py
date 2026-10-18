@@ -55,6 +55,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if backup_task:
             backup_task.cancel()
         await runner.stop()
+        # M06 writes usage and provider health in background tasks; let them land first.
+        if (ai := getattr(app.state, "ai", None)) is not None:
+            await ai.drain()
         await engine.dispose()
 
     app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)

@@ -5,6 +5,74 @@ export type ClientOptions = {
 };
 
 /**
+ * AiStatus
+ */
+export type AiStatus = {
+    /**
+     * Items
+     */
+    items: Array<PurposeStatus>;
+};
+
+/**
+ * Assignment
+ */
+export type Assignment = {
+    /**
+     * Purpose
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    /**
+     * Provider Id
+     */
+    provider_id: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
+    params: ModelParams;
+    recommended: RecommendedModel | null;
+};
+
+/**
+ * AssignmentList
+ */
+export type AssignmentList = {
+    /**
+     * Items
+     */
+    items: Array<Assignment>;
+};
+
+/**
+ * AssignmentUpdateInputBody
+ */
+export type AssignmentUpdateInputBody = {
+    /**
+     * Purpose
+     *
+     * Which purpose to configure.
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    /**
+     * Provider Id
+     *
+     * Provider to use; null removes the choice (the recommended default applies).
+     */
+    provider_id: string | null;
+    /**
+     * Model
+     *
+     * Model name at that provider.
+     */
+    model?: string | null;
+    /**
+     * Model parameters.
+     */
+    params?: ModelParams;
+};
+
+/**
  * AuthConfig
  */
 export type AuthConfig = {
@@ -1883,6 +1951,58 @@ export type MeetingUpdateInputBody = {
 };
 
 /**
+ * ModelList
+ */
+export type ModelList = {
+    /**
+     * Items
+     */
+    items: Array<ModelOption>;
+    /**
+     * Manual Entry
+     */
+    manual_entry: boolean;
+};
+
+/**
+ * ModelOption
+ */
+export type ModelOption = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+};
+
+/**
+ * ModelParams
+ */
+export type ModelParams = {
+    /**
+     * Temperature
+     *
+     * Sampling temperature.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Output cap.
+     */
+    max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * Reasoning effort, for models that support it.
+     */
+    reasoning_effort?: 'minimal' | 'low' | 'medium' | 'high' | null;
+};
+
+/**
  * Occurrence
  */
 export type Occurrence = {
@@ -2475,6 +2595,208 @@ export type ProgramUpdateInputBody = {
 };
 
 /**
+ * Provider
+ */
+export type Provider = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Base Url
+     */
+    base_url: string | null;
+    /**
+     * Key Hint
+     */
+    key_hint: string | null;
+    /**
+     * Capabilities
+     */
+    capabilities: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'>;
+    /**
+     * Capabilities Editable
+     */
+    capabilities_editable: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Last Checked At
+     */
+    last_checked_at: string | null;
+    /**
+     * Last Error Code
+     */
+    last_error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ProviderCheck
+ */
+export type ProviderCheck = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Checked At
+     */
+    checked_at: string;
+};
+
+/**
+ * ProviderCreateInputBody
+ */
+export type ProviderCreateInputBody = {
+    /**
+     * Kind
+     *
+     * Provider type.
+     */
+    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    /**
+     * Display Name
+     *
+     * Name shown in the list; defaults to the type.
+     */
+    display_name?: string | null;
+    /**
+     * Base Url
+     *
+     * API base URL; required for openai_compatible and ollama.
+     */
+    base_url?: string | null;
+    /**
+     * Api Key
+     *
+     * API key (stored encrypted).
+     */
+    api_key?: null;
+    /**
+     * Capabilities
+     *
+     * What the endpoint supports; only for openai_compatible and ollama.
+     */
+    capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
+};
+
+/**
+ * ProviderDeleted
+ */
+export type ProviderDeleted = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Cleared Purposes
+     */
+    cleared_purposes: Array<'chat' | 'extraction' | 'vision' | 'embedding' | 'title'>;
+};
+
+/**
+ * ProviderList
+ */
+export type ProviderList = {
+    /**
+     * Items
+     */
+    items: Array<Provider>;
+};
+
+/**
+ * ProviderUpdateInputBody
+ */
+export type ProviderUpdateInputBody = {
+    /**
+     * Display Name
+     *
+     * New name.
+     */
+    display_name?: string | null;
+    /**
+     * Base Url
+     *
+     * New base URL.
+     */
+    base_url?: string | null;
+    /**
+     * Api Key
+     *
+     * New API key; the provider is checked again before saving.
+     */
+    api_key?: null;
+    /**
+     * Capabilities
+     *
+     * New capabilities (openai_compatible and ollama only).
+     */
+    capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
+    /**
+     * Enabled
+     *
+     * Turn the provider on or off.
+     */
+    enabled?: boolean | null;
+};
+
+/**
+ * PurposeStatus
+ */
+export type PurposeStatus = {
+    /**
+     * Purpose
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Source
+     */
+    source: 'assignment' | 'default' | 'instance' | null;
+    /**
+     * Provider Id
+     */
+    provider_id: string | null;
+    /**
+     * Provider Kind
+     */
+    provider_kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama' | null;
+    /**
+     * Provider Name
+     */
+    provider_name: string | null;
+    /**
+     * Model
+     */
+    model: string | null;
+};
+
+/**
  * Ready
  */
 export type Ready = {
@@ -2490,6 +2812,20 @@ export type Ready = {
      * Worker
      */
     worker: 'ok' | 'off';
+};
+
+/**
+ * RecommendedModel
+ */
+export type RecommendedModel = {
+    /**
+     * Provider Id
+     */
+    provider_id: string;
+    /**
+     * Model
+     */
+    model: string;
 };
 
 /**
@@ -3161,6 +3497,119 @@ export type UiStateSetInputBody = {
 };
 
 /**
+ * UsageDay
+ */
+export type UsageDay = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Purpose
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    /**
+     * Input Tokens
+     */
+    input_tokens: number;
+    /**
+     * Output Tokens
+     */
+    output_tokens: number;
+    /**
+     * Cost Usd
+     */
+    cost_usd: number | null;
+};
+
+/**
+ * UsageRow
+ */
+export type UsageRow = {
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Errors
+     */
+    errors: number;
+    /**
+     * Input Tokens
+     */
+    input_tokens: number;
+    /**
+     * Output Tokens
+     */
+    output_tokens: number;
+    /**
+     * Cost Usd
+     */
+    cost_usd: number | null;
+    /**
+     * Key
+     */
+    key: string;
+};
+
+/**
+ * UsageSummary
+ */
+export type UsageSummary = {
+    /**
+     * Since
+     */
+    since: string;
+    totals: UsageTotals;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
+    /**
+     * By Day
+     */
+    by_day: Array<UsageDay>;
+    /**
+     * By Purpose
+     */
+    by_purpose: Array<UsageRow>;
+    /**
+     * By Module
+     */
+    by_module: Array<UsageRow>;
+    /**
+     * By Model
+     */
+    by_model: Array<UsageRow>;
+};
+
+/**
+ * UsageTotals
+ */
+export type UsageTotals = {
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Errors
+     */
+    errors: number;
+    /**
+     * Input Tokens
+     */
+    input_tokens: number;
+    /**
+     * Output Tokens
+     */
+    output_tokens: number;
+    /**
+     * Cost Usd
+     */
+    cost_usd: number | null;
+};
+
+/**
  * UserOut
  */
 export type UserOut = {
@@ -3250,6 +3699,78 @@ export type ValuesUpdateInputBody = {
     values: {
         [key: string]: JsonValue;
     };
+};
+
+/**
+ * ProviderCreateInputBody
+ */
+export type ProviderCreateInputBodyWritable = {
+    /**
+     * Kind
+     *
+     * Provider type.
+     */
+    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    /**
+     * Display Name
+     *
+     * Name shown in the list; defaults to the type.
+     */
+    display_name?: string | null;
+    /**
+     * Base Url
+     *
+     * API base URL; required for openai_compatible and ollama.
+     */
+    base_url?: string | null;
+    /**
+     * Api Key
+     *
+     * API key (stored encrypted).
+     */
+    api_key?: string | null;
+    /**
+     * Capabilities
+     *
+     * What the endpoint supports; only for openai_compatible and ollama.
+     */
+    capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
+};
+
+/**
+ * ProviderUpdateInputBody
+ */
+export type ProviderUpdateInputBodyWritable = {
+    /**
+     * Display Name
+     *
+     * New name.
+     */
+    display_name?: string | null;
+    /**
+     * Base Url
+     *
+     * New base URL.
+     */
+    base_url?: string | null;
+    /**
+     * Api Key
+     *
+     * New API key; the provider is checked again before saving.
+     */
+    api_key?: string | null;
+    /**
+     * Capabilities
+     *
+     * New capabilities (openai_compatible and ollama only).
+     */
+    capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
+    /**
+     * Enabled
+     *
+     * Turn the provider on or off.
+     */
+    enabled?: boolean | null;
 };
 
 export type HealthzData = {
@@ -4574,6 +5095,297 @@ export type AccountTokensRevokeResponses = {
 };
 
 export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
+
+export type AiAssignmentGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/assignments';
+};
+
+export type AiAssignmentGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiAssignmentGetError = AiAssignmentGetErrors[keyof AiAssignmentGetErrors];
+
+export type AiAssignmentGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentList;
+};
+
+export type AiAssignmentGetResponse = AiAssignmentGetResponses[keyof AiAssignmentGetResponses];
+
+export type AiAssignmentUpdateData = {
+    body: AssignmentUpdateInputBody;
+    path?: never;
+    query?: never;
+    url: '/ai/assignments';
+};
+
+export type AiAssignmentUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiAssignmentUpdateError = AiAssignmentUpdateErrors[keyof AiAssignmentUpdateErrors];
+
+export type AiAssignmentUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentList;
+};
+
+export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
+
+export type AiProviderListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/providers';
+};
+
+export type AiProviderListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderListError = AiProviderListErrors[keyof AiProviderListErrors];
+
+export type AiProviderListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProviderList;
+};
+
+export type AiProviderListResponse = AiProviderListResponses[keyof AiProviderListResponses];
+
+export type AiProviderCreateData = {
+    body: ProviderCreateInputBodyWritable;
+    path?: never;
+    query?: never;
+    url: '/ai/providers';
+};
+
+export type AiProviderCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderCreateError = AiProviderCreateErrors[keyof AiProviderCreateErrors];
+
+export type AiProviderCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Provider;
+};
+
+export type AiProviderCreateResponse = AiProviderCreateResponses[keyof AiProviderCreateResponses];
+
+export type AiProviderDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Provider id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/ai/providers/{id}';
+};
+
+export type AiProviderDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderDeleteError = AiProviderDeleteErrors[keyof AiProviderDeleteErrors];
+
+export type AiProviderDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProviderDeleted;
+};
+
+export type AiProviderDeleteResponse = AiProviderDeleteResponses[keyof AiProviderDeleteResponses];
+
+export type AiProviderUpdateData = {
+    body: ProviderUpdateInputBodyWritable;
+    path: {
+        /**
+         * Id
+         *
+         * Provider id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/ai/providers/{id}';
+};
+
+export type AiProviderUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderUpdateError = AiProviderUpdateErrors[keyof AiProviderUpdateErrors];
+
+export type AiProviderUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Provider;
+};
+
+export type AiProviderUpdateResponse = AiProviderUpdateResponses[keyof AiProviderUpdateResponses];
+
+export type AiProviderModelsData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Provider id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/ai/providers/{id}/models';
+};
+
+export type AiProviderModelsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderModelsError = AiProviderModelsErrors[keyof AiProviderModelsErrors];
+
+export type AiProviderModelsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ModelList;
+};
+
+export type AiProviderModelsResponse = AiProviderModelsResponses[keyof AiProviderModelsResponses];
+
+export type AiProviderTestData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Provider id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/ai/providers/{id}:test';
+};
+
+export type AiProviderTestErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiProviderTestError = AiProviderTestErrors[keyof AiProviderTestErrors];
+
+export type AiProviderTestResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProviderCheck;
+};
+
+export type AiProviderTestResponse = AiProviderTestResponses[keyof AiProviderTestResponses];
+
+export type AiStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ai/status';
+};
+
+export type AiStatusErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiStatusError = AiStatusErrors[keyof AiStatusErrors];
+
+export type AiStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: AiStatus;
+};
+
+export type AiStatusResponse = AiStatusResponses[keyof AiStatusResponses];
+
+export type AiUsageSummaryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Days
+         *
+         * How many days back to summarise.
+         */
+        days?: number;
+        /**
+         * Tz
+         *
+         * IANA time zone for day buckets.
+         */
+        tz?: string;
+    };
+    url: '/ai/usage';
+};
+
+export type AiUsageSummaryErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiUsageSummaryError = AiUsageSummaryErrors[keyof AiUsageSummaryErrors];
+
+export type AiUsageSummaryResponses = {
+    /**
+     * Successful Response
+     */
+    200: UsageSummary;
+};
+
+export type AiUsageSummaryResponse = AiUsageSummaryResponses[keyof AiUsageSummaryResponses];
 
 export type CalendarOccurrencesData = {
     body?: never;
