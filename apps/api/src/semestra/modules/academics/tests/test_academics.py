@@ -552,3 +552,13 @@ async def test_week_of_a_day_outside_the_term_is_none(api: Api, app: FastAPI):
         term = await service.get_term_row(ctx, fall["id"])
         assert await service.term_week_of(ctx, term, date(2025, 9, 2)) is None
         assert await service.term_week_of(ctx, term, date(2025, 9, 5)) == 1
+
+
+async def test_course_websites_are_http_addresses(api: Api):
+    program, fall, _ = await setup_year(api)
+    course = await api.course(program["id"], [fall["id"]], website_url=" q.utoronto.ca/x ")
+    assert course["website_url"] == "https://q.utoronto.ca/x"
+    for bad in ("ftp://files.example.com", "data://text/html,hi", "https://"):
+        await api.call("PATCH", f"/courses/{course['id']}", 422, json={"website_url": bad})
+    cleared = await api.call("PATCH", f"/courses/{course['id']}", json={"website_url": None})
+    assert cleared["website_url"] is None

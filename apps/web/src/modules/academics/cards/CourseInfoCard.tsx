@@ -51,7 +51,7 @@ export default function CourseInfoCard({ scope }: CardProps) {
         ) : null}
         <Row label={m.academics_course_credits()}>{formatCredits(course.credits)}</Row>
         <Row label={m.academics_course_terms()}>{termNames}</Row>
-        {course.website_url ? (
+        {course.website_url && /^https?:\/\//i.test(course.website_url) ? (
           <Row label={m.academics_course_website()}>
             <a
               href={course.website_url}

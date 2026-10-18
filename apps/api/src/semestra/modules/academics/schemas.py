@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from pydantic import AfterValidator, BaseModel, Field, JsonValue, StringConstraints
@@ -25,6 +26,20 @@ def _check_timezone(value: str) -> str:
 
 
 Timezone = Annotated[str, Field(min_length=1, max_length=64), AfterValidator(_check_timezone)]
+
+
+def _check_website(value: str) -> str:
+    """A web address: 'example.com/x' becomes 'https://example.com/x'; other schemes fail."""
+    value = value.strip()
+    if "://" not in value:
+        value = f"https://{value}"
+    parts = urlsplit(value)
+    if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+        raise ValueError("website must be an http(s) address")
+    return value
+
+
+WebsiteUrl = Annotated[str, Field(min_length=1, max_length=500), AfterValidator(_check_website)]
 
 
 class PaletteColor(BaseModel):
@@ -182,9 +197,7 @@ class CourseFields(BaseModel):
     description: Annotated[str, Field(max_length=5000)] | None = Field(
         default=None, description="Course description"
     )
-    website_url: Annotated[str, Field(max_length=500)] | None = Field(
-        default=None, description="Course website"
-    )
+    website_url: WebsiteUrl | None = Field(default=None, description="Course website")
     planned_terms: Annotated[int, Field(ge=1, le=6)] = Field(
         default=1, description="Consecutive terms the course spans; 2 for a year-long course"
     )
@@ -402,9 +415,7 @@ class CourseUpdateInput(BaseModel):
     description: Annotated[str, Field(max_length=5000)] | None = Field(
         default=None, description="Description"
     )
-    website_url: Annotated[str, Field(max_length=500)] | None = Field(
-        default=None, description="Website"
-    )
+    website_url: WebsiteUrl | None = Field(default=None, description="Website")
     planned_terms: Annotated[int, Field(ge=1, le=6)] | None = Field(
         default=None, description="Consecutive terms the course spans"
     )

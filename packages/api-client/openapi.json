@@ -3246,7 +3246,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -3391,7 +3392,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -3555,7 +3557,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -3814,7 +3817,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
