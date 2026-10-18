@@ -45,6 +45,7 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 from starlette.datastructures import State
@@ -262,23 +263,36 @@ async def enqueue(
         raise ValueError(f"no job handler for {kind!r}")
     if not isinstance(payload, handler.payload_model):
         raise TypeError(f"{kind}: payload must be {handler.payload_model.__name__}")
-    if dedupe_key is not None:
-        existing = await ctx.db.scalar(
-            select(CoreJob).where(CoreJob.user_id == ctx.user_id, CoreJob.dedupe_key == dedupe_key)
+    values: dict[str, Any] = {
+        "user_id": ctx.user_id,
+        "kind": kind,
+        "payload": payload.model_dump(mode="json"),
+        "max_attempts": handler.max_attempts,
+        "run_after": ctx.now,
+        "created_at": ctx.now,
+        "dedupe_key": dedupe_key,
+    }
+    if dedupe_key is None:
+        job = CoreJob(**values)
+        ctx.db.add(job)
+        await ctx.db.flush()
+    else:
+        # Atomic, so two concurrent submissions with one key both get the same job.
+        inserted = await ctx.db.scalar(
+            sqlite_insert(CoreJob)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["user_id", "dedupe_key"])
+            .returning(CoreJob)
         )
-        if existing is not None:
+        if inserted is None:
+            existing = await ctx.db.scalar(
+                select(CoreJob).where(
+                    CoreJob.user_id == ctx.user_id, CoreJob.dedupe_key == dedupe_key
+                )
+            )
+            assert existing is not None
             return existing
-    job = CoreJob(
-        user_id=ctx.user_id,
-        kind=kind,
-        payload=payload.model_dump(mode="json"),
-        max_attempts=handler.max_attempts,
-        run_after=ctx.now,
-        created_at=ctx.now,
-        dedupe_key=dedupe_key,
-    )
-    ctx.db.add(job)
-    await ctx.db.flush()
+        job = inserted
     await events.publish(ctx, JOB_PROGRESS, _event(job).data)
     state = ctx.state
 

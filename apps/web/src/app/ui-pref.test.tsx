@@ -116,3 +116,20 @@ test('a failed save does not break the page and keeps the value in this tab', as
   await flushUiPrefs(queryClient)
   await waitFor(() => expect(result.current[0]).toBe('closed'))
 })
+
+test('a mounted component that switches key shows (and writes) that key, not the previous one', async () => {
+  const log = backend({ 'course.c2.sort': 'grade' })
+  const { result, rerender } = renderHook(({ id }) => useUiPref(`course.${id}.sort`, 'name'), {
+    wrapper,
+    initialProps: { id: 'c1' },
+  })
+  await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+  expect(result.current[0]).toBe('name')
+
+  rerender({ id: 'c2' })
+  await waitFor(() => expect(result.current[0]).toBe('grade'))
+
+  act(() => result.current[1]('date'))
+  await flushUiPrefs(queryClient)
+  expect(log.writes).toEqual([['course.c2.sort', 'date']])
+})
