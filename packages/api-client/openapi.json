@@ -2109,6 +2109,428 @@
         }
       }
     },
+    "/ai/assignments": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "The model chosen for each AI purpose, with the recommended default.",
+        "description": "Not for agents.",
+        "operationId": "aiAssignmentGet",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Choose the provider and model for one AI purpose.",
+        "description": "provider_id null removes the choice so the default applies. Not for agents.",
+        "operationId": "aiAssignmentUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentUpdateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/providers": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "List the user's AI providers (keys masked).",
+        "description": "Providers the user connected with their own API keys. Not for agents.",
+        "operationId": "aiProviderList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Connect an AI provider with the user's own key.",
+        "description": "Checks the key and URL by listing the provider's models before saving; a failed\ncheck returns ai.provider_check_failed with the reason. Not for agents.",
+        "operationId": "aiProviderCreate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCreateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/providers/{id}": {
+      "delete": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Remove an AI provider and the model choices that use it.",
+        "description": "Not for agents.",
+        "operationId": "aiProviderDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Provider id.",
+              "title": "Id"
+            },
+            "description": "Provider id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDeleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Rename, re-key, reconfigure or turn off an AI provider.",
+        "description": "A new key or base URL is checked again before saving. Not for agents.",
+        "operationId": "aiProviderUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Provider id.",
+              "title": "Id"
+            },
+            "description": "Provider id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/ai/providers/{id}/models": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "List the models a provider offers.",
+        "description": "Cached for an hour. Not for agents.",
+        "operationId": "aiProviderModels",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Provider id.",
+              "title": "Id"
+            },
+            "description": "Provider id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/ai/providers/{id}:test": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Check that a provider's key and URL still work.",
+        "description": "Records the result on the provider. Not for agents.",
+        "operationId": "aiProviderTest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Provider id.",
+              "title": "Id"
+            },
+            "description": "Provider id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCheck"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/ai/status": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Whether each AI purpose is available and which model serves it.",
+        "description": "The frontend enables or greys out AI features with it. Not for agents.",
+        "operationId": "aiStatus",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/usage": {
+      "get": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Token use and estimated cost by day, purpose, module and model.",
+        "description": "Defaults to the last 30 days. Not for agents.",
+        "operationId": "aiUsageSummary",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "How many days back to summarise.",
+              "default": 30,
+              "title": "Days"
+            },
+            "description": "How many days back to summarise."
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "IANA time zone for day buckets.",
+              "default": "UTC",
+              "title": "Tz"
+            },
+            "description": "IANA time zone for day buckets."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/jobs/{job_id}/cancel": {
       "post": {
         "tags": [
@@ -2768,6 +3190,149 @@
   },
   "components": {
     "schemas": {
+      "AiStatus": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurposeStatus"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AiStatus"
+      },
+      "Assignment": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelParams"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendedModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "provider_id",
+          "model",
+          "params",
+          "recommended"
+        ],
+        "title": "Assignment"
+      },
+      "AssignmentList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Assignment"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AssignmentList"
+      },
+      "AssignmentUpdateInputBody": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose",
+            "description": "Which purpose to configure."
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id",
+            "description": "Provider to use; null removes the choice (the recommended default applies)."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Model name at that provider."
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelParams",
+            "description": "Model parameters."
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "provider_id"
+        ],
+        "title": "AssignmentUpdateInputBody"
+      },
       "AuthConfig": {
         "properties": {
           "google_client_id": {
@@ -4334,6 +4899,103 @@
         "title": "JobPage"
       },
       "JsonValue": {},
+      "ModelList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelOption"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "manual_entry": {
+            "type": "boolean",
+            "title": "Manual Entry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "manual_entry"
+        ],
+        "title": "ModelList"
+      },
+      "ModelOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "ModelOption"
+      },
+      "ModelParams": {
+        "properties": {
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature",
+            "description": "Sampling temperature."
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 200000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens",
+            "description": "Output cap."
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort",
+            "description": "Reasoning effort, for models that support it."
+          }
+        },
+        "type": "object",
+        "title": "ModelParams"
+      },
       "PaletteColor": {
         "properties": {
           "palette": {
@@ -4963,6 +5625,457 @@
         "type": "object",
         "title": "ProgramUpdateInputBody"
       },
+      "Provider": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "openai_compatible",
+              "gemini",
+              "ollama"
+            ],
+            "title": "Kind"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "key_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Hint"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "chat",
+                "tools",
+                "vision",
+                "structured",
+                "embedding"
+              ]
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "capabilities_editable": {
+            "type": "boolean",
+            "title": "Capabilities Editable"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "display_name",
+          "base_url",
+          "key_hint",
+          "capabilities",
+          "capabilities_editable",
+          "enabled",
+          "last_checked_at",
+          "last_error_code",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Provider"
+      },
+      "ProviderCheck": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "error_code",
+          "checked_at"
+        ],
+        "title": "ProviderCheck"
+      },
+      "ProviderCreateInputBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "anthropic",
+              "openai",
+              "openai_compatible",
+              "gemini",
+              "ollama"
+            ],
+            "title": "Kind",
+            "description": "Provider type."
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "Name shown in the list; defaults to the type."
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "API base URL; required for openai_compatible and ollama."
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key",
+            "description": "API key (stored encrypted)."
+          },
+          "capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "chat",
+                    "tools",
+                    "vision",
+                    "structured",
+                    "embedding"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capabilities",
+            "description": "What the endpoint supports; only for openai_compatible and ollama."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "ProviderCreateInputBody"
+      },
+      "ProviderDeleted": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "cleared_purposes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "chat",
+                "extraction",
+                "vision",
+                "embedding",
+                "title"
+              ]
+            },
+            "type": "array",
+            "title": "Cleared Purposes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cleared_purposes"
+        ],
+        "title": "ProviderDeleted"
+      },
+      "ProviderList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ProviderList"
+      },
+      "ProviderUpdateInputBody": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "New name."
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "New base URL."
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key",
+            "description": "New API key; the provider is checked again before saving."
+          },
+          "capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "chat",
+                    "tools",
+                    "vision",
+                    "structured",
+                    "embedding"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capabilities",
+            "description": "New capabilities (openai_compatible and ollama only)."
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled",
+            "description": "Turn the provider on or off."
+          }
+        },
+        "type": "object",
+        "title": "ProviderUpdateInputBody"
+      },
+      "PurposeStatus": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "assignment",
+                  "default",
+                  "instance"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "provider_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "anthropic",
+                  "openai",
+                  "openai_compatible",
+                  "gemini",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Kind"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "available",
+          "source",
+          "provider_id",
+          "provider_kind",
+          "provider_name",
+          "model"
+        ],
+        "title": "PurposeStatus"
+      },
       "Ready": {
         "properties": {
           "status": {
@@ -4991,6 +6104,24 @@
           "worker"
         ],
         "title": "Ready"
+      },
+      "RecommendedModel": {
+        "properties": {
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_id",
+          "model"
+        ],
+        "title": "RecommendedModel"
       },
       "RefreshIn": {
         "properties": {
@@ -5967,6 +7098,194 @@
           "value"
         ],
         "title": "UiStateSetInputBody"
+      },
+      "UsageDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "purpose",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd"
+        ],
+        "title": "UsageDay"
+      },
+      "UsageRow": {
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "calls",
+          "errors",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "key"
+        ],
+        "title": "UsageRow"
+      },
+      "UsageSummary": {
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageTotals"
+          },
+          "cost_complete": {
+            "type": "boolean",
+            "title": "Cost Complete"
+          },
+          "by_day": {
+            "items": {
+              "$ref": "#/components/schemas/UsageDay"
+            },
+            "type": "array",
+            "title": "By Day"
+          },
+          "by_purpose": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "type": "array",
+            "title": "By Purpose"
+          },
+          "by_module": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "type": "array",
+            "title": "By Module"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/UsageRow"
+            },
+            "type": "array",
+            "title": "By Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "totals",
+          "cost_complete",
+          "by_day",
+          "by_purpose",
+          "by_module",
+          "by_model"
+        ],
+        "title": "UsageSummary"
+      },
+      "UsageTotals": {
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "calls",
+          "errors",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd"
+        ],
+        "title": "UsageTotals"
       },
       "UserOut": {
         "properties": {
