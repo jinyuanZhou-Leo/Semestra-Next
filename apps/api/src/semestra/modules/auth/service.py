@@ -359,6 +359,11 @@ async def revoke_all_for_user(db: AsyncSession, user_id: str, now: datetime) -> 
     )
 
 
+# A rotated-out refresh token presented this soon after its rotation is a concurrent request
+# that lost the race; later reuse means the token was copied and revokes the session.
+REFRESH_REUSE_GRACE = timedelta(seconds=10)
+
+
 async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> SignedIn:
     """Rotates a native refresh token. Reusing a rotated token revokes the whole session."""
     digest = crypto.hash_token(refresh_token)
@@ -377,6 +382,10 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
             )
         ).scalar_one_or_none()
         if replayed is not None and replayed.revoked_at is None:
+            if ctx.now - replayed.last_used_at < REFRESH_REUSE_GRACE:
+                # Sent together with the refresh that rotated it (several app requests at once):
+                # a lost race, not a stolen token.
+                raise expired
             replayed.revoked_at = ctx.now
             await ctx.db.commit()
             log.warning("refresh_token_replay", session_id=replayed.id, user_id=replayed.user_id)
