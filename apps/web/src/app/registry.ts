@@ -3,12 +3,13 @@ import academics from '@/modules/academics/manifest'
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
+  BoardKind,
+  CalendarSourceContribution,
   CardContribution,
   ModuleManifest,
   PageContribution,
   QueryKeyPrefix,
   Scope,
-  ScopeKind,
   SettingsLevel,
   SettingsSectionContribution,
   StatusItemContribution,
@@ -39,10 +40,14 @@ export function usePages(scope: Scope): PageContribution[] {
     .sort(byOrder)
 }
 
-export function useCards(scope: ScopeKind): CardContribution[] {
+export function useCards(board: BoardKind): CardContribution[] {
   return useModules()
     .flatMap((m) => m.cards ?? [])
-    .filter((c) => c.scopes.includes(scope))
+    .filter((c) => c.scopes.includes(board))
+}
+
+export function useCalendarSources(): CalendarSourceContribution[] {
+  return useModules().flatMap((m) => m.calendarSources ?? [])
 }
 
 export function useSettingsSections(level: SettingsLevel): SettingsSectionContribution[] {

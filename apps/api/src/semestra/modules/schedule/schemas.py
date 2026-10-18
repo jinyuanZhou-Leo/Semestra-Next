@@ -236,7 +236,7 @@ class TermRef(BaseModel):
 # --- one-off events -------------------------------------------------------------------------
 
 
-class Event(BaseModel):
+class OneOffEvent(BaseModel):
     id: str
     program_id: str
     term_id: str | None
@@ -254,8 +254,8 @@ class Event(BaseModel):
     updated_at: datetime
 
 
-class EventList(BaseModel):
-    items: list[Event] = Field(description="By start time")
+class OneOffEventList(BaseModel):
+    items: list[OneOffEvent] = Field(description="By start time")
 
 
 class EventListInput(BaseModel):

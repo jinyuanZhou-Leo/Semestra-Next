@@ -2600,7 +2600,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Event"
+                  "$ref": "#/components/schemas/OneOffEvent"
                 }
               }
             }
@@ -2683,7 +2683,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EventList"
+                  "$ref": "#/components/schemas/OneOffEventList"
                 }
               }
             }
@@ -2781,7 +2781,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Event"
+                  "$ref": "#/components/schemas/OneOffEvent"
                 }
               }
             }
@@ -5440,142 +5440,6 @@
         ],
         "title": "ErrorResponse"
       },
-      "Event": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "program_id": {
-            "type": "string",
-            "title": "Program Id"
-          },
-          "term_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Term Id"
-          },
-          "course_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Course Id"
-          },
-          "type_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type Code"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "start_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Start At"
-          },
-          "end_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "End At"
-          },
-          "all_day": {
-            "type": "boolean",
-            "title": "All Day"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "source_kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Kind"
-          },
-          "source_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Ref"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "program_id",
-          "term_id",
-          "course_id",
-          "type_code",
-          "title",
-          "start_at",
-          "end_at",
-          "all_day",
-          "location",
-          "note",
-          "source_kind",
-          "source_ref",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "Event"
-      },
       "EventCreateInputBody": {
         "properties": {
           "title": {
@@ -5704,23 +5568,6 @@
           "end_at"
         ],
         "title": "EventCreateInputBody"
-      },
-      "EventList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Event"
-            },
-            "type": "array",
-            "title": "Items",
-            "description": "By start time"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "EventList"
       },
       "EventType": {
         "properties": {
@@ -7835,6 +7682,159 @@
           "breaks"
         ],
         "title": "Occurrences"
+      },
+      "OneOffEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id"
+          },
+          "type_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At"
+          },
+          "all_day": {
+            "type": "boolean",
+            "title": "All Day"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "term_id",
+          "course_id",
+          "type_code",
+          "title",
+          "start_at",
+          "end_at",
+          "all_day",
+          "location",
+          "note",
+          "source_kind",
+          "source_ref",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OneOffEvent"
+      },
+      "OneOffEventList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OneOffEvent"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "By start time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "OneOffEventList"
       },
       "PaletteColor": {
         "properties": {

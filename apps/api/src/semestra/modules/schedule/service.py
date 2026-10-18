@@ -39,7 +39,6 @@ from semestra.modules.schedule.schemas import (
     CalendarBreak,
     CalendarWeek,
     ConflictPair,
-    Event,
     EventCreateInput,
     EventListInput,
     EventType,
@@ -57,6 +56,7 @@ from semestra.modules.schedule.schemas import (
     MeetingUpdateInput,
     Occurrences,
     OccurrencesInput,
+    OneOffEvent,
     Today,
     TodayWeek,
 )
@@ -699,11 +699,11 @@ async def _check_event_links(
             raise not_found()
 
 
-def event_out(row: ScheduleEvent) -> Event:
-    return Event.model_validate(_columns(row))
+def event_out(row: ScheduleEvent) -> OneOffEvent:
+    return OneOffEvent.model_validate(_columns(row))
 
 
-async def list_events(ctx: Ctx, inp: EventListInput) -> list[Event]:
+async def list_events(ctx: Ctx, inp: EventListInput) -> list[OneOffEvent]:
     await academics.get_program_row(ctx, inp.program_id)
     q = select(ScheduleEvent).where(
         ScheduleEvent.user_id == ctx.user_id, ScheduleEvent.program_id == inp.program_id
@@ -716,7 +716,7 @@ async def list_events(ctx: Ctx, inp: EventListInput) -> list[Event]:
     return [event_out(r) for r in rows]
 
 
-async def create_event(ctx: Ctx, inp: EventCreateInput) -> Event:
+async def create_event(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     program = await academics.get_program_row(ctx, inp.program_id)
     await _check_event_links(ctx, program.id, inp.course_id, inp.term_id)
     await _check_type_code(ctx, program.id, inp.type_code)
@@ -748,7 +748,7 @@ async def create_event(ctx: Ctx, inp: EventCreateInput) -> Event:
 _NULLABLE_EVENT = {"course_id", "term_id", "type_code", "location", "note"}
 
 
-async def update_event(ctx: Ctx, inp: EventUpdateInput) -> Event:
+async def update_event(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
     row = await _event_row(ctx, inp.event_id)
     program = await academics.get_program_row(ctx, row.program_id)
     sent = inp.model_fields_set - {"event_id"}

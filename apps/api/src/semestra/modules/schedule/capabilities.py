@@ -6,9 +6,7 @@ from semestra.modules.schedule import service
 from semestra.modules.schedule.schemas import (
     ConflictList,
     Deleted,
-    Event,
     EventCreateInput,
-    EventList,
     EventListInput,
     EventRef,
     EventType,
@@ -37,6 +35,8 @@ from semestra.modules.schedule.schemas import (
     MeetingUpdateInput,
     Occurrences,
     OccurrencesInput,
+    OneOffEvent,
+    OneOffEventList,
     ProgramRef,
     TermRef,
     Today,
@@ -282,8 +282,8 @@ calendar.occurrences.""",
     http=Http("GET", "/programs/{program_id}/events"),
     tags=TAGS,
 )
-async def event_list(ctx: Ctx, inp: EventListInput) -> EventList:
-    return EventList(items=await service.list_events(ctx, inp))
+async def event_list(ctx: Ctx, inp: EventListInput) -> OneOffEventList:
+    return OneOffEventList(items=await service.list_events(ctx, inp))
 
 
 @capability(
@@ -295,7 +295,7 @@ that repeats weekly use schedule.meeting.create.""",
     http=Http("POST", "/programs/{program_id}/events"),
     tags=TAGS,
 )
-async def event_create(ctx: Ctx, inp: EventCreateInput) -> Event:
+async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     return await service.create_event(ctx, inp)
 
 
@@ -307,7 +307,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> Event:
     http=Http("PATCH", "/events/{event_id}"),
     tags=TAGS,
 )
-async def event_update(ctx: Ctx, inp: EventUpdateInput) -> Event:
+async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
     return await service.update_event(ctx, inp)
 
 

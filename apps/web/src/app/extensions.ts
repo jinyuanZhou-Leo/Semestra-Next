@@ -1,3 +1,4 @@
+import type { Occurrence } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { ZodType } from 'zod'
@@ -11,6 +12,12 @@ import type { ZodType } from 'zod'
 export type Message = () => string
 
 export type ScopeKind = 'program' | 'term' | 'course'
+
+/**
+ * Where a card can sit: a scope's overview, or the Program's "today" page (M04 §5.1), whose
+ * cards receive the Program scope.
+ */
+export type BoardKind = ScopeKind | 'today'
 
 export type Scope =
   | { kind: 'program'; programId: string }
@@ -44,7 +51,7 @@ export type CardProps<Settings = unknown> = {
 
 export type CardContribution = {
   id: string
-  scopes: readonly ScopeKind[]
+  scopes: readonly BoardKind[]
   title: Message
   icon: LucideIcon
   sizes: readonly CardSize[]
@@ -125,8 +132,23 @@ export type CommandContribution = {
   scopes?: readonly ScopeKind[]
 } & ({ run: (ctx: CommandContext) => void | Promise<void> } | { to: string })
 
-/** Defined by M04; kept open here so M04 can refine it without changing the contract. */
-export type CalendarSourceContribution = { id: string; title: Message } & Record<string, unknown>
+/**
+ * A calendar source's label, icon and click behaviour in the calendar (M04 §5.2). The data itself
+ * always comes from the backend source of the same name (`calendar.occurrences`).
+ */
+export type CalendarSourceContribution = {
+  /** Backend source name, e.g. 'grading.assessments'. */
+  source: string
+  label: Message
+  icon: LucideIcon
+  /** Shown before the user changes the calendar's filters. */
+  defaultVisible: boolean
+  /** "Open" in the occurrence's details; without it the details have no open action. */
+  onOpen?: (occurrence: Occurrence, navigate: (to: string) => void) => void
+}
+
+/** A card placed on a board when the user has no layout of their own yet (M10 §2). */
+export type DefaultBoardCard = { card: string; size?: CardSize }
 
 export type SearchResult = { id: string; title: string; subtitle?: string; to: string }
 
@@ -177,6 +199,8 @@ export type ModuleManifest = {
   statusItems?: readonly StatusItemContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
+  /** Cards this module puts on new boards, per board kind (M10). */
+  defaultBoard?: Partial<Readonly<Record<BoardKind, readonly DefaultBoardCard[]>>>
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */
   realtimeInvalidations?: Readonly<Record<string, readonly QueryKeyPrefix[]>>
 }

@@ -804,72 +804,6 @@ export type ErrorResponse = {
 };
 
 /**
- * Event
- */
-export type Event = {
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Program Id
-     */
-    program_id: string;
-    /**
-     * Term Id
-     */
-    term_id: string | null;
-    /**
-     * Course Id
-     */
-    course_id: string | null;
-    /**
-     * Type Code
-     */
-    type_code: string | null;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Start At
-     */
-    start_at: string;
-    /**
-     * End At
-     */
-    end_at: string;
-    /**
-     * All Day
-     */
-    all_day: boolean;
-    /**
-     * Location
-     */
-    location: string | null;
-    /**
-     * Note
-     */
-    note: string | null;
-    /**
-     * Source Kind
-     */
-    source_kind: string | null;
-    /**
-     * Source Ref
-     */
-    source_ref: string | null;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-};
-
-/**
  * EventCreateInputBody
  */
 export type EventCreateInputBody = {
@@ -939,18 +873,6 @@ export type EventCreateInputBody = {
      * Id in the import source
      */
     source_ref?: string | null;
-};
-
-/**
- * EventList
- */
-export type EventList = {
-    /**
-     * Items
-     *
-     * By start time
-     */
-    items: Array<Event>;
 };
 
 /**
@@ -2136,6 +2058,84 @@ export type Occurrences = {
      * Breaks touching the range
      */
     breaks: Array<CalendarBreak>;
+};
+
+/**
+ * OneOffEvent
+ */
+export type OneOffEvent = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * Type Code
+     */
+    type_code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Start At
+     */
+    start_at: string;
+    /**
+     * End At
+     */
+    end_at: string;
+    /**
+     * All Day
+     */
+    all_day: boolean;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source Kind
+     */
+    source_kind: string | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * OneOffEventList
+ */
+export type OneOffEventList = {
+    /**
+     * Items
+     *
+     * By start time
+     */
+    items: Array<OneOffEvent>;
 };
 
 /**
@@ -4881,7 +4881,7 @@ export type ScheduleEventListResponses = {
     /**
      * Successful Response
      */
-    200: EventList;
+    200: OneOffEventList;
 };
 
 export type ScheduleEventListResponse = ScheduleEventListResponses[keyof ScheduleEventListResponses];
@@ -4913,7 +4913,7 @@ export type ScheduleEventCreateResponses = {
     /**
      * Successful Response
      */
-    200: Event;
+    200: OneOffEvent;
 };
 
 export type ScheduleEventCreateResponse = ScheduleEventCreateResponses[keyof ScheduleEventCreateResponses];
@@ -4977,7 +4977,7 @@ export type ScheduleEventUpdateResponses = {
     /**
      * Successful Response
      */
-    200: Event;
+    200: OneOffEvent;
 };
 
 export type ScheduleEventUpdateResponse = ScheduleEventUpdateResponses[keyof ScheduleEventUpdateResponses];
