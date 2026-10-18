@@ -64,14 +64,55 @@ export type SettingsLevel = 'account' | 'program' | 'term' | 'course'
 
 export type SettingsSectionProps = { scope?: Scope }
 
-/** Details in M11. */
-export type SettingsSectionContribution = {
+/**
+ * Where a section sits in the settings navigation (M11 §5.1). A section without a group goes to
+ * 'features' at account level and 'general' on Program, term and course pages.
+ */
+export type SettingsGroup =
+  | 'general'
+  | 'account'
+  | 'preferences'
+  | 'features'
+  | 'integrations'
+  | 'plugins'
+  | 'data'
+  | 'about'
+
+export type FieldControl = 'switch' | 'select' | 'segmented' | 'number' | 'text' | 'time'
+
+/** Tweaks for a form generated from a namespace's JSON Schema. */
+export type FieldOverrides = {
+  /** Fields in the order to show; fields not listed follow in schema order. */
+  order?: readonly string[]
+  /** Fields to leave out of the form. */
+  hidden?: readonly string[]
+  /** Force a control instead of the one picked from the field's type. */
+  controls?: Readonly<Record<string, FieldControl>>
+}
+
+type SettingsSectionBase = {
   id: string
   level: SettingsLevel
+  group?: SettingsGroup
   title: Message
+  description?: Message
+  icon?: LucideIcon
   order: number
-  component: Lazy<SettingsSectionProps>
+  /** Marks a plugin's section: shown on its plugin page (M10), not in the settings navigation. */
+  pluginId?: string
 }
+
+/**
+ * A settings section (M11 §5.1): either a custom `component`, or a `namespace` registered in
+ * the backend with `register_settings`, for which the form is generated from its schema. Field
+ * texts come from the messages `settings_<namespace>_<field>_label|_description` and
+ * `..._option_<value>` (dots and dashes in the namespace become underscores).
+ */
+export type SettingsSectionContribution = SettingsSectionBase &
+  (
+    | { component: Lazy<SettingsSectionProps>; namespace?: undefined; fields?: undefined }
+    | { namespace: string; fields?: FieldOverrides; component?: undefined }
+  )
 
 export type CommandContext = { scope?: Scope; navigate: (to: string) => void }
 
@@ -153,4 +194,10 @@ export function scopePath(scope: Scope, pageId?: string): string {
         ? `/p/${scope.programId}/t/${scope.termId}`
         : `/p/${scope.programId}/c/${scope.courseId}`
   return pageId ? `${base}/${pageId}` : base
+}
+
+/** URL of a scope's settings page, optionally of one group of sections (M11 §5.2). */
+export function scopeSettingsPath(scope: Scope, group?: string): string {
+  const base = `${scopePath(scope)}/settings`
+  return group ? `${base}/${group}` : base
 }

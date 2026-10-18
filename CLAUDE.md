@@ -65,6 +65,11 @@ docs/                设计稿与模块规格
 - **macOS 没有 `timeout` 命令**；长时间运行的命令用后台任务，不要用 `timeout N cmd`。
 - Alembic 的 `env.py` 里要手动 import 各模块的 models，否则 autogenerate 与 `alembic check` 看不到它们；新增模块时记得加。
 - **测试里没有后台 worker**（`jobs_autostart=False`）：入队后用 `run_jobs()` fixture 执行；推给用户的 SSE 消息用 `collect_events(app, user_id)` 收集。冻结的 `clock` 也驱动任务退避与租约，测重试要 `clock.advance(...)`。同一阶段内的进度推送有 250ms 节流（按真实单调时钟），要断言每一条进度事件时 `monkeypatch.setattr("semestra.core.jobs.PROGRESS_THROTTLE_SECONDS", 0)`。
+- **设置项不要自己造页面**：模块配置用 `register_settings(namespace=…, schema=Pydantic 模型, levels=…)` 声明，前端在 manifest 的 `settingsSections` 里写 `{ namespace }` 即可自动生成表单；文案写进 `messages/*.json`（`settings_<namespace，点和横线换成下划线>_<字段>_label|_description|_option_<取值>`，两种语言都要，后端测试会检查）。账户偏好不属于任何模块，只在 `settings_preferences`。
+- **界面状态与设置不是一回事**：排序、折叠等记忆状态用 `useUiPref('<模块>.<名称>', 默认值)`，不要放进设置，也不要直接用 localStorage（除了首屏防闪烁必须的主题/强调色/语言）。
+- **颜色用令牌，不要写死**：强调色通过 `data-accent` 切换 `--accent-hue`，所以组件只用 `bg-primary` 之类的令牌；手写 `oklch(...)`、`sky-500` 会在换强调色后不跟随。
+- **语言与时间格式变化会重挂载应用子树**：消息是普通函数，不是响应式的；不要在模块级缓存 `m.xxx()` 的结果，在渲染时调用。
+- **effect 里不要同步 `setState`**（oxlint 的 `react/set-state-in-effect` 是错误）：派生值直接在渲染中算，或用“记录上次值，渲染时比较”的写法；订阅外部系统（IntersectionObserver 等）的回调里设置状态没问题。
 - **structlog 的 `event` 是保留参数**：`log.info("x", event=...)` 会抛 TypeError，换个字段名。
 - **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
 - **`@capability`、`@job_handler`、`@periodic`、`@events.subscribe` 在 import 时注册**：模块 `__init__.py` 必须 import 定义它们的文件。
@@ -80,3 +85,5 @@ docs/                设计稿与模块规格
 - M15（部署与运维）：`deploy/docker/Dockerfile`（目标 `api` / `api-office` / `allinone`，上下文是仓库根）、`deploy/hosted/`（GCP VM：Caddy + Litestream + `deploy.sh` 自动回滚）、`deploy/selfhost/`（一条命令的 compose，中英 README）、`apps/web/vercel.json`、`core/webapp.py`（`SEMESTRA_SERVE_WEB` 同源托管 SPA）、`core/backup.py` 与 `semestra backup`、可选 Sentry。总览与首次上线要手动做的事见 [deploy/README.md](deploy/README.md)。
   **尚未实现**：`/metrics`、每周 `VACUUM`（M00 的 `@periodic` 已可用，上线前需评估与 Litestream 的配合）。
   给其它模块的约定：持久数据只写 `/data`；后端 GET 路径不要与前端路由同名（同源托管时 API 优先）；系统库加在 Dockerfile 的 `api` 目标；新增环境变量同步 `deploy/.env.example`；Docker 里的 pnpm 版本（`PNPM_VERSION`）要与根 `package.json` 的 `packageManager` 一致。
+- M11 设置与偏好：后端 `apps/api/src/semestra/modules/settings/`（`settings_preferences`/`settings_values`/`settings_ui_state`；`register_settings`、`set_scope_resolver`；capability `settings.preferences.*`、`settings.schemas.list`、`settings.values.*`、`settings.ui_state.*`）；前端框架 `apps/web/src/app/settings/`（`SettingsPage`、`SettingsSections`、`PluginSettingsSections`、`NamespaceForm`）、主题 `app/theme.tsx` + `app/appearance.ts` + `public/theme-init.js`、语言 `app/locale.tsx`、偏好同步 `app/preferences.tsx`、`useUiPref`；内置分区在 `modules/settings/`（外观、语言与时间、关于），账户分区由 `modules/auth` 贡献。设置页路由 `/settings/$group`。
+  给其它模块的约定：声明配置命名空间而不是自己写设置页；作用域设置页用 `SettingsPage`；M02 要注册 scope resolver 并为级联删除发 `*.deleted` 事件。细节与偏离见 M11 规格第 9 节。

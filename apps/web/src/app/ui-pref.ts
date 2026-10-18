@@ -1,38 +1,198 @@
-import { useCallback, useState } from 'react'
+import { type JsonValue, settingsUiStateGetMany, settingsUiStateSet } from '@semestra/api-client'
+import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 
-const PREFIX = 'semestra.ui.'
+/**
+ * UI state that survives a reload and follows the user across devices, such as a table's sort
+ * order or a collapsed panel (M00 §4.7, M11 §5.5). Stored in `settings_ui_state`; it is not a
+ * setting and never appears on a settings page.
+ *
+ * Reads share the TanStack Query cache (one entry per key). Keys requested in the same tick are
+ * fetched in a single request, and the common prefixes are prefetched when the signed-in layout
+ * loads. Writes update the cache at once and are sent 300 ms after the last change.
+ */
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(PREFIX + key)
-    return raw === null ? fallback : (JSON.parse(raw) as T)
-  } catch {
-    return fallback
+const WRITE_DELAY_MS = 300
+const MAX_KEYS_PER_REQUEST = 200
+export const UI_PREF_PREFETCH_PREFIXES = [
+  'layout.',
+  'calendar.',
+  'tasks.',
+  'academics.',
+  'onboarding.',
+  'commands.',
+] as const
+
+type Entry = { found: boolean; value: unknown }
+
+type Waiter = { resolve: (entry: Entry) => void; reject: (error: unknown) => void }
+
+type Store = {
+  /** Values changed locally and not yet saved: they win over whatever the server says. */
+  pending: Map<string, unknown>
+  timers: Map<string, ReturnType<typeof setTimeout>>
+  /** The save in progress per key: the next one for the same key waits for it. */
+  inflight: Map<string, Promise<void>>
+  /** Reads queued for the next batch. */
+  waiting: Map<string, Waiter[]>
+  batchScheduled: boolean
+  prefetch: Promise<void> | null
+  prefetchedPrefixes: readonly string[]
+}
+
+const stores = new WeakMap<QueryClient, Store>()
+
+function storeOf(queryClient: QueryClient): Store {
+  let store = stores.get(queryClient)
+  if (!store) {
+    store = {
+      pending: new Map(),
+      timers: new Map(),
+      inflight: new Map(),
+      waiting: new Map(),
+      batchScheduled: false,
+      prefetch: null,
+      prefetchedPrefixes: [],
+    }
+    stores.set(queryClient, store)
+    window.addEventListener('pagehide', () => flushUiPrefs(queryClient))
+  }
+  return store
+}
+
+const queryKeyFor = (key: string) => ['ui-pref', key] as const
+
+async function sendBatch(queryClient: QueryClient) {
+  const store = storeOf(queryClient)
+  const batch = [...store.waiting]
+  store.waiting.clear()
+  store.batchScheduled = false
+  for (let i = 0; i < batch.length; i += MAX_KEYS_PER_REQUEST) {
+    const chunk = batch.slice(i, i + MAX_KEYS_PER_REQUEST)
+    try {
+      const { data } = await settingsUiStateGetMany({
+        body: { keys: chunk.map(([key]) => key) },
+        throwOnError: true,
+      })
+      for (const [key, waiters] of chunk) {
+        for (const w of waiters) w.resolve({ found: key in data.items, value: data.items[key] })
+      }
+    } catch (error) {
+      for (const [, waiters] of chunk) for (const w of waiters) w.reject(error)
+    }
   }
 }
 
-/**
- * UI state that survives a reload, such as a table's sort order (M00 §4.7). Stored in
- * localStorage until M11 provides the server-side UI preferences API; the signature stays.
- */
-export function useUiPref<T>(key: string, defaultValue: T): [T, (value: T) => void] {
-  const [state, setState] = useState(() => ({ key, value: read(key, defaultValue) }))
-  let { value } = state
-  if (state.key !== key) {
-    // The key changed (e.g. another course on a reused route): load that key's value.
-    value = read(key, defaultValue)
-    setState({ key, value })
+async function load(queryClient: QueryClient, key: string): Promise<Entry> {
+  const store = storeOf(queryClient)
+  await store.prefetch
+  if (store.pending.has(key)) return { found: true, value: store.pending.get(key) }
+  const cached = queryClient.getQueryData<Entry>(queryKeyFor(key))
+  if (cached) return cached
+  // The prefetch listed every stored key under its prefixes: a key it did not return is unset.
+  if (store.prefetchedPrefixes.some((prefix) => key.startsWith(prefix))) {
+    return { found: false, value: undefined }
   }
-  const update = useCallback(
-    (next: T) => {
-      setState({ key, value: next })
-      try {
-        localStorage.setItem(PREFIX + key, JSON.stringify(next))
-      } catch {
-        // Storage full or blocked: keep the in-memory value.
+  return new Promise<Entry>((resolve, reject) => {
+    store.waiting.set(key, [...(store.waiting.get(key) ?? []), { resolve, reject }])
+    // Everything requested during this tick goes out together.
+    if (!store.batchScheduled) {
+      store.batchScheduled = true
+      setTimeout(() => void sendBatch(queryClient), 0)
+    }
+  })
+}
+
+/** Fetch all keys under `prefixes` once; start it before the first screen renders. */
+export function prefetchUiPrefs(
+  queryClient: QueryClient,
+  prefixes: readonly string[] = UI_PREF_PREFETCH_PREFIXES,
+): Promise<void> {
+  const store = storeOf(queryClient)
+  store.prefetch = (async () => {
+    try {
+      const { data } = await settingsUiStateGetMany({
+        body: { prefixes: [...prefixes] },
+        throwOnError: true,
+      })
+      for (const [key, value] of Object.entries(data.items)) {
+        if (!store.pending.has(key)) {
+          queryClient.setQueryData<Entry>(queryKeyFor(key), { found: true, value })
+        }
       }
-    },
-    [key],
+      store.prefetchedPrefixes = prefixes
+    } catch {
+      // Individual reads will try again; nothing depends on the prefetch.
+    }
+  })()
+  return store.prefetch
+}
+
+async function send(queryClient: QueryClient, key: string) {
+  const store = storeOf(queryClient)
+  if (!store.pending.has(key)) return
+  const value = store.pending.get(key)
+  try {
+    await settingsUiStateSet({
+      path: { key },
+      body: { value: value as JsonValue },
+      throwOnError: true,
+    })
+  } catch {
+    // Not worth interrupting anyone for a sort order. The value stays in this tab's cache.
+  } finally {
+    if (store.pending.get(key) === value) store.pending.delete(key)
+  }
+}
+
+/** Saves the key's pending value, after the save already in progress for it (if any). */
+async function save(queryClient: QueryClient, key: string) {
+  const store = storeOf(queryClient)
+  clearTimeout(store.timers.get(key))
+  store.timers.delete(key)
+  // One request per key at a time, so the newest value is always the one the server ends with.
+  const run = (store.inflight.get(key) ?? Promise.resolve()).then(() => send(queryClient, key))
+  store.inflight.set(key, run)
+  await run
+  if (store.inflight.get(key) === run) store.inflight.delete(key)
+}
+
+/** Send every change that is still waiting for its delay (leaving the page, sign-out). */
+export function flushUiPrefs(queryClient: QueryClient): Promise<void[]> {
+  const store = storeOf(queryClient)
+  return Promise.all([...store.pending.keys()].map((key) => save(queryClient, key)))
+}
+
+function write(queryClient: QueryClient, key: string, value: unknown) {
+  const store = storeOf(queryClient)
+  store.pending.set(key, value)
+  queryClient.setQueryData<Entry>(queryKeyFor(key), { found: true, value })
+  clearTimeout(store.timers.get(key))
+  store.timers.set(
+    key,
+    setTimeout(() => void save(queryClient, key), WRITE_DELAY_MS),
   )
-  return [value, update]
+}
+
+/**
+ * `const [sort, setSort] = useUiPref('tasks.sort', 'due')`. Key naming: `<module>.<what>`,
+ * plus `.<scopeId>` for per-scope state (pass `scope` to append it). The default is used while
+ * loading and when nothing has been saved.
+ */
+export function useUiPref<T>(
+  key: string,
+  defaultValue: T,
+  options: { scope?: string } = {},
+): [T, (value: T) => void] {
+  const queryClient = useQueryClient()
+  const fullKey = options.scope ? `${key}.${options.scope}` : key
+  const { data } = useQuery({
+    queryKey: queryKeyFor(fullKey),
+    queryFn: () => load(queryClient, fullKey),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+  })
+  const set = useCallback((value: T) => write(queryClient, fullKey, value), [queryClient, fullKey])
+  return [data?.found ? (data.value as T) : defaultValue, set]
 }

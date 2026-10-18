@@ -45,10 +45,7 @@ export function SessionsSection() {
   const hasOthers = items.some((s) => !s.current)
 
   return (
-    <SettingsCard
-      title={m.auth_account_sessions_title()}
-      description={m.auth_account_sessions_desc()}
-    >
+    <SettingsCard>
       {sessions.isPending ? (
         <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
       ) : sessions.isError ? (

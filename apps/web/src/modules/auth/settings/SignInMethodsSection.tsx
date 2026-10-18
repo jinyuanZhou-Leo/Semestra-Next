@@ -278,7 +278,7 @@ function GoogleRow({ user }: { user: UserOut }) {
 
 export function SignInMethodsSection({ user }: { user: UserOut }) {
   return (
-    <SettingsCard title={m.auth_account_signin_title()} description={m.auth_account_signin_desc()}>
+    <SettingsCard>
       <EmailRow user={user} />
       <Separator />
       <PasswordRow user={user} />

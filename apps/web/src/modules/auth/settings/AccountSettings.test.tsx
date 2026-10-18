@@ -2,9 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
+import { ModuleRegistry } from '@/app/registry'
+import { SettingsSections } from '@/app/settings'
 import { API, renderWithRouter, server, user } from '@/test-utils'
+import manifest from '../manifest'
 import { AuthContext } from '../useAuth'
-import { AccountSettings } from './AccountSettings'
 import { mcpConfig } from './TokensSection'
 
 beforeAll(() => server.listen())
@@ -37,7 +39,9 @@ function mount(signOut: () => Promise<void> = async () => {}) {
   server.use(http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })))
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
-      <AccountSettings />
+      <ModuleRegistry value={[manifest]}>
+        <SettingsSections level="account" group="account" />
+      </ModuleRegistry>
     </AuthContext.Provider>,
   )
 }

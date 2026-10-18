@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses } from './types.gen';
+import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -287,3 +287,100 @@ export const coreJobList = <ThrowOnError extends boolean = false>(options?: Opti
  * rejected for exceeding the quota.
  */
 export const coreStorageUsage = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageUsageData, ThrowOnError>): RequestResult<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError>({ url: '/storage/usage', ...options });
+
+/**
+ * Get the user's personal preferences.
+ *
+ * Use when you need the user's language, clock format (12h/24h) or first day of
+ * the week, for example to format a time or date in the way the user expects.
+ * Do not use to read per-module settings such as the calendar default view;
+ * use settings.values.get.
+ */
+export const settingsPreferencesGet = <ThrowOnError extends boolean = false>(options?: Options<SettingsPreferencesGetData, ThrowOnError>): RequestResult<SettingsPreferencesGetResponses, SettingsPreferencesGetErrors, ThrowOnError> => (options?.client ?? client).get<SettingsPreferencesGetResponses, SettingsPreferencesGetErrors, ThrowOnError>({ url: '/me/preferences', ...options });
+
+/**
+ * Change personal preferences (language, theme, accent, clock, week start).
+ *
+ * Partial update: only the fields that are sent change. Not for agents.
+ */
+export const settingsPreferencesUpdate = <ThrowOnError extends boolean = false>(options: Options<SettingsPreferencesUpdateData, ThrowOnError>): RequestResult<SettingsPreferencesUpdateResponses, SettingsPreferencesUpdateErrors, ThrowOnError> => (options.client ?? client).patch<SettingsPreferencesUpdateResponses, SettingsPreferencesUpdateErrors, ThrowOnError>({
+    url: '/me/preferences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List every settings namespace with its fields.
+ *
+ * Use before changing a module setting to find the namespace, the field names,
+ * their allowed values and the levels (account, program, term, course) where they can be set.
+ * Do not use to read current values; use settings.values.get.
+ */
+export const settingsSchemasList = <ThrowOnError extends boolean = false>(options?: Options<SettingsSchemasListData, ThrowOnError>): RequestResult<SettingsSchemasListResponses, SettingsSchemasListErrors, ThrowOnError> => (options?.client ?? client).get<SettingsSchemasListResponses, SettingsSchemasListErrors, ThrowOnError>({ url: '/settings/schemas', ...options });
+
+/**
+ * Read several UI state entries at once.
+ *
+ * Reads interface state (sort orders, collapsed panels) by key or key prefix.
+ * Not available to agents.
+ */
+export const settingsUiStateGetMany = <ThrowOnError extends boolean = false>(options: Options<SettingsUiStateGetManyData, ThrowOnError>): RequestResult<SettingsUiStateGetManyResponses, SettingsUiStateGetManyErrors, ThrowOnError> => (options.client ?? client).post<SettingsUiStateGetManyResponses, SettingsUiStateGetManyErrors, ThrowOnError>({
+    url: '/me/ui-state:get',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Save one UI state entry.
+ *
+ * Stores interface state under a key. Not available to agents.
+ */
+export const settingsUiStateSet = <ThrowOnError extends boolean = false>(options: Options<SettingsUiStateSetData, ThrowOnError>): RequestResult<SettingsUiStateSetResponses, SettingsUiStateSetErrors, ThrowOnError> => (options.client ?? client).put<SettingsUiStateSetResponses, SettingsUiStateSetErrors, ThrowOnError>({
+    url: '/me/ui-state/{key}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get the effective settings of a module or plugin at a scope.
+ *
+ * Use when the user asks how a module is configured, e.g. the default calendar
+ * view. Returns the effective value of every field and the level it is inherited from
+ * (default, account, program, term or course).
+ * Do not use for personal preferences such as language or theme; use settings.preferences.get.
+ */
+export const settingsValuesGet = <ThrowOnError extends boolean = false>(options: Options<SettingsValuesGetData, ThrowOnError>): RequestResult<SettingsValuesGetResponses, SettingsValuesGetErrors, ThrowOnError> => (options.client ?? client).get<SettingsValuesGetResponses, SettingsValuesGetErrors, ThrowOnError>({ url: '/settings/{namespace}', ...options });
+
+/**
+ * Change settings of a module or plugin at one scope level.
+ *
+ * Use when the user wants to change a module setting, e.g. make the calendar
+ * open in month view. Only the given fields are set at that level; deeper levels still override them.
+ * Look up namespace and field names with settings.schemas.list first.
+ * Do not use to change language, theme or other personal preferences.
+ */
+export const settingsValuesUpdate = <ThrowOnError extends boolean = false>(options: Options<SettingsValuesUpdateData, ThrowOnError>): RequestResult<SettingsValuesUpdateResponses, SettingsValuesUpdateErrors, ThrowOnError> => (options.client ?? client).patch<SettingsValuesUpdateResponses, SettingsValuesUpdateErrors, ThrowOnError>({
+    url: '/settings/{namespace}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove one setting at a scope level so it is inherited again.
+ *
+ * Restores a field to the value of the level above (or the default).
+ * Not available to agents.
+ */
+export const settingsValuesReset = <ThrowOnError extends boolean = false>(options: Options<SettingsValuesResetData, ThrowOnError>): RequestResult<SettingsValuesResetResponses, SettingsValuesResetErrors, ThrowOnError> => (options.client ?? client).delete<SettingsValuesResetResponses, SettingsValuesResetErrors, ThrowOnError>({ url: '/settings/{namespace}/keys/{key}', ...options });

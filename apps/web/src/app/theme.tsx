@@ -1,31 +1,37 @@
-import { type ReactNode, createContext, useContext, useEffect, useState } from 'react'
+import { MotionConfig } from 'motion/react'
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react'
+import {
+  type Accent,
+  type Appearance,
+  type ReduceMotion,
+  type Theme,
+  applyAppearance,
+  resolveTheme,
+  storeAppearance,
+  storedAppearance,
+  systemTheme,
+} from './appearance'
 
-export type Theme = 'light' | 'dark' | 'system'
+export type { Accent, ReduceMotion, Theme }
 
-type ThemeState = { theme: Theme; resolved: 'light' | 'dark'; setTheme: (theme: Theme) => void }
+type ThemeState = Appearance & {
+  resolved: 'light' | 'dark'
+  setTheme: (theme: Theme) => void
+  setAccent: (accent: Accent) => void
+  setReduceMotion: (reduceMotion: ReduceMotion) => void
+  /** Replace all three at once, e.g. with the server preference after sign-in. */
+  setAppearance: (appearance: Appearance) => void
+}
 
-const STORAGE_KEY = 'semestra.theme'
 const ThemeContext = createContext<ThemeState | null>(null)
 
-function stored(): Theme {
-  try {
-    const value = localStorage.getItem(STORAGE_KEY)
-    return value === 'light' || value === 'dark' ? value : 'system'
-  } catch {
-    return 'system'
-  }
-}
-
-function systemTheme(): 'light' | 'dark' {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
 /**
- * Applies light, dark or the system theme as the `dark` class on <html> (M00 §4.6). The choice is
- * kept in localStorage; M11 connects it to the user's preference.
+ * Theme, accent color and motion setting (M00 §4.6, M11 §5.3). Modules and plugins only read
+ * the resulting tokens. The choice is mirrored in localStorage for the pre-React script; the
+ * user's preference on the server is applied by `PreferencesSync`.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(stored)
+  const [appearance, setAppearanceState] = useState<Appearance>(storedAppearance)
   const [system, setSystem] = useState(systemTheme)
 
   useEffect(() => {
@@ -35,21 +41,65 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => query.removeEventListener('change', onChange)
   }, [])
 
-  const resolved = theme === 'system' ? system : theme
+  const resolved = resolveTheme(appearance.theme, system)
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', resolved === 'dark')
-  }, [resolved])
+    applyAppearance(appearance, resolved)
+  }, [appearance, resolved])
 
-  const setTheme = (next: Theme) => {
-    setThemeState(next)
-    try {
-      localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // Not persisted; still applied for this visit.
-    }
+  // Stable functions that ignore a change to the same values: effects can depend on them.
+  const setAppearance = useCallback((next: Appearance) => {
+    setAppearanceState((current) => {
+      if (
+        current.theme === next.theme &&
+        current.accent === next.accent &&
+        current.reduceMotion === next.reduceMotion
+      ) {
+        return current
+      }
+      storeAppearance(next)
+      return next
+    })
+  }, [])
+  const setTheme = useCallback(
+    (theme: Theme) =>
+      setAppearanceState((c) => (storeAppearance({ ...c, theme }), { ...c, theme })),
+    [],
+  )
+  const setAccent = useCallback(
+    (accent: Accent) =>
+      setAppearanceState((c) => (storeAppearance({ ...c, accent }), { ...c, accent })),
+    [],
+  )
+  const setReduceMotion = useCallback(
+    (reduceMotion: ReduceMotion) =>
+      setAppearanceState((c) => (storeAppearance({ ...c, reduceMotion }), { ...c, reduceMotion })),
+    [],
+  )
+
+  const value: ThemeState = {
+    ...appearance,
+    resolved,
+    setAppearance,
+    setTheme,
+    setAccent,
+    setReduceMotion,
   }
 
-  return <ThemeContext value={{ theme, resolved, setTheme }}>{children}</ThemeContext>
+  return (
+    <ThemeContext value={value}>
+      <MotionConfig
+        reducedMotion={
+          appearance.reduceMotion === 'on'
+            ? 'always'
+            : appearance.reduceMotion === 'off'
+              ? 'never'
+              : 'user'
+        }
+      >
+        {children}
+      </MotionConfig>
+    </ThemeContext>
+  )
 }
 
 export function useTheme(): ThemeState {

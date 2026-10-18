@@ -62,15 +62,14 @@
   --color-subject-12: var(--subject-12);
 }
 
-:root {
+:root,
+.light {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.5 0.134 242.749);
-  --primary-foreground: oklch(0.977 0.013 236.62);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
@@ -81,21 +80,12 @@
   --success: oklch(0.6 0.13 155);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.828 0.111 230.318);
-  --chart-2: oklch(0.685 0.169 237.323);
-  --chart-3: oklch(0.588 0.158 241.966);
-  --chart-4: oklch(0.5 0.134 242.749);
-  --chart-5: oklch(0.443 0.11 240.79);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.588 0.158 241.966);
-  --sidebar-primary-foreground: oklch(0.977 0.013 236.62);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
   /* Course and subject colors (M00 §4.6): use subjectColor(), not these directly. */
   --subject-1: oklch(0.62 0.15 25);
   --subject-2: oklch(0.62 0.15 55);
@@ -118,8 +108,6 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.443 0.11 240.79);
-  --primary-foreground: oklch(0.977 0.013 236.62);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -130,20 +118,11 @@
   --success: oklch(0.74 0.14 155);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.828 0.111 230.318);
-  --chart-2: oklch(0.685 0.169 237.323);
-  --chart-3: oklch(0.588 0.158 241.966);
-  --chart-4: oklch(0.5 0.134 242.749);
-  --chart-5: oklch(0.443 0.11 240.79);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.685 0.169 237.323);
-  --sidebar-primary-foreground: oklch(0.293 0.066 243.157);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
   /* Course and subject colors (M00 §4.6): use subjectColor(), not these directly. */
   --subject-1: oklch(0.74 0.13 25);
   --subject-2: oklch(0.74 0.13 55);
@@ -159,6 +138,80 @@
   --subject-12: oklch(0.72 0.02 260);
 }
 
+/*
+ * Accent color (M11 §5.3). The accent only decides the hue (and how colorful) the accent-bearing
+ * tokens are; `<html data-accent="…">` sets it for the whole app. The selector list also matches
+ * any element with its own `data-accent`, which is how the settings page previews each color.
+ * `.light` (like `.dark`) forces a theme on one element: the theme picker's previews.
+ * Blue is the default and reproduces the original sky-blue palette.
+ */
+:root,
+.light,
+[data-accent] {
+  --accent-hue: 242.749;
+  --accent-chroma: 1;
+  --primary: oklch(0.5 calc(0.134 * var(--accent-chroma)) var(--accent-hue));
+  --primary-foreground: oklch(0.977 calc(0.013 * var(--accent-chroma)) calc(var(--accent-hue) - 6));
+  --ring: oklch(0.708 calc(0.1 * var(--accent-chroma)) var(--accent-hue));
+  --chart-1: oklch(0.828 calc(0.111 * var(--accent-chroma)) calc(var(--accent-hue) - 12.4));
+  --chart-2: oklch(0.685 calc(0.169 * var(--accent-chroma)) calc(var(--accent-hue) - 5.4));
+  --chart-3: oklch(0.588 calc(0.158 * var(--accent-chroma)) calc(var(--accent-hue) - 0.8));
+  --chart-4: oklch(0.5 calc(0.134 * var(--accent-chroma)) var(--accent-hue));
+  --chart-5: oklch(0.443 calc(0.11 * var(--accent-chroma)) calc(var(--accent-hue) - 2));
+  --sidebar-primary: oklch(0.588 calc(0.158 * var(--accent-chroma)) calc(var(--accent-hue) - 0.8));
+  --sidebar-primary-foreground: oklch(
+    0.977 calc(0.013 * var(--accent-chroma)) calc(var(--accent-hue) - 6)
+  );
+  --sidebar-ring: oklch(0.708 calc(0.1 * var(--accent-chroma)) var(--accent-hue));
+}
+
+.dark,
+.dark [data-accent] {
+  --primary: oklch(0.443 calc(0.11 * var(--accent-chroma)) calc(var(--accent-hue) - 2));
+  --ring: oklch(0.556 calc(0.08 * var(--accent-chroma)) var(--accent-hue));
+  --sidebar-primary: oklch(0.685 calc(0.169 * var(--accent-chroma)) calc(var(--accent-hue) - 5.4));
+  --sidebar-primary-foreground: oklch(
+    0.293 calc(0.066 * var(--accent-chroma)) calc(var(--accent-hue) + 0.5)
+  );
+  --sidebar-ring: oklch(0.556 calc(0.08 * var(--accent-chroma)) var(--accent-hue));
+}
+
+[data-accent='violet'] {
+  --accent-hue: 293;
+}
+[data-accent='green'] {
+  --accent-hue: 152;
+}
+[data-accent='orange'] {
+  --accent-hue: 52;
+}
+[data-accent='rose'] {
+  --accent-hue: 12;
+}
+[data-accent='teal'] {
+  --accent-hue: 190;
+}
+[data-accent='amber'] {
+  --accent-hue: 78;
+  --accent-chroma: 0.85;
+}
+
+/* Neutral: no hue at all, a near-black (near-white in dark mode) primary. */
+[data-accent='neutral'] {
+  --accent-chroma: 0;
+  --primary: oklch(0.25 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.25 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+}
+.dark[data-accent='neutral'],
+.dark [data-accent='neutral'] {
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -169,4 +222,14 @@
   html {
     @apply font-sans;
   }
+}
+
+/* "Reduce motion: on" (M11 §5.3). "System" relies on the OS setting through `motion-reduce:`. */
+[data-reduce-motion='on'] *,
+[data-reduce-motion='on'] *::before,
+[data-reduce-motion='on'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

@@ -234,7 +234,7 @@ export function TokensSection() {
   const items = tokens.data?.items ?? []
 
   return (
-    <SettingsCard title={m.auth_account_tokens_title()} description={m.auth_account_tokens_desc()}>
+    <SettingsCard>
       {tokens.isPending ? (
         <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
       ) : tokens.isError ? (

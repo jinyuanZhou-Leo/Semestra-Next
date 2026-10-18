@@ -36,13 +36,17 @@ export default defineModule({
       multiple: false,
     },
   ],
+  // A section generated from the backend namespace `plugin.template` (see the Python template's
+  // `register_settings`): no component to write. Field texts are the messages
+  // `settings_plugin_template_<field>_label|_description|_option_<value>`.
   settingsSections: [
     {
       id: 'template',
       level: 'account',
+      pluginId: 'template',
       title: m.template_settings_title,
       order: 1000,
-      component: lazy(() => import('./TemplateSettings')),
+      namespace: 'plugin.template',
     },
   ],
   commands: [{ id: 'template.home', title: m.template_command_home, icon: House, to: '/' }],

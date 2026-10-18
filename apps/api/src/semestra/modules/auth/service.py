@@ -614,6 +614,11 @@ async def update_profile(
     return await user_out(ctx.db, user)
 
 
+def set_locale_cache(ctx: Ctx, locale: str | None) -> None:
+    """Keep `auth_users.locale` (read for emails and request locale) equal to the M11 preference."""
+    _require_user(ctx).locale = locale
+
+
 def _require_user(ctx: Ctx) -> AuthUser:
     if ctx.user is None:
         raise AppError("common.unauthenticated", 401)

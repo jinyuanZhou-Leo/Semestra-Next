@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz } from '../sdk.gen';
-import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse } from '../types.gen';
+import { accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
+import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -624,3 +624,171 @@ export const coreStorageUsageOptions = (options?: Options<CoreStorageUsageData>)
     },
     queryKey: coreStorageUsageQueryKey(options)
 });
+
+export const settingsPreferencesGetQueryKey = (options?: Options<SettingsPreferencesGetData>) => createQueryKey('settingsPreferencesGet', options);
+
+/**
+ * Get the user's personal preferences.
+ *
+ * Use when you need the user's language, clock format (12h/24h) or first day of
+ * the week, for example to format a time or date in the way the user expects.
+ * Do not use to read per-module settings such as the calendar default view;
+ * use settings.values.get.
+ */
+export const settingsPreferencesGetOptions = (options?: Options<SettingsPreferencesGetData>) => queryOptions<SettingsPreferencesGetResponse, SettingsPreferencesGetError, SettingsPreferencesGetResponse, ReturnType<typeof settingsPreferencesGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await settingsPreferencesGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: settingsPreferencesGetQueryKey(options)
+});
+
+/**
+ * Change personal preferences (language, theme, accent, clock, week start).
+ *
+ * Partial update: only the fields that are sent change. Not for agents.
+ */
+export const settingsPreferencesUpdateMutation = (options?: Partial<Options<SettingsPreferencesUpdateData>>): UseMutationOptions<SettingsPreferencesUpdateResponse, SettingsPreferencesUpdateError, Options<SettingsPreferencesUpdateData>> => {
+    const mutationOptions: UseMutationOptions<SettingsPreferencesUpdateResponse, SettingsPreferencesUpdateError, Options<SettingsPreferencesUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await settingsPreferencesUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const settingsSchemasListQueryKey = (options?: Options<SettingsSchemasListData>) => createQueryKey('settingsSchemasList', options);
+
+/**
+ * List every settings namespace with its fields.
+ *
+ * Use before changing a module setting to find the namespace, the field names,
+ * their allowed values and the levels (account, program, term, course) where they can be set.
+ * Do not use to read current values; use settings.values.get.
+ */
+export const settingsSchemasListOptions = (options?: Options<SettingsSchemasListData>) => queryOptions<SettingsSchemasListResponse, SettingsSchemasListError, SettingsSchemasListResponse, ReturnType<typeof settingsSchemasListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await settingsSchemasList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: settingsSchemasListQueryKey(options)
+});
+
+/**
+ * Read several UI state entries at once.
+ *
+ * Reads interface state (sort orders, collapsed panels) by key or key prefix.
+ * Not available to agents.
+ */
+export const settingsUiStateGetManyMutation = (options?: Partial<Options<SettingsUiStateGetManyData>>): UseMutationOptions<SettingsUiStateGetManyResponse, SettingsUiStateGetManyError, Options<SettingsUiStateGetManyData>> => {
+    const mutationOptions: UseMutationOptions<SettingsUiStateGetManyResponse, SettingsUiStateGetManyError, Options<SettingsUiStateGetManyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await settingsUiStateGetMany({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Save one UI state entry.
+ *
+ * Stores interface state under a key. Not available to agents.
+ */
+export const settingsUiStateSetMutation = (options?: Partial<Options<SettingsUiStateSetData>>): UseMutationOptions<SettingsUiStateSetResponse, SettingsUiStateSetError, Options<SettingsUiStateSetData>> => {
+    const mutationOptions: UseMutationOptions<SettingsUiStateSetResponse, SettingsUiStateSetError, Options<SettingsUiStateSetData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await settingsUiStateSet({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const settingsValuesGetQueryKey = (options: Options<SettingsValuesGetData>) => createQueryKey('settingsValuesGet', options);
+
+/**
+ * Get the effective settings of a module or plugin at a scope.
+ *
+ * Use when the user asks how a module is configured, e.g. the default calendar
+ * view. Returns the effective value of every field and the level it is inherited from
+ * (default, account, program, term or course).
+ * Do not use for personal preferences such as language or theme; use settings.preferences.get.
+ */
+export const settingsValuesGetOptions = (options: Options<SettingsValuesGetData>) => queryOptions<SettingsValuesGetResponse, SettingsValuesGetError, SettingsValuesGetResponse, ReturnType<typeof settingsValuesGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await settingsValuesGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: settingsValuesGetQueryKey(options)
+});
+
+/**
+ * Change settings of a module or plugin at one scope level.
+ *
+ * Use when the user wants to change a module setting, e.g. make the calendar
+ * open in month view. Only the given fields are set at that level; deeper levels still override them.
+ * Look up namespace and field names with settings.schemas.list first.
+ * Do not use to change language, theme or other personal preferences.
+ */
+export const settingsValuesUpdateMutation = (options?: Partial<Options<SettingsValuesUpdateData>>): UseMutationOptions<SettingsValuesUpdateResponse, SettingsValuesUpdateError, Options<SettingsValuesUpdateData>> => {
+    const mutationOptions: UseMutationOptions<SettingsValuesUpdateResponse, SettingsValuesUpdateError, Options<SettingsValuesUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await settingsValuesUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remove one setting at a scope level so it is inherited again.
+ *
+ * Restores a field to the value of the level above (or the default).
+ * Not available to agents.
+ */
+export const settingsValuesResetMutation = (options?: Partial<Options<SettingsValuesResetData>>): UseMutationOptions<SettingsValuesResetResponse, SettingsValuesResetError, Options<SettingsValuesResetData>> => {
+    const mutationOptions: UseMutationOptions<SettingsValuesResetResponse, SettingsValuesResetError, Options<SettingsValuesResetData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await settingsValuesReset({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};

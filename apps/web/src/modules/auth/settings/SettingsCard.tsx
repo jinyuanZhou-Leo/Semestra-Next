@@ -1,21 +1,10 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card'
+import { Card, CardContent } from '@/ui/card'
 
-export function SettingsCard({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description?: string
-  children: ReactNode
-}) {
+/** The card a settings section's content sits in; the title belongs to the section (M11). */
+export function SettingsCard({ children }: { children: ReactNode }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>
   )

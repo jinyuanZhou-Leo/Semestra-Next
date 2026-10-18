@@ -20,6 +20,7 @@ from semestra.core import jobs as _core_jobs  # noqa: E402,F401
 from semestra.core.config import get_settings  # noqa: E402
 from semestra.core.db import Base, ensure_sqlite_dir  # noqa: E402
 from semestra.modules.auth import models as _auth_models  # noqa: E402,F401
+from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
 
 target_metadata = Base.metadata
 # Tests pass their own database through `Config.attributes`.
