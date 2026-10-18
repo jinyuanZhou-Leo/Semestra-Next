@@ -1,5 +1,12 @@
 import { expect, test } from 'vitest'
-import { formatBytes, formatCredits, formatGpa, formatPercent, formatTime } from './format'
+import {
+  formatBytes,
+  formatCredits,
+  formatDate,
+  formatGpa,
+  formatPercent,
+  formatTime,
+} from './format'
 
 test('formats numbers for the current locale (en in tests)', () => {
   expect(formatPercent(0.875)).toBe('87.5%')
@@ -9,4 +16,8 @@ test('formats numbers for the current locale (en in tests)', () => {
   expect(formatBytes(512)).toBe('512 byte')
   expect(formatTime('14:05', { hour12: false })).toBe('14:05')
   expect(formatTime('14:05', { hour12: true })).toBe('2:05 PM')
+})
+
+test('a date without a time keeps its own day in every time zone', () => {
+  expect(formatDate('2026-01-15')).toBe('Jan 15, 2026')
 })
