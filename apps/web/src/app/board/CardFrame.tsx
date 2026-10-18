@@ -26,6 +26,8 @@ type Props = {
   card: DraftCard
   contribution: CardContribution
   editing: boolean
+  /** Positions can be dragged only on the 4-column grid; narrower screens flow in order. */
+  movable: boolean
   className?: string
   style?: CSSProperties
   onResize: (size: CardSize) => void
@@ -44,6 +46,7 @@ export function CardFrame({
   card,
   contribution,
   editing,
+  movable,
   className,
   style,
   onResize,
@@ -52,7 +55,7 @@ export function CardFrame({
 }: Props) {
   const title = contribution.title()
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
-    useDraggable({ id: card.id, disabled: !editing })
+    useDraggable({ id: card.id, disabled: !editing || !movable })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { save } = useCardSettings<Record<string, unknown>>(card.id)
   const settings = parseCardSettings(contribution, card.settings)
@@ -89,7 +92,7 @@ export function CardFrame({
       style={{ ...style, transform: CSS.Translate.toString(transform) }}
     >
       <header className="flex items-center gap-1.5 px-4 pt-3 pb-1">
-        {editing ? (
+        {editing && movable ? (
           <button
             ref={setActivatorNodeRef}
             type="button"

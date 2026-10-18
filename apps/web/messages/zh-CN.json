@@ -549,5 +549,6 @@
   "status_jobs_failed": "{count} 个任务失败",
   "status_job_failed": "“{name}”失败",
   "status_job_done": "“{name}”已完成",
-  "status_job_cancel": "终止“{name}”"
+  "status_job_cancel": "终止“{name}”",
+  "board_editing_hint_narrow": "可以切换尺寸、添加或删除卡片；在更宽的窗口里可以拖动卡片调整位置。点“完成”后一起保存。"
 }

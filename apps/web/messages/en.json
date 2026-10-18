@@ -549,5 +549,6 @@
   "status_jobs_failed": "{count} tasks failed",
   "status_job_failed": "{name} failed",
   "status_job_done": "{name} done",
-  "status_job_cancel": "Stop {name}"
+  "status_job_cancel": "Stop {name}",
+  "board_editing_hint_narrow": "Change sizes, add or remove cards. Cards can be moved in a wider window. Changes are saved when you're done."
 }

@@ -11,7 +11,7 @@ import type { ModuleManifest, Scope } from './extensions'
 import { CardGrid } from './host/CardGrid'
 import { orderPages } from './host/nav'
 import { ScopeNav } from './host/ScopeNav'
-import { StatusBar, visibleJobs } from './host/StatusBar'
+import { mergeJobs, StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
 
 beforeAll(() => server.listen())
@@ -85,6 +85,26 @@ test('a board edit that fails to save is rolled back', async () => {
   await user.click(screen.getByRole('button', { name: 'Done' }))
   await waitFor(() => expect(saves).toBe(1))
   expect(await screen.findByRole('region', { name: 'Storage' })).toBeInTheDocument()
+})
+
+test('narrow screens can edit cards but not drag them', async () => {
+  server.use(
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
+    ),
+    http.get(`${API}/layouts/boards/term/t1`, () =>
+      HttpResponse.json(board([{ instance_id: 'c1', card_id: 'template.storage' }])),
+    ),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[template]}>
+      <CardGrid scope={scope} />
+    </ModuleRegistry>,
+  )
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Edit layout' }))
+  expect(screen.getByRole('button', { name: 'Remove Storage' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Move Storage' })).not.toBeInTheDocument()
 })
 
 test('tabs follow the saved order and leave hidden pages out', async () => {
@@ -241,6 +261,9 @@ test('the status bar keeps running jobs, recent successes and unseen failures', 
     'done-now',
     'failed',
   ])
+  // A long-running job older than the recent page still counts.
+  const old = job('0-old-running', 'running', null)
+  expect(mergeJobs(jobs.slice(1), [old, jobs[0]!]).map((j) => j.id)).toContain('0-old-running')
 })
 
 test('a failed job stays listed while its list is open and goes once it closes', async () => {

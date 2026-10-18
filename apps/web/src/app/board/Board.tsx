@@ -211,20 +211,15 @@ function BoardView({
   }
 
   useHotkey('e', () => (editing ? finishEditing() : startEditing()), {
-    enabled: wide,
     description: m.hotkeys_edit_board,
     order: 30,
   })
 
-  useHostAction('board.edit', startEditing, wide && !editing)
-  useHostAction(
-    'board.add',
-    () => {
-      if (!editing) startEditing()
-      setAdding(true)
-    },
-    wide,
-  )
+  useHostAction('board.edit', startEditing, !editing)
+  useHostAction('board.add', () => {
+    if (!editing) startEditing()
+    setAdding(true)
+  })
 
   function update(fn: (cards: DraftCard[]) => DraftCard[]) {
     setDraft((current) => (current ? compact(fn(current)) : current))
@@ -374,7 +369,9 @@ function BoardView({
       <div className="flex min-h-8 items-center justify-end gap-2">
         {editing ? (
           <>
-            <p className="mr-auto text-sm text-muted-foreground">{m.board_editing_hint()}</p>
+            <p className="mr-auto text-sm text-muted-foreground">
+              {wide ? m.board_editing_hint() : m.board_editing_hint_narrow()}
+            </p>
             <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
               <Plus aria-hidden />
               {m.board_add_card()}
@@ -406,7 +403,7 @@ function BoardView({
               {m.board_done()}
             </Button>
           </>
-        ) : wide ? (
+        ) : (
           <Button
             variant="ghost"
             size="sm"
@@ -417,20 +414,18 @@ function BoardView({
             <Pencil aria-hidden />
             {m.board_edit()}
           </Button>
-        ) : null}
+        )}
       </div>
 
       {cards.length === 0 && !editing ? (
         <EmptyState
           title={m.board_empty_title()}
-          description={wide ? m.board_empty_description() : undefined}
+          description={m.board_empty_description()}
           action={
-            wide ? (
-              <Button variant="outline" onClick={startEditing}>
-                <Pencil aria-hidden />
-                {m.board_edit()}
-              </Button>
-            ) : undefined
+            <Button variant="outline" onClick={startEditing}>
+              <Pencil aria-hidden />
+              {m.board_edit()}
+            </Button>
           }
         />
       ) : (
@@ -450,7 +445,9 @@ function BoardView({
               'grid auto-rows-[10rem] grid-flow-row-dense grid-cols-1 gap-4 md:grid-cols-2 lg:grid-flow-row lg:grid-cols-4',
               editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
             )}
-            style={editing ? { minHeight: `${(rows(cards) + 1) * (ROW + GAP)}px` } : undefined}
+            style={
+              editing && wide ? { minHeight: `${(rows(cards) + 1) * (ROW + GAP)}px` } : undefined
+            }
           >
             {ordered.map((card) => {
               const contribution = known.get(card.cardId)
@@ -465,6 +462,7 @@ function BoardView({
                   card={card}
                   contribution={contribution}
                   editing={editing}
+                  movable={wide}
                   className={className}
                   style={style}
                   onResize={(size) => update((current) => resizeItem(current, card.id, size))}
