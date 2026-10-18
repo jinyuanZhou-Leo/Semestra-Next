@@ -1,0 +1,171 @@
+import { academicsTermCalendarInfoOptions } from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
+import type { Scope } from '@/app/extensions'
+import { ScopePage } from '@/app/host/ScopePage'
+import { SearchX } from 'lucide-react'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { EmptyState } from '@/components/EmptyState'
+import { formatDate } from '@/lib/format'
+import { m } from '@/paraglide/messages'
+import { courseTermId, useCourse, useCourses, useProgram, useTerms } from '../queries'
+import { useCourseSwitchHotkey } from './hotkeys'
+import { ScopeHeader } from './ScopeHeader'
+
+const OVERVIEW = 'overview'
+
+/** A term or course that does not exist (any more) or is not in this Program. */
+export function NotFound() {
+  return <EmptyState icon={SearchX} title={m.academics_not_found()} />
+}
+
+export function ProgramView({
+  programId,
+  pageId = OVERVIEW,
+}: {
+  programId: string
+  pageId?: string
+}) {
+  const program = useProgram(programId)
+  const terms = useTerms(programId)
+  const scope: Scope = { kind: 'program', programId }
+  return (
+    <AsyncBoundary query={program}>
+      {(p) => (
+        <>
+          <ScopeHeader
+            scope={scope}
+            activePageId={pageId}
+            program={p}
+            terms={terms.data?.items ?? []}
+          >
+            <p className="px-1.5 text-xs text-muted-foreground">
+              {[
+                p.institution,
+                m.academics_term_count({ count: p.term_count }),
+                m.academics_course_count({ count: p.course_count }),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </ScopeHeader>
+          <div className="p-6">
+            <ScopePage scope={scope} pageId={pageId} />
+          </div>
+        </>
+      )}
+    </AsyncBoundary>
+  )
+}
+
+function TermWeekLine({ termId }: { termId: string }) {
+  const info = useQuery(academicsTermCalendarInfoOptions({ path: { term_id: termId } })).data
+  if (!info) return null
+  const week = info.weeks.find((w) => w.start_date <= info.today && info.today <= w.end_date)
+  if (week?.break_info && week.number == null) return <> · {week.break_info.name}</>
+  if (info.today_week == null) return null
+  return <> · {m.academics_week_number({ number: info.today_week })}</>
+}
+
+export function TermView({
+  programId,
+  termId,
+  pageId = OVERVIEW,
+}: {
+  programId: string
+  termId: string
+  pageId?: string
+}) {
+  const program = useProgram(programId)
+  const terms = useTerms(programId)
+  const scope: Scope = { kind: 'term', programId, termId }
+  return (
+    <AsyncBoundary query={program}>
+      {(p) => (
+        <AsyncBoundary query={terms}>
+          {(list) => {
+            const term = list.items.find((t) => t.id === termId)
+            if (!term) return <NotFound />
+            return (
+              <>
+                <ScopeHeader
+                  scope={scope}
+                  activePageId={pageId}
+                  program={p}
+                  terms={list.items}
+                  term={term}
+                >
+                  <p className="px-1.5 text-xs text-muted-foreground">
+                    {formatDate(`${term.start_date}T00:00`)} –{' '}
+                    {formatDate(`${term.end_date}T00:00`)}
+                    {term.is_current ? <TermWeekLine termId={term.id} /> : null}
+                  </p>
+                </ScopeHeader>
+                <div className="p-6">
+                  <ScopePage scope={scope} pageId={pageId} />
+                </div>
+              </>
+            )
+          }}
+        </AsyncBoundary>
+      )}
+    </AsyncBoundary>
+  )
+}
+
+export function CourseView({
+  programId,
+  courseId,
+  pageId = OVERVIEW,
+  fromTerm,
+}: {
+  programId: string
+  courseId: string
+  pageId?: string
+  fromTerm?: string
+}) {
+  const program = useProgram(programId)
+  const terms = useTerms(programId)
+  const course = useCourse(courseId)
+  const termId = course.data ? courseTermId(course.data, terms.data?.items, fromTerm) : undefined
+  const termCourses = useCourses(programId, termId).data?.items ?? []
+  useCourseSwitchHotkey({
+    programId,
+    courseId,
+    termId,
+    pageId,
+    courses: termId ? termCourses : [],
+  })
+  const scope: Scope = { kind: 'course', programId, courseId }
+  return (
+    <AsyncBoundary query={program}>
+      {(p) => (
+        <AsyncBoundary query={course}>
+          {(c) => {
+            if (c.program_id !== programId) return <NotFound />
+            const list = terms.data?.items ?? []
+            return (
+              <>
+                <ScopeHeader
+                  scope={scope}
+                  activePageId={pageId}
+                  program={p}
+                  terms={list}
+                  term={list.find((t) => t.id === termId)}
+                  course={c}
+                  termCourses={termCourses}
+                >
+                  {c.code && c.title !== c.code ? (
+                    <p className="px-1.5 text-xs text-muted-foreground">{c.title}</p>
+                  ) : null}
+                </ScopeHeader>
+                <div className="p-6">
+                  <ScopePage scope={scope} pageId={pageId} />
+                </div>
+              </>
+            )
+          }}
+        </AsyncBoundary>
+      )}
+    </AsyncBoundary>
+  )
+}
