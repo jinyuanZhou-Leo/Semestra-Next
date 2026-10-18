@@ -1,7 +1,7 @@
 import type { CardProps } from '@/app/extensions'
-import { ProgressBar } from '@/components/Progress'
 import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Progress } from '@/ui/progress'
 import { GpaValue } from '../components/GpaValue'
 import { Stat } from '../components/SummaryStrip'
 import { percentText } from '../display'
@@ -24,10 +24,10 @@ export default function ProgramKpisCard({ scope }: CardProps) {
       >
         {formatCredits(data.credits_earned)}
         {data.progress === null ? null : (
-          <ProgressBar
-            className="mt-2"
+          <Progress
+            className="mt-2 [&_[data-slot=progress-track]]:h-1"
             value={data.progress * 100}
-            label={m.grading_credits_progress()}
+            aria-label={m.grading_credits_progress()}
           />
         )}
       </Stat>

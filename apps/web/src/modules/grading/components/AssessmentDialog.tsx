@@ -4,14 +4,14 @@ import {
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
-import { TextField } from '@/components/TextField'
+import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Label } from '@/ui/label'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
 import { categoryName } from '../display'
@@ -37,7 +37,7 @@ export function AssessmentDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>
             {assessment ? m.grading_assessment_edit() : m.grading_assessment_add()}
@@ -68,6 +68,7 @@ function AssessmentForm({
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
+  const id = useId()
   const [title, setTitle] = useState(assessment?.title ?? '')
   const [categoryId, setCategoryId] = useState(assessment?.category_id ?? NO_CATEGORY)
   const [dueDate, setDueDate] = useState(assessment?.due_date ?? '')
@@ -141,84 +142,117 @@ function AssessmentForm({
   }
 
   return (
-    <form noValidate onSubmit={submit} className="space-y-4">
-      <TextField
-        label={m.grading_assessment_title()}
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        error={touched && titleMissing ? m.grading_required() : null}
-      />
-      <div>
-        <Label className="mb-2">{m.grading_assessment_category()}</Label>
-        <Select
-          value={categoryId}
-          items={items}
-          onValueChange={(next) => setCategoryId(String(next ?? NO_CATEGORY))}
-        >
-          <SelectTrigger aria-label={m.grading_assessment_category()} className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {items.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        <TextField
-          type="date"
-          label={m.grading_assessment_due_date()}
-          value={dueDate}
-          onChange={(event) => setDueDate(event.target.value)}
-        />
-        <TextField
-          type="time"
-          label={m.grading_assessment_due_time()}
-          value={dueTime}
-          disabled={dueDate === ''}
-          onChange={(event) => setDueTime(event.target.value)}
-        />
-      </div>
-      <div className="flex flex-wrap gap-4">
-        <TextField
-          label={m.grading_assessment_weight()}
-          type="number"
-          inputMode="decimal"
-          step="any"
-          min={0}
-          max={100}
-          className="w-32"
-          placeholder="0"
-          value={weight}
-          onChange={(event) => setWeight(event.target.value)}
-          error={touched && weightInvalid ? m.grading_weight_invalid() : null}
-        />
-        <TextField
-          label={m.grading_assessment_score()}
-          className="w-40"
-          placeholder="82 · 18/20"
-          value={score}
-          onChange={(event) => setScore(event.target.value)}
-          hint={m.grading_score_hint()}
-          error={touched && scoreInvalid ? m.grading_score_invalid() : null}
-        />
-      </div>
-      <div>
-        <Label className="mb-2">{m.grading_assessment_note()}</Label>
-        <Textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={dropped} onCheckedChange={(checked) => setDropped(checked)} />
-        {m.grading_assessment_dropped()}
-      </label>
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
-          {pending ? m.common_saving() : m.common_save()}
-        </Button>
-      </div>
+    <form noValidate onSubmit={submit}>
+      <FieldGroup className="gap-4">
+        <Field data-invalid={touched && titleMissing ? true : undefined}>
+          <FieldLabel htmlFor={`${id}-title`}>{m.grading_assessment_title()}</FieldLabel>
+          <Input
+            id={`${id}-title`}
+            aria-invalid={touched && titleMissing ? true : undefined}
+            aria-describedby={touched && titleMissing ? `${id}-title-error` : undefined}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          {touched && titleMissing ? (
+            <FieldError id={`${id}-title-error`}>{m.grading_required()}</FieldError>
+          ) : null}
+        </Field>
+        <Field>
+          <FieldLabel>{m.grading_assessment_category()}</FieldLabel>
+          <Select
+            value={categoryId}
+            items={items}
+            onValueChange={(next) => setCategoryId(String(next ?? NO_CATEGORY))}
+          >
+            <SelectTrigger aria-label={m.grading_assessment_category()} className="w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="flex flex-wrap gap-4">
+          <Field className="w-auto">
+            <FieldLabel htmlFor={`${id}-due-date`}>{m.grading_assessment_due_date()}</FieldLabel>
+            <Input
+              id={`${id}-due-date`}
+              type="date"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </Field>
+          <Field className="w-auto">
+            <FieldLabel htmlFor={`${id}-due-time`}>{m.grading_assessment_due_time()}</FieldLabel>
+            <Input
+              id={`${id}-due-time`}
+              type="time"
+              value={dueTime}
+              disabled={dueDate === ''}
+              onChange={(event) => setDueTime(event.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <Field className="w-32" data-invalid={touched && weightInvalid ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-weight`}>{m.grading_assessment_weight()}</FieldLabel>
+            <Input
+              id={`${id}-weight`}
+              type="number"
+              inputMode="decimal"
+              step="any"
+              min={0}
+              max={100}
+              placeholder="0"
+              value={weight}
+              aria-invalid={touched && weightInvalid ? true : undefined}
+              aria-describedby={touched && weightInvalid ? `${id}-weight-error` : undefined}
+              onChange={(event) => setWeight(event.target.value)}
+            />
+            {touched && weightInvalid ? (
+              <FieldError id={`${id}-weight-error`}>{m.grading_weight_invalid()}</FieldError>
+            ) : null}
+          </Field>
+          <Field className="w-40" data-invalid={touched && scoreInvalid ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-score`}>{m.grading_assessment_score()}</FieldLabel>
+            <Input
+              id={`${id}-score`}
+              placeholder="82 · 18/20"
+              value={score}
+              aria-invalid={touched && scoreInvalid ? true : undefined}
+              aria-describedby={touched && scoreInvalid ? `${id}-score-error` : `${id}-score-hint`}
+              onChange={(event) => setScore(event.target.value)}
+            />
+            {touched && scoreInvalid ? (
+              <FieldError id={`${id}-score-error`}>{m.grading_score_invalid()}</FieldError>
+            ) : (
+              <FieldDescription id={`${id}-score-hint`}>{m.grading_score_hint()}</FieldDescription>
+            )}
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor={`${id}-note`}>{m.grading_assessment_note()}</FieldLabel>
+          <Textarea
+            id={`${id}-note`}
+            rows={2}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={dropped} onCheckedChange={(checked) => setDropped(checked)} />
+          {m.grading_assessment_dropped()}
+        </label>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={pending}>
+            {pending ? m.common_saving() : m.common_save()}
+          </Button>
+        </div>
+      </FieldGroup>
     </form>
   )
 }

@@ -190,5 +190,5 @@ grading_assessments
 - 内置分类名（Quiz、Exam…）没改过名时按界面语言显示；改过名就显示用户的名字。
 - 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, icon, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页的"从…导入"菜单列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
 - 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放。
-- 这个 PR 里 `ui/table.tsx`、`ui/alert.tsx` 是按 shadcn（base-luma）源码手写的离线副本，因为云端访问不了 `ui.shadcn.com`；shadcn 全部组件由 Jinyuan 在本机统一安装并单独合入 main 后，用 CLI 版本替换（接口与导出名一致）。
+- UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
 - 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。

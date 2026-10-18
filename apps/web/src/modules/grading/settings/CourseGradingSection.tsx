@@ -12,17 +12,18 @@ import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { SegmentedControl } from '@/components/SegmentedControl'
-import { SettingList, SettingRow } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
+import { ItemGroup } from '@/ui/item'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { Switch } from '@/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { categoryName } from '../display'
 import { invalidateGrading, useGradebook } from '../queries'
+import { SettingRow } from './rows'
 
 /** Course "Grades" settings (M03 §5.1): how it is graded, the forecast model, categories. */
 export function CourseGradingSection({ scope }: SettingsSectionProps) {
@@ -53,21 +54,24 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
   ]
   return (
     <div className="space-y-6">
-      <SettingList>
+      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         <SettingRow
           label={m.grading_basis()}
           labelId={basisId}
           description={m.grading_basis_hint()}
         >
-          <SegmentedControl
+          <ToggleGroup
             aria-labelledby={basisId}
-            value={result.basis}
-            onValueChange={(basis) => patch({ basis })}
-            options={[
-              { value: 'percentage', label: m.grading_basis_percentage() },
-              { value: 'pass_fail', label: m.grading_basis_pass_fail() },
-            ]}
-          />
+            variant="outline"
+            size="sm"
+            value={[result.basis]}
+            onValueChange={([basis]) => {
+              if (basis) patch({ basis: basis === 'pass_fail' ? 'pass_fail' : 'percentage' })
+            }}
+          >
+            <ToggleGroupItem value="percentage">{m.grading_basis_percentage()}</ToggleGroupItem>
+            <ToggleGroupItem value="pass_fail">{m.grading_basis_pass_fail()}</ToggleGroupItem>
+          </ToggleGroup>
         </SettingRow>
         {result.basis === 'percentage' ? (
           <>
@@ -108,7 +112,7 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
             </SettingRow>
           </>
         ) : null}
-      </SettingList>
+      </ItemGroup>
       <Categories gradebook={gradebook} />
     </div>
   )
@@ -159,7 +163,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
         <h3 className="font-heading text-sm font-medium">{m.grading_categories()}</h3>
         <p className="text-xs text-muted-foreground">{m.grading_categories_hint()}</p>
       </div>
-      <SettingList>
+      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         {categories.map((category, i) => (
           <div key={category.id} className="flex flex-wrap items-center gap-2 p-3">
             <Input
@@ -246,7 +250,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
             {m.grading_category_add()}
           </Button>
         </form>
-      </SettingList>
+      </ItemGroup>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

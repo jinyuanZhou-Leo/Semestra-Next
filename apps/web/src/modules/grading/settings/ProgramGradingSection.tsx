@@ -12,18 +12,19 @@ import type { SettingsSectionProps } from '@/app/extensions'
 import { useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { SegmentedControl } from '@/components/SegmentedControl'
-import { SettingList, SettingRow } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
+import { ItemGroup } from '@/ui/item'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { Switch } from '@/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { PresetSelect } from '../components/PresetSelect'
 import { invalidateGrading, useGradingScale, useScalePresets } from '../queries'
+import { SettingRow } from './rows'
 
 /** Program "GPA and grades" settings (M03 §5.4): conversion table, year courses, defaults, privacy. */
 export function ProgramGradingSection({ scope }: SettingsSectionProps) {
@@ -62,24 +63,27 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
   return (
     <div className="space-y-6">
       <BandEditor key={JSON.stringify([scale.bands, scale.max_points])} scale={scale} />
-      <SettingList>
+      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         <SettingRow
           label={m.grading_year_rule()}
           labelId={attributionId}
           description={m.grading_year_rule_hint()}
         >
-          <SegmentedControl
+          <ToggleGroup
             aria-labelledby={attributionId}
-            value={attribution}
-            onValueChange={(next) => {
+            variant="outline"
+            size="sm"
+            value={[attribution]}
+            onValueChange={([picked]) => {
+              if (!picked) return
+              const next = picked === 'split_evenly' ? 'split_evenly' : 'end_term'
               setAttribution(next)
               queue({ year_course_attribution: next })
             }}
-            options={[
-              { value: 'end_term', label: m.grading_year_rule_end_term() },
-              { value: 'split_evenly', label: m.grading_year_rule_split() },
-            ]}
-          />
+          >
+            <ToggleGroupItem value="end_term">{m.grading_year_rule_end_term()}</ToggleGroupItem>
+            <ToggleGroupItem value="split_evenly">{m.grading_year_rule_split()}</ToggleGroupItem>
+          </ToggleGroup>
         </SettingRow>
         <SettingRow
           label={m.grading_default_forecast()}
@@ -121,7 +125,7 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
             }}
           />
         </SettingRow>
-      </SettingList>
+      </ItemGroup>
       <DefaultCategories
         initial={scale.default_categories}
         onChange={(templates) => queue({ default_categories: templates })}
@@ -348,7 +352,7 @@ function DefaultCategories({
         <h3 className="font-heading text-sm font-medium">{m.grading_default_categories()}</h3>
         <p className="text-xs text-muted-foreground">{m.grading_default_categories_hint()}</p>
       </div>
-      <SettingList>
+      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         {items.map((item, i) => (
           <div key={item.key} className="flex flex-wrap items-center gap-2 p-3">
             <Input
@@ -397,7 +401,7 @@ function DefaultCategories({
             {m.grading_category_add()}
           </Button>
         </form>
-      </SettingList>
+      </ItemGroup>
     </section>
   )
 }

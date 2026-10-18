@@ -6,10 +6,10 @@ import {
 import { useMutation } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
 import { useEffect } from 'react'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { percentText } from '../display'
 import { type WhatIf, activeScores } from '../whatif'
 import { InlineInput } from './InlineInput'
@@ -91,21 +91,23 @@ export function PlanPanel({
           }}
           className="w-20 border-input"
         />
-        <SegmentedControl
+        <ToggleGroup
           aria-label={m.grading_target_kind()}
-          value={kind}
-          onValueChange={(next) => {
-            if (next === kind) return
+          variant="outline"
+          size="sm"
+          value={[kind]}
+          onValueChange={([next]) => {
+            if (!next || next === kind) return
+            const unit = next === 'percentage' ? 'percentage' : 'points'
             // Switching the unit starts from the equivalent of the course's own goal.
             const value =
-              next === 'points' ? summary.target_points : (summary.target_percentage ?? 90)
-            setTarget({ kind: next, value })
+              unit === 'points' ? summary.target_points : (summary.target_percentage ?? 90)
+            setTarget({ kind: unit, value })
           }}
-          options={[
-            { value: 'points', label: m.grading_target_points() },
-            { value: 'percentage', label: m.grading_target_percentage() },
-          ]}
-        />
+        >
+          <ToggleGroupItem value="points">{m.grading_target_points()}</ToggleGroupItem>
+          <ToggleGroupItem value="percentage">{m.grading_target_percentage()}</ToggleGroupItem>
+        </ToggleGroup>
         <Button variant="outline" size="sm" disabled={suggest.isPending} onClick={autoFill}>
           <Sparkles aria-hidden />
           {m.grading_autofill()}

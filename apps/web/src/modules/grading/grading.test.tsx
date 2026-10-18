@@ -131,7 +131,7 @@ test('a Pass/Fail result can be set back to pending', async () => {
     result: { ...gradebook().result, basis: 'pass_fail', pass_fail_result: 'pass' },
   })
   mount()
-  const pending = await screen.findByRole('radio', { name: 'Pending' })
+  const pending = await screen.findByRole('button', { name: 'Pending' })
   await userEvent.click(pending)
   await waitFor(() => expect(results).toEqual([{ pass_fail_result: null }]))
 })
