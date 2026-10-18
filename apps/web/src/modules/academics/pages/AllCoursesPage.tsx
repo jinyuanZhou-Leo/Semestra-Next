@@ -382,10 +382,12 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                       )}
                     >
                       {canSort ? (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={h.column.getToggleSortingHandler()}
-                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
                         >
                           <table.FlexRender header={h} />
                           {sorted === 'asc' ? (
@@ -393,7 +395,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                           ) : sorted === 'desc' ? (
                             <ArrowDown aria-hidden className="size-3" />
                           ) : null}
-                        </button>
+                        </Button>
                       ) : (
                         <table.FlexRender header={h} />
                       )}

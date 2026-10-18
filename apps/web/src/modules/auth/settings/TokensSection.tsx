@@ -23,7 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Card, CardContent } from '@/ui/card'
+import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import {
   Item,
@@ -42,7 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { SettingsCard } from './SettingsCard'
 
 /** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
 export function mcpConfig(token: string, apiOrigin: string): string {
@@ -142,7 +142,7 @@ function CreateTokenDialog({
           <DialogDescription>{m.auth_account_tokens_desc()}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
-          <fieldset disabled={create.isPending} className="space-y-4">
+          <FieldSet disabled={create.isPending} className="gap-4">
             <Field>
               <FieldLabel htmlFor={nameId}>{m.auth_account_tokens_name_label()}</FieldLabel>
               <Input
@@ -202,7 +202,7 @@ function CreateTokenDialog({
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
               </Button>
             </DialogFooter>
-          </fieldset>
+          </FieldSet>
         </form>
       </DialogContent>
     </Dialog>
@@ -273,84 +273,88 @@ export function TokensSection() {
   const items = tokens.data?.items ?? []
 
   return (
-    <SettingsCard>
-      {tokens.isPending ? (
-        <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
-      ) : tokens.isError ? (
-        <div className="space-y-2">
-          <FieldError>{errorMessage(tokens.error)}</FieldError>
-          <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
-            {m.common_retry()}
-          </Button>
-        </div>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{m.auth_account_tokens_empty()}</p>
-      ) : (
-        <ItemGroup className="gap-0">
-          {items.map((t, i) => (
-            <Fragment key={t.id}>
-              {i > 0 ? <ItemSeparator /> : null}
-              <Item className="px-0">
-                <ItemContent className="min-w-0">
-                  <ItemTitle>
-                    <span className="truncate">{t.name}</span>
-                    <Badge variant="secondary">
-                      {t.scopes.includes('write')
-                        ? m.auth_account_tokens_scope_write()
-                        : m.auth_account_tokens_scope_read()}
-                    </Badge>
-                  </ItemTitle>
-                  <ItemDescription>
-                    {[
-                      `${t.prefix}…`,
-                      t.last_used_at
-                        ? m.auth_account_tokens_last_used({ time: formatDateTime(t.last_used_at) })
-                        : m.auth_account_tokens_never_used(),
-                      t.expires_at
-                        ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
-                    onClick={() => setRevoking({ id: t.id, name: t.name })}
-                  >
-                    {m.auth_account_tokens_revoke()}
-                  </Button>
-                </ItemActions>
-              </Item>
-            </Fragment>
-          ))}
-        </ItemGroup>
-      )}
-      <Button size="sm" onClick={() => setCreating(true)}>
-        {m.auth_account_tokens_create()}
-      </Button>
-      <CreateTokenDialog
-        open={creating}
-        onOpenChange={setCreating}
-        onCreated={(token) => {
-          setCreating(false)
-          setCreated(token)
-          void refresh()
-        }}
-      />
-      <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
-      <ConfirmDialog
-        open={revoking !== null}
-        onOpenChange={(open) => !open && setRevoking(null)}
-        title={m.auth_account_tokens_revoke_title()}
-        description={m.auth_account_tokens_revoke_desc()}
-        confirmLabel={m.auth_account_tokens_revoke()}
-        pending={revoke.isPending}
-        onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
-      />
-    </SettingsCard>
+    <Card>
+      <CardContent className="space-y-4">
+        {tokens.isPending ? (
+          <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
+        ) : tokens.isError ? (
+          <div className="space-y-2">
+            <FieldError>{errorMessage(tokens.error)}</FieldError>
+            <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
+              {m.common_retry()}
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{m.auth_account_tokens_empty()}</p>
+        ) : (
+          <ItemGroup className="gap-0">
+            {items.map((t, i) => (
+              <Fragment key={t.id}>
+                {i > 0 ? <ItemSeparator /> : null}
+                <Item className="px-0">
+                  <ItemContent className="min-w-0">
+                    <ItemTitle>
+                      <span className="truncate">{t.name}</span>
+                      <Badge variant="secondary">
+                        {t.scopes.includes('write')
+                          ? m.auth_account_tokens_scope_write()
+                          : m.auth_account_tokens_scope_read()}
+                      </Badge>
+                    </ItemTitle>
+                    <ItemDescription>
+                      {[
+                        `${t.prefix}…`,
+                        t.last_used_at
+                          ? m.auth_account_tokens_last_used({
+                              time: formatDateTime(t.last_used_at),
+                            })
+                          : m.auth_account_tokens_never_used(),
+                        t.expires_at
+                          ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
+                      onClick={() => setRevoking({ id: t.id, name: t.name })}
+                    >
+                      {m.auth_account_tokens_revoke()}
+                    </Button>
+                  </ItemActions>
+                </Item>
+              </Fragment>
+            ))}
+          </ItemGroup>
+        )}
+        <Button size="sm" onClick={() => setCreating(true)}>
+          {m.auth_account_tokens_create()}
+        </Button>
+        <CreateTokenDialog
+          open={creating}
+          onOpenChange={setCreating}
+          onCreated={(token) => {
+            setCreating(false)
+            setCreated(token)
+            void refresh()
+          }}
+        />
+        <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
+        <ConfirmDialog
+          open={revoking !== null}
+          onOpenChange={(open) => !open && setRevoking(null)}
+          title={m.auth_account_tokens_revoke_title()}
+          description={m.auth_account_tokens_revoke_desc()}
+          confirmLabel={m.auth_account_tokens_revoke()}
+          pending={revoke.isPending}
+          onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
+        />
+      </CardContent>
+    </Card>
   )
 }

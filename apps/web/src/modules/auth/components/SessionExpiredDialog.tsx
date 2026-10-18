@@ -3,7 +3,14 @@ import { useSyncExternalStore } from 'react'
 import { isReauthPending, settleReauth, subscribeReauth } from '@/app/session-expiry'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { useAuth } from '../useAuth'
 import { LoginFlow } from './LoginFlow'
 
@@ -37,16 +44,18 @@ export function SessionExpiredDialog() {
             }}
           />
         ) : null}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            settleReauth(false)
-            void signOut()
-          }}
-        >
-          {m.auth_session_expired_signout()}
-        </Button>
+        <DialogFooter className="sm:justify-start">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              settleReauth(false)
+              void signOut()
+            }}
+          >
+            {m.auth_session_expired_signout()}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

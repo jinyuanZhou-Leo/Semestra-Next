@@ -140,10 +140,59 @@ test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async 
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
 })
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function dayButtonName(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number) as [number, number, number]
+  const date = new Date(year, month - 1, day)
+  const mod100 = day % 100
+  const suffix =
+    mod100 >= 11 && mod100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] ?? 'th')
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' })
+  return `${weekday}, ${MONTHS[month - 1]} ${day}${suffix}, ${year}`
+}
+
+/** Opens the date picker labeled `name` and chooses `iso` (`yyyy-MM-dd`). */
+async function pickDate(name: string, iso: string) {
+  await userEvent.click(screen.getByRole('button', { name }))
+  const [year, month] = iso.split('-').map(Number) as [number, number]
+  const target = year * 12 + (month - 1)
+  for (let i = 0; i < 36; i++) {
+    const day = screen.queryByRole('button', { name: dayButtonName(iso) })
+    if (day) {
+      await userEvent.click(day)
+      return
+    }
+    const caption = screen.getByText(new RegExp(`^(${MONTHS.join('|')}) \\d{4}$`))
+    const [monthName, yearText] = caption.textContent!.split(' ')
+    const shown = Number(yearText) * 12 + MONTHS.indexOf(monthName!)
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: shown < target ? 'Go to the Next Month' : 'Go to the Previous Month',
+      }),
+    )
+  }
+  throw new Error(`could not find ${iso} in the date picker`)
+}
+
 test('the term wizard survives a reload and creates the term in one request', async () => {
   const first = mount('/p/p1/terms/new')
-  fireEvent.change(await screen.findByLabelText('First day'), { target: { value: '2026-09-08' } })
-  fireEvent.change(screen.getByLabelText('Last day'), { target: { value: '2026-12-20' } })
+  await screen.findByRole('button', { name: 'First day' })
+  await pickDate('First day', '2026-09-08')
+  await pickDate('Last day', '2026-12-20')
   expect(screen.getByLabelText('Name')).toHaveValue('Fall 2026')
   await userEvent.click(screen.getByRole('button', { name: 'Next' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Add course' }))

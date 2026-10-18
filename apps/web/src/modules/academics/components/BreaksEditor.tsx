@@ -1,8 +1,13 @@
 import type { BreakIn } from '@semestra/api-client'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDownIcon, Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { formatDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Calendar } from '@/ui/calendar'
 import { Input } from '@/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 
 /** Reading weeks and holidays of a term (M02 §2): name and an inclusive date range each. */
 export function BreaksEditor({
@@ -34,26 +39,24 @@ export function BreaksEditor({
             value={b.name}
             onChange={(event) => update(index, { name: event.target.value })}
           />
-          <Input
-            type="date"
-            aria-label={m.academics_break_start()}
+          <IsoDateField
+            label={m.academics_break_start()}
             className="w-40"
+            value={b.start_date}
             min={min}
             max={max}
-            value={b.start_date}
-            onChange={(event) => update(index, { start_date: event.target.value })}
+            onChange={(start_date) => update(index, { start_date })}
           />
           <span aria-hidden className="text-muted-foreground">
             –
           </span>
-          <Input
-            type="date"
-            aria-label={m.academics_break_end()}
+          <IsoDateField
+            label={m.academics_break_end()}
             className="w-40"
+            value={b.end_date}
             min={b.start_date || min}
             max={max}
-            value={b.end_date}
-            onChange={(event) => update(index, { end_date: event.target.value })}
+            onChange={(end_date) => update(index, { end_date })}
           />
           <Button
             variant="ghost"
@@ -76,6 +79,102 @@ export function BreaksEditor({
         {m.academics_break_add()}
       </Button>
     </div>
+  )
+}
+
+function parseIsoDate(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return undefined
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return undefined
+  }
+  return date
+}
+
+function toIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function dayNumber(date: Date): number {
+  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
+}
+
+/** One `yyyy-MM-dd` day, edited with the base-luma date picker. */
+function IsoDateField({
+  id,
+  label,
+  value,
+  onChange,
+  invalid,
+  describedBy,
+  min,
+  max,
+  className,
+}: {
+  id?: string
+  label?: string
+  value: string
+  onChange: (value: string) => void
+  invalid?: boolean
+  describedBy?: string
+  min?: string
+  max?: string
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = parseIsoDate(value)
+  const minDate = min ? parseIsoDate(min) : undefined
+  const maxDate = max ? parseIsoDate(max) : undefined
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            id={id}
+            aria-label={label}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
+            data-empty={!selected}
+            className={cn(
+              'justify-between text-left font-normal data-[empty=true]:text-muted-foreground',
+              className,
+            )}
+          />
+        }
+      >
+        {value && selected ? formatDate(value) : <span>{m.academics_date_placeholder()}</span>}
+        <ChevronDownIcon data-icon="inline-end" />
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          disabled={
+            minDate || maxDate
+              ? (date) => {
+                  const day = dayNumber(date)
+                  if (minDate && day < dayNumber(minDate)) return true
+                  if (maxDate && day > dayNumber(maxDate)) return true
+                  return false
+                }
+              : undefined
+          }
+          onSelect={(next) => {
+            onChange(next ? toIsoDate(next) : '')
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 

@@ -465,6 +465,7 @@
   "academics_courses_no_match": "No courses match these filters.",
   "academics_courses_search": "Search courses",
   "academics_credits_invalid": "Enter a number between 0 and 100.",
+  "academics_date_placeholder": "Pick a date",
   "academics_desktop_only_title": "Open this on a computer",
   "academics_desktop_only_description": "This page needs a larger screen. On a phone, Today and the course list are available from the menu.",
   "academics_filter_all_subjects": "All subjects",

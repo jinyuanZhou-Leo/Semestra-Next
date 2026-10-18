@@ -4,6 +4,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { newTermPath, termPath } from '../paths'
 import { useTerms } from '../queries'
@@ -35,9 +36,9 @@ export default function TermsCard({ scope }: CardProps) {
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <span className="truncate">{term.name}</span>
                   {term.is_current ? (
-                    <span className="rounded-4xl bg-primary/10 px-1.5 text-[0.625rem] font-medium text-primary">
+                    <Badge className="bg-primary/10 text-primary">
                       {m.academics_term_current_badge()}
-                    </span>
+                    </Badge>
                   ) : null}
                 </span>
                 <span className="block text-xs text-muted-foreground">
@@ -52,7 +53,12 @@ export default function TermsCard({ scope }: CardProps) {
         ))}
       </ol>
       <div>
-        <Button variant="outline" size="sm" render={<HistoryLink href={newTermPath(programId)} />}>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<HistoryLink href={newTermPath(programId)} />}
+        >
           <CalendarPlus aria-hidden />
           {m.academics_term_new()}
         </Button>
