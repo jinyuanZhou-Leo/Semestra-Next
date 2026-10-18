@@ -1,28 +1,42 @@
-import { useState, type ComponentProps } from 'react'
-import { TextField } from '@/components/TextField'
+import { useId, useState, type ComponentProps } from 'react'
 import { suggestEmails } from '@/lib/email-domains'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 
-type Props = Omit<ComponentProps<typeof TextField>, 'value' | 'onChange' | 'label'> & {
+type Props = Omit<ComponentProps<typeof Input>, 'id' | 'value' | 'onChange'> & {
   value: string
   onValueChange: (value: string) => void
   label?: string
+  error?: string | null
 }
 
 /** Email input that offers common domains after the "@". Tab accepts the first suggestion. */
-export function EmailField({ value, onValueChange, label, onKeyDown, ...rest }: Props) {
+export function EmailField({
+  value,
+  onValueChange,
+  label,
+  error,
+  className,
+  onKeyDown,
+  ...rest
+}: Props) {
+  const id = useId()
   const [focused, setFocused] = useState(false)
   const suggestions = focused ? suggestEmails(value.trim()) : []
 
   return (
-    <div>
-      <TextField
+    <Field data-invalid={error ? true : undefined} className={className}>
+      <FieldLabel htmlFor={id}>{label ?? m.auth_email_label()}</FieldLabel>
+      <Input
+        id={id}
         type="email"
         autoComplete="email"
         inputMode="email"
-        label={label ?? m.auth_email_label()}
         placeholder={m.auth_email_placeholder()}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         onFocus={() => setFocused(true)}
@@ -37,10 +51,11 @@ export function EmailField({ value, onValueChange, label, onKeyDown, ...rest }: 
         }}
         {...rest}
       />
+      {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
       {suggestions.length > 0 ? (
         <ul
           aria-label={m.auth_email_suggestions()}
-          className="mt-2 flex flex-wrap gap-1.5"
+          className="flex flex-wrap gap-1.5"
           data-testid="email-suggestions"
         >
           {suggestions.map((s) => (
@@ -59,6 +74,6 @@ export function EmailField({ value, onValueChange, label, onKeyDown, ...rest }: 
           ))}
         </ul>
       ) : null}
-    </div>
+    </Field>
   )
 }

@@ -1,8 +1,8 @@
 import { CalendarDays } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
-import { EmptyState } from '@/components/EmptyState'
 import { firstDayOfWeek } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
 import { weekGridItems } from '../occurrence'
@@ -31,7 +31,16 @@ export default function WeekCard({ scope }: CardProps) {
   if (!occurrences || !tz) return null
   const items = weekGridItems(occurrences.items, tz)
   if (items.length === 0) {
-    return <EmptyState icon={CalendarDays} title={m.schedule_week_empty()} />
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarDays aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.schedule_week_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
   }
   const days = weekDays(settings.show_weekends).map((d) => {
     const date = dayInWeek(start, d.weekday)

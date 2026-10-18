@@ -11,15 +11,15 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
-import { useState, type FormEvent, type ReactNode } from 'react'
-import { TextField } from '@/components/TextField'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldDescription, FieldError, FieldLabel, FieldSeparator } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
-import { Separator } from '@/ui/separator'
 import { EmailField } from './EmailField'
-import { FormError } from './FormError'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { useCountdown } from './useCountdown'
 
@@ -50,6 +50,7 @@ function Heading({ title, subtitle }: { title: string; subtitle: ReactNode }) {
 /** The unified entry (M01 §7): email → code → (new users) profile, or password, or Google. */
 export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Props) {
   const queryClient = useQueryClient()
+  const id = useId()
   const [step, setStep] = useState<Step>({ name: 'email' })
   const [email, setEmail] = useState(initialEmail)
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -157,6 +158,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
   ) : null
 
   if (step.name === 'code') {
+    const codeError = verify.error ?? start.error
     return (
       <div>
         <Heading
@@ -185,7 +187,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             {verify.isPending ? (
               <p className="text-sm text-muted-foreground">{m.auth_code_verifying()}</p>
             ) : (
-              <FormError error={verify.error ?? start.error} />
+              <FieldError>{codeError ? errorMessage(codeError) : null}</FieldError>
             )}
           </div>
           <div className="flex flex-col items-center gap-1">
@@ -222,24 +224,37 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       <form onSubmit={submitProfile} noValidate>
         <Heading title={m.auth_profile_title()} subtitle={m.auth_profile_subtitle()} />
         <fieldset disabled={register.isPending} className="space-y-4">
-          <TextField
-            label={m.auth_display_name_label()}
-            autoComplete="nickname"
-            ref={focusOnMount}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            error={nameError}
-            maxLength={60}
-          />
-          <TextField
-            type="password"
-            autoComplete="new-password"
-            label={m.auth_password_optional_label()}
-            hint={m.auth_password_optional_hint()}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <FormError error={register.error} />
+          <Field data-invalid={nameError ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-name`}>{m.auth_display_name_label()}</FieldLabel>
+            <Input
+              id={`${id}-name`}
+              autoComplete="nickname"
+              ref={focusOnMount}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? `${id}-name-error` : undefined}
+              maxLength={60}
+            />
+            {nameError ? <FieldError id={`${id}-name-error`}>{nameError}</FieldError> : null}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${id}-new-password`}>
+              {m.auth_password_optional_label()}
+            </FieldLabel>
+            <Input
+              id={`${id}-new-password`}
+              type="password"
+              autoComplete="new-password"
+              aria-describedby={`${id}-new-password-hint`}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <FieldDescription id={`${id}-new-password-hint`}>
+              {m.auth_password_optional_hint()}
+            </FieldDescription>
+          </Field>
+          <FieldError>{register.error ? errorMessage(register.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {register.isPending ? m.auth_creating() : m.auth_create_account()}
           </Button>
@@ -259,16 +274,23 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             error={emailError}
             ref={step.focusPassword ? undefined : focusOnMount}
           />
-          <TextField
-            type="password"
-            autoComplete="current-password"
-            label={m.auth_password_label()}
-            ref={step.focusPassword ? focusOnMount : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={passwordError}
-          />
-          <FormError error={passwordLogin.error} />
+          <Field data-invalid={passwordError ? true : undefined}>
+            <FieldLabel htmlFor={`${id}-password`}>{m.auth_password_label()}</FieldLabel>
+            <Input
+              id={`${id}-password`}
+              type="password"
+              autoComplete="current-password"
+              ref={step.focusPassword ? focusOnMount : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={passwordError ? true : undefined}
+              aria-describedby={passwordError ? `${id}-password-error` : undefined}
+            />
+            {passwordError ? (
+              <FieldError id={`${id}-password-error`}>{passwordError}</FieldError>
+            ) : null}
+          </Field>
+          <FieldError>{passwordLogin.error ? errorMessage(passwordLogin.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {passwordLogin.isPending ? m.auth_signing_in() : m.auth_signin()}
           </Button>
@@ -311,7 +333,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             ref={focusOnMount}
             readOnly={compact && Boolean(initialEmail)}
           />
-          <FormError error={start.error} />
+          <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {start.isPending ? m.auth_sending() : m.auth_continue()}
           </Button>
@@ -329,13 +351,9 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       </div>
       {google ? (
         <div className="mt-2 space-y-4">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <Separator className="flex-1" />
-            {m.auth_or()}
-            <Separator className="flex-1" />
-          </div>
+          <FieldSeparator className="text-xs">{m.auth_or()}</FieldSeparator>
           {google}
-          <FormError error={googleLogin.error} />
+          <FieldError>{googleLogin.error ? errorMessage(googleLogin.error) : null}</FieldError>
         </div>
       ) : null}
     </div>

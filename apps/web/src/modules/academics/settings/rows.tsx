@@ -1,6 +1,8 @@
 import { type ReactNode, useId, useState } from 'react'
-import { SettingRow } from '@/components/SettingRow'
+import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
+import { Label } from '@/ui/label'
 import { Textarea } from '@/ui/textarea'
 
 /** A text setting saved as typed; `required` keeps an empty value from being sent. */
@@ -41,25 +43,26 @@ export function TextRow({
     },
   }
   return (
-    <SettingRow
-      label={label}
-      labelId={`${id}-label`}
-      htmlFor={`${id}-input`}
-      description={description}
-    >
-      <div className="flex flex-col items-end gap-1">
-        {multiline ? (
-          <Textarea {...props} className="w-80" rows={3} />
-        ) : (
-          <Input {...props} type={type} className={type === 'date' ? 'w-44' : 'w-64'} />
-        )}
-        {error ? (
-          <p role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </SettingRow>
+    <Item>
+      <ItemContent className="min-w-0 basis-64">
+        <ItemTitle>
+          <Label id={`${id}-label`} htmlFor={`${id}-input`}>
+            {label}
+          </Label>
+        </ItemTitle>
+        {description ? <ItemDescription>{description}</ItemDescription> : null}
+      </ItemContent>
+      <ItemActions>
+        <div className="flex flex-col items-end gap-1">
+          {multiline ? (
+            <Textarea {...props} className="w-80" rows={3} />
+          ) : (
+            <Input {...props} type={type} className={type === 'date' ? 'w-44' : 'w-64'} />
+          )}
+          <FieldError className="text-xs">{error}</FieldError>
+        </div>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -86,31 +89,36 @@ export function NumberRow({
   const valid = (t: string) =>
     t.trim() === '' ? Boolean(nullable) : Number(t) >= min && Number(t) <= max
   return (
-    <SettingRow
-      label={label}
-      labelId={`${id}-label`}
-      htmlFor={`${id}-input`}
-      description={description}
-    >
-      <Input
-        id={`${id}-input`}
-        type="number"
-        inputMode="decimal"
-        step="any"
-        min={min}
-        max={max}
-        className="w-28"
-        aria-labelledby={`${id}-label`}
-        aria-invalid={valid(text) ? undefined : true}
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value)
-          if (valid(event.target.value)) {
-            onChange(event.target.value.trim() === '' ? null : Number(event.target.value))
-          }
-        }}
-      />
-    </SettingRow>
+    <Item>
+      <ItemContent className="min-w-0 basis-64">
+        <ItemTitle>
+          <Label id={`${id}-label`} htmlFor={`${id}-input`}>
+            {label}
+          </Label>
+        </ItemTitle>
+        {description ? <ItemDescription>{description}</ItemDescription> : null}
+      </ItemContent>
+      <ItemActions>
+        <Input
+          id={`${id}-input`}
+          type="number"
+          inputMode="decimal"
+          step="any"
+          min={min}
+          max={max}
+          className="w-28"
+          aria-labelledby={`${id}-label`}
+          aria-invalid={valid(text) ? undefined : true}
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value)
+            if (valid(event.target.value)) {
+              onChange(event.target.value.trim() === '' ? null : Number(event.target.value))
+            }
+          }}
+        />
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -126,8 +134,14 @@ export function ControlRow({
 }) {
   const id = useId()
   return (
-    <SettingRow label={label} labelId={`${id}-label`} description={description}>
-      {children(`${id}-label`)}
-    </SettingRow>
+    <Item>
+      <ItemContent className="min-w-0 basis-64">
+        <ItemTitle>
+          <Label id={`${id}-label`}>{label}</Label>
+        </ItemTitle>
+        {description ? <ItemDescription>{description}</ItemDescription> : null}
+      </ItemContent>
+      <ItemActions>{children(`${id}-label`)}</ItemActions>
+    </Item>
   )
 }

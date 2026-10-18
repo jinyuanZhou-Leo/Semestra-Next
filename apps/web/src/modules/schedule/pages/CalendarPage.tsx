@@ -26,7 +26,6 @@ import { useCallback, useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { toastError } from '@/lib/errors'
 import { firstDayOfWeek } from '@/lib/format'
 import { useCourses, useTerms } from '@/modules/academics/queries'
@@ -34,6 +33,7 @@ import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/sheet'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import '../calendar.css'
 import { DragChoiceDialog } from '../components/DragChoiceDialog'
 import { EventDialog, type EventSlot } from '../components/EventDialog'
@@ -307,7 +307,7 @@ function TermCalendar({
             >
               <ListFilter aria-hidden />
             </SheetTrigger>
-            <SheetContent closeLabel={m.common_close()} className="p-6">
+            <SheetContent className="p-6">
               <SheetTitle className="mb-4">{m.schedule_filters()}</SheetTitle>
               {filterPanel}
             </SheetContent>
@@ -350,17 +350,26 @@ function TermCalendar({
             <h2 className="font-heading text-base font-medium">{term.name}</h2>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <SegmentedControl
+            <ToggleGroup
               aria-label={m.schedule_view()}
-              value={view}
-              onValueChange={changeView}
-              options={[
-                { value: 'week', label: m.settings_calendar_default_view_option_week() },
-                { value: 'month', label: m.settings_calendar_default_view_option_month() },
-                { value: 'list', label: m.settings_calendar_default_view_option_list() },
-                { value: 'timetable', label: m.settings_calendar_default_view_option_timetable() },
-              ]}
-            />
+              variant="outline"
+              size="sm"
+              value={[view]}
+              onValueChange={(value) => value[0] && changeView(value[0] as CalendarView)}
+            >
+              <ToggleGroupItem value="week">
+                {m.settings_calendar_default_view_option_week()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="month">
+                {m.settings_calendar_default_view_option_month()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="list">
+                {m.settings_calendar_default_view_option_list()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="timetable">
+                {m.settings_calendar_default_view_option_timetable()}
+              </ToggleGroupItem>
+            </ToggleGroup>
             <Button
               variant="outline"
               size="sm"

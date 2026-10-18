@@ -5,7 +5,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Copy, Link2 } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -14,9 +14,9 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { invalidateSchedule, useFeeds } from '../queries'
-import { Field } from './Field'
 
 type FeedSource = Feed['sources'][number]
 const FEED_SOURCES: readonly FeedSource[] = ['schedule', 'assessments', 'tasks', 'lms']
@@ -47,6 +47,7 @@ export function FeedsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const fid = useId()
   const queryClient = useQueryClient()
   const feeds = (useFeeds(programId).data?.items ?? []).filter((f) => !f.revoked_at)
   const [name, setName] = useState('')
@@ -87,7 +88,7 @@ export function FeedsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={m.common_close()} className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{m.schedule_feeds()}</DialogTitle>
           <DialogDescription>{m.schedule_feeds_warning()}</DialogDescription>
@@ -115,8 +116,10 @@ export function FeedsDialog({
           </div>
         ) : null}
         <form onSubmit={submit} className="space-y-3">
-          <Field label={m.schedule_feed_name()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_feed_name()}</FieldLabel>
             <Input
+              id={`${fid}-1`}
               placeholder={m.schedule_feed_default_name()}
               value={name}
               onChange={(e) => setName(e.target.value)}

@@ -2,8 +2,8 @@ import type { Occurrence } from '@semestra/api-client'
 import { CalendarCheck } from 'lucide-react'
 import { Fragment } from 'react'
 import type { CardProps } from '@/app/extensions'
-import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { countdown } from '../countdown'
 import { useNow } from '../hooks'
@@ -24,7 +24,16 @@ export default function TodayCard({ scope, size }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const items = today.items.filter((o) => !termId || !o.meta?.term_id || o.meta.term_id === termId)
   if (items.length === 0) {
-    return <EmptyState icon={CalendarCheck} title={m.schedule_today_empty()} />
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarCheck aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.schedule_today_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
   }
   const next = items.find(
     (o) => o.kind === 'class' && o.status !== 'cancelled' && new Date(o.start_at).getTime() > now,

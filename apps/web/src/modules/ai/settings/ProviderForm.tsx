@@ -6,14 +6,22 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
-import { TextField } from '@/components/TextField'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Label } from '@/ui/label'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/ui/field'
+import { Input } from '@/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import {
   CAPABILITIES,
@@ -39,15 +47,11 @@ export function CapabilityChecks({
 }) {
   const id = useId()
   return (
-    <fieldset className="space-y-2" disabled={disabled}>
-      <legend className="mb-2 text-sm font-medium">{m.ai_provider_capabilities()}</legend>
+    <FieldSet disabled={disabled}>
+      <FieldLegend variant="label">{m.ai_provider_capabilities()}</FieldLegend>
       <div className="flex flex-wrap gap-x-5 gap-y-2">
         {CAPABILITIES.map((capability) => (
-          <label
-            key={capability}
-            htmlFor={`${id}-${capability}`}
-            className="flex items-center gap-2 text-sm"
-          >
+          <Field key={capability} orientation="horizontal" className="w-auto">
             <Checkbox
               id={`${id}-${capability}`}
               checked={value.includes(capability)}
@@ -59,11 +63,13 @@ export function CapabilityChecks({
                 )
               }
             />
-            {CAPABILITY_TITLES[capability]()}
-          </label>
+            <FieldLabel htmlFor={`${id}-${capability}`} className="font-normal">
+              {CAPABILITY_TITLES[capability]()}
+            </FieldLabel>
+          </Field>
         ))}
       </div>
-    </fieldset>
+    </FieldSet>
   )
 }
 
@@ -79,7 +85,7 @@ export function ProviderForm({
   submitLabel?: string
 }) {
   const queryClient = useQueryClient()
-  const kindId = useId()
+  const id = useId()
   const [kind, setKind] = useState<ProviderKind>('anthropic')
   const [name, setName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -140,80 +146,94 @@ export function ProviderForm({
 
   return (
     <form onSubmit={(e) => void submit(e)} noValidate>
-      <fieldset disabled={pending} className="space-y-4">
-        <div>
-          <Label id={kindId} className="mb-2">
-            {m.ai_provider_kind()}
-          </Label>
-          <Select
-            value={kind}
-            items={kindItems}
-            onValueChange={(next) => next && chooseKind(next as ProviderKind)}
-          >
-            <SelectTrigger aria-labelledby={kindId} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {kindItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="mt-1.5 text-xs text-muted-foreground">{info.hint()}</p>
-        </div>
-        {info.needsBaseUrl ? (
-          <TextField
-            label={m.ai_provider_base_url()}
-            placeholder={info.baseUrlPlaceholder}
-            value={baseUrl}
-            inputMode="url"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        ) : null}
-        <TextField
-          label={info.needsKey ? m.ai_provider_api_key() : m.ai_provider_api_key_optional()}
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          value={apiKey}
-          ref={info.needsKey ? focusOnMount : undefined}
-          hint={m.ai_provider_key_note()}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        {info.chooseCapabilities ? (
-          <>
-            <CapabilityChecks value={capabilities} onChange={setCapabilities} />
-            <TextField
-              label={m.ai_provider_default_model()}
-              hint={m.ai_provider_default_model_hint()}
-              value={model}
-              spellCheck={false}
+      <fieldset disabled={pending}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel id={`${id}-kind`}>{m.ai_provider_kind()}</FieldLabel>
+            <Select
+              value={kind}
+              items={kindItems}
+              onValueChange={(next) => next && chooseKind(next as ProviderKind)}
+            >
+              <SelectTrigger aria-labelledby={`${id}-kind`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {kindItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldDescription>{info.hint()}</FieldDescription>
+          </Field>
+          {info.needsBaseUrl ? (
+            <Field>
+              <FieldLabel htmlFor={`${id}-base-url`}>{m.ai_provider_base_url()}</FieldLabel>
+              <Input
+                id={`${id}-base-url`}
+                placeholder={info.baseUrlPlaceholder}
+                value={baseUrl}
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </Field>
+          ) : null}
+          <Field>
+            <FieldLabel htmlFor={`${id}-key`}>
+              {info.needsKey ? m.ai_provider_api_key() : m.ai_provider_api_key_optional()}
+            </FieldLabel>
+            <Input
+              id={`${id}-key`}
+              type="password"
               autoComplete="off"
-              onChange={(e) => setModel(e.target.value)}
+              spellCheck={false}
+              value={apiKey}
+              ref={info.needsKey ? focusOnMount : undefined}
+              aria-describedby={`${id}-key-hint`}
+              onChange={(e) => setApiKey(e.target.value)}
             />
-          </>
-        ) : null}
-        <TextField
-          label={m.ai_provider_name()}
-          placeholder={info.name()}
-          value={name}
-          maxLength={60}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {create.error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {errorMessage(create.error)}
-          </p>
-        ) : null}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={missing}>
-            {pending ? m.ai_provider_checking() : (submitLabel ?? m.ai_provider_save())}
-          </Button>
-        </div>
+            <FieldDescription id={`${id}-key-hint`}>{m.ai_provider_key_note()}</FieldDescription>
+          </Field>
+          {info.chooseCapabilities ? (
+            <>
+              <CapabilityChecks value={capabilities} onChange={setCapabilities} />
+              <Field>
+                <FieldLabel htmlFor={`${id}-model`}>{m.ai_provider_default_model()}</FieldLabel>
+                <Input
+                  id={`${id}-model`}
+                  value={model}
+                  spellCheck={false}
+                  autoComplete="off"
+                  aria-describedby={`${id}-model-hint`}
+                  onChange={(e) => setModel(e.target.value)}
+                />
+                <FieldDescription id={`${id}-model-hint`}>
+                  {m.ai_provider_default_model_hint()}
+                </FieldDescription>
+              </Field>
+            </>
+          ) : null}
+          <Field>
+            <FieldLabel htmlFor={`${id}-name`}>{m.ai_provider_name()}</FieldLabel>
+            <Input
+              id={`${id}-name`}
+              placeholder={info.name()}
+              value={name}
+              maxLength={60}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+          <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={missing}>
+              {pending ? m.ai_provider_checking() : (submitLabel ?? m.ai_provider_save())}
+            </Button>
+          </div>
+        </FieldGroup>
       </fieldset>
     </form>
   )

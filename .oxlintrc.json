@@ -14,6 +14,9 @@
   "ignorePatterns": [
     "**/dist",
     "apps/web/src/ui",
+    "apps/web/src/hooks/use-mobile.ts",
+    "apps/web/src/hooks/use-highlighted-code.ts",
+    "apps/web/src/lib/highlighter.tsx",
     "apps/web/src/paraglide",
     "apps/web/src/routeTree.gen.ts",
     "packages/api-client/src/generated"

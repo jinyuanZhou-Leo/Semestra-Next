@@ -1,20 +1,21 @@
 import type { HexColor, PaletteColor } from '@semestra/api-client'
-import { Check } from 'lucide-react'
 import { useId } from 'react'
 import { SUBJECT_PALETTE_SIZE, subjectColor } from '@/lib/subject-color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Field, FieldLabel } from '@/ui/field'
+import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 
 export type ColorRef = PaletteColor | HexColor
 
 const SLOTS = Array.from({ length: SUBJECT_PALETTE_SIZE }, (_, i) => i + 1)
 
-function isPalette(color: ColorRef | null, slot: number) {
-  return color != null && 'palette' in color && color.palette === slot
-}
+const INHERIT = 'inherit'
 
-const SWATCH =
-  'flex size-7 cursor-pointer items-center justify-center rounded-full ring-offset-2 ring-offset-background peer-focus-visible:ring-2 peer-focus-visible:ring-ring'
+function selectedValue(color: ColorRef | null): string | null {
+  if (color == null) return INHERIT
+  return 'palette' in color ? String(color.palette) : null
+}
 
 /**
  * A course or subject color (M02 §5.5): one of the 12 palette slots, a custom hex color, or
@@ -31,54 +32,34 @@ export function ColorPicker({
   inheritLabel?: string
   label: string
 }) {
-  const name = useId()
+  const id = useId()
   const hex = value != null && 'hex' in value ? value.hex : null
   return (
-    <fieldset className="flex flex-wrap items-center gap-1.5">
-      <legend className="sr-only">{label}</legend>
-      {inheritLabel ? (
-        <label className="relative">
-          <input
-            type="radio"
-            name={name}
-            className="peer sr-only"
-            checked={value == null}
-            onChange={() => onChange(null)}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <RadioGroup
+        aria-label={label}
+        className="flex w-auto flex-wrap items-center gap-1.5"
+        value={selectedValue(value)}
+        onValueChange={(next) => onChange(next === INHERIT ? null : { palette: Number(next) })}
+      >
+        {inheritLabel ? (
+          <Field orientation="horizontal" className="mr-1 w-auto gap-1.5">
+            <RadioGroupItem id={`${id}-inherit`} value={INHERIT} />
+            <FieldLabel htmlFor={`${id}-inherit`} className="text-xs font-normal">
+              {inheritLabel}
+            </FieldLabel>
+          </Field>
+        ) : null}
+        {SLOTS.map((slot) => (
+          <RadioGroupItem
+            key={slot}
+            value={String(slot)}
+            aria-label={m.academics_color_slot({ slot })}
+            className="size-7 ring-offset-2 ring-offset-background after:inset-0 data-checked:ring-2 data-checked:ring-primary"
+            style={{ backgroundColor: subjectColor(`subject-${slot}`) }}
           />
-          <span
-            className={cn(
-              'flex h-7 cursor-pointer items-center rounded-4xl border px-2.5 text-xs ring-offset-2 ring-offset-background peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
-              value == null
-                ? 'border-primary text-foreground'
-                : 'border-border text-muted-foreground',
-            )}
-          >
-            {inheritLabel}
-          </span>
-        </label>
-      ) : null}
-      {SLOTS.map((slot) => {
-        const checked = isPalette(value, slot)
-        return (
-          <label key={slot} className="relative">
-            <input
-              type="radio"
-              name={name}
-              className="peer sr-only"
-              aria-label={m.academics_color_slot({ slot })}
-              checked={checked}
-              onChange={() => onChange({ palette: slot })}
-            />
-            <span
-              aria-hidden
-              className={cn(SWATCH, checked && 'ring-2 ring-primary')}
-              style={{ backgroundColor: subjectColor(`subject-${slot}`) }}
-            >
-              {checked ? <Check className="size-3.5 text-white" /> : null}
-            </span>
-          </label>
-        )
-      })}
+        ))}
+      </RadioGroup>
       <label
         className={cn(
           'relative flex size-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-border ring-offset-2 ring-offset-background focus-within:ring-2 focus-within:ring-ring',
@@ -100,6 +81,6 @@ export function ColorPicker({
           onChange={(event) => onChange({ hex: event.target.value })}
         />
       </label>
-    </fieldset>
+    </div>
   )
 }

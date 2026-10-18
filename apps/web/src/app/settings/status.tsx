@@ -1,7 +1,8 @@
-import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
+import { Check, CircleAlert } from 'lucide-react'
 import { createContext, useContext } from 'react'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Spinner } from '@/ui/spinner'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -20,7 +21,7 @@ export function SaveIndicator({ status, retry }: SectionStatus) {
     <output className="block min-h-6 text-xs text-muted-foreground">
       {status === 'saving' ? (
         <span className="flex items-center gap-1.5">
-          <LoaderCircle aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
+          <Spinner aria-hidden className="size-3.5 motion-reduce:animate-none" />
           {m.settings_status_saving()}
         </span>
       ) : null}

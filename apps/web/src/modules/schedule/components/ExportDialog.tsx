@@ -1,10 +1,9 @@
 import type { Course, Meeting, Occurrence, TermWeek } from '@semestra/api-client'
 import { calendarOccurrencesOptions } from '@semestra/api-client/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { CalendarSourceContribution } from '@/app/extensions'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { downloadFile, saveFile } from '@/lib/api-extras'
 import { toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
@@ -13,12 +12,14 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldLabel } from '@/ui/field'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { pngsToPdf, renderPng } from '../export'
 import { weekLabel } from '../labels'
 import { weekGridItems } from '../occurrence'
 import type { CalendarSettings } from '../queries'
 import { dayInWeek, localDay, plusDays, wallDate } from '../time'
-import { Field, SimpleSelect } from './Field'
+import { SimpleSelect } from './SimpleSelect'
 import { meetingGridItems } from './TimetableView'
 import { type GridDay, WeekGrid, minutes, weekDays } from './WeekGrid'
 
@@ -67,6 +68,7 @@ export function ExportDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const fid = useId()
   const queryClient = useQueryClient()
   const sheetRefs = useRef(new Map<string, HTMLDivElement>())
   const current =
@@ -183,45 +185,53 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()} className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{m.schedule_export()}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <SegmentedControl
+          <ToggleGroup
             aria-label={m.schedule_export_format()}
-            value={format}
-            onValueChange={setFormat}
-            options={[
-              { value: 'png', label: 'PNG' },
-              { value: 'pdf', label: 'PDF' },
-              { value: 'ics', label: 'ICS' },
-            ]}
-          />
-          <SegmentedControl
+            variant="outline"
+            size="sm"
+            value={[format]}
+            onValueChange={(value) => value[0] && setFormat(value[0] as Format)}
+          >
+            <ToggleGroupItem value="png">PNG</ToggleGroupItem>
+            <ToggleGroupItem value="pdf">PDF</ToggleGroupItem>
+            <ToggleGroupItem value="ics">ICS</ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
             aria-label={m.schedule_export_range()}
-            value={effectiveRange}
-            onValueChange={setRange}
-            options={[
-              { value: 'week', label: m.schedule_export_one_week() },
-              { value: 'weeks', label: m.schedule_export_weeks() },
-              ...(format === 'ics'
-                ? []
-                : [{ value: 'template' as const, label: m.schedule_view_timetable() }]),
-            ]}
-          />
+            variant="outline"
+            size="sm"
+            value={[effectiveRange]}
+            onValueChange={(value) => value[0] && setRange(value[0] as Range)}
+          >
+            <ToggleGroupItem value="week">{m.schedule_export_one_week()}</ToggleGroupItem>
+            <ToggleGroupItem value="weeks">{m.schedule_export_weeks()}</ToggleGroupItem>
+            {format === 'ics' ? null : (
+              <ToggleGroupItem value="template">{m.schedule_view_timetable()}</ToggleGroupItem>
+            )}
+          </ToggleGroup>
           {effectiveRange !== 'template' && weekOptions.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
-              <Field
-                label={
-                  effectiveRange === 'weeks' ? m.schedule_export_from() : m.schedule_export_week()
-                }
-              >
-                <SimpleSelect value={from} onChange={setFrom} options={weekOptions} />
+              <Field>
+                <FieldLabel htmlFor={`${fid}-1`}>
+                  {effectiveRange === 'weeks' ? m.schedule_export_from() : m.schedule_export_week()}
+                </FieldLabel>
+                <SimpleSelect
+                  id={`${fid}-1`}
+                  value={from}
+                  onChange={setFrom}
+                  options={weekOptions}
+                />
               </Field>
               {effectiveRange === 'weeks' ? (
-                <Field label={m.schedule_export_to()}>
+                <Field>
+                  <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_export_to()}</FieldLabel>
                   <SimpleSelect
+                    id={`${fid}-2`}
                     value={to}
                     onChange={setTo}
                     options={weekOptions.filter((o) => o.value >= from)}
@@ -253,30 +263,33 @@ export function ExportDialog({
             <div className="flex flex-wrap gap-4">
               <div>
                 <p className="mb-2 text-sm font-medium">{m.schedule_export_cancelled()}</p>
-                <SegmentedControl
+                <ToggleGroup
                   aria-label={m.schedule_export_cancelled()}
-                  value={cancelled}
-                  onValueChange={setCancelled}
-                  options={[
-                    {
-                      value: 'strike',
-                      label: m.settings_calendar_cancelled_display_option_strike(),
-                    },
-                    { value: 'hide', label: m.settings_calendar_cancelled_display_option_hide() },
-                  ]}
-                />
+                  variant="outline"
+                  size="sm"
+                  value={[cancelled]}
+                  onValueChange={(value) => value[0] && setCancelled(value[0] as typeof cancelled)}
+                >
+                  <ToggleGroupItem value="strike">
+                    {m.settings_calendar_cancelled_display_option_strike()}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="hide">
+                    {m.settings_calendar_cancelled_display_option_hide()}
+                  </ToggleGroupItem>
+                </ToggleGroup>
               </div>
               <div>
                 <p className="mb-2 text-sm font-medium">{m.schedule_export_theme()}</p>
-                <SegmentedControl
+                <ToggleGroup
                   aria-label={m.schedule_export_theme()}
-                  value={theme}
-                  onValueChange={setTheme}
-                  options={[
-                    { value: 'light', label: m.schedule_export_theme_light() },
-                    { value: 'dark', label: m.schedule_export_theme_dark() },
-                  ]}
-                />
+                  variant="outline"
+                  size="sm"
+                  value={[theme]}
+                  onValueChange={(value) => value[0] && setTheme(value[0] as 'light' | 'dark')}
+                >
+                  <ToggleGroupItem value="light">{m.schedule_export_theme_light()}</ToggleGroupItem>
+                  <ToggleGroupItem value="dark">{m.schedule_export_theme_dark()}</ToggleGroupItem>
+                </ToggleGroup>
               </div>
             </div>
           ) : (

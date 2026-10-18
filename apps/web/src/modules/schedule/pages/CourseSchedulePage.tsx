@@ -9,13 +9,13 @@ import { CalendarClock, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
-import { EmptyState } from '@/components/EmptyState'
 import { toastError } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,7 +159,14 @@ function TermSchedule({
       </div>
 
       {meetings.length === 0 ? (
-        <EmptyState icon={CalendarClock} title={m.schedule_meetings_empty()} />
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <CalendarClock aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-5">

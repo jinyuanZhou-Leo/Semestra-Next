@@ -343,7 +343,7 @@ test('ICS export leaves out the courses hidden in the filters', async () => {
   await userEvent.click(screen.getByRole('checkbox', { name: 'APS105H1' }))
   await userEvent.click(screen.getByRole('button', { name: 'Export' }))
   const dialog = await screen.findByRole('dialog')
-  await userEvent.click(within(dialog).getByRole('radio', { name: 'ICS' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'ICS' }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
   await waitFor(() => expect(urls).toHaveLength(1))
   expect(urls[0]?.searchParams.getAll('exclude_course_ids')).toEqual(['c1'])

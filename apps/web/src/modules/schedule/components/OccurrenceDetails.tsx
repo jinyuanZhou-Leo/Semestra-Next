@@ -85,7 +85,7 @@ export function OccurrenceDetails({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-8">
             <span

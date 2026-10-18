@@ -5,7 +5,7 @@ import {
   scheduleEventUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { courseLabel } from '@/modules/academics/color'
@@ -14,12 +14,13 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Textarea } from '@/ui/textarea'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { plusDays, toWall } from '../time'
-import { Field, SimpleSelect } from './Field'
+import { SimpleSelect } from './SimpleSelect'
 
 const NONE = '__none__'
 
@@ -95,6 +96,7 @@ export function EventDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const fid = useId()
   const queryClient = useQueryClient()
   const types = useEventTypes(programId).data?.items ?? []
   // An existing event may belong to a course outside this term, so editing lists them all.
@@ -169,24 +171,26 @@ export function EventDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()} className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{event ? m.schedule_event_edit() : m.schedule_event_add()}</DialogTitle>
         </DialogHeader>
         <form noValidate onSubmit={submit} className="grid grid-cols-2 gap-4">
-          <Field
-            label={m.schedule_event_title()}
-            className="col-span-2"
-            error={touched && titleMissing ? m.schedule_required() : null}
-          >
+          <Field className="col-span-2" data-invalid={(touched && titleMissing) || undefined}>
+            <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_event_title()}</FieldLabel>
             <Input
+              id={`${fid}-1`}
+              aria-invalid={(touched && titleMissing) || undefined}
               placeholder={m.schedule_event_title_placeholder()}
               value={draft.title}
               onChange={(e) => set('title', e.target.value)}
             />
+            {touched && titleMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
           </Field>
-          <Field label={m.schedule_course()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_course()}</FieldLabel>
             <SimpleSelect
+              id={`${fid}-2`}
               value={draft.course_id}
               onChange={(v) => set('course_id', v)}
               options={[
@@ -195,8 +199,10 @@ export function EventDialog({
               ]}
             />
           </Field>
-          <Field label={m.schedule_type()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_type()}</FieldLabel>
             <SimpleSelect
+              id={`${fid}-3`}
               value={draft.type_code}
               onChange={(v) => set('type_code', v)}
               options={[
@@ -209,31 +215,46 @@ export function EventDialog({
             <Checkbox checked={draft.all_day} onCheckedChange={(on) => set('all_day', on)} />
             {m.schedule_all_day()}
           </label>
-          <Field
-            label={m.schedule_starts()}
-            error={touched && timeMissing ? m.schedule_required() : null}
-          >
+          <Field data-invalid={(touched && timeMissing) || undefined}>
+            <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_starts()}</FieldLabel>
             <Input
+              id={`${fid}-4`}
+              aria-invalid={(touched && timeMissing) || undefined}
               type={dateType}
               value={dateValue(draft.start)}
               onChange={(e) => set('start', fromInput(e.target.value, draft.start))}
             />
+            {touched && timeMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
           </Field>
-          <Field
-            label={m.schedule_ends()}
-            error={touched && timeInvalid ? m.error_schedule_time_range_invalid() : null}
-          >
+          <Field data-invalid={(touched && timeInvalid) || undefined}>
+            <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_ends()}</FieldLabel>
             <Input
+              id={`${fid}-5`}
+              aria-invalid={(touched && timeInvalid) || undefined}
               type={dateType}
               value={dateValue(draft.end)}
               onChange={(e) => set('end', fromInput(e.target.value, draft.end))}
             />
+            {touched && timeInvalid ? (
+              <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
+            ) : null}
           </Field>
-          <Field label={m.schedule_location()} className="col-span-2">
-            <Input value={draft.location} onChange={(e) => set('location', e.target.value)} />
+          <Field className="col-span-2">
+            <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_location()}</FieldLabel>
+            <Input
+              id={`${fid}-6`}
+              value={draft.location}
+              onChange={(e) => set('location', e.target.value)}
+            />
           </Field>
-          <Field label={m.schedule_note()} className="col-span-2">
-            <Textarea rows={2} value={draft.note} onChange={(e) => set('note', e.target.value)} />
+          <Field className="col-span-2">
+            <FieldLabel htmlFor={`${fid}-7`}>{m.schedule_note()}</FieldLabel>
+            <Textarea
+              id={`${fid}-7`}
+              rows={2}
+              value={draft.note}
+              onChange={(e) => set('note', e.target.value)}
+            />
           </Field>
           <DialogFooter className="col-span-2">
             {event ? (

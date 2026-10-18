@@ -1,14 +1,14 @@
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Textarea } from '@/ui/textarea'
 import { invalidateSchedule } from '../queries'
-import { Field } from './Field'
 
 export type MoveTarget = {
   meetingId: string
@@ -31,6 +31,7 @@ export function MoveDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const fid = useId()
   const queryClient = useQueryClient()
   const [date, setDate] = useState(target.date)
   const [start, setStart] = useState(target.start)
@@ -67,28 +68,54 @@ export function MoveDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !save.isPending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.schedule_move_title()}</DialogTitle>
         </DialogHeader>
         <form noValidate onSubmit={submit} className="grid grid-cols-3 gap-4">
-          <Field label={m.schedule_date()}>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Field>
+            <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_date()}</FieldLabel>
+            <Input
+              id={`${fid}-1`}
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </Field>
-          <Field label={m.schedule_start_time()}>
-            <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+          <Field>
+            <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_start_time()}</FieldLabel>
+            <Input
+              id={`${fid}-2`}
+              type="time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+            />
           </Field>
-          <Field
-            label={m.schedule_end_time()}
-            error={touched && invalid ? m.error_schedule_time_range_invalid() : null}
-          >
-            <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <Field data-invalid={(touched && invalid) || undefined}>
+            <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_end_time()}</FieldLabel>
+            <Input
+              id={`${fid}-3`}
+              aria-invalid={(touched && invalid) || undefined}
+              type="time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+            />
+            {touched && invalid ? (
+              <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
+            ) : null}
           </Field>
-          <Field label={m.schedule_location()} className="col-span-3">
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+          <Field className="col-span-3">
+            <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_location()}</FieldLabel>
+            <Input id={`${fid}-4`} value={location} onChange={(e) => setLocation(e.target.value)} />
           </Field>
-          <Field label={m.schedule_note()} className="col-span-3">
-            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          <Field className="col-span-3">
+            <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_note()}</FieldLabel>
+            <Textarea
+              id={`${fid}-5`}
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
           </Field>
           <DialogFooter className="col-span-3">
             <Button type="submit" disabled={save.isPending}>

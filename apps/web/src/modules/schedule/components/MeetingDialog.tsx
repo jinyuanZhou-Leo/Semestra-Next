@@ -5,20 +5,21 @@ import {
   scheduleMeetingUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { toastError } from '@/lib/errors'
 import { useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { weekdayName } from '../time'
-import { Field, SimpleSelect } from './Field'
+import { SimpleSelect } from './SimpleSelect'
 
 type Draft = {
   term_id: string
@@ -84,6 +85,7 @@ export function MeetingDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const fid = useId()
   const queryClient = useQueryClient()
   const types = useEventTypes(programId).data?.items ?? []
   const terms = useTerms(programId).data?.items ?? []
@@ -158,7 +160,7 @@ export function MeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()} className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             {meeting ? m.schedule_meeting_edit() : m.schedule_meeting_add()}
@@ -166,8 +168,10 @@ export function MeetingDialog({
         </DialogHeader>
         <form noValidate onSubmit={submit} className="grid grid-cols-2 gap-4">
           {termIds.length > 1 ? (
-            <Field label={m.schedule_term()} className="col-span-2">
+            <Field className="col-span-2">
+              <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_term()}</FieldLabel>
               <SimpleSelect
+                id={`${fid}-1`}
                 value={draft.term_id}
                 onChange={(v) => set('term_id', v)}
                 options={termIds.map((id) => ({
@@ -177,54 +181,77 @@ export function MeetingDialog({
               />
             </Field>
           ) : null}
-          <Field label={m.schedule_type()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_type()}</FieldLabel>
             <SimpleSelect
+              id={`${fid}-2`}
               value={draft.type_code}
               onChange={(v) => set('type_code', v)}
               options={typeOptions}
             />
           </Field>
-          <Field label={m.schedule_section_code()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_section_code()}</FieldLabel>
             <Input
+              id={`${fid}-3`}
               placeholder="LEC0101"
               value={draft.section_code}
               onChange={(e) => set('section_code', e.target.value)}
             />
           </Field>
-          <Field label={m.schedule_weekday()}>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_weekday()}</FieldLabel>
             <SimpleSelect
+              id={`${fid}-4`}
               value={draft.weekday}
               onChange={(v) => set('weekday', v)}
               options={weekdays}
             />
           </Field>
           <div className="grid grid-cols-2 gap-2">
-            <Field label={m.schedule_start_time()}>
+            <Field>
+              <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_start_time()}</FieldLabel>
               <Input
+                id={`${fid}-5`}
                 type="time"
                 value={draft.start_time}
                 onChange={(e) => set('start_time', e.target.value)}
               />
             </Field>
-            <Field
-              label={m.schedule_end_time()}
-              error={touched && timeInvalid ? m.error_schedule_time_range_invalid() : null}
-            >
+            <Field data-invalid={(touched && timeInvalid) || undefined}>
+              <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_end_time()}</FieldLabel>
               <Input
+                id={`${fid}-6`}
+                aria-invalid={(touched && timeInvalid) || undefined}
                 type="time"
                 value={draft.end_time}
                 onChange={(e) => set('end_time', e.target.value)}
               />
+              {touched && timeInvalid ? (
+                <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
+              ) : null}
             </Field>
           </div>
-          <Field label={m.schedule_location()}>
-            <Input value={draft.location} onChange={(e) => set('location', e.target.value)} />
-          </Field>
-          <Field label={m.schedule_instructor()}>
-            <Input value={draft.instructor} onChange={(e) => set('instructor', e.target.value)} />
-          </Field>
-          <Field label={m.schedule_meeting_title()} className="col-span-2">
+          <Field>
+            <FieldLabel htmlFor={`${fid}-7`}>{m.schedule_location()}</FieldLabel>
             <Input
+              id={`${fid}-7`}
+              value={draft.location}
+              onChange={(e) => set('location', e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${fid}-8`}>{m.schedule_instructor()}</FieldLabel>
+            <Input
+              id={`${fid}-8`}
+              value={draft.instructor}
+              onChange={(e) => set('instructor', e.target.value)}
+            />
+          </Field>
+          <Field className="col-span-2">
+            <FieldLabel htmlFor={`${fid}-9`}>{m.schedule_meeting_title()}</FieldLabel>
+            <Input
+              id={`${fid}-9`}
               placeholder={m.schedule_meeting_title_placeholder()}
               value={draft.title}
               onChange={(e) => set('title', e.target.value)}
@@ -233,19 +260,27 @@ export function MeetingDialog({
           <div className="col-span-2 flex flex-wrap items-end gap-4">
             <div>
               <p className="mb-2 text-sm font-medium">{m.schedule_recurrence()}</p>
-              <SegmentedControl
+              <ToggleGroup
                 aria-label={m.schedule_recurrence()}
-                value={draft.recurrence}
-                onValueChange={(v) => set('recurrence', v)}
-                options={[
-                  { value: 'weekly', label: m.schedule_recurrence_weekly() },
-                  { value: 'biweekly', label: m.schedule_recurrence_biweekly() },
-                ]}
-              />
+                variant="outline"
+                size="sm"
+                value={[draft.recurrence]}
+                onValueChange={(value) => {
+                  const v = value[0]
+                  if (v) set('recurrence', v as Draft['recurrence'])
+                }}
+              >
+                <ToggleGroupItem value="weekly">{m.schedule_recurrence_weekly()}</ToggleGroupItem>
+                <ToggleGroupItem value="biweekly">
+                  {m.schedule_recurrence_biweekly()}
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
             {draft.recurrence === 'biweekly' ? (
-              <Field label={m.schedule_anchor_week()} className="w-28">
+              <Field className="w-28">
+                <FieldLabel htmlFor={`${fid}-10`}>{m.schedule_anchor_week()}</FieldLabel>
                 <Input
+                  id={`${fid}-10`}
                   type="number"
                   min={1}
                   value={draft.anchor_week}
@@ -253,26 +288,30 @@ export function MeetingDialog({
                 />
               </Field>
             ) : null}
-            <Field label={m.schedule_start_week()} className="w-24">
+            <Field className="w-24">
+              <FieldLabel htmlFor={`${fid}-11`}>{m.schedule_start_week()}</FieldLabel>
               <Input
+                id={`${fid}-11`}
                 type="number"
                 min={1}
                 value={draft.start_week}
                 onChange={(e) => set('start_week', e.target.value)}
               />
             </Field>
-            <Field
-              label={m.schedule_end_week()}
-              className="w-24"
-              error={touched && weeksInvalid ? m.error_schedule_week_range_invalid() : null}
-            >
+            <Field className="w-24" data-invalid={(touched && weeksInvalid) || undefined}>
+              <FieldLabel htmlFor={`${fid}-12`}>{m.schedule_end_week()}</FieldLabel>
               <Input
+                id={`${fid}-12`}
+                aria-invalid={(touched && weeksInvalid) || undefined}
                 type="number"
                 min={1}
                 placeholder={m.schedule_end_week_placeholder()}
                 value={draft.end_week}
                 onChange={(e) => set('end_week', e.target.value)}
               />
+              {touched && weeksInvalid ? (
+                <FieldError>{m.error_schedule_week_range_invalid()}</FieldError>
+              ) : null}
             </Field>
           </div>
           <label className="col-span-2 flex items-center gap-2 text-sm">

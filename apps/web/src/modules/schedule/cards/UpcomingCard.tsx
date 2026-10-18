@@ -1,8 +1,8 @@
 import type { Occurrence } from '@semestra/api-client'
 import { CalendarClock } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
-import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { dayLabel } from '../labels'
 import { useToday } from '../queries'
@@ -13,7 +13,16 @@ export default function UpcomingCard({ scope }: CardProps) {
   const today = useToday(scope.programId).data
   if (!today) return null
   if (today.upcoming.length === 0) {
-    return <EmptyState icon={CalendarClock} title={m.schedule_upcoming_empty()} />
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarClock aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.schedule_upcoming_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
   }
   const groups = new Map<string, Occurrence[]>()
   for (const o of today.upcoming) {
