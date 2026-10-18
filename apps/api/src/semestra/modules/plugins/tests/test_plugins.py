@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from semestra.core.capability import Http, Registry, capability, mount_http, registry
 from semestra.core.context import Ctx, system_ctx
+from semestra.core.events import Event, events
 from semestra.modules.plugins import catalog
 from semestra.modules.plugins.service import installed_ids
 from semestra.testing import MakeUser, UserHandle, collect_events
@@ -90,8 +91,23 @@ async def test_purge_publishes_purge_event(app: FastAPI, client: AsyncClient, us
     with collect_events(app, user.id) as seen:
         r = await client.delete("/plugins/notes/installation", params={"purge_data": True})
         assert r.status_code == 200
-    assert [e["type"] for e in seen] == ["plugins.uninstalled", "plugins.purge"]
+    assert [e["type"] for e in seen] == ["plugins.uninstalled", "plugins.purged"]
     assert seen[1]["data"] == {"plugin_id": "notes"}
+
+
+async def test_a_failing_purge_keeps_the_plugin_installed(
+    app: FastAPI, client: AsyncClient, user: UserHandle
+):
+    async def broken(ctx: Ctx, event: Event) -> None:
+        raise RuntimeError("cleanup failed")
+
+    events.subscribe("plugins.purge", in_transaction=True)(broken)
+    try:
+        with pytest.raises(RuntimeError):
+            await client.delete("/plugins/notes/installation", params={"purge_data": True})
+    finally:
+        events._in_transaction["plugins.purge"].remove(broken)
+    assert (await catalog_by_id(client))["notes"]["installed"]
 
 
 class Echo(BaseModel):

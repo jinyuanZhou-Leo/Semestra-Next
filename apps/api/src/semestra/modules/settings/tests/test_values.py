@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from semestra.core.capability import registry
+from semestra.core.context import run_as_system
 from semestra.core.events import Event, events
 from semestra.modules.settings.models import SettingsValue
 from semestra.testing import MakeUser, UserHandle, collect_events
@@ -285,7 +286,10 @@ async def test_scope_deletion_and_plugin_purge_remove_values(
     assert len(await rows()) == 4
     await events.dispatch(app.state, Event("academics.term.deleted", {"term_id": "T1"}, user.id))
     assert ("demo_calendar", "term", "T1") not in await rows()
-    await events.dispatch(app.state, Event("plugins.purge", {"plugin_id": "demo-timer"}, user.id))
+    purge = {"plugin_id": "demo-timer"}
+    await run_as_system(
+        app.state, user.id, lambda ctx: events.publish_in_transaction(ctx, "plugins.purge", purge)
+    )
     await events.dispatch(
         app.state, Event("academics.program.deleted", {"program_id": "P1"}, user.id)
     )
