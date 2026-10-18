@@ -8,6 +8,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { AppDialogContent } from '@/components/AppDialogContent'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TextField } from '@/components/TextField'
 import { toastError } from '@/lib/errors'
@@ -16,15 +17,9 @@ import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
-import { Label } from '@/ui/label'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Field, FieldLabel } from '@/ui/field'
+import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Separator } from '@/ui/separator'
 import { FormError } from '../components/FormError'
 import { SettingsCard } from './SettingsCard'
@@ -60,9 +55,6 @@ async function copy(text: string) {
     toast.error(m.common_copy())
   }
 }
-
-const selectClass =
-  'h-9 w-full rounded-4xl border border-input bg-input/30 px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30'
 
 function CreateTokenDialog({
   open,
@@ -110,7 +102,7 @@ function CreateTokenDialog({
         }
       }}
     >
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_create()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_desc()}</DialogDescription>
@@ -125,38 +117,40 @@ function CreateTokenDialog({
               ref={focusOnMount}
               onChange={(e) => setName(e.target.value)}
             />
-            <div>
-              <Label htmlFor="token-scope" className="mb-2">
-                {m.auth_account_tokens_scope_label()}
-              </Label>
-              <select
+            <Field>
+              <FieldLabel htmlFor="token-scope">{m.auth_account_tokens_scope_label()}</FieldLabel>
+              <NativeSelect
                 id="token-scope"
-                className={selectClass}
+                className="w-full"
                 value={scope}
                 onChange={(e) => setScope(e.target.value === 'write' ? 'write' : 'read')}
               >
-                <option value="read">{m.auth_account_tokens_scope_read()}</option>
-                <option value="write">{m.auth_account_tokens_scope_write()}</option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="token-expiry" className="mb-2">
-                {m.auth_account_tokens_expiry_label()}
-              </Label>
-              <select
+                <NativeSelectOption value="read">
+                  {m.auth_account_tokens_scope_read()}
+                </NativeSelectOption>
+                <NativeSelectOption value="write">
+                  {m.auth_account_tokens_scope_write()}
+                </NativeSelectOption>
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="token-expiry">{m.auth_account_tokens_expiry_label()}</FieldLabel>
+              <NativeSelect
                 id="token-expiry"
-                className={selectClass}
+                className="w-full"
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
               >
-                <option value="">{m.auth_account_tokens_expiry_never()}</option>
+                <NativeSelectOption value="">
+                  {m.auth_account_tokens_expiry_never()}
+                </NativeSelectOption>
                 {[30, 90, 365].map((d) => (
-                  <option key={d} value={d}>
+                  <NativeSelectOption key={d} value={d}>
                     {m.auth_account_tokens_expiry_days({ days: d })}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </select>
-            </div>
+              </NativeSelect>
+            </Field>
             <FormError error={create.error} />
             <DialogFooter>
               <Button type="submit" disabled={!name.trim()}>
@@ -165,7 +159,7 @@ function CreateTokenDialog({
             </DialogFooter>
           </fieldset>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }
@@ -179,7 +173,7 @@ function TokenCreatedDialog({
 }) {
   return (
     <Dialog open={token !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_created_title()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_created_desc()}</DialogDescription>
@@ -209,7 +203,7 @@ function TokenCreatedDialog({
         <DialogFooter>
           <Button onClick={onClose}>{m.auth_account_tokens_done()}</Button>
         </DialogFooter>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }

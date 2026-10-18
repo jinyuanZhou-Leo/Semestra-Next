@@ -6,7 +6,8 @@ import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { AppDialogContent } from '@/components/AppDialogContent'
+import { Dialog, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { invalidateAcademics, useProgram } from '../queries'
 
 /** "Add course" on a term: code, title, credits and whether it is year-long (M02 §5.4). */
@@ -66,7 +67,7 @@ export function AddCourseDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.academics_course_add()}</DialogTitle>
         </DialogHeader>
@@ -105,7 +106,7 @@ export function AddCourseDialog({
             </Button>
           </div>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }

@@ -4,16 +4,26 @@ import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, CircleCheck, LoaderCircle, X } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useState } from 'react'
 import { JobProgress } from '@/components/JobProgress'
-import { ProgressBar } from '@/components/Progress'
 import { jobStageLabel } from '@/hooks/use-job'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemFooter,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
+import { Progress } from '@/ui/progress'
+import { Spinner } from '@/ui/spinner'
 import type { JobKindContribution, StatusItem, StatusItemContribution } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
 import { useUiPref } from '../ui-pref'
@@ -77,21 +87,22 @@ function LineBody({
   collapsed,
   spin,
 }: StatusItem & { collapsed?: boolean; spin?: boolean }) {
+  const iconClass = cn(
+    'size-3.5 shrink-0',
+    tone === 'error'
+      ? 'text-destructive'
+      : tone === 'success'
+        ? 'text-success'
+        : 'text-muted-foreground',
+  )
   return (
     <>
       <span className={cn('flex min-w-0 flex-1 items-center gap-2', collapsed && 'justify-center')}>
-        <Icon
-          aria-hidden="true"
-          className={cn(
-            'size-3.5 shrink-0',
-            spin && 'animate-spin motion-reduce:animate-none',
-            tone === 'error'
-              ? 'text-destructive'
-              : tone === 'success'
-                ? 'text-success'
-                : 'text-muted-foreground',
-          )}
-        />
+        {spin ? (
+          <Spinner aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
+        ) : (
+          <Icon aria-hidden="true" className={iconClass} />
+        )}
         {collapsed ? (
           <span className="sr-only">{label}</span>
         ) : (
@@ -99,7 +110,15 @@ function LineBody({
         )}
       </span>
       {progress != null && !collapsed ? (
-        <ProgressBar value={progress} label={label} tone={tone} className="mt-1 h-0.5" />
+        <Progress
+          value={progress}
+          aria-label={label}
+          className={cn(
+            'mt-1 [&_[data-slot=progress-track]]:h-0.5',
+            tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+            tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+          )}
+        />
       ) : null}
     </>
   )
@@ -155,20 +174,20 @@ function JobRow({
     }
   }
   return (
-    <li className="space-y-1.5 py-2">
-      <div className="flex items-center gap-2">
-        {to ? (
-          <Link
-            to={to}
-            onClick={onNavigate}
-            className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-          >
-            {title}
-          </Link>
-        ) : (
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{title}</span>
-        )}
-        {ACTIVE.has(job.status) ? (
+    <Item render={<li />} size="xs" className="gap-1.5 px-0">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          {to ? (
+            <Link to={to} onClick={onNavigate} className="truncate hover:underline">
+              {title}
+            </Link>
+          ) : (
+            <span className="truncate">{title}</span>
+          )}
+        </ItemTitle>
+      </ItemContent>
+      {ACTIVE.has(job.status) ? (
+        <ItemActions>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -179,10 +198,12 @@ function JobRow({
           >
             <X aria-hidden />
           </Button>
-        ) : null}
-      </div>
-      <JobProgress jobId={job.id} job={job} />
-    </li>
+        </ItemActions>
+      ) : null}
+      <ItemFooter className="block">
+        <JobProgress jobId={job.id} job={job} />
+      </ItemFooter>
+    </Item>
   )
 }
 
@@ -271,11 +292,14 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
         {trigger}
         <PopoverContent side={collapsed ? 'right' : 'top'} align="start" className="w-80">
           <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
-          <ul className="divide-y divide-border">
-            {jobs.map((job) => (
-              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={close} />
+          <ItemGroup className="gap-0">
+            {jobs.map((job, index) => (
+              <Fragment key={job.id}>
+                {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                <JobRow job={job} kinds={kinds} onNavigate={close} />
+              </Fragment>
             ))}
-          </ul>
+          </ItemGroup>
         </PopoverContent>
       </Popover>
     </li>

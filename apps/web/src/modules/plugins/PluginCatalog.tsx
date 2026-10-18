@@ -3,7 +3,7 @@ import { pluginsInstall, pluginsUninstall } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Blocks, Check, LayoutGrid, PanelTop, type LucideIcon } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import type { ModuleManifest } from '@/app/extensions'
@@ -15,6 +15,15 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { Label } from '@/ui/label'
 import { Sheet, SheetContent, SheetTitle } from '@/ui/sheet'
 
@@ -255,20 +264,25 @@ export default function PluginCatalog() {
           <h3 className="font-heading text-sm font-medium">{m.plugins_core_title()}</h3>
           <p className="text-sm text-muted-foreground">{m.plugins_core_note()}</p>
         </div>
-        <ul className="divide-y divide-border rounded-xl ring-1 ring-foreground/10">
-          {core.map(({ plugin, name, description, icon: Icon }) => (
-            <li key={plugin.id} className="flex items-center gap-3 px-4 py-3">
-              <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0">
-                <span className="block text-sm font-medium">{name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{description}</span>
-              </span>
-            </li>
+        <ItemGroup className="gap-0 rounded-xl ring-1 ring-foreground/10">
+          {core.map(({ plugin, name, description, icon: Icon }, index) => (
+            <Fragment key={plugin.id}>
+              {index > 0 ? <ItemSeparator className="my-0" /> : null}
+              <Item render={<li />} size="sm">
+                <ItemMedia variant="icon" className="text-muted-foreground">
+                  <Icon aria-hidden />
+                </ItemMedia>
+                <ItemContent className="min-w-0 gap-0.5">
+                  <ItemTitle>{name}</ItemTitle>
+                  <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
+                </ItemContent>
+              </Item>
+            </Fragment>
           ))}
-        </ul>
+        </ItemGroup>
       </section>
       <Sheet open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
-        <SheetContent side="right" closeLabel={m.common_close()} className="w-full p-0 sm:max-w-md">
+        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           {open ? <PluginDetails entry={open} /> : null}
         </SheetContent>
       </Sheet>

@@ -18,7 +18,7 @@ export function SessionExpiredDialog() {
 
   return (
     <Dialog open={open} modal>
-      <DialogContent showCloseButton={false} closeLabel={m.common_close()}>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{m.auth_session_expired_title()}</DialogTitle>
           <DialogDescription>{m.auth_session_expired_desc()}</DialogDescription>
