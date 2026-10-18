@@ -38,6 +38,7 @@ services:
       SEMESTRA_INSTANCE_AI_BASE_URL: ${SEMESTRA_INSTANCE_AI_BASE_URL:-}
       SEMESTRA_INSTANCE_AI_CHAT_MODEL: ${SEMESTRA_INSTANCE_AI_CHAT_MODEL:-}
       SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL: ${SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL:-}
+      SEMESTRA_INSTANCE_AI_API_KEY: ${SEMESTRA_INSTANCE_AI_API_KEY:-}
     volumes:
       - semestra-data:/data
       # Optional built-in daily backup: uncomment, `mkdir backups && sudo chown 10001 backups`,

@@ -20,7 +20,7 @@
 | `gemini` | Google Gemini API | chat、tools、vision、structured、embedding |
 | `ollama` | 本地/自部署 Ollama，需 base_url | chat、tools（视模型）、vision（视模型）、embedding |
 
-实现：基于 LangChain 的 chat model 包（`langchain-anthropic`、`langchain-openai`、`langchain-google-genai`、`langchain-ollama`），对外只暴露本模块自己的接口，其它模块不得直接 import LangChain 模型类（M12 的 LangGraph 运行时通过本模块的 `get_chat_model()` 拿到模型对象）。
+实现：本模块自己的 httpx 适配器（`modules/ai/adapters/`，每家一个文件，走 M00 的 `safe_client`），不依赖 LangChain 或各家 SDK；对外只暴露本模块自己的接口，其它模块不得直接调用提供方接口（M12 的 LangGraph 运行时通过本模块的 `get_chat_model()` 拿到模型对象，自己包一层 LangGraph 需要的接口）。原因见文末“实现说明”。
 
 ## 3. 数据模型
 ```
@@ -41,23 +41,23 @@ ai_usage_events
   input_tokens, output_tokens, cached_tokens?, cost_usd_estimate?, duration_ms,
   status ('ok'|'error'), error_code?, created_at
 ```
-- 模型价格表 `ai/pricing.yaml`（按 provider+model 前缀匹配，每百万 token 输入/输出价格），只用于估算显示；缺失时 cost 为空。
+- 模型价格表 `ai/pricing.toml`（按 provider+model 前缀匹配，每百万 token 输入/输出价格），只用于估算显示；缺失时 cost 为空。
 - 模型列表：调用提供方的 list models 接口获取（Anthropic/OpenAI/Gemini/Ollama 都有），结果缓存 1 小时；兼容端点失败时允许手填模型名。
 
 ## 4. 解析规则（`resolve_provider(ctx, purpose)`）
 1. 用户为该 purpose 配置了模型 → 使用。
-2. 否则用户有任一启用的提供方具备该能力 → 使用该提供方的推荐默认模型（`ai/defaults.yaml` 维护每个 provider 每个 purpose 的默认模型名）。
+2. 否则用户有任一启用的提供方具备该能力 → 使用该提供方的推荐默认模型（`ai/defaults.toml` 维护每个 provider 每个 purpose 的默认模型名；`openai_compatible` 没有推荐模型，必须由用户指定）。
 3. 否则存在实例级提供方（自部署）→ 使用。
 4. 否则抛出 `ai.not_configured`（params: purpose），前端按第 7 节的规则显示低调的提示与"去配置"链接。
 5. **预留**：未来付费 plan 在第 3 步之前插入"用户有有效订阅 → 平台提供方 + 额度检查（超额抛 `ai.quota_exceeded`）"。现在不实现订阅，只保留函数结构与注释。
 
 ## 5. 服务接口（Python，供其它模块调用）
 ```python
-async def complete(ctx, purpose, messages, *, tools=None, stream=False, source_module, source_ref=None) -> Completion | AsyncIterator[Chunk]
-async def structured(ctx, purpose, messages, schema: type[BaseModel], *, source_module, source_ref=None, max_retries=2) -> BaseModel
-async def extract(ctx, purpose, schema: type[BaseModel], *, texts: list[PageText] | None = None, images: list[Image] | None = None, instructions: str, source_module, source_ref=None) -> Extraction[BaseModel]
+async def complete(ctx, purpose, messages, *, tools=None, stream=False, source_module, source_ref=None, rasterize=None) -> Completion | AsyncIterator[Chunk]
+async def structured(ctx, purpose, messages, schema: type[T], *, source_module, source_ref=None, max_retries=2, rasterize=None) -> T
+async def extract(ctx, purpose, schema: type[T], *, texts: list[PageText] | None = None, images: list[Image] | None = None, instructions: str, source_module, source_ref=None, label="document", on_segment=None) -> Extraction[T]
 async def embed(ctx, texts: list[str], *, source_module) -> EmbeddingResult  # 含 model、dim、vectors
-def get_chat_model(ctx, purpose) -> BaseChatModel   # 仅 M12 使用
+async def get_chat_model(ctx, purpose="chat", *, source_module="agent") -> ChatModel   # 仅 M12 使用
 async def available(ctx, purpose) -> bool            # 前端/其它模块判断功能是否可用
 ```
 - `messages` 使用本模块定义的中立格式：`[{role, content: [Text | Image(bytes, mime) | Document(pdf_bytes)]}]`，由适配器转换为各家格式；不支持 PDF 的提供方自动把 PDF 页面栅格化为图片（调用 M07 提供的渲染函数，避免循环依赖：通过参数传入 `rasterize` 回调）。
@@ -102,7 +102,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - Onboarding 步骤（扩展点 `academics.onboardingSteps`）："连接 AI（可选）"，嵌入添加提供方表单，可跳过。
 
 ## 8. 错误码
-`ai.not_configured`（params: purpose）、`ai.invalid_key`、`ai.provider_check_failed`（params: reason）、`ai.provider_unreachable`、`ai.rate_limited`（提供方限流，params: retry_after?）、`ai.context_too_long`、`ai.capability_unsupported`（params: capability）、`ai.output_invalid`（结构化输出重试后仍不合法）、`ai.timeout`、`ai.quota_exceeded`（预留）。
+`ai.not_configured`（409，params: purpose）、`ai.invalid_key`、`ai.provider_check_failed`（params: reason，为下面某个错误码）、`ai.provider_unreachable`（params: http_status?）、`ai.rate_limited`（提供方限流，params: retry_after?）、`ai.context_too_long`、`ai.capability_unsupported`（params: capability）、`ai.output_invalid`（结构化输出重试后仍不合法）、`ai.timeout`、`ai.quota_exceeded`（预留）、`ai.model_not_found`（params: model）、`ai.request_rejected`（其它 4xx，params: http_status）、`ai.cancelled`（流式调用被调用方中断，只出现在用量记录里）。
 
 ## 9. 测试
 - 解析规则 4 个分支；实例级提供方只在没有用户配置时生效。
@@ -116,3 +116,30 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 ## 10. 验收
 - 用户填入 Anthropic 或 OpenAI key 后，`ai.status` 显示各用途可用，M08 的 syllabus 导入入口从引导卡片变为可用按钮。
 - 删除提供方后相关功能立即回到引导状态。
+
+## 实现说明（M06 落地时补充）
+以下是实现时做出的取舍与对上文的细化，以代码为准。
+
+**后端**（`apps/api/src/semestra/modules/ai/`）
+- **不用 LangChain**：各家接口用自己的 httpx 适配器（`adapters/anthropic.py`、`openai.py`（含兼容模式）、`gemini.py`、`ollama.py`）。理由：langchain-* 依赖链里有不提供 Python 3.15 wheel 的包（与 PyYAML 同样的问题，见 CLAUDE.md），而且我们只需要补全、流式、工具、结构化与 embedding 五件事；自己的适配器还能统一错误码、重试与用量记录。消息中立格式在 `llm.py`（`Text`、`Image`、`Document`、`ToolCall`、`ToolResult`、`Message`）。
+- `get_chat_model()` 是 async 的，返回本模块的 `ChatModel`（`complete(messages, tools)`、`stream(...)`、`supports_tools`、`provider_kind`、`model`），不是 LangChain 的 `BaseChatModel`；M12 在 LangGraph 节点里调用它即可，需要 LangChain 接口时由 M12 写一个薄适配。
+- 默认模型与价格表用 TOML（`defaults.toml`、`pricing.toml`，标准库 `tomllib` 读取），不用 YAML，原因同上。价格与上下文窗口按模型名最长前缀匹配；未知模型上下文窗口按 32k 估算。
+- **实例级提供方不入库**：直接由 `SEMESTRA_INSTANCE_AI_*` 环境变量在解析时构造（`resolve.instance_endpoint`），所以 `ai_providers.user_id` 不可为空。实例级提供方没有 id，不出现在提供方列表里，`ai.status` 的 `source` 为 `instance`。
+- 解析规则实现为 `try_resolve` / `resolve_provider`；用户的提供方关闭或不具备能力时跳过；`ai.status` 解析时不解密 key。付费 plan 的预留分支以注释形式在 `resolve.py`。
+- 能力：`anthropic`/`openai`/`gemini` 固定（`catalog.KIND_INFO`）；`openai_compatible` 与 `ollama` 由用户勾选（默认分别为 chat+tools 与 chat+tools+structured+embedding）。`capabilities_editable` 字段告诉前端能否修改。
+- 结构化输出：Anthropic 强制工具调用、OpenAI `json_schema`（`strict: false`，以兼容 Pydantic 生成的 schema）、Gemini `responseJsonSchema`、Ollama `format`；兼容端点用 JSON 模式加 schema 说明。所有方式都会用 Pydantic 校验，失败时把校验错误回传给模型重试（`max_retries` 次，之后 `ai.output_invalid` 502）。schema 中的 `$ref` 先内联。
+- `extract`：分段预算为上下文窗口的一半减去输出预留（8000 token），每段最多 8 张图；提供方返回 `ai.context_too_long` 时把该段对半拆开重试。出处校验忽略空白并做 NFKC 规范化，引号统一；引文出现在别的页时改正页码；找不到时丢弃出处并把置信度降到 0.3（low），警告 `evidence_not_found`。合并时标量取置信度高者，取值不同标 `conflict`（`Evidenced.conflict` 不出现在发给模型的 schema 里）；列表按值去重拼接。`on_segment(done, total)` 回调供 job 汇报阶段进度。
+- 不支持读 PDF 的提供方（除 Anthropic、Gemini 外）需要调用方传入 `rasterize` 回调，没有时抛 `ai.capability_unsupported`（capability=`pdf`）。
+- 用量事件与提供方健康状态（`last_checked_at`、`last_error_code`）由 `AiRuntime`（`app.state.ai`）在后台任务里用独立会话写入，不受调用方事务回滚影响，SQLite 繁忙时重试 3 次；测试里用 `await app.state.ai.drain()` 等待。流式调用被中断时记 `ai.cancelled`。
+- 模型列表缓存 1 小时（进程内）；兼容端点不支持列出模型时 `manual_entry=true`，前端改为手填。
+- `ai.assignment.updated` 在某个用途的**实际生效模型**变化时发布（包括新增、删除、关闭提供方导致的变化），payload `{purpose}`；提供方事件 payload `{provider_id}`。
+- `ai.usage.summary` 参数 `days`（1–365，默认 30）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `totals`、`by_day`（日期×用途）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
+- 日志只记录长度与 token 数；`SEMESTRA_AI_DEBUG_LOG=true` 且非 prod 时把请求与输出写到 `DATA_DIR/ai-debug/`。
+- 新增环境变量已同步到 `deploy/.env.example` 与自部署 compose。
+
+**前端**
+- 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（不可用时入口置灰，外层可聚焦的包装在悬停或点击时显示一句提示和"去设置"链接）、`hooks/use-ai-fill.ts` + `components/AiFieldMark.tsx`（AI 回填表单：字段短暂高亮 2 秒、旁边的小标记显示出处页码与原文、一键恢复原值；用户改动字段后标记消失）。
+- 模块 `modules/ai/`：账户设置"功能"分组下三个分区 `ai-providers`、`ai-models`、`ai-usage`；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
+- 用量明细表用 TanStack Table v9；图表是按用途堆叠的 CSS 柱状图，颜色用 `chart-1..5` 令牌。
+- `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。
+

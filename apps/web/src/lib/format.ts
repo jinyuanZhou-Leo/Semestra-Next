@@ -94,3 +94,21 @@ export function formatBytes(bytes: number): string {
     maximumFractionDigits: unit === 0 ? 0 : 1,
   }).format(value)
 }
+
+/** A count; `compact` writes large numbers short ("12K", "1.2万"). */
+export function formatCount(value: number, opts: { compact?: boolean } = {}): string {
+  return new Intl.NumberFormat(getLocale(), {
+    notation: opts.compact ? 'compact' : 'standard',
+    maximumFractionDigits: opts.compact ? 1 : 0,
+  }).format(value)
+}
+
+/** An amount in US dollars (provider prices); small amounts keep enough digits to be non-zero. */
+export function formatUsd(value: number): string {
+  return new Intl.NumberFormat(getLocale(), {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: value !== 0 && Math.abs(value) < 0.01 ? 4 : 2,
+  }).format(value)
+}
