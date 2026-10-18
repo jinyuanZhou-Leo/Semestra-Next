@@ -60,7 +60,8 @@ export function ProgramView({
 function TermWeekLine({ termId }: { termId: string }) {
   const info = useQuery(academicsTermCalendarInfoOptions({ path: { term_id: termId } })).data
   if (!info) return null
-  const week = info.weeks.find((w) => w.start_date <= info.today && info.today <= w.end_date)
+  // `today_week` is already limited to the term's own dates (its first and last weeks reach past them).
+  const week = info.today_week == null ? undefined : info.weeks[info.today_week]
   if (week?.break_info && week.number == null) return <> · {week.break_info.name}</>
   if (week?.number == null) return null
   return <> · {m.academics_week_number({ number: week.number })}</>

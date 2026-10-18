@@ -4830,7 +4830,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100.0,
+                "maximum": 10000.0,
                 "minimum": 0.0
               },
               {
@@ -4933,7 +4933,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100.0,
+                "maximum": 10000.0,
                 "minimum": 0.0
               },
               {

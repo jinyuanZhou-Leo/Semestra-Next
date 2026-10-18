@@ -2,13 +2,15 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from pydantic import AfterValidator, BaseModel, Field, JsonValue
+from pydantic import AfterValidator, BaseModel, Field, JsonValue, StringConstraints
 
 PALETTE_SIZE = 12
 
-Name = Annotated[str, Field(min_length=1, max_length=200)]
+# Trimmed before the length check, so a name of only spaces is rejected.
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 ShortText = Annotated[str, Field(max_length=200)]
 Credits = Annotated[float, Field(ge=0, le=100)]
+CreditGoal = Annotated[float, Field(ge=0, le=10_000)]
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 
 
@@ -73,7 +75,7 @@ class ProgramCreateInput(BaseModel):
     default_course_credits: Credits = Field(
         default=0.5, description="Credits a new course gets when none are given"
     )
-    credit_requirement: Credits | None = Field(
+    credit_requirement: CreditGoal | None = Field(
         default=None, description="Credits needed to graduate, if known"
     )
     setup: dict[str, JsonValue] = Field(
@@ -93,7 +95,7 @@ class ProgramUpdateInput(BaseModel):
     default_course_credits: Credits | None = Field(
         default=None, description="Credits a new course gets"
     )
-    credit_requirement: Credits | None = Field(
+    credit_requirement: CreditGoal | None = Field(
         default=None, description="Credits needed to graduate, or null"
     )
     sort_order: int | None = Field(default=None, description="Position in the Program switcher")
