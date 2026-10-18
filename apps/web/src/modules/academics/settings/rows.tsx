@@ -23,7 +23,7 @@ export function TextRow({
   onChange: (value: string) => void
   required?: boolean
   multiline?: boolean
-  type?: 'text' | 'url' | 'date'
+  type?: 'text' | 'url'
   placeholder?: string
   /** Shown under the field, e.g. the server's validation message. */
   invalid?: string | null
@@ -57,7 +57,7 @@ export function TextRow({
           {multiline ? (
             <Textarea {...props} className="w-80" rows={3} />
           ) : (
-            <Input {...props} type={type} className={type === 'date' ? 'w-44' : 'w-64'} />
+            <Input {...props} type={type} className="w-64" />
           )}
           <FieldError className="text-xs">{error}</FieldError>
         </div>

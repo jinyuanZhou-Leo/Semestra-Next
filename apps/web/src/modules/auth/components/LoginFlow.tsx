@@ -16,7 +16,14 @@ import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Field, FieldDescription, FieldError, FieldLabel, FieldSeparator } from '@/ui/field'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FieldSeparator,
+  FieldSet,
+} from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { EmailField } from './EmailField'
@@ -223,7 +230,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
     return (
       <form onSubmit={submitProfile} noValidate>
         <Heading title={m.auth_profile_title()} subtitle={m.auth_profile_subtitle()} />
-        <fieldset disabled={register.isPending} className="space-y-4">
+        <FieldSet disabled={register.isPending} className="gap-4">
           <Field data-invalid={nameError ? true : undefined}>
             <FieldLabel htmlFor={`${id}-name`}>{m.auth_display_name_label()}</FieldLabel>
             <Input
@@ -258,7 +265,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           <Button type="submit" className="w-full" size="lg">
             {register.isPending ? m.auth_creating() : m.auth_create_account()}
           </Button>
-        </fieldset>
+        </FieldSet>
       </form>
     )
   }
@@ -267,7 +274,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
     return (
       <form onSubmit={submitPassword} noValidate>
         <Heading title={m.auth_password_title()} subtitle={m.auth_login_subtitle()} />
-        <fieldset disabled={passwordLogin.isPending} className="space-y-4">
+        <FieldSet disabled={passwordLogin.isPending} className="gap-4">
           <EmailField
             value={email}
             onValueChange={setEmail}
@@ -294,12 +301,13 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           <Button type="submit" className="w-full" size="lg">
             {passwordLogin.isPending ? m.auth_signing_in() : m.auth_signin()}
           </Button>
-        </fieldset>
+        </FieldSet>
         <div className="mt-4 flex flex-col items-center gap-1">
           {compact ? null : (
             <Button
               variant="link"
               size="sm"
+              nativeButton={false}
               render={<Link to="/login/reset" search={{ email: trimmedEmail || undefined }} />}
             >
               {m.auth_forgot_password()}
@@ -325,7 +333,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
     <div>
       <Heading title={m.auth_login_title()} subtitle={m.auth_login_subtitle()} />
       <form onSubmit={submitEmail} noValidate className="space-y-4">
-        <fieldset disabled={start.isPending} className="space-y-4">
+        <FieldSet disabled={start.isPending} className="gap-4">
           <EmailField
             value={email}
             onValueChange={setEmail}
@@ -337,7 +345,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           <Button type="submit" className="w-full" size="lg">
             {start.isPending ? m.auth_sending() : m.auth_continue()}
           </Button>
-        </fieldset>
+        </FieldSet>
       </form>
       <div className="mt-4 flex justify-center">
         <Button

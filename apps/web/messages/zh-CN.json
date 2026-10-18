@@ -465,6 +465,7 @@
   "academics_courses_no_match": "没有符合筛选条件的课程。",
   "academics_courses_search": "搜索课程",
   "academics_credits_invalid": "请输入 0 到 100 之间的数字。",
+  "academics_date_placeholder": "选择日期",
   "academics_desktop_only_title": "请在桌面端打开",
   "academics_desktop_only_description": "这个页面需要更大的屏幕。手机上可以从菜单使用“今天”和课程导航。",
   "academics_filter_all_subjects": "全部学科",
