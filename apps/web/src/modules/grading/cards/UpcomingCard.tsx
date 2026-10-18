@@ -1,5 +1,5 @@
 import type { Assessment } from '@semestra/api-client'
-import { gradingAssessmentListOptions } from '@semestra/api-client/react-query'
+import { gradingGradebookGetOptions } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -21,16 +21,15 @@ export default function UpcomingCard({ scope, size }: CardProps) {
   const courses = courseId ? (thisCourse ? [thisCourse] : []) : (termCourses ?? [])
   const lists = useQueries({
     queries: courses.map((course) => ({
-      ...gradingAssessmentListOptions({
-        path: { course_id: course.id },
-        query: { status: null },
-      }),
+      // The gradebook carries every assessment (the list endpoint pages) and shares its cache
+      // with the other grading cards.
+      ...gradingGradebookGetOptions({ path: { course_id: course.id } }),
       staleTime: 30_000,
     })),
   })
   const rows = lists
     .flatMap((list, i) =>
-      (list.data?.items ?? []).map((assessment) => ({ assessment, course: courses[i]! })),
+      (list.data?.assessments ?? []).map((assessment) => ({ assessment, course: courses[i]! })),
     )
     .filter(
       ({ assessment: a }: { assessment: Assessment }) =>

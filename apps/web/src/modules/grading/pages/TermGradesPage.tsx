@@ -18,7 +18,7 @@ import { coursePath } from '@/modules/academics/paths'
 import { GpaValue } from '../components/GpaValue'
 import { InlineInput } from '../components/InlineInput'
 import { Stat } from '../components/SummaryStrip'
-import { percentText } from '../display'
+import { GPA_MASK, percentText } from '../display'
 import { parseScore } from '../score'
 import { useTermGrades } from '../queries'
 
@@ -59,7 +59,8 @@ function CourseCell({ c }: { c: CourseGrade }) {
 
 function PercentageCell({ c }: { c: CourseGrade }) {
   const { scores, assume } = useCells()
-  if (c.status !== 'in_progress') {
+  // Pass/Fail courses take no assumed percentage: the plan only moves percentage courses.
+  if (c.status !== 'in_progress' || c.basis !== 'percentage') {
     return <span className="block text-right tabular-nums">{percentText(c.percentage)}</span>
   }
   const assumed = scores[c.course_id]
@@ -185,7 +186,9 @@ function TermGradesView({
     scope: term.term_id,
   })
   const open = new Set(
-    term.courses.filter((c) => c.status === 'in_progress').map((c) => c.course_id),
+    term.courses
+      .filter((c) => c.status === 'in_progress' && c.basis === 'percentage')
+      .map((c) => c.course_id),
   )
   const scores = Object.fromEntries(Object.entries(whatIf.scores).filter(([id]) => open.has(id)))
   const hasWhatIf = Object.keys(scores).length > 0 || whatIf.targetGpa !== null
@@ -368,7 +371,10 @@ function TermGradesView({
                         ? '—'
                         : planned.gap <= 0
                           ? m.grading_target_met()
-                          : m.grading_target_gap({ gap: planned.gap.toFixed(2) })}
+                          : m.grading_target_gap({
+                              // The target is visible, so the gap would give a hidden planned GPA away.
+                              gap: term.hide_gpa ? GPA_MASK : planned.gap.toFixed(2),
+                            })}
                     </span>
                   </Stat>
                 )}
