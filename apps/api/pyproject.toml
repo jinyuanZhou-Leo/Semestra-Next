@@ -50,7 +50,7 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests", "src"]
 markers = ["live: hits real external services; skipped in CI"]
-addopts = "-m 'not live'"
+addopts = "-m 'not live' -p semestra.testing"
 
 [tool.ruff]
 line-length = 100
@@ -63,7 +63,7 @@ select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"**/tests/**" = ["S105", "S106"]
 
 [tool.pyright]
 include = ["src", "tests"]

@@ -57,7 +57,7 @@ class TimestampMixin:
 
 class OwnedMixin:
     user_id: Mapped[str] = mapped_column(
-        String, ForeignKey("users.id", ondelete="CASCADE"), index=True
+        String, ForeignKey("auth_users.id", ondelete="CASCADE"), index=True
     )
 
 

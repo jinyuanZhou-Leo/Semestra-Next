@@ -1,0 +1,11 @@
+Subject: Semestra 新设备登录提醒
+
+$name 你好，
+
+你的 Semestra 账户刚刚在一个新的会话中登录。
+
+时间（UTC）：$time
+设备：$device
+IP 地址：$ip
+
+如果这不是你本人的操作，请前往 $settings_url 修改密码并退出其他会话。

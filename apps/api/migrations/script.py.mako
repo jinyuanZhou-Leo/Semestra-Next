@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import semestra.core.db  # noqa: F401
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.

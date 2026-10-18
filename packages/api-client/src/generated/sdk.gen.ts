@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses } from './types.gen';
+import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -27,3 +27,231 @@ export const healthz = <ThrowOnError extends boolean = false>(options?: Options<
  * Readyz
  */
 export const readyz = <ThrowOnError extends boolean = false>(options?: Options<ReadyzData, ThrowOnError>): RequestResult<ReadyzResponses, ReadyzErrors, ThrowOnError> => (options?.client ?? client).get<ReadyzResponses, ReadyzErrors, ThrowOnError>({ url: '/readyz', ...options });
+
+/**
+ * Auth Config
+ */
+export const authConfig = <ThrowOnError extends boolean = false>(options?: Options<AuthConfigData, ThrowOnError>): RequestResult<AuthConfigResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AuthConfigResponses, unknown, ThrowOnError>({ url: '/auth/config', ...options });
+
+/**
+ * Email Start
+ */
+export const authEmailStart = <ThrowOnError extends boolean = false>(options: Options<AuthEmailStartData, ThrowOnError>): RequestResult<AuthEmailStartResponses, AuthEmailStartErrors, ThrowOnError> => (options.client ?? client).post<AuthEmailStartResponses, AuthEmailStartErrors, ThrowOnError>({
+    url: '/auth/email/start',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Email Verify
+ */
+export const authEmailVerify = <ThrowOnError extends boolean = false>(options: Options<AuthEmailVerifyData, ThrowOnError>): RequestResult<AuthEmailVerifyResponses, AuthEmailVerifyErrors, ThrowOnError> => (options.client ?? client).post<AuthEmailVerifyResponses, AuthEmailVerifyErrors, ThrowOnError>({
+    url: '/auth/email/verify',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Register Complete
+ */
+export const authRegisterComplete = <ThrowOnError extends boolean = false>(options: Options<AuthRegisterCompleteData, ThrowOnError>): RequestResult<AuthRegisterCompleteResponses, AuthRegisterCompleteErrors, ThrowOnError> => (options.client ?? client).post<AuthRegisterCompleteResponses, AuthRegisterCompleteErrors, ThrowOnError>({
+    url: '/auth/register/complete',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Password Login
+ */
+export const authPasswordLogin = <ThrowOnError extends boolean = false>(options: Options<AuthPasswordLoginData, ThrowOnError>): RequestResult<AuthPasswordLoginResponses, AuthPasswordLoginErrors, ThrowOnError> => (options.client ?? client).post<AuthPasswordLoginResponses, AuthPasswordLoginErrors, ThrowOnError>({
+    url: '/auth/password/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Password Reset
+ */
+export const authPasswordReset = <ThrowOnError extends boolean = false>(options: Options<AuthPasswordResetData, ThrowOnError>): RequestResult<AuthPasswordResetResponses, AuthPasswordResetErrors, ThrowOnError> => (options.client ?? client).post<AuthPasswordResetResponses, AuthPasswordResetErrors, ThrowOnError>({
+    url: '/auth/password/reset',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Google Login
+ */
+export const authGoogleLogin = <ThrowOnError extends boolean = false>(options: Options<AuthGoogleLoginData, ThrowOnError>): RequestResult<AuthGoogleLoginResponses, AuthGoogleLoginErrors, ThrowOnError> => (options.client ?? client).post<AuthGoogleLoginResponses, AuthGoogleLoginErrors, ThrowOnError>({
+    url: '/auth/google',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Token Refresh
+ */
+export const authTokenRefresh = <ThrowOnError extends boolean = false>(options: Options<AuthTokenRefreshData, ThrowOnError>): RequestResult<AuthTokenRefreshResponses, AuthTokenRefreshErrors, ThrowOnError> => (options.client ?? client).post<AuthTokenRefreshResponses, AuthTokenRefreshErrors, ThrowOnError>({
+    url: '/auth/token/refresh',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Logout
+ */
+export const authLogout = <ThrowOnError extends boolean = false>(options?: Options<AuthLogoutData, ThrowOnError>): RequestResult<AuthLogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AuthLogoutResponses, unknown, ThrowOnError>({ url: '/auth/logout', ...options });
+
+/**
+ * Confirm the new account email with its code.
+ *
+ * Finishes an email change started with account.email.change_start.
+ */
+export const accountEmailChangeConfirm = <ThrowOnError extends boolean = false>(options: Options<AccountEmailChangeConfirmData, ThrowOnError>): RequestResult<AccountEmailChangeConfirmResponses, AccountEmailChangeConfirmErrors, ThrowOnError> => (options.client ?? client).post<AccountEmailChangeConfirmResponses, AccountEmailChangeConfirmErrors, ThrowOnError>({
+    url: '/account/email/change-confirm',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Start changing the account email.
+ *
+ * Sends a verification code to the new address. Not available to agents.
+ */
+export const accountEmailChangeStart = <ThrowOnError extends boolean = false>(options: Options<AccountEmailChangeStartData, ThrowOnError>): RequestResult<AccountEmailChangeStartResponses, AccountEmailChangeStartErrors, ThrowOnError> => (options.client ?? client).post<AccountEmailChangeStartResponses, AccountEmailChangeStartErrors, ThrowOnError>({
+    url: '/account/email/change-start',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Link a Google account to the signed-in user.
+ *
+ * Links the Google account behind the given ID token. Not available to agents.
+ */
+export const accountGoogleLink = <ThrowOnError extends boolean = false>(options: Options<AccountGoogleLinkData, ThrowOnError>): RequestResult<AccountGoogleLinkResponses, AccountGoogleLinkErrors, ThrowOnError> => (options.client ?? client).post<AccountGoogleLinkResponses, AccountGoogleLinkErrors, ThrowOnError>({
+    url: '/account/google/link',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Unlink Google from the signed-in user.
+ *
+ * Removes the Google sign-in. Email code sign-in always remains available.
+ */
+export const accountGoogleUnlink = <ThrowOnError extends boolean = false>(options?: Options<AccountGoogleUnlinkData, ThrowOnError>): RequestResult<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError> => (options?.client ?? client).post<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError>({ url: '/account/google/unlink', ...options });
+
+/**
+ * Get the signed-in user's account profile.
+ *
+ * Use when you need the user's name, email address or preferred language.
+ * Do not use to read academic data; use the academics, grading or schedule capabilities.
+ */
+export const accountMeGet = <ThrowOnError extends boolean = false>(options?: Options<AccountMeGetData, ThrowOnError>): RequestResult<AccountMeGetResponses, AccountMeGetErrors, ThrowOnError> => (options?.client ?? client).get<AccountMeGetResponses, AccountMeGetErrors, ThrowOnError>({ url: '/account/me', ...options });
+
+/**
+ * Change or set the account password.
+ *
+ * Change the password (or set the first one). Signs out all other sessions.
+ */
+export const accountPasswordChange = <ThrowOnError extends boolean = false>(options: Options<AccountPasswordChangeData, ThrowOnError>): RequestResult<AccountPasswordChangeResponses, AccountPasswordChangeErrors, ThrowOnError> => (options.client ?? client).post<AccountPasswordChangeResponses, AccountPasswordChangeErrors, ThrowOnError>({
+    url: '/account/password/change',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Update the display name or avatar.
+ *
+ * Change the signed-in user's profile. Not available to agents.
+ */
+export const accountProfileUpdate = <ThrowOnError extends boolean = false>(options: Options<AccountProfileUpdateData, ThrowOnError>): RequestResult<AccountProfileUpdateResponses, AccountProfileUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AccountProfileUpdateResponses, AccountProfileUpdateErrors, ThrowOnError>({
+    url: '/account/profile',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the signed-in devices.
+ *
+ * Lists active sessions of the signed-in user. Not available to agents.
+ */
+export const accountSessionsList = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionsListData, ThrowOnError>): RequestResult<AccountSessionsListResponses, AccountSessionsListErrors, ThrowOnError> => (options?.client ?? client).get<AccountSessionsListResponses, AccountSessionsListErrors, ThrowOnError>({ url: '/account/sessions', ...options });
+
+/**
+ * Sign out one device.
+ *
+ * Revokes a session. Revoking the current session signs this browser out.
+ */
+export const accountSessionsRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountSessionsRevokeData, ThrowOnError>): RequestResult<AccountSessionsRevokeResponses, AccountSessionsRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountSessionsRevokeResponses, AccountSessionsRevokeErrors, ThrowOnError>({ url: '/account/sessions/{session_id}', ...options });
+
+/**
+ * Sign out all other devices.
+ *
+ * Revokes every session except the current one.
+ */
+export const accountSessionsRevokeOthers = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionsRevokeOthersData, ThrowOnError>): RequestResult<AccountSessionsRevokeOthersResponses, AccountSessionsRevokeOthersErrors, ThrowOnError> => (options?.client ?? client).post<AccountSessionsRevokeOthersResponses, AccountSessionsRevokeOthersErrors, ThrowOnError>({ url: '/account/sessions/revoke-others', ...options });
+
+/**
+ * List personal access tokens.
+ *
+ * Lists the user's non-revoked personal access tokens (never the secrets).
+ */
+export const accountTokensList = <ThrowOnError extends boolean = false>(options?: Options<AccountTokensListData, ThrowOnError>): RequestResult<AccountTokensListResponses, AccountTokensListErrors, ThrowOnError> => (options?.client ?? client).get<AccountTokensListResponses, AccountTokensListErrors, ThrowOnError>({ url: '/account/tokens', ...options });
+
+/**
+ * Create a personal access token for an MCP client.
+ *
+ * Creates a token. The plaintext is returned once and cannot be retrieved again.
+ */
+export const accountTokensCreate = <ThrowOnError extends boolean = false>(options: Options<AccountTokensCreateData, ThrowOnError>): RequestResult<AccountTokensCreateResponses, AccountTokensCreateErrors, ThrowOnError> => (options.client ?? client).post<AccountTokensCreateResponses, AccountTokensCreateErrors, ThrowOnError>({
+    url: '/account/tokens',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke a personal access token.
+ *
+ * Revokes the token immediately.
+ */
+export const accountTokensRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokensRevokeData, ThrowOnError>): RequestResult<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError>({ url: '/account/tokens/{id}', ...options });
