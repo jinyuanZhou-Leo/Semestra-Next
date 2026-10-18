@@ -57,10 +57,17 @@ function CourseCell({ c }: { c: CourseGrade }) {
   )
 }
 
+/**
+ * Whether an assumed percentage can move this term's plan: the course is unfinished, graded by
+ * percentage, and carries credits in this term (a year-long course counts in one term only).
+ */
+function canAssume(c: CourseGrade): boolean {
+  return c.status === 'in_progress' && c.basis === 'percentage' && (c.attributed_credits ?? 0) > 0
+}
+
 function PercentageCell({ c }: { c: CourseGrade }) {
   const { scores, assume } = useCells()
-  // Pass/Fail courses take no assumed percentage: the plan only moves percentage courses.
-  if (c.status !== 'in_progress' || c.basis !== 'percentage') {
+  if (!canAssume(c)) {
     return <span className="block text-right tabular-nums">{percentText(c.percentage)}</span>
   }
   const assumed = scores[c.course_id]
@@ -185,11 +192,7 @@ function TermGradesView({
   const [whatIf, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
     scope: term.term_id,
   })
-  const open = new Set(
-    term.courses
-      .filter((c) => c.status === 'in_progress' && c.basis === 'percentage')
-      .map((c) => c.course_id),
-  )
+  const open = new Set(term.courses.filter(canAssume).map((c) => c.course_id))
   const scores = Object.fromEntries(Object.entries(whatIf.scores).filter(([id]) => open.has(id)))
   const hasWhatIf = Object.keys(scores).length > 0 || whatIf.targetGpa !== null
 

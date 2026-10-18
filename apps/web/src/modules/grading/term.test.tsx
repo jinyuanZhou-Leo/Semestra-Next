@@ -29,7 +29,7 @@ function courseGrade(overrides: Partial<CourseGrade> & { course_id: string }): C
     letter: null,
     counts_in_gpa: false,
     year_long: false,
-    attributed_credits: null,
+    attributed_credits: 0.5,
     ...overrides,
   }
 }
@@ -67,7 +67,7 @@ beforeEach(() => {
   )
 })
 
-test('an unfinished Pass/Fail course takes no assumed percentage', async () => {
+test('only courses that can move the term plan take an assumed percentage', async () => {
   server.use(
     http.get(`${API}/terms/t1/grade-summary`, () =>
       HttpResponse.json(
@@ -75,6 +75,8 @@ test('an unfinished Pass/Fail course takes no assumed percentage', async () => {
           [
             courseGrade({ course_id: 'c1' }),
             courseGrade({ course_id: 'c2', basis: 'pass_fail', current_percentage: null }),
+            // a year-long course whose credits land in its last term
+            courseGrade({ course_id: 'c3', year_long: true, attributed_credits: 0 }),
           ],
           false,
         ),
@@ -86,6 +88,7 @@ test('an unfinished Pass/Fail course takes no assumed percentage', async () => {
     await screen.findByRole('textbox', { name: /Assumed score: Course c1/ }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: /Assumed score: Course c2/ })).toBeNull()
+  expect(screen.queryByRole('textbox', { name: /Assumed score: Course c3/ })).toBeNull()
 })
 
 test('a hidden planned GPA cannot be worked out from the target gap', async () => {
