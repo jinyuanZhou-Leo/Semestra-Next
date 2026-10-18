@@ -31,6 +31,590 @@ export type AuthResult = {
 };
 
 /**
+ * Break
+ */
+export type Break = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+};
+
+/**
+ * BreakIn
+ */
+export type BreakIn = {
+    /**
+     * Id
+     *
+     * Keep the id when editing an existing break
+     */
+    id?: string | null;
+    /**
+     * Name
+     *
+     * E.g. 'Reading week'
+     */
+    name: string;
+    /**
+     * Start Date
+     *
+     * First day of the break
+     */
+    start_date: string;
+    /**
+     * End Date
+     *
+     * Last day of the break
+     */
+    end_date: string;
+};
+
+/**
+ * BreakRef
+ */
+export type BreakRef = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * CalendarInfo
+ */
+export type CalendarInfo = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Week Start
+     *
+     * 1 = Monday, 7 = Sunday
+     */
+    week_start: 1 | 7;
+    /**
+     * Weeks
+     */
+    weeks: Array<TermWeek>;
+    /**
+     * Today
+     *
+     * Today in the Program's time zone
+     */
+    today: string;
+    /**
+     * Today Week
+     *
+     * Index into `weeks` of today's week, if in term
+     */
+    today_week: number | null;
+};
+
+/**
+ * Course
+ */
+export type Course = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Alias
+     */
+    alias: string | null;
+    /**
+     * Subject Code
+     */
+    subject_code: string;
+    /**
+     * Color
+     *
+     * The course's own color, if set
+     */
+    color: PaletteColor | HexColor | null;
+    /**
+     * Resolved Color
+     *
+     * Color to display: 'subject-<1..12>' (palette token) or '#rrggbb'
+     */
+    resolved_color: string;
+    /**
+     * Credits
+     */
+    credits: number;
+    /**
+     * Include In Gpa
+     */
+    include_in_gpa: boolean;
+    /**
+     * Instructors
+     */
+    instructors: Array<Instructor>;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Website Url
+     */
+    website_url: string | null;
+    /**
+     * Planned Terms
+     */
+    planned_terms: number;
+    /**
+     * Sort Order
+     */
+    sort_order: number;
+    /**
+     * Term Ids
+     *
+     * Linked terms in chronological order
+     */
+    term_ids: Array<string>;
+    /**
+     * End Term Id
+     *
+     * The latest linked term; grades count there
+     */
+    end_term_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * CourseCreateInputBody
+ */
+export type CourseCreateInputBody = {
+    /**
+     * Code
+     *
+     * Course code such as 'APS105H1'
+     */
+    code?: string | null;
+    /**
+     * Title
+     *
+     * Course title
+     */
+    title: string;
+    /**
+     * Alias
+     *
+     * Short name shown in navigation
+     */
+    alias?: string | null;
+    /**
+     * Subject Code
+     *
+     * Subject; parsed from the code when omitted
+     */
+    subject_code?: string | null;
+    /**
+     * Color
+     *
+     * Own color; null uses the subject's
+     */
+    color?: PaletteColor | HexColor | null;
+    /**
+     * Credits
+     *
+     * Credits; the Program default when omitted
+     */
+    credits?: number | null;
+    /**
+     * Include In Gpa
+     *
+     * Whether the course counts for GPA
+     */
+    include_in_gpa?: boolean;
+    /**
+     * Instructors
+     *
+     * Instructors and TAs
+     */
+    instructors?: Array<Instructor>;
+    /**
+     * Description
+     *
+     * Course description
+     */
+    description?: string | null;
+    /**
+     * Website Url
+     *
+     * Course website
+     */
+    website_url?: string | null;
+    /**
+     * Planned Terms
+     *
+     * Consecutive terms the course spans; 2 for a year-long course
+     */
+    planned_terms?: number;
+    /**
+     * Term Ids
+     *
+     * Terms the course runs in; consecutive terms for a year-long one
+     */
+    term_ids: Array<string>;
+};
+
+/**
+ * CourseCreateItem
+ */
+export type CourseCreateItem = {
+    /**
+     * Code
+     *
+     * Course code such as 'APS105H1'
+     */
+    code?: string | null;
+    /**
+     * Title
+     *
+     * Course title
+     */
+    title: string;
+    /**
+     * Alias
+     *
+     * Short name shown in navigation
+     */
+    alias?: string | null;
+    /**
+     * Subject Code
+     *
+     * Subject; parsed from the code when omitted
+     */
+    subject_code?: string | null;
+    /**
+     * Color
+     *
+     * Own color; null uses the subject's
+     */
+    color?: PaletteColor | HexColor | null;
+    /**
+     * Credits
+     *
+     * Credits; the Program default when omitted
+     */
+    credits?: number | null;
+    /**
+     * Include In Gpa
+     *
+     * Whether the course counts for GPA
+     */
+    include_in_gpa?: boolean;
+    /**
+     * Instructors
+     *
+     * Instructors and TAs
+     */
+    instructors?: Array<Instructor>;
+    /**
+     * Description
+     *
+     * Course description
+     */
+    description?: string | null;
+    /**
+     * Website Url
+     *
+     * Course website
+     */
+    website_url?: string | null;
+    /**
+     * Planned Terms
+     *
+     * Consecutive terms the course spans; 2 for a year-long course
+     */
+    planned_terms?: number;
+    /**
+     * Term Ids
+     *
+     * Terms the course runs in
+     */
+    term_ids: Array<string>;
+};
+
+/**
+ * CourseCreateManyInputBody
+ */
+export type CourseCreateManyInputBody = {
+    /**
+     * Courses
+     *
+     * Courses to create
+     */
+    courses: Array<CourseCreateItem>;
+};
+
+/**
+ * CourseFields
+ *
+ * Fields shared by course creation inputs.
+ */
+export type CourseFields = {
+    /**
+     * Code
+     *
+     * Course code such as 'APS105H1'
+     */
+    code?: string | null;
+    /**
+     * Title
+     *
+     * Course title
+     */
+    title: string;
+    /**
+     * Alias
+     *
+     * Short name shown in navigation
+     */
+    alias?: string | null;
+    /**
+     * Subject Code
+     *
+     * Subject; parsed from the code when omitted
+     */
+    subject_code?: string | null;
+    /**
+     * Color
+     *
+     * Own color; null uses the subject's
+     */
+    color?: PaletteColor | HexColor | null;
+    /**
+     * Credits
+     *
+     * Credits; the Program default when omitted
+     */
+    credits?: number | null;
+    /**
+     * Include In Gpa
+     *
+     * Whether the course counts for GPA
+     */
+    include_in_gpa?: boolean;
+    /**
+     * Instructors
+     *
+     * Instructors and TAs
+     */
+    instructors?: Array<Instructor>;
+    /**
+     * Description
+     *
+     * Course description
+     */
+    description?: string | null;
+    /**
+     * Website Url
+     *
+     * Course website
+     */
+    website_url?: string | null;
+    /**
+     * Planned Terms
+     *
+     * Consecutive terms the course spans; 2 for a year-long course
+     */
+    planned_terms?: number;
+};
+
+/**
+ * CourseList
+ */
+export type CourseList = {
+    /**
+     * Items
+     */
+    items: Array<Course>;
+};
+
+/**
+ * CourseOrder
+ */
+export type CourseOrder = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Course Ids
+     */
+    course_ids: Array<string>;
+};
+
+/**
+ * CourseOrderInputBody
+ */
+export type CourseOrderInputBody = {
+    /**
+     * Course Ids
+     *
+     * Courses of the term in display order
+     */
+    course_ids: Array<string>;
+};
+
+/**
+ * CoursePage
+ */
+export type CoursePage = {
+    /**
+     * Items
+     */
+    items: Array<Course>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * CourseSetTermsInputBody
+ */
+export type CourseSetTermsInputBody = {
+    /**
+     * Term Ids
+     *
+     * All terms of the course; must be consecutive
+     */
+    term_ids: Array<string>;
+};
+
+/**
+ * CourseUpdateInputBody
+ */
+export type CourseUpdateInputBody = {
+    /**
+     * Code
+     *
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Alias
+     *
+     * Alias
+     */
+    alias?: string | null;
+    /**
+     * Subject Code
+     *
+     * Subject code
+     */
+    subject_code?: string | null;
+    /**
+     * Color
+     *
+     * Own color, or null for the subject's
+     */
+    color?: PaletteColor | HexColor | null;
+    /**
+     * Credits
+     *
+     * Credits
+     */
+    credits?: number | null;
+    /**
+     * Include In Gpa
+     *
+     * Counts for GPA
+     */
+    include_in_gpa?: boolean | null;
+    /**
+     * Instructors
+     *
+     * Replaces all instructors
+     */
+    instructors?: Array<Instructor> | null;
+    /**
+     * Description
+     *
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Website Url
+     *
+     * Website
+     */
+    website_url?: string | null;
+    /**
+     * Planned Terms
+     *
+     * Consecutive terms the course spans
+     */
+    planned_terms?: number | null;
+    /**
+     * Sort Order
+     *
+     * Default position within a term
+     */
+    sort_order?: number | null;
+};
+
+/**
+ * Deleted
+ */
+export type Deleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
+};
+
+/**
  * Done
  */
 export type Done = {
@@ -176,6 +760,18 @@ export type Health = {
 };
 
 /**
+ * HexColor
+ */
+export type HexColor = {
+    /**
+     * Hex
+     *
+     * Custom color as #rrggbb
+     */
+    hex: string;
+};
+
+/**
  * IdentityOut
  */
 export type IdentityOut = {
@@ -191,6 +787,30 @@ export type IdentityOut = {
      * Created At
      */
     created_at: string;
+};
+
+/**
+ * Instructor
+ */
+export type Instructor = {
+    /**
+     * Name
+     *
+     * Instructor name
+     */
+    name: string;
+    /**
+     * Email
+     *
+     * Email address
+     */
+    email?: string | null;
+    /**
+     * Role
+     *
+     * E.g. 'Lecturer', 'TA'
+     */
+    role?: string | null;
 };
 
 /**
@@ -282,6 +902,18 @@ export type JobPage = {
 };
 
 export type JsonValue = unknown;
+
+/**
+ * PaletteColor
+ */
+export type PaletteColor = {
+    /**
+     * Palette
+     *
+     * Slot 1-12 of the subject palette
+     */
+    palette: number;
+};
 
 /**
  * PasswordChangeInputBody
@@ -451,6 +1083,160 @@ export type ProfileUpdateInputBody = {
      * HTTPS URL of the avatar image; send null to fall back to initials
      */
     avatar_url?: string | null;
+};
+
+/**
+ * Program
+ */
+export type Program = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Institution
+     */
+    institution: string | null;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Default Course Credits
+     */
+    default_course_credits: number;
+    /**
+     * Credit Requirement
+     */
+    credit_requirement: number | null;
+    /**
+     * Subject Colors
+     *
+     * Color of each subject code
+     */
+    subject_colors: {
+        [key: string]: PaletteColor | HexColor;
+    };
+    /**
+     * Sort Order
+     */
+    sort_order: number;
+    /**
+     * Term Count
+     */
+    term_count: number;
+    /**
+     * Course Count
+     */
+    course_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ProgramCreateInputBody
+ */
+export type ProgramCreateInputBody = {
+    /**
+     * Name
+     *
+     * Program name, e.g. 'BASc Computer Engineering'
+     */
+    name: string;
+    /**
+     * Institution
+     *
+     * School or university
+     */
+    institution?: string | null;
+    /**
+     * Timezone
+     *
+     * IANA time zone of the school, e.g. 'America/Toronto'
+     */
+    timezone: string;
+    /**
+     * Default Course Credits
+     *
+     * Credits a new course gets when none are given
+     */
+    default_course_credits?: number;
+    /**
+     * Credit Requirement
+     *
+     * Credits needed to graduate, if known
+     */
+    credit_requirement?: number | null;
+    /**
+     * Setup
+     *
+     * Choices of other modules' setup fields (e.g. a GPA scale preset), passed on to them with the academics.program.created event
+     */
+    setup?: {
+        [key: string]: JsonValue;
+    };
+};
+
+/**
+ * ProgramList
+ */
+export type ProgramList = {
+    /**
+     * Items
+     */
+    items: Array<Program>;
+};
+
+/**
+ * ProgramUpdateInputBody
+ */
+export type ProgramUpdateInputBody = {
+    /**
+     * Name
+     *
+     * Program name
+     */
+    name?: string | null;
+    /**
+     * Institution
+     *
+     * School, or null
+     */
+    institution?: string | null;
+    /**
+     * Timezone
+     *
+     * IANA time zone
+     */
+    timezone?: string | null;
+    /**
+     * Default Course Credits
+     *
+     * Credits a new course gets
+     */
+    default_course_credits?: number | null;
+    /**
+     * Credit Requirement
+     *
+     * Credits needed to graduate, or null
+     */
+    credit_requirement?: number | null;
+    /**
+     * Sort Order
+     *
+     * Position in the Program switcher
+     */
+    sort_order?: number | null;
 };
 
 /**
@@ -649,6 +1435,249 @@ export type StorageUsage = {
     by_module: {
         [key: string]: number;
     };
+};
+
+/**
+ * SubjectColorInputBody
+ */
+export type SubjectColorInputBody = {
+    /**
+     * Color
+     *
+     * Palette slot or custom hex color
+     */
+    color: PaletteColor | HexColor;
+};
+
+/**
+ * Term
+ */
+export type Term = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Breaks
+     */
+    breaks: Array<Break>;
+    /**
+     * Count Break Weeks
+     */
+    count_break_weeks: boolean;
+    /**
+     * Is Current
+     *
+     * The term the Program is in now (see academics rules)
+     */
+    is_current: boolean;
+    /**
+     * Course Count
+     */
+    course_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TermCreateInputBody
+ */
+export type TermCreateInputBody = {
+    /**
+     * Name
+     *
+     * E.g. 'Fall 2026'
+     */
+    name: string;
+    /**
+     * Start Date
+     *
+     * First day of the term
+     */
+    start_date: string;
+    /**
+     * End Date
+     *
+     * Last day of the term
+     */
+    end_date: string;
+    /**
+     * Breaks
+     *
+     * Reading weeks and holidays
+     */
+    breaks?: Array<BreakIn>;
+    /**
+     * Count Break Weeks
+     *
+     * Whether break weeks get a week number
+     */
+    count_break_weeks?: boolean;
+    /**
+     * Courses
+     *
+     * Courses to create in the new term
+     */
+    courses?: Array<CourseFields>;
+    /**
+     * Continue Course Ids
+     *
+     * Year-long courses of the previous term that continue into the new term
+     */
+    continue_course_ids?: Array<string>;
+};
+
+/**
+ * TermCreateResult
+ */
+export type TermCreateResult = {
+    term: Term;
+    /**
+     * Course Ids
+     *
+     * Ids of the created courses, in input order
+     */
+    course_ids: Array<string>;
+    /**
+     * Continued Course Ids
+     */
+    continued_course_ids: Array<string>;
+};
+
+/**
+ * TermDeletePreview
+ */
+export type TermDeletePreview = {
+    /**
+     * Deleted Course Count
+     *
+     * Courses only in this term, deleted with it
+     */
+    deleted_course_count: number;
+    /**
+     * Kept Course Count
+     *
+     * Multi-term courses that stay in their other terms
+     */
+    kept_course_count: number;
+    /**
+     * Deleted Course Ids
+     */
+    deleted_course_ids: Array<string>;
+    /**
+     * Kept Course Ids
+     */
+    kept_course_ids: Array<string>;
+};
+
+/**
+ * TermDeleteResult
+ */
+export type TermDeleteResult = {
+    /**
+     * Deleted Course Count
+     */
+    deleted_course_count: number;
+    /**
+     * Kept Course Count
+     */
+    kept_course_count: number;
+};
+
+/**
+ * TermList
+ */
+export type TermList = {
+    /**
+     * Items
+     *
+     * Sorted by start date
+     */
+    items: Array<Term>;
+};
+
+/**
+ * TermUpdateInputBody
+ */
+export type TermUpdateInputBody = {
+    /**
+     * Name
+     *
+     * Term name
+     */
+    name?: string | null;
+    /**
+     * Start Date
+     *
+     * First day
+     */
+    start_date?: string | null;
+    /**
+     * End Date
+     *
+     * Last day
+     */
+    end_date?: string | null;
+    /**
+     * Breaks
+     *
+     * Replaces all breaks
+     */
+    breaks?: Array<BreakIn> | null;
+    /**
+     * Count Break Weeks
+     *
+     * Whether break weeks get a week number
+     */
+    count_break_weeks?: boolean | null;
+};
+
+/**
+ * TermWeek
+ */
+export type TermWeek = {
+    /**
+     * Start Date
+     *
+     * First day of the week (user's week start)
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Number
+     *
+     * Week number; null for an uncounted break week
+     */
+    number: number | null;
+    /**
+     * The break, for a break week
+     */
+    break_info: BreakRef | null;
 };
 
 /**
@@ -1210,6 +2239,707 @@ export type AuthLogoutResponses = {
 };
 
 export type AuthLogoutResponse = AuthLogoutResponses[keyof AuthLogoutResponses];
+
+export type AcademicsCourseListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only courses in this term, in the term's display order
+         */
+        term_id?: string | null;
+        /**
+         * Subject Code
+         *
+         * Only this subject
+         */
+        subject_code?: string | null;
+        /**
+         * Search
+         *
+         * Fuzzy match on code, title and alias (case and spaces ignored)
+         */
+        search?: string | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each course (and its id)
+         */
+        fields?: Array<'code' | 'title' | 'alias' | 'subject_code' | 'color' | 'resolved_color' | 'credits' | 'include_in_gpa' | 'instructors' | 'description' | 'website_url' | 'planned_terms' | 'sort_order' | 'term_ids' | 'end_term_id' | 'created_at' | 'updated_at'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/courses';
+};
+
+export type AcademicsCourseListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseListError = AcademicsCourseListErrors[keyof AcademicsCourseListErrors];
+
+export type AcademicsCourseListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CoursePage;
+};
+
+export type AcademicsCourseListResponse = AcademicsCourseListResponses[keyof AcademicsCourseListResponses];
+
+export type AcademicsCourseCreateData = {
+    body: CourseCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/courses';
+};
+
+export type AcademicsCourseCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseCreateError = AcademicsCourseCreateErrors[keyof AcademicsCourseCreateErrors];
+
+export type AcademicsCourseCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Course;
+};
+
+export type AcademicsCourseCreateResponse = AcademicsCourseCreateResponses[keyof AcademicsCourseCreateResponses];
+
+export type AcademicsCourseCreateManyData = {
+    body: CourseCreateManyInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/courses:batch';
+};
+
+export type AcademicsCourseCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseCreateManyError = AcademicsCourseCreateManyErrors[keyof AcademicsCourseCreateManyErrors];
+
+export type AcademicsCourseCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseList;
+};
+
+export type AcademicsCourseCreateManyResponse = AcademicsCourseCreateManyResponses[keyof AcademicsCourseCreateManyResponses];
+
+export type AcademicsCourseDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}';
+};
+
+export type AcademicsCourseDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseDeleteError = AcademicsCourseDeleteErrors[keyof AcademicsCourseDeleteErrors];
+
+export type AcademicsCourseDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type AcademicsCourseDeleteResponse = AcademicsCourseDeleteResponses[keyof AcademicsCourseDeleteResponses];
+
+export type AcademicsCourseGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}';
+};
+
+export type AcademicsCourseGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseGetError = AcademicsCourseGetErrors[keyof AcademicsCourseGetErrors];
+
+export type AcademicsCourseGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Course;
+};
+
+export type AcademicsCourseGetResponse = AcademicsCourseGetResponses[keyof AcademicsCourseGetResponses];
+
+export type AcademicsCourseUpdateData = {
+    body: CourseUpdateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}';
+};
+
+export type AcademicsCourseUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseUpdateError = AcademicsCourseUpdateErrors[keyof AcademicsCourseUpdateErrors];
+
+export type AcademicsCourseUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Course;
+};
+
+export type AcademicsCourseUpdateResponse = AcademicsCourseUpdateResponses[keyof AcademicsCourseUpdateResponses];
+
+export type AcademicsCourseReorderData = {
+    body: CourseOrderInputBody;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/course-order';
+};
+
+export type AcademicsCourseReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseReorderError = AcademicsCourseReorderErrors[keyof AcademicsCourseReorderErrors];
+
+export type AcademicsCourseReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseOrder;
+};
+
+export type AcademicsCourseReorderResponse = AcademicsCourseReorderResponses[keyof AcademicsCourseReorderResponses];
+
+export type AcademicsCourseSetTermsData = {
+    body: CourseSetTermsInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/terms';
+};
+
+export type AcademicsCourseSetTermsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsCourseSetTermsError = AcademicsCourseSetTermsErrors[keyof AcademicsCourseSetTermsErrors];
+
+export type AcademicsCourseSetTermsResponses = {
+    /**
+     * Successful Response
+     */
+    200: Course;
+};
+
+export type AcademicsCourseSetTermsResponse = AcademicsCourseSetTermsResponses[keyof AcademicsCourseSetTermsResponses];
+
+export type AcademicsProgramListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/programs';
+};
+
+export type AcademicsProgramListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramListError = AcademicsProgramListErrors[keyof AcademicsProgramListErrors];
+
+export type AcademicsProgramListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramList;
+};
+
+export type AcademicsProgramListResponse = AcademicsProgramListResponses[keyof AcademicsProgramListResponses];
+
+export type AcademicsProgramCreateData = {
+    body: ProgramCreateInputBody;
+    path?: never;
+    query?: never;
+    url: '/programs';
+};
+
+export type AcademicsProgramCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramCreateError = AcademicsProgramCreateErrors[keyof AcademicsProgramCreateErrors];
+
+export type AcademicsProgramCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Program;
+};
+
+export type AcademicsProgramCreateResponse = AcademicsProgramCreateResponses[keyof AcademicsProgramCreateResponses];
+
+export type AcademicsProgramDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}';
+};
+
+export type AcademicsProgramDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramDeleteError = AcademicsProgramDeleteErrors[keyof AcademicsProgramDeleteErrors];
+
+export type AcademicsProgramDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type AcademicsProgramDeleteResponse = AcademicsProgramDeleteResponses[keyof AcademicsProgramDeleteResponses];
+
+export type AcademicsProgramGetData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}';
+};
+
+export type AcademicsProgramGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramGetError = AcademicsProgramGetErrors[keyof AcademicsProgramGetErrors];
+
+export type AcademicsProgramGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Program;
+};
+
+export type AcademicsProgramGetResponse = AcademicsProgramGetResponses[keyof AcademicsProgramGetResponses];
+
+export type AcademicsProgramUpdateData = {
+    body: ProgramUpdateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}';
+};
+
+export type AcademicsProgramUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramUpdateError = AcademicsProgramUpdateErrors[keyof AcademicsProgramUpdateErrors];
+
+export type AcademicsProgramUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Program;
+};
+
+export type AcademicsProgramUpdateResponse = AcademicsProgramUpdateResponses[keyof AcademicsProgramUpdateResponses];
+
+export type AcademicsProgramSetSubjectColorData = {
+    body: SubjectColorInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+        /**
+         * Subject Code
+         *
+         * Subject code such as 'APS'
+         */
+        subject_code: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/subject-colors/{subject_code}';
+};
+
+export type AcademicsProgramSetSubjectColorErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsProgramSetSubjectColorError = AcademicsProgramSetSubjectColorErrors[keyof AcademicsProgramSetSubjectColorErrors];
+
+export type AcademicsProgramSetSubjectColorResponses = {
+    /**
+     * Successful Response
+     */
+    200: Program;
+};
+
+export type AcademicsProgramSetSubjectColorResponse = AcademicsProgramSetSubjectColorResponses[keyof AcademicsProgramSetSubjectColorResponses];
+
+export type AcademicsTermCalendarInfoData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/calendar-info';
+};
+
+export type AcademicsTermCalendarInfoErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermCalendarInfoError = AcademicsTermCalendarInfoErrors[keyof AcademicsTermCalendarInfoErrors];
+
+export type AcademicsTermCalendarInfoResponses = {
+    /**
+     * Successful Response
+     */
+    200: CalendarInfo;
+};
+
+export type AcademicsTermCalendarInfoResponse = AcademicsTermCalendarInfoResponses[keyof AcademicsTermCalendarInfoResponses];
+
+export type AcademicsTermListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/terms';
+};
+
+export type AcademicsTermListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermListError = AcademicsTermListErrors[keyof AcademicsTermListErrors];
+
+export type AcademicsTermListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermList;
+};
+
+export type AcademicsTermListResponse = AcademicsTermListResponses[keyof AcademicsTermListResponses];
+
+export type AcademicsTermCreateData = {
+    body: TermCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program to add the term to
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/terms';
+};
+
+export type AcademicsTermCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermCreateError = AcademicsTermCreateErrors[keyof AcademicsTermCreateErrors];
+
+export type AcademicsTermCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermCreateResult;
+};
+
+export type AcademicsTermCreateResponse = AcademicsTermCreateResponses[keyof AcademicsTermCreateResponses];
+
+export type AcademicsTermDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}';
+};
+
+export type AcademicsTermDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermDeleteError = AcademicsTermDeleteErrors[keyof AcademicsTermDeleteErrors];
+
+export type AcademicsTermDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermDeleteResult;
+};
+
+export type AcademicsTermDeleteResponse = AcademicsTermDeleteResponses[keyof AcademicsTermDeleteResponses];
+
+export type AcademicsTermGetData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}';
+};
+
+export type AcademicsTermGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermGetError = AcademicsTermGetErrors[keyof AcademicsTermGetErrors];
+
+export type AcademicsTermGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Term;
+};
+
+export type AcademicsTermGetResponse = AcademicsTermGetResponses[keyof AcademicsTermGetResponses];
+
+export type AcademicsTermUpdateData = {
+    body: TermUpdateInputBody;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}';
+};
+
+export type AcademicsTermUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermUpdateError = AcademicsTermUpdateErrors[keyof AcademicsTermUpdateErrors];
+
+export type AcademicsTermUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Term;
+};
+
+export type AcademicsTermUpdateResponse = AcademicsTermUpdateResponses[keyof AcademicsTermUpdateResponses];
+
+export type AcademicsTermDeletePreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/delete-preview';
+};
+
+export type AcademicsTermDeletePreviewErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermDeletePreviewError = AcademicsTermDeletePreviewErrors[keyof AcademicsTermDeletePreviewErrors];
+
+export type AcademicsTermDeletePreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermDeletePreview;
+};
+
+export type AcademicsTermDeletePreviewResponse = AcademicsTermDeletePreviewResponses[keyof AcademicsTermDeletePreviewResponses];
 
 export type AccountEmailChangeConfirmData = {
     body: EmailChangeConfirmInputBody;

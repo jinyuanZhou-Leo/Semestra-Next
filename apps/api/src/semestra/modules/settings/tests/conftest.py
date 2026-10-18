@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from typing import Literal
 
 import pytest
+from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 
 from semestra.core.context import Ctx
@@ -68,7 +69,9 @@ async def _fake_resolver(ctx: Ctx, scope_type: ScopeType, scope_id: str) -> Scop
 
 
 @pytest.fixture(autouse=True)
-def fake_scopes() -> Iterator[None]:
+def fake_scopes(app: FastAPI) -> Iterator[None]:
+    # After the app exists: creating it registers the real resolver of the academics module.
+    del app
     previous = registry._resolver
     set_scope_resolver(_fake_resolver)
     yield

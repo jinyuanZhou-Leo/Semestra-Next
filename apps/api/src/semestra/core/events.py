@@ -5,6 +5,11 @@ the ctx; it is dispatched only after the transaction commits (`run_after_commit`
 pushes it to the user's live connections (SSE, see `core.realtime`) and runs every subscriber in
 its own system ctx and transaction, so one failing subscriber cannot affect the others or the
 publisher.
+
+A few events must run *inside* the publisher's transaction instead, e.g. `academics.course.deleting`
+lets other modules delete their rows together with the course. Those are subscribed with
+`in_transaction=True` and published with `publish_in_transaction`: the subscribers run at once
+with the publisher's ctx, and an exception aborts the whole operation.
 """
 
 from collections import defaultdict
@@ -34,13 +39,27 @@ Subscriber = Callable[[Ctx, Event], Awaitable[None]]
 class EventBus:
     def __init__(self) -> None:
         self._subscribers: defaultdict[str, list[Subscriber]] = defaultdict(list)
+        self._in_transaction: defaultdict[str, list[Subscriber]] = defaultdict(list)
 
-    def subscribe(self, event_type: str) -> Callable[[Subscriber], Subscriber]:
+    def subscribe(
+        self, event_type: str, *, in_transaction: bool = False
+    ) -> Callable[[Subscriber], Subscriber]:
         def decorate(fn: Subscriber) -> Subscriber:
-            self._subscribers[event_type].append(fn)
+            target = self._in_transaction if in_transaction else self._subscribers
+            target[event_type].append(fn)
             return fn
 
         return decorate
+
+    async def publish_in_transaction(
+        self, ctx: Ctx, event_type: str, data: dict[str, Any], *, user_id: str | None = None
+    ) -> None:
+        """Run the `in_transaction` subscribers now, in the caller's transaction. Not pushed
+        over SSE; errors propagate so the caller's operation is rolled back."""
+        target = user_id if user_id is not None else (ctx.user.id if ctx.user else None)
+        event = Event(event_type, data, target)
+        for subscriber in self._in_transaction.get(event_type, []):
+            await subscriber(ctx, event)
 
     async def publish(
         self, ctx: Ctx, event_type: str, data: dict[str, Any], *, user_id: str | None = None

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -121,6 +121,240 @@ export const authTokenRefresh = <ThrowOnError extends boolean = false>(options: 
  * Logout
  */
 export const authLogout = <ThrowOnError extends boolean = false>(options?: Options<AuthLogoutData, ThrowOnError>): RequestResult<AuthLogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AuthLogoutResponses, unknown, ThrowOnError>({ url: '/auth/logout', ...options });
+
+/**
+ * List the courses of a Program, optionally of one term, subject or search text.
+ *
+ * Use to see all courses of a term or Program. To locate one course the user
+ * described in words ("my programming course"), prefer academics.course.find.
+ */
+export const academicsCourseList = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseListData, ThrowOnError>): RequestResult<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError>({ url: '/programs/{program_id}/courses', ...options });
+
+/**
+ * Add a course to one term, or to consecutive terms for a year-long course.
+ *
+ * Use when the user adds a course. Get term ids from academics.term.list.
+ * For a year-long course whose second term does not exist yet, link the current term only and set
+ * `planned_terms` to 2; the term wizard offers to continue it later.
+ */
+export const academicsCourseCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateData, ThrowOnError>): RequestResult<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/courses',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add several courses at once (imports).
+ *
+ * Use to create a batch of courses, e.g. from an imported timetable.
+ */
+export const academicsCourseCreateMany = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateManyData, ThrowOnError>): RequestResult<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError>({
+    url: '/programs/{program_id}/courses:batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a course and all of its data (grades, files, schedule).
+ *
+ * Irreversible. Use only when the user clearly asks to delete the course.
+ */
+export const academicsCourseDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseDeleteData, ThrowOnError>): RequestResult<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError>({ url: '/courses/{course_id}', ...options });
+
+/**
+ * Get one course with its terms, credits, instructors and resolved color.
+ *
+ * Use when you need the details of a course whose id you know.
+ */
+export const academicsCourseGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseGetData, ThrowOnError>): RequestResult<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError>({ url: '/courses/{course_id}', ...options });
+
+/**
+ * Change a course's code, title, alias, credits, color, instructors or other fields.
+ *
+ * Partial update: only the fields that are sent change. To move a course to other
+ * terms or make it year-long, use academics.course.set_terms.
+ */
+export const academicsCourseUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseUpdateData, ThrowOnError>): RequestResult<AcademicsCourseUpdateResponses, AcademicsCourseUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsCourseUpdateResponses, AcademicsCourseUpdateErrors, ThrowOnError>({
+    url: '/courses/{course_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the display order of the courses within a term.
+ *
+ * Courses not listed keep their default order after the listed ones.
+ */
+export const academicsCourseReorder = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseReorderData, ThrowOnError>): RequestResult<AcademicsCourseReorderResponses, AcademicsCourseReorderErrors, ThrowOnError> => (options.client ?? client).put<AcademicsCourseReorderResponses, AcademicsCourseReorderErrors, ThrowOnError>({
+    url: '/terms/{term_id}/course-order',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set which terms a course runs in (consecutive terms for a year-long course).
+ *
+ * Replaces the course's terms. They must belong to its Program and be next to each
+ * other in time.
+ */
+export const academicsCourseSetTerms = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseSetTermsData, ThrowOnError>): RequestResult<AcademicsCourseSetTermsResponses, AcademicsCourseSetTermsErrors, ThrowOnError> => (options.client ?? client).put<AcademicsCourseSetTermsResponses, AcademicsCourseSetTermsErrors, ThrowOnError>({
+    url: '/courses/{course_id}/terms',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the user's Programs (degrees) with their term and course counts.
+ *
+ * Use to find the Program ids of the user, e.g. before listing terms or courses
+ * when no Program is given. Most users have exactly one Program.
+ */
+export const academicsProgramList = <ThrowOnError extends boolean = false>(options?: Options<AcademicsProgramListData, ThrowOnError>): RequestResult<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError> => (options?.client ?? client).get<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError>({ url: '/programs', ...options });
+
+/**
+ * Create a Program (a degree or study plan).
+ *
+ * Use only when the user explicitly wants a new, separate Program, e.g. a second
+ * degree. Do not use to add a term or a course; use academics.term.create or
+ * academics.course.create.
+ */
+export const academicsProgramCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramCreateData, ThrowOnError>): RequestResult<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError>({
+    url: '/programs',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a Program with all of its terms, courses and their data.
+ *
+ * Irreversible. Use only when the user clearly asks to delete the whole Program.
+ * To remove one term or course use academics.term.delete or academics.course.delete.
+ */
+export const academicsProgramDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramDeleteData, ThrowOnError>): RequestResult<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError>({ url: '/programs/{program_id}', ...options });
+
+/**
+ * Get one Program: name, school, time zone, credit defaults and subject colors.
+ *
+ * Use when you need a Program's details such as its time zone or credit goal.
+ */
+export const academicsProgramGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramGetData, ThrowOnError>): RequestResult<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError>({ url: '/programs/{program_id}', ...options });
+
+/**
+ * Change a Program's name, school, time zone or credit settings.
+ *
+ * Partial update: only the fields that are sent change.
+ */
+export const academicsProgramUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramUpdateData, ThrowOnError>): RequestResult<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError>({
+    url: '/programs/{program_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the color of a subject code (e.g. all 'APS' courses) in a Program.
+ *
+ * Use when the user wants every course of a subject in another color. To color a
+ * single course differently, use academics.course.update with `color`.
+ */
+export const academicsProgramSetSubjectColor = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramSetSubjectColorData, ThrowOnError>): RequestResult<AcademicsProgramSetSubjectColorResponses, AcademicsProgramSetSubjectColorErrors, ThrowOnError> => (options.client ?? client).put<AcademicsProgramSetSubjectColorResponses, AcademicsProgramSetSubjectColorErrors, ThrowOnError>({
+    url: '/programs/{program_id}/subject-colors/{subject_code}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Week numbers of a term: each week's dates, number or break, and today's week.
+ *
+ * Use to translate between dates and week numbers ("week 6", "reading week"),
+ * e.g. to resolve "the Friday of week 3". Week 1 is the week the term starts in.
+ */
+export const academicsTermCalendarInfo = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermCalendarInfoData, ThrowOnError>): RequestResult<AcademicsTermCalendarInfoResponses, AcademicsTermCalendarInfoErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermCalendarInfoResponses, AcademicsTermCalendarInfoErrors, ThrowOnError>({ url: '/terms/{term_id}/calendar-info', ...options });
+
+/**
+ * List the terms (semesters) of a Program in chronological order.
+ *
+ * Use to find a term id, or which term is current (`is_current`), before creating
+ * courses or answering questions about a semester.
+ */
+export const academicsTermList = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermListData, ThrowOnError>): RequestResult<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError>({ url: '/programs/{program_id}/terms', ...options });
+
+/**
+ * Create a term, optionally with its courses, in one step.
+ *
+ * Use when the user starts a new semester. Check academics.term.list first so the
+ * term does not exist already. `courses` creates courses in the new term; `continue_course_ids`
+ * extends year-long courses of the previous term into it.
+ */
+export const academicsTermCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermCreateData, ThrowOnError>): RequestResult<AcademicsTermCreateResponses, AcademicsTermCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsTermCreateResponses, AcademicsTermCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/terms',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a term and the courses that are only in it.
+ *
+ * Irreversible. Year-long courses that also run in other terms are kept and only
+ * lose this term. Show academics.term.delete_preview to the user first.
+ */
+export const academicsTermDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermDeleteData, ThrowOnError>): RequestResult<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError>({ url: '/terms/{term_id}', ...options });
+
+/**
+ * Get one term with its dates and breaks.
+ *
+ * Use when you need a term's dates, reading weeks or holidays.
+ */
+export const academicsTermGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetData, ThrowOnError>): RequestResult<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError>({ url: '/terms/{term_id}', ...options });
+
+/**
+ * Change a term's name, dates, breaks or week numbering.
+ *
+ * Partial update. `breaks` replaces the whole list; keep the ids of breaks that
+ * stay. Fails with academics.course_terms_not_adjacent when new dates would separate the terms of
+ * a year-long course.
+ */
+export const academicsTermUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermUpdateData, ThrowOnError>): RequestResult<AcademicsTermUpdateResponses, AcademicsTermUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsTermUpdateResponses, AcademicsTermUpdateErrors, ThrowOnError>({
+    url: '/terms/{term_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * What deleting a term would remove: its own courses vs. year-long courses kept.
+ *
+ * Use before academics.term.delete to tell the user what will be deleted.
+ */
+export const academicsTermDeletePreview = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermDeletePreviewData, ThrowOnError>): RequestResult<AcademicsTermDeletePreviewResponses, AcademicsTermDeletePreviewErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermDeletePreviewResponses, AcademicsTermDeletePreviewErrors, ThrowOnError>({ url: '/terms/{term_id}/delete-preview', ...options });
 
 /**
  * Confirm the new account email with its code.

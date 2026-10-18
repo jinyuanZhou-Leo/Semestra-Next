@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
+import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, apiError, newQueryClient, server, user } from '@/test-utils'
 
 beforeAll(() => server.listen())
@@ -44,10 +45,14 @@ test('signed-out visitors to a protected page are sent to /login?redirect=…', 
   expect(router.state.location.search).toEqual({ redirect: '/settings/account?tab=tokens' })
 })
 
+/** A new account: no Programs yet, so `/` leads to onboarding. */
+const noPrograms = () => academicsHandlers({ ...defaultWorld(), programs: [] })
+
 test('signed-in users reach the protected page', async () => {
-  server.use(signedIn, healthy, noGoogle)
-  mount('/')
+  server.use(signedIn, healthy, noGoogle, ...noPrograms())
+  const router = mount('/')
   expect(await screen.findByTestId('signed-in-as')).toHaveTextContent('Signed in as Ada')
+  expect(router.state.location.pathname).toBe('/onboarding')
 })
 
 test('visiting /login while signed in goes straight to the redirect target', async () => {
@@ -57,9 +62,9 @@ test('visiting /login while signed in goes straight to the redirect target', asy
 })
 
 test('an off-site redirect target is ignored', async () => {
-  server.use(signedIn, healthy, noGoogle)
+  server.use(signedIn, healthy, noGoogle, ...noPrograms())
   const router = mount('/login?redirect=https%3A%2F%2Fevil.example')
-  await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
 })
 
 test('/login/reset renders the reset form, not the sign-in form', async () => {

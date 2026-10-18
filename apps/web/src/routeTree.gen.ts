@@ -12,9 +12,26 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
+import { Route as AuthedOnboardingRouteImport } from './routes/_authed.onboarding'
 import { Route as LoginResetRouteImport } from './routes/login_.reset'
+import { Route as AuthedPProgramIdRouteImport } from './routes/_authed.p.$programId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed.settings.index'
 import { Route as AuthedSettingsGroupRouteImport } from './routes/_authed.settings.$group'
+import { Route as AuthedPProgramIdIndexRouteImport } from './routes/_authed.p.$programId.index'
+import { Route as AuthedPProgramIdPageRouteImport } from './routes/_authed.p.$programId.$page'
+import { Route as AuthedPProgramIdCoursesRouteImport } from './routes/_authed.p.$programId.courses'
+import { Route as AuthedPProgramIdCCourseIdRouteImport } from './routes/_authed.p.$programId.c.$courseId'
+import { Route as AuthedPProgramIdSettingsIndexRouteImport } from './routes/_authed.p.$programId.settings.index'
+import { Route as AuthedPProgramIdSettingsGroupRouteImport } from './routes/_authed.p.$programId.settings.$group'
+import { Route as AuthedPProgramIdTermsNewRouteImport } from './routes/_authed.p.$programId.terms.new'
+import { Route as AuthedPProgramIdCCourseIdIndexRouteImport } from './routes/_authed.p.$programId.c.$courseId.index'
+import { Route as AuthedPProgramIdCCourseIdPageRouteImport } from './routes/_authed.p.$programId.c.$courseId.$page'
+import { Route as AuthedPProgramIdTTermIdIndexRouteImport } from './routes/_authed.p.$programId.t.$termId.index'
+import { Route as AuthedPProgramIdTTermIdPageRouteImport } from './routes/_authed.p.$programId.t.$termId.$page'
+import { Route as AuthedPProgramIdCCourseIdSettingsIndexRouteImport } from './routes/_authed.p.$programId.c.$courseId.settings.index'
+import { Route as AuthedPProgramIdCCourseIdSettingsGroupRouteImport } from './routes/_authed.p.$programId.c.$courseId.settings.$group'
+import { Route as AuthedPProgramIdTTermIdSettingsIndexRouteImport } from './routes/_authed.p.$programId.t.$termId.settings.index'
+import { Route as AuthedPProgramIdTTermIdSettingsGroupRouteImport } from './routes/_authed.p.$programId.t.$termId.settings.$group'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -30,10 +47,20 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const LoginResetRoute = LoginResetRouteImport.update({
   id: '/login_/reset',
   path: '/login/reset',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthedPProgramIdRoute = AuthedPProgramIdRouteImport.update({
+  id: '/p/$programId',
+  path: '/p/$programId',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   id: '/settings/',
@@ -45,43 +72,238 @@ const AuthedSettingsGroupRoute = AuthedSettingsGroupRouteImport.update({
   path: '/settings/$group',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedPProgramIdIndexRoute = AuthedPProgramIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedPProgramIdRoute,
+} as any)
+const AuthedPProgramIdPageRoute = AuthedPProgramIdPageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
+  getParentRoute: () => AuthedPProgramIdRoute,
+} as any)
+const AuthedPProgramIdCoursesRoute = AuthedPProgramIdCoursesRouteImport.update({
+  id: '/courses',
+  path: '/courses',
+  getParentRoute: () => AuthedPProgramIdRoute,
+} as any)
+const AuthedPProgramIdCCourseIdRoute =
+  AuthedPProgramIdCCourseIdRouteImport.update({
+    id: '/c/$courseId',
+    path: '/c/$courseId',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdSettingsIndexRoute =
+  AuthedPProgramIdSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdSettingsGroupRoute =
+  AuthedPProgramIdSettingsGroupRouteImport.update({
+    id: '/settings/$group',
+    path: '/settings/$group',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdTermsNewRoute =
+  AuthedPProgramIdTermsNewRouteImport.update({
+    id: '/terms/new',
+    path: '/terms/new',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdCCourseIdIndexRoute =
+  AuthedPProgramIdCCourseIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthedPProgramIdCCourseIdRoute,
+  } as any)
+const AuthedPProgramIdCCourseIdPageRoute =
+  AuthedPProgramIdCCourseIdPageRouteImport.update({
+    id: '/$page',
+    path: '/$page',
+    getParentRoute: () => AuthedPProgramIdCCourseIdRoute,
+  } as any)
+const AuthedPProgramIdTTermIdIndexRoute =
+  AuthedPProgramIdTTermIdIndexRouteImport.update({
+    id: '/t/$termId/',
+    path: '/t/$termId/',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdTTermIdPageRoute =
+  AuthedPProgramIdTTermIdPageRouteImport.update({
+    id: '/t/$termId/$page',
+    path: '/t/$termId/$page',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdCCourseIdSettingsIndexRoute =
+  AuthedPProgramIdCCourseIdSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AuthedPProgramIdCCourseIdRoute,
+  } as any)
+const AuthedPProgramIdCCourseIdSettingsGroupRoute =
+  AuthedPProgramIdCCourseIdSettingsGroupRouteImport.update({
+    id: '/settings/$group',
+    path: '/settings/$group',
+    getParentRoute: () => AuthedPProgramIdCCourseIdRoute,
+  } as any)
+const AuthedPProgramIdTTermIdSettingsIndexRoute =
+  AuthedPProgramIdTTermIdSettingsIndexRouteImport.update({
+    id: '/t/$termId/settings/',
+    path: '/t/$termId/settings/',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
+const AuthedPProgramIdTTermIdSettingsGroupRoute =
+  AuthedPProgramIdTTermIdSettingsGroupRouteImport.update({
+    id: '/t/$termId/settings/$group',
+    path: '/t/$termId/settings/$group',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
+  '/p/$programId': typeof AuthedPProgramIdRouteWithChildren
   '/settings/$group': typeof AuthedSettingsGroupRoute
   '/settings/': typeof AuthedSettingsIndexRoute
+  '/p/$programId/$page': typeof AuthedPProgramIdPageRoute
+  '/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
+  '/p/$programId/': typeof AuthedPProgramIdIndexRoute
+  '/p/$programId/c/$courseId': typeof AuthedPProgramIdCCourseIdRouteWithChildren
+  '/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
+  '/p/$programId/terms/new': typeof AuthedPProgramIdTermsNewRoute
+  '/p/$programId/settings/': typeof AuthedPProgramIdSettingsIndexRoute
+  '/p/$programId/c/$courseId/$page': typeof AuthedPProgramIdCCourseIdPageRoute
+  '/p/$programId/t/$termId/$page': typeof AuthedPProgramIdTTermIdPageRoute
+  '/p/$programId/c/$courseId/': typeof AuthedPProgramIdCCourseIdIndexRoute
+  '/p/$programId/t/$termId/': typeof AuthedPProgramIdTTermIdIndexRoute
+  '/p/$programId/c/$courseId/settings/$group': typeof AuthedPProgramIdCCourseIdSettingsGroupRoute
+  '/p/$programId/t/$termId/settings/$group': typeof AuthedPProgramIdTTermIdSettingsGroupRoute
+  '/p/$programId/c/$courseId/settings/': typeof AuthedPProgramIdCCourseIdSettingsIndexRoute
+  '/p/$programId/t/$termId/settings/': typeof AuthedPProgramIdTTermIdSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
   '/': typeof AuthedIndexRoute
   '/settings/$group': typeof AuthedSettingsGroupRoute
   '/settings': typeof AuthedSettingsIndexRoute
+  '/p/$programId/$page': typeof AuthedPProgramIdPageRoute
+  '/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
+  '/p/$programId': typeof AuthedPProgramIdIndexRoute
+  '/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
+  '/p/$programId/terms/new': typeof AuthedPProgramIdTermsNewRoute
+  '/p/$programId/settings': typeof AuthedPProgramIdSettingsIndexRoute
+  '/p/$programId/c/$courseId/$page': typeof AuthedPProgramIdCCourseIdPageRoute
+  '/p/$programId/t/$termId/$page': typeof AuthedPProgramIdTTermIdPageRoute
+  '/p/$programId/c/$courseId': typeof AuthedPProgramIdCCourseIdIndexRoute
+  '/p/$programId/t/$termId': typeof AuthedPProgramIdTTermIdIndexRoute
+  '/p/$programId/c/$courseId/settings/$group': typeof AuthedPProgramIdCCourseIdSettingsGroupRoute
+  '/p/$programId/t/$termId/settings/$group': typeof AuthedPProgramIdTTermIdSettingsGroupRoute
+  '/p/$programId/c/$courseId/settings': typeof AuthedPProgramIdCCourseIdSettingsIndexRoute
+  '/p/$programId/t/$termId/settings': typeof AuthedPProgramIdTTermIdSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/login_/reset': typeof LoginResetRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/p/$programId': typeof AuthedPProgramIdRouteWithChildren
   '/_authed/settings/$group': typeof AuthedSettingsGroupRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
+  '/_authed/p/$programId/$page': typeof AuthedPProgramIdPageRoute
+  '/_authed/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
+  '/_authed/p/$programId/': typeof AuthedPProgramIdIndexRoute
+  '/_authed/p/$programId/c/$courseId': typeof AuthedPProgramIdCCourseIdRouteWithChildren
+  '/_authed/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
+  '/_authed/p/$programId/terms/new': typeof AuthedPProgramIdTermsNewRoute
+  '/_authed/p/$programId/settings/': typeof AuthedPProgramIdSettingsIndexRoute
+  '/_authed/p/$programId/c/$courseId/$page': typeof AuthedPProgramIdCCourseIdPageRoute
+  '/_authed/p/$programId/t/$termId/$page': typeof AuthedPProgramIdTTermIdPageRoute
+  '/_authed/p/$programId/c/$courseId/': typeof AuthedPProgramIdCCourseIdIndexRoute
+  '/_authed/p/$programId/t/$termId/': typeof AuthedPProgramIdTTermIdIndexRoute
+  '/_authed/p/$programId/c/$courseId/settings/$group': typeof AuthedPProgramIdCCourseIdSettingsGroupRoute
+  '/_authed/p/$programId/t/$termId/settings/$group': typeof AuthedPProgramIdTTermIdSettingsGroupRoute
+  '/_authed/p/$programId/c/$courseId/settings/': typeof AuthedPProgramIdCCourseIdSettingsIndexRoute
+  '/_authed/p/$programId/t/$termId/settings/': typeof AuthedPProgramIdTTermIdSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/login/reset' | '/settings/$group' | '/settings/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/onboarding'
+    | '/login/reset'
+    | '/p/$programId'
+    | '/settings/$group'
+    | '/settings/'
+    | '/p/$programId/$page'
+    | '/p/$programId/courses'
+    | '/p/$programId/'
+    | '/p/$programId/c/$courseId'
+    | '/p/$programId/settings/$group'
+    | '/p/$programId/terms/new'
+    | '/p/$programId/settings/'
+    | '/p/$programId/c/$courseId/$page'
+    | '/p/$programId/t/$termId/$page'
+    | '/p/$programId/c/$courseId/'
+    | '/p/$programId/t/$termId/'
+    | '/p/$programId/c/$courseId/settings/$group'
+    | '/p/$programId/t/$termId/settings/$group'
+    | '/p/$programId/c/$courseId/settings/'
+    | '/p/$programId/t/$termId/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/login/reset' | '/' | '/settings/$group' | '/settings'
+  to:
+    | '/login'
+    | '/onboarding'
+    | '/login/reset'
+    | '/'
+    | '/settings/$group'
+    | '/settings'
+    | '/p/$programId/$page'
+    | '/p/$programId/courses'
+    | '/p/$programId'
+    | '/p/$programId/settings/$group'
+    | '/p/$programId/terms/new'
+    | '/p/$programId/settings'
+    | '/p/$programId/c/$courseId/$page'
+    | '/p/$programId/t/$termId/$page'
+    | '/p/$programId/c/$courseId'
+    | '/p/$programId/t/$termId'
+    | '/p/$programId/c/$courseId/settings/$group'
+    | '/p/$programId/t/$termId/settings/$group'
+    | '/p/$programId/c/$courseId/settings'
+    | '/p/$programId/t/$termId/settings'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/onboarding'
     | '/login_/reset'
     | '/_authed/'
+    | '/_authed/p/$programId'
     | '/_authed/settings/$group'
     | '/_authed/settings/'
+    | '/_authed/p/$programId/$page'
+    | '/_authed/p/$programId/courses'
+    | '/_authed/p/$programId/'
+    | '/_authed/p/$programId/c/$courseId'
+    | '/_authed/p/$programId/settings/$group'
+    | '/_authed/p/$programId/terms/new'
+    | '/_authed/p/$programId/settings/'
+    | '/_authed/p/$programId/c/$courseId/$page'
+    | '/_authed/p/$programId/t/$termId/$page'
+    | '/_authed/p/$programId/c/$courseId/'
+    | '/_authed/p/$programId/t/$termId/'
+    | '/_authed/p/$programId/c/$courseId/settings/$group'
+    | '/_authed/p/$programId/t/$termId/settings/$group'
+    | '/_authed/p/$programId/c/$courseId/settings/'
+    | '/_authed/p/$programId/t/$termId/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -113,12 +335,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/onboarding': {
+      id: '/_authed/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof AuthedOnboardingRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/login_/reset': {
       id: '/login_/reset'
       path: '/login/reset'
       fullPath: '/login/reset'
       preLoaderRoute: typeof LoginResetRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authed/p/$programId': {
+      id: '/_authed/p/$programId'
+      path: '/p/$programId'
+      fullPath: '/p/$programId'
+      preLoaderRoute: typeof AuthedPProgramIdRouteImport
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/settings/': {
       id: '/_authed/settings/'
@@ -134,17 +370,181 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsGroupRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/p/$programId/': {
+      id: '/_authed/p/$programId/'
+      path: '/'
+      fullPath: '/p/$programId/'
+      preLoaderRoute: typeof AuthedPProgramIdIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/$page': {
+      id: '/_authed/p/$programId/$page'
+      path: '/$page'
+      fullPath: '/p/$programId/$page'
+      preLoaderRoute: typeof AuthedPProgramIdPageRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/courses': {
+      id: '/_authed/p/$programId/courses'
+      path: '/courses'
+      fullPath: '/p/$programId/courses'
+      preLoaderRoute: typeof AuthedPProgramIdCoursesRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/c/$courseId': {
+      id: '/_authed/p/$programId/c/$courseId'
+      path: '/c/$courseId'
+      fullPath: '/p/$programId/c/$courseId'
+      preLoaderRoute: typeof AuthedPProgramIdCCourseIdRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/settings/': {
+      id: '/_authed/p/$programId/settings/'
+      path: '/settings'
+      fullPath: '/p/$programId/settings/'
+      preLoaderRoute: typeof AuthedPProgramIdSettingsIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/settings/$group': {
+      id: '/_authed/p/$programId/settings/$group'
+      path: '/settings/$group'
+      fullPath: '/p/$programId/settings/$group'
+      preLoaderRoute: typeof AuthedPProgramIdSettingsGroupRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/terms/new': {
+      id: '/_authed/p/$programId/terms/new'
+      path: '/terms/new'
+      fullPath: '/p/$programId/terms/new'
+      preLoaderRoute: typeof AuthedPProgramIdTermsNewRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/c/$courseId/': {
+      id: '/_authed/p/$programId/c/$courseId/'
+      path: '/'
+      fullPath: '/p/$programId/c/$courseId/'
+      preLoaderRoute: typeof AuthedPProgramIdCCourseIdIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdCCourseIdRoute
+    }
+    '/_authed/p/$programId/c/$courseId/$page': {
+      id: '/_authed/p/$programId/c/$courseId/$page'
+      path: '/$page'
+      fullPath: '/p/$programId/c/$courseId/$page'
+      preLoaderRoute: typeof AuthedPProgramIdCCourseIdPageRouteImport
+      parentRoute: typeof AuthedPProgramIdCCourseIdRoute
+    }
+    '/_authed/p/$programId/t/$termId/': {
+      id: '/_authed/p/$programId/t/$termId/'
+      path: '/t/$termId'
+      fullPath: '/p/$programId/t/$termId/'
+      preLoaderRoute: typeof AuthedPProgramIdTTermIdIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/t/$termId/$page': {
+      id: '/_authed/p/$programId/t/$termId/$page'
+      path: '/t/$termId/$page'
+      fullPath: '/p/$programId/t/$termId/$page'
+      preLoaderRoute: typeof AuthedPProgramIdTTermIdPageRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/c/$courseId/settings/': {
+      id: '/_authed/p/$programId/c/$courseId/settings/'
+      path: '/settings'
+      fullPath: '/p/$programId/c/$courseId/settings/'
+      preLoaderRoute: typeof AuthedPProgramIdCCourseIdSettingsIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdCCourseIdRoute
+    }
+    '/_authed/p/$programId/c/$courseId/settings/$group': {
+      id: '/_authed/p/$programId/c/$courseId/settings/$group'
+      path: '/settings/$group'
+      fullPath: '/p/$programId/c/$courseId/settings/$group'
+      preLoaderRoute: typeof AuthedPProgramIdCCourseIdSettingsGroupRouteImport
+      parentRoute: typeof AuthedPProgramIdCCourseIdRoute
+    }
+    '/_authed/p/$programId/t/$termId/settings/': {
+      id: '/_authed/p/$programId/t/$termId/settings/'
+      path: '/t/$termId/settings'
+      fullPath: '/p/$programId/t/$termId/settings/'
+      preLoaderRoute: typeof AuthedPProgramIdTTermIdSettingsIndexRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/t/$termId/settings/$group': {
+      id: '/_authed/p/$programId/t/$termId/settings/$group'
+      path: '/t/$termId/settings/$group'
+      fullPath: '/p/$programId/t/$termId/settings/$group'
+      preLoaderRoute: typeof AuthedPProgramIdTTermIdSettingsGroupRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
   }
 }
 
+interface AuthedPProgramIdCCourseIdRouteChildren {
+  AuthedPProgramIdCCourseIdPageRoute: typeof AuthedPProgramIdCCourseIdPageRoute
+  AuthedPProgramIdCCourseIdIndexRoute: typeof AuthedPProgramIdCCourseIdIndexRoute
+  AuthedPProgramIdCCourseIdSettingsGroupRoute: typeof AuthedPProgramIdCCourseIdSettingsGroupRoute
+  AuthedPProgramIdCCourseIdSettingsIndexRoute: typeof AuthedPProgramIdCCourseIdSettingsIndexRoute
+}
+
+const AuthedPProgramIdCCourseIdRouteChildren: AuthedPProgramIdCCourseIdRouteChildren =
+  {
+    AuthedPProgramIdCCourseIdPageRoute: AuthedPProgramIdCCourseIdPageRoute,
+    AuthedPProgramIdCCourseIdIndexRoute: AuthedPProgramIdCCourseIdIndexRoute,
+    AuthedPProgramIdCCourseIdSettingsGroupRoute:
+      AuthedPProgramIdCCourseIdSettingsGroupRoute,
+    AuthedPProgramIdCCourseIdSettingsIndexRoute:
+      AuthedPProgramIdCCourseIdSettingsIndexRoute,
+  }
+
+const AuthedPProgramIdCCourseIdRouteWithChildren =
+  AuthedPProgramIdCCourseIdRoute._addFileChildren(
+    AuthedPProgramIdCCourseIdRouteChildren,
+  )
+
+interface AuthedPProgramIdRouteChildren {
+  AuthedPProgramIdPageRoute: typeof AuthedPProgramIdPageRoute
+  AuthedPProgramIdCoursesRoute: typeof AuthedPProgramIdCoursesRoute
+  AuthedPProgramIdIndexRoute: typeof AuthedPProgramIdIndexRoute
+  AuthedPProgramIdCCourseIdRoute: typeof AuthedPProgramIdCCourseIdRouteWithChildren
+  AuthedPProgramIdSettingsGroupRoute: typeof AuthedPProgramIdSettingsGroupRoute
+  AuthedPProgramIdTermsNewRoute: typeof AuthedPProgramIdTermsNewRoute
+  AuthedPProgramIdSettingsIndexRoute: typeof AuthedPProgramIdSettingsIndexRoute
+  AuthedPProgramIdTTermIdPageRoute: typeof AuthedPProgramIdTTermIdPageRoute
+  AuthedPProgramIdTTermIdIndexRoute: typeof AuthedPProgramIdTTermIdIndexRoute
+  AuthedPProgramIdTTermIdSettingsGroupRoute: typeof AuthedPProgramIdTTermIdSettingsGroupRoute
+  AuthedPProgramIdTTermIdSettingsIndexRoute: typeof AuthedPProgramIdTTermIdSettingsIndexRoute
+}
+
+const AuthedPProgramIdRouteChildren: AuthedPProgramIdRouteChildren = {
+  AuthedPProgramIdPageRoute: AuthedPProgramIdPageRoute,
+  AuthedPProgramIdCoursesRoute: AuthedPProgramIdCoursesRoute,
+  AuthedPProgramIdIndexRoute: AuthedPProgramIdIndexRoute,
+  AuthedPProgramIdCCourseIdRoute: AuthedPProgramIdCCourseIdRouteWithChildren,
+  AuthedPProgramIdSettingsGroupRoute: AuthedPProgramIdSettingsGroupRoute,
+  AuthedPProgramIdTermsNewRoute: AuthedPProgramIdTermsNewRoute,
+  AuthedPProgramIdSettingsIndexRoute: AuthedPProgramIdSettingsIndexRoute,
+  AuthedPProgramIdTTermIdPageRoute: AuthedPProgramIdTTermIdPageRoute,
+  AuthedPProgramIdTTermIdIndexRoute: AuthedPProgramIdTTermIdIndexRoute,
+  AuthedPProgramIdTTermIdSettingsGroupRoute:
+    AuthedPProgramIdTTermIdSettingsGroupRoute,
+  AuthedPProgramIdTTermIdSettingsIndexRoute:
+    AuthedPProgramIdTTermIdSettingsIndexRoute,
+}
+
+const AuthedPProgramIdRouteWithChildren =
+  AuthedPProgramIdRoute._addFileChildren(AuthedPProgramIdRouteChildren)
+
 interface AuthedRouteChildren {
+  AuthedOnboardingRoute: typeof AuthedOnboardingRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedPProgramIdRoute: typeof AuthedPProgramIdRouteWithChildren
   AuthedSettingsGroupRoute: typeof AuthedSettingsGroupRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedOnboardingRoute: AuthedOnboardingRoute,
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedPProgramIdRoute: AuthedPProgramIdRouteWithChildren,
   AuthedSettingsGroupRoute: AuthedSettingsGroupRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
 }
