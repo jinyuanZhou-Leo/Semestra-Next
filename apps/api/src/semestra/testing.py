@@ -4,13 +4,17 @@
 * `make_user`, `login_as`, `bearer_for` — M01's helpers (M00 §3.13).
 * `mailer` / `google` — fakes for outgoing email and Google ID token verification.
 * `clock` — move time forward to test expiry and rate-limit windows.
+* `run_jobs` — run every due background job now (no worker runs in tests).
+* `collect_events(app, user_id)` — the SSE messages a user would have received.
 """
 
 import shutil
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic import command
@@ -82,6 +86,8 @@ def settings(tmp_path: Path, migrated_template: Path) -> Settings:
         public_api_origin=TEST_ORIGIN,
         public_web_origin="https://web.test",
         google_client_id="test-client-id",
+        storage_local_root=tmp_path / "storage",
+        jobs_autostart=False,  # tests run the queue with `run_jobs()`
     )
 
 
@@ -116,6 +122,26 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
         AsyncClient(transport=ASGITransport(app), base_url=TEST_ORIGIN) as c,
     ):
         yield c
+
+
+@pytest.fixture
+def run_jobs(app: FastAPI) -> Callable[[], Awaitable[None]]:
+    async def _run() -> None:
+        await app.state.jobs.run_until_idle()
+
+    return _run
+
+
+@contextmanager
+def collect_events(app: FastAPI, user_id: str) -> Generator[list[dict[str, Any]]]:
+    """Messages pushed to `user_id` while the block runs; the list is filled when it exits."""
+    messages: list[dict[str, Any]] = []
+    with app.state.realtime.listen(user_id) as queue:
+        try:
+            yield messages
+        finally:
+            while not queue.empty():
+                messages.append(queue.get_nowait())
 
 
 @dataclass

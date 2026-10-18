@@ -7,7 +7,8 @@ knows the protocol so that it never imports a feature module at runtime.
 
 import re
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Literal, Protocol
@@ -206,3 +207,36 @@ async def get_capability_ctx(
 
 
 NowFn = Callable[[], datetime]
+
+
+@asynccontextmanager
+async def system_ctx(state: State, user_id: str | None = None) -> AsyncGenerator[Ctx]:
+    """A `Ctx` with its own session for work outside a request (jobs, event subscribers,
+    periodic tasks). The caller commits; `user` is loaded when `user_id` is given."""
+    factory: async_sessionmaker[AsyncSession] = state.session_factory
+    async with factory() as db:
+        user = None
+        if user_id is not None:
+            from semestra.modules.auth.models import AuthUser
+
+            user = await db.get(AuthUser, user_id)
+        yield Ctx(
+            db=db,
+            user=user,
+            locale=pick_locale(None, user.locale if user else None),
+            now=state.now(),
+            scope=None,
+            actor="system",
+            request_id=str(uuid.uuid7()),
+            state=state,
+        )
+
+
+async def run_as_system(
+    state: State, user_id: str | None, fn: Callable[[Ctx], Awaitable[None]]
+) -> None:
+    """Runs `fn` in a system ctx, commits, then runs its after-commit callbacks."""
+    async with system_ctx(state, user_id) as ctx:
+        await fn(ctx)
+        await ctx.db.commit()
+    await run_after_commit(ctx)

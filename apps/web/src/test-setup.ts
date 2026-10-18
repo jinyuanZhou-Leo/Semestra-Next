@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { FakeEventSource } from './test-event-source'
 
 // jsdom gaps used by input-otp and Base UI.
 document.elementFromPoint ??= () => null
@@ -13,6 +14,7 @@ window.matchMedia ??= (query: string) =>
     removeListener() {},
     dispatchEvent: () => false,
   }) as MediaQueryList
+globalThis.EventSource ??= FakeEventSource as unknown as typeof EventSource
 globalThis.ResizeObserver ??= class {
   observe() {}
   unobserve() {}
