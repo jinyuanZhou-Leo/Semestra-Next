@@ -145,6 +145,29 @@ async def test_invalid_values_are_rejected(
     assert r.json()["error"]["code"] == "common.validation"
 
 
+async def test_a_rule_across_fields_sees_inherited_values(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+):
+    await signed_in(client, make_user, login_as)
+    ok = await client.patch(
+        "/settings/demo_hours", json={"scope_type": "account", "values": {"end": 10}}
+    )
+    assert ok.status_code == 200
+
+    # Alone, start=12 would pass against the default end (20); with the inherited end=10 it is not.
+    program = {"scope_type": "program", "scope_id": "P1", "values": {"start": 12}}
+    r = await client.patch("/settings/demo_hours", json=program)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "settings.invalid_value"
+    after = await client.get(
+        "/settings/demo_hours", params={"scope_type": "program", "scope_id": "P1"}
+    )
+    assert after.json()["values"] == {"start": 8, "end": 10}  # nothing was stored
+
+    program["values"] = {"start": 6}
+    assert (await client.patch("/settings/demo_hours", json=program)).status_code == 200
+
+
 async def test_level_not_allowed_and_unknown_namespace(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ):

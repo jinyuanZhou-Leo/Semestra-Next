@@ -22,7 +22,8 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
     pending: {} as Partial<P>,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     fade: undefined as ReturnType<typeof setTimeout> | undefined,
-    running: false,
+    /** The run that is sending patches now; it keeps going until nothing is pending. */
+    active: null as Promise<void> | null,
     save,
     report,
   })
@@ -37,32 +38,39 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
     state.current.report({ status: next, retry: next === 'error' ? () => void run() : undefined })
   }
 
-  async function run(): Promise<void> {
+  async function drain(): Promise<void> {
     const s = state.current
-    clearTimeout(s.timer)
-    s.timer = undefined
-    if (s.running || Object.keys(s.pending).length === 0) return
-    s.running = true
-    const patch = s.pending
-    s.pending = {}
     clearTimeout(s.fade)
-    setStatus('saving')
-    try {
-      await s.save(patch as P)
-    } catch {
-      // Newer edits of the same field win over the failed value.
-      s.pending = { ...patch, ...s.pending }
-      s.running = false
-      setStatus('error')
-      return
-    }
-    s.running = false
-    if (Object.keys(s.pending).length > 0) {
-      await run()
-      return
+    while (Object.keys(s.pending).length > 0) {
+      const patch = s.pending
+      s.pending = {}
+      setStatus('saving')
+      try {
+        await s.save(patch as P)
+      } catch {
+        // Newer edits of the same field win over the failed value.
+        s.pending = { ...patch, ...s.pending }
+        setStatus('error')
+        return
+      }
     }
     setStatus('saved')
     s.fade = setTimeout(() => setStatus('idle'), SAVED_VISIBLE_MS)
+  }
+
+  /** Sends what is pending, one request at a time; resolves when nothing is left or it failed. */
+  function run(): Promise<void> {
+    const s = state.current
+    clearTimeout(s.timer)
+    s.timer = undefined
+    // A run that is already sending also sends whatever was queued since.
+    if (s.active) return s.active
+    if (Object.keys(s.pending).length === 0) return Promise.resolve()
+    const active = drain().finally(() => {
+      s.active = null
+    })
+    s.active = active
+    return active
   }
 
   function queue(patch: Partial<P>) {

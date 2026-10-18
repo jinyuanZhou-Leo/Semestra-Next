@@ -133,3 +133,32 @@ test('a mounted component that switches key shows (and writes) that key, not the
   await flushUiPrefs(queryClient)
   expect(log.writes).toEqual([['course.c2.sort', 'date']])
 })
+
+test('a slow save never overwrites a newer value: saves of one key go out one at a time', async () => {
+  const order: string[] = []
+  let releaseFirst: () => void = () => {}
+  const firstDone = new Promise<void>((resolve) => (releaseFirst = resolve))
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.put(`${API}/me/ui-state/:key`, async ({ request }) => {
+      const { value } = (await request.json()) as { value: string }
+      order.push(`start ${value}`)
+      if (value === 'first') await firstDone
+      order.push(`end ${value}`)
+      return HttpResponse.json({ key: 'layout.sidebar', value })
+    }),
+  )
+  const { result } = renderHook(() => useUiPref('layout.sidebar', 'open'), { wrapper })
+  await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+
+  act(() => result.current[1]('first'))
+  const first = flushUiPrefs(queryClient)
+  await waitFor(() => expect(order).toEqual(['start first']))
+  act(() => result.current[1]('second'))
+  const second = flushUiPrefs(queryClient)
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(order).toEqual(['start first']) // the second waits for the first
+  releaseFirst()
+  await Promise.all([first, second])
+  expect(order).toEqual(['start first', 'end first', 'start second', 'end second'])
+})

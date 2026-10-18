@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from typing import Literal
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -27,6 +27,20 @@ class DemoPlugin(BaseModel):
     focus_min: int = Field(default=25, ge=1, le=180, description="Focus minutes")
 
 
+class DemoHours(BaseModel):
+    """A rule across fields: the day starts before it ends."""
+
+    start: int = Field(default=8, ge=0, le=23, description="Start")
+    end: int = Field(default=20, ge=1, le=24, description="End")
+
+    @model_validator(mode="after")
+    def _ordered(self) -> DemoHours:
+        if self.start >= self.end:
+            raise ValueError("start must be before end")
+        return self
+
+
+register_settings(namespace="demo_hours", schema=DemoHours, levels=("account", "program"))
 register_settings(
     namespace="demo_calendar", schema=DemoCalendar, levels=("account", "program", "term")
 )

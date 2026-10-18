@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { toApiError } from '@/app/api'
 import { setSignedIn } from '@/app/session-expiry'
+import { flushUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext, type AuthState } from './useAuth'
@@ -25,6 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isLoading: me.isPending,
     signOut: async () => {
+      // Interface state changed in the last moments belongs to this session: save it first.
+      await flushUiPrefs(queryClient)
       try {
         await logOut({})
       } catch (err) {

@@ -216,11 +216,13 @@ async def update_values(
             422,
             errors=[{"loc": [key], "code": "extra_forbidden"} for key in unknown],
         )
+    # Validate the result the user would end up with (what they inherit plus this change), so a
+    # rule across fields, such as start before end, sees the inherited values and not defaults.
+    effective, _ = _effective(definition, await _layer_rows(ctx, definition, chain))
     try:
-        validated = definition.schema.model_validate(values)
+        validated = definition.schema.model_validate({**effective, **values})
     except ValidationError as exc:
         errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
-        # Fields that were not sent have defaults, so every error is about a sent field.
         raise AppError("settings.invalid_value", 422, errors=errors) from exc
     # Store the validated (coerced) form of exactly the keys that were sent.
     clean = validated.model_dump(mode="json", include=set(values))

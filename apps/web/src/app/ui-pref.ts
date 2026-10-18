@@ -31,6 +31,8 @@ type Store = {
   /** Values changed locally and not yet saved: they win over whatever the server says. */
   pending: Map<string, unknown>
   timers: Map<string, ReturnType<typeof setTimeout>>
+  /** The save in progress per key: the next one for the same key waits for it. */
+  inflight: Map<string, Promise<void>>
   /** Reads queued for the next batch. */
   waiting: Map<string, Waiter[]>
   batchScheduled: boolean
@@ -46,6 +48,7 @@ function storeOf(queryClient: QueryClient): Store {
     store = {
       pending: new Map(),
       timers: new Map(),
+      inflight: new Map(),
       waiting: new Map(),
       batchScheduled: false,
       prefetch: null,
@@ -125,10 +128,8 @@ export function prefetchUiPrefs(
   return store.prefetch
 }
 
-async function save(queryClient: QueryClient, key: string) {
+async function send(queryClient: QueryClient, key: string) {
   const store = storeOf(queryClient)
-  clearTimeout(store.timers.get(key))
-  store.timers.delete(key)
   if (!store.pending.has(key)) return
   const value = store.pending.get(key)
   try {
@@ -142,6 +143,18 @@ async function save(queryClient: QueryClient, key: string) {
   } finally {
     if (store.pending.get(key) === value) store.pending.delete(key)
   }
+}
+
+/** Saves the key's pending value, after the save already in progress for it (if any). */
+async function save(queryClient: QueryClient, key: string) {
+  const store = storeOf(queryClient)
+  clearTimeout(store.timers.get(key))
+  store.timers.delete(key)
+  // One request per key at a time, so the newest value is always the one the server ends with.
+  const run = (store.inflight.get(key) ?? Promise.resolve()).then(() => send(queryClient, key))
+  store.inflight.set(key, run)
+  await run
+  if (store.inflight.get(key) === run) store.inflight.delete(key)
 }
 
 /** Send every change that is still waiting for its delay (leaving the page, sign-out). */

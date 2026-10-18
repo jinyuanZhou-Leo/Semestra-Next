@@ -205,3 +205,56 @@ test('a page without the scope the level needs renders nothing and asks for noth
   expect(container).toBeEmptyDOMElement()
   expect(store.scopes).toEqual([])
 })
+
+test('Restore waits for a save that is still running, so the reset is applied last', async () => {
+  const store = backend({
+    values: { compact: true, greeting: 'casual', countdown_steps: 3 },
+    sources: { compact: 'program', greeting: 'default', countdown_steps: 'default' },
+  })
+  const order: string[] = []
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  server.use(
+    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+      const body = (await request.json()) as { values: Record<string, unknown> }
+      order.push(`patch ${JSON.stringify(body.values)}`)
+      await gate
+      store.values = { ...store.values, ...body.values }
+      return HttpResponse.json({
+        namespace: NAMESPACE,
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: store.values,
+        sources: {
+          ...store.sources,
+          ...Object.fromEntries(Object.keys(body.values).map((k) => [k, 'program'])),
+        },
+      })
+    }),
+    http.delete(`${API}/settings/${NAMESPACE}/keys/:key`, () => {
+      order.push('reset')
+      return HttpResponse.json({
+        namespace: NAMESPACE,
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: { compact: false, greeting: 'casual', countdown_steps: 3 },
+        sources: { compact: 'account', greeting: 'default', countdown_steps: 'default' },
+      })
+    }),
+  )
+  renderWithQuery(
+    <NamespaceForm
+      namespace={NAMESPACE}
+      level="program"
+      scope={{ kind: 'program', programId: 'p1' }}
+    />,
+  )
+
+  await userEvent.click(await screen.findByRole('radio', { name: 'Formal' }))
+  await waitFor(() => expect(order).toHaveLength(1), { timeout: 3000 }) // the save is in flight
+  await userEvent.click(screen.getAllByRole('button', { name: 'Restore' })[0]!)
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(order).toEqual(['patch {"greeting":"formal"}']) // the reset has not raced ahead
+  release()
+  await waitFor(() => expect(order).toEqual(['patch {"greeting":"formal"}', 'reset']))
+})
