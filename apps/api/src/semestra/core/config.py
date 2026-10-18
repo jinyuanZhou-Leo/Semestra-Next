@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     cookie_domain: str | None = None
 
+    # Background jobs (M00 §3.7): worker tasks in the API process. Tests turn autostart off and
+    # drive the queue themselves.
+    job_concurrency: int = 2
+    jobs_autostart: bool = True
+    # Outbound requests to user-chosen hosts may reach private networks (self-hosting only).
+    allow_private_egress: bool = False
+
     storage_backend: Literal["local"] = "local"
     storage_local_root: Path = Path("./data/storage")
     user_storage_quota_bytes: int = 52_428_800

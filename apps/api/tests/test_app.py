@@ -18,7 +18,7 @@ async def test_healthz(client: AsyncClient) -> None:
 async def test_readyz(client: AsyncClient) -> None:
     r = await client.get("/readyz")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "database": "ok"}
+    assert r.json() == {"status": "ok", "database": "ok", "worker": "off"}
 
 
 async def test_unknown_route_uses_error_envelope(client: AsyncClient) -> None:

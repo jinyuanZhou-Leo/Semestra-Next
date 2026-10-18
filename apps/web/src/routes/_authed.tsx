@@ -1,6 +1,7 @@
 import { accountMeGetOptions } from '@semestra/api-client/react-query'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { toApiError } from '@/app/api'
+import { useRealtime } from '@/app/realtime'
 
 /** Everything below requires a signed-in user; others are sent to /login?redirect=… */
 export const Route = createFileRoute('/_authed')({
@@ -17,5 +18,10 @@ export const Route = createFileRoute('/_authed')({
       throw err
     }
   },
-  component: Outlet,
+  component: AuthedLayout,
 })
+
+function AuthedLayout() {
+  useRealtime()
+  return <Outlet />
+}
