@@ -1,5 +1,5 @@
-import { Label } from '@/ui/label'
 import { m } from '@/paraglide/messages'
+import { Field, FieldDescription, FieldLabel } from '@/ui/field'
 import { PresetSelect } from '../components/PresetSelect'
 import { useScalePresets } from '../queries'
 
@@ -16,15 +16,15 @@ export function ScalePresetField({
   const presets = useScalePresets().data?.items
   const current = typeof value === 'string' ? value : DEFAULT_PRESET
   return (
-    <div>
-      <Label className="mb-2">{m.grading_setup_label()}</Label>
+    <Field>
+      <FieldLabel>{m.grading_setup_label()}</FieldLabel>
       <PresetSelect
         label={m.grading_setup_label()}
         ids={presets?.map((p) => p.id) ?? [current]}
         value={current}
         onChange={onChange}
       />
-      <p className="mt-1.5 text-xs text-muted-foreground">{m.grading_setup_hint()}</p>
-    </div>
+      <FieldDescription>{m.grading_setup_hint()}</FieldDescription>
+    </Field>
   )
 }

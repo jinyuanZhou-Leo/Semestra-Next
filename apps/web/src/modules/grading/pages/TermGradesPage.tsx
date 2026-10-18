@@ -2,7 +2,7 @@ import type { CourseGrade, TermGrades } from '@semestra/api-client'
 import { gradingSimulateTermMutation } from '@semestra/api-client/react-query'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { useMutation } from '@tanstack/react-query'
-import { createContext, useContext, useEffect } from 'react'
+import { createContext, useContext, useEffect, useId } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -12,6 +12,8 @@ import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
+import { Button } from '@/ui/button'
+import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { coursePath } from '@/modules/academics/paths'
@@ -194,6 +196,7 @@ function TermGradesView({
   includeInProgress: boolean
   onIncludeInProgress: (value: boolean) => void
 }) {
+  const progressId = useId()
   const [whatIf, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
     scope: term.term_id,
   })
@@ -263,10 +266,16 @@ function TermGradesView({
           <Stat label={m.grading_excluded()}>{term.excluded_count}</Stat>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <Switch checked={includeInProgress} onCheckedChange={onIncludeInProgress} />
-          {m.grading_include_in_progress()}
-        </label>
+        <Field orientation="horizontal" className="w-fit">
+          <Switch
+            id={progressId}
+            checked={includeInProgress}
+            onCheckedChange={onIncludeInProgress}
+          />
+          <FieldLabel htmlFor={progressId} className="font-normal">
+            {m.grading_include_in_progress()}
+          </FieldLabel>
+        </Field>
 
         <div className="rounded-2xl border border-border">
           <Table>
@@ -340,13 +349,9 @@ function TermGradesView({
                 className="w-20 border-input"
               />
               {hasWhatIf ? (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setWhatIf(DEFAULT_TERM_WHAT_IF)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => setWhatIf(DEFAULT_TERM_WHAT_IF)}>
                   {m.grading_plan_clear()}
-                </button>
+                </Button>
               ) : null}
             </div>
             {planned ? (

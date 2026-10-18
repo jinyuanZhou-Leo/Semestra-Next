@@ -666,6 +666,7 @@
   "grading_assessment_category": "分类",
   "grading_assessment_due": "截止",
   "grading_assessment_due_date": "截止日期",
+  "grading_assessment_due_date_placeholder": "选择日期",
   "grading_assessment_due_time": "截止时间",
   "grading_assessment_weight": "权重（%）",
   "grading_assessment_score": "得分",

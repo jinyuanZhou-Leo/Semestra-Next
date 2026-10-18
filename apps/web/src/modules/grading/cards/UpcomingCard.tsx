@@ -1,6 +1,7 @@
 import type { Assessment } from '@semestra/api-client'
 import { gradingGradebookGetOptions } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
+import { CalendarClock } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
@@ -8,6 +9,7 @@ import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { useCourse, useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { dueText } from '../display'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
@@ -41,7 +43,14 @@ export default function UpcomingCard({ scope, size }: CardProps) {
     .slice(0, LIMIT[size] ?? 8)
   if (rows.length === 0) {
     return (
-      <p className="py-4 text-center text-sm text-muted-foreground">{m.grading_upcoming_empty()}</p>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarClock aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.grading_upcoming_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     )
   }
   return (

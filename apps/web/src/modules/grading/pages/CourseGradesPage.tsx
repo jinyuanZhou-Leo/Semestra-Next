@@ -1,8 +1,10 @@
 import type { Gradebook } from '@semestra/api-client'
+import { useId } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
+import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 import { AssessmentTable } from '../components/AssessmentTable'
 import { ImportMenu } from '../components/ImportMenu'
@@ -25,6 +27,7 @@ export default function CourseGradesPage({ scope }: PageProps) {
 }
 
 function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programId: string }) {
+  const planId = useId()
   const courseId = gradebook.course_id
   const [whatIf, setWhatIf] = useUiPref<WhatIf>('grading.whatif', DEFAULT_WHATIF, {
     scope: courseId,
@@ -46,17 +49,20 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   return (
     <div className="space-y-4">
       <SummaryStrip gradebook={gradebook} />
-      <label className="flex items-center gap-2 text-sm">
+      <Field orientation="horizontal" className="w-fit">
         <Switch
+          id={planId}
           checked={planning}
           disabled={!canPlan}
           onCheckedChange={(plan) => setWhatIf({ ...whatIf, plan })}
         />
-        {m.grading_plan()}
+        <FieldLabel htmlFor={planId} className="font-normal">
+          {m.grading_plan()}
+        </FieldLabel>
         {canPlan ? null : (
           <span className="text-xs text-muted-foreground">{m.grading_plan_needs_weights()}</span>
         )}
-      </label>
+      </Field>
       {planning ? <PlanPanel gradebook={gradebook} whatIf={state} onChange={setWhatIf} /> : null}
       <AssessmentTable
         courseId={courseId}

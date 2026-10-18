@@ -15,8 +15,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { ItemGroup } from '@/ui/item'
+import { Item, ItemGroup } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -174,7 +175,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
       </div>
       <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         {categories.map((category, i) => (
-          <div key={category.id} className="flex flex-wrap items-center gap-2 p-3">
+          <Item key={category.id} size="sm">
             <Input
               key={`${category.id}-${category.name}`}
               aria-label={m.grading_category_name()}
@@ -194,16 +195,19 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
                 update.mutate({ path: { category_id: category.id }, body: { color } })
               }
             />
-            <label className="flex items-center gap-2 text-sm">
+            <Field orientation="horizontal" className="w-auto">
               <Switch
+                id={`${category.id}-archived`}
                 aria-label={`${m.grading_category_archived()}: ${categoryName(category)}`}
                 checked={category.archived}
                 onCheckedChange={(archived) =>
                   update.mutate({ path: { category_id: category.id }, body: { archived } })
                 }
               />
-              {m.grading_category_archived()}
-            </label>
+              <FieldLabel htmlFor={`${category.id}-archived`} className="font-normal">
+                {m.grading_category_archived()}
+              </FieldLabel>
+            </Field>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -230,17 +234,21 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
             >
               <Trash2 aria-hidden />
             </Button>
-          </div>
+          </Item>
         ))}
-        <form
-          className="flex items-center gap-2 p-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const name = draft.trim()
-            if (name !== '') {
-              create.mutate({ path: { course_id: gradebook.course_id }, body: { name } })
-            }
-          }}
+        <Item
+          size="sm"
+          render={
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                const name = draft.trim()
+                if (name !== '') {
+                  create.mutate({ path: { course_id: gradebook.course_id }, body: { name } })
+                }
+              }}
+            />
+          }
         >
           <Input
             aria-label={m.grading_category_new()}
@@ -258,7 +266,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
             <Plus aria-hidden />
             {m.grading_category_add()}
           </Button>
-        </form>
+        </Item>
       </ItemGroup>
       <ConfirmDialog
         open={removing !== null}

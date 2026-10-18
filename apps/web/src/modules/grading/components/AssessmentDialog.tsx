@@ -4,14 +4,18 @@ import {
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ChevronDownIcon } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
+import { firstDayOfWeek, formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Calendar } from '@/ui/calendar'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
   SelectContent,
@@ -26,6 +30,19 @@ import { invalidateGrading } from '../queries'
 import { parseScore, scorePatch, scoreText } from '../score'
 
 const NO_CATEGORY = '__none__'
+
+/** A stored `yyyy-MM-dd` as a local calendar day. The picker never sees the string. */
+function dueDateToDate(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return undefined
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function dateToDueDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
 
 /** Add or edit an assessment with every field (M03 §5.1); quick edits happen in the table. */
 export function AssessmentDialog({
@@ -186,14 +203,32 @@ function AssessmentForm({
           </Select>
         </Field>
         <div className="flex flex-wrap gap-4">
-          <Field className="w-auto">
+          <Field className="w-44">
             <FieldLabel htmlFor={`${id}-due-date`}>{m.grading_assessment_due_date()}</FieldLabel>
-            <Input
-              id={`${id}-due-date`}
-              type="date"
-              value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
-            />
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    id={`${id}-due-date`}
+                    data-empty={!dueDate}
+                    className="justify-between text-left font-normal data-[empty=true]:text-muted-foreground"
+                  />
+                }
+              >
+                {dueDate ? formatDate(dueDate) : m.grading_assessment_due_date_placeholder()}
+                <ChevronDownIcon data-icon="inline-end" />
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDateToDate(dueDate)}
+                  onSelect={(day) => setDueDate(day ? dateToDueDate(day) : '')}
+                  defaultMonth={dueDateToDate(dueDate)}
+                  weekStartsOn={(firstDayOfWeek() % 7) as 0 | 1}
+                />
+              </PopoverContent>
+            </Popover>
           </Field>
           <Field className="w-auto">
             <FieldLabel htmlFor={`${id}-due-time`}>{m.grading_assessment_due_time()}</FieldLabel>
@@ -252,10 +287,16 @@ function AssessmentForm({
             onChange={(event) => setNote(event.target.value)}
           />
         </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox checked={dropped} onCheckedChange={(checked) => setDropped(checked)} />
-          {m.grading_assessment_dropped()}
-        </label>
+        <Field orientation="horizontal">
+          <Checkbox
+            id={`${id}-dropped`}
+            checked={dropped}
+            onCheckedChange={(checked) => setDropped(checked)}
+          />
+          <FieldLabel htmlFor={`${id}-dropped`} className="font-normal">
+            {m.grading_assessment_dropped()}
+          </FieldLabel>
+        </Field>
         <div className="flex justify-end">
           <Button type="submit" disabled={pending}>
             {pending ? m.common_saving() : m.common_save()}

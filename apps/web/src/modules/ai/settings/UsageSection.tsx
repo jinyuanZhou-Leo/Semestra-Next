@@ -9,7 +9,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, BarChart3 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useModules } from '@/app/registry'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -17,7 +17,9 @@ import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
 import { formatCount, formatDate, formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Card, CardContent } from '@/ui/card'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
@@ -204,15 +206,16 @@ function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }
                   className={h.column.id === 'key' ? undefined : numeric}
                   aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
                 >
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 hover:text-foreground"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-2 h-8 px-2 font-normal text-muted-foreground"
                     onClick={h.column.getToggleSortingHandler()}
                   >
                     <table.FlexRender header={h} />
                     {sorted === 'asc' ? <ArrowUp aria-hidden className="size-3.5" /> : null}
                     {sorted === 'desc' ? <ArrowDown aria-hidden className="size-3.5" /> : null}
-                  </button>
+                  </Button>
                 </TableHead>
               )
             })}
@@ -271,7 +274,14 @@ export function UsageSection() {
                 </div>
               </dl>
               {summary.totals.calls === 0 ? (
-                <p className="text-sm text-muted-foreground">{m.ai_usage_empty()}</p>
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <BarChart3 aria-hidden />
+                    </EmptyMedia>
+                    <EmptyTitle>{m.ai_usage_empty()}</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
               ) : (
                 <>
                   <UsageChart summary={summary} />
