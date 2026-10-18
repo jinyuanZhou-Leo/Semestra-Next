@@ -273,6 +273,8 @@ export type JobPage = {
     next_cursor: string | null;
 };
 
+export type JsonValue = unknown;
+
 /**
  * PasswordChangeInputBody
  */
@@ -321,6 +323,108 @@ export type PasswordResetIn = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * Preferences
+ */
+export type Preferences = {
+    /**
+     * Locale
+     *
+     * Interface language; null follows the browser
+     */
+    locale: 'en' | 'zh-CN' | null;
+    /**
+     * Theme
+     *
+     * Light, dark, or follow the system
+     */
+    theme: 'system' | 'light' | 'dark';
+    /**
+     * Accent
+     *
+     * Accent color of buttons and highlights
+     */
+    accent: 'neutral' | 'blue' | 'violet' | 'green' | 'orange' | 'rose' | 'teal' | 'amber';
+    /**
+     * Time Format
+     *
+     * 12-hour or 24-hour clock; auto follows locale
+     */
+    time_format: 'auto' | '12h' | '24h';
+    /**
+     * Week Start
+     *
+     * First day of the week; 0 follows the language
+     */
+    week_start: 0 | 1 | 7;
+    /**
+     * Reduce Motion
+     *
+     * Reduce animations; system follows the OS
+     */
+    reduce_motion: 'system' | 'on' | 'off';
+    /**
+     * Active Program Id
+     *
+     * The Program currently being viewed
+     */
+    active_program_id: string | null;
+    /**
+     * Updated At
+     *
+     * Null until the first change
+     */
+    updated_at: string | null;
+};
+
+/**
+ * PreferencesUpdateInputBody
+ */
+export type PreferencesUpdateInputBody = {
+    /**
+     * Locale
+     *
+     * Interface language, or null
+     */
+    locale?: 'en' | 'zh-CN' | null;
+    /**
+     * Theme
+     *
+     * Light, dark, or follow the system
+     */
+    theme?: 'system' | 'light' | 'dark' | null;
+    /**
+     * Accent
+     *
+     * Accent color
+     */
+    accent?: 'neutral' | 'blue' | 'violet' | 'green' | 'orange' | 'rose' | 'teal' | 'amber' | null;
+    /**
+     * Time Format
+     *
+     * 12-hour or 24-hour clock
+     */
+    time_format?: 'auto' | '12h' | '24h' | null;
+    /**
+     * Week Start
+     *
+     * First day of the week
+     */
+    week_start?: 0 | 1 | 7 | null;
+    /**
+     * Reduce Motion
+     *
+     * Reduce animations
+     */
+    reduce_motion?: 'system' | 'on' | 'off' | null;
+    /**
+     * Active Program Id
+     *
+     * The Program currently being viewed, or null
+     */
+    active_program_id?: string | null;
 };
 
 /**
@@ -388,6 +492,40 @@ export type RegisterCompleteIn = {
 };
 
 /**
+ * ResolvedSettings
+ */
+export type ResolvedSettings = {
+    /**
+     * Namespace
+     */
+    namespace: string;
+    /**
+     * Scope Type
+     */
+    scope_type: 'account' | 'program' | 'term' | 'course';
+    /**
+     * Scope Id
+     */
+    scope_id: string | null;
+    /**
+     * Values
+     *
+     * Effective value of every field
+     */
+    values: {
+        [key: string]: unknown;
+    };
+    /**
+     * Sources
+     *
+     * Where each effective value comes from
+     */
+    sources: {
+        [key: string]: 'default' | 'account' | 'program' | 'term' | 'course';
+    };
+};
+
+/**
  * Revoked
  */
 export type Revoked = {
@@ -443,6 +581,44 @@ export type SessionOut = {
      * Current
      */
     current: boolean;
+};
+
+/**
+ * SettingsSchemaList
+ */
+export type SettingsSchemaList = {
+    /**
+     * Items
+     */
+    items: Array<SettingsSchemaOut>;
+};
+
+/**
+ * SettingsSchemaOut
+ */
+export type SettingsSchemaOut = {
+    /**
+     * Namespace
+     */
+    namespace: string;
+    /**
+     * Levels
+     *
+     * Levels where values may be set
+     */
+    levels: Array<'account' | 'program' | 'term' | 'course'>;
+    /**
+     * Plugin Id
+     */
+    plugin_id: string | null;
+    /**
+     * Json Schema
+     *
+     * JSON Schema of the namespace's fields
+     */
+    json_schema: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -600,6 +776,59 @@ export type TokenPair = {
 };
 
 /**
+ * UiStateEntry
+ */
+export type UiStateEntry = {
+    /**
+     * Key
+     */
+    key: string;
+    value: JsonValue;
+};
+
+/**
+ * UiStateGetManyInputBody
+ */
+export type UiStateGetManyInputBody = {
+    /**
+     * Keys
+     *
+     * Exact keys to read
+     */
+    keys?: Array<string>;
+    /**
+     * Prefixes
+     *
+     * Read every key that starts with one of these, e.g. 'layout.'
+     */
+    prefixes?: Array<string>;
+};
+
+/**
+ * UiStateItems
+ */
+export type UiStateItems = {
+    /**
+     * Items
+     *
+     * Existing keys and their values
+     */
+    items: {
+        [key: string]: JsonValue;
+    };
+};
+
+/**
+ * UiStateSetInputBody
+ */
+export type UiStateSetInputBody = {
+    /**
+     * Any JSON value up to 16 KB
+     */
+    value: JsonValue;
+};
+
+/**
  * UserOut
  */
 export type UserOut = {
@@ -662,6 +891,32 @@ export type ValidationError = {
      */
     ctx?: {
         [key: string]: unknown;
+    };
+};
+
+/**
+ * ValuesUpdateInputBody
+ */
+export type ValuesUpdateInputBody = {
+    /**
+     * Scope Type
+     *
+     * Level to write the values at
+     */
+    scope_type?: 'account' | 'program' | 'term' | 'course';
+    /**
+     * Scope Id
+     *
+     * Id of the scope; omit for 'account'
+     */
+    scope_id?: string | null;
+    /**
+     * Values
+     *
+     * Fields to set at this level; other levels are not touched
+     */
+    values: {
+        [key: string]: JsonValue;
     };
 };
 
@@ -1425,3 +1680,263 @@ export type CoreStorageUsageResponses = {
 };
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+
+export type SettingsPreferencesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/preferences';
+};
+
+export type SettingsPreferencesGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsPreferencesGetError = SettingsPreferencesGetErrors[keyof SettingsPreferencesGetErrors];
+
+export type SettingsPreferencesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Preferences;
+};
+
+export type SettingsPreferencesGetResponse = SettingsPreferencesGetResponses[keyof SettingsPreferencesGetResponses];
+
+export type SettingsPreferencesUpdateData = {
+    body: PreferencesUpdateInputBody;
+    path?: never;
+    query?: never;
+    url: '/me/preferences';
+};
+
+export type SettingsPreferencesUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsPreferencesUpdateError = SettingsPreferencesUpdateErrors[keyof SettingsPreferencesUpdateErrors];
+
+export type SettingsPreferencesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Preferences;
+};
+
+export type SettingsPreferencesUpdateResponse = SettingsPreferencesUpdateResponses[keyof SettingsPreferencesUpdateResponses];
+
+export type SettingsSchemasListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/settings/schemas';
+};
+
+export type SettingsSchemasListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsSchemasListError = SettingsSchemasListErrors[keyof SettingsSchemasListErrors];
+
+export type SettingsSchemasListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsSchemaList;
+};
+
+export type SettingsSchemasListResponse = SettingsSchemasListResponses[keyof SettingsSchemasListResponses];
+
+export type SettingsUiStateGetManyData = {
+    body: UiStateGetManyInputBody;
+    path?: never;
+    query?: never;
+    url: '/me/ui-state:get';
+};
+
+export type SettingsUiStateGetManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsUiStateGetManyError = SettingsUiStateGetManyErrors[keyof SettingsUiStateGetManyErrors];
+
+export type SettingsUiStateGetManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: UiStateItems;
+};
+
+export type SettingsUiStateGetManyResponse = SettingsUiStateGetManyResponses[keyof SettingsUiStateGetManyResponses];
+
+export type SettingsUiStateSetData = {
+    body: UiStateSetInputBody;
+    path: {
+        /**
+         * Key
+         *
+         * '<module>.<what>[.<scopeId>]', at most 128 characters
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/me/ui-state/{key}';
+};
+
+export type SettingsUiStateSetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsUiStateSetError = SettingsUiStateSetErrors[keyof SettingsUiStateSetErrors];
+
+export type SettingsUiStateSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UiStateEntry;
+};
+
+export type SettingsUiStateSetResponse = SettingsUiStateSetResponses[keyof SettingsUiStateSetResponses];
+
+export type SettingsValuesGetData = {
+    body?: never;
+    path: {
+        /**
+         * Namespace
+         *
+         * Settings namespace, e.g. 'calendar' or 'plugin.pomodoro'
+         */
+        namespace: string;
+    };
+    query?: {
+        /**
+         * Scope Type
+         *
+         * Scope level to resolve for
+         */
+        scope_type?: 'account' | 'program' | 'term' | 'course';
+        /**
+         * Scope Id
+         *
+         * Id of the scope; omit for 'account'
+         */
+        scope_id?: string | null;
+    };
+    url: '/settings/{namespace}';
+};
+
+export type SettingsValuesGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsValuesGetError = SettingsValuesGetErrors[keyof SettingsValuesGetErrors];
+
+export type SettingsValuesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResolvedSettings;
+};
+
+export type SettingsValuesGetResponse = SettingsValuesGetResponses[keyof SettingsValuesGetResponses];
+
+export type SettingsValuesUpdateData = {
+    body: ValuesUpdateInputBody;
+    path: {
+        /**
+         * Namespace
+         *
+         * Settings namespace
+         */
+        namespace: string;
+    };
+    query?: never;
+    url: '/settings/{namespace}';
+};
+
+export type SettingsValuesUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsValuesUpdateError = SettingsValuesUpdateErrors[keyof SettingsValuesUpdateErrors];
+
+export type SettingsValuesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResolvedSettings;
+};
+
+export type SettingsValuesUpdateResponse = SettingsValuesUpdateResponses[keyof SettingsValuesUpdateResponses];
+
+export type SettingsValuesResetData = {
+    body?: never;
+    path: {
+        /**
+         * Namespace
+         *
+         * Settings namespace
+         */
+        namespace: string;
+        /**
+         * Key
+         *
+         * Field to restore to the value inherited from the level above
+         */
+        key: string;
+    };
+    query?: {
+        /**
+         * Scope Type
+         *
+         * Level to remove the value from
+         */
+        scope_type?: 'account' | 'program' | 'term' | 'course';
+        /**
+         * Scope Id
+         *
+         * Id of the scope; omit for 'account'
+         */
+        scope_id?: string | null;
+    };
+    url: '/settings/{namespace}/keys/{key}';
+};
+
+export type SettingsValuesResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type SettingsValuesResetError = SettingsValuesResetErrors[keyof SettingsValuesResetErrors];
+
+export type SettingsValuesResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResolvedSettings;
+};
+
+export type SettingsValuesResetResponse = SettingsValuesResetResponses[keyof SettingsValuesResetResponses];

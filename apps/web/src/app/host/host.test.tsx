@@ -12,7 +12,7 @@ import { ModuleRegistry, useExtensions } from '../registry'
 import { CardGrid } from './CardGrid'
 import { ScopeNav } from './ScopeNav'
 import { ScopePage } from './ScopePage'
-import { SettingsSections } from './SettingsSections'
+import { PluginSettingsSections, SettingsSections } from '../settings/SettingsSections'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -112,11 +112,43 @@ test('cards render on the grid with their data', async () => {
   expect(await screen.findByTestId('storage-usage')).toHaveTextContent('1 kB of 50 MB used')
 })
 
-test('settings sections render by level and keep UI preferences', async () => {
+test('account settings sections render by level and generate their form from the backend', async () => {
+  const values = { compact: false }
+  server.use(
+    http.get(`${API}/settings/schemas`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            namespace: 'plugin.template',
+            levels: ['account'],
+            plugin_id: 'template',
+            json_schema: {
+              type: 'object',
+              properties: { compact: { type: 'boolean', default: false } },
+            },
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/settings/plugin.template`, () =>
+      HttpResponse.json({
+        namespace: 'plugin.template',
+        scope_type: 'account',
+        scope_id: null,
+        values,
+        sources: { compact: 'default' },
+      }),
+    ),
+  )
+  // The template's section belongs to a plugin: it shows on the plugin's page, not in the
+  // account navigation.
+  withTemplate(<PluginSettingsSections pluginId="template" />)
+  expect(await screen.findByRole('switch', { name: 'Compact task list' })).not.toBeChecked()
+})
+
+test('plugin sections stay out of the account navigation level listing', async () => {
   withTemplate(<SettingsSections level="account" />)
-  const checkbox = await screen.findByRole('checkbox', { name: 'Compact task list' })
-  await userEvent.click(checkbox)
-  expect(localStorage.getItem('semestra.ui.template.compact')).toBe('true')
+  await waitFor(() => expect(screen.queryByText('Template settings')).not.toBeInTheDocument())
 })
 
 test('extension points collect contributions from every module', () => {

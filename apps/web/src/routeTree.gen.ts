@@ -13,7 +13,8 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as LoginResetRouteImport } from './routes/login_.reset'
-import { Route as AuthedSettingsAccountRouteImport } from './routes/_authed.settings.account'
+import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed.settings.index'
+import { Route as AuthedSettingsGroupRouteImport } from './routes/_authed.settings.$group'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -34,9 +35,14 @@ const LoginResetRoute = LoginResetRouteImport.update({
   path: '/login/reset',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedSettingsAccountRoute = AuthedSettingsAccountRouteImport.update({
-  id: '/settings/account',
-  path: '/settings/account',
+const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSettingsGroupRoute = AuthedSettingsGroupRouteImport.update({
+  id: '/settings/$group',
+  path: '/settings/$group',
   getParentRoute: () => AuthedRoute,
 } as any)
 
@@ -44,13 +50,15 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/login/reset': typeof LoginResetRoute
-  '/settings/account': typeof AuthedSettingsAccountRoute
+  '/settings/$group': typeof AuthedSettingsGroupRoute
+  '/settings/': typeof AuthedSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/login/reset': typeof LoginResetRoute
   '/': typeof AuthedIndexRoute
-  '/settings/account': typeof AuthedSettingsAccountRoute
+  '/settings/$group': typeof AuthedSettingsGroupRoute
+  '/settings': typeof AuthedSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -58,20 +66,22 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/login_/reset': typeof LoginResetRoute
   '/_authed/': typeof AuthedIndexRoute
-  '/_authed/settings/account': typeof AuthedSettingsAccountRoute
+  '/_authed/settings/$group': typeof AuthedSettingsGroupRoute
+  '/_authed/settings/': typeof AuthedSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/login/reset' | '/settings/account'
+  fullPaths: '/' | '/login' | '/login/reset' | '/settings/$group' | '/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/login/reset' | '/' | '/settings/account'
+  to: '/login' | '/login/reset' | '/' | '/settings/$group' | '/settings'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
     | '/login_/reset'
     | '/_authed/'
-    | '/_authed/settings/account'
+    | '/_authed/settings/$group'
+    | '/_authed/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -110,11 +120,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginResetRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed/settings/account': {
-      id: '/_authed/settings/account'
-      path: '/settings/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof AuthedSettingsAccountRouteImport
+    '/_authed/settings/': {
+      id: '/_authed/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthedSettingsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/settings/$group': {
+      id: '/_authed/settings/$group'
+      path: '/settings/$group'
+      fullPath: '/settings/$group'
+      preLoaderRoute: typeof AuthedSettingsGroupRouteImport
       parentRoute: typeof AuthedRoute
     }
   }
@@ -122,12 +139,14 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
-  AuthedSettingsAccountRoute: typeof AuthedSettingsAccountRoute
+  AuthedSettingsGroupRoute: typeof AuthedSettingsGroupRoute
+  AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
-  AuthedSettingsAccountRoute: AuthedSettingsAccountRoute,
+  AuthedSettingsGroupRoute: AuthedSettingsGroupRoute,
+  AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
 }
 
 const AuthedRouteWithChildren =

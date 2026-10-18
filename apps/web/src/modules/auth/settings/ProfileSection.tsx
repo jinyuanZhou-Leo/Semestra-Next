@@ -32,10 +32,7 @@ export function ProfileSection({ user }: { user: UserOut }) {
   }
 
   return (
-    <SettingsCard
-      title={m.auth_account_profile_title()}
-      description={m.auth_account_profile_desc()}
-    >
+    <SettingsCard>
       <div className="flex items-center gap-4">
         <UserAvatar name={user.display_name} src={user.avatar_url} size="lg" />
         <div className="space-y-1">

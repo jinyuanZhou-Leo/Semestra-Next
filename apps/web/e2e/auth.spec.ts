@@ -36,7 +36,7 @@ test('sign up with an email code, manage tokens, sign out, sign back in with a p
   await page.reload()
   await expect(page.getByTestId('signed-in-as')).toContainText('Eve')
 
-  await page.getByRole('link', { name: 'Account' }).click()
+  await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByRole('button', { name: 'Set password' }).click()
   await page.getByLabel('New password').fill('a long enough passphrase')
   await page.getByRole('button', { name: 'Save', exact: true }).last().click()

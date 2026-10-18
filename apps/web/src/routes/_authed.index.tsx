@@ -29,8 +29,8 @@ function Home() {
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button variant="outline" render={<Link to="/settings/account" />}>
-          {m.auth_account_title()}
+        <Button variant="outline" render={<Link to="/settings" />}>
+          {m.settings_title()}
         </Button>
         <Button variant="ghost" onClick={() => void signOut()}>
           {m.home_sign_out()}

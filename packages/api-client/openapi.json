@@ -1198,6 +1198,433 @@
           }
         }
       }
+    },
+    "/me/preferences": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get the user's personal preferences.",
+        "description": "Use when you need the user's language, clock format (12h/24h) or first day of\nthe week, for example to format a time or date in the way the user expects.\nDo not use to read per-module settings such as the calendar default view;\nuse settings.values.get.",
+        "operationId": "settingsPreferencesGet",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Change personal preferences (language, theme, accent, clock, week start).",
+        "description": "Partial update: only the fields that are sent change. Not for agents.",
+        "operationId": "settingsPreferencesUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/schemas": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "List every settings namespace with its fields.",
+        "description": "Use before changing a module setting to find the namespace, the field names,\ntheir allowed values and the levels (account, program, term, course) where they can be set.\nDo not use to read current values; use settings.values.get.",
+        "operationId": "settingsSchemasList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsSchemaList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/ui-state:get": {
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Read several UI state entries at once.",
+        "description": "Reads interface state (sort orders, collapsed panels) by key or key prefix.\nNot available to agents.",
+        "operationId": "settingsUiStateGetMany",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UiStateGetManyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiStateItems"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/ui-state/{key}": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Save one UI state entry.",
+        "description": "Stores interface state under a key. Not available to agents.",
+        "operationId": "settingsUiStateSet",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "'<module>.<what>[.<scopeId>]', at most 128 characters",
+              "title": "Key"
+            },
+            "description": "'<module>.<what>[.<scopeId>]', at most 128 characters"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UiStateSetInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiStateEntry"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/settings/{namespace}": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get the effective settings of a module or plugin at a scope.",
+        "description": "Use when the user asks how a module is configured, e.g. the default calendar\nview. Returns the effective value of every field and the level it is inherited from\n(default, account, program, term or course).\nDo not use for personal preferences such as language or theme; use settings.preferences.get.",
+        "operationId": "settingsValuesGet",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Settings namespace, e.g. 'calendar' or 'plugin.pomodoro'",
+              "title": "Namespace"
+            },
+            "description": "Settings namespace, e.g. 'calendar' or 'plugin.pomodoro'"
+          },
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "account",
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Scope level to resolve for",
+              "default": "account",
+              "title": "Scope Type"
+            },
+            "description": "Scope level to resolve for"
+          },
+          {
+            "name": "scope_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Id of the scope; omit for 'account'",
+              "title": "Scope Id"
+            },
+            "description": "Id of the scope; omit for 'account'"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Change settings of a module or plugin at one scope level.",
+        "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schemas.list first.\nDo not use to change language, theme or other personal preferences.",
+        "operationId": "settingsValuesUpdate",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Settings namespace",
+              "title": "Namespace"
+            },
+            "description": "Settings namespace"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValuesUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/settings/{namespace}/keys/{key}": {
+      "delete": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Remove one setting at a scope level so it is inherited again.",
+        "description": "Restores a field to the value of the level above (or the default).\nNot available to agents.",
+        "operationId": "settingsValuesReset",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Settings namespace",
+              "title": "Namespace"
+            },
+            "description": "Settings namespace"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Field to restore to the value inherited from the level above",
+              "title": "Key"
+            },
+            "description": "Field to restore to the value inherited from the level above"
+          },
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "account",
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Level to remove the value from",
+              "default": "account",
+              "title": "Scope Type"
+            },
+            "description": "Level to remove the value from"
+          },
+          {
+            "name": "scope_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Id of the scope; omit for 'account'",
+              "title": "Scope Id"
+            },
+            "description": "Id of the scope; omit for 'account'"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1653,6 +2080,7 @@
         ],
         "title": "JobPage"
       },
+      "JsonValue": {},
       "PasswordChangeInputBody": {
         "properties": {
           "current_password": {
@@ -1728,6 +2156,244 @@
           "new_password"
         ],
         "title": "PasswordResetIn"
+      },
+      "Preferences": {
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "en",
+                  "zh-CN"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Interface language; null follows the browser"
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "title": "Theme",
+            "description": "Light, dark, or follow the system"
+          },
+          "accent": {
+            "type": "string",
+            "enum": [
+              "neutral",
+              "blue",
+              "violet",
+              "green",
+              "orange",
+              "rose",
+              "teal",
+              "amber"
+            ],
+            "title": "Accent",
+            "description": "Accent color of buttons and highlights"
+          },
+          "time_format": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "12h",
+              "24h"
+            ],
+            "title": "Time Format",
+            "description": "12-hour or 24-hour clock; auto follows locale"
+          },
+          "week_start": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              7
+            ],
+            "title": "Week Start",
+            "description": "First day of the week; 0 follows the language"
+          },
+          "reduce_motion": {
+            "type": "string",
+            "enum": [
+              "system",
+              "on",
+              "off"
+            ],
+            "title": "Reduce Motion",
+            "description": "Reduce animations; system follows the OS"
+          },
+          "active_program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Program Id",
+            "description": "The Program currently being viewed"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "Null until the first change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "locale",
+          "theme",
+          "accent",
+          "time_format",
+          "week_start",
+          "reduce_motion",
+          "active_program_id",
+          "updated_at"
+        ],
+        "title": "Preferences"
+      },
+      "PreferencesUpdateInputBody": {
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "en",
+                  "zh-CN"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Interface language, or null"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "light",
+                  "dark"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme",
+            "description": "Light, dark, or follow the system"
+          },
+          "accent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "neutral",
+                  "blue",
+                  "violet",
+                  "green",
+                  "orange",
+                  "rose",
+                  "teal",
+                  "amber"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent",
+            "description": "Accent color"
+          },
+          "time_format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "12h",
+                  "24h"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Format",
+            "description": "12-hour or 24-hour clock"
+          },
+          "week_start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1,
+                  7
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week Start",
+            "description": "First day of the week"
+          },
+          "reduce_motion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "on",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reduce Motion",
+            "description": "Reduce animations"
+          },
+          "active_program_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Program Id",
+            "description": "The Program currently being viewed, or null"
+          }
+        },
+        "type": "object",
+        "title": "PreferencesUpdateInputBody"
       },
       "ProfileUpdateInputBody": {
         "properties": {
@@ -1840,6 +2506,65 @@
         ],
         "title": "RegisterCompleteIn"
       },
+      "ResolvedSettings": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "account",
+              "program",
+              "term",
+              "course"
+            ],
+            "title": "Scope Type"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Values",
+            "description": "Effective value of every field"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "default",
+                "account",
+                "program",
+                "term",
+                "course"
+              ]
+            },
+            "type": "object",
+            "title": "Sources",
+            "description": "Where each effective value comes from"
+          }
+        },
+        "type": "object",
+        "required": [
+          "namespace",
+          "scope_type",
+          "scope_id",
+          "values",
+          "sources"
+        ],
+        "title": "ResolvedSettings"
+      },
       "Revoked": {
         "properties": {
           "ok": {
@@ -1935,6 +2660,69 @@
           "current"
         ],
         "title": "SessionOut"
+      },
+      "SettingsSchemaList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsSchemaOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SettingsSchemaList"
+      },
+      "SettingsSchemaOut": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "levels": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "account",
+                "program",
+                "term",
+                "course"
+              ]
+            },
+            "type": "array",
+            "title": "Levels",
+            "description": "Levels where values may be set"
+          },
+          "plugin_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plugin Id"
+          },
+          "json_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Json Schema",
+            "description": "JSON Schema of the namespace's fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "namespace",
+          "levels",
+          "plugin_id",
+          "json_schema"
+        ],
+        "title": "SettingsSchemaOut"
       },
       "StorageUsage": {
         "properties": {
@@ -2192,6 +2980,83 @@
         ],
         "title": "TokenPair"
       },
+      "UiStateEntry": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "UiStateEntry"
+      },
+      "UiStateGetManyInputBody": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Keys",
+            "description": "Exact keys to read"
+          },
+          "prefixes": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Prefixes",
+            "description": "Read every key that starts with one of these, e.g. 'layout.'"
+          }
+        },
+        "type": "object",
+        "title": "UiStateGetManyInputBody"
+      },
+      "UiStateItems": {
+        "properties": {
+          "items": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Items",
+            "description": "Existing keys and their values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UiStateItems"
+      },
+      "UiStateSetInputBody": {
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/JsonValue",
+            "description": "Any JSON value up to 16 KB"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "UiStateSetInputBody"
+      },
       "UserOut": {
         "properties": {
           "id": {
@@ -2297,6 +3162,48 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValuesUpdateInputBody": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "account",
+              "program",
+              "term",
+              "course"
+            ],
+            "title": "Scope Type",
+            "description": "Level to write the values at",
+            "default": "account"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id",
+            "description": "Id of the scope; omit for 'account'"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Values",
+            "description": "Fields to set at this level; other levels are not touched"
+          }
+        },
+        "type": "object",
+        "required": [
+          "values"
+        ],
+        "title": "ValuesUpdateInputBody"
       }
     }
   }

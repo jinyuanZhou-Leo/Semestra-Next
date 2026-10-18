@@ -1,4 +1,6 @@
 import { createContext, useContext } from 'react'
+import auth from '@/modules/auth/manifest'
+import settings from '@/modules/settings/manifest'
 import type {
   CardContribution,
   ModuleManifest,
@@ -14,7 +16,7 @@ import type {
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
  * `modules/_template` is a starting point to copy and is deliberately not listed.
  */
-const builtInModules: readonly ModuleManifest[] = []
+const builtInModules: readonly ModuleManifest[] = [auth, settings]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
 export const ModuleRegistry = createContext<readonly ModuleManifest[]>(builtInModules)

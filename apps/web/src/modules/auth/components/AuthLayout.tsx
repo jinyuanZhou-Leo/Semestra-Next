@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { LanguageSwitcher } from '@/modules/settings/LanguageSwitcher'
 import { m } from '@/paraglide/messages'
 
 /** Brand panel (hidden on narrow screens) beside the form. */
@@ -19,7 +20,10 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           {m.auth_brand_tagline()}
         </p>
       </aside>
-      <main className="flex items-center justify-center p-6 sm:p-10">
+      <main className="relative flex items-center justify-center p-6 sm:p-10">
+        <div className="absolute top-4 right-4">
+          <LanguageSwitcher />
+        </div>
         <div className="w-full max-w-sm">
           <span className="mb-8 block font-heading text-lg font-semibold tracking-tight lg:hidden">
             {m.app_name()}

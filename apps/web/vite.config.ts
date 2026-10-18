@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import babel from '@rolldown/plugin-babel'
 import { paraglideVitePlugin } from '@inlang/paraglide-js'
@@ -6,7 +7,16 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+const { version } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'package.json'), 'utf8')) as {
+  version: string
+}
+
 export default defineConfig({
+  define: {
+    // Shown on the settings "About" section.
+    SEMESTRA_VERSION: JSON.stringify(version),
+    SEMESTRA_BUILD_TIME: JSON.stringify(new Date().toISOString()),
+  },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   plugins: [
     // The router plugin must come before the React plugin.
