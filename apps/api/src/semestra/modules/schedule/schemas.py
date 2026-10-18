@@ -185,7 +185,9 @@ class MeetingUpdateInput(BaseModel):
     start_time: time | None = Field(default=None, description="Start time")
     end_time: time | None = Field(default=None, description="End time")
     recurrence: Recurrence | None = Field(default=None, description="weekly or biweekly")
-    anchor_week: WeekNumber | None = Field(default=None, description="Biweekly anchor week")
+    anchor_week: WeekNumber | None = Field(
+        default=None, description="Biweekly anchor week; null = the first week"
+    )
     start_week: WeekNumber | None = Field(default=None, description="First term week")
     end_week: WeekNumber | None = Field(default=None, description="Last term week, or null")
     skip_breaks: bool | None = Field(default=None, description="Skip breaks")

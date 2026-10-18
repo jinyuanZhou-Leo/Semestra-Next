@@ -7871,7 +7871,7 @@
               }
             ],
             "title": "Anchor Week",
-            "description": "Biweekly anchor week"
+            "description": "Biweekly anchor week; null = the first week"
           },
           "start_week": {
             "anyOf": [

@@ -1921,7 +1921,7 @@ export type MeetingUpdateInputBody = {
     /**
      * Anchor Week
      *
-     * Biweekly anchor week
+     * Biweekly anchor week; null = the first week
      */
     anchor_week?: number | null;
     /**

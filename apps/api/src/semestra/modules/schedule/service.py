@@ -461,6 +461,9 @@ _NULLABLE_MEETING = {"title", "instructor", "location", "end_week"}
 async def update_meeting(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
     row = await _meeting_row(ctx, inp.meeting_id)
     sent = inp.model_fields_set - {"meeting_id"}
+    if "anchor_week" in sent and inp.anchor_week is None:
+        # As on create: no anchor means the first week (weekly meetings ignore it).
+        inp = inp.model_copy(update={"anchor_week": inp.start_week or row.start_week})
     bad = sorted(f for f in sent if getattr(inp, f) is None and f not in _NULLABLE_MEETING)
     if bad:
         raise AppError(

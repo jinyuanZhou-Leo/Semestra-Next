@@ -29,7 +29,9 @@ export default function TodayCard({ scope, size }: CardProps) {
   const next = items.find(
     (o) => o.kind === 'class' && o.status !== 'cancelled' && new Date(o.start_at).getTime() > now,
   )
-  const nowIndex = items.findIndex((o) => !o.all_day && endOf(o) > now)
+  // The now line goes before the first timed item still to finish, or after the last one.
+  const upcoming = items.findIndex((o) => !o.all_day && endOf(o) > now)
+  const nowIndex = upcoming !== -1 ? upcoming : items.some((o) => !o.all_day) ? items.length : -1
   const compact = size !== 'xl'
   return (
     <div className="flex h-full flex-col gap-2">
@@ -43,12 +45,7 @@ export default function TodayCard({ scope, size }: CardProps) {
       <ol className="min-h-0 flex-1 overflow-y-auto">
         {items.map((o, i) => (
           <Fragment key={o.id}>
-            {i === nowIndex && i > 0 ? (
-              <li aria-label={m.schedule_now()} className="flex items-center gap-2 py-0.5">
-                <span className="size-2 rounded-full bg-destructive" />
-                <span className="h-px flex-1 bg-destructive" />
-              </li>
-            ) : null}
+            {i === nowIndex ? <NowLine /> : null}
             <li>
               <OccurrenceRow
                 occurrence={o}
@@ -59,7 +56,17 @@ export default function TodayCard({ scope, size }: CardProps) {
             </li>
           </Fragment>
         ))}
+        {nowIndex === items.length ? <NowLine /> : null}
       </ol>
     </div>
+  )
+}
+
+function NowLine() {
+  return (
+    <li aria-label={m.schedule_now()} className="flex items-center gap-2 py-0.5">
+      <span className="size-2 rounded-full bg-destructive" />
+      <span className="h-px flex-1 bg-destructive" />
+    </li>
   )
 }

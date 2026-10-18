@@ -13,6 +13,7 @@ import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, server, user } from '@/test-utils'
+import TodayCard from './cards/TodayCard'
 import { EventDialog } from './components/EventDialog'
 import schedule from './manifest'
 
@@ -346,6 +347,33 @@ test('ICS export leaves out the courses hidden in the filters', async () => {
   await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
   await waitFor(() => expect(urls).toHaveLength(1))
   expect(urls[0]?.searchParams.getAll('exclude_course_ids')).toEqual(['c1'])
+})
+
+test("the today card shows the now line after the day's last class", async () => {
+  server.use(
+    http.get(`${API}/programs/:id/today`, () =>
+      HttpResponse.json({
+        day: '2026-01-12',
+        timezone: 'America/Toronto',
+        week: null,
+        items: [lecture],
+        upcoming: [],
+        tasks: [],
+      }),
+    ),
+  )
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <TodayCard
+        scope={{ kind: 'program', programId: 'p1' }}
+        instanceId="c1"
+        size="xl"
+        settings={undefined}
+      />
+    </QueryClientProvider>,
+  )
+  const list = await screen.findByRole('list')
+  expect(within(list).getAllByRole('listitem').at(-1)).toHaveAccessibleName('Now')
 })
 
 test('saving a multi-day all-day event keeps its last day', async () => {

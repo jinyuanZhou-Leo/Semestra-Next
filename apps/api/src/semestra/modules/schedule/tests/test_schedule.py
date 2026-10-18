@@ -657,3 +657,15 @@ async def test_moving_an_all_day_event_keeps_its_days_across_dst(api: Api):
     assert (event["start_at"], event["end_at"]) == ("2026-10-31T04:00:00Z", "2026-11-02T05:00:00Z")
     moved = await api.call("PATCH", f"/events/{event['id']}", json={"start_at": "2026-12-05T00:00"})
     assert (moved["start_at"], moved["end_at"]) == ("2026-12-05T05:00:00Z", "2026-12-07T05:00:00Z")
+
+
+async def test_editing_a_weekly_meeting_with_a_null_anchor(api: Api):
+    _, term_id, course_id = await api.setup()
+    meeting = await api.meeting(course_id, term_id, start_week=3)
+    # The meeting dialog sends every field; weekly meetings carry no anchor.
+    edited = await api.call(
+        "PATCH",
+        f"/meetings/{meeting['id']}",
+        json={"location": "MY150", "recurrence": "weekly", "anchor_week": None},
+    )
+    assert (edited["location"], edited["anchor_week"]) == ("MY150", 3)
