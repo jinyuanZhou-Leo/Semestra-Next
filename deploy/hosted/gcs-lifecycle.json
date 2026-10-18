@@ -1,0 +1,12 @@
+{
+  "rule": [
+    {
+      "action": { "type": "Delete" },
+      "condition": { "daysSinceNoncurrentTime": 30, "matchesPrefix": ["storage/"] }
+    },
+    {
+      "action": { "type": "Delete" },
+      "condition": { "daysSinceNoncurrentTime": 1, "matchesPrefix": ["litestream/"] }
+    }
+  ]
+}

@@ -17,6 +17,10 @@ def main(argv: list[str] | None = None) -> None:
     serve.add_argument("--host", default="0.0.0.0")  # noqa: S104
     serve.add_argument("--port", type=int, default=8000)
 
+    backup = sub.add_parser("backup", help="back up the databases and stored files once")
+    backup.add_argument("dest", nargs="?", help="target directory (default SEMESTRA_BACKUP_DIR)")
+    backup.add_argument("--db-only", action="store_true", help="skip the stored-files mirror")
+
     sub.add_parser("openapi", help="print the OpenAPI schema as JSON")
 
     args = parser.parse_args(argv)
@@ -30,7 +34,26 @@ def main(argv: list[str] | None = None) -> None:
                 reload=True,
             )
         case "serve":
-            uvicorn.run("semestra.main:create_app", factory=True, host=args.host, port=args.port)
+            # Behind Caddy in Docker: uvicorn trusts X-Forwarded-* only from FORWARDED_ALLOW_IPS
+            # (loopback by default), which the compose files set for the private network.
+            uvicorn.run(
+                "semestra.main:create_app",
+                factory=True,
+                host=args.host,
+                port=args.port,
+                proxy_headers=True,
+            )
+        case "backup":
+            from pathlib import Path
+
+            from semestra.core.backup import run_backup
+            from semestra.core.config import get_settings
+
+            dest = args.dest or get_settings().backup_dir
+            if not dest:
+                parser.error("pass a target directory or set SEMESTRA_BACKUP_DIR")
+            for path in run_backup(get_settings(), Path(dest), include_storage=not args.db_only):
+                sys.stdout.write(f"{path}\n")
         case "openapi":
             from semestra.main import create_app
 

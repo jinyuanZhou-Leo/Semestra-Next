@@ -1,0 +1,21 @@
+# Replicates the SQLite databases to GCS. ${BACKUP_BUCKET} is expanded from the environment.
+# A database that does not exist yet (e.g. agent_checkpoints.sqlite before M12 ships) is
+# picked up as soon as it appears.
+dbs:
+  - path: /data/semestra.db
+    replicas:
+      - type: gcs
+        bucket: ${BACKUP_BUCKET}
+        path: litestream/semestra
+        sync-interval: 1s
+        snapshot-interval: 24h
+        retention: 720h # 30 days
+
+  - path: /data/agent_checkpoints.sqlite
+    replicas:
+      - type: gcs
+        bucket: ${BACKUP_BUCKET}
+        path: litestream/agent_checkpoints
+        sync-interval: 10s
+        snapshot-interval: 24h
+        retention: 720h

@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -12,7 +13,14 @@ class Settings(BaseSettings):
     Modules add their own settings here and document them in deploy/.env.example.
     """
 
-    model_config = SettingsConfigDict(env_prefix="SEMESTRA_", env_file=".env", extra="ignore")
+    # `<DATA_DIR>/secrets.env` is where the container entrypoint stores generated keys
+    # (SEMESTRA_AUTO_SECRETS); reading it here lets `docker exec ... semestra backup` and other
+    # processes that bypass the entrypoint see the same keys. Real environment variables win.
+    model_config = SettingsConfigDict(
+        env_prefix="SEMESTRA_",
+        env_file=(".env", Path(os.environ.get("SEMESTRA_DATA_DIR", "./data")) / "secrets.env"),
+        extra="ignore",
+    )
 
     env: Literal["dev", "test", "prod"] = "dev"
     log_level: str = "INFO"
@@ -35,6 +43,13 @@ class Settings(BaseSettings):
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     google_client_id: str = ""
+
+    # Deployment (M15)
+    serve_web: bool = False  # all-in-one image: serve the built SPA from this process
+    web_dist_dir: Path = Path("./web")
+    sentry_dsn: str = ""  # empty disables error tracking
+    backup_dir: str = ""  # non-empty enables the built-in daily backup into this directory
+    backup_keep: int = 7  # database snapshots to keep per database
 
     @model_validator(mode="after")
     def _require_real_secrets_in_prod(self) -> Settings:

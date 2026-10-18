@@ -3,8 +3,11 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './app/api'
+import { initSentry } from './app/sentry'
 import './app/theme.css'
 import { routeTree } from './routeTree.gen'
+
+void initSentry()
 
 const queryClient = new QueryClient()
 const router = createRouter({ routeTree, context: { queryClient } })

@@ -15,3 +15,7 @@ pnpm dev        # API http://localhost:8000 ，Web http://localhost:5173
 ```
 
 开发约定与命令见 [CLAUDE.md](CLAUDE.md)，设计与模块规格见 [docs/](docs/specs/README.md)。
+
+## 部署
+
+托管版（Vercel + GCP VM）与自部署（`docker compose up -d`）见 [deploy/README.md](deploy/README.md)。
