@@ -325,7 +325,10 @@ def suggest_scores(items: Sequence[Item], target_percentage: float) -> Suggestio
             total += item.weight * score / 100
         return total
 
-    low, high = -200.0, 200.0
+    # Wide enough that every score clamps at 0 (low end) and at 100 (high end); a bonus score of
+    # several hundred percent can push a baseline far outside 0..100.
+    low = -max(baselines.values()) - 1.0
+    high = 101.0 - min(baselines.values())
     for _ in range(80):  # final_with is monotone in the shift: bisect to the target
         mid = (low + high) / 2
         if final_with(mid, rounded=False) < target_percentage:
@@ -568,7 +571,9 @@ def simulate_term(
         and g.course.include_in_gpa
         and attribute_credits(g.course.credits, g.course.term_ids, rule).get(term_id, 0) > 0
     ]
-    best = term_aggregate(with_blank(100.0), term_id, rule).gpa
+    # A scale need not award the most points at 100%, so fill with the best band's lowest mark.
+    top = max(scale.bands, key=lambda b: (b.points, -b.min))
+    best = term_aggregate(with_blank(top.min), term_id, rule).gpa
     gap = None
     reachable: bool | None = None
     required: float | None = None

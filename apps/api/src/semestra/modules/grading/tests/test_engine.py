@@ -200,6 +200,15 @@ def test_suggestions_follow_category_history_and_land_on_the_target() -> None:
     assert all(score * 2 == int(score * 2) for score in result.scores.values())
 
 
+def test_suggestions_reach_the_target_after_a_large_bonus_score() -> None:
+    # 1% of the grade scored at 1000%: about 70.7% on the rest still lands on 80
+    items = [Item("bonus", None, 1, 1000), Item("rest", None, 99, None)]
+    result = engine.suggest_scores(items, 80)
+    assert result.reachable
+    assert result.scores["rest"] == pytest.approx(70.7, abs=0.5)
+    assert result.resulting_percentage >= 80
+
+
 def test_suggestions_without_remaining_items() -> None:
     result = engine.suggest_scores([Item("a", None, 100, 90)], 85)
     assert result.scores == {}
@@ -294,6 +303,17 @@ def test_term_what_if_target_needs_an_average_for_the_blank_courses() -> None:
     # The other half-credit course at 77% (3.3): (4.0 + 1.85 + 1.65) / 2 = 3.75; at 73% only 3.675.
     assert result.required_percentage == 77
     assert result.max_possible_gpa == 3.925  # with the blank course at 100%
+
+
+def test_term_what_if_best_case_uses_the_scales_highest_band() -> None:
+    # A scale whose 100% band is not its best one: the maximum comes from the 90-99 band.
+    scale = engine.make_scale([Band(0, 89, 1.0), Band(90, 99, 4.0), Band(100, 100, 3.0)], 4.0)
+    course = engine.CourseInput("c", 1.0, True, ("t",), gradebook_enabled=False)
+    graded = [engine.GradedCourse(course, engine.course_grade(course, scale))]
+    result = engine.simulate_term(graded, "t", "end_term", scale, {}, 4.0)
+    assert result.max_possible_gpa == 4.0
+    assert result.reachable is True
+    assert result.required_percentage == 90
 
 
 def test_term_what_if_unreachable_target() -> None:
