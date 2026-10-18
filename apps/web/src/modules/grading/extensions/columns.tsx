@@ -10,6 +10,9 @@ const grades = (data: unknown) => data as CourseGrades | undefined
 const gradeOf = (course: Course, data: unknown) =>
   grades(data)?.items.find((item) => item.course_id === course.id)
 
+/** With "hide GPA" on, GPA must not leak through ordering or threshold filters either. */
+const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
+
 const query = (programId: string) => ({
   ...gradingCourseSummariesOptions({ path: { program_id: programId } }),
   staleTime: 30_000,
@@ -20,7 +23,7 @@ function atLeast(points: number) {
   return (course: Course, data: unknown) => {
     const max = grades(data)?.max_points
     const own = gradeOf(course, data)?.points
-    if (max === undefined || own == null) return false
+    if (max === undefined || own == null || gpaHidden(data)) return false
     return own >= (points / 4) * max - 1e-9
   }
 }
@@ -57,11 +60,11 @@ export const courseColumns: CourseColumn[] = [
     cell: (course, data) => (
       <GpaValue
         value={gradeOf(course, data)?.points}
-        hidden={grades(data)?.hide_gpa ?? false}
+        hidden={gpaHidden(data)}
         className="tabular-nums"
       />
     ),
-    sortValue: (course, data) => gradeOf(course, data)?.points ?? null,
+    sortValue: (course, data) => (gpaHidden(data) ? null : (gradeOf(course, data)?.points ?? null)),
     filter: [
       {
         id: 'grading.gpa_max',
@@ -69,7 +72,7 @@ export const courseColumns: CourseColumn[] = [
         test: (course, data) => {
           const max = grades(data)?.max_points
           const own = gradeOf(course, data)?.points
-          return max !== undefined && own != null && own >= max - 1e-9
+          return max !== undefined && own != null && !gpaHidden(data) && own >= max - 1e-9
         },
       },
       { id: 'grading.gpa_3_5', label: m.grading_filter_gpa_3_5, test: atLeast(3.5) },
