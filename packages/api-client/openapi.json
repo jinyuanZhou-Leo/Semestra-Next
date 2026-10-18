@@ -3083,6 +3083,122 @@
           }
         }
       }
+    },
+    "/sticky/notes": {
+      "get": {
+        "tags": [
+          "sticky"
+        ],
+        "summary": "List the sticky notes on a Program, term or course board.",
+        "description": "Use to find a note before reading or changing it (\"what is in my note for this\ncourse\"). Returns each note's instance_id and Markdown text.",
+        "operationId": "stickyNoteList",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Kind of board the note sits on",
+              "title": "Scope Type"
+            },
+            "description": "Kind of board the note sits on"
+          },
+          {
+            "name": "scope_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id of that Program, term or course",
+              "title": "Scope Id"
+            },
+            "description": "Id of that Program, term or course"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/sticky/notes/{instance_id}": {
+      "put": {
+        "tags": [
+          "sticky"
+        ],
+        "summary": "Replace the text of a sticky note.",
+        "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"). It replaces the whole text, so call sticky.note.list first and send\nthe old text with the new lines added. At most 10 000 characters.",
+        "operationId": "stickyNoteUpdate",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Sticky note card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Sticky note card instance id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4839,6 +4955,66 @@
         "title": "JobPage"
       },
       "JsonValue": {},
+      "Note": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "content"
+        ],
+        "title": "Note"
+      },
+      "NoteList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "NoteList"
+      },
+      "NoteUpdateInputBody": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 10000,
+            "title": "Content",
+            "description": "The new Markdown text of the note; replaces the old text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "NoteUpdateInputBody"
+      },
       "PaletteColor": {
         "properties": {
           "palette": {

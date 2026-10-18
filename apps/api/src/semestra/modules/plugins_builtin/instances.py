@@ -6,6 +6,7 @@ it sits (to find the Program and its time zone) and its settings, so this is the
 reads M10.
 """
 
+import importlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,16 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
+
+
+def _layouts() -> Any:
+    """M10's service. Until M10 is merged there are no card instances at all, so every lookup is
+    "not found". TODO(M10): replace with `from semestra.modules.layouts import ...` and drop
+    the `Any`."""
+    try:
+        return importlib.import_module("semestra.modules.layouts.service")
+    except ModuleNotFoundError:
+        raise not_found() from None
 
 
 @dataclass(frozen=True)
@@ -28,8 +39,7 @@ async def get_card_instance(
     ctx: Ctx, instance_id: str, *, card_ids: tuple[str, ...]
 ) -> CardInstance:
     """The user's card instance, which must be one of `card_ids`; `common.not_found` otherwise."""
-    from semestra.modules.layouts import service as layouts
-
+    layouts = _layouts()
     found = await layouts.get_card_instance(ctx, instance_id)
     if found is None or found.card_id not in card_ids:
         raise not_found()
@@ -57,8 +67,7 @@ async def list_card_instances(
     ctx: Ctx, *, card_id: str, scope_type: str, scope_id: str
 ) -> list[CardInstance]:
     """The user's instances of `card_id` on one board (the scope's own cards only)."""
-    from semestra.modules.layouts import service as layouts
-
+    layouts = _layouts()
     found = await layouts.list_card_instances(
         ctx, card_id=card_id, scope_type=scope_type, scope_id=scope_id
     )
@@ -70,6 +79,5 @@ async def list_card_instances(
 
 async def update_card_settings(ctx: Ctx, instance_id: str, patch: dict[str, Any]) -> None:
     """Merge `patch` into the card's settings, validated by the card's schema (M10)."""
-    from semestra.modules.layouts import service as layouts
-
+    layouts = _layouts()
     await layouts.update_card_settings(ctx, instance_id, patch)

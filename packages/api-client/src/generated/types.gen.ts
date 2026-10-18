@@ -1043,6 +1043,46 @@ export type JobPage = {
 export type JsonValue = unknown;
 
 /**
+ * Note
+ */
+export type Note = {
+    /**
+     * Instance Id
+     */
+    instance_id: string;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Color
+     */
+    color?: string | null;
+};
+
+/**
+ * NoteList
+ */
+export type NoteList = {
+    /**
+     * Items
+     */
+    items: Array<Note>;
+};
+
+/**
+ * NoteUpdateInputBody
+ */
+export type NoteUpdateInputBody = {
+    /**
+     * Content
+     *
+     * The new Markdown text of the note; replaces the old text
+     */
+    content: string;
+};
+
+/**
  * PaletteColor
  */
 export type PaletteColor = {
@@ -4103,3 +4143,73 @@ export type SettingsValuesResetResponses = {
 };
 
 export type SettingsValuesResetResponse = SettingsValuesResetResponses[keyof SettingsValuesResetResponses];
+
+export type StickyNoteListData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Scope Type
+         *
+         * Kind of board the note sits on
+         */
+        scope_type: 'program' | 'term' | 'course';
+        /**
+         * Scope Id
+         *
+         * Id of that Program, term or course
+         */
+        scope_id: string;
+    };
+    url: '/sticky/notes';
+};
+
+export type StickyNoteListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type StickyNoteListError = StickyNoteListErrors[keyof StickyNoteListErrors];
+
+export type StickyNoteListResponses = {
+    /**
+     * Successful Response
+     */
+    200: NoteList;
+};
+
+export type StickyNoteListResponse = StickyNoteListResponses[keyof StickyNoteListResponses];
+
+export type StickyNoteUpdateData = {
+    body: NoteUpdateInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Sticky note card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/sticky/notes/{instance_id}';
+};
+
+export type StickyNoteUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type StickyNoteUpdateError = StickyNoteUpdateErrors[keyof StickyNoteUpdateErrors];
+
+export type StickyNoteUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Note;
+};
+
+export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];
