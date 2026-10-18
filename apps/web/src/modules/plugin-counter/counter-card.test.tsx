@@ -1,9 +1,17 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
+import { newQueryClient } from '@/test-utils'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test } from 'vitest'
 import type { CardSize } from '@/app/extensions'
 import CounterCard from './CounterCard'
 import { counterSettingsSchema } from './schema'
+
+const queryClient = newQueryClient()
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+)
 
 const scope = { kind: 'program', programId: 'p1' } as const
 
@@ -19,21 +27,21 @@ function card(settings: Record<string, unknown>, size: CardSize = 'm', instanceI
 }
 
 test.each(['s', 'm'] as const)('size %s shows the value and both buttons', (size) => {
-  render(card({ label: 'Pages', value: 4 }, size))
+  render(card({ label: 'Pages', value: 4 }, size), { wrapper })
   expect(screen.getByRole('status', { name: 'Pages: 4' })).toHaveTextContent('4')
   expect(screen.getByRole('button', { name: 'Increase Pages' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Decrease Pages' })).toBeEnabled()
 })
 
 test('the ring is left out at the small size', () => {
-  const { container, rerender } = render(card({ show_ring: true }, 'm'))
+  const { container, rerender } = render(card({ show_ring: true }, 'm'), { wrapper })
   expect(container.querySelector('svg circle')).not.toBeNull()
   rerender(card({ show_ring: true }, 's'))
   expect(container.querySelector('svg circle')).toBeNull()
 })
 
 test('plus and minus move by the step and stop at the range', async () => {
-  render(card({ label: 'Cups', min: 0, max: 4, step: 2, value: 2 }))
+  render(card({ label: 'Cups', min: 0, max: 4, step: 2, value: 2 }), { wrapper })
   await userEvent.click(screen.getByRole('button', { name: 'Increase Cups' }))
   expect(screen.getByRole('status')).toHaveTextContent('4')
   expect(screen.getByRole('button', { name: 'Increase Cups' })).toBeDisabled()
@@ -44,12 +52,12 @@ test('plus and minus move by the step and stop at the range', async () => {
 })
 
 test('a card that never had a count starts at the initial value', () => {
-  render(card({ min: 0, max: 10, initial: 3 }))
+  render(card({ min: 0, max: 10, initial: 3 }), { wrapper })
   expect(screen.getByRole('status')).toHaveTextContent('3')
 })
 
 test('reset asks first and then returns to the initial value', async () => {
-  render(card({ label: 'Pages', initial: 1, value: 7 }))
+  render(card({ label: 'Pages', initial: 1, value: 7 }), { wrapper })
   await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
   expect(screen.getByRole('status')).toHaveTextContent('7')
   const dialog = await screen.findByRole('alertdialog')
@@ -63,6 +71,7 @@ test('two counters do not share their value', async () => {
       {card({ label: 'A', value: 1 }, 'm', 'a')}
       {card({ label: 'B', value: 1 }, 'm', 'b')}
     </>,
+    { wrapper },
   )
   await userEvent.click(screen.getByRole('button', { name: 'Increase A' }))
   expect(screen.getByRole('status', { name: 'A: 2' })).toBeInTheDocument()

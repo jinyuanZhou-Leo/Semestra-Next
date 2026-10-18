@@ -4,7 +4,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useUiPref } from '@/app/ui-pref'
+import { refreshUiPrefs, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { askNotificationPermission, playChime, showNotification } from './alerts'
@@ -87,6 +87,21 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     latest.current = { state, config, settings }
   })
   const handled = useRef<number | null>(null)
+
+  // The same timer may be open in another tab: when this tab comes back, take the latest state.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshUiPrefs(queryClient, [stateKey(instanceId), ACTIVE_KEY])
+      }
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [queryClient, instanceId])
 
   const here = () => ({ instanceId, path: window.location.pathname + window.location.search })
 

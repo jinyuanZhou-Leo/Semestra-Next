@@ -136,3 +136,23 @@ test('the small size is usable with start, skip and reset', async () => {
   expect(screen.getByRole('button', { name: 'Skip to the next phase' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
 })
+
+test('a tab that comes back shows the timer as another tab left it', async () => {
+  backend()
+  card()
+  expect(await screen.findByLabelText('Focus 25:00')).toBeInTheDocument()
+  // Another tab started the timer.
+  stored['pomodoro.i1'] = {
+    mode: 'focus',
+    status: 'running',
+    endsAt: Date.now() + 10 * 60_000,
+    remainingMs: null,
+    phaseMs: 25 * 60_000,
+    cycleIndex: 0,
+    sessionStartedAt: Date.now() - 15 * 60_000,
+    activeMs: 0,
+    runStartedAt: Date.now() - 15 * 60_000,
+  }
+  act(() => void window.dispatchEvent(new Event('focus')))
+  await vi.waitFor(() => expect(screen.getByLabelText('Focus 10:00')).toBeInTheDocument())
+})

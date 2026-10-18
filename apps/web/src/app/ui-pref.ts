@@ -163,6 +163,33 @@ export function flushUiPrefs(queryClient: QueryClient): Promise<void[]> {
   return Promise.all([...store.pending.keys()].map((key) => save(queryClient, key)))
 }
 
+/**
+ * Re-reads keys from the server, for state that other tabs or devices may have changed (a timer
+ * shown in two tabs). A value this tab changed and has not saved yet is kept.
+ */
+export async function refreshUiPrefs(
+  queryClient: QueryClient,
+  keys: readonly string[],
+): Promise<void> {
+  const store = storeOf(queryClient)
+  const stale = keys.filter((key) => !store.pending.has(key))
+  if (stale.length === 0) return
+  try {
+    const { data } = await settingsUiStateGetMany({ body: { keys: stale }, throwOnError: true })
+    for (const key of stale) {
+      // A change made here while the request was out is newer than the answer.
+      if (store.pending.has(key)) continue
+      const found = key in data.items
+      queryClient.setQueryData<Entry>(queryKeyFor(key), {
+        found,
+        value: found ? data.items[key] : undefined,
+      })
+    }
+  } catch {
+    // The cached value stays; the next focus tries again.
+  }
+}
+
 function write(queryClient: QueryClient, key: string, value: unknown) {
   const store = storeOf(queryClient)
   store.pending.set(key, value)

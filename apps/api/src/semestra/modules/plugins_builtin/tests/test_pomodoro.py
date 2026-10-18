@@ -155,3 +155,16 @@ async def test_purge_removes_sessions_but_card_deletion_keeps_them(
     assert (await client.get("/pomodoro/stats")).json()["total_sessions"] == 1
     await events.dispatch(app.state, Event("plugins.purge", {"plugin_id": "pomodoro"}, user.id))
     assert (await client.get("/pomodoro/stats")).json()["total_sessions"] == 0
+
+
+async def test_course_statistics_follow_the_courses_program_zone(
+    client: AsyncClient, user: UserHandle
+):
+    first = await program(client, "America/Toronto")
+    second = await program(client, "Pacific/Auckland")
+    aps = await course(client, second, "APS105")
+    # The first Program is the fallback zone, but the course sits in the Auckland one.
+    stats = (await client.get("/pomodoro/stats", params={"course_id": aps})).json()
+    assert stats["timezone"] == "Pacific/Auckland"
+    assert stats["today"] == "2026-01-16"  # 01:00 on Jan 16 there
+    assert first != second

@@ -1,13 +1,37 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
+import { API, renderWithQuery, server } from '@/test-utils'
 import StickyNoteCard from './StickyNoteCard'
 import { stickySettingsSchema } from './schema'
+
+beforeAll(() => server.listen())
+afterEach(() => {
+  server.resetHandlers()
+  saved.length = 0
+})
+afterAll(() => server.close())
+
+const saved: unknown[] = []
+beforeEach(() =>
+  server.use(
+    http.put(`${API}/layouts/cards/:id/settings`, async ({ request }) => {
+      const body = (await request.json()) as { settings: unknown }
+      saved.push(body.settings)
+      return HttpResponse.json({
+        instance_id: 'n1',
+        card_id: 'sticky.note',
+        settings: body.settings,
+      })
+    }),
+  ),
+)
 
 const scope = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
 
 function note(content = '', size: 's' | 'm' | 'l' | 'xl' = 'm') {
-  return render(
+  return renderWithQuery(
     <StickyNoteCard
       scope={scope}
       instanceId="n1"
@@ -57,4 +81,12 @@ test('the small size hides the toolbar', async () => {
 test('the editor leaves a way in for keyboard users', () => {
   note('x')
   expect(screen.getByRole('button', { name: 'Edit note' })).toBeInTheDocument()
+})
+
+test('an edit is saved to the card settings, merged into the settings the host gave', async () => {
+  note('old')
+  await userEvent.click(screen.getByText('old'))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Edit note' }), ' new')
+  await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0), { timeout: 3000 })
+  expect(saved.at(-1)).toMatchObject({ content: 'old new', color: expect.any(String) })
 })

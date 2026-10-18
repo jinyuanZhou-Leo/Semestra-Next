@@ -85,9 +85,12 @@ async def _timezone(ctx: Ctx, program_id: str | None) -> str:
 async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroStats:
     if inp.program_id is not None:
         await academics.get_program_row(ctx, inp.program_id)
+    program_id = inp.program_id
     if inp.course_id is not None:
-        await academics.get_course_row(ctx, inp.course_id)
-    tz_name = await _timezone(ctx, inp.program_id)
+        # Days of a course's statistics follow the zone of the Program the course belongs to.
+        course = await academics.get_course_row(ctx, inp.course_id)
+        program_id = program_id or course.program_id
+    tz_name = await _timezone(ctx, program_id)
     zone = ZoneInfo(tz_name)
     today = ctx.now.astimezone(zone).date()
     to_date = inp.to_date or today
