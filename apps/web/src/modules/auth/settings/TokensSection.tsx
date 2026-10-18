@@ -8,6 +8,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { AppDialogContent } from '@/components/AppDialogContent'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TextField } from '@/components/TextField'
 import { toastError } from '@/lib/errors'
@@ -16,14 +17,7 @@ import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Label } from '@/ui/label'
 import { Separator } from '@/ui/separator'
 import { FormError } from '../components/FormError'
@@ -110,7 +104,7 @@ function CreateTokenDialog({
         }
       }}
     >
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_create()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_desc()}</DialogDescription>
@@ -165,7 +159,7 @@ function CreateTokenDialog({
             </DialogFooter>
           </fieldset>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }
@@ -179,7 +173,7 @@ function TokenCreatedDialog({
 }) {
   return (
     <Dialog open={token !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent closeLabel={m.common_close()}>
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_created_title()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_created_desc()}</DialogDescription>
@@ -209,7 +203,7 @@ function TokenCreatedDialog({
         <DialogFooter>
           <Button onClick={onClose}>{m.auth_account_tokens_done()}</Button>
         </DialogFooter>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   )
 }
