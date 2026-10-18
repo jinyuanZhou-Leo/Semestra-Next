@@ -58,10 +58,17 @@ export type CardContribution = {
   // Each card declares its own settings type; the host only passes what `settings.schema` parses.
   // oxlint-disable-next-line no-explicit-any
   component: Lazy<CardProps<any>>
+  /**
+   * Per-instance settings, edited from the card's gear button: `component` if given, else a
+   * form generated from `schema` (texts `settings_card_<card id>_<field>_label|_description`,
+   * dots and dashes as underscores). `fields` hides fields the card itself writes (a counter's
+   * value) or orders them. The schema's JSON Schema is exported to the backend for validation.
+   */
   settings?: {
     schema: ZodType
     // oxlint-disable-next-line no-explicit-any
     component?: ComponentType<{ value: any; onChange: (value: any) => void }>
+    fields?: FieldOverrides
   }
   multiple: boolean
   /** Buttons in the card's header next to its title (e.g. a counter's reset). */

@@ -25,7 +25,7 @@ test('card and page ids are unique and default layouts name known cards', () => 
         const card = cards.find((c) => c.id === slot.card)
         expect(card, `${m.id} defaultBoard.${kind}: ${slot.card}`).toBeDefined()
         expect(card?.scopes).toContain(kind)
-        if (slot.size) expect(card?.sizes).toContain(slot.size)
+        expect(slot.size === undefined || card?.sizes.includes(slot.size)).toBe(true)
       }
     }
   }
