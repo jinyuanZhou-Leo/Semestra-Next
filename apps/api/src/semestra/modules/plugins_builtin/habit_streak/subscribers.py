@@ -11,7 +11,7 @@ async def on_card_deleted(ctx: Ctx, event: Event) -> None:
         await service.delete_for_instance(ctx, event.user_id, instance_id)
 
 
-@events.subscribe("plugins.purge")
+@events.subscribe("plugins.purge", in_transaction=True)
 async def on_plugin_purged(ctx: Ctx, event: Event) -> None:
     if event.user_id and event.data.get("plugin_id") == PLUGIN_ID:
         await service.purge(ctx, event.user_id)

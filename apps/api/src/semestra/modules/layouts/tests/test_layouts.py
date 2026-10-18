@@ -220,6 +220,21 @@ async def test_uninstall_hides_cards_and_reinstall_restores_them(app: FastAPI, a
     assert board["cards"][1]["settings"] == {"content": "keep me"}
 
 
+async def test_uninstalled_cards_survive_the_first_change_of_a_template_board(api: Api):
+    _, _, course_id = await api.scopes()
+    await api.call("DELETE", "/plugins/notes/installation")
+    board = await api.board("course", course_id)
+    assert not board["customized"]
+    assert [c["card_id"] for c in board["cards"]] == ["academics.courseInfo"]
+    await api.put_board("course", course_id, [{**board["cards"][0], "size": "m"}])
+    await api.call("PUT", "/plugins/notes/installation")
+    board = await api.board("course", course_id)
+    assert [(c["card_id"], c["size"]) for c in board["cards"]] == [
+        ("academics.courseInfo", "m"),
+        ("notes.note", "m"),
+    ]
+
+
 async def test_purge_removes_cards_for_good(app: FastAPI, api: Api, user: UserHandle):
     program_id, _, course_id = await api.scopes()
     await api.call(

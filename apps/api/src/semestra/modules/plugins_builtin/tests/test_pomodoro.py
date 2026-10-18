@@ -174,7 +174,12 @@ async def test_purge_removes_sessions_but_card_deletion_keeps_them(
         Event("layouts.card.deleted", {"instance_id": timer, "card_id": "pomodoro.timer"}, user.id),
     )
     assert (await client.get("/pomodoro/stats")).json()["total_sessions"] == 1
-    await events.dispatch(app.state, Event("plugins.purge", {"plugin_id": "pomodoro"}, user.id))
+    r = await client.request(
+        "DELETE", "/plugins/pomodoro/installation", params={"purge_data": "true"}
+    )
+    assert r.status_code == 200, r.text
+    # Reinstalled, the plugin starts without any data.
+    assert (await client.put("/plugins/pomodoro/installation")).status_code == 200
     assert (await client.get("/pomodoro/stats")).json()["total_sessions"] == 0
 
 

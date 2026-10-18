@@ -165,5 +165,10 @@ async def test_card_deletion_and_purge_remove_the_check_ins(
     assert (await client.get(f"/habit/instances/{removed}/stats")).json()["total"] == 0
     assert (await client.get(f"/habit/instances/{kept}/stats")).json()["total"] == 1
 
-    await events.dispatch(app.state, Event("plugins.purge", {"plugin_id": "habit-streak"}, user.id))
+    r = await client.request(
+        "DELETE", "/plugins/habit-streak/installation", params={"purge_data": "true"}
+    )
+    assert r.status_code == 200, r.text
+    # Reinstalled, the plugin starts without any data.
+    assert (await client.put("/plugins/habit-streak/installation")).status_code == 200
     assert (await client.get(f"/habit/instances/{kept}/stats")).json()["total"] == 0

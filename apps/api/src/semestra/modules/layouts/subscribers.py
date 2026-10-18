@@ -20,7 +20,7 @@ async def on_course_deleting(ctx: Ctx, event: Event) -> None:
     await service.delete_scope(ctx, "course", event.data["course_id"])
 
 
-@events.subscribe("plugins.purge")
+@events.subscribe("plugins.purge", in_transaction=True)
 async def on_plugin_purged(ctx: Ctx, event: Event) -> None:
     plugin_id = event.data.get("plugin_id")
     if event.user_id and isinstance(plugin_id, str):

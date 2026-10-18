@@ -54,6 +54,14 @@ export function visibleJobs(jobs: readonly JobOut[], seen: readonly string[], no
   )
 }
 
+/** One entry per job, newest first (ids are time-ordered). */
+export function mergeJobs(...lists: (readonly JobOut[] | undefined)[]): JobOut[] {
+  const byId = new Map<string, JobOut>()
+  for (const list of lists)
+    for (const job of list ?? []) if (!byId.has(job.id)) byId.set(job.id, job)
+  return [...byId.values()].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+}
+
 function jobTitle(job: JobOut, kinds: readonly JobKindContribution[]): string {
   return kinds.find((k) => k.kind === job.kind)?.title() ?? jobStageLabel(job)
 }
@@ -184,11 +192,16 @@ function JobRow({
  * each job belongs. Finished jobs stay ~3 s; failures stay until the list has been opened.
  */
 function JobsLine({ collapsed }: { collapsed?: boolean }) {
-  const { data } = useQuery(coreJobListOptions({ query: { limit: 20 } }))
+  // Every active job (however many finished after it), plus the newest finished ones.
+  const recent = useQuery(coreJobListOptions({ query: { limit: 20 } })).data?.items
+  const running = useQuery(coreJobListOptions({ query: { status: 'running', limit: 50 } })).data
+    ?.items
+  const pending = useQuery(coreJobListOptions({ query: { status: 'pending', limit: 50 } })).data
+    ?.items
   const [seen, setSeen] = useUiPref<string[]>(SEEN_KEY, [])
   const [open, setOpen] = useState(false)
   const kinds = useModules().flatMap((module) => module.jobKinds ?? [])
-  const all = data?.items ?? []
+  const all = mergeJobs(recent, running, pending)
   const now = useNow((at) =>
     all.some((job) => job.status === 'succeeded' && finishedAgo(job, at) < DONE_VISIBLE_MS),
   )
@@ -201,6 +214,13 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
   const markSeen = () => {
     const failed = jobs.filter((job) => job.status === 'failed').map((job) => job.id)
     if (failed.length > 0) setSeen([...failed, ...seen].slice(0, 50))
+  }
+
+  // Failures count as seen once the list that showed them closes (not on open: they would
+  // vanish, and the list with them, while the user reads them).
+  const close = () => {
+    markSeen()
+    setOpen(false)
   }
 
   if (jobs.length === 0) return null
@@ -247,19 +267,13 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
 
   return (
     <li>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (next) markSeen()
-        }}
-      >
+      <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
         {trigger}
         <PopoverContent side={collapsed ? 'right' : 'top'} align="start" className="w-80">
           <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
           <ul className="divide-y divide-border">
             {jobs.map((job) => (
-              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={() => setOpen(false)} />
+              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={close} />
             ))}
           </ul>
         </PopoverContent>

@@ -3,6 +3,7 @@ import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { createContext, createElement, type ReactNode, useContext, useMemo } from 'react'
 import academics from '@/modules/academics/manifest'
+import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
@@ -31,6 +32,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   auth,
   settings,
   academics,
+  ai,
   plugins,
   habitStreak,
   pomodoro,

@@ -122,8 +122,9 @@ async def install(ctx: Ctx, plugin_id: str) -> PluginOut:
 
 async def uninstall(ctx: Ctx, inp: UninstallInput) -> PluginOut:
     """Hides the plugin's pages, cards and capabilities; its data stays unless purged, so a
-    reinstall brings everything back. Purging publishes `plugins.purge` for every module that
-    keeps data for the plugin (settings, card instances, the plugin's own tables)."""
+    reinstall brings everything back. Purging runs `plugins.purge` in this transaction for every
+    module that keeps data for the plugin (settings, card instances, the plugin's own tables), so
+    a failing cleanup fails the whole uninstall instead of leaving half the data behind."""
     _plugin(inp.plugin_id)
     installs = await _installations(ctx)
     if inp.plugin_id in installs:
@@ -135,5 +136,7 @@ async def uninstall(ctx: Ctx, inp: UninstallInput) -> PluginOut:
         )
         await events.publish(ctx, "plugins.uninstalled", {"plugin_id": inp.plugin_id})
     if inp.purge_data:
-        await events.publish(ctx, "plugins.purge", {"plugin_id": inp.plugin_id})
+        data = {"plugin_id": inp.plugin_id}
+        await events.publish_in_transaction(ctx, "plugins.purge", data)
+        await events.publish(ctx, "plugins.purged", data)
     return await _out(ctx, inp.plugin_id)
