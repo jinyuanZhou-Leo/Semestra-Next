@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CalendarOccurrencesData, CalendarOccurrencesErrors, CalendarOccurrencesResponses, CalendarTodayData, CalendarTodayErrors, CalendarTodayResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, ScheduleConflictsData, ScheduleConflictsErrors, ScheduleConflictsResponses, ScheduleEventCreateData, ScheduleEventCreateErrors, ScheduleEventCreateResponses, ScheduleEventDeleteData, ScheduleEventDeleteErrors, ScheduleEventDeleteResponses, ScheduleEventListData, ScheduleEventListErrors, ScheduleEventListResponses, ScheduleEventTypeCreateData, ScheduleEventTypeCreateErrors, ScheduleEventTypeCreateResponses, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteErrors, ScheduleEventTypeDeleteResponses, ScheduleEventTypeListData, ScheduleEventTypeListErrors, ScheduleEventTypeListResponses, ScheduleEventTypeReorderData, ScheduleEventTypeReorderErrors, ScheduleEventTypeReorderResponses, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateErrors, ScheduleEventTypeUpdateResponses, ScheduleEventUpdateData, ScheduleEventUpdateErrors, ScheduleEventUpdateResponses, ScheduleExceptionDeleteData, ScheduleExceptionDeleteErrors, ScheduleExceptionDeleteResponses, ScheduleExceptionUpsertData, ScheduleExceptionUpsertErrors, ScheduleExceptionUpsertResponses, ScheduleFeedCreateData, ScheduleFeedCreateErrors, ScheduleFeedCreateResponses, ScheduleFeedListData, ScheduleFeedListErrors, ScheduleFeedListResponses, ScheduleFeedRevokeData, ScheduleFeedRevokeErrors, ScheduleFeedRevokeResponses, ScheduleMeetingCreateData, ScheduleMeetingCreateErrors, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyErrors, ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateResponses, ScheduleMeetingDeleteData, ScheduleMeetingDeleteErrors, ScheduleMeetingDeleteResponses, ScheduleMeetingListData, ScheduleMeetingListErrors, ScheduleMeetingListResponses, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledErrors, ScheduleMeetingSetEnabledResponses, ScheduleMeetingUpdateData, ScheduleMeetingUpdateErrors, ScheduleMeetingUpdateResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -491,6 +491,25 @@ export const accountTokensCreate = <ThrowOnError extends boolean = false>(option
 export const accountTokensRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokensRevokeData, ThrowOnError>): RequestResult<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError>({ url: '/account/tokens/{id}', ...options });
 
 /**
+ * Everything on the calendar in a date range: classes, events, deadlines, tasks.
+ *
+ * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
+ * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
+ * and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+ * For today alone prefer calendar.today. Each class carries its term week in meta.week_number.
+ */
+export const calendarOccurrences = <ThrowOnError extends boolean = false>(options: Options<CalendarOccurrencesData, ThrowOnError>): RequestResult<CalendarOccurrencesResponses, CalendarOccurrencesErrors, ThrowOnError> => (options.client ?? client).get<CalendarOccurrencesResponses, CalendarOccurrencesErrors, ThrowOnError>({ url: '/programs/{program_id}/calendar', ...options });
+
+/**
+ * Today in a Program: classes and events, deadlines of the next 7 days, due tasks.
+ *
+ * Prefer this for questions about today ("what do I have today?", "what's due this
+ * week?"). It also says which term week it is. For other days or longer ranges use
+ * calendar.occurrences. Times are UTC; read them in the returned `timezone`.
+ */
+export const calendarToday = <ThrowOnError extends boolean = false>(options: Options<CalendarTodayData, ThrowOnError>): RequestResult<CalendarTodayResponses, CalendarTodayErrors, ThrowOnError> => (options.client ?? client).get<CalendarTodayResponses, CalendarTodayErrors, ThrowOnError>({ url: '/programs/{program_id}/today', ...options });
+
+/**
  * Cancel a pending or running background job.
  *
  * Use when the user wants to stop a background operation. A running job stops at
@@ -521,6 +540,242 @@ export const coreJobList = <ThrowOnError extends boolean = false>(options?: Opti
  * rejected for exceeding the quota.
  */
 export const coreStorageUsage = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageUsageData, ThrowOnError>): RequestResult<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError>({ url: '/storage/usage', ...options });
+
+/**
+ * Class sections of a term that overlap each other.
+ *
+ * Use before or after adding meetings to warn about clashes. Only enabled sections
+ * that share at least one date count.
+ */
+export const scheduleConflicts = <ThrowOnError extends boolean = false>(options: Options<ScheduleConflictsData, ThrowOnError>): RequestResult<ScheduleConflictsResponses, ScheduleConflictsErrors, ThrowOnError> => (options.client ?? client).get<ScheduleConflictsResponses, ScheduleConflictsErrors, ThrowOnError>({ url: '/terms/{term_id}/schedule-conflicts', ...options });
+
+/**
+ * List one-off events (exams, office hours, make-up classes) of a Program.
+ *
+ * Optionally only one course's or one term's. For a date range use
+ * calendar.occurrences.
+ */
+export const scheduleEventList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventListData, ThrowOnError>): RequestResult<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError>({ url: '/programs/{program_id}/events', ...options });
+
+/**
+ * Add a one-off event: an exam, office hour, make-up class or appointment.
+ *
+ * Times without an offset are read in the Program's time zone. For something
+ * that repeats weekly use schedule.meeting.create.
+ */
+export const scheduleEventCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventCreateData, ThrowOnError>): RequestResult<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/events',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a one-off event.
+ *
+ * Irreversible.
+ */
+export const scheduleEventDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventDeleteData, ThrowOnError>): RequestResult<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError>({ url: '/events/{event_id}', ...options });
+
+/**
+ * Change a one-off event.
+ *
+ * Moving only `start_at` keeps the event's duration.
+ */
+export const scheduleEventUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventUpdateData, ThrowOnError>): RequestResult<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError>({
+    url: '/events/{event_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the class and event types of a Program (LEC, PRA, TUT, ...).
+ *
+ * Use to find valid type codes before creating meetings or events.
+ */
+export const scheduleEventTypeList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeListData, ThrowOnError>): RequestResult<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError>({ url: '/programs/{program_id}/event-types', ...options });
+
+/**
+ * Add a class or event type to a Program, e.g. LAB for laboratories.
+ *
+ * Use when a schedule needs a type the Program does not have yet.
+ */
+export const scheduleEventTypeCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeCreateData, ThrowOnError>): RequestResult<ScheduleEventTypeCreateResponses, ScheduleEventTypeCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventTypeCreateResponses, ScheduleEventTypeCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/event-types',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a custom type that no meeting or event uses.
+ *
+ * Fails with schedule.event_type_in_use while anything uses the type.
+ */
+export const scheduleEventTypeDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeDeleteData, ThrowOnError>): RequestResult<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError>({ url: '/event-types/{event_type_id}', ...options });
+
+/**
+ * Rename a custom type, or change the color or icon of any type.
+ *
+ * Built-in types (LEC, PRA, TUT) keep their name; their color and icon can change.
+ */
+export const scheduleEventTypeUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeUpdateData, ThrowOnError>): RequestResult<ScheduleEventTypeUpdateResponses, ScheduleEventTypeUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleEventTypeUpdateResponses, ScheduleEventTypeUpdateErrors, ThrowOnError>({
+    url: '/event-types/{event_type_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the display order of a Program's types.
+ *
+ * Types not listed keep their relative order after the listed ones.
+ */
+export const scheduleEventTypeReorder = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeReorderData, ThrowOnError>): RequestResult<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError> => (options.client ?? client).put<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError>({
+    url: '/programs/{program_id}/event-types:order',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Undo the cancellation or move of one class.
+ *
+ * The class happens again as regularly scheduled.
+ */
+export const scheduleExceptionDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionDeleteData, ThrowOnError>): RequestResult<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError>({ url: '/meetings/{meeting_id}/exceptions/{original_date}', ...options });
+
+/**
+ * Cancel or move one class of a section (one date only).
+ *
+ * Use for "class is cancelled on Friday" or "Tuesday's lecture moves to room X".
+ * `original_date` must be a date the section normally meets. Prefer this over deleting the
+ * meeting.
+ */
+export const scheduleExceptionUpsert = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionUpsertData, ThrowOnError>): RequestResult<ScheduleExceptionUpsertResponses, ScheduleExceptionUpsertErrors, ThrowOnError> => (options.client ?? client).put<ScheduleExceptionUpsertResponses, ScheduleExceptionUpsertErrors, ThrowOnError>({
+    url: '/meetings/{meeting_id}/exceptions/{original_date}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the calendar subscription links of a Program.
+ *
+ * The links themselves are only shown when created.
+ */
+export const scheduleFeedList = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedListData, ThrowOnError>): RequestResult<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError>({ url: '/programs/{program_id}/calendar-feeds', ...options });
+
+/**
+ * Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.
+ *
+ * Anyone with the link can read the calendar; it is returned only once.
+ */
+export const scheduleFeedCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedCreateData, ThrowOnError>): RequestResult<ScheduleFeedCreateResponses, ScheduleFeedCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleFeedCreateResponses, ScheduleFeedCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/calendar-feeds',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Turn off a calendar subscription link.
+ *
+ * Calendars subscribed to it stop updating.
+ */
+export const scheduleFeedRevoke = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedRevokeData, ThrowOnError>): RequestResult<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError>({ url: '/calendar-feeds/{feed_id}', ...options });
+
+/**
+ * List a course's weekly class sections, with their cancelled or moved dates.
+ *
+ * Use to see when a course meets each week, or to find the meeting id before
+ * changing or cancelling one class. Optionally only one term of a year-long course.
+ */
+export const scheduleMeetingList = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingListData, ThrowOnError>): RequestResult<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError>({ url: '/courses/{course_id}/meetings', ...options });
+
+/**
+ * Add a weekly (or biweekly) class section to a course in one of its terms.
+ *
+ * Times are wall-clock times in the Program's time zone. Check
+ * schedule.conflicts afterwards and mention any overlap. For a single extra session (exam, make-up
+ * class) use schedule.event.create instead.
+ */
+export const scheduleMeetingCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateData, ThrowOnError>): RequestResult<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError>({
+    url: '/courses/{course_id}/meetings',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add several class sections to a course at once (imports).
+ *
+ * Used by importers. An item with the same source_kind and source_ref as an
+ * existing meeting of the course updates it instead of adding a duplicate.
+ */
+export const scheduleMeetingCreateMany = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateManyData, ThrowOnError>): RequestResult<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError>({
+    url: '/courses/{course_id}/meetings:batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a class section with all its dates.
+ *
+ * Removes the section entirely. To cancel one class use
+ * schedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use
+ * schedule.meeting.set_enabled.
+ */
+export const scheduleMeetingDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingDeleteData, ThrowOnError>): RequestResult<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError>({ url: '/meetings/{meeting_id}', ...options });
+
+/**
+ * Change a class section for the whole term (time, room, weeks, ...).
+ *
+ * Changes every week. To change or cancel a single date use
+ * schedule.exception.upsert instead.
+ */
+export const scheduleMeetingUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingUpdateData, ThrowOnError>): RequestResult<ScheduleMeetingUpdateResponses, ScheduleMeetingUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleMeetingUpdateResponses, ScheduleMeetingUpdateErrors, ThrowOnError>({
+    url: '/meetings/{meeting_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Show or hide class sections of a course, e.g. keep only the user's tutorial.
+ *
+ * Disabled sections stay in the course but are left out of the calendar.
+ */
+export const scheduleMeetingSetEnabled = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingSetEnabledData, ThrowOnError>): RequestResult<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError> => (options.client ?? client).put<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError>({
+    url: '/courses/{course_id}/meetings:enabled',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Get the user's personal preferences.

@@ -97,6 +97,28 @@ export type BreakRef = {
 };
 
 /**
+ * CalendarBreak
+ */
+export type CalendarBreak = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+};
+
+/**
  * CalendarInfo
  */
 export type CalendarInfo = {
@@ -130,6 +152,70 @@ export type CalendarInfo = {
      * Index into `weeks` of today's week, if in term
      */
     today_week: number | null;
+};
+
+/**
+ * CalendarWeek
+ */
+export type CalendarWeek = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Number
+     *
+     * Term week number; null for an uncounted break week
+     */
+    number: number | null;
+    /**
+     * Break Name
+     *
+     * Break of a break week
+     */
+    break_name: string | null;
+};
+
+/**
+ * ConflictList
+ */
+export type ConflictList = {
+    /**
+     * Items
+     */
+    items: Array<ConflictPair>;
+};
+
+/**
+ * ConflictPair
+ */
+export type ConflictPair = {
+    /**
+     * Meeting Id
+     */
+    meeting_id: string;
+    /**
+     * Other Meeting Id
+     */
+    other_meeting_id: string;
+    /**
+     * Weekday
+     */
+    weekday: number;
+    /**
+     * Dates
+     *
+     * Dates on which both happen
+     */
+    dates: Array<string>;
 };
 
 /**
@@ -718,6 +804,459 @@ export type ErrorResponse = {
 };
 
 /**
+ * Event
+ */
+export type Event = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * Type Code
+     */
+    type_code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Start At
+     */
+    start_at: string;
+    /**
+     * End At
+     */
+    end_at: string;
+    /**
+     * All Day
+     */
+    all_day: boolean;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source Kind
+     */
+    source_kind: string | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * EventCreateInputBody
+ */
+export type EventCreateInputBody = {
+    /**
+     * Title
+     *
+     * E.g. 'Midterm'
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * Start; without an offset it is read in the Program's time zone
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * End (not before the start)
+     */
+    end_at: string;
+    /**
+     * All Day
+     *
+     * Whole days; times are ignored
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     *
+     * Course it belongs to
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term it belongs to
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, e.g. 'TUT'
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Importer that created it
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id in the import source
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * EventList
+ */
+export type EventList = {
+    /**
+     * Items
+     *
+     * By start time
+     */
+    items: Array<Event>;
+};
+
+/**
+ * EventType
+ */
+export type EventType = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Code
+     *
+     * Upper-case abbreviation, e.g. 'LEC'
+     */
+    code: string;
+    /**
+     * Name
+     *
+     * Display name; built-in types are translated by the app
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string | null;
+    /**
+     * Icon
+     */
+    icon: string | null;
+    /**
+     * Builtin
+     */
+    builtin: boolean;
+    /**
+     * Position
+     */
+    position: number;
+};
+
+/**
+ * EventTypeCreateInputBody
+ */
+export type EventTypeCreateInputBody = {
+    /**
+     * Code
+     *
+     * Abbreviation, letters and digits, e.g. 'LAB'
+     */
+    code: string;
+    /**
+     * Name
+     *
+     * Display name, e.g. 'Laboratory'
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * 'subject-<1..12>' or '#rrggbb'
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * lucide icon name, e.g. 'flask-conical'
+     */
+    icon?: string | null;
+};
+
+/**
+ * EventTypeList
+ */
+export type EventTypeList = {
+    /**
+     * Items
+     *
+     * In display order
+     */
+    items: Array<EventType>;
+};
+
+/**
+ * EventTypeOrderInputBody
+ */
+export type EventTypeOrderInputBody = {
+    /**
+     * Event Type Ids
+     *
+     * Types in display order
+     */
+    event_type_ids: Array<string>;
+};
+
+/**
+ * EventTypeUpdateInputBody
+ */
+export type EventTypeUpdateInputBody = {
+    /**
+     * Name
+     *
+     * Display name (not for built-in types)
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * Color, or null for none
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon name, or null for none
+     */
+    icon?: string | null;
+};
+
+/**
+ * EventUpdateInputBody
+ */
+export type EventUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Start At
+     *
+     * Start
+     */
+    start_at?: string | null;
+    /**
+     * End At
+     *
+     * End
+     */
+    end_at?: string | null;
+    /**
+     * All Day
+     *
+     * Whole days
+     */
+    all_day?: boolean | null;
+    /**
+     * Course Id
+     *
+     * Course, or null
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term, or null
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, or null
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location, or null
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note, or null
+     */
+    note?: string | null;
+};
+
+/**
+ * ExceptionUpsertInputBody
+ */
+export type ExceptionUpsertInputBody = {
+    /**
+     * Kind
+     *
+     * Cancel it, or move it
+     */
+    kind: 'cancelled' | 'moved';
+    /**
+     * New Date
+     *
+     * Moved: new date (default: same day)
+     */
+    new_date?: string | null;
+    /**
+     * New Start Time
+     *
+     * Moved: new start time
+     */
+    new_start_time?: string | null;
+    /**
+     * New End Time
+     *
+     * Moved: new end time
+     */
+    new_end_time?: string | null;
+    /**
+     * New Location
+     *
+     * Moved: new location
+     */
+    new_location?: string | null;
+    /**
+     * Note
+     *
+     * Note shown with the class
+     */
+    note?: string | null;
+};
+
+/**
+ * Feed
+ */
+export type Feed = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     *
+     * First characters of the token, to tell links apart
+     */
+    prefix: string;
+    /**
+     * Sources
+     */
+    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Fetched At
+     */
+    last_fetched_at: string | null;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+};
+
+/**
+ * FeedCreateInputBody
+ */
+export type FeedCreateInputBody = {
+    /**
+     * Name
+     *
+     * Label for the link, e.g. 'iPhone'
+     */
+    name: string;
+    /**
+     * Sources
+     *
+     * What the feed contains
+     */
+    sources?: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+};
+
+/**
+ * FeedCreated
+ */
+export type FeedCreated = {
+    feed: Feed;
+    /**
+     * Url
+     *
+     * Subscription URL; shown once, anyone with it can read the feed
+     */
+    url: string;
+};
+
+/**
+ * FeedList
+ */
+export type FeedList = {
+    /**
+     * Items
+     */
+    items: Array<Feed>;
+};
+
+/**
  * GoogleLinkInputBody
  */
 export type GoogleLinkInputBody = {
@@ -902,6 +1441,702 @@ export type JobPage = {
 };
 
 export type JsonValue = unknown;
+
+/**
+ * Meeting
+ */
+export type Meeting = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Section Code
+     */
+    section_code: string;
+    /**
+     * Type Code
+     */
+    type_code: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Instructor
+     */
+    instructor: string | null;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     */
+    recurrence: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: the term week it starts alternating from
+     */
+    anchor_week: number;
+    /**
+     * Start Week
+     */
+    start_week: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week: number | null;
+    /**
+     * Skip Breaks
+     */
+    skip_breaks: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Source Kind
+     */
+    source_kind: string | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Exceptions
+     *
+     * Cancelled or moved dates
+     */
+    exceptions: Array<MeetingException>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * MeetingCreateInputBody
+ */
+export type MeetingCreateInputBody = {
+    /**
+     * Term Id
+     *
+     * Term of the course the meeting runs in
+     */
+    term_id: string;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Title
+     *
+     * Optional title
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     *
+     * Every week or every other week
+     */
+    recurrence?: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: first week it happens; defaults to start_week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * No class in break weeks and on breaks
+     */
+    skip_breaks?: boolean;
+    /**
+     * Enabled
+     *
+     * Disabled sections are not shown
+     */
+    enabled?: boolean;
+    /**
+     * Source Kind
+     *
+     * Importer that created it, e.g. 'ics'
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in the import source, for de-duplication
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * MeetingCreateManyInputBody
+ */
+export type MeetingCreateManyInputBody = {
+    /**
+     * Meetings
+     *
+     * Meetings; same source_kind+source_ref updates
+     */
+    meetings: Array<MeetingFields>;
+};
+
+/**
+ * MeetingCreateManyResult
+ */
+export type MeetingCreateManyResult = {
+    /**
+     * Items
+     */
+    items: Array<Meeting>;
+    /**
+     * Created Ids
+     */
+    created_ids: Array<string>;
+    /**
+     * Updated Ids
+     */
+    updated_ids: Array<string>;
+};
+
+/**
+ * MeetingException
+ */
+export type MeetingException = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Meeting Id
+     */
+    meeting_id: string;
+    /**
+     * Original Date
+     */
+    original_date: string;
+    /**
+     * Kind
+     */
+    kind: 'cancelled' | 'moved';
+    /**
+     * New Date
+     */
+    new_date: string | null;
+    /**
+     * New Start Time
+     */
+    new_start_time: string | null;
+    /**
+     * New End Time
+     */
+    new_end_time: string | null;
+    /**
+     * New Location
+     */
+    new_location: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
+ * MeetingFields
+ */
+export type MeetingFields = {
+    /**
+     * Term Id
+     *
+     * Term of the course the meeting runs in
+     */
+    term_id: string;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Title
+     *
+     * Optional title
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     *
+     * Every week or every other week
+     */
+    recurrence?: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: first week it happens; defaults to start_week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * No class in break weeks and on breaks
+     */
+    skip_breaks?: boolean;
+    /**
+     * Enabled
+     *
+     * Disabled sections are not shown
+     */
+    enabled?: boolean;
+    /**
+     * Source Kind
+     *
+     * Importer that created it, e.g. 'ics'
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in the import source, for de-duplication
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * MeetingList
+ */
+export type MeetingList = {
+    /**
+     * Items
+     *
+     * By term, weekday and start time
+     */
+    items: Array<Meeting>;
+};
+
+/**
+ * MeetingSetEnabledInputBody
+ */
+export type MeetingSetEnabledInputBody = {
+    /**
+     * Meeting Ids
+     *
+     * Meetings to change
+     */
+    meeting_ids: Array<string>;
+    /**
+     * Enabled
+     *
+     * True to show them, false to hide them
+     */
+    enabled: boolean;
+};
+
+/**
+ * MeetingUpdateInputBody
+ */
+export type MeetingUpdateInputBody = {
+    /**
+     * Term Id
+     *
+     * Another term of the course
+     */
+    term_id?: string | null;
+    /**
+     * Section Code
+     *
+     * Section
+     */
+    section_code?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code
+     */
+    type_code?: string | null;
+    /**
+     * Title
+     *
+     * Title, or null
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor, or null
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Location, or null
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday?: number | null;
+    /**
+     * Start Time
+     *
+     * Start time
+     */
+    start_time?: string | null;
+    /**
+     * End Time
+     *
+     * End time
+     */
+    end_time?: string | null;
+    /**
+     * Recurrence
+     *
+     * weekly or biweekly
+     */
+    recurrence?: 'weekly' | 'biweekly' | null;
+    /**
+     * Anchor Week
+     *
+     * Biweekly anchor week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number | null;
+    /**
+     * End Week
+     *
+     * Last term week, or null
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * Skip breaks
+     */
+    skip_breaks?: boolean | null;
+    /**
+     * Enabled
+     *
+     * Shown in the calendar
+     */
+    enabled?: boolean | null;
+};
+
+/**
+ * Occurrence
+ */
+export type Occurrence = {
+    /**
+     * Id
+     *
+     * Stable: '<source>:<ref>[:<date>]'
+     */
+    id: string;
+    /**
+     * Source
+     *
+     * Registered source, e.g. 'schedule.meetings'
+     */
+    source: string;
+    /**
+     * Kind
+     */
+    kind: 'class' | 'event' | 'deadline' | 'task';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * UTC; local midnight of the day when all_day
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * UTC, exclusive; null for a point in time
+     */
+    end_at: string | null;
+    /**
+     * All Day
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     */
+    course_id?: string | null;
+    /**
+     * Type Code
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Color Ref
+     *
+     * 'subject-<1..12>' or '#rrggbb', usually the course color
+     */
+    color_ref?: string | null;
+    /**
+     * Status
+     */
+    status?: 'cancelled' | 'moved' | 'done' | 'overdue' | null;
+    ref: OccurrenceRef;
+    meta?: OccurrenceMeta;
+};
+
+/**
+ * OccurrenceMeta
+ *
+ * Optional details; sources fill in what applies to them.
+ */
+export type OccurrenceMeta = {
+    /**
+     * Conflicts With
+     *
+     * Ids of overlapping classes or events
+     */
+    conflicts_with?: Array<string>;
+    /**
+     * Term Id
+     */
+    term_id?: string | null;
+    /**
+     * Meeting Id
+     */
+    meeting_id?: string | null;
+    /**
+     * Original Date
+     *
+     * For a class: its regular date (also when moved)
+     */
+    original_date?: string | null;
+    /**
+     * Original Start At
+     *
+     * For a moved class: when it would have been
+     */
+    original_start_at?: string | null;
+    /**
+     * Week Number
+     *
+     * Term week of a class
+     */
+    week_number?: number | null;
+    /**
+     * Section Code
+     */
+    section_code?: string | null;
+    /**
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Url
+     *
+     * Link to the item elsewhere (e.g. the LMS)
+     */
+    url?: string | null;
+};
+
+/**
+ * OccurrenceRef
+ */
+export type OccurrenceRef = {
+    /**
+     * Entity
+     *
+     * What the occurrence comes from, e.g. 'schedule.meeting'
+     */
+    entity: string;
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
+ * Occurrences
+ */
+export type Occurrences = {
+    /**
+     * Timezone
+     *
+     * The Program's time zone, for reading the local times
+     */
+    timezone: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Items
+     *
+     * Sorted by start
+     */
+    items: Array<Occurrence>;
+    /**
+     * Weeks
+     *
+     * Term weeks touching the range
+     */
+    weeks: Array<CalendarWeek>;
+    /**
+     * Breaks
+     *
+     * Breaks touching the range
+     */
+    breaks: Array<CalendarBreak>;
+};
 
 /**
  * PaletteColor
@@ -1678,6 +2913,66 @@ export type TermWeek = {
      * The break, for a break week
      */
     break_info: BreakRef | null;
+};
+
+/**
+ * Today
+ */
+export type Today = {
+    /**
+     * Day
+     *
+     * Today in the Program's time zone
+     */
+    day: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * The current term's week, if in a term
+     */
+    week: TodayWeek | null;
+    /**
+     * Items
+     *
+     * Today's classes and events
+     */
+    items: Array<Occurrence>;
+    /**
+     * Upcoming
+     *
+     * Deadlines and due tasks in the next 7 days
+     */
+    upcoming: Array<Occurrence>;
+    /**
+     * Tasks
+     *
+     * Tasks due today and overdue ones
+     */
+    tasks: Array<Occurrence>;
+};
+
+/**
+ * TodayWeek
+ */
+export type TodayWeek = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Term Name
+     */
+    term_name: string;
+    /**
+     * Number
+     */
+    number: number | null;
+    /**
+     * Break Name
+     */
+    break_name: string | null;
 };
 
 /**
@@ -3280,6 +4575,101 @@ export type AccountTokensRevokeResponses = {
 
 export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
 
+export type CalendarOccurrencesData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query: {
+        /**
+         * Start
+         *
+         * First day, in the Program's time zone
+         */
+        start: string;
+        /**
+         * End
+         *
+         * Day after the last day (exclusive); at most 120 days later
+         */
+        end: string;
+        /**
+         * Sources
+         *
+         * Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; all by default
+         */
+        sources?: Array<string> | null;
+        /**
+         * Term Id
+         *
+         * Only this term
+         */
+        term_id?: string | null;
+        /**
+         * Course Ids
+         *
+         * Only these courses
+         */
+        course_ids?: Array<string> | null;
+    };
+    url: '/programs/{program_id}/calendar';
+};
+
+export type CalendarOccurrencesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CalendarOccurrencesError = CalendarOccurrencesErrors[keyof CalendarOccurrencesErrors];
+
+export type CalendarOccurrencesResponses = {
+    /**
+     * Successful Response
+     */
+    200: Occurrences;
+};
+
+export type CalendarOccurrencesResponse = CalendarOccurrencesResponses[keyof CalendarOccurrencesResponses];
+
+export type CalendarTodayData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/today';
+};
+
+export type CalendarTodayErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CalendarTodayError = CalendarTodayErrors[keyof CalendarTodayErrors];
+
+export type CalendarTodayResponses = {
+    /**
+     * Successful Response
+     */
+    200: Today;
+};
+
+export type CalendarTodayResponse = CalendarTodayResponses[keyof CalendarTodayResponses];
+
 export type CoreJobCancelData = {
     body?: never;
     path: {
@@ -3418,6 +4808,710 @@ export type CoreStorageUsageResponses = {
 };
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+
+export type ScheduleConflictsData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/schedule-conflicts';
+};
+
+export type ScheduleConflictsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleConflictsError = ScheduleConflictsErrors[keyof ScheduleConflictsErrors];
+
+export type ScheduleConflictsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConflictList;
+};
+
+export type ScheduleConflictsResponse = ScheduleConflictsResponses[keyof ScheduleConflictsResponses];
+
+export type ScheduleEventListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Course Id
+         *
+         * Only this course's events
+         */
+        course_id?: string | null;
+        /**
+         * Term Id
+         *
+         * Only this term's events
+         */
+        term_id?: string | null;
+    };
+    url: '/programs/{program_id}/events';
+};
+
+export type ScheduleEventListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventListError = ScheduleEventListErrors[keyof ScheduleEventListErrors];
+
+export type ScheduleEventListResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventList;
+};
+
+export type ScheduleEventListResponse = ScheduleEventListResponses[keyof ScheduleEventListResponses];
+
+export type ScheduleEventCreateData = {
+    body: EventCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/events';
+};
+
+export type ScheduleEventCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventCreateError = ScheduleEventCreateErrors[keyof ScheduleEventCreateErrors];
+
+export type ScheduleEventCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Event;
+};
+
+export type ScheduleEventCreateResponse = ScheduleEventCreateResponses[keyof ScheduleEventCreateResponses];
+
+export type ScheduleEventDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventDeleteError = ScheduleEventDeleteErrors[keyof ScheduleEventDeleteErrors];
+
+export type ScheduleEventDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
+
+export type ScheduleEventUpdateData = {
+    body: EventUpdateInputBody;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventUpdateError = ScheduleEventUpdateErrors[keyof ScheduleEventUpdateErrors];
+
+export type ScheduleEventUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Event;
+};
+
+export type ScheduleEventUpdateResponse = ScheduleEventUpdateResponses[keyof ScheduleEventUpdateResponses];
+
+export type ScheduleEventTypeListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types';
+};
+
+export type ScheduleEventTypeListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeListError = ScheduleEventTypeListErrors[keyof ScheduleEventTypeListErrors];
+
+export type ScheduleEventTypeListResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventTypeList;
+};
+
+export type ScheduleEventTypeListResponse = ScheduleEventTypeListResponses[keyof ScheduleEventTypeListResponses];
+
+export type ScheduleEventTypeCreateData = {
+    body: EventTypeCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types';
+};
+
+export type ScheduleEventTypeCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeCreateError = ScheduleEventTypeCreateErrors[keyof ScheduleEventTypeCreateErrors];
+
+export type ScheduleEventTypeCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventType;
+};
+
+export type ScheduleEventTypeCreateResponse = ScheduleEventTypeCreateResponses[keyof ScheduleEventTypeCreateResponses];
+
+export type ScheduleEventTypeDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Event Type Id
+         *
+         * Event type id
+         */
+        event_type_id: string;
+    };
+    query?: never;
+    url: '/event-types/{event_type_id}';
+};
+
+export type ScheduleEventTypeDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeDeleteError = ScheduleEventTypeDeleteErrors[keyof ScheduleEventTypeDeleteErrors];
+
+export type ScheduleEventTypeDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleEventTypeDeleteResponse = ScheduleEventTypeDeleteResponses[keyof ScheduleEventTypeDeleteResponses];
+
+export type ScheduleEventTypeUpdateData = {
+    body: EventTypeUpdateInputBody;
+    path: {
+        /**
+         * Event Type Id
+         *
+         * Event type id
+         */
+        event_type_id: string;
+    };
+    query?: never;
+    url: '/event-types/{event_type_id}';
+};
+
+export type ScheduleEventTypeUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeUpdateError = ScheduleEventTypeUpdateErrors[keyof ScheduleEventTypeUpdateErrors];
+
+export type ScheduleEventTypeUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventType;
+};
+
+export type ScheduleEventTypeUpdateResponse = ScheduleEventTypeUpdateResponses[keyof ScheduleEventTypeUpdateResponses];
+
+export type ScheduleEventTypeReorderData = {
+    body: EventTypeOrderInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types:order';
+};
+
+export type ScheduleEventTypeReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeReorderError = ScheduleEventTypeReorderErrors[keyof ScheduleEventTypeReorderErrors];
+
+export type ScheduleEventTypeReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventTypeList;
+};
+
+export type ScheduleEventTypeReorderResponse = ScheduleEventTypeReorderResponses[keyof ScheduleEventTypeReorderResponses];
+
+export type ScheduleExceptionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+        /**
+         * Original Date
+         *
+         * Regular date of the changed class
+         */
+        original_date: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}/exceptions/{original_date}';
+};
+
+export type ScheduleExceptionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleExceptionDeleteError = ScheduleExceptionDeleteErrors[keyof ScheduleExceptionDeleteErrors];
+
+export type ScheduleExceptionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleExceptionDeleteResponse = ScheduleExceptionDeleteResponses[keyof ScheduleExceptionDeleteResponses];
+
+export type ScheduleExceptionUpsertData = {
+    body: ExceptionUpsertInputBody;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+        /**
+         * Original Date
+         *
+         * The regular date of the class to change
+         */
+        original_date: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}/exceptions/{original_date}';
+};
+
+export type ScheduleExceptionUpsertErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleExceptionUpsertError = ScheduleExceptionUpsertErrors[keyof ScheduleExceptionUpsertErrors];
+
+export type ScheduleExceptionUpsertResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleExceptionUpsertResponse = ScheduleExceptionUpsertResponses[keyof ScheduleExceptionUpsertResponses];
+
+export type ScheduleFeedListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/calendar-feeds';
+};
+
+export type ScheduleFeedListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedListError = ScheduleFeedListErrors[keyof ScheduleFeedListErrors];
+
+export type ScheduleFeedListResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedList;
+};
+
+export type ScheduleFeedListResponse = ScheduleFeedListResponses[keyof ScheduleFeedListResponses];
+
+export type ScheduleFeedCreateData = {
+    body: FeedCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/calendar-feeds';
+};
+
+export type ScheduleFeedCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedCreateError = ScheduleFeedCreateErrors[keyof ScheduleFeedCreateErrors];
+
+export type ScheduleFeedCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedCreated;
+};
+
+export type ScheduleFeedCreateResponse = ScheduleFeedCreateResponses[keyof ScheduleFeedCreateResponses];
+
+export type ScheduleFeedRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Feed Id
+         *
+         * Feed id
+         */
+        feed_id: string;
+    };
+    query?: never;
+    url: '/calendar-feeds/{feed_id}';
+};
+
+export type ScheduleFeedRevokeErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedRevokeError = ScheduleFeedRevokeErrors[keyof ScheduleFeedRevokeErrors];
+
+export type ScheduleFeedRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    200: Feed;
+};
+
+export type ScheduleFeedRevokeResponse = ScheduleFeedRevokeResponses[keyof ScheduleFeedRevokeResponses];
+
+export type ScheduleMeetingListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's meetings
+         */
+        term_id?: string | null;
+    };
+    url: '/courses/{course_id}/meetings';
+};
+
+export type ScheduleMeetingListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingListError = ScheduleMeetingListErrors[keyof ScheduleMeetingListErrors];
+
+export type ScheduleMeetingListResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingListResponse = ScheduleMeetingListResponses[keyof ScheduleMeetingListResponses];
+
+export type ScheduleMeetingCreateData = {
+    body: MeetingCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings';
+};
+
+export type ScheduleMeetingCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingCreateError = ScheduleMeetingCreateErrors[keyof ScheduleMeetingCreateErrors];
+
+export type ScheduleMeetingCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleMeetingCreateResponse = ScheduleMeetingCreateResponses[keyof ScheduleMeetingCreateResponses];
+
+export type ScheduleMeetingCreateManyData = {
+    body: MeetingCreateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings:batch';
+};
+
+export type ScheduleMeetingCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingCreateManyError = ScheduleMeetingCreateManyErrors[keyof ScheduleMeetingCreateManyErrors];
+
+export type ScheduleMeetingCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingCreateManyResult;
+};
+
+export type ScheduleMeetingCreateManyResponse = ScheduleMeetingCreateManyResponses[keyof ScheduleMeetingCreateManyResponses];
+
+export type ScheduleMeetingDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}';
+};
+
+export type ScheduleMeetingDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingDeleteError = ScheduleMeetingDeleteErrors[keyof ScheduleMeetingDeleteErrors];
+
+export type ScheduleMeetingDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleMeetingDeleteResponse = ScheduleMeetingDeleteResponses[keyof ScheduleMeetingDeleteResponses];
+
+export type ScheduleMeetingUpdateData = {
+    body: MeetingUpdateInputBody;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}';
+};
+
+export type ScheduleMeetingUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingUpdateError = ScheduleMeetingUpdateErrors[keyof ScheduleMeetingUpdateErrors];
+
+export type ScheduleMeetingUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleMeetingUpdateResponse = ScheduleMeetingUpdateResponses[keyof ScheduleMeetingUpdateResponses];
+
+export type ScheduleMeetingSetEnabledData = {
+    body: MeetingSetEnabledInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings:enabled';
+};
+
+export type ScheduleMeetingSetEnabledErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingSetEnabledError = ScheduleMeetingSetEnabledErrors[keyof ScheduleMeetingSetEnabledErrors];
+
+export type ScheduleMeetingSetEnabledResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingSetEnabledResponse = ScheduleMeetingSetEnabledResponses[keyof ScheduleMeetingSetEnabledResponses];
 
 export type SettingsPreferencesGetData = {
     body?: never;
