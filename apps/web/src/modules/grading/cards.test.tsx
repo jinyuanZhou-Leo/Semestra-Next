@@ -93,3 +93,14 @@ test('a course without a gradebook shows its typed-in final grade on the card', 
   )
   expect(await screen.findByText('91%')).toBeInTheDocument()
 })
+
+test('revealing a hidden GPA on a card does not follow the card link', async () => {
+  const book = gradebook({ scale: { max_points: 4, hide_gpa: true } })
+  server.use(http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)))
+  const { router } = renderWithRouter(
+    <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Show GPA' }))
+  expect(await screen.findByText('3.70')).toBeInTheDocument()
+  expect(router.history.location.pathname).toBe('/')
+})

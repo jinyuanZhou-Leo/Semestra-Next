@@ -21,7 +21,12 @@ export function GpaValue({
         type="button"
         className={`${className ?? ''} cursor-pointer rounded-sm hover:bg-muted`}
         aria-label={m.grading_gpa_show()}
-        onClick={() => setRevealed(true)}
+        onClick={(event) => {
+          // Cards wrap their figures in a link; revealing must not follow it.
+          event.preventDefault()
+          event.stopPropagation()
+          setRevealed(true)
+        }}
       >
         {GPA_MASK}
       </button>
