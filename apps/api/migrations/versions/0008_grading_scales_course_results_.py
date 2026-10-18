@@ -1,7 +1,7 @@
 """grading: scales, course results, categories, assessments
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0008
+Revises: 0007
 Create Date: 2026-10-18 03:21:43.668591
 
 """
@@ -13,8 +13,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = '0007'
-down_revision: str | Sequence[str] | None = '0006'
+revision: str = '0008'
+down_revision: str | Sequence[str] | None = '0007'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

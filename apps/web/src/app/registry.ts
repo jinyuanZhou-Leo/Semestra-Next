@@ -6,6 +6,11 @@ import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
 import grading from '@/modules/grading/manifest'
+import counter from '@/modules/plugin-counter/manifest'
+import habitStreak from '@/modules/plugin-habit-streak/manifest'
+import pomodoro from '@/modules/plugin-pomodoro/manifest'
+import stickyNote from '@/modules/plugin-sticky-note/manifest'
+import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
@@ -31,6 +36,11 @@ export const builtInModules: readonly ModuleManifest[] = [
   grading,
   ai,
   plugins,
+  habitStreak,
+  pomodoro,
+  stickyNote,
+  counter,
+  worldClock,
 ]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */

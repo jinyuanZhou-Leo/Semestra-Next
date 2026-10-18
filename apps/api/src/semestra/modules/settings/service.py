@@ -324,6 +324,16 @@ async def purge_plugin(ctx: Ctx, user_id: str, plugin_id: str) -> None:
     )
 
 
+async def purge_ui_state(ctx: Ctx, user_id: str, prefix: str) -> None:
+    """Remove the remembered UI state under `prefix` (a plugin's timers, say) with its data."""
+    await ctx.db.execute(
+        delete(SettingsUiState).where(
+            SettingsUiState.user_id == user_id,
+            SettingsUiState.key.startswith(prefix, autoescape=True),
+        )
+    )
+
+
 async def forget_active_program(ctx: Ctx, user_id: str, program_id: str) -> None:
     row = await ctx.db.get(SettingsPreferences, user_id)
     if row is not None and row.active_program_id == program_id:

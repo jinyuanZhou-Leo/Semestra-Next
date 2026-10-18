@@ -1,0 +1,127 @@
+# 插件开发指南
+
+适用于第一方插件（M14 的计数器、习惯打卡、番茄钟、便签、世界时钟都按这个方式写）。参考实现是模板插件 `hello-note`：
+
+- 前端：`apps/web/src/modules/_template-plugin/`
+- 后端：`apps/api/src/semestra/modules/plugins_builtin/_template/`
+
+模板不注册进应用，复制后改名即可。更完整的例子看 `plugin-habit-streak` + `plugins_builtin/habit_streak/`（有自己的表、事件订阅、导出适配器）。
+
+## 1. 先想清楚：插件提供什么
+
+| 形态 | 说明 | 谁来画外框 |
+|---|---|---|
+| Card | 放在作用域（Program / 学期 / 课程 / 今天）的 Board 上，4 列网格里占 s/m/l/xl 尺寸 | M10 宿主画外框（标题、尺寸菜单、设置入口、删除），插件只写内容区 |
+| Page | 作用域页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
+| 设置分区 | 插件的账户级或作用域级配置 | M11 自动生成表单 |
+| Capability | 对外的读/写操作，同时是 REST、AI 助手工具和 MCP 工具 | 无 UI |
+
+插件按账户安装/卸载（M10）。卸载只隐藏，不删数据；用户选择"同时删除数据"时发布 `plugins.purge`，插件必须清理自己的行。
+
+## 2. 目录与命名
+
+```
+apps/web/src/modules/plugin-<id>/       前端；入口 manifest.ts
+apps/api/src/semestra/modules/plugins_builtin/<id_with_underscores>/   后端，只在需要持久化或 Agent 工具时才有
+```
+
+- 插件 id 是 kebab-case（`habit-streak`），前后端必须一致；CI 测试会把前端 manifest 列表与后端 `/plugins/catalog` 比对。
+- 卡片 id 是 `<前缀>.<名称>`（`habit.board`），capability 是 `<前缀>.<对象>.<动作>`（`habit.checkin.toggle`），表名 `plugin_<前缀>_<名称>`，设置命名空间 `plugin.<id>`。
+- 文案 key 用插件前缀（`habit_…`），两种语言都要写；错误码 `habit.date_out_of_range` 对应文案 `error_habit_date_out_of_range`。
+
+## 3. 前端
+
+### 3.1 Manifest
+
+```ts
+export default defineModule({
+  id: 'hello-note', kind: 'plugin',
+  name: m.hello_name, description: m.hello_description, icon: NotebookPen,
+  pages: [{ id, scopes, title, icon, component: lazy(...), order: 1000 }],
+  cards: [{
+    id: 'hello.note', scopes: ['program','term','course','today'],
+    title, icon, sizes: ['s','m','l'], defaultSize: 'm',
+    component: lazy(...),
+    settings: { schema: zodSchema, component: lazy(...) },   // component 可省，省略则按 schema 自动生成表单
+    multiple: true,
+    headerActions: ...,        // 卡片头部操作（计数器的"重置"）
+  }],
+  settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
+  statusItems: [{ id, order, useStatus }],   // 侧边栏状态条（番茄钟用它显示进行中的计时）
+})
+```
+
+- 所有重组件用 `lazy()`；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
+- 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
+
+### 3.2 卡片组件
+
+- Props：`{ scope, instanceId, size, settings }`。`settings` 是宿主用 `settings.schema` 解析后的结果，所以每个字段给默认值，旧卡片才不会因为新增字段而解析失败。
+- **每个声明的尺寸都要有设计**。s 只放最少的信息和一个主操作；不要用缩放凑合。测试里遍历所有尺寸渲染。
+- 修改设置用 `useCardSettings(instanceId, settings, delayMs)`：本地立即生效，延迟后保存，失败回滚并给出 `status`。计数器 300ms，便签 800ms。
+- 不要自绘卡片外框，也不要自己加内边距；外框之内的留白由宿主决定。
+- 业务数据（不属于设置的行，如打卡记录）走自己的 capability，用生成的 `@semestra/api-client`，不要手写 `fetch`。查询 key 由生成客户端决定，失效时用对象子集匹配。
+- 记忆性界面状态（折叠、上次选择、计时状态）用 `useUiPref('<前缀>.<名称>', 默认值)`，不要放设置里，也不要直接用 `localStorage`。
+
+### 3.3 样式与可访问性
+
+- 只用令牌：`bg-primary`、`text-muted-foreground`；课程/学科色用 `subjectColor`。不要写 `oklch(...)` 或 `sky-500`。
+- 控件用 `@/ui/` 里的 shadcn 组件（Button、Input、Textarea、Checkbox、Switch、RadioGroup、Select…），不要手写 `<input>`、`<button>` 样式；新组件用 shadcn CLI 安装，不要手改 `src/ui/`。表格用 TanStack Table。
+- 图标按钮要有 `aria-label`；会变的数字用 `aria-live="polite"`；动画尊重减少动效：系统的 `prefers-reduced-motion`（`motion/react` 的 `useReducedMotion`）和 M11 偏好写到 `<html data-reduce-motion="on">`，两者任一为真就不播放（参考 `plugin-kit/Burst.tsx`）。
+- 破坏性操作只在"没有其他确认步骤且不可撤销"时才弹确认；表单提交本身就是确认。
+
+## 4. 后端
+
+### 4.1 设置命名空间
+
+```python
+register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
+                  levels=("account", "course"), plugin_id="hello-note")
+```
+
+`levels` 是可以设置值的层级，更深的作用域读取继承后的结果。每个字段都要有默认值和 `description`。文案：`settings_plugin_hello_note_<字段>_label|_description|_option_<取值>`（后端测试检查两种语言齐全）。
+
+### 4.2 Capability
+
+```python
+@capability(name="hello.note.append", summary=..., description=..., effect="write",
+            http=Http("POST", "/hello/notes/{instance_id}/lines"), tags=("hello-note",),
+            plugin_id=PLUGIN_ID)
+```
+
+- `description` 是 AI 读的：什么时候用、怎么找输入（卡片实例用 `layouts.board.get`）、什么情况不要用。
+- `effect` 为 `read | write | destructive`。带 `plugin_id` 的 capability 在插件未安装时被拒绝，也不会出现在 Agent 工具列表里。
+- 绑定卡片实例的 capability 用 `instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)`：卡片不存在、不是自己的、不是该插件的卡片，都统一返回 `common.not_found`。
+- 需要用户所在时区的"今天"，通过卡片所在的 Program 取（`instances.instance_program` + `academics.program_today`），不要在前端算。
+- 领域错误用 `AppError("<前缀>.<原因>", status, **params)`。
+
+### 4.3 数据与清理
+
+- 表用 `OwnedMixin`（带 `user_id`），以 `instance_id` 关联卡片；`instance_id` 不是外键（卡片实例由 M10 管）。
+- 订阅 `layouts.card.deleted`（按 `card_id` 过滤）删除该卡片的行；订阅 `plugins.purge`（按 `plugin_id` 过滤）删除用户的全部行；它在卸载事务内发布，订阅要写 `@events.subscribe("plugins.purge", in_transaction=True)`，抛错会让卸载回滚。想让统计在卡片删除后保留的，可以只响应 `plugins.purge`（番茄钟这样做）。数据放在 `useUiPref` 里的插件，在同一订阅里用 `settings.service.purge_ui_state(ctx, user_id, '<前缀>')` 一并清掉。
+- 迁移走 Alembic 单一链：在 `migrations/env.py` import 你的 `models`，`alembic revision --autogenerate`，检查生成结果。
+
+### 4.4 导出/导入适配器（M13 §3）
+
+提供 `export / import_ / preview / purge` 四个回调，导入要幂等（重复导入不产生重复行），`id_map` 用来重映射跨模块 id。完整例子是 `plugins_builtin/portability.py`；M13 落地后在那里统一注册。没有自己数据的插件（如模板里的便签，文本在卡片设置里）适配器可以为空。
+
+### 4.5 Agent skill
+
+`<插件包>/skills/<名称>.md`，frontmatter 写 `name` 和 `description`，正文说明遇到什么请求按什么顺序调用哪些 capability（模板里的 `hello-note.md`）。
+
+## 5. 测试要求
+
+- 前端：每个卡片在**所有声明的尺寸**下渲染；设置 schema 的校验（含缺字段的旧数据）；两个实例互不干扰；有计时/日期逻辑的用纯函数 + 假时钟测。使用 `@/test-utils` 的 `renderWithQuery` 与 msw `server`。
+- 后端：capability 走 REST 的成功/失败路径（错误码与 params）；归属检查（别人的实例、别的卡片 id 返回 404）；事件订阅（卡片删除、purge）；导出→清空→导入的往返。卡片实例在测试里用 `plugins_builtin/tests/conftest.py` 的 `cards` fixture 模拟。
+- 改了后端接口要跑 `pnpm gen:api` 并提交生成结果。
+
+## 6. 发布清单
+
+- [ ] 前后端 id 一致，`PLUGIN` 信息（名称/描述 key、版本、`default_installed`、提供的卡片与 capability）已导出
+- [ ] 每个卡片的每个尺寸都有设计；s 尺寸可用
+- [ ] 中英文案齐全（含设置文案和错误码文案）
+- [ ] 颜色全用令牌，控件全用 shadcn 组件，图标按钮有 `aria-label`
+- [ ] 卸载（保留数据 / 删除数据）与重装的表现正确：卡片消失、重装后数据恢复，purge 后表里该用户行数为 0
+- [ ] 导出适配器已写并通过往返测试
+- [ ] Capability 的 `description` 对 AI 足够清楚；写操作的 `effect` 标对
+- [ ] `pnpm lint typecheck test`、`uv run ruff check`、`uv run pyright`、`uv run pytest`、`pnpm gen:api` 无差异
