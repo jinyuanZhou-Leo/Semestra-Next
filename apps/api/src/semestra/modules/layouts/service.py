@@ -471,6 +471,10 @@ async def list_card_instances(
 
 async def remove_card(ctx: Ctx, instance_id: str) -> Removed:
     row = await _instance_row(ctx, instance_id)
+    # A hidden card of an uninstalled plugin stays as it is, so a reinstall brings it back.
+    card = catalog.card(row.card_id)
+    if card is not None and card.module_id not in await installed_ids(ctx):
+        raise AppError("plugins.not_installed", 403, plugin_id=card.module_id)
     board = await _ensure_board(ctx, row.scope_type, row.scope_id)
     board.cards = [e for e in board.cards if e["instance_id"] != instance_id]
     board.updated_at = ctx.now

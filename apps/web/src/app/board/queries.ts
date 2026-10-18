@@ -3,6 +3,7 @@ import { layoutsCardSettingsUpdate } from '@semestra/api-client'
 import { layoutsBoardGetOptions } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { inOrder } from '@/lib/in-order'
 import type { BoardKind, Scope } from '../extensions'
 
 export type BoardRef = { scope_type: BoardKind; scope_id: string }
@@ -50,7 +51,8 @@ export type CardSettingsStatus = 'idle' | 'saving' | 'error'
 
 /**
  * Saves a card's settings from inside the card (a counter's value, a note's text). Optimistic:
- * the board cache changes at once and is rolled back if the save fails. The backend replaces
+ * the board cache changes at once and is rolled back if the save fails; saves reach the server
+ * in the order they were made and only the newest one settles the cache. The backend replaces
  * the whole object, so pass every field. Debounce in the card if it saves while typing.
  */
 export function useCardSettings<T extends object>(instanceId: string) {
@@ -64,21 +66,29 @@ export function useCardSettings<T extends object>(instanceId: string) {
       return { ...card, settings: { ...next } as Record<string, unknown> }
     })
     setStatus('saving')
-    try {
-      await layoutsCardSettingsUpdate({
+    const request = inOrder(`layouts.card_settings.${instanceId}`, () =>
+      layoutsCardSettingsUpdate({
         path: { instance_id: instanceId },
         body: { settings: next as Record<string, never> },
         throwOnError: true,
-      })
+      }),
+    )
+    try {
+      await request.result
+      if (!request.isLatest()) return
       setStatus('idle')
       setError(null)
     } catch (err) {
-      if (previous) {
-        const restore = previous
-        patchCachedCard(queryClient, instanceId, (card) => ({ ...card, settings: restore }))
+      // Only the newest save rolls back: an older failure must not undo a newer value.
+      if (request.isLatest()) {
+        if (previous) {
+          const restore = previous
+          patchCachedCard(queryClient, instanceId, (card) => ({ ...card, settings: restore }))
+        }
+        void queryClient.invalidateQueries({ queryKey: BOARD_QUERIES })
+        setStatus('error')
+        setError(err)
       }
-      setStatus('error')
-      setError(err)
       throw err
     }
   }

@@ -4,6 +4,7 @@ import { layoutsNavGetOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { toastError } from '@/lib/errors'
+import { inOrder } from '@/lib/in-order'
 import type { PageContribution, Scope, ScopeKind } from '../extensions'
 import { usePages } from '../registry'
 
@@ -49,6 +50,7 @@ export function useScopePages(scope: Scope) {
 /**
  * Saves the order and hidden pages of a scope type at once (the tabs follow immediately) and
  * restores them if the save fails. Ids of pages not shown now (plugins not installed) are kept.
+ * Saves of a scope type reach the server in the order they were made.
  */
 export function useSaveNav(kind: ScopeKind) {
   const queryClient = useQueryClient()
@@ -70,15 +72,18 @@ export function useSaveNav(kind: ScopeKind) {
         hidden: [...next.hidden, ...keep(previous.hidden, [...next.order, ...next.hidden])],
       }
       queryClient.setQueryData<Nav>(queryKey, { scope_type: kind, ...merged })
+      const save = inOrder(`layouts.nav.${kind}`, () =>
+        layoutsNavUpdate({ path: { scope_type: kind }, body: merged, throwOnError: true }),
+      )
       try {
-        const { data } = await layoutsNavUpdate({
-          path: { scope_type: kind },
-          body: merged,
-          throwOnError: true,
-        })
-        queryClient.setQueryData(queryKey, data)
+        const { data } = await save.result
+        if (save.isLatest()) queryClient.setQueryData(queryKey, data)
       } catch (err) {
-        queryClient.setQueryData(queryKey, previous)
+        // A newer change is on its way and carries this one's state; let it settle the cache.
+        if (save.isLatest()) {
+          queryClient.setQueryData(queryKey, previous)
+          void queryClient.invalidateQueries({ queryKey })
+        }
         toastError(err)
       }
     },
