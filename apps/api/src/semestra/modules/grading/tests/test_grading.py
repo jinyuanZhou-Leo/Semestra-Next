@@ -804,3 +804,36 @@ async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Ap
         )
         assert isinstance(out, dict)
         assert set(out["items"][0]) == {"id", "title", "weight"}
+
+
+# --- calendar (M04) -------------------------------------------------------------------------
+
+
+async def test_ungraded_deadlines_show_in_the_calendar(api: Api, app: FastAPI):
+    program, course = await one_course(api, code="APS105H1")
+    pid, cid = program["id"], course["id"]
+    timed = await api.assessment(cid, "Lab 1", 10, due_date="2025-10-06", due_time="17:00")
+    await api.assessment(cid, "Essay", 20, due_date="2025-10-08")
+    await api.assessment(cid, "Quiz", 5, due_date="2025-10-07", score_percentage=80)
+    await api.assessment(cid, "Midterm", 30, due_date="2025-11-01")
+    got = await api.call(
+        "GET",
+        f"/programs/{pid}/calendar",
+        params={"start": "2025-10-06", "end": "2025-10-13", "sources": ["grading.assessments"]},
+    )
+    items = [
+        (o["title"], o["kind"], o["all_day"], o["start_at"], o["end_at"]) for o in got["items"]
+    ]
+    assert items == [
+        ("APS105H1 · Lab 1", "deadline", False, "2025-10-06T21:00:00Z", None),
+        ("APS105H1 · Essay", "deadline", True, "2025-10-08T04:00:00Z", "2025-10-09T04:00:00Z"),
+    ]
+    assert got["items"][0]["ref"] == {"entity": "grading.assessment", "id": timed["id"]}
+    async with app.state.session_factory() as db:
+        owner = await db.scalar(select(models.GradingScale.user_id))
+    assert owner
+    with collect_events(app, owner) as pushed:
+        await api.call("PATCH", f"/assessments/{timed['id']}", json={"score_percentage": 90})
+    assert {"type": "calendar.changed", "data": {"program_id": pid}} in [
+        {"type": e["type"], "data": e["data"]} for e in pushed
+    ]

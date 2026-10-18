@@ -12,9 +12,11 @@ import pomodoro from '@/modules/plugin-pomodoro/manifest'
 import stickyNote from '@/modules/plugin-sticky-note/manifest'
 import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
+import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
   BoardKind,
+  CalendarSourceContribution,
   CardContribution,
   ModuleManifest,
   PageContribution,
@@ -36,6 +38,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   grading,
   ai,
   plugins,
+  schedule,
   habitStreak,
   pomodoro,
   stickyNote,
@@ -116,6 +119,10 @@ export function useCards(board: BoardKind): CardContribution[] {
   return useModules()
     .flatMap((m) => m.cards ?? [])
     .filter((c) => c.scopes.includes(board))
+}
+
+export function useCalendarSources(): CalendarSourceContribution[] {
+  return useModules().flatMap((m) => m.calendarSources ?? [])
 }
 
 export function useSettingsSections(level: SettingsLevel): SettingsSectionContribution[] {

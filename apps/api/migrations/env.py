@@ -27,6 +27,7 @@ from semestra.modules.layouts import models as _layouts_models  # noqa: E402,F40
 from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.habit_streak import models as _habit_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.pomodoro import models as _pomodoro_models  # noqa: E402,F401
+from semestra.modules.schedule import models as _schedule_models  # noqa: E402,F401
 from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
 
 target_metadata = Base.metadata

@@ -1,4 +1,4 @@
-import type { JobOut } from '@semestra/api-client'
+import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { ZodType } from 'zod'
@@ -188,8 +188,24 @@ export type AssistantContribution = {
   open: (ctx: CommandContext, question?: string) => void
 }
 
-/** Defined by M04; kept open here so M04 can refine it without changing the contract. */
-export type CalendarSourceContribution = { id: string; title: Message } & Record<string, unknown>
+/**
+ * A calendar source's label, icon and click behaviour in the calendar (M04 §5.2). The data itself
+ * always comes from the backend source of the same name (`calendar.occurrences`).
+ */
+export type CalendarSourceContribution = {
+  /** Backend source name, e.g. 'grading.assessments'. */
+  source: string
+  label: Message
+  icon: LucideIcon
+  /** Shown before the user changes the calendar's filters. */
+  defaultVisible: boolean
+  /** "Open" in the occurrence's details; without it the details have no open action. */
+  onOpen?: (
+    occurrence: Occurrence,
+    navigate: (to: string) => void,
+    ctx: { programId: string },
+  ) => void
+}
 
 export type SearchResult = { id: string; title: string; subtitle?: string; to: string }
 

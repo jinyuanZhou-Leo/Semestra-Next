@@ -1,0 +1,598 @@
+import type { EventChangeArg, EventContentArg, EventInput } from '@fullcalendar/core'
+import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import interactionPlugin from '@fullcalendar/interaction'
+import listPlugin from '@fullcalendar/list'
+import FullCalendar from '@fullcalendar/react'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import type { Meeting, OneOffEvent, Occurrence, Term } from '@semestra/api-client'
+import {
+  scheduleEventUpdateMutation,
+  scheduleExceptionUpsertMutation,
+  scheduleMeetingUpdateMutation,
+} from '@semestra/api-client/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Link2,
+  ListFilter,
+  Plus,
+  TriangleAlert,
+} from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import type { PageProps } from '@/app/extensions'
+import { useCalendarSources } from '@/app/registry'
+import { useUiPref } from '@/app/ui-pref'
+import { toastError } from '@/lib/errors'
+import { firstDayOfWeek } from '@/lib/format'
+import { useCourses, useTerms } from '@/modules/academics/queries'
+import { m } from '@/paraglide/messages'
+import { getLocale } from '@/paraglide/runtime'
+import { Button } from '@/ui/button'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/sheet'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import '../calendar.css'
+import { DragChoiceDialog } from '../components/DragChoiceDialog'
+import { EventDialog, type EventSlot } from '../components/EventDialog'
+import { ExportDialog } from '../components/ExportDialog'
+import { FeedsDialog } from '../components/FeedsDialog'
+import {
+  type CalendarFilters,
+  DEFAULT_FILTERS,
+  FilterPanel,
+  visibleSources,
+} from '../components/FilterPanel'
+import { MeetingDialog } from '../components/MeetingDialog'
+import { MoveDialog, type MoveTarget } from '../components/MoveDialog'
+import { OccurrenceDetails } from '../components/OccurrenceDetails'
+import { TimetableView } from '../components/TimetableView'
+import { useProgramTimezone } from '../hooks'
+import { weekLabel } from '../labels'
+import { isMeeting, isOneOff, occurrenceColor, weekOf } from '../occurrence'
+import {
+  type CalendarSettings,
+  invalidateSchedule,
+  useCalendarInfo,
+  useCalendarSettings,
+  useEvents,
+  useOccurrences,
+  useTermMeetings,
+} from '../queries'
+import { hhmm, isoDay, isoWeekday, plusDays, toWall, todayIn } from '../time'
+
+export type CalendarView = CalendarSettings['default_view']
+type Nav = { view: CalendarView; date: string }
+
+const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
+  week: 'timeGridWeek',
+  month: 'dayGridMonth',
+  list: 'listWeek',
+}
+
+// Module constants: FullCalendar resets its view (and reports the dates again) when these change.
+const PLUGINS = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
+const LOCALES = [zhCnLocale]
+
+const wall = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm:ss")
+
+/** The term calendar (M04 §5.2). */
+export default function CalendarPage({ scope }: PageProps) {
+  const termId = scope.kind === 'term' ? scope.termId : ''
+  const timezone = useProgramTimezone(scope.programId)
+  const term = useTerms(scope.programId).data?.items.find((t) => t.id === termId)
+  if (!timezone || !term) return null
+  return <TermCalendar programId={scope.programId} term={term} timezone={timezone} />
+}
+
+type DragState = {
+  occurrence: Occurrence
+  start: Date
+  end: Date
+  revert: () => void
+}
+
+function TermCalendar({
+  programId,
+  term,
+  timezone,
+}: {
+  programId: string
+  term: Term
+  timezone: string
+}) {
+  const queryClient = useQueryClient()
+  const calendarRef = useRef<FullCalendar>(null)
+  const settings = useCalendarSettings(term.id)
+  const sources = useCalendarSources()
+  const courses = useCourses(programId, term.id).data?.items ?? []
+  const meetings = useTermMeetings(
+    courses.map((c) => c.id),
+    term.id,
+  ).items
+  const events = useEvents(programId, {}).data?.items ?? []
+  const weeks = useCalendarInfo(term.id).data?.weeks ?? []
+  const [nav, setNav] = useUiPref<Nav | null>('calendar.nav', null, { scope: term.id })
+  const [filters, setFilters] = useUiPref<CalendarFilters>('calendar.filters', DEFAULT_FILTERS, {
+    scope: term.id,
+  })
+  const today = todayIn(timezone)
+  // FullCalendar gets Program wall-clock times, so its "now" (today, the now line) must be too.
+  const now = useCallback(() => toWall(new Date().toISOString(), timezone), [timezone])
+  const view: CalendarView = nav?.view ?? settings.default_view
+  const anchor =
+    nav?.date ?? (today >= term.start_date && today <= term.end_date ? today : term.start_date)
+  const [range, setRange] = useState<{ start: string; end: string } | null>(null)
+  const [title, setTitle] = useState('')
+
+  const [details, setDetails] = useState<Occurrence | null>(null)
+  const [move, setMove] = useState<MoveTarget | null>(null)
+  const [meetingEdit, setMeetingEdit] = useState<Meeting | null>(null)
+  const [eventEdit, setEventEdit] = useState<{ event?: OneOffEvent; slot?: EventSlot } | null>(null)
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [feeds, setFeeds] = useState(false)
+
+  const wanted = visibleSources(filters, sources)
+  const occurrences = useOccurrences(
+    programId,
+    { start: range?.start ?? '', end: range?.end ?? '', term_id: term.id, sources: wanted },
+    range !== null && view !== 'timetable' && wanted.length > 0,
+  ).data
+  const showCancelled = filters.showCancelled ?? settings.cancelled_display === 'strike'
+  const hidden = new Set(filters.hiddenCourses)
+  const items = (wanted.length > 0 ? (occurrences?.items ?? []) : []).filter(
+    (o) =>
+      (!o.course_id || !hidden.has(o.course_id)) && (showCancelled || o.status !== 'cancelled'),
+  )
+
+  const updateEvent = useMutation({ ...scheduleEventUpdateMutation() })
+  const upsertException = useMutation({ ...scheduleExceptionUpsertMutation() })
+  const updateMeeting = useMutation({ ...scheduleMeetingUpdateMutation() })
+
+  const saveNav = (next: Nav) => {
+    if (next.view !== nav?.view || next.date !== nav?.date) setNav(next)
+  }
+  const changeView = (next: CalendarView) => {
+    const api = calendarRef.current?.getApi()
+    if (next !== 'timetable' && api) api.changeView(FC_VIEW[next])
+    else saveNav({ view: next, date: anchor })
+  }
+
+  const fcEvents: EventInput[] = [
+    ...items.map((o): EventInput => {
+      const editable = isOneOff(o) || (isMeeting(o) && o.status !== 'cancelled')
+      return {
+        id: o.id,
+        title: o.title,
+        start: o.all_day ? toWall(o.start_at, timezone).slice(0, 10) : toWall(o.start_at, timezone),
+        end: o.end_at
+          ? o.all_day
+            ? toWall(o.end_at, timezone).slice(0, 10)
+            : toWall(o.end_at, timezone)
+          : undefined,
+        allDay: o.all_day ?? false,
+        editable,
+        durationEditable: editable,
+        classNames: ['semestra-item', o.status === 'cancelled' ? 'line-through opacity-60' : ''],
+        borderColor: occurrenceColor(o),
+        backgroundColor: `color-mix(in oklab, ${occurrenceColor(o)} 18%, var(--background))`,
+        textColor: 'var(--foreground)',
+        extendedProps: { occurrence: o },
+      }
+    }),
+    ...term.breaks.map((b): EventInput => ({
+      id: `break:${b.id}`,
+      title: b.name,
+      start: b.start_date,
+      end: plusDays(b.end_date, 1),
+      allDay: true,
+      display: 'background',
+    })),
+  ]
+
+  const onChange = (info: EventChangeArg) => {
+    const o = info.event.extendedProps.occurrence as Occurrence | undefined
+    const start = info.event.start
+    if (!o || !start) return info.revert()
+    const end = info.event.end ?? start
+    if (isOneOff(o)) {
+      updateEvent.mutate(
+        {
+          path: { event_id: o.ref.id },
+          body: { start_at: wall(start), end_at: wall(end), all_day: info.event.allDay },
+        },
+        {
+          onError: (error) => {
+            info.revert()
+            toastError(error)
+          },
+          onSettled: () => invalidateSchedule(queryClient),
+        },
+      )
+      return
+    }
+    if (info.event.allDay || isoDay(start) !== isoDay(new Date(end.getTime() - 1))) {
+      return info.revert()
+    }
+    setDrag({ occurrence: o, start, end, revert: info.revert })
+  }
+
+  const dragOnlyThis = async () => {
+    if (!drag) return
+    const { occurrence: o, start, end } = drag
+    try {
+      await upsertException.mutateAsync({
+        path: {
+          meeting_id: o.meta?.meeting_id ?? o.ref.id,
+          original_date: o.meta?.original_date ?? '',
+        },
+        body: {
+          kind: 'moved',
+          new_date: isoDay(start),
+          new_start_time: hhmm(start),
+          new_end_time: hhmm(end),
+          new_location: o.location ?? null,
+          note: o.meta?.note ?? null,
+        },
+      })
+      setDrag(null)
+    } catch (error) {
+      drag.revert()
+      setDrag(null)
+      toastError(error)
+    } finally {
+      await invalidateSchedule(queryClient)
+    }
+  }
+  const dragAll = async () => {
+    if (!drag) return
+    const { occurrence: o, start, end } = drag
+    try {
+      await updateMeeting.mutateAsync({
+        path: { meeting_id: o.meta?.meeting_id ?? o.ref.id },
+        body: { weekday: isoWeekday(start), start_time: hhmm(start), end_time: hhmm(end) },
+      })
+      setDrag(null)
+    } catch (error) {
+      drag.revert()
+      setDrag(null)
+      toastError(error)
+    } finally {
+      await invalidateSchedule(queryClient)
+    }
+  }
+
+  const weekNumberLabel = (date: Date) => {
+    const week = weekOf(weeks, isoDay(date))
+    return week ? weekLabel(week.number, week.break_info?.name) : ''
+  }
+  const currentWeek = weekOf(weeks, anchor)
+  const detailsCourse = details ? courses.find((c) => c.id === details.course_id) : undefined
+  const editingCourse = meetingEdit
+    ? courses.find((c) => c.id === meetingEdit.course_id)
+    : undefined
+  const minWidth =
+    settings.min_column_width > 0
+      ? settings.min_column_width * (settings.show_weekends ? 7 : 5) + 56
+      : undefined
+
+  const filterPanel = (
+    <FilterPanel
+      filters={filters}
+      onChange={setFilters}
+      sources={sources}
+      courses={courses}
+      showCancelled={showCancelled}
+    />
+  )
+
+  return (
+    <div className="flex gap-6">
+      <aside className="hidden w-52 shrink-0 lg:block">{filterPanel}</aside>
+      <div className="min-w-0 flex-1 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Sheet>
+            <SheetTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="lg:hidden"
+                  aria-label={m.schedule_filters()}
+                />
+              }
+            >
+              <ListFilter aria-hidden />
+            </SheetTrigger>
+            <SheetContent className="p-6">
+              <SheetTitle className="mb-4">{m.schedule_filters()}</SheetTitle>
+              {filterPanel}
+            </SheetContent>
+          </Sheet>
+          {view !== 'timetable' ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => calendarRef.current?.getApi().gotoDate(today)}
+              >
+                {m.schedule_today()}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={m.schedule_previous()}
+                onClick={() => calendarRef.current?.getApi().prev()}
+              >
+                <ChevronLeft aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={m.schedule_next()}
+                onClick={() => calendarRef.current?.getApi().next()}
+              >
+                <ChevronRight aria-hidden />
+              </Button>
+              <h2 className="font-heading text-base font-medium">
+                {title}
+                {view !== 'month' && currentWeek ? (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {weekLabel(currentWeek.number, currentWeek.break_info?.name)}
+                  </span>
+                ) : null}
+              </h2>
+            </>
+          ) : (
+            <h2 className="font-heading text-base font-medium">{term.name}</h2>
+          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ToggleGroup
+              aria-label={m.schedule_view()}
+              variant="outline"
+              size="sm"
+              value={[view]}
+              onValueChange={(value) => value[0] && changeView(value[0] as CalendarView)}
+            >
+              <ToggleGroupItem value="week">
+                {m.settings_calendar_default_view_option_week()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="month">
+                {m.settings_calendar_default_view_option_month()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="list">
+                {m.settings_calendar_default_view_option_list()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="timetable">
+                {m.settings_calendar_default_view_option_timetable()}
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const slot = `${anchor}T09:00`
+                setEventEdit({ slot: { start: slot, end: `${anchor}T10:00`, allDay: false } })
+              }}
+            >
+              <Plus aria-hidden />
+              {m.schedule_event_add()}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setExporting(true)}>
+              <Download aria-hidden />
+              {m.schedule_export()}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={m.schedule_feeds()}
+              onClick={() => setFeeds(true)}
+            >
+              <Link2 aria-hidden />
+            </Button>
+          </div>
+        </div>
+
+        {view === 'timetable' ? (
+          <TimetableView
+            termId={term.id}
+            meetings={meetings}
+            courses={courses}
+            dayStart={settings.day_start}
+            dayEnd={settings.day_end}
+            showWeekends={settings.show_weekends}
+            onEditMeeting={setMeetingEdit}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="semestra-calendar" style={{ minWidth }}>
+              <FullCalendar
+                // A view chosen elsewhere (the stored one arriving, or the timetable toggle)
+                // starts a fresh calendar on it.
+                key={view}
+                ref={calendarRef}
+                plugins={PLUGINS}
+                initialView={FC_VIEW[view]}
+                initialDate={anchor}
+                headerToolbar={false}
+                height="auto"
+                locales={LOCALES}
+                locale={getLocale().startsWith('zh') ? 'zh-cn' : 'en'}
+                firstDay={firstDayOfWeek() % 7}
+                weekends={settings.show_weekends}
+                slotMinTime={settings.day_start}
+                slotMaxTime={settings.day_end === '24:00' ? '24:00:00' : settings.day_end}
+                scrollTime={settings.day_start}
+                nowIndicator
+                now={now}
+                weekNumbers
+                weekNumberContent={(arg) => weekNumberLabel(arg.date)}
+                allDayText={m.schedule_all_day()}
+                noEventsText={m.schedule_no_events()}
+                events={fcEvents}
+                selectable
+                selectMirror
+                editable
+                eventStartEditable
+                select={(arg) => {
+                  const end = arg.allDay ? plusDays(isoDay(arg.end), -1) : wall(arg.end)
+                  setEventEdit({
+                    slot: {
+                      start: arg.allDay
+                        ? `${isoDay(arg.start)}T00:00`
+                        : wall(arg.start).slice(0, 16),
+                      end: arg.allDay ? `${end}T00:00` : end.slice(0, 16),
+                      allDay: arg.allDay,
+                    },
+                  })
+                  arg.view.calendar.unselect()
+                }}
+                eventClick={(arg) => {
+                  const o = arg.event.extendedProps.occurrence as Occurrence | undefined
+                  if (o) setDetails(o)
+                }}
+                eventDrop={onChange}
+                eventResize={onChange}
+                eventContent={(arg) => <EventContent arg={arg} />}
+                datesSet={(arg) => {
+                  const start = isoDay(arg.start)
+                  const end = isoDay(arg.end)
+                  setRange((r) => (r?.start === start && r.end === end ? r : { start, end }))
+                  setTitle(arg.view.title)
+                  const type = arg.view.type
+                  const nextView =
+                    type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
+                  saveNav({ view: nextView, date: isoDay(arg.view.calendar.getDate()) })
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {details ? (
+        <OccurrenceDetails
+          occurrence={details}
+          timezone={timezone}
+          programId={programId}
+          course={detailsCourse}
+          open
+          onOpenChange={(open) => !open && setDetails(null)}
+          onMove={(o) => {
+            setDetails(null)
+            setMove({
+              meetingId: o.meta?.meeting_id ?? o.ref.id,
+              originalDate: o.meta?.original_date ?? '',
+              date: toWall(o.start_at, timezone).slice(0, 10),
+              start: toWall(o.start_at, timezone).slice(11, 16),
+              end: toWall(o.end_at ?? o.start_at, timezone).slice(11, 16),
+              location: o.location ?? '',
+              note: o.meta?.note ?? '',
+            })
+          }}
+          onEditMeeting={(o) => {
+            const meeting = meetings.find((mt) => mt.id === o.meta?.meeting_id)
+            setDetails(null)
+            if (meeting) setMeetingEdit(meeting)
+          }}
+          onEditEvent={(o) => {
+            const event = events.find((e) => e.id === o.ref.id)
+            setDetails(null)
+            if (event) setEventEdit({ event })
+          }}
+        />
+      ) : null}
+      {move ? (
+        <MoveDialog target={move} open onOpenChange={(open) => !open && setMove(null)} />
+      ) : null}
+      {meetingEdit && editingCourse ? (
+        <MeetingDialog
+          key={meetingEdit.id}
+          programId={programId}
+          courseId={editingCourse.id}
+          termIds={editingCourse.term_ids}
+          termId={term.id}
+          meeting={meetingEdit}
+          open
+          onOpenChange={(open) => !open && setMeetingEdit(null)}
+        />
+      ) : null}
+      {eventEdit ? (
+        <EventDialog
+          programId={programId}
+          timezone={timezone}
+          termId={term.id}
+          event={eventEdit.event}
+          slot={eventEdit.slot}
+          open
+          onOpenChange={(open) => !open && setEventEdit(null)}
+        />
+      ) : null}
+      <DragChoiceDialog
+        open={drag !== null}
+        allowAll={drag?.occurrence.status !== 'moved'}
+        pending={upsertException.isPending || updateMeeting.isPending}
+        onOnlyThis={() => void dragOnlyThis()}
+        onAll={() => void dragAll()}
+        onCancel={() => {
+          drag?.revert()
+          setDrag(null)
+        }}
+      />
+      {exporting ? (
+        <ExportDialog
+          programId={programId}
+          termId={term.id}
+          termName={term.name}
+          timezone={timezone}
+          weeks={weeks}
+          currentWeekStart={anchor}
+          courses={courses}
+          meetings={meetings}
+          sources={sources}
+          defaultSources={wanted}
+          hiddenCourses={filters.hiddenCourses}
+          settings={settings}
+          open
+          onOpenChange={setExporting}
+        />
+      ) : null}
+      <FeedsDialog programId={programId} open={feeds} onOpenChange={setFeeds} />
+    </div>
+  )
+}
+
+function EventContent({ arg }: { arg: EventContentArg }) {
+  const o = arg.event.extendedProps.occurrence as Occurrence | undefined
+  if (!o) return <span className="fc-event-title">{arg.event.title}</span>
+  const conflict = (o.meta?.conflicts_with?.length ?? 0) > 0
+  return (
+    <div className="flex min-w-0 flex-col overflow-hidden px-1 leading-tight">
+      <span className="flex items-center gap-1 truncate font-medium">
+        {arg.view.type === 'dayGridMonth' || arg.view.type === 'listWeek' ? (
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: occurrenceColor(o) }}
+          />
+        ) : null}
+        {conflict ? (
+          <TriangleAlert
+            aria-label={m.schedule_conflict()}
+            className="size-3 shrink-0 text-destructive"
+          />
+        ) : null}
+        {arg.timeText && arg.view.type === 'dayGridMonth' ? (
+          <span className="text-muted-foreground">{arg.timeText}</span>
+        ) : null}
+        <span className="truncate">{o.title}</span>
+      </span>
+      {arg.view.type === 'timeGridWeek' && o.location ? (
+        <span className="truncate text-muted-foreground">{o.location}</span>
+      ) : null}
+    </div>
+  )
+}

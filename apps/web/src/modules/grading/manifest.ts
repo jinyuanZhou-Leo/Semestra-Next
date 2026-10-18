@@ -6,6 +6,7 @@ import {
   PROGRAM_SETUP_FIELDS,
   type ProgramSetupField,
 } from '@/modules/academics/types'
+import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { courseColumns } from './extensions/columns'
 import { ScalePresetField } from './extensions/SetupField'
@@ -135,6 +136,17 @@ export default defineModule({
       icon: Percent,
       order: 30,
       component: lazy(() => settings().then((s) => ({ default: s.CourseGradingSection }))),
+    },
+  ],
+  calendarSources: [
+    {
+      source: 'grading.assessments',
+      label: m.grading_calendar_source,
+      icon: CalendarClock,
+      defaultVisible: true,
+      onOpen: (o, navigate, { programId }) => {
+        if (o.course_id) navigate(coursePath(programId, o.course_id, 'grades'))
+      },
     },
   ],
   extensions: {

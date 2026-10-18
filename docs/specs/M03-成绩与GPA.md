@@ -177,7 +177,7 @@ grading_assessments
 - 考核的截止时间输入除 `due_at` 外还接受 `due_date` + `due_time`（按 Program 时区解释，没有时间则只显示日期、截止点是当天结束）；输出同时给 `due_at` 和本地的 `due_date`/`due_time`，前端表单直接用后者。
 - 分数输入：`points_earned` + `points_possible` 优先并换算出百分比；只给 `score_percentage` 会清除分数制；`points_earned: null` 清除分数。`status` 由服务端算出（`graded` / `pending` / `overdue`）。
 - 事件：除第 4 节列出的三类外，删除考核前在事务内发 `grading.assessment.deleting`；`created|updated` 的 payload 带 `changed`（变化的字段名），`deleted` 带 `due_changed`。分类的增删改没有事件（本标签页靠失效刷新，其它标签页要等下一次拉取）。
-- `assessment_deadlines()`（`service.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。**M04 日历源还没有落地，所以本 PR 没有注册 `CalendarSourceContribution`，也没有后端侧的日历接线**；M04 落地后在 `grading/manifest.ts` 里加 `calendarSources`，点击打开课程 `grades` Page 并高亮 `data-assessment` 行。
+- `assessment_deadlines()`（`service.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。日历源 `grading.assessments` 在 `grading/calendar.py` 注册（只有日期的截止点显示为当天的全天项，有时间的是一个时间点；考核增删改后发 `calendar.changed`），前端在 `grading/manifest.ts` 的 `calendarSources` 里，点击打开课程的 `grades` Page。高亮对应行还没做。
 - 官方成绩覆盖（`final_override_percentage`）即使权重不足 100 也生效（用户已经知道最终成绩）；此时不给 `required_average` 与 `reachable`。`include_in_gpa=false` 的课程不进 GPA，但已完成的学分仍计入"已获学分"。
 - 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_monotonic`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`。前端对每个码只给一条文案，不按 reason 细分。
 

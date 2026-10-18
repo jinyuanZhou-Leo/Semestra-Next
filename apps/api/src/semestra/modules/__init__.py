@@ -11,6 +11,7 @@ def register_all(app: FastAPI) -> None:
         layouts,
         plugins,
         plugins_builtin,
+        schedule,
         settings,
     )
 
@@ -21,4 +22,5 @@ def register_all(app: FastAPI) -> None:
     ai.register(app)
     plugins.register(app)
     layouts.register(app)
+    schedule.register(app)
     plugins_builtin.register(app)
