@@ -99,6 +99,134 @@ export type AuthResult = {
 };
 
 /**
+ * Board
+ */
+export type Board = {
+    /**
+     * Scope Type
+     */
+    scope_type: 'program' | 'term' | 'course' | 'today';
+    /**
+     * Scope Id
+     */
+    scope_id: string;
+    /**
+     * Cards
+     */
+    cards: Array<BoardCard>;
+    /**
+     * Customized
+     *
+     * False while the board still follows the template
+     */
+    customized: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string | null;
+};
+
+/**
+ * BoardCard
+ */
+export type BoardCard = {
+    /**
+     * Instance Id
+     *
+     * Card instance id; pass it to card capabilities
+     */
+    instance_id: string;
+    /**
+     * Card Id
+     *
+     * Which card, e.g. 'sticky.note'
+     */
+    card_id: string;
+    /**
+     * Size
+     *
+     * s=1x1, m=2x1, l=2x2, xl=4x2 on a 4-column grid
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     *
+     * Column, 0-3
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Row, from 0
+     */
+    y: number;
+    /**
+     * Settings
+     *
+     * The card's settings as stored
+     */
+    settings: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * BoardCardInput
+ */
+export type BoardCardInput = {
+    /**
+     * Instance Id
+     *
+     * Existing instance; null adds a new card
+     */
+    instance_id?: string | null;
+    /**
+     * Card Id
+     *
+     * Card id
+     */
+    card_id: string;
+    /**
+     * Size
+     *
+     * Card size
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     *
+     * Column, 0-3
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Row
+     */
+    y: number;
+    /**
+     * Settings
+     *
+     * Settings of a new card (ignored for existing ones)
+     */
+    settings?: {
+        [key: string]: JsonValue;
+    } | null;
+};
+
+/**
+ * BoardUpdateInputBody
+ */
+export type BoardUpdateInputBody = {
+    /**
+     * Cards
+     *
+     * The whole layout; cards left out are deleted
+     */
+    cards: Array<BoardCardInput>;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -198,6 +326,66 @@ export type CalendarInfo = {
      * Index into `weeks` of today's week, if in term
      */
     today_week: number | null;
+};
+
+/**
+ * CardAddInputBody
+ */
+export type CardAddInputBody = {
+    /**
+     * Card Id
+     *
+     * Card to add, e.g. 'sticky.note' or 'pomodoro.timer'
+     */
+    card_id: string;
+    /**
+     * Size
+     *
+     * Size; default is the card's own
+     */
+    size?: 's' | 'm' | 'l' | 'xl' | null;
+    /**
+     * Settings
+     *
+     * Initial settings
+     */
+    settings?: {
+        [key: string]: JsonValue;
+    } | null;
+};
+
+/**
+ * CardSettings
+ */
+export type CardSettings = {
+    /**
+     * Instance Id
+     */
+    instance_id: string;
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Settings
+     */
+    settings: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * CardSettingsUpdateInputBody
+ */
+export type CardSettingsUpdateInputBody = {
+    /**
+     * Settings
+     *
+     * The card's whole settings object
+     */
+    settings: {
+        [key: string]: JsonValue;
+    };
 };
 
 /**
@@ -1024,6 +1212,46 @@ export type ModelParams = {
 };
 
 /**
+ * Nav
+ */
+export type Nav = {
+    /**
+     * Scope Type
+     */
+    scope_type: 'program' | 'term' | 'course';
+    /**
+     * Order
+     *
+     * Page ids in tab order; pages not listed come last
+     */
+    order: Array<string>;
+    /**
+     * Hidden
+     *
+     * Hidden page ids
+     */
+    hidden: Array<string>;
+};
+
+/**
+ * NavUpdateInputBody
+ */
+export type NavUpdateInputBody = {
+    /**
+     * Order
+     *
+     * Page ids in tab order
+     */
+    order: Array<string>;
+    /**
+     * Hidden
+     *
+     * Page ids to hide
+     */
+    hidden: Array<string>;
+};
+
+/**
  * PaletteColor
  */
 export type PaletteColor = {
@@ -1083,6 +1311,97 @@ export type PasswordResetIn = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * PluginCatalog
+ */
+export type PluginCatalog = {
+    /**
+     * Items
+     */
+    items: Array<PluginOut>;
+};
+
+/**
+ * PluginOut
+ */
+export type PluginOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     *
+     * core modules cannot be uninstalled
+     */
+    kind: 'core' | 'plugin';
+    /**
+     * Name Key
+     *
+     * Frontend message key of the name
+     */
+    name_key: string;
+    /**
+     * Description Key
+     *
+     * Frontend message key of the description
+     */
+    description_key: string;
+    /**
+     * Summary
+     *
+     * One English sentence on what the plugin does
+     */
+    summary: string;
+    /**
+     * Version
+     */
+    version: string;
+    /**
+     * Author
+     */
+    author: string;
+    /**
+     * Default Installed
+     */
+    default_installed: boolean;
+    /**
+     * Installed
+     *
+     * Always true for core modules
+     */
+    installed: boolean;
+    /**
+     * Installed At
+     */
+    installed_at: string | null;
+    provides: PluginProvides;
+};
+
+/**
+ * PluginProvides
+ */
+export type PluginProvides = {
+    /**
+     * Pages
+     *
+     * Page ids the plugin adds to scope tab bars
+     */
+    pages: Array<string>;
+    /**
+     * Cards
+     *
+     * Card ids the plugin adds to boards
+     */
+    cards: Array<string>;
+    /**
+     * Capabilities
+     *
+     * Capability names gated by the plugin
+     */
+    capabilities: Array<string>;
 };
 
 /**
@@ -1622,6 +1941,16 @@ export type RegisterCompleteIn = {
 };
 
 /**
+ * Removed
+ */
+export type Removed = {
+    /**
+     * Instance Id
+     */
+    instance_id: string;
+};
+
+/**
  * ResolvedSettings
  */
 export type ResolvedSettings = {
@@ -1783,6 +2112,60 @@ export type SubjectColorInputBody = {
      * Palette slot or custom hex color
      */
     color: PaletteColor | HexColor;
+};
+
+/**
+ * Template
+ */
+export type Template = {
+    /**
+     * Scope Type
+     */
+    scope_type: 'program' | 'term' | 'course' | 'today';
+    /**
+     * Cards
+     */
+    cards: Array<TemplateCard>;
+    /**
+     * Customized
+     *
+     * True when the user saved their own default layout
+     */
+    customized: boolean;
+};
+
+/**
+ * TemplateCard
+ */
+export type TemplateCard = {
+    /**
+     * Card Id
+     */
+    card_id: string;
+    /**
+     * Size
+     */
+    size: 's' | 'm' | 'l' | 'xl';
+    /**
+     * X
+     */
+    x: number;
+    /**
+     * Y
+     */
+    y: number;
+};
+
+/**
+ * TemplateFromBoardInputBody
+ */
+export type TemplateFromBoardInputBody = {
+    /**
+     * Scope Id
+     *
+     * The board whose layout becomes the default
+     */
+    scope_id: string;
 };
 
 /**
@@ -4230,6 +4613,472 @@ export type CoreStorageUsageResponses = {
 };
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+
+export type LayoutsBoardGetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * program, term or course overview; 'today' is the Program's Today page
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Program, term or course id; for 'today' the Program id
+         */
+        scope_id: string;
+    };
+    query?: never;
+    url: '/layouts/boards/{scope_type}/{scope_id}';
+};
+
+export type LayoutsBoardGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsBoardGetError = LayoutsBoardGetErrors[keyof LayoutsBoardGetErrors];
+
+export type LayoutsBoardGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Board;
+};
+
+export type LayoutsBoardGetResponse = LayoutsBoardGetResponses[keyof LayoutsBoardGetResponses];
+
+export type LayoutsBoardUpdateData = {
+    body: BoardUpdateInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Board scope type
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Board scope id
+         */
+        scope_id: string;
+    };
+    query?: never;
+    url: '/layouts/boards/{scope_type}/{scope_id}';
+};
+
+export type LayoutsBoardUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsBoardUpdateError = LayoutsBoardUpdateErrors[keyof LayoutsBoardUpdateErrors];
+
+export type LayoutsBoardUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Board;
+};
+
+export type LayoutsBoardUpdateResponse = LayoutsBoardUpdateResponses[keyof LayoutsBoardUpdateResponses];
+
+export type LayoutsCardAddData = {
+    body: CardAddInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * program, term or course overview; 'today' is the Program's Today page
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+        /**
+         * Scope Id
+         *
+         * Program, term or course id; for 'today' the Program id
+         */
+        scope_id: string;
+    };
+    query?: never;
+    url: '/layouts/boards/{scope_type}/{scope_id}/cards';
+};
+
+export type LayoutsCardAddErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardAddError = LayoutsCardAddErrors[keyof LayoutsCardAddErrors];
+
+export type LayoutsCardAddResponses = {
+    /**
+     * Successful Response
+     */
+    200: BoardCard;
+};
+
+export type LayoutsCardAddResponse = LayoutsCardAddResponses[keyof LayoutsCardAddResponses];
+
+export type LayoutsCardRemoveData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id (from layouts.board.get)
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}';
+};
+
+export type LayoutsCardRemoveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardRemoveError = LayoutsCardRemoveErrors[keyof LayoutsCardRemoveErrors];
+
+export type LayoutsCardRemoveResponses = {
+    /**
+     * Successful Response
+     */
+    200: Removed;
+};
+
+export type LayoutsCardRemoveResponse = LayoutsCardRemoveResponses[keyof LayoutsCardRemoveResponses];
+
+export type LayoutsCardSettingsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id (from layouts.board.get)
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}/settings';
+};
+
+export type LayoutsCardSettingsGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardSettingsGetError = LayoutsCardSettingsGetErrors[keyof LayoutsCardSettingsGetErrors];
+
+export type LayoutsCardSettingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardSettings;
+};
+
+export type LayoutsCardSettingsGetResponse = LayoutsCardSettingsGetResponses[keyof LayoutsCardSettingsGetResponses];
+
+export type LayoutsCardSettingsUpdateData = {
+    body: CardSettingsUpdateInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}/settings';
+};
+
+export type LayoutsCardSettingsUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardSettingsUpdateError = LayoutsCardSettingsUpdateErrors[keyof LayoutsCardSettingsUpdateErrors];
+
+export type LayoutsCardSettingsUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardSettings;
+};
+
+export type LayoutsCardSettingsUpdateResponse = LayoutsCardSettingsUpdateResponses[keyof LayoutsCardSettingsUpdateResponses];
+
+export type LayoutsNavGetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type whose tab bar to read
+         */
+        scope_type: 'program' | 'term' | 'course';
+    };
+    query?: never;
+    url: '/layouts/nav/{scope_type}';
+};
+
+export type LayoutsNavGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsNavGetError = LayoutsNavGetErrors[keyof LayoutsNavGetErrors];
+
+export type LayoutsNavGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Nav;
+};
+
+export type LayoutsNavGetResponse = LayoutsNavGetResponses[keyof LayoutsNavGetResponses];
+
+export type LayoutsNavUpdateData = {
+    body: NavUpdateInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type whose tab bar to change
+         */
+        scope_type: 'program' | 'term' | 'course';
+    };
+    query?: never;
+    url: '/layouts/nav/{scope_type}';
+};
+
+export type LayoutsNavUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsNavUpdateError = LayoutsNavUpdateErrors[keyof LayoutsNavUpdateErrors];
+
+export type LayoutsNavUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Nav;
+};
+
+export type LayoutsNavUpdateResponse = LayoutsNavUpdateResponses[keyof LayoutsNavUpdateResponses];
+
+export type LayoutsTemplateResetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the default layout
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}';
+};
+
+export type LayoutsTemplateResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateResetError = LayoutsTemplateResetErrors[keyof LayoutsTemplateResetErrors];
+
+export type LayoutsTemplateResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateResetResponse = LayoutsTemplateResetResponses[keyof LayoutsTemplateResetResponses];
+
+export type LayoutsTemplateGetData = {
+    body?: never;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the default layout
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}';
+};
+
+export type LayoutsTemplateGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateGetError = LayoutsTemplateGetErrors[keyof LayoutsTemplateGetErrors];
+
+export type LayoutsTemplateGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateGetResponse = LayoutsTemplateGetResponses[keyof LayoutsTemplateGetResponses];
+
+export type LayoutsTemplateSaveFromBoardData = {
+    body: TemplateFromBoardInputBody;
+    path: {
+        /**
+         * Scope Type
+         *
+         * Scope type of the board and template
+         */
+        scope_type: 'program' | 'term' | 'course' | 'today';
+    };
+    query?: never;
+    url: '/layouts/templates/{scope_type}:from-board';
+};
+
+export type LayoutsTemplateSaveFromBoardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsTemplateSaveFromBoardError = LayoutsTemplateSaveFromBoardErrors[keyof LayoutsTemplateSaveFromBoardErrors];
+
+export type LayoutsTemplateSaveFromBoardResponses = {
+    /**
+     * Successful Response
+     */
+    200: Template;
+};
+
+export type LayoutsTemplateSaveFromBoardResponse = LayoutsTemplateSaveFromBoardResponses[keyof LayoutsTemplateSaveFromBoardResponses];
+
+export type PluginsCatalogListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/plugins/catalog';
+};
+
+export type PluginsCatalogListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PluginsCatalogListError = PluginsCatalogListErrors[keyof PluginsCatalogListErrors];
+
+export type PluginsCatalogListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PluginCatalog;
+};
+
+export type PluginsCatalogListResponse = PluginsCatalogListResponses[keyof PluginsCatalogListResponses];
+
+export type PluginsUninstallData = {
+    body?: never;
+    path: {
+        /**
+         * Plugin Id
+         *
+         * Plugin id, e.g. 'pomodoro'
+         */
+        plugin_id: string;
+    };
+    query?: {
+        /**
+         * Purge Data
+         *
+         * Also delete the plugin's data (cards, settings, records); cannot be undone
+         */
+        purge_data?: boolean;
+    };
+    url: '/plugins/{plugin_id}/installation';
+};
+
+export type PluginsUninstallErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PluginsUninstallError = PluginsUninstallErrors[keyof PluginsUninstallErrors];
+
+export type PluginsUninstallResponses = {
+    /**
+     * Successful Response
+     */
+    200: PluginOut;
+};
+
+export type PluginsUninstallResponse = PluginsUninstallResponses[keyof PluginsUninstallResponses];
+
+export type PluginsInstallData = {
+    body?: never;
+    path: {
+        /**
+         * Plugin Id
+         *
+         * Plugin id, e.g. 'pomodoro'
+         */
+        plugin_id: string;
+    };
+    query?: never;
+    url: '/plugins/{plugin_id}/installation';
+};
+
+export type PluginsInstallErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PluginsInstallError = PluginsInstallErrors[keyof PluginsInstallErrors];
+
+export type PluginsInstallResponses = {
+    /**
+     * Successful Response
+     */
+    200: PluginOut;
+};
+
+export type PluginsInstallResponse = PluginsInstallResponses[keyof PluginsInstallResponses];
 
 export type SettingsPreferencesGetData = {
     body?: never;

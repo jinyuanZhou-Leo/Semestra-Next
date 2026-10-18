@@ -6,6 +6,7 @@ from typing import Any, cast
 from pydantic import BaseModel, JsonValue, ValidationError
 from sqlalchemy import delete, or_, select
 
+from semestra.core.capability import registry
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import events
@@ -182,6 +183,7 @@ async def get_values(
     ctx: Ctx, namespace: str, scope_type: ScopeType, scope_id: str | None
 ) -> ResolvedSettings:
     definition = settings_registry.get(namespace)
+    await registry.require_plugin(ctx, definition.plugin_id)
     chain = await resolve_scope(ctx, scope_type, scope_id)
     return await _resolved(ctx, definition, chain, scope_type, scope_id)
 
@@ -207,6 +209,7 @@ async def update_values(
     values: dict[str, JsonValue],
 ) -> ResolvedSettings:
     definition = settings_registry.get(namespace)
+    await registry.require_plugin(ctx, definition.plugin_id)
     _check_level(definition, scope_type)
     chain = await resolve_scope(ctx, scope_type, scope_id)
     unknown = sorted(set(values) - set(definition.schema.model_fields))
@@ -249,6 +252,7 @@ async def reset_value(
     ctx: Ctx, namespace: str, key: str, scope_type: ScopeType, scope_id: str | None
 ) -> ResolvedSettings:
     definition = settings_registry.get(namespace)
+    await registry.require_plugin(ctx, definition.plugin_id)
     _check_level(definition, scope_type)
     if key not in definition.schema.model_fields:
         raise AppError(

@@ -30,7 +30,7 @@ async def on_course_deleted(ctx: Ctx, event: Event) -> None:
         await service.purge_scope(ctx, target[0], "course", target[1])
 
 
-@events.subscribe("plugins.purge")
+@events.subscribe("plugins.purge", in_transaction=True)
 async def on_plugin_purged(ctx: Ctx, event: Event) -> None:
     if target := _target(event, "plugin_id"):
         await service.purge_plugin(ctx, *target)

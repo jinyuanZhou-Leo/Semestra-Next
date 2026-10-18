@@ -132,6 +132,17 @@ test('cards render on the grid with their data', async () => {
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 1024, quota_bytes: 52_428_800, by_module: {} }),
     ),
+    http.get(`${API}/layouts/boards/term/t1`, () =>
+      HttpResponse.json({
+        scope_type: 'term',
+        scope_id: 't1',
+        customized: false,
+        updated_at: null,
+        cards: [
+          { instance_id: 'c1', card_id: 'template.storage', size: 'm', x: 0, y: 0, settings: {} },
+        ],
+      }),
+    ),
   )
   withTemplate(<CardGrid scope={scope} />)
   expect(await screen.findByText('Storage')).toBeInTheDocument()

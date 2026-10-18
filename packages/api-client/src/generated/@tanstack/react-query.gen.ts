@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -1277,6 +1277,284 @@ export const coreStorageUsageOptions = (options?: Options<CoreStorageUsageData>)
     },
     queryKey: coreStorageUsageQueryKey(options)
 });
+
+export const layoutsBoardGetQueryKey = (options: Options<LayoutsBoardGetData>) => createQueryKey('layoutsBoardGet', options);
+
+/**
+ * Get the cards on a Program, term or course overview, or on the Today page.
+ *
+ * Use to find card instances (their instance_id and settings), e.g. which
+ * sticky notes or habit trackers a course has, before calling a card-specific tool.
+ */
+export const layoutsBoardGetOptions = (options: Options<LayoutsBoardGetData>) => queryOptions<LayoutsBoardGetResponse, LayoutsBoardGetError, LayoutsBoardGetResponse, ReturnType<typeof layoutsBoardGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsBoardGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsBoardGetQueryKey(options)
+});
+
+/**
+ * Replace the card layout of a board (positions, sizes, added and removed cards).
+ *
+ * Cards left out of the list are deleted together with their data.
+ */
+export const layoutsBoardUpdateMutation = (options?: Partial<Options<LayoutsBoardUpdateData>>): UseMutationOptions<LayoutsBoardUpdateResponse, LayoutsBoardUpdateError, Options<LayoutsBoardUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsBoardUpdateResponse, LayoutsBoardUpdateError, Options<LayoutsBoardUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsBoardUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Add a card to a board, e.g. a sticky note to a course overview.
+ *
+ * Use when the user asks to put a card (sticky note, pomodoro timer, habit
+ * tracker, ...) on an overview or the Today page. The card goes to the first free spot. Check
+ * with plugins.catalog.list that its plugin is installed.
+ */
+export const layoutsCardAddMutation = (options?: Partial<Options<LayoutsCardAddData>>): UseMutationOptions<LayoutsCardAddResponse, LayoutsCardAddError, Options<LayoutsCardAddData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardAddResponse, LayoutsCardAddError, Options<LayoutsCardAddData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsCardAdd({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remove a card from its board, deleting its data.
+ *
+ * Use when the user asks to remove a card. Find its instance_id with
+ * layouts.board.get.
+ */
+export const layoutsCardRemoveMutation = (options?: Partial<Options<LayoutsCardRemoveData>>): UseMutationOptions<LayoutsCardRemoveResponse, LayoutsCardRemoveError, Options<LayoutsCardRemoveData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardRemoveResponse, LayoutsCardRemoveError, Options<LayoutsCardRemoveData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsCardRemove({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsCardSettingsGetQueryKey = (options: Options<LayoutsCardSettingsGetData>) => createQueryKey('layoutsCardSettingsGet', options);
+
+/**
+ * Get the settings of a card instance.
+ *
+ * layouts.board.get already includes every card's settings.
+ */
+export const layoutsCardSettingsGetOptions = (options: Options<LayoutsCardSettingsGetData>) => queryOptions<LayoutsCardSettingsGetResponse, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, ReturnType<typeof layoutsCardSettingsGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsCardSettingsGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsCardSettingsGetQueryKey(options)
+});
+
+/**
+ * Replace the settings of a card instance.
+ *
+ * The settings are validated against the card's schema.
+ */
+export const layoutsCardSettingsUpdateMutation = (options?: Partial<Options<LayoutsCardSettingsUpdateData>>): UseMutationOptions<LayoutsCardSettingsUpdateResponse, LayoutsCardSettingsUpdateError, Options<LayoutsCardSettingsUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsCardSettingsUpdateResponse, LayoutsCardSettingsUpdateError, Options<LayoutsCardSettingsUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsCardSettingsUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsNavGetQueryKey = (options: Options<LayoutsNavGetData>) => createQueryKey('layoutsNavGet', options);
+
+/**
+ * Get the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavGetOptions = (options: Options<LayoutsNavGetData>) => queryOptions<LayoutsNavGetResponse, LayoutsNavGetError, LayoutsNavGetResponse, ReturnType<typeof layoutsNavGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsNavGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsNavGetQueryKey(options)
+});
+
+/**
+ * Set the order and hidden pages of the tab bar of a scope type.
+ *
+ * Applies to every Program, every term or every course alike.
+ */
+export const layoutsNavUpdateMutation = (options?: Partial<Options<LayoutsNavUpdateData>>): UseMutationOptions<LayoutsNavUpdateResponse, LayoutsNavUpdateError, Options<LayoutsNavUpdateData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsNavUpdateResponse, LayoutsNavUpdateError, Options<LayoutsNavUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsNavUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Go back to the built-in default layout of a scope type.
+ *
+ * Boards that were never changed follow it at once.
+ */
+export const layoutsTemplateResetMutation = (options?: Partial<Options<LayoutsTemplateResetData>>): UseMutationOptions<LayoutsTemplateResetResponse, LayoutsTemplateResetError, Options<LayoutsTemplateResetData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsTemplateResetResponse, LayoutsTemplateResetError, Options<LayoutsTemplateResetData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsTemplateReset({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const layoutsTemplateGetQueryKey = (options: Options<LayoutsTemplateGetData>) => createQueryKey('layoutsTemplateGet', options);
+
+/**
+ * Get the default card layout new boards of a scope type start from.
+ *
+ * Either the user's own default or the built-in one.
+ */
+export const layoutsTemplateGetOptions = (options: Options<LayoutsTemplateGetData>) => queryOptions<LayoutsTemplateGetResponse, LayoutsTemplateGetError, LayoutsTemplateGetResponse, ReturnType<typeof layoutsTemplateGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await layoutsTemplateGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: layoutsTemplateGetQueryKey(options)
+});
+
+/**
+ * Make a board's layout the default for its scope type.
+ *
+ * Boards that were never changed follow it at once; changed boards keep theirs.
+ */
+export const layoutsTemplateSaveFromBoardMutation = (options?: Partial<Options<LayoutsTemplateSaveFromBoardData>>): UseMutationOptions<LayoutsTemplateSaveFromBoardResponse, LayoutsTemplateSaveFromBoardError, Options<LayoutsTemplateSaveFromBoardData>> => {
+    const mutationOptions: UseMutationOptions<LayoutsTemplateSaveFromBoardResponse, LayoutsTemplateSaveFromBoardError, Options<LayoutsTemplateSaveFromBoardData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await layoutsTemplateSaveFromBoard({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const pluginsCatalogListQueryKey = (options?: Options<PluginsCatalogListData>) => createQueryKey('pluginsCatalogList', options);
+
+/**
+ * List the app's modules and plugins, and which plugins the user has installed.
+ *
+ * Use to check whether a plugin (e.g. pomodoro, habit tracker, sticky notes) is
+ * installed before suggesting its cards, or to tell the user what plugins exist. Core modules are
+ * always installed.
+ */
+export const pluginsCatalogListOptions = (options?: Options<PluginsCatalogListData>) => queryOptions<PluginsCatalogListResponse, PluginsCatalogListError, PluginsCatalogListResponse, ReturnType<typeof pluginsCatalogListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await pluginsCatalogList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: pluginsCatalogListQueryKey(options)
+});
+
+/**
+ * Uninstall a plugin; optionally delete its data.
+ *
+ * Hides the plugin's pages, cards and features. Without purge_data its data is
+ * kept and comes back on reinstall.
+ */
+export const pluginsUninstallMutation = (options?: Partial<Options<PluginsUninstallData>>): UseMutationOptions<PluginsUninstallResponse, PluginsUninstallError, Options<PluginsUninstallData>> => {
+    const mutationOptions: UseMutationOptions<PluginsUninstallResponse, PluginsUninstallError, Options<PluginsUninstallData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pluginsUninstall({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Install a plugin for the user's account.
+ *
+ * Installing an already installed plugin does nothing.
+ */
+export const pluginsInstallMutation = (options?: Partial<Options<PluginsInstallData>>): UseMutationOptions<PluginsInstallResponse, PluginsInstallError, Options<PluginsInstallData>> => {
+    const mutationOptions: UseMutationOptions<PluginsInstallResponse, PluginsInstallError, Options<PluginsInstallData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pluginsInstall({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const settingsPreferencesGetQueryKey = (options?: Options<SettingsPreferencesGetData>) => createQueryKey('settingsPreferencesGet', options);
 
