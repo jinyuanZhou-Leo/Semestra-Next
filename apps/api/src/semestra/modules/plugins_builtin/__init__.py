@@ -8,10 +8,11 @@ from semestra.modules.plugins_builtin import (  # noqa: F401  (registers on impo
     habit_streak,
     pomodoro,
     sticky_note,
+    world_clock,
 )
 
-# Ids match the frontend manifests. Counter and world clock have no backend package: their
-# data lives in the card settings and they have no capabilities.
+# Ids match the frontend manifests. Counter and world clock have no tables or capabilities: their
+# data lives in the card settings, so their packages only validate those settings.
 PLUGINS = (
     PluginInfo(
         id="counter",

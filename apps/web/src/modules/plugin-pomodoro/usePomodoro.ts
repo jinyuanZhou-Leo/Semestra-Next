@@ -3,7 +3,7 @@ import {
   pomodoroStatsOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { refreshUiPrefs, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -23,8 +23,19 @@ import {
   start,
 } from './timer'
 
-/** Which timer the status bar follows, and the page it lives on (one at a time). */
-export type ActiveTimer = { instanceId: string; path: string }
+/** What a finished phase needs besides the timer state: copied from the card when it starts. */
+export type Runtime = {
+  courseId: string | null
+  sound: boolean
+  notify: boolean
+  config: TimerConfig
+}
+
+/**
+ * Which timer the status bar follows, and the page it lives on (one at a time). `runtime` lets
+ * the status bar, which stays mounted on every page, end the phase when the card is not on screen.
+ */
+export type ActiveTimer = { instanceId: string; path: string; runtime?: Runtime }
 
 export const ACTIVE_KEY = 'pomodoro.active'
 export const stateKey = (instanceId: string) => `pomodoro.${instanceId}`
@@ -42,6 +53,71 @@ export function toConfig(settings: PomodoroSettings): TimerConfig {
   }
 }
 
+export function runtimeOf(settings: PomodoroSettings): Runtime {
+  return {
+    courseId: settings.course_id ?? null,
+    sound: settings.sound,
+    notify: settings.notify,
+    config: toConfig(settings),
+  }
+}
+
+const finishedPhases = new Set<string>()
+
+type Finish = {
+  instanceId: string
+  path: string
+  state: TimerState
+  now: number
+  runtime: Runtime
+  setState: (state: TimerState) => void
+  setActive: (active: ActiveTimer | null) => void
+  record: (body: SessionBody) => void
+}
+
+type SessionBody = {
+  instance_id: string
+  course_id: string | null
+  started_at: string
+  ended_at: string
+  duration_sec: number
+  mode: 'focus'
+}
+
+/**
+ * Ends the phase that just ran out: next phase, the finished focus session recorded, chime and
+ * notification. Called by the card while it is on screen and by the status bar otherwise; each
+ * end is handled once per page load, whichever gets there first.
+ */
+export function finishPhase(args: Finish) {
+  const { instanceId, path, state, now, runtime } = args
+  const key = `${instanceId}:${state.endsAt}`
+  if (finishedPhases.has(key)) return
+  finishedPhases.add(key)
+  const done = complete(state, now, runtime.config)
+  args.setState(done.state)
+  args.setActive(done.state.status === 'idle' ? null : { instanceId, path, runtime })
+  if (done.finished) {
+    args.record({
+      instance_id: instanceId,
+      course_id: runtime.courseId,
+      started_at: new Date(done.finished.startedAt).toISOString(),
+      ended_at: new Date(done.finished.endedAt).toISOString(),
+      duration_sec: done.finished.durationSec,
+      mode: 'focus',
+    })
+  }
+  if (now - (state.endsAt ?? now) < STALE_ALERT_MS) {
+    if (runtime.sound) playChime()
+    if (runtime.notify) {
+      showNotification(
+        state.mode === 'focus' ? m.pomodoro_done_focus() : m.pomodoro_done_break(),
+        modeLabel(done.state.mode),
+      )
+    }
+  }
+}
+
 const MODE_LABEL = {
   focus: () => m.pomodoro_mode_focus(),
   short_break: () => m.pomodoro_mode_short_break(),
@@ -49,6 +125,15 @@ const MODE_LABEL = {
 } as const
 
 export const modeLabel = (mode: keyof typeof MODE_LABEL) => MODE_LABEL[mode]()
+
+export function useRecordSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    ...pomodoroSessionRecordMutation(),
+    onError: toastError,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [{ _id: 'pomodoroStats' }] }),
+  })
+}
 
 /** Focus sessions and focus seconds of today, from the backend (it knows the Program's day). */
 export function usePomodoroToday(programId: string) {
@@ -76,17 +161,12 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     [focus_min, short_break_min, long_break_min, long_break_every, auto_start_next],
   )
   const [now, setNow] = useState(() => Date.now())
-  const { mutate: recordSession } = useMutation({
-    ...pomodoroSessionRecordMutation(),
-    onError: toastError,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [{ _id: 'pomodoroStats' }] }),
-  })
+  const { mutate: recordSession } = useRecordSession()
 
   const latest = useRef({ state, config, settings })
   useEffect(() => {
     latest.current = { state, config, settings }
   })
-  const handled = useRef<number | null>(null)
 
   // The same timer may be open in another tab: when this tab comes back, take the latest state.
   useEffect(() => {
@@ -103,7 +183,10 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     }
   }, [queryClient, instanceId])
 
-  const here = () => ({ instanceId, path: window.location.pathname + window.location.search })
+  const here = useCallback(
+    () => ({ instanceId, path: window.location.pathname + window.location.search }),
+    [instanceId],
+  )
 
   useEffect(() => {
     if (state.status !== 'running') return
@@ -111,40 +194,22 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
       const t = Date.now()
       setNow(t)
       const current = latest.current
-      if (!isFinished(current.state, t) || handled.current === current.state.endsAt) return
-      handled.current = current.state.endsAt
-      const done = complete(current.state, t, current.config)
-      setState(done.state)
-      setActive(
-        done.state.status === 'idle' ? null : { instanceId, path: window.location.pathname },
-      )
-      const endedAt = current.state.endsAt ?? t
-      if (done.finished) {
-        recordSession({
-          body: {
-            instance_id: instanceId,
-            course_id: current.settings.course_id ?? null,
-            started_at: new Date(done.finished.startedAt).toISOString(),
-            ended_at: new Date(done.finished.endedAt).toISOString(),
-            duration_sec: done.finished.durationSec,
-            mode: 'focus',
-          },
-        })
-      }
-      if (t - endedAt < STALE_ALERT_MS) {
-        if (current.settings.sound) playChime()
-        if (current.settings.notify) {
-          showNotification(
-            current.state.mode === 'focus' ? m.pomodoro_done_focus() : m.pomodoro_done_break(),
-            modeLabel(done.state.mode),
-          )
-        }
-      }
+      if (!isFinished(current.state, t)) return
+      finishPhase({
+        instanceId,
+        path: here().path,
+        state: current.state,
+        now: t,
+        runtime: runtimeOf(current.settings),
+        setState,
+        setActive,
+        record: (body) => recordSession({ body }),
+      })
     }
     tick()
     const timer = window.setInterval(tick, 250)
     return () => window.clearInterval(timer)
-  }, [state.status, state.endsAt, instanceId, setState, setActive, recordSession])
+  }, [state.status, state.endsAt, instanceId, here, setState, setActive, recordSession])
 
   const remaining = remainingAt(state, now, config)
 
@@ -168,7 +233,7 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
       const t = Date.now()
       setNow(t)
       setState(start(state, t, config))
-      setActive(here())
+      setActive({ ...here(), runtime: runtimeOf(settings) })
     },
     pause: () => {
       const t = Date.now()

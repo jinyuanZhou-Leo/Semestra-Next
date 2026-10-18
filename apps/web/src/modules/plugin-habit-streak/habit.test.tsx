@@ -1,12 +1,15 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import type { CardSize } from '@/app/extensions'
 import { API, renderWithQuery, server } from '@/test-utils'
 import HabitBoardCard from './HabitBoardCard'
 import HabitRingCard from './HabitRingCard'
 import { habitSettingsSchema } from './schema'
+
+const success = vi.hoisted(() => vi.fn<(message: string) => void>())
+vi.mock('sonner', () => ({ toast: { success, error: vi.fn<(message: string) => void>() } }))
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -124,4 +127,56 @@ test('the ring shows weekly progress and checks in today', async () => {
   expect(await screen.findByText('2/3 this week')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Run: Check in' }))
   await waitFor(() => expect(toggles).toEqual(['2026-01-15']))
+})
+
+function ringWithToggle(options: { before: number; after: number; delayMs?: number }) {
+  const toggles: string[] = []
+  server.use(
+    http.get(`${API}/habit/instances/i1/stats`, () =>
+      HttpResponse.json({
+        ...stats,
+        goal: 'daily',
+        checked_today: false,
+        current_streak: options.before,
+      }),
+    ),
+    http.post(`${API}/habit/instances/i1/checkins/toggle`, async ({ request }) => {
+      const body = (await request.json()) as { date: string }
+      toggles.push(body.date)
+      if (options.delayMs) await new Promise((r) => setTimeout(r, options.delayMs))
+      return HttpResponse.json({
+        date: body.date,
+        checked: true,
+        stats: { ...stats, checked_today: true, current_streak: options.after },
+      })
+    }),
+  )
+  renderWithQuery(<HabitRingCard scope={scope} instanceId="i1" size="m" settings={settings} />)
+  return toggles
+}
+
+test('the ring ignores a second press while the first is still being saved', async () => {
+  const toggles = ringWithToggle({ before: 2, after: 3, delayMs: 150 })
+  const button = await screen.findByRole('button', { name: /Check in/ })
+  await userEvent.click(button)
+  await waitFor(() => expect(button).toBeDisabled())
+  await userEvent.click(button)
+  await waitFor(() => expect(button).toBeEnabled())
+  expect(toggles).toEqual(['2026-01-15'])
+})
+
+test('a milestone is announced when the streak reaches it', async () => {
+  success.mockClear()
+  ringWithToggle({ before: 6, after: 7 })
+  await userEvent.click(await screen.findByRole('button', { name: /Check in/ }))
+  await waitFor(() => expect(success).toHaveBeenCalledTimes(1))
+})
+
+test('a check-in that leaves the streak on a milestone does not announce it again', async () => {
+  success.mockClear()
+  const toggles = ringWithToggle({ before: 7, after: 7 })
+  await userEvent.click(await screen.findByRole('button', { name: /Check in/ }))
+  await waitFor(() => expect(toggles).toHaveLength(1))
+  await new Promise((r) => setTimeout(r, 50))
+  expect(success).not.toHaveBeenCalled()
 })

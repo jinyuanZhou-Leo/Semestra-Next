@@ -139,3 +139,24 @@ async def test_counter_settings_are_checked_across_fields(client: AsyncClient, u
     # A count that was never set stays out of the stored settings.
     fresh = await save({"max": 20})
     assert "value" not in fresh.json()["settings"]
+
+
+async def test_world_clock_zones_must_be_real_time_zones(client: AsyncClient, user: UserHandle):
+    pid = await program(client)
+    assert (await client.put("/plugins/world-clock/installation")).status_code == 200
+    ok = await client.post(
+        f"/layouts/boards/program/{pid}/cards",
+        json={"card_id": "clock.world", "settings": {"zones": ["Asia/Tokyo"]}},
+    )
+    assert ok.status_code == 200, ok.text
+    clock = ok.json()["instance_id"]
+
+    async def save(settings: dict[str, object]):
+        return await client.put(f"/layouts/cards/{clock}/settings", json={"settings": settings})
+
+    assert (await save({"zones": ["Not/AZone"]})).status_code == 422
+    assert (await save({"zones": ["../etc/passwd"]})).status_code == 422
+    assert (await save({"zones": ["UTC"] * 4})).status_code == 422
+    assert (await save({"zones": ["America/Toronto", "Europe/London"]})).status_code == 200
+    # The label is optional and the card may be saved with no zone at all (the local zone).
+    assert (await save({"zones": []})).status_code == 200

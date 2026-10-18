@@ -74,3 +74,43 @@ test('an idle timer is not shown', async () => {
   await new Promise((resolve) => setTimeout(resolve, 20))
   expect(result.current).toBeNull()
 })
+
+test('a phase that ran out while the card was off screen is ended and recorded here', async () => {
+  const recorded: Record<string, unknown>[] = []
+  server.use(
+    http.post(`${API}/pomodoro/sessions`, async ({ request }) => {
+      recorded.push((await request.json()) as Record<string, unknown>)
+      return HttpResponse.json({ id: 's1', duplicate: false })
+    }),
+  )
+  const startedAt = Date.now() - 26 * 60_000
+  const { result } = withStored({
+    'pomodoro.active': {
+      instanceId: 'i1',
+      path: '/p/p1',
+      runtime: {
+        courseId: null,
+        sound: false,
+        notify: false,
+        config: {
+          focus_min: 25,
+          short_break_min: 5,
+          long_break_min: 15,
+          long_break_every: 4,
+          auto_start_next: false,
+        },
+      },
+    },
+    'pomodoro.i1': {
+      ...base,
+      status: 'running',
+      endsAt: Date.now() - 60_000,
+      sessionStartedAt: startedAt,
+      runStartedAt: startedAt,
+    },
+  })
+  await waitFor(() => expect(recorded).toHaveLength(1))
+  expect(recorded[0]).toMatchObject({ instance_id: 'i1', mode: 'focus', duration_sec: 1500 })
+  // The break was not set to start by itself, so nothing is left running to show.
+  await waitFor(() => expect(result.current).toBeNull())
+})

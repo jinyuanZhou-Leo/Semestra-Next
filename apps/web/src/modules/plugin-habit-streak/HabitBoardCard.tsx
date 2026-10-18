@@ -20,8 +20,9 @@ export default function HabitBoardCard({ instanceId, size, settings }: CardProps
   const range = stats ? columnsRange(stats.today, stats.week_start, weeks) : null
   const checked = new Set(useHabitCheckins(instanceId, range).data?.items ?? [])
   const [burst, setBurst] = useState(false)
-  const { press, dialog } = useCheckinFlow(instanceId, settings, {
+  const { press, dialog, pending } = useCheckinFlow(instanceId, settings, {
     toast: false,
+    currentStreak: stats?.current_streak,
     onMilestone: () => setBurst(true),
   })
 
@@ -64,7 +65,7 @@ export default function HabitBoardCard({ instanceId, size, settings }: CardProps
                     <button
                       key={date}
                       type="button"
-                      disabled={!editable}
+                      disabled={!editable || pending}
                       aria-pressed={done}
                       aria-label={(done ? m.habit_cell_checked : m.habit_cell_unchecked)({
                         date: formatDate(date),

@@ -90,3 +90,10 @@ test('cities are added by searching and limited to three', async () => {
   await user.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
   expect(changes.at(-1)).toMatchObject({ zones: ['UTC', 'Europe/Paris'] })
 })
+
+test('the schema rejects zones that do not exist, so they never reach Intl', () => {
+  expect(worldClockSettingsSchema.safeParse({ zones: ['Not/AZone'] }).success).toBe(false)
+  expect(worldClockSettingsSchema.safeParse({ zones: ['Asia/Tokyo'] }).success).toBe(true)
+  // Settings saved before the check fall back to the defaults instead of crashing the card.
+  expect(worldClockSettingsSchema.safeParse({}).data?.zones).toEqual([])
+})

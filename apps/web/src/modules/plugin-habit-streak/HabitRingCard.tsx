@@ -12,7 +12,10 @@ import { useCheckinFlow } from './useCheckinFlow'
 /** Habit ring (M14 §2): progress of the current day or week; click to check in today. */
 export default function HabitRingCard({ instanceId, size, settings }: CardProps<HabitSettings>) {
   const stats = useHabitStats(instanceId, settings).data
-  const { press, dialog } = useCheckinFlow(instanceId, settings, { toast: true })
+  const { press, dialog, pending } = useCheckinFlow(instanceId, settings, {
+    toast: true,
+    currentStreak: stats?.current_streak,
+  })
   const color = colorVar(settings.color)
   const name = settings.name || m.habit_default_name()
   const checkedToday = stats?.checked_today ?? false
@@ -26,7 +29,7 @@ export default function HabitRingCard({ instanceId, size, settings }: CardProps<
   const ring = (
     <button
       type="button"
-      disabled={!stats}
+      disabled={!stats || pending}
       aria-pressed={checkedToday}
       aria-label={`${name}: ${checkedToday ? m.habit_checked_today() : m.habit_check_in()}`}
       onClick={() => stats && press(stats.today, checkedToday)}
