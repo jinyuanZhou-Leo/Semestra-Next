@@ -1,4 +1,5 @@
 import { client } from '@semestra/api-client'
+import type { QueryClient } from '@tanstack/react-query'
 import { isReauthPending, isSignedIn, requestReauth } from './session-expiry'
 
 client.setConfig({
@@ -74,3 +75,14 @@ client.interceptors.response.use(async (response, request) => {
 })
 
 client.interceptors.error.use((error, response) => toApiError(error, response?.status ?? 0))
+
+/** Refetches every cached query of these generated operations (e.g. `['layoutsBoardGet']`). */
+export function invalidateOperations(queryClient: QueryClient, operationIds: readonly string[]) {
+  return queryClient.invalidateQueries({
+    predicate: (query) => {
+      const head = query.queryKey[0] as { _id?: unknown } | undefined
+      // oxlint-disable-next-line no-underscore-dangle -- hey-api's query key field
+      return operationIds.includes(head?._id as string)
+    },
+  })
+}

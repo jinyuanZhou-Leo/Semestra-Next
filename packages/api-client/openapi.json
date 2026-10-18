@@ -2940,6 +2940,754 @@
         }
       }
     },
+    "/layouts/boards/{scope_type}/{scope_id}": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the cards on a Program, term or course overview, or on the Today page.",
+        "description": "Use to find card instances (their instance_id and settings), e.g. which\nsticky notes or habit trackers a course has, before calling a card-specific tool.",
+        "operationId": "layoutsBoardGet",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "program, term or course overview; 'today' is the Program's Today page",
+              "title": "Scope Type"
+            },
+            "description": "program, term or course overview; 'today' is the Program's Today page"
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program, term or course id; for 'today' the Program id",
+              "title": "Scope Id"
+            },
+            "description": "Program, term or course id; for 'today' the Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Board"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Replace the card layout of a board (positions, sizes, added and removed cards).",
+        "description": "Cards left out of the list are deleted together with their data.",
+        "operationId": "layoutsBoardUpdate",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Board scope type",
+              "title": "Scope Type"
+            },
+            "description": "Board scope type"
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Board scope id",
+              "title": "Scope Id"
+            },
+            "description": "Board scope id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoardUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Board"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/boards/{scope_type}/{scope_id}/cards": {
+      "post": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Add a card to a board, e.g. a sticky note to a course overview.",
+        "description": "Use when the user asks to put a card (sticky note, pomodoro timer, habit\ntracker, ...) on an overview or the Today page. The card goes to the first free spot. Check\nwith plugins.catalog.list that its plugin is installed.",
+        "operationId": "layoutsCardAdd",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "program, term or course overview; 'today' is the Program's Today page",
+              "title": "Scope Type"
+            },
+            "description": "program, term or course overview; 'today' is the Program's Today page"
+          },
+          {
+            "name": "scope_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program, term or course id; for 'today' the Program id",
+              "title": "Scope Id"
+            },
+            "description": "Program, term or course id; for 'today' the Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardAddInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardCard"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/cards/{instance_id}": {
+      "delete": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Remove a card from its board, deleting its data.",
+        "description": "Use when the user asks to remove a card. Find its instance_id with\nlayouts.board.get.",
+        "operationId": "layoutsCardRemove",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id (from layouts.board.get)",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id (from layouts.board.get)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Removed"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/cards/{instance_id}/settings": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the settings of a card instance.",
+        "description": "layouts.board.get already includes every card's settings.",
+        "operationId": "layoutsCardSettingsGet",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id (from layouts.board.get)",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id (from layouts.board.get)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Replace the settings of a card instance.",
+        "description": "The settings are validated against the card's schema.",
+        "operationId": "layoutsCardSettingsUpdate",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Card instance id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardSettingsUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/nav/{scope_type}": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the order and hidden pages of the tab bar of a scope type.",
+        "description": "Applies to every Program, every term or every course alike.",
+        "operationId": "layoutsNavGet",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Scope type whose tab bar to read",
+              "title": "Scope Type"
+            },
+            "description": "Scope type whose tab bar to read"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Nav"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Set the order and hidden pages of the tab bar of a scope type.",
+        "description": "Applies to every Program, every term or every course alike.",
+        "operationId": "layoutsNavUpdate",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Scope type whose tab bar to change",
+              "title": "Scope Type"
+            },
+            "description": "Scope type whose tab bar to change"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NavUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Nav"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/templates/{scope_type}": {
+      "get": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Get the default card layout new boards of a scope type start from.",
+        "description": "Either the user's own default or the built-in one.",
+        "operationId": "layoutsTemplateGet",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the default layout",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the default layout"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Go back to the built-in default layout of a scope type.",
+        "description": "Boards that were never changed follow it at once.",
+        "operationId": "layoutsTemplateReset",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the default layout",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the default layout"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/layouts/templates/{scope_type}:from-board": {
+      "post": {
+        "tags": [
+          "layouts"
+        ],
+        "summary": "Make a board's layout the default for its scope type.",
+        "description": "Boards that were never changed follow it at once; changed boards keep theirs.",
+        "operationId": "layoutsTemplateSaveFromBoard",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course",
+                "today"
+              ],
+              "type": "string",
+              "description": "Scope type of the board and template",
+              "title": "Scope Type"
+            },
+            "description": "Scope type of the board and template"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateFromBoardInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/plugins/catalog": {
+      "get": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "List the app's modules and plugins, and which plugins the user has installed.",
+        "description": "Use to check whether a plugin (e.g. pomodoro, habit tracker, sticky notes) is\ninstalled before suggesting its cards, or to tell the user what plugins exist. Core modules are\nalways installed.",
+        "operationId": "pluginsCatalogList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginCatalog"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plugins/{plugin_id}/installation": {
+      "put": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Install a plugin for the user's account.",
+        "description": "Installing an already installed plugin does nothing.",
+        "operationId": "pluginsInstall",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Plugin id, e.g. 'pomodoro'",
+              "title": "Plugin Id"
+            },
+            "description": "Plugin id, e.g. 'pomodoro'"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Uninstall a plugin; optionally delete its data.",
+        "description": "Hides the plugin's pages, cards and features. Without purge_data its data is\nkept and comes back on reinstall.",
+        "operationId": "pluginsUninstall",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Plugin id, e.g. 'pomodoro'",
+              "title": "Plugin Id"
+            },
+            "description": "Plugin id, e.g. 'pomodoro'"
+          },
+          {
+            "name": "purge_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also delete the plugin's data (cards, settings, records); cannot be undone",
+              "default": false,
+              "title": "Purge Data"
+            },
+            "description": "Also delete the plugin's data (cards, settings, records); cannot be undone"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/terms/{term_id}/schedule-conflicts": {
       "get": {
         "tags": [
@@ -4704,6 +5452,199 @@
         ],
         "title": "AuthResult"
       },
+      "Board": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "program",
+              "term",
+              "course",
+              "today"
+            ],
+            "title": "Scope Type"
+          },
+          "scope_id": {
+            "type": "string",
+            "title": "Scope Id"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/BoardCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "customized": {
+            "type": "boolean",
+            "title": "Customized",
+            "description": "False while the board still follows the template"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "scope_id",
+          "cards",
+          "customized",
+          "updated_at"
+        ],
+        "title": "Board"
+      },
+      "BoardCard": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id",
+            "description": "Card instance id; pass it to card capabilities"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id",
+            "description": "Which card, e.g. 'sticky.note'"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size",
+            "description": "s=1x1, m=2x1, l=2x2, xl=4x2 on a 4-column grid"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X",
+            "description": "Column, 0-3"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y",
+            "description": "Row, from 0"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings",
+            "description": "The card's settings as stored"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "card_id",
+          "size",
+          "x",
+          "y",
+          "settings"
+        ],
+        "title": "BoardCard"
+      },
+      "BoardCardInput": {
+        "properties": {
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id",
+            "description": "Existing instance; null adds a new card"
+          },
+          "card_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Card Id",
+            "description": "Card id"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size",
+            "description": "Card size"
+          },
+          "x": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "X",
+            "description": "Column, 0-3"
+          },
+          "y": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "description": "Row"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings",
+            "description": "Settings of a new card (ignored for existing ones)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "size",
+          "x",
+          "y"
+        ],
+        "title": "BoardCardInput"
+      },
+      "BoardUpdateInputBody": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/BoardCardInput"
+            },
+            "type": "array",
+            "maxItems": 60,
+            "title": "Cards",
+            "description": "The whole layout; cards left out are deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cards"
+        ],
+        "title": "BoardUpdateInputBody"
+      },
       "Break": {
         "properties": {
           "id": {
@@ -4932,6 +5873,96 @@
           "break_name"
         ],
         "title": "CalendarWeek"
+      },
+      "CardAddInputBody": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Card Id",
+            "description": "Card to add, e.g. 'sticky.note' or 'pomodoro.timer'"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "s",
+                  "m",
+                  "l",
+                  "xl"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size",
+            "description": "Size; default is the card's own"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings",
+            "description": "Initial settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id"
+        ],
+        "title": "CardAddInputBody"
+      },
+      "CardSettings": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "card_id",
+          "settings"
+        ],
+        "title": "CardSettings"
+      },
+      "CardSettingsUpdateInputBody": {
+        "properties": {
+          "settings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Settings",
+            "description": "The card's whole settings object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "title": "CardSettingsUpdateInputBody"
       },
       "ConflictList": {
         "properties": {
@@ -8026,6 +9057,74 @@
         "type": "object",
         "title": "ModelParams"
       },
+      "Nav": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "program",
+              "term",
+              "course"
+            ],
+            "title": "Scope Type"
+          },
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Order",
+            "description": "Page ids in tab order; pages not listed come last"
+          },
+          "hidden": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hidden",
+            "description": "Hidden page ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "order",
+          "hidden"
+        ],
+        "title": "Nav"
+      },
+      "NavUpdateInputBody": {
+        "properties": {
+          "order": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Order",
+            "description": "Page ids in tab order"
+          },
+          "hidden": {
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Hidden",
+            "description": "Page ids to hide"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order",
+          "hidden"
+        ],
+        "title": "NavUpdateInputBody"
+      },
       "Occurrence": {
         "properties": {
           "id": {
@@ -8593,6 +9692,136 @@
           "new_password"
         ],
         "title": "PasswordResetIn"
+      },
+      "PluginCatalog": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PluginOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PluginCatalog"
+      },
+      "PluginOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "core",
+              "plugin"
+            ],
+            "title": "Kind",
+            "description": "core modules cannot be uninstalled"
+          },
+          "name_key": {
+            "type": "string",
+            "title": "Name Key",
+            "description": "Frontend message key of the name"
+          },
+          "description_key": {
+            "type": "string",
+            "title": "Description Key",
+            "description": "Frontend message key of the description"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One English sentence on what the plugin does"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "default_installed": {
+            "type": "boolean",
+            "title": "Default Installed"
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed",
+            "description": "Always true for core modules"
+          },
+          "installed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          },
+          "provides": {
+            "$ref": "#/components/schemas/PluginProvides"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name_key",
+          "description_key",
+          "summary",
+          "version",
+          "author",
+          "default_installed",
+          "installed",
+          "installed_at",
+          "provides"
+        ],
+        "title": "PluginOut"
+      },
+      "PluginProvides": {
+        "properties": {
+          "pages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "Page ids the plugin adds to scope tab bars"
+          },
+          "cards": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cards",
+            "description": "Card ids the plugin adds to boards"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "description": "Capability names gated by the plugin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "cards",
+          "capabilities"
+        ],
+        "title": "PluginProvides"
       },
       "Preferences": {
         "properties": {
@@ -9677,6 +10906,19 @@
         ],
         "title": "RegisterCompleteIn"
       },
+      "Removed": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id"
+        ],
+        "title": "Removed"
+      },
       "ResolvedSettings": {
         "properties": {
           "namespace": {
@@ -9942,6 +11184,89 @@
           "color"
         ],
         "title": "SubjectColorInputBody"
+      },
+      "Template": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "program",
+              "term",
+              "course",
+              "today"
+            ],
+            "title": "Scope Type"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateCard"
+            },
+            "type": "array",
+            "title": "Cards"
+          },
+          "customized": {
+            "type": "boolean",
+            "title": "Customized",
+            "description": "True when the user saved their own default layout"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "cards",
+          "customized"
+        ],
+        "title": "Template"
+      },
+      "TemplateCard": {
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "title": "Card Id"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "s",
+              "m",
+              "l",
+              "xl"
+            ],
+            "title": "Size"
+          },
+          "x": {
+            "type": "integer",
+            "title": "X"
+          },
+          "y": {
+            "type": "integer",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card_id",
+          "size",
+          "x",
+          "y"
+        ],
+        "title": "TemplateCard"
+      },
+      "TemplateFromBoardInputBody": {
+        "properties": {
+          "scope_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Scope Id",
+            "description": "The board whose layout becomes the default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_id"
+        ],
+        "title": "TemplateFromBoardInputBody"
       },
       "Term": {
         "properties": {

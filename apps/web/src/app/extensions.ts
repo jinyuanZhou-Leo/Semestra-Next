@@ -1,4 +1,4 @@
-import type { Occurrence } from '@semestra/api-client'
+import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { ZodType } from 'zod'
@@ -14,8 +14,8 @@ export type Message = () => string
 export type ScopeKind = 'program' | 'term' | 'course'
 
 /**
- * Where a card can sit: a scope's overview, or the Program's "today" page (M04 §5.1), whose
- * cards receive the Program scope.
+ * Where a card can go: the overview of a Program, term or course, or a Program's Today page
+ * (`today`, M04). On the Today board a card gets the Program's scope.
  */
 export type BoardKind = ScopeKind | 'today'
 
@@ -59,13 +59,27 @@ export type CardContribution = {
   // Each card declares its own settings type; the host only passes what `settings.schema` parses.
   // oxlint-disable-next-line no-explicit-any
   component: Lazy<CardProps<any>>
+  /**
+   * Per-instance settings, edited from the card's gear button: `component` if given, else a
+   * form generated from `schema` (texts `settings_card_<card id>_<field>_label|_description`,
+   * dots and dashes as underscores). `fields` hides fields the card itself writes (a counter's
+   * value) or orders them. The schema's JSON Schema is exported to the backend for validation.
+   */
   settings?: {
     schema: ZodType
     // oxlint-disable-next-line no-explicit-any
     component?: ComponentType<{ value: any; onChange: (value: any) => void }>
+    fields?: FieldOverrides
   }
   multiple: boolean
+  /** Buttons in the card's header next to its title (e.g. a counter's reset). */
+  // oxlint-disable-next-line no-explicit-any
+  headerActions?: ComponentType<CardProps<any>>
+  description?: Message
 }
+
+/** A card of a module's default layout; `size` falls back to the card's `defaultSize`. */
+export type BoardSlot = { card: string; size?: CardSize }
 
 export type SettingsLevel = 'account' | 'program' | 'term' | 'course'
 
@@ -121,16 +135,58 @@ export type SettingsSectionContribution = SettingsSectionBase &
     | { namespace: string; fields?: FieldOverrides; component?: undefined }
   )
 
-export type CommandContext = { scope?: Scope; navigate: (to: string) => void }
+export type CommandContext = {
+  /** The scope of the page the palette was opened on. */
+  scope?: Scope
+  /** The Program being viewed (also on account settings pages). */
+  programId?: string
+  navigate: (to: string) => void
+}
 
-/** Details in M10. A command either runs code or navigates (`to`). */
+/**
+ * An entry of the command palette (M10 §5.4). It runs code, navigates (`to`), or opens a
+ * second list (`useChildren`, a hook called while that list is open, e.g. "Switch term →"). `scopes` limits it to pages of those scopes.
+ */
 export type CommandContribution = {
   id: string
   title: Message
   keywords?: readonly string[]
   icon?: LucideIcon
   scopes?: readonly ScopeKind[]
+  /** Hides the command when it cannot run here, e.g. "Add card" on a page without a board. */
+  isAvailable?: (ctx: CommandContext) => boolean
+  /** A shortcut shown next to the command (the shortcut itself is registered with `useHotkey`). */
+  hotkey?: string
+} & (
+  | { run: (ctx: CommandContext) => void | Promise<void> }
+  | { to: string }
+  | { useChildren: (ctx: CommandContext) => readonly CommandChild[] }
+)
+
+/** An entry of a command's second-level list. */
+export type CommandChild = {
+  id: string
+  title: string
+  subtitle?: string
+  keywords?: readonly string[]
+  icon?: LucideIcon
+  /** A colour dot, e.g. a course colour. */
+  dot?: string
 } & ({ run: (ctx: CommandContext) => void | Promise<void> } | { to: string })
+
+/**
+ * Entries of the palette's "Navigation" group besides the scope's pages (M10 §5.4), e.g. the
+ * terms and courses of the Program. `useItems` is a hook, called while the palette is open.
+ */
+export type NavigationSourceContribution = {
+  id: string
+  useItems: (ctx: CommandContext) => readonly CommandChild[]
+}
+
+/** The AI assistant (M12): `Cmd/Ctrl + J` and the palette's "Ask AI" call `open`. */
+export type AssistantContribution = {
+  open: (ctx: CommandContext, question?: string) => void
+}
 
 /**
  * A calendar source's label, icon and click behaviour in the calendar (M04 §5.2). The data itself
@@ -150,9 +206,6 @@ export type CalendarSourceContribution = {
     ctx: { programId: string },
   ) => void
 }
-
-/** A card placed on a board when the user has no layout of their own yet (M10 §2). */
-export type DefaultBoardCard = { card: string; size?: CardSize }
 
 export type SearchResult = { id: string; title: string; subtitle?: string; to: string }
 
@@ -184,6 +237,17 @@ export type StatusItemContribution = {
   useStatus: () => StatusItem | null
 }
 
+/**
+ * How the status bar names a kind of background job (`core_jobs.kind`) and where clicking it goes,
+ * e.g. the import review page of a syllabus parse (M10 §5.6).
+ */
+export type JobKindContribution = {
+  kind: string
+  title: Message
+  /** The page the job belongs to; `job.result` is available once it has finished. */
+  to?: (job: JobOut) => string | undefined
+}
+
 /** `operationId` of a generated query (e.g. `coreJobList`): all its cached queries are refetched. */
 export type QueryKeyPrefix = string
 
@@ -194,17 +258,23 @@ export type ModuleManifest = {
   name: Message
   description: Message
   icon: LucideIcon
+  /** What a plugin needs before it is useful, shown on its catalog page (M10 §5.3). */
+  requirements?: Message
   pages?: readonly PageContribution[]
   cards?: readonly CardContribution[]
   settingsSections?: readonly SettingsSectionContribution[]
   commands?: readonly CommandContribution[]
+  navigationSources?: readonly NavigationSourceContribution[]
+  /** At most one module provides the assistant. */
+  assistant?: AssistantContribution
   calendarSources?: readonly CalendarSourceContribution[]
   searchProviders?: readonly SearchProviderContribution[]
   statusItems?: readonly StatusItemContribution[]
+  jobKinds?: readonly JobKindContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
-  /** Cards this module puts on new boards, per board kind (M10). */
-  defaultBoard?: Partial<Readonly<Record<BoardKind, readonly DefaultBoardCard[]>>>
+  /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */
+  defaultBoard?: Readonly<Partial<Record<BoardKind, readonly BoardSlot[]>>>
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */
   realtimeInvalidations?: Readonly<Record<string, readonly QueryKeyPrefix[]>>
 }

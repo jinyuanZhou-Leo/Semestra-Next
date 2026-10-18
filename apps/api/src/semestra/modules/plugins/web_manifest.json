@@ -1,0 +1,219 @@
+{
+  "modules": [
+    {
+      "id": "auth",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "settings",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "academics",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "overview",
+          "scopes": [
+            "program",
+            "term",
+            "course"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "academics.pinned",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "xl"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.terms",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.termCourses",
+          "scopes": [
+            "term"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "xl",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.courseInfo",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {
+        "program": [
+          {
+            "card": "academics.pinned",
+            "size": "m"
+          },
+          {
+            "card": "academics.terms",
+            "size": "l"
+          }
+        ],
+        "term": [
+          {
+            "card": "academics.termCourses",
+            "size": "xl"
+          }
+        ],
+        "course": [
+          {
+            "card": "academics.courseInfo",
+            "size": "l"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ai",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "plugins",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "schedule",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "today",
+          "scopes": [
+            "program"
+          ]
+        },
+        {
+          "id": "calendar",
+          "scopes": [
+            "term"
+          ]
+        },
+        {
+          "id": "schedule",
+          "scopes": [
+            "course"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "schedule.today",
+          "scopes": [
+            "today",
+            "program",
+            "term"
+          ],
+          "sizes": [
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.upcoming",
+          "scopes": [
+            "today",
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.week",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.next",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "s"
+          ],
+          "default_size": "s",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {
+        "today": [
+          {
+            "card": "schedule.today",
+            "size": "xl"
+          },
+          {
+            "card": "schedule.upcoming",
+            "size": "l"
+          }
+        ]
+      }
+    }
+  ]
+}
