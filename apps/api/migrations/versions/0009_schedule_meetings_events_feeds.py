@@ -1,7 +1,7 @@
 """schedule: event types, meetings, exceptions, events, feeds
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0009
+Revises: 0008
 Create Date: 2026-10-18 03:23:43.390974
 
 """
@@ -13,8 +13,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = '0007'
-down_revision: str | Sequence[str] | None = '0006'
+revision: str = '0009'
+down_revision: str | Sequence[str] | None = '0008'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

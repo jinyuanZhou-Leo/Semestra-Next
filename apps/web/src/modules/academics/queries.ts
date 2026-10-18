@@ -6,7 +6,8 @@ import {
   academicsProgramListOptions,
   academicsTermListOptions,
 } from '@semestra/api-client/react-query'
-import { type QueryClient, useQuery } from '@tanstack/react-query'
+import { type QueryClient, useQueries, useQuery } from '@tanstack/react-query'
+import type { CourseColumn } from './types'
 
 const STALE = 30_000
 
@@ -88,4 +89,22 @@ export function courseTermId(
   if (fromTerm && course.term_ids.includes(fromTerm)) return fromTerm
   const current = terms?.find((t) => t.is_current && course.term_ids.includes(t.id))
   return current?.id ?? course.end_term_id
+}
+
+/**
+ * What the extension columns asked for with `CourseColumn.query`, keyed by column id. The list
+ * of columns may change when a plugin is installed, which `useQueries` allows.
+ */
+export function useColumnData(
+  columns: readonly CourseColumn[],
+  programId: string,
+): ReadonlyMap<string, unknown> {
+  const results = useQueries({
+    queries: columns.map((column) =>
+      column.query
+        ? column.query(programId)
+        : { queryKey: ['academics', 'column-without-data', column.id], enabled: false },
+    ),
+  })
+  return new Map(columns.map((column, i) => [column.id, results[i]?.data]))
 }

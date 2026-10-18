@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { courseColor } from '../color'
 import { AddCourseDialog } from '../components/AddCourseDialog'
 import { coursePath } from '../paths'
-import { useCourses } from '../queries'
+import { useColumnData, useCourses } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 /** The term's courses with their credits and any extra columns marked `showInTermCard` (M02 §5.4). */
@@ -19,6 +19,7 @@ export default function TermCoursesCard({ scope }: CardProps) {
   const programId = scope.programId
   const courses = useCourses(programId, termId).data?.items
   const extra = useExtensions<CourseColumn>(COURSE_COLUMNS).filter((c) => c.showInTermCard)
+  const columnData = useColumnData(extra, programId)
   const [adding, setAdding] = useState(false)
   if (!termId) return null
   return (
@@ -66,8 +67,8 @@ export default function TermCoursesCard({ scope }: CardProps) {
                     {course.code ? course.title : null}
                   </TableCell>
                   {extra.map((column) => (
-                    <TableCell key={column.id} className="py-2 pr-3 pl-0">
-                      {column.cell(course)}
+                    <TableCell key={column.id} className="py-2 pr-3 pl-0 whitespace-nowrap">
+                      {column.cell(course, columnData.get(column.id))}
                     </TableCell>
                   ))}
                   <TableCell className="px-0 py-2 text-right text-muted-foreground tabular-nums">
