@@ -60,3 +60,9 @@ test('an off-site redirect target is ignored', async () => {
   const router = mount('/login?redirect=https%3A%2F%2Fevil.example')
   await waitFor(() => expect(router.state.location.pathname).toBe('/'))
 })
+
+test('/login/reset renders the reset form, not the sign-in form', async () => {
+  server.use(signedOut(), noGoogle, healthy)
+  mount('/login/reset')
+  expect(await screen.findByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
+})

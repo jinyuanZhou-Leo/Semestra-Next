@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
-import { Route as LoginResetRouteImport } from './routes/login.reset'
+import { Route as LoginResetRouteImport } from './routes/login_.reset'
 import { Route as AuthedSettingsAccountRouteImport } from './routes/_authed.settings.account'
 
 const AuthedRoute = AuthedRouteImport.update({
@@ -30,9 +30,9 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   getParentRoute: () => AuthedRoute,
 } as any)
 const LoginResetRoute = LoginResetRouteImport.update({
-  id: '/reset',
-  path: '/reset',
-  getParentRoute: () => LoginRoute,
+  id: '/login_/reset',
+  path: '/login/reset',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedSettingsAccountRoute = AuthedSettingsAccountRouteImport.update({
   id: '/settings/account',
@@ -42,12 +42,12 @@ const AuthedSettingsAccountRoute = AuthedSettingsAccountRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/login/reset': typeof LoginResetRoute
   '/settings/account': typeof AuthedSettingsAccountRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/login/reset': typeof LoginResetRoute
   '/': typeof AuthedIndexRoute
   '/settings/account': typeof AuthedSettingsAccountRoute
@@ -55,8 +55,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
-  '/login': typeof LoginRouteWithChildren
-  '/login/reset': typeof LoginResetRoute
+  '/login': typeof LoginRoute
+  '/login_/reset': typeof LoginResetRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/settings/account': typeof AuthedSettingsAccountRoute
 }
@@ -69,14 +69,15 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/login'
-    | '/login/reset'
+    | '/login_/reset'
     | '/_authed/'
     | '/_authed/settings/account'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
-  LoginRoute: typeof LoginRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  LoginResetRoute: typeof LoginResetRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -102,12 +103,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/login/reset': {
-      id: '/login/reset'
-      path: '/reset'
+    '/login_/reset': {
+      id: '/login_/reset'
+      path: '/login/reset'
       fullPath: '/login/reset'
       preLoaderRoute: typeof LoginResetRouteImport
-      parentRoute: typeof LoginRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authed/settings/account': {
       id: '/_authed/settings/account'
@@ -132,19 +133,10 @@ const AuthedRouteChildren: AuthedRouteChildren = {
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
-interface LoginRouteChildren {
-  LoginResetRoute: typeof LoginResetRoute
-}
-
-const LoginRouteChildren: LoginRouteChildren = {
-  LoginResetRoute: LoginResetRoute,
-}
-
-const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
-  LoginRoute: LoginRouteWithChildren,
+  LoginRoute: LoginRoute,
+  LoginResetRoute: LoginResetRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

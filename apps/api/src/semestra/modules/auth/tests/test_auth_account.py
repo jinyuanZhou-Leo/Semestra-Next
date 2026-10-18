@@ -507,6 +507,31 @@ async def test_email_change_code_belongs_to_the_user_who_asked(
         assert r.json()["error"]["code"] == "auth.invalid_code"
 
 
+async def test_a_second_account_cannot_invalidate_anothers_pending_email_change(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    mailer: MemoryMailer,
+    clock: Clock,
+) -> None:
+    await login_as(client, await make_user(email="a@example.com"))
+    await client.post("/account/email/change-start", json={"new_email": "shared@example.com"})
+    code = last_code(mailer, "shared@example.com")
+    clock.advance(minutes=2)  # past the resend cooldown
+
+    async with AsyncClient(transport=ASGITransport(app), base_url="https://test") as mallory:
+        await login_as(mallory, await make_user(email="mallory@example.com"))
+        again = await mallory.post(
+            "/account/email/change-start", json={"new_email": "shared@example.com"}
+        )
+        assert again.status_code == 200
+
+    done = await client.post("/account/email/change-confirm", json={"code": code})
+    assert done.status_code == 200
+    assert done.json()["email"] == "shared@example.com"
+
+
 # --- capability registry ----------------------------------------------------------------------
 
 

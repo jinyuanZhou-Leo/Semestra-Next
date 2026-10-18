@@ -192,6 +192,9 @@ async def start_challenge(
         AuthEmailChallenge.purpose == purpose,
         AuthEmailChallenge.consumed_at.is_(None),
     )
+    if purpose == "change_email":
+        # Another account asking for the same target address must not touch this user's code.
+        stmt = stmt.where(AuthEmailChallenge.user_id == user_id)
     live = (await db.execute(stmt.order_by(AuthEmailChallenge.last_sent_at.desc()))).scalars().all()
     if live and live[0].last_sent_at + RESEND_INTERVAL > ctx.now:
         wait = (live[0].last_sent_at + RESEND_INTERVAL - ctx.now).total_seconds()
