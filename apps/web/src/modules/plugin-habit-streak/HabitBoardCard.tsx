@@ -3,6 +3,7 @@ import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Toggle } from '@/ui/toggle'
 import { Burst } from '../plugin-kit/Burst'
 import { colorVar } from '../plugin-kit/colors'
 import { BOARD_WEEKS, addDays, columnsRange, weekColumns } from './grid'
@@ -62,17 +63,16 @@ export default function HabitBoardCard({ instanceId, size, settings }: CardProps
                   const done = checked.has(date)
                   const editable = !future && date >= earliest
                   return (
-                    <button
+                    <Toggle
                       key={date}
-                      type="button"
+                      pressed={done}
                       disabled={!editable || pending}
-                      aria-pressed={done}
                       aria-label={(done ? m.habit_cell_checked : m.habit_cell_unchecked)({
                         date: formatDate(date),
                       })}
-                      onClick={() => press(date, done)}
+                      onPressedChange={() => press(date, done)}
                       className={cn(
-                        'rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default',
+                        'min-w-0 rounded-sm p-0 hover:bg-transparent aria-pressed:bg-transparent disabled:opacity-100',
                         CELL[size === 'm' || size === 'l' ? size : 'xl'],
                         !done && 'bg-muted',
                         future && 'opacity-30',

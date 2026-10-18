@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { m } from '@/paraglide/messages'
-import { Field, FieldLabel } from '@/ui/field'
+import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import {
   Item,
@@ -48,10 +48,10 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           onChange={(event) => set({ name: event.target.value })}
         />
       </Field>
-      <div>
-        <p id={`${id}-icon`} className="mb-2 text-sm font-medium">
+      <FieldSet className="gap-2">
+        <FieldLegend variant="label" id={`${id}-icon`}>
           {m.habit_settings_icon_label()}
-        </p>
+        </FieldLegend>
         <ToggleGroup
           aria-labelledby={`${id}-icon`}
           variant="outline"
@@ -73,7 +73,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-      </div>
+      </FieldSet>
       <ItemGroup className="gap-0 rounded-2xl border">
         <Item render={<li />}>
           <ItemContent>
@@ -145,10 +145,10 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           </ItemActions>
         </Item>
       </ItemGroup>
-      <div>
-        <p id={`${id}-color`} className="mb-2 text-sm font-medium">
+      <FieldSet className="gap-2">
+        <FieldLegend variant="label" id={`${id}-color`}>
           {m.habit_settings_color_label()}
-        </p>
+        </FieldLegend>
         <RadioGroup
           aria-labelledby={`${id}-color`}
           value={value.color}
@@ -166,7 +166,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
             />
           ))}
         </RadioGroup>
-      </div>
+      </FieldSet>
     </div>
   )
 }
