@@ -395,6 +395,9 @@ function TermCalendar({
           <div className="overflow-x-auto">
             <div className="semestra-calendar" style={{ minWidth }}>
               <FullCalendar
+                // A view chosen elsewhere (the stored one arriving, or the timetable toggle)
+                // starts a fresh calendar on it.
+                key={view}
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
                 initialView={FC_VIEW[view]}
