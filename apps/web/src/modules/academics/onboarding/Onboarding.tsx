@@ -72,7 +72,7 @@ export function Onboarding() {
     onSuccess: async (program) => {
       await invalidateAcademics(queryClient)
       updatePreferences({ active_program_id: program.id })
-      setProgress({ step: 2, programId: program.id })
+      setProgress((current) => ({ userId: current.userId, step: 2, programId: program.id }))
     },
   })
 

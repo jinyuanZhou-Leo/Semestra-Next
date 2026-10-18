@@ -61,6 +61,7 @@ export function DeleteTermDialog({
       }
       confirmLabel={m.academics_term_delete()}
       pending={remove.isPending}
+      confirmDisabled={!counts}
       onConfirm={() => remove.mutate({ path: { term_id: term.id } })}
     />
   )
