@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
-from semestra.modules.layouts import get_card_instance, list_card_instances
+from semestra.modules.layouts import get_card_instance, jsonschema, list_card_instances
 from semestra.modules.layouts.models import LayoutsBoard
 from semestra.testing import MakeUser, UserHandle, collect_events
 
@@ -360,3 +360,10 @@ async def test_agent_surface(app: FastAPI, user: UserHandle):
     assert {"layouts.board.get", "layouts.card.add", "layouts.card.remove"} <= names
     assert {"plugins.catalog.list"} <= names
     assert not {"layouts.board.update", "plugins.install", "layouts.nav.update"} & names
+
+
+def test_decimal_multiples_are_checked_as_written():
+    schema = {"type": "number", "multipleOf": 0.1}
+    assert jsonschema.errors(schema, 0.3) == []
+    assert jsonschema.errors({"type": "integer", "multipleOf": 5}, 15) == []
+    assert [e["code"] for e in jsonschema.errors(schema, 0.35)] == ["multiple_of"]
