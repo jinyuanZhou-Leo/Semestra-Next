@@ -60,7 +60,8 @@ export function MoveDialog({
         new_date: date,
         new_start_time: start,
         new_end_time: end,
-        new_location: location.trim() || null,
+        // An empty string clears the room for this class; null would keep the meeting's.
+        new_location: location.trim(),
         note: note.trim() || null,
       },
     })

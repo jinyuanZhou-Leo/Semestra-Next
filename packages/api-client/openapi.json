@@ -6520,7 +6520,7 @@
               }
             ],
             "title": "New Location",
-            "description": "Moved: new location"
+            "description": "Moved: new location; null keeps the meeting's, \"\" means none"
           },
           "note": {
             "anyOf": [

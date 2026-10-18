@@ -1154,7 +1154,7 @@ export type ExceptionUpsertInputBody = {
     /**
      * New Location
      *
-     * Moved: new location
+     * Moved: new location; null keeps the meeting's, "" means none
      */
     new_location?: string | null;
     /**

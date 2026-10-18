@@ -211,7 +211,9 @@ class ExceptionUpsertInput(BaseModel):
     new_date: date | None = Field(default=None, description="Moved: new date (default: same day)")
     new_start_time: time | None = Field(default=None, description="Moved: new start time")
     new_end_time: time | None = Field(default=None, description="Moved: new end time")
-    new_location: ShortText | None = Field(default=None, description="Moved: new location")
+    new_location: ShortText | None = Field(
+        default=None, description='Moved: new location; null keeps the meeting\'s, "" means none'
+    )
     note: Note | None = Field(default=None, description="Note shown with the class")
 
 

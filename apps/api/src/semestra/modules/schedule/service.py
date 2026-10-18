@@ -888,7 +888,8 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
                 day = exc.new_date or md.day
                 start_t = exc.new_start_time or row.start_time
                 end_t = exc.new_end_time or row.end_time
-                location = exc.new_location or row.location
+                # None keeps the meeting's room; an empty string clears it for this class.
+                location = row.location if exc.new_location is None else exc.new_location or None
             start, end = rules.local_span(day, start_t, end_t, tz)
             if not q.range_start <= start < q.range_end:
                 continue

@@ -705,3 +705,16 @@ async def test_calendar_day_end_accepts_only_midnight_past_23_59(api: Api):
             status,
             json={"scope_type": "account", "values": {"day_end": value}},
         )
+
+
+async def test_a_moved_class_can_clear_its_location(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    mid = (await api.meeting(course_id, term_id, location="BA1130"))["id"]
+    for day, location in (("2026-02-09", None), ("2026-02-23", "")):
+        await api.call(
+            "PUT",
+            f"/meetings/{mid}/exceptions/{day}",
+            json={"kind": "moved", "new_date": day, "new_location": location},
+        )
+    got = classes(await api.calendar(program_id, "2026-02-09", "2026-02-24"))
+    assert [o["location"] for o in got] == ["BA1130", None]
