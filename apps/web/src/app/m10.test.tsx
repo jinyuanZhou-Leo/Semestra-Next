@@ -131,6 +131,30 @@ test('a board cannot be edited before the installed plugins are known', async ()
   for (const button of buttons) expect(button).toBeDisabled()
 })
 
+test('a board cannot be edited while it is refetched', async () => {
+  let loads = 0
+  server.use(
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
+    ),
+    http.get(`${API}/layouts/boards/term/t1`, async () => {
+      loads += 1
+      if (loads > 1) await delay('infinite')
+      return HttpResponse.json(board([{ instance_id: 'c1', card_id: 'template.storage' }]))
+    }),
+  )
+  const { queryClient } = renderWithRouter(
+    <ModuleRegistry value={[template]}>
+      <CardGrid scope={scope} />
+    </ModuleRegistry>,
+  )
+  const edit = await screen.findByRole('button', { name: 'Edit layout' })
+  expect(edit).toBeEnabled()
+  // A reinstalled plugin invalidates the board; its cards are missing until the refetch ends.
+  act(() => void queryClient.invalidateQueries())
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Edit layout' })).toBeDisabled())
+})
+
 test('tabs follow the saved order and leave hidden pages out', async () => {
   const second = {
     ...template,

@@ -314,3 +314,23 @@ def test_agent_can_read_and_write_module_settings_only() -> None:
     assert not any(n.startswith("settings.ui_state") for n in agent)
     assert "settings.values.reset" not in agent
     assert registry.get("settings.values.update").effect == "write"
+
+
+async def test_an_uninstalled_plugins_settings_are_refused(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+):
+    await signed_in(client, make_user, login_as)
+    previous = registry._plugin_gate  # pyright: ignore[reportPrivateUsage]
+
+    async def nothing_installed(ctx: Any) -> set[str]:
+        return set()
+
+    registry.set_plugin_gate(nothing_installed)
+    try:
+        url = "/settings/plugin.demo-timer"
+        r = await client.get(url, params={"scope_type": "account"})
+        assert r.json()["error"]["code"] == "plugins.not_installed"
+        r = await client.patch(url, json={"scope_type": "account", "values": {"focus_min": 5}})
+        assert r.json()["error"]["code"] == "plugins.not_installed"
+    finally:
+        registry.set_plugin_gate(previous)

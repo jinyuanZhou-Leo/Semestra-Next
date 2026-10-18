@@ -80,6 +80,13 @@ class Registry:
         installed."""
         self._plugin_gate = gate
 
+    async def require_plugin(self, ctx: Ctx, plugin_id: str | None) -> None:
+        """Raises `plugins.not_installed` for a plugin the ctx user has not installed, for data
+        a plugin owns but reaches through a generic capability (its settings)."""
+        gate = self._plugin_gate
+        if plugin_id is not None and gate is not None and plugin_id not in await gate(ctx):
+            raise AppError("plugins.not_installed", 403, plugin_id=plugin_id)
+
     def register(self, cap: Capability) -> None:
         if cap.name in self._items:
             raise ValueError(f"duplicate capability {cap.name!r}")

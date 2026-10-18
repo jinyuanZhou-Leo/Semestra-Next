@@ -6,22 +6,35 @@ import {
   accountTokensRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { Fragment, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { AppDialogContent } from '@/components/AppDialogContent'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { TextField } from '@/components/TextField'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Field, FieldLabel } from '@/ui/field'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
-import { Separator } from '@/ui/separator'
-import { FormError } from '../components/FormError'
 import { SettingsCard } from './SettingsCard'
 
 /** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
@@ -65,6 +78,7 @@ function CreateTokenDialog({
   onOpenChange: (open: boolean) => void
   onCreated: (token: TokenCreated) => void
 }) {
+  const nameId = useId()
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('')
@@ -102,21 +116,24 @@ function CreateTokenDialog({
         }
       }}
     >
-      <AppDialogContent>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_create()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_desc()}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
           <fieldset disabled={create.isPending} className="space-y-4">
-            <TextField
-              label={m.auth_account_tokens_name_label()}
-              placeholder={m.auth_account_tokens_name_placeholder()}
-              value={name}
-              maxLength={60}
-              ref={focusOnMount}
-              onChange={(e) => setName(e.target.value)}
-            />
+            <Field>
+              <FieldLabel htmlFor={nameId}>{m.auth_account_tokens_name_label()}</FieldLabel>
+              <Input
+                id={nameId}
+                placeholder={m.auth_account_tokens_name_placeholder()}
+                value={name}
+                maxLength={60}
+                ref={focusOnMount}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
             <Field>
               <FieldLabel htmlFor="token-scope">{m.auth_account_tokens_scope_label()}</FieldLabel>
               <NativeSelect
@@ -151,7 +168,7 @@ function CreateTokenDialog({
                 ))}
               </NativeSelect>
             </Field>
-            <FormError error={create.error} />
+            <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>
               <Button type="submit" disabled={!name.trim()}>
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
@@ -159,7 +176,7 @@ function CreateTokenDialog({
             </DialogFooter>
           </fieldset>
         </form>
-      </AppDialogContent>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -173,7 +190,7 @@ function TokenCreatedDialog({
 }) {
   return (
     <Dialog open={token !== null} onOpenChange={(open) => !open && onClose()}>
-      <AppDialogContent>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_created_title()}</DialogTitle>
           <DialogDescription>{m.auth_account_tokens_created_desc()}</DialogDescription>
@@ -203,7 +220,7 @@ function TokenCreatedDialog({
         <DialogFooter>
           <Button onClick={onClose}>{m.auth_account_tokens_done()}</Button>
         </DialogFooter>
-      </AppDialogContent>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -233,7 +250,7 @@ export function TokensSection() {
         <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
       ) : tokens.isError ? (
         <div className="space-y-2">
-          <FormError error={tokens.error} />
+          <FieldError>{errorMessage(tokens.error)}</FieldError>
           <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
             {m.common_retry()}
           </Button>
@@ -241,21 +258,21 @@ export function TokensSection() {
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{m.auth_account_tokens_empty()}</p>
       ) : (
-        <ul>
+        <ItemGroup className="gap-0">
           {items.map((t, i) => (
-            <li key={t.id}>
-              {i > 0 ? <Separator className="my-3" /> : null}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm font-medium">
+            <Fragment key={t.id}>
+              {i > 0 ? <ItemSeparator /> : null}
+              <Item className="px-0">
+                <ItemContent className="min-w-0">
+                  <ItemTitle>
                     <span className="truncate">{t.name}</span>
                     <Badge variant="secondary">
                       {t.scopes.includes('write')
                         ? m.auth_account_tokens_scope_write()
                         : m.auth_account_tokens_scope_read()}
                     </Badge>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
+                  </ItemTitle>
+                  <ItemDescription>
                     {[
                       `${t.prefix}…`,
                       t.last_used_at
@@ -267,20 +284,22 @@ export function TokensSection() {
                     ]
                       .filter(Boolean)
                       .join(' · ')}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
-                  onClick={() => setRevoking({ id: t.id, name: t.name })}
-                >
-                  {m.auth_account_tokens_revoke()}
-                </Button>
-              </div>
-            </li>
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
+                    onClick={() => setRevoking({ id: t.id, name: t.name })}
+                  >
+                    {m.auth_account_tokens_revoke()}
+                  </Button>
+                </ItemActions>
+              </Item>
+            </Fragment>
           ))}
-        </ul>
+        </ItemGroup>
       )}
       <Button size="sm" onClick={() => setCreating(true)}>
         {m.auth_account_tokens_create()}

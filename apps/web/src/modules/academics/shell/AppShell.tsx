@@ -2,11 +2,10 @@ import { useLocation } from '@tanstack/react-router'
 import { Menu, MonitorSmartphone } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
-import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { AppSheetContent } from '@/components/AppSheetContent'
-import { Sheet, SheetTitle } from '@/ui/sheet'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Sheet, SheetContent, SheetTitle } from '@/ui/sheet'
 import { useProgram } from '../queries'
 import { useIsNarrow } from './media'
 import { Sidebar } from './Sidebar'
@@ -38,20 +37,24 @@ export function AppShell({ programId, children }: { programId: string; children:
           <span className="truncate font-heading text-sm font-semibold">{programName}</span>
         </header>
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <AppSheetContent side="left" className="p-0">
+          <SheetContent side="left" className="p-0">
             <SheetTitle className="sr-only">{m.academics_sidebar_label()}</SheetTitle>
             <Sidebar programId={programId} drawer onNavigate={() => setDrawerOpen(false)} />
-          </AppSheetContent>
+          </SheetContent>
         </Sheet>
         <main className="min-w-0 flex-1">
           {PHONE_PAGE.test(pathname) ? (
             children
           ) : (
-            <EmptyState
-              icon={MonitorSmartphone}
-              title={m.academics_desktop_only_title()}
-              description={m.academics_desktop_only_description()}
-            />
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MonitorSmartphone aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_desktop_only_title()}</EmptyTitle>
+                <EmptyDescription>{m.academics_desktop_only_description()}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </main>
       </div>

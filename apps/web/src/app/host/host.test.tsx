@@ -74,7 +74,10 @@ test('a page renders, follows job progress events, and can cancel a job', async 
   withTemplate(<Live />)
 
   expect(await screen.findByText('files.parse')).toBeInTheDocument()
-  expect(screen.getByRole('progressbar', { name: 'Working… 2/5' })).toHaveAttribute('value', '40')
+  expect(screen.getByRole('progressbar', { name: 'Working… 2/5' })).toHaveAttribute(
+    'aria-valuenow',
+    '40',
+  )
 
   const progress = { job_id: 'j1', kind: 'files.parse', status: 'running', progress: 60 }
   FakeEventSource.last().emit({

@@ -5,16 +5,17 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { DangerZone, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { SettingList } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Item, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { ColorPicker, type ColorRef } from '../components/ColorPicker'
 import { DeleteCourseDialog } from '../components/DeleteCourseDialog'
@@ -40,6 +41,7 @@ export function CourseBasicsSection({ scope }: SettingsSectionProps) {
 }
 
 function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
+  const id = useId()
   const queryClient = useQueryClient()
   const update = useMutation({ ...academicsCourseUpdateMutation() })
   const setTerms = useMutation({
@@ -78,37 +80,42 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
 
   return (
     <>
-      <SettingList>
+      <ItemGroup className="gap-0 rounded-2xl border">
         <TextRow
           label={m.academics_course_code()}
           value={course.code ?? ''}
           placeholder="APS105H1"
           onChange={(text) => queue({ code: text.trim() || null })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_course_title()}
           value={course.title}
           required
           onChange={(title) => queue({ title })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_course_alias()}
           description={m.academics_course_alias_hint()}
           value={course.alias ?? ''}
           onChange={(text) => queue({ alias: text.trim() || null })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_course_subject()}
           description={m.academics_course_subject_hint()}
           value={course.subject_code}
           onChange={(text) => queue({ subject_code: text.trim().toUpperCase() })}
         />
+        <ItemSeparator className="my-0" />
         <NumberRow
           label={m.academics_course_credits()}
           value={course.credits}
           max={100}
           onChange={(value) => value !== null && queue({ credits: value })}
         />
+        <ItemSeparator className="my-0" />
         <ControlRow
           label={m.academics_course_in_gpa()}
           description={m.academics_course_in_gpa_hint()}
@@ -124,6 +131,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
             />
           )}
         </ControlRow>
+        <ItemSeparator className="my-0" />
         <ControlRow label={m.academics_course_color()}>
           {() => (
             <ColorPicker
@@ -137,6 +145,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
             />
           )}
         </ControlRow>
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_course_website()}
           type="url"
@@ -144,70 +153,74 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
           placeholder="https://"
           onChange={(text) => queue({ website_url: text.trim() || null })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_course_description()}
           multiline
           value={course.description ?? ''}
           onChange={(text) => queue({ description: text.trim() || null })}
         />
-        <div className="space-y-2 p-4">
-          <p className="text-sm font-medium">{m.academics_course_instructors()}</p>
-          {instructors.map((person, index) => (
-            // Instructors have no ids; their position identifies them while editing.
-            // oxlint-disable-next-line react/no-array-index-key
-            <div key={index} className="flex flex-wrap items-center gap-2">
-              <Input
-                aria-label={m.academics_instructor_name()}
-                placeholder={m.academics_instructor_name()}
-                className="w-48"
-                value={person.name}
-                onChange={(event) =>
-                  changeInstructors(
-                    instructors.map((p, i) =>
-                      i === index ? { ...p, name: event.target.value } : p,
-                    ),
-                  )
-                }
-              />
-              <Input
-                type="email"
-                aria-label={m.academics_instructor_email()}
-                placeholder={m.academics_instructor_email()}
-                className="w-56"
-                value={person.email ?? ''}
-                onChange={(event) =>
-                  changeInstructors(
-                    instructors.map((p, i) =>
-                      i === index ? { ...p, email: event.target.value.trim() || null } : p,
-                    ),
-                  )
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={m.academics_instructor_remove({
-                  name: person.name || m.academics_instructor_name(),
-                })}
-                onClick={() => changeInstructors(instructors.filter((_, i) => i !== index))}
-              >
-                <Trash2 aria-hidden />
-              </Button>
-            </div>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setInstructors([...instructors, { name: '' }])}
-          >
-            <Plus aria-hidden />
-            {m.academics_instructor_add()}
-          </Button>
-        </div>
-      </SettingList>
+        <ItemSeparator className="my-0" />
+        <Item>
+          <ItemContent className="gap-2">
+            <ItemTitle>{m.academics_course_instructors()}</ItemTitle>
+            {instructors.map((person, index) => (
+              // Instructors have no ids; their position identifies them while editing.
+              // oxlint-disable-next-line react/no-array-index-key
+              <div key={index} className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label={m.academics_instructor_name()}
+                  placeholder={m.academics_instructor_name()}
+                  className="w-48"
+                  value={person.name}
+                  onChange={(event) =>
+                    changeInstructors(
+                      instructors.map((p, i) =>
+                        i === index ? { ...p, name: event.target.value } : p,
+                      ),
+                    )
+                  }
+                />
+                <Input
+                  type="email"
+                  aria-label={m.academics_instructor_email()}
+                  placeholder={m.academics_instructor_email()}
+                  className="w-56"
+                  value={person.email ?? ''}
+                  onChange={(event) =>
+                    changeInstructors(
+                      instructors.map((p, i) =>
+                        i === index ? { ...p, email: event.target.value.trim() || null } : p,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={m.academics_instructor_remove({
+                    name: person.name || m.academics_instructor_name(),
+                  })}
+                  onClick={() => changeInstructors(instructors.filter((_, i) => i !== index))}
+                >
+                  <Trash2 aria-hidden />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInstructors([...instructors, { name: '' }])}
+            >
+              <Plus aria-hidden />
+              {m.academics_instructor_add()}
+            </Button>
+          </ItemContent>
+        </Item>
+      </ItemGroup>
 
       <h3 className="pt-2 font-heading text-base font-medium">{m.academics_course_terms()}</h3>
-      <SettingList>
+      <ItemGroup className="gap-0 rounded-2xl border">
         <ControlRow
           label={m.academics_course_year_long()}
           description={m.academics_course_year_long_hint()}
@@ -224,14 +237,15 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
             />
           )}
         </ControlRow>
-        <fieldset className="space-y-1.5 p-4">
-          <legend className="sr-only">{m.academics_course_terms()}</legend>
-          {terms.map((term) => {
-            const checked = termIds.includes(term.id)
-            return (
-              <label key={term.id} className="flex items-center gap-2 text-sm">
+        <ItemSeparator className="my-0" />
+        <Item>
+          <FieldSet className="gap-1.5">
+            <FieldLegend className="sr-only">{m.academics_course_terms()}</FieldLegend>
+            {terms.map((term) => (
+              <Field key={term.id} orientation="horizontal">
                 <Checkbox
-                  checked={checked}
+                  id={`${id}-${term.id}`}
+                  checked={termIds.includes(term.id)}
                   onCheckedChange={(on) => {
                     if (!yearLong) {
                       if (on) chooseTerms([term.id])
@@ -243,17 +257,17 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
                     if (next.length > 0) chooseTerms(next)
                   }}
                 />
-                {term.name}
-              </label>
-            )
-          })}
-          {termsInvalid ? (
-            <p role="alert" className="text-xs text-destructive">
-              {m.error_academics_course_terms_not_adjacent()}
-            </p>
-          ) : null}
-        </fieldset>
-      </SettingList>
+                <FieldLabel htmlFor={`${id}-${term.id}`} className="font-normal">
+                  {term.name}
+                </FieldLabel>
+              </Field>
+            ))}
+            <FieldError className="text-xs">
+              {termsInvalid ? m.error_academics_course_terms_not_adjacent() : null}
+            </FieldError>
+          </FieldSet>
+        </Item>
+      </ItemGroup>
 
       <DangerZone>
         <div className="flex flex-wrap items-center justify-between gap-3">

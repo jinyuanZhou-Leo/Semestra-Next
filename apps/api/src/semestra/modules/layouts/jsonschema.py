@@ -7,6 +7,7 @@ pattern, anyOf/oneOf/allOf and local `$ref`s. Unknown keywords are ignored; cros
 """
 
 import re
+from decimal import Decimal
 from typing import Any
 
 _TYPES: dict[str, tuple[type, ...]] = {
@@ -83,7 +84,8 @@ def _check(
             out.append({"loc": loc, "code": "exclusive_minimum"})
         if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
             out.append({"loc": loc, "code": "exclusive_maximum"})
-        if "multipleOf" in schema and (value / schema["multipleOf"]) % 1:
+        # Decimal of the shortest repr, so 0.3 is a multiple of 0.1 as it reads.
+        if "multipleOf" in schema and Decimal(repr(value)) % Decimal(repr(schema["multipleOf"])):
             out.append({"loc": loc, "code": "multiple_of"})
     if isinstance(value, str):
         if "minLength" in schema and len(value) < schema["minLength"]:

@@ -10,17 +10,17 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { TextField } from '@/components/TextField'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { Separator } from '@/ui/separator'
-import { FormError } from '../components/FormError'
 import { GoogleSignInButton } from '../components/GoogleSignInButton'
 import { Row, SettingsCard } from './SettingsCard'
 
@@ -31,6 +31,7 @@ function useUserCache() {
 
 function EmailRow({ user }: { user: UserOut }) {
   const setUser = useUserCache()
+  const id = useId()
   const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
@@ -78,15 +79,18 @@ function EmailRow({ user }: { user: UserOut }) {
       {editing && !sentTo ? (
         <form onSubmit={send} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
           <fieldset disabled={start.isPending} className="space-y-3">
-            <TextField
-              type="email"
-              autoComplete="email"
-              ref={focusOnMount}
-              label={m.auth_account_email_new_label()}
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-            />
-            <FormError error={start.error} />
+            <Field>
+              <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
+              <Input
+                id={id}
+                type="email"
+                autoComplete="email"
+                ref={focusOnMount}
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+              />
+            </Field>
+            <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
             <div className="flex gap-2">
               <Button type="submit">
                 {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
@@ -117,7 +121,7 @@ function EmailRow({ user }: { user: UserOut }) {
               ))}
             </InputOTPGroup>
           </InputOTP>
-          <FormError error={confirm.error} />
+          <FieldError>{confirm.error ? errorMessage(confirm.error) : null}</FieldError>
           <Button type="button" variant="ghost" onClick={close} disabled={confirm.isPending}>
             {m.common_cancel()}
           </Button>
@@ -129,6 +133,7 @@ function EmailRow({ user }: { user: UserOut }) {
 
 function PasswordRow({ user }: { user: UserOut }) {
   const setUser = useUserCache()
+  const id = useId()
   const [editing, setEditing] = useState(false)
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -177,24 +182,32 @@ function PasswordRow({ user }: { user: UserOut }) {
         <form onSubmit={submit} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
           <fieldset disabled={change.isPending} className="space-y-3">
             {user.has_password ? (
-              <TextField
-                type="password"
-                autoComplete="current-password"
-                ref={focusOnMount}
-                label={m.auth_account_password_current()}
-                value={current}
-                onChange={(e) => setCurrent(e.target.value)}
-              />
+              <Field>
+                <FieldLabel htmlFor={`${id}-current`}>
+                  {m.auth_account_password_current()}
+                </FieldLabel>
+                <Input
+                  id={`${id}-current`}
+                  type="password"
+                  autoComplete="current-password"
+                  ref={focusOnMount}
+                  value={current}
+                  onChange={(e) => setCurrent(e.target.value)}
+                />
+              </Field>
             ) : null}
-            <TextField
-              type="password"
-              autoComplete="new-password"
-              ref={!user.has_password ? focusOnMount : undefined}
-              label={m.auth_account_password_new()}
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-            />
-            <FormError error={change.error} />
+            <Field>
+              <FieldLabel htmlFor={`${id}-new`}>{m.auth_account_password_new()}</FieldLabel>
+              <Input
+                id={`${id}-new`}
+                type="password"
+                autoComplete="new-password"
+                ref={!user.has_password ? focusOnMount : undefined}
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+              />
+            </Field>
+            <FieldError>{change.error ? errorMessage(change.error) : null}</FieldError>
             <div className="flex gap-2">
               <Button type="submit" disabled={!next}>
                 {change.isPending ? m.common_saving() : m.common_save()}
@@ -260,7 +273,7 @@ function GoogleRow({ user }: { user: UserOut }) {
             clientId={clientId}
             onCredential={(idToken) => link.mutate({ body: { id_token: idToken } })}
           />
-          <FormError error={link.error} />
+          <FieldError>{link.error ? errorMessage(link.error) : null}</FieldError>
         </>
       ) : null}
       <ConfirmDialog

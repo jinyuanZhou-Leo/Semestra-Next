@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
-from semestra.modules.layouts import get_card_instance, list_card_instances
+from semestra.modules.layouts import get_card_instance, jsonschema, list_card_instances
 from semestra.modules.layouts.models import LayoutsBoard
 from semestra.testing import MakeUser, UserHandle, collect_events
 
@@ -214,6 +214,7 @@ async def test_uninstall_hides_cards_and_reinstall_restores_them(app: FastAPI, a
     assert [c["card_id"] for c in board["cards"]] == ["academics.courseInfo"]
     # Saving the layout meanwhile keeps the hidden card.
     await api.put_board("course", course_id, [{**board["cards"][0], "size": "m"}])
+    assert await api.error("GET", url, 403) == "plugins.not_installed"
     assert await api.error("PUT", url, 403, json={"settings": {}}) == "plugins.not_installed"
     card_url = f"/layouts/cards/{note['instance_id']}"
     assert await api.error("DELETE", card_url, 403) == "plugins.not_installed"
@@ -235,6 +236,14 @@ async def test_uninstalled_cards_survive_the_first_change_of_a_template_board(ap
         ("academics.courseInfo", "m"),
         ("notes.note", "m"),
     ]
+
+
+async def test_saving_a_board_as_default_keeps_uninstalled_plugin_cards(api: Api):
+    _, _, course_id = await api.scopes()
+    await api.call("DELETE", "/plugins/notes/installation")
+    await api.call("POST", "/layouts/templates/course:from-board", json={"scope_id": course_id})
+    template = await api.call("GET", "/layouts/templates/course")
+    assert [c["card_id"] for c in template["cards"]] == ["academics.courseInfo", "notes.note"]
 
 
 async def test_purge_removes_cards_for_good(app: FastAPI, api: Api, user: UserHandle):
@@ -351,3 +360,10 @@ async def test_agent_surface(app: FastAPI, user: UserHandle):
     assert {"layouts.board.get", "layouts.card.add", "layouts.card.remove"} <= names
     assert {"plugins.catalog.list"} <= names
     assert not {"layouts.board.update", "plugins.install", "layouts.nav.update"} & names
+
+
+def test_decimal_multiples_are_checked_as_written():
+    schema = {"type": "number", "multipleOf": 0.1}
+    assert jsonschema.errors(schema, 0.3) == []
+    assert jsonschema.errors({"type": "integer", "multipleOf": 5}, 15) == []
+    assert [e["code"] for e in jsonschema.errors(schema, 0.35)] == ["multiple_of"]

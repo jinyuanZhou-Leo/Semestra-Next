@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 
+from semestra.core.capability import registry as capabilities
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.settings import registry
@@ -76,3 +77,17 @@ def fake_scopes(app: FastAPI) -> Iterator[None]:
     set_scope_resolver(_fake_resolver)
     yield
     set_scope_resolver(previous)
+
+
+@pytest.fixture(autouse=True)
+def demo_plugin_installed(app: FastAPI) -> Iterator[None]:
+    """`demo-timer` is not in the plugin catalog; count it as installed for these tests."""
+    del app
+    previous = capabilities._plugin_gate  # pyright: ignore[reportPrivateUsage]
+
+    async def gate(ctx: Ctx) -> set[str]:
+        return (await previous(ctx) if previous else set()) | {"demo-timer"}
+
+    capabilities.set_plugin_gate(gate)
+    yield
+    capabilities.set_plugin_gate(previous)

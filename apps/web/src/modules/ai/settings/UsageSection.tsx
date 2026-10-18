@@ -13,13 +13,13 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useModules } from '@/app/registry'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { SegmentedControl } from '@/components/SegmentedControl'
 import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
 import { formatCount, formatDate, formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Card, CardContent } from '@/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
 
 export const USAGE_DAYS = 30
@@ -111,6 +111,8 @@ function UsageChart({ summary }: { summary: UsageSummary }) {
 }
 
 type Grouping = 'purpose' | 'module' | 'model'
+
+const GROUPINGS: readonly Grouping[] = ['purpose', 'module', 'model']
 
 const GROUP_TITLES: Record<Grouping, () => string> = {
   purpose: m.ai_usage_group_purpose,
@@ -278,15 +280,21 @@ export function UsageSection() {
                       <span id={groupId} className="text-sm font-medium">
                         {m.ai_usage_details()}
                       </span>
-                      <SegmentedControl
+                      <ToggleGroup
                         aria-labelledby={groupId}
-                        value={grouping}
-                        onValueChange={setGrouping}
-                        options={(['purpose', 'module', 'model'] as const).map((value) => ({
-                          value,
-                          label: GROUP_TITLES[value](),
-                        }))}
-                      />
+                        value={[grouping]}
+                        onValueChange={(next) => {
+                          if (next[0]) setGrouping(next[0] as Grouping)
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {GROUPINGS.map((value) => (
+                          <ToggleGroupItem key={value} value={value}>
+                            {GROUP_TITLES[value]()}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
                     </div>
                     <UsageTable
                       key={grouping}
