@@ -8,7 +8,7 @@ import { useRouter } from '@tanstack/react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { programPath, termPath } from '../paths'
+import { coursePath, programPath, termPath } from '../paths'
 import { invalidateAcademics } from '../queries'
 
 /** Deleting a term says first how many courses go with it and how many year-long ones stay. */
@@ -33,8 +33,12 @@ export function DeleteTermDialog({
     onSuccess: async () => {
       onOpenChange(false)
       const here = router.state.location.pathname
-      const termHref = termPath(term.program_id, term.id)
-      if (here === termHref || here.startsWith(`${termHref}/`)) {
+      // Leave pages that no longer exist: the term's own, or a course deleted along with it.
+      const gone = [
+        termPath(term.program_id, term.id),
+        ...(preview.data?.deleted_course_ids ?? []).map((id) => coursePath(term.program_id, id)),
+      ]
+      if (gone.some((href) => here === href || here.startsWith(`${href}/`))) {
         router.history.push(programPath(term.program_id))
       }
       await invalidateAcademics(queryClient)
@@ -61,6 +65,7 @@ export function DeleteTermDialog({
       }
       confirmLabel={m.academics_term_delete()}
       pending={remove.isPending}
+      confirmDisabled={!counts}
       onConfirm={() => remove.mutate({ path: { term_id: term.id } })}
     />
   )
