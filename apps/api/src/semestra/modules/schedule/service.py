@@ -438,6 +438,7 @@ async def create_meetings(
         else:
             _apply_fields(row, item)
             _check_meeting(row)
+            await _drop_stale_exceptions(ctx, row)
             row.updated_at = ctx.now
             if row.id not in created:
                 updated.append(row.id)
@@ -456,6 +457,27 @@ async def create_meetings(
 
 
 _NULLABLE_MEETING = {"title", "instructor", "location", "end_week"}
+_RECURRENCE_FIELDS = {
+    "term_id",
+    "weekday",
+    "recurrence",
+    "anchor_week",
+    "start_week",
+    "end_week",
+    "skip_breaks",
+}
+
+
+async def _drop_stale_exceptions(ctx: Ctx, row: ScheduleMeeting) -> None:
+    """After a recurrence edit, exceptions on dates the meeting no longer has would linger in its
+    list and come back if the edit is undone."""
+    days = [d.day for d in await _meeting_dates(ctx, row)]
+    await ctx.db.execute(
+        delete(ScheduleMeetingException).where(
+            ScheduleMeetingException.meeting_id == row.id,
+            ScheduleMeetingException.original_date.not_in(days),
+        )
+    )
 
 
 async def update_meeting(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
@@ -478,6 +500,8 @@ async def update_meeting(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
     if "start_week" in changed and "anchor_week" not in sent and row.recurrence == "biweekly":
         row.anchor_week = max(row.anchor_week, row.start_week)
     _check_meeting(row)
+    if _RECURRENCE_FIELDS & set(changed):
+        await _drop_stale_exceptions(ctx, row)
     if changed:
         row.updated_at = ctx.now
         await ctx.db.flush()
@@ -865,7 +889,7 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
                 start_t = exc.new_start_time or row.start_time
                 end_t = exc.new_end_time or row.end_time
                 location = exc.new_location or row.location
-            start = rules.local_to_utc(day, start_t, tz)
+            start, end = rules.local_span(day, start_t, end_t, tz)
             if not q.range_start <= start < q.range_end:
                 continue
             title = course_label(course)
@@ -876,7 +900,7 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
                     kind="class",
                     title=f"{title} · {row.title}" if row.title else title,
                     start_at=start,
-                    end_at=rules.local_to_utc(day, end_t, tz),
+                    end_at=end,
                     course_id=course.id,
                     type_code=row.type_code,
                     location=location,

@@ -17,7 +17,7 @@ class CalendarSettings(BaseModel):
     )
     day_end: str = Field(
         default="22:00",
-        pattern=r"^([01]\d|2[0-4]):[0-5]\d$",
+        pattern=r"^(([01]\d|2[0-3]):[0-5]\d|24:00)$",
         json_schema_extra={"format": "time"},
         description="Last hour shown",
     )

@@ -669,3 +669,39 @@ async def test_editing_a_weekly_meeting_with_a_null_anchor(api: Api):
         json={"location": "MY150", "recurrence": "weekly", "anchor_week": None},
     )
     assert (edited["location"], edited["anchor_week"]) == ("MY150", 3)
+
+
+async def test_recurrence_edits_drop_exceptions_on_dates_the_meeting_no_longer_has(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    meeting = await api.meeting(course_id, term_id)
+    mid = meeting["id"]
+    await api.call("PUT", f"/meetings/{mid}/exceptions/2026-02-09", json={"kind": "cancelled"})
+    kept = await api.call("PATCH", f"/meetings/{mid}", json={"location": "MY150"})
+    assert [e["original_date"] for e in kept["exceptions"]] == ["2026-02-09"]
+    moved = await api.call("PATCH", f"/meetings/{mid}", json={"weekday": 2})
+    assert moved["exceptions"] == []
+    back = await api.call("PATCH", f"/meetings/{mid}", json={"weekday": 1})
+    assert back["exceptions"] == []
+    got = classes(await api.calendar(program_id, "2026-02-09", "2026-02-10"))
+    assert [o["status"] for o in got] == [None]
+
+
+async def test_a_meeting_in_the_spring_forward_gap_keeps_its_length(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    # Sunday Mar 8 2026: Toronto skips from 02:00 to 03:00, so 02:30 does not exist.
+    await api.meeting(course_id, term_id, weekday=7, start_time="02:30", end_time="03:00")
+    got = classes(await api.calendar(program_id, "2026-03-08", "2026-03-09"))
+    assert [(o["start_at"], o["end_at"]) for o in got] == [
+        ("2026-03-08T07:30:00Z", "2026-03-08T08:00:00Z")
+    ]
+
+
+async def test_calendar_day_end_accepts_only_midnight_past_23_59(api: Api):
+    await api.setup()
+    for value, status in (("24:30", 422), ("24:00", 200)):
+        await api.call(
+            "PATCH",
+            "/settings/calendar",
+            status,
+            json={"scope_type": "account", "values": {"day_end": value}},
+        )

@@ -78,6 +78,16 @@ def local_to_utc(day: date, at: time, tz: ZoneInfo) -> datetime:
     return datetime.combine(day, at, tzinfo=tz).astimezone(UTC)
 
 
+def local_span(day: date, start: time, end: time, tz: ZoneInfo) -> tuple[datetime, datetime]:
+    """A wall-clock span on `day` in UTC. A start inside a spring-forward gap moves forward with
+    it, which could put it after the end (02:30-03:00 in Toronto); the span then keeps its wall
+    length from the moved start."""
+    start_at, end_at = local_to_utc(day, start, tz), local_to_utc(day, end, tz)
+    if end_at <= start_at:
+        end_at = start_at + (datetime.combine(day, end) - datetime.combine(day, start))
+    return start_at, end_at
+
+
 def local_midnight(day: date, tz: ZoneInfo) -> datetime:
     return local_to_utc(day, time(0, 0), tz)
 
