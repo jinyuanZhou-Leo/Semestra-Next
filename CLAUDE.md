@@ -97,3 +97,10 @@ docs/                设计稿与模块规格
   给其它模块的约定：插件模块（kind `plugin`）后端必须 `register_plugin(PluginInfo(id=..., default_installed=...))`，capability 带 `plugin_id`；改了 manifest 的 Page/卡片/`defaultBoard`/卡片设置 schema 后跑 `pnpm --filter @semestra/web manifest:export` 并提交 `web_manifest.json`；卡片业务数据按 `instance_id` 存，订阅 `layouts.card.deleted` 清理，插件用 `@events.subscribe("plugins.purge", in_transaction=True)` 清理数据（与卸载同一事务，抛错会让卸载失败）；卡片设置用 `useCardSettings` 读写；命令面板条目用 manifest 的 `commands`/`navigationSources`/`searchProviders`，任务名称用 `jobKinds`；全局快捷键用 `useHotkey`。细节见 M10 规格第 9 节。
 - M14 小插件合集：五个第一方插件（计数器、习惯打卡、番茄钟、便签、世界时钟）。前端 `apps/web/src/modules/plugin-<id>/`，共用的小工具在 `plugin-kit/`（`useCardSettings`、`useOptimisticSettings`、`Ring`、`Burst`、`colors`、`duration`）；后端 `apps/api/src/semestra/modules/plugins_builtin/`：`habit_streak/`（表 `plugin_habit_checkins`；纯连续天数规则在 `streak.py`）、`pomodoro/`（表 `plugin_pomodoro_sessions`）、`sticky_note/`（只有 Agent capability，文本在卡片设置里）；计数器与世界时钟没有后端。`instances.py` 是插件读取 M10 卡片实例的唯一入口，`portability.py` 是 M13 导出适配器。插件开发指南 [docs/plugin-authoring.md](docs/plugin-authoring.md)，模板是 `_template-plugin/`（前端）与 `plugins_builtin/_template/`（后端），都不注册进应用。
   给其它模块的约定：习惯打卡的"今天"与周起点由后端按卡片所在 Program 的时区给出，前端不做时区计算；番茄钟计时状态存 `useUiPref('pomodoro.<instanceId>')`，以 `endsAt` 推算剩余时间，`pomodoro.active` 指向状态条要显示的那个计时；新的内置插件照着模板和指南写。
+
+## UI 相关
+ - 使用shadcn/ui组件前先使用context7查对应组件的文档
+ - shadcn组件文件夹中的shadcn组件禁止修改 (apps/web/src/ui)
+ - 已知并接受的官方组件读屏问题（不要再为它们改代码或包一层）：`Dialog`/`Sheet` 关闭按钮读作英文 "Close"；`ItemGroup` 固定是 `role="list"`，但 `Item` 是普通 `div`、`ItemSeparator` 也直接放在列表里，读屏器拿不到列表项数量（PR #13 Codex 评审指出）。
+ - `src/ui/` 合并有冲突时，一律用 shadcn CLI 重新生成的官方版本解决（`CI=1 pnpm dlx shadcn@latest add <组件> --overwrite --yes </dev/null`），不要手动合并内容，也不要为了让分支编译通过去改它，改调用方。
+ - UI 尽可能直接用 shadcn 官方组件（`@/ui/*`），不要手写同类控件，也不要为了保持旧接口或读屏文字这类小问题做额外的薄封装；生成组件里写死的英文读屏文字（如 Dialog/Sheet 的 "Close"）可以接受。只有带真实行为的组件才放 `src/components/`。教训：曾写过 `AppDialogContent`、`TextField`、`EmptyState`、`RadioCard` 等薄封装，后来全部删除，还导致依赖旧接口的分支 typecheck 失败。
