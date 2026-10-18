@@ -22,8 +22,16 @@ export type CourseColumn = {
   query?: (programId: string) => UseQueryOptions<any, any, any, any>
   cell: (course: Course, data?: unknown) => ReactNode
   sortValue?: (course: Course, data?: unknown) => string | number | null
-  /** Quick filters offered above the table (e.g. GPA ≥ 3.5). */
-  filter?: { id: string; label: Message; test: (course: Course, data?: unknown) => boolean }[]
+  /**
+   * Quick filters offered above the table (e.g. GPA ≥ 3.5). A filter whose `available` says no is
+   * neither shown nor applied (e.g. GPA filters while GPA is hidden).
+   */
+  filter?: {
+    id: string
+    label: Message
+    test: (course: Course, data?: unknown) => boolean
+    available?: (data?: unknown) => boolean
+  }[]
   /** Also shown in the `academics.termCourses` card. */
   showInTermCard?: boolean
 }

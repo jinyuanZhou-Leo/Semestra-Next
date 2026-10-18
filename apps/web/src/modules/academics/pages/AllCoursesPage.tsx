@@ -110,9 +110,9 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
     return course.term_ids.length > 1 ? `${first} – ${last}` : first
   }
   const subjects = [...new Set(courses.map((c) => c.subject_code).filter(Boolean))].toSorted()
-  const quickFilters = extensions.flatMap((col) =>
-    (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })),
-  )
+  const quickFilters = extensions
+    .flatMap((col) => (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })))
+    .filter((f) => f.available?.(f.data) ?? true)
   const needle = search.trim().toLowerCase().replaceAll(/\s+/g, '')
 
   const visible = courses.filter((course) => {

@@ -13,6 +13,8 @@ const gradeOf = (course: Course, data: unknown) =>
 /** With "hide GPA" on, GPA must not leak through ordering or threshold filters either. */
 const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
 
+const available = (data: unknown) => !gpaHidden(data)
+
 const query = (programId: string) => ({
   ...gradingCourseSummariesOptions({ path: { program_id: programId } }),
   staleTime: 30_000,
@@ -69,14 +71,15 @@ export const courseColumns: CourseColumn[] = [
       {
         id: 'grading.gpa_max',
         label: m.grading_filter_gpa_max,
+        available,
         test: (course, data) => {
           const max = grades(data)?.max_points
           const own = gradeOf(course, data)?.points
           return max !== undefined && own != null && !gpaHidden(data) && own >= max - 1e-9
         },
       },
-      { id: 'grading.gpa_3_5', label: m.grading_filter_gpa_3_5, test: atLeast(3.5) },
-      { id: 'grading.gpa_3_0', label: m.grading_filter_gpa_3_0, test: atLeast(3) },
+      { id: 'grading.gpa_3_5', label: m.grading_filter_gpa_3_5, test: atLeast(3.5), available },
+      { id: 'grading.gpa_3_0', label: m.grading_filter_gpa_3_0, test: atLeast(3), available },
     ],
   },
 ]

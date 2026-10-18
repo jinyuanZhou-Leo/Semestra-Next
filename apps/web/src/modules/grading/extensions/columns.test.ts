@@ -19,3 +19,8 @@ test('hidden GPA gives no ordering and matches no threshold filter', () => {
   expect(gpa?.sortValue?.(course, data(true))).toBeNull()
   expect(gpa?.filter?.some((f) => f.test(course, data(true)))).toBe(false)
 })
+
+test('the GPA filter buttons are not offered while GPA is hidden', () => {
+  expect(gpa?.filter?.every((f) => f.available?.(data(false)))).toBe(true)
+  expect(gpa?.filter?.some((f) => f.available?.(data(true)))).toBe(false)
+})
