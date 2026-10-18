@@ -18,6 +18,8 @@ type Props = {
   description: ReactNode
   confirmLabel: string
   pending?: boolean
+  /** Keeps the confirm button off, e.g. until what will be deleted is known. */
+  confirmDisabled?: boolean
   onConfirm: () => void
 }
 
@@ -29,6 +31,7 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   pending,
+  confirmDisabled,
   onConfirm,
 }: Props) {
   return (
@@ -40,7 +43,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{m.common_cancel()}</AlertDialogCancel>
-          <Button variant="destructive" disabled={pending} onClick={onConfirm}>
+          <Button variant="destructive" disabled={pending || confirmDisabled} onClick={onConfirm}>
             {pending ? m.common_loading() : confirmLabel}
           </Button>
         </AlertDialogFooter>

@@ -1,14 +1,17 @@
 from datetime import date, datetime
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from pydantic import AfterValidator, BaseModel, Field, JsonValue
+from pydantic import AfterValidator, BaseModel, Field, JsonValue, StringConstraints
 
 PALETTE_SIZE = 12
 
-Name = Annotated[str, Field(min_length=1, max_length=200)]
+# Trimmed before the length check, so a name of only spaces is rejected.
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 ShortText = Annotated[str, Field(max_length=200)]
 Credits = Annotated[float, Field(ge=0, le=100)]
+CreditGoal = Annotated[float, Field(ge=0, le=10_000)]
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 
 
@@ -23,6 +26,20 @@ def _check_timezone(value: str) -> str:
 
 
 Timezone = Annotated[str, Field(min_length=1, max_length=64), AfterValidator(_check_timezone)]
+
+
+def _check_website(value: str) -> str:
+    """A web address: 'example.com/x' becomes 'https://example.com/x'; other schemes fail."""
+    value = value.strip()
+    if "://" not in value:
+        value = f"https://{value}"
+    parts = urlsplit(value)
+    if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+        raise ValueError("website must be an http(s) address")
+    return value
+
+
+WebsiteUrl = Annotated[str, Field(min_length=1, max_length=500), AfterValidator(_check_website)]
 
 
 class PaletteColor(BaseModel):
@@ -73,7 +90,7 @@ class ProgramCreateInput(BaseModel):
     default_course_credits: Credits = Field(
         default=0.5, description="Credits a new course gets when none are given"
     )
-    credit_requirement: Credits | None = Field(
+    credit_requirement: CreditGoal | None = Field(
         default=None, description="Credits needed to graduate, if known"
     )
     setup: dict[str, JsonValue] = Field(
@@ -93,7 +110,7 @@ class ProgramUpdateInput(BaseModel):
     default_course_credits: Credits | None = Field(
         default=None, description="Credits a new course gets"
     )
-    credit_requirement: Credits | None = Field(
+    credit_requirement: CreditGoal | None = Field(
         default=None, description="Credits needed to graduate, or null"
     )
     sort_order: int | None = Field(default=None, description="Position in the Program switcher")
@@ -180,9 +197,7 @@ class CourseFields(BaseModel):
     description: Annotated[str, Field(max_length=5000)] | None = Field(
         default=None, description="Course description"
     )
-    website_url: Annotated[str, Field(max_length=500)] | None = Field(
-        default=None, description="Course website"
-    )
+    website_url: WebsiteUrl | None = Field(default=None, description="Course website")
     planned_terms: Annotated[int, Field(ge=1, le=6)] = Field(
         default=1, description="Consecutive terms the course spans; 2 for a year-long course"
     )
@@ -400,9 +415,7 @@ class CourseUpdateInput(BaseModel):
     description: Annotated[str, Field(max_length=5000)] | None = Field(
         default=None, description="Description"
     )
-    website_url: Annotated[str, Field(max_length=500)] | None = Field(
-        default=None, description="Website"
-    )
+    website_url: WebsiteUrl | None = Field(default=None, description="Website")
     planned_terms: Annotated[int, Field(ge=1, le=6)] | None = Field(
         default=None, description="Consecutive terms the course spans"
     )
