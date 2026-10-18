@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, LayoutsBoardGetData, LayoutsBoardGetErrors, LayoutsBoardGetResponses, LayoutsBoardUpdateData, LayoutsBoardUpdateErrors, LayoutsBoardUpdateResponses, LayoutsCardAddData, LayoutsCardAddErrors, LayoutsCardAddResponses, LayoutsCardRemoveData, LayoutsCardRemoveErrors, LayoutsCardRemoveResponses, LayoutsCardSettingsGetData, LayoutsCardSettingsGetErrors, LayoutsCardSettingsGetResponses, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateErrors, LayoutsCardSettingsUpdateResponses, LayoutsNavGetData, LayoutsNavGetErrors, LayoutsNavGetResponses, LayoutsNavUpdateData, LayoutsNavUpdateErrors, LayoutsNavUpdateResponses, LayoutsTemplateGetData, LayoutsTemplateGetErrors, LayoutsTemplateGetResponses, LayoutsTemplateResetData, LayoutsTemplateResetErrors, LayoutsTemplateResetResponses, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardErrors, LayoutsTemplateSaveFromBoardResponses, PluginsCatalogListData, PluginsCatalogListErrors, PluginsCatalogListResponses, PluginsInstallData, PluginsInstallErrors, PluginsInstallResponses, PluginsUninstallData, PluginsUninstallErrors, PluginsUninstallResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AiAssignmentGetData, AiAssignmentGetErrors, AiAssignmentGetResponses, AiAssignmentUpdateData, AiAssignmentUpdateErrors, AiAssignmentUpdateResponses, AiProviderCreateData, AiProviderCreateErrors, AiProviderCreateResponses, AiProviderDeleteData, AiProviderDeleteErrors, AiProviderDeleteResponses, AiProviderListData, AiProviderListErrors, AiProviderListResponses, AiProviderModelsData, AiProviderModelsErrors, AiProviderModelsResponses, AiProviderTestData, AiProviderTestErrors, AiProviderTestResponses, AiProviderUpdateData, AiProviderUpdateErrors, AiProviderUpdateResponses, AiStatusData, AiStatusErrors, AiStatusResponses, AiUsageSummaryData, AiUsageSummaryErrors, AiUsageSummaryResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, LayoutsBoardGetData, LayoutsBoardGetErrors, LayoutsBoardGetResponses, LayoutsBoardUpdateData, LayoutsBoardUpdateErrors, LayoutsBoardUpdateResponses, LayoutsCardAddData, LayoutsCardAddErrors, LayoutsCardAddResponses, LayoutsCardRemoveData, LayoutsCardRemoveErrors, LayoutsCardRemoveResponses, LayoutsCardSettingsGetData, LayoutsCardSettingsGetErrors, LayoutsCardSettingsGetResponses, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateErrors, LayoutsCardSettingsUpdateResponses, LayoutsNavGetData, LayoutsNavGetErrors, LayoutsNavGetResponses, LayoutsNavUpdateData, LayoutsNavUpdateErrors, LayoutsNavUpdateResponses, LayoutsTemplateGetData, LayoutsTemplateGetErrors, LayoutsTemplateGetResponses, LayoutsTemplateResetData, LayoutsTemplateResetErrors, LayoutsTemplateResetResponses, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardErrors, LayoutsTemplateSaveFromBoardResponses, PluginsCatalogListData, PluginsCatalogListErrors, PluginsCatalogListResponses, PluginsInstallData, PluginsInstallErrors, PluginsInstallResponses, PluginsUninstallData, PluginsUninstallErrors, PluginsUninstallResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -489,6 +489,98 @@ export const accountTokensCreate = <ThrowOnError extends boolean = false>(option
  * Revokes the token immediately.
  */
 export const accountTokensRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokensRevokeData, ThrowOnError>): RequestResult<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError>({ url: '/account/tokens/{id}', ...options });
+
+/**
+ * The model chosen for each AI purpose, with the recommended default.
+ *
+ * Not for agents.
+ */
+export const aiAssignmentGet = <ThrowOnError extends boolean = false>(options?: Options<AiAssignmentGetData, ThrowOnError>): RequestResult<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError> => (options?.client ?? client).get<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError>({ url: '/ai/assignments', ...options });
+
+/**
+ * Choose the provider and model for one AI purpose.
+ *
+ * provider_id null removes the choice so the default applies. Not for agents.
+ */
+export const aiAssignmentUpdate = <ThrowOnError extends boolean = false>(options: Options<AiAssignmentUpdateData, ThrowOnError>): RequestResult<AiAssignmentUpdateResponses, AiAssignmentUpdateErrors, ThrowOnError> => (options.client ?? client).put<AiAssignmentUpdateResponses, AiAssignmentUpdateErrors, ThrowOnError>({
+    url: '/ai/assignments',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the user's AI providers (keys masked).
+ *
+ * Providers the user connected with their own API keys. Not for agents.
+ */
+export const aiProviderList = <ThrowOnError extends boolean = false>(options?: Options<AiProviderListData, ThrowOnError>): RequestResult<AiProviderListResponses, AiProviderListErrors, ThrowOnError> => (options?.client ?? client).get<AiProviderListResponses, AiProviderListErrors, ThrowOnError>({ url: '/ai/providers', ...options });
+
+/**
+ * Connect an AI provider with the user's own key.
+ *
+ * Checks the key and URL by listing the provider's models before saving; a failed
+ * check returns ai.provider_check_failed with the reason. Not for agents.
+ */
+export const aiProviderCreate = <ThrowOnError extends boolean = false>(options: Options<AiProviderCreateData, ThrowOnError>): RequestResult<AiProviderCreateResponses, AiProviderCreateErrors, ThrowOnError> => (options.client ?? client).post<AiProviderCreateResponses, AiProviderCreateErrors, ThrowOnError>({
+    url: '/ai/providers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove an AI provider and the model choices that use it.
+ *
+ * Not for agents.
+ */
+export const aiProviderDelete = <ThrowOnError extends boolean = false>(options: Options<AiProviderDeleteData, ThrowOnError>): RequestResult<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError>({ url: '/ai/providers/{id}', ...options });
+
+/**
+ * Rename, re-key, reconfigure or turn off an AI provider.
+ *
+ * A new key or base URL is checked again before saving. Not for agents.
+ */
+export const aiProviderUpdate = <ThrowOnError extends boolean = false>(options: Options<AiProviderUpdateData, ThrowOnError>): RequestResult<AiProviderUpdateResponses, AiProviderUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AiProviderUpdateResponses, AiProviderUpdateErrors, ThrowOnError>({
+    url: '/ai/providers/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the models a provider offers.
+ *
+ * Cached for an hour. Not for agents.
+ */
+export const aiProviderModels = <ThrowOnError extends boolean = false>(options: Options<AiProviderModelsData, ThrowOnError>): RequestResult<AiProviderModelsResponses, AiProviderModelsErrors, ThrowOnError> => (options.client ?? client).get<AiProviderModelsResponses, AiProviderModelsErrors, ThrowOnError>({ url: '/ai/providers/{id}/models', ...options });
+
+/**
+ * Check that a provider's key and URL still work.
+ *
+ * Records the result on the provider. Not for agents.
+ */
+export const aiProviderTest = <ThrowOnError extends boolean = false>(options: Options<AiProviderTestData, ThrowOnError>): RequestResult<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError> => (options.client ?? client).post<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError>({ url: '/ai/providers/{id}:test', ...options });
+
+/**
+ * Whether each AI purpose is available and which model serves it.
+ *
+ * The frontend enables or greys out AI features with it. Not for agents.
+ */
+export const aiStatus = <ThrowOnError extends boolean = false>(options?: Options<AiStatusData, ThrowOnError>): RequestResult<AiStatusResponses, AiStatusErrors, ThrowOnError> => (options?.client ?? client).get<AiStatusResponses, AiStatusErrors, ThrowOnError>({ url: '/ai/status', ...options });
+
+/**
+ * Token use and estimated cost by day, purpose, module and model.
+ *
+ * Defaults to the last 30 days. Not for agents.
+ */
+export const aiUsageSummary = <ThrowOnError extends boolean = false>(options?: Options<AiUsageSummaryData, ThrowOnError>): RequestResult<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError> => (options?.client ?? client).get<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError>({ url: '/ai/usage', ...options });
 
 /**
  * Cancel a pending or running background job.
