@@ -51,3 +51,25 @@ async def instance_program(ctx: Ctx, instance: CardInstance) -> AcademicsProgram
             ctx, (await academics.get_course_row(ctx, instance.scope_id)).program_id
         )
     raise AppError("common.not_found", 404)
+
+
+async def list_card_instances(
+    ctx: Ctx, *, card_id: str, scope_type: str, scope_id: str
+) -> list[CardInstance]:
+    """The user's instances of `card_id` on one board (the scope's own cards only)."""
+    from semestra.modules.layouts import service as layouts
+
+    found = await layouts.list_card_instances(
+        ctx, card_id=card_id, scope_type=scope_type, scope_id=scope_id
+    )
+    return [
+        CardInstance(f.instance_id, f.card_id, f.scope_type, f.scope_id, dict(f.settings))
+        for f in found
+    ]
+
+
+async def update_card_settings(ctx: Ctx, instance_id: str, patch: dict[str, Any]) -> None:
+    """Merge `patch` into the card's settings, validated by the card's schema (M10)."""
+    from semestra.modules.layouts import service as layouts
+
+    await layouts.update_card_settings(ctx, instance_id, patch)

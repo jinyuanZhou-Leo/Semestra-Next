@@ -2,7 +2,11 @@
 
 from fastapi import FastAPI
 
-from semestra.modules.plugins_builtin import habit_streak, pomodoro  # noqa: F401
+from semestra.modules.plugins_builtin import (  # noqa: F401
+    habit_streak,
+    pomodoro,
+    sticky_note,
+)
 
 
 def register(app: FastAPI) -> None:

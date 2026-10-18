@@ -50,5 +50,27 @@ def cards(monkeypatch: pytest.MonkeyPatch) -> FakeCards:
             raise not_found()
         return found
 
+    async def list_card_instances(
+        ctx: Ctx, *, card_id: str, scope_type: str, scope_id: str
+    ) -> list[instances.CardInstance]:
+        return [
+            i
+            for k, i in fake.items.items()
+            if fake.owners[k] == ctx.user_id
+            and (i.card_id, i.scope_type, i.scope_id) == (card_id, scope_type, scope_id)
+        ]
+
+    async def update_card_settings(ctx: Ctx, instance_id: str, patch: dict[str, Any]) -> None:
+        found = fake.items[instance_id]
+        fake.items[instance_id] = instances.CardInstance(
+            found.instance_id,
+            found.card_id,
+            found.scope_type,
+            found.scope_id,
+            {**found.settings, **patch},
+        )
+
     monkeypatch.setattr(instances, "get_card_instance", get_card_instance)
+    monkeypatch.setattr(instances, "list_card_instances", list_card_instances)
+    monkeypatch.setattr(instances, "update_card_settings", update_card_settings)
     return fake
