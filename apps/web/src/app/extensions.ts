@@ -144,7 +144,11 @@ export type CalendarSourceContribution = {
   /** Shown before the user changes the calendar's filters. */
   defaultVisible: boolean
   /** "Open" in the occurrence's details; without it the details have no open action. */
-  onOpen?: (occurrence: Occurrence, navigate: (to: string) => void) => void
+  onOpen?: (
+    occurrence: Occurrence,
+    navigate: (to: string) => void,
+    ctx: { programId: string },
+  ) => void
 }
 
 /** A card placed on a board when the user has no layout of their own yet (M10 §2). */

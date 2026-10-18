@@ -74,3 +74,15 @@ export function timeLabel(value: string): string {
     new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value}`),
   )
 }
+
+/** The first day of the week that contains `day`; `first` is 1 (Monday) or 7 (Sunday). */
+export function weekStartOf(day: string, first: 1 | 7): string {
+  const offset = (isoWeekday(localDay(day)) - first + 7) % 7
+  return plusDays(day, -offset)
+}
+
+/** The date of `weekday` (1–7) in the week starting on `weekStart`. */
+export function dayInWeek(weekStart: string, weekday: number): string {
+  const offset = (weekday - isoWeekday(localDay(weekStart)) + 7) % 7
+  return plusDays(weekStart, offset)
+}

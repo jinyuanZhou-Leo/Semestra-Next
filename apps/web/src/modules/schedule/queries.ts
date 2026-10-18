@@ -1,17 +1,72 @@
-import type { CalendarOccurrencesData } from '@semestra/api-client'
+import type { CalendarOccurrencesData, Meeting } from '@semestra/api-client'
 import {
+  academicsTermCalendarInfoOptions,
   calendarOccurrencesOptions,
   calendarTodayOptions,
+  scheduleConflictsOptions,
+  scheduleEventListOptions,
   scheduleEventTypeListOptions,
+  scheduleFeedListOptions,
+  scheduleMeetingListOptions,
   settingsValuesGetOptions,
 } from '@semestra/api-client/react-query'
-import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
+import { type QueryClient, keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 
 const STALE = 30_000
 
 export function useEventTypes(programId: string) {
   return useQuery({
     ...scheduleEventTypeListOptions({ path: { program_id: programId } }),
+    staleTime: STALE,
+  })
+}
+
+export function useMeetings(courseId: string, termId?: string) {
+  return useQuery({
+    ...scheduleMeetingListOptions({
+      path: { course_id: courseId },
+      query: termId ? { term_id: termId } : {},
+    }),
+    staleTime: STALE,
+  })
+}
+
+/** The meetings of several courses in one term (there is no term-wide list; terms are small). */
+export function useTermMeetings(courseIds: readonly string[], termId: string) {
+  return useQueries({
+    queries: courseIds.map((courseId) => ({
+      ...scheduleMeetingListOptions({ path: { course_id: courseId }, query: { term_id: termId } }),
+      staleTime: STALE,
+    })),
+    combine: (results) => ({
+      items: results.flatMap((r) => r.data?.items ?? []) as Meeting[],
+      isPending: results.some((r) => r.isPending),
+    }),
+  })
+}
+
+export function useConflicts(termId: string) {
+  return useQuery({ ...scheduleConflictsOptions({ path: { term_id: termId } }), staleTime: STALE })
+}
+
+export function useEvents(programId: string, query: { course_id?: string; term_id?: string }) {
+  return useQuery({
+    ...scheduleEventListOptions({ path: { program_id: programId }, query }),
+    staleTime: STALE,
+  })
+}
+
+export function useFeeds(programId: string) {
+  return useQuery({
+    ...scheduleFeedListOptions({ path: { program_id: programId } }),
+    staleTime: STALE,
+  })
+}
+
+/** The term's weeks (M02), for week pickers and labels. */
+export function useCalendarInfo(termId: string) {
+  return useQuery({
+    ...academicsTermCalendarInfoOptions({ path: { term_id: termId } }),
     staleTime: STALE,
   })
 }
