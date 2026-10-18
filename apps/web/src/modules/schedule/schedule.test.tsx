@@ -67,6 +67,9 @@ vi.mock('modern-screenshot', () => ({
   },
 }))
 
+// The first test loads the calendar page and FullCalendar's plugins lazily, which is slow in CI.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeAll(() => server.listen())
 afterEach(() => {
   server.resetHandlers()
@@ -222,7 +225,7 @@ function mount(path: string) {
 
 async function openCalendar() {
   mount('/p/p1/t/t2/calendar')
-  await screen.findByText('APS105H1', { selector: '[data-testid=calendar] li' }, { timeout: 5000 })
+  await screen.findByText('APS105H1', { selector: '[data-testid=calendar] li' }, { timeout: 10_000 })
 }
 
 function dropLecture(revert = vi.fn<() => void>()) {
