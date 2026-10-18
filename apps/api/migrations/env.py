@@ -23,6 +23,8 @@ from semestra.modules.academics import models as _academics_models  # noqa: E402
 from semestra.modules.ai import models as _ai_models  # noqa: E402,F401
 from semestra.modules.auth import models as _auth_models  # noqa: E402,F401
 from semestra.modules.grading import models as _grading_models  # noqa: E402,F401
+from semestra.modules.layouts import models as _layouts_models  # noqa: E402,F401
+from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
 from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
 
 target_metadata = Base.metadata

@@ -10,6 +10,7 @@ import {
 import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { academicsNavigation } from './commands'
 
 /** Every query this module shows; any academics change refetches them (they are small). */
 const ACADEMICS_QUERIES = [
@@ -58,6 +59,7 @@ export default defineModule({
       order: 0,
     },
   ],
+  navigationSources: [academicsNavigation],
   cards: [
     {
       id: 'academics.pinned',
@@ -100,6 +102,14 @@ export default defineModule({
       multiple: false,
     },
   ],
+  defaultBoard: {
+    program: [
+      { card: 'academics.pinned', size: 'm' },
+      { card: 'academics.terms', size: 'l' },
+    ],
+    term: [{ card: 'academics.termCourses', size: 'xl' }],
+    course: [{ card: 'academics.courseInfo', size: 'l' }],
+  },
   settingsSections: [
     {
       id: 'program-basics',

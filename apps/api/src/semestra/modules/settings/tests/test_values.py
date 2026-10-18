@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from semestra.core.capability import registry
+from semestra.core.context import run_as_system
 from semestra.core.events import Event, events
 from semestra.modules.settings.models import SettingsValue
 from semestra.testing import MakeUser, UserHandle, collect_events
@@ -285,7 +286,10 @@ async def test_scope_deletion_and_plugin_purge_remove_values(
     assert len(await rows()) == 4
     await events.dispatch(app.state, Event("academics.term.deleted", {"term_id": "T1"}, user.id))
     assert ("demo_calendar", "term", "T1") not in await rows()
-    await events.dispatch(app.state, Event("plugins.purge", {"plugin_id": "demo-timer"}, user.id))
+    purge = {"plugin_id": "demo-timer"}
+    await run_as_system(
+        app.state, user.id, lambda ctx: events.publish_in_transaction(ctx, "plugins.purge", purge)
+    )
     await events.dispatch(
         app.state, Event("academics.program.deleted", {"program_id": "P1"}, user.id)
     )
@@ -310,3 +314,23 @@ def test_agent_can_read_and_write_module_settings_only() -> None:
     assert not any(n.startswith("settings.ui_state") for n in agent)
     assert "settings.values.reset" not in agent
     assert registry.get("settings.values.update").effect == "write"
+
+
+async def test_an_uninstalled_plugins_settings_are_refused(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+):
+    await signed_in(client, make_user, login_as)
+    previous = registry._plugin_gate  # pyright: ignore[reportPrivateUsage]
+
+    async def nothing_installed(ctx: Any) -> set[str]:
+        return set()
+
+    registry.set_plugin_gate(nothing_installed)
+    try:
+        url = "/settings/plugin.demo-timer"
+        r = await client.get(url, params={"scope_type": "account"})
+        assert r.json()["error"]["code"] == "plugins.not_installed"
+        r = await client.patch(url, json={"scope_type": "account", "values": {"focus_min": 5}})
+        assert r.json()["error"]["code"] == "plugins.not_installed"
+    finally:
+        registry.set_plugin_gate(previous)

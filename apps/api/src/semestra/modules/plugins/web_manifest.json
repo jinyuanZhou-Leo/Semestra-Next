@@ -1,0 +1,206 @@
+{
+  "modules": [
+    {
+      "id": "auth",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "settings",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "academics",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "overview",
+          "scopes": [
+            "program",
+            "term",
+            "course"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "academics.pinned",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "xl"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.terms",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.termCourses",
+          "scopes": [
+            "term"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "xl",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "academics.courseInfo",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {
+        "program": [
+          {
+            "card": "academics.pinned",
+            "size": "m"
+          },
+          {
+            "card": "academics.terms",
+            "size": "l"
+          }
+        ],
+        "term": [
+          {
+            "card": "academics.termCourses",
+            "size": "xl"
+          }
+        ],
+        "course": [
+          {
+            "card": "academics.courseInfo",
+            "size": "l"
+          }
+        ]
+      }
+    },
+    {
+      "id": "grading",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "grades",
+          "scopes": [
+            "course",
+            "term"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "grading.courseSummary",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.termSummary",
+          "scopes": [
+            "term"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.programKpis",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "xl"
+          ],
+          "default_size": "xl",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.programCharts",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.upcoming",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {}
+    },
+    {
+      "id": "ai",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
+      "id": "plugins",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    }
+  ]
+}

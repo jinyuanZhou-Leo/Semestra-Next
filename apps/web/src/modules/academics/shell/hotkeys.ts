@@ -4,7 +4,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import type { Scope } from '@/app/extensions'
+import { useListedHotkey } from '@/app/hotkeys'
 import { useModules } from '@/app/registry'
+import { m } from '@/paraglide/messages'
 import { coursePath } from '../paths'
 
 const THROTTLE_MS = 150
@@ -45,6 +47,7 @@ export function useCourseSwitchHotkey({
   const queryClient = useQueryClient()
   const modules = useModules()
   const last = useRef(0)
+  useListedHotkey('mod+up, mod+down', m.hotkeys_switch_course, { order: 50 })
   const latest = useRef({ programId, courseId, termId, pageId, courses, modules })
   useEffect(() => {
     latest.current = { programId, courseId, termId, pageId, courses, modules }
