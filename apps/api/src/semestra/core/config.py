@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _require_real_secrets_in_prod(self) -> Settings:
         if self.env == "prod" and (
-            self.secret_key.startswith("dev-only") or not self.encryption_key
+            not self.secret_key or self.secret_key.startswith("dev-only") or not self.encryption_key
         ):
             raise ValueError("SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod")
         return self

@@ -1,5 +1,6 @@
 """Sign-in, registration, reset and Google flows (M01 §4, §10)."""
 
+import asyncio
 from collections.abc import Awaitable, Callable
 
 import pytest
@@ -105,6 +106,25 @@ async def test_wrong_code_five_times_voids_the_code(
     assert codes == ["auth.invalid_code"] * 4 + ["auth.too_many_attempts"]
     r = await client.post("/auth/email/verify", json={"email": "brute@example.com", "code": good})
     assert r.status_code == 400  # voided: even the right code no longer works
+
+
+async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
+    client: AsyncClient, mailer: MemoryMailer
+) -> None:
+    await start(client, "burst@example.com")
+    good = last_code(mailer, "burst@example.com")
+    wrong = "000000" if good != "000000" else "111111"
+    results = await asyncio.gather(
+        *(
+            client.post("/auth/email/verify", json={"email": "burst@example.com", "code": wrong})
+            for _ in range(12)
+        )
+    )
+    codes = [r.json()["error"]["code"] for r in results]
+    assert codes.count("auth.invalid_code") <= 4  # at most max_attempts - 1 plain misses
+    assert set(codes) <= {"auth.invalid_code", "auth.too_many_attempts"}  # never a 500
+    r = await client.post("/auth/email/verify", json={"email": "burst@example.com", "code": good})
+    assert r.status_code == 400  # the code is void
 
 
 async def test_expired_code_is_rejected(

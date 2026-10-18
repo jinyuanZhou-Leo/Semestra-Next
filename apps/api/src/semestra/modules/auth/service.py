@@ -271,15 +271,30 @@ async def _check_code(
         raise AppError("auth.invalid_code", 400)
     if challenge.expires_at <= ctx.now:
         raise AppError("auth.code_expired", 400)
-    if challenge.attempts >= challenge.max_attempts:
+    # Every guess is counted by one atomic UPDATE *before* the code is compared, so a burst of
+    # parallel guesses cannot get more than `max_attempts` comparisons.
+    claimed = (
+        await ctx.db.execute(
+            update(AuthEmailChallenge)
+            .where(
+                AuthEmailChallenge.id == challenge.id,
+                AuthEmailChallenge.attempts < AuthEmailChallenge.max_attempts,
+                AuthEmailChallenge.consumed_at.is_(None),
+            )
+            .values(attempts=AuthEmailChallenge.attempts + 1)
+            .returning(AuthEmailChallenge.attempts)
+            .execution_options(synchronize_session=False)
+        )
+    ).first()
+    if claimed is None:
         raise AppError("auth.too_many_attempts", 429)
+    await ctx.db.commit()  # the attempt counts even if the request fails later
     expected = crypto.code_hash(ctx.settings, challenge.id, code)
     if not hmac.compare_digest(challenge.code_hash, expected):
-        challenge.attempts += 1
-        used_up = challenge.attempts >= challenge.max_attempts
+        used_up = claimed.attempts >= challenge.max_attempts
         if used_up:
-            challenge.consumed_at = ctx.now  # the code is void after the fifth miss
-        await ctx.db.commit()  # failed attempts must persist
+            challenge.consumed_at = ctx.now  # the code is void after the last miss
+            await ctx.db.commit()
         raise AppError(
             "auth.too_many_attempts" if used_up else "auth.invalid_code", 429 if used_up else 400
         )
