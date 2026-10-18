@@ -198,5 +198,7 @@ export default defineModule({
     ['calendar.changed', CALENDAR_QUERIES],
     ...SCHEDULE_EVENTS.map((event) => [event, [...SCHEDULE_QUERIES, ...CALENDAR_QUERIES]]),
     ...ACADEMICS_EVENTS.map((event) => [event, [...CALENDAR_QUERIES, 'scheduleMeetingList']]),
+    ['schedule.feed.created', ['scheduleFeedList']],
+    ['schedule.feed.revoked', ['scheduleFeedList']],
   ]),
 })

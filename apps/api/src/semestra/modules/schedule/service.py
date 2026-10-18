@@ -795,10 +795,27 @@ async def _range_terms(ctx: Ctx, q: OccurrenceQuery, tz: ZoneInfo) -> list[Acade
     first = q.range_start.astimezone(tz).date()
     last = (q.range_end - timedelta(microseconds=1)).astimezone(tz).date()
     terms = await academics.program_terms(ctx, q.program_id)
+    # A class can be moved to a date outside its term, so terms with such a move into the range
+    # count too.
+    moved_into = set(
+        (
+            await ctx.db.scalars(
+                select(ScheduleMeeting.term_id)
+                .join(ScheduleMeetingException)
+                .where(
+                    ScheduleMeetingException.user_id == ctx.user_id,
+                    ScheduleMeetingException.kind == "moved",
+                    ScheduleMeetingException.new_date >= first,
+                    ScheduleMeetingException.new_date <= last,
+                )
+            )
+        ).all()
+    )
     return [
         t
         for t in terms
-        if t.start_date <= last and t.end_date >= first and (q.term_id is None or t.id == q.term_id)
+        if ((t.start_date <= last and t.end_date >= first) or t.id in moved_into)
+        and (q.term_id is None or t.id == q.term_id)
     ]
 
 

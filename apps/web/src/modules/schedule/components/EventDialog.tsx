@@ -141,13 +141,15 @@ export function EventDialog({
     setTouched(true)
     if (titleMissing || timeMissing || timeInvalid) return
     const course = courses.find((c) => c.id === draft.course_id)
+    // Editing keeps the event's own term; a new event belongs to the calendar's term.
+    const term = event ? event.term_id : termId
     const body = {
       title: draft.title.trim(),
       start_at: start,
       end_at: end,
       all_day: draft.all_day,
       course_id: course?.id ?? null,
-      term_id: termId && (!course || course.term_ids.includes(termId)) ? termId : null,
+      term_id: term && (!course || course.term_ids.includes(term)) ? term : null,
       type_code: draft.type_code === NONE ? null : draft.type_code,
       location: draft.location.trim() || null,
       note: draft.note.trim() || null,

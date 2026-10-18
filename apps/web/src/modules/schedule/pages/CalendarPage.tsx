@@ -165,7 +165,7 @@ function TermCalendar({
       return {
         id: o.id,
         title: o.title,
-        start: o.all_day ? o.start_at.slice(0, 10) : toWall(o.start_at, timezone),
+        start: o.all_day ? toWall(o.start_at, timezone).slice(0, 10) : toWall(o.start_at, timezone),
         end: o.end_at
           ? o.all_day
             ? toWall(o.end_at, timezone).slice(0, 10)

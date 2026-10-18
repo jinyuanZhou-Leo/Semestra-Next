@@ -265,9 +265,17 @@ async def test_exceptions_cancel_and_move(api: Api):
     # A class moved out of the range disappears from it.
     outside = classes(await api.calendar(program_id, "2026-03-02", "2026-03-04"))
     assert outside == []
+    # The last class can move past the end of its term and still shows up on its new date.
+    await api.call(
+        "PUT",
+        f"/meetings/{mid}/exceptions/2026-04-20",
+        json={"kind": "moved", "new_date": "2026-04-28"},
+    )
+    after_term = classes(await api.calendar(program_id, "2026-04-27", "2026-05-04"))
+    assert [o["start_at"] for o in after_term] == ["2026-04-28T14:00:00Z"]
 
     restored = await api.call("DELETE", f"/meetings/{mid}/exceptions/2026-02-09")
-    assert [e["original_date"] for e in restored["exceptions"]] == ["2026-03-02"]
+    assert [e["original_date"] for e in restored["exceptions"]] == ["2026-03-02", "2026-04-20"]
     await api.call("DELETE", f"/meetings/{mid}/exceptions/2026-02-09", 404)
 
 
