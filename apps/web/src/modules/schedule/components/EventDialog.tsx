@@ -136,7 +136,9 @@ export function EventDialog({
   const end = draft.all_day ? `${plusDays(endDay || startDay, 1)}T00:00` : draft.end || draft.start
   const titleMissing = draft.title.trim() === ''
   const timeMissing = startDay === ''
-  const timeInvalid = !timeMissing && end < start
+  // All-day: compare the days shown, before the end becomes the midnight after the last one.
+  const timeInvalid =
+    !timeMissing && (draft.all_day ? (endDay || startDay) < startDay : end < start)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()

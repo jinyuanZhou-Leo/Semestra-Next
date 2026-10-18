@@ -28,6 +28,4 @@ async def on_program_deleting(ctx: Ctx, event: Event) -> None:
 @events.subscribe("academics.course.terms_changed")
 async def on_terms_changed(ctx: Ctx, event: Event) -> None:
     data = event.data
-    await service.delete_unlinked_meetings(
-        ctx, data["course_id"], data["program_id"], data["term_ids"]
-    )
+    await service.unlink_course_terms(ctx, data["course_id"], data["program_id"], data["term_ids"])

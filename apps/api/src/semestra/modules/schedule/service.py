@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -770,7 +770,12 @@ async def update_event(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
         start = inp.start_at or row.start_at
         end = inp.end_at or row.end_at
         if inp.start_at is not None and inp.end_at is None:
-            end = _aware(start, _tz(program)) + (row.end_at - row.start_at)  # keep the duration
+            tz = _tz(program)
+            if all_day:  # keep the number of local days, which a DST change would shift
+                days = row.end_at.astimezone(tz).date() - row.start_at.astimezone(tz).date()
+                end = rules.local_midnight(_aware(start, tz).astimezone(tz).date() + days, tz)
+            else:
+                end = _aware(start, tz) + (row.end_at - row.start_at)  # keep the duration
         row.start_at, row.end_at = _normalize_times(start, end, all_day, _tz(program))
         row.all_day = all_day
     row.updated_at = ctx.now
@@ -1187,10 +1192,12 @@ async def delete_for_program(ctx: Ctx, program_id: str) -> None:
         )
 
 
-async def delete_unlinked_meetings(
+async def unlink_course_terms(
     ctx: Ctx, course_id: str, program_id: str, term_ids: Sequence[str]
 ) -> None:
-    """Meetings of terms the course no longer runs in."""
+    """A course left some terms: their meetings go, and its events there stop naming the term
+    (they stay on the course). This runs after the academics commit, so it announces itself for
+    clients that already refetched."""
     meeting_ids = (
         await ctx.db.scalars(
             select(ScheduleMeeting.id).where(
@@ -1201,6 +1208,36 @@ async def delete_unlinked_meetings(
         )
     ).all()
     await _delete_meetings(ctx, list(meeting_ids))
+    event_ids = (
+        await ctx.db.scalars(
+            select(ScheduleEvent.id).where(
+                ScheduleEvent.user_id == ctx.user_id,
+                ScheduleEvent.course_id == course_id,
+                ScheduleEvent.term_id.is_not(None),
+                ScheduleEvent.term_id.not_in(list(term_ids)),
+            )
+        )
+    ).all()
+    if event_ids:
+        await ctx.db.execute(
+            update(ScheduleEvent)
+            .where(ScheduleEvent.id.in_(list(event_ids)))
+            .values(term_id=None, updated_at=ctx.now)
+        )
+    for meeting_id in meeting_ids:
+        await events.publish(
+            ctx,
+            "schedule.meeting.deleted",
+            {"meeting_id": meeting_id, "course_id": course_id, "program_id": program_id},
+        )
+    for event_id in event_ids:
+        await events.publish(
+            ctx,
+            "schedule.event.updated",
+            {"event_id": event_id, "fields": ["term_id"], "program_id": program_id},
+        )
+    if meeting_ids or event_ids:
+        await events.publish(ctx, "calendar.changed", {"program_id": program_id})
 
 
 async def _delete_meetings(ctx: Ctx, meeting_ids: list[str]) -> None:

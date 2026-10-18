@@ -325,6 +325,29 @@ test('exporting the week as PNG renders it and saves the file', async () => {
   expect(shots.count).toBe(1)
 })
 
+test('ICS export leaves out the courses hidden in the filters', async () => {
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  URL.createObjectURL ??= () => 'blob:x'
+  URL.revokeObjectURL ??= () => {}
+  const urls: URL[] = []
+  server.use(
+    http.get(`${API}/programs/:id/calendar.ics`, ({ request }) => {
+      urls.push(new URL(request.url))
+      return new HttpResponse('BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n', {
+        headers: { 'content-type': 'text/calendar' },
+      })
+    }),
+  )
+  await openCalendar()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'APS105H1' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Export' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('radio', { name: 'ICS' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
+  await waitFor(() => expect(urls).toHaveLength(1))
+  expect(urls[0]?.searchParams.getAll('exclude_course_ids')).toEqual(['c1'])
+})
+
 test('saving a multi-day all-day event keeps its last day', async () => {
   const studyDays: OneOffEvent = {
     id: 'e1',

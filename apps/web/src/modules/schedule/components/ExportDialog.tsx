@@ -154,6 +154,7 @@ export function ExportDialog({
           end,
           term_id: termId,
           sources: wanted,
+          exclude_course_ids: [...hidden],
         })
         saveFile(blob, 'semestra.ics')
       } else {

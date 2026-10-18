@@ -39,9 +39,11 @@ async def export_ics(
     sources: Annotated[list[str] | None, Query()] = None,
     term_id: str | None = None,
     course_ids: Annotated[list[str] | None, Query()] = None,
+    exclude_course_ids: Annotated[list[str] | None, Query()] = None,
 ) -> Response:
     """`schedule.export.ics`: the same parameters as `calendar.occurrences`, up to 400 days so
-    a whole year can be exported."""
+    a whole year can be exported, plus `exclude_course_ids` for courses hidden in the calendar
+    filters (items without a course stay)."""
     inp = OccurrencesInput(
         program_id=program_id,
         start=start,
@@ -52,7 +54,9 @@ async def export_ics(
     )
     result = await service.occurrences(ctx, inp, max_days=service.EXPORT_MAX_RANGE_DAYS)
     program = await service.academics.get_program_row(ctx, program_id)
-    body = build_calendar(program.name, result.timezone, result.items, ctx.now)
+    hidden = set(exclude_course_ids or ())
+    items = [o for o in result.items if o.course_id is None or o.course_id not in hidden]
+    body = build_calendar(program.name, result.timezone, items, ctx.now)
     return _ics(body, "semestra.ics", cache="no-store")
 
 

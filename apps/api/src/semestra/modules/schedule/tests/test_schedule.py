@@ -13,7 +13,7 @@ from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.modules.auth.models import AuthRateLimit
 from semestra.modules.schedule.schemas import Occurrences
-from semestra.testing import Clock, MakeUser, UserHandle
+from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
 
@@ -459,6 +459,12 @@ async def test_ics_export_and_feed(api: Api, client: AsyncClient):
     assert len(events_) == 15
     assert str(events_[0]["SUMMARY"]) == "APS105H1 LEC0101"
     assert str(events_[0]["LOCATION"]) == "BA1130"
+    # Courses hidden in the calendar filters stay out of the export.
+    hidden = await client.get(
+        f"/programs/{program_id}/calendar.ics",
+        params={"start": "2026-01-05", "end": "2026-04-25", "exclude_course_ids": [course_id]},
+    )
+    assert list(Calendar.from_ical(hidden.content).walk("VEVENT")) == []
 
     created = await api.call(
         "POST", f"/programs/{program_id}/calendar-feeds", json={"name": "iPhone"}
@@ -500,8 +506,9 @@ async def test_feed_rate_limit(api: Api, client: AsyncClient, app: FastAPI):
     assert r.json()["error"]["code"] == "common.rate_limited"
 
 
-async def test_cleanup_on_course_and_term_changes(api: Api):
+async def test_cleanup_on_course_and_term_changes(api: Api, app: FastAPI):
     program_id, term_id, course_id = await api.setup()
+    user_id = (await api.call("GET", "/account/me"))["id"]
     second = await api.call(
         "POST",
         f"/programs/{program_id}/terms",
@@ -512,10 +519,31 @@ async def test_cleanup_on_course_and_term_changes(api: Api):
     await api.meeting(course_id, term_id)
     await api.meeting(course_id, summer_id)
     assert len((await api.call("GET", f"/courses/{course_id}/meetings"))["items"]) == 2
-    # Leaving the summer term drops its meetings.
-    await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id]})
+    summer_exam = await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Summer quiz",
+            "start_at": "2026-06-01T09:00",
+            "end_at": "2026-06-01T10:00",
+            "course_id": course_id,
+            "term_id": summer_id,
+        },
+    )
+    # Leaving the summer term drops its meetings; its events keep the course but not the term,
+    # and clients hear about it after the clean-up commits.
+    with collect_events(app, user_id) as pushed:
+        await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id]})
+    assert [m["type"] for m in pushed][-3:] == [
+        "schedule.meeting.deleted",
+        "schedule.event.updated",
+        "calendar.changed",
+    ]
     meetings = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
     assert [m["term_id"] for m in meetings] == [term_id]
+    quiz = await api.call("PATCH", f"/events/{summer_exam['id']}", json={"title": "Quiz"})
+    assert (quiz["course_id"], quiz["term_id"]) == (course_id, None)
+    await api.call("DELETE", f"/events/{summer_exam['id']}")
 
     await api.call(
         "POST",
@@ -611,3 +639,21 @@ async def test_calendar_hours_must_increase(api: Api):
         422,
         json={"scope_type": "account", "values": {"day_end": "09:00"}},
     )
+
+
+async def test_moving_an_all_day_event_keeps_its_days_across_dst(api: Api):
+    program_id, _, _ = await api.setup()
+    # Oct 31 to Nov 1 in Toronto spans the fall DST change, so it lasts 49 hours.
+    event = await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Retreat",
+            "start_at": "2026-10-31T00:00",
+            "end_at": "2026-11-02T00:00",
+            "all_day": True,
+        },
+    )
+    assert (event["start_at"], event["end_at"]) == ("2026-10-31T04:00:00Z", "2026-11-02T05:00:00Z")
+    moved = await api.call("PATCH", f"/events/{event['id']}", json={"start_at": "2026-12-05T00:00"})
+    assert (moved["start_at"], moved["end_at"]) == ("2026-12-05T05:00:00Z", "2026-12-07T05:00:00Z")
