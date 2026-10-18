@@ -1,0 +1,26 @@
+# Used by `docker compose --profile https`. SEMESTRA_DOMAIN must point at this machine.
+{$SEMESTRA_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	request_body {
+		max_size 100MB
+	}
+
+	# Server-sent events must not be buffered or compressed.
+	@sse path /events/stream
+	handle @sse {
+		reverse_proxy semestra:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy semestra:8000
+	}
+}

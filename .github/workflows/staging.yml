@@ -1,0 +1,63 @@
+name: Staging
+# Optional: every merge to main is deployed to the staging stack (api-staging.semestra.jyleo.cc).
+# Disabled until the repository variable STAGING_ENABLED is set to "true".
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ vars.STAGING_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v6
+      - id: meta
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/semestra-api" >>"$GITHUB_OUTPUT"
+          echo "tag=main-${GITHUB_SHA::7}" >>"$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: api
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max,ignore-error=true
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" >~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" >~/.ssh/known_hosts
+      - name: Ship config and deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          ssh_cmd=(ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}")
+          tar -C deploy/hosted -cf - docker-compose.yml Caddyfile litestream.yml deploy.sh conf.d |
+            "${ssh_cmd[@]}" "tar -C /srv/semestra/app -xf -"
+          "${ssh_cmd[@]}" "/srv/semestra/app/deploy.sh --staging '${TAG}'"
