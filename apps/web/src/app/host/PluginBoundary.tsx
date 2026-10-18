@@ -27,7 +27,10 @@ class ErrorBoundary extends Component<{ children: ReactNode; compact?: boolean }
     )
     if (this.props.compact) {
       return (
-        <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 text-sm">
+        <div
+          role="alert"
+          className="flex h-full flex-col items-center justify-center gap-2 text-sm"
+        >
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <CircleAlert aria-hidden className="size-4" />
             {m.host_plugin_failed_title()}
@@ -52,7 +55,10 @@ export function LoadingBlock({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={cn('h-full min-h-8 animate-pulse rounded-lg bg-muted motion-reduce:animate-none', className)}
+      className={cn(
+        'h-full min-h-8 animate-pulse rounded-lg bg-muted motion-reduce:animate-none',
+        className,
+      )}
     />
   )
 }

@@ -57,7 +57,12 @@ export function firstFree(items: readonly LayoutItem[], size: CardSize): { x: nu
  * The layout while `id` is dragged to (x, y): the dragged card keeps that spot, the others
  * make way (each goes to the highest free row in its column range), then everything compacts.
  */
-export function moveItem<T extends LayoutItem>(items: readonly T[], id: string, x: number, y: number): T[] {
+export function moveItem<T extends LayoutItem>(
+  items: readonly T[],
+  id: string,
+  x: number,
+  y: number,
+): T[] {
   const moving = items.find((i) => i.id === id)
   if (!moving) return [...items]
   const target = { ...moving, x: clampX(x, moving.size), y: Math.max(0, y) }
@@ -71,7 +76,11 @@ export function moveItem<T extends LayoutItem>(items: readonly T[], id: string, 
 }
 
 /** Changes a card's size and lets the others make way. */
-export function resizeItem<T extends LayoutItem>(items: readonly T[], id: string, size: CardSize): T[] {
+export function resizeItem<T extends LayoutItem>(
+  items: readonly T[],
+  id: string,
+  size: CardSize,
+): T[] {
   const item = items.find((i) => i.id === id)
   if (!item) return [...items]
   const resized = items.map((i) => (i.id === id ? { ...i, size, x: clampX(i.x, size) } : i))

@@ -13,6 +13,7 @@ import type { Message } from './extensions'
 export type HotkeyInfo = { id: string; keys: string; description: Message; order: number }
 
 const listed = new Map<string, HotkeyInfo>()
+const NO_DESCRIPTION: Message = () => ''
 const listeners = new Set<() => void>()
 let snapshot: HotkeyInfo[] = []
 
@@ -41,8 +42,15 @@ export function isApple(): boolean {
   return /mac|iphone|ipad/i.test(platform)
 }
 
-/** How a combo is written for people: `mod+k` → `⌘ K` / `Ctrl K`. */
+/** How a combo is written for people: `mod+k` → `⌘K` / `Ctrl+K`; `a, b` lists alternatives. */
 export function formatHotkey(combo: string): string {
+  return combo
+    .split(',')
+    .map((alternative) => formatOne(alternative.trim()))
+    .join(' / ')
+}
+
+function formatOne(combo: string): string {
   return combo
     .split('>')
     .map((step) =>
@@ -77,15 +85,14 @@ type Options = {
   useKey?: boolean
 }
 
-/** A shortcut on top of react-hotkeys-hook that also shows up in the help dialog. */
-export function useHotkey(
+/** Lists a shortcut handled elsewhere (by a plain key listener) in the help dialog. */
+export function useListedHotkey(
   combo: string,
-  handler: (event: KeyboardEvent) => void,
-  options: Options = {},
+  description: Message,
+  { enabled = true, order = 100 }: { enabled?: boolean; order?: number } = {},
 ) {
-  const { enabled = true, description, order = 100, allowInInputs = false, useKey } = options
   useEffect(() => {
-    if (!enabled || !description) return
+    if (!enabled) return
     const id = `${combo}:${Math.random().toString(36).slice(2)}`
     listed.set(id, { id, keys: combo, description, order })
     changed()
@@ -94,6 +101,19 @@ export function useHotkey(
       changed()
     }
   }, [combo, description, enabled, order])
+}
+
+/** A shortcut on top of react-hotkeys-hook that also shows up in the help dialog. */
+export function useHotkey(
+  combo: string,
+  handler: (event: KeyboardEvent) => void,
+  options: Options = {},
+) {
+  const { enabled = true, description, order = 100, allowInInputs = false, useKey } = options
+  useListedHotkey(combo, description ?? NO_DESCRIPTION, {
+    enabled: enabled && description !== undefined,
+    order,
+  })
 
   useHotkeys(combo, (event) => handler(event), {
     enabled,
@@ -101,5 +121,7 @@ export function useHotkey(
     enableOnContentEditable: allowInInputs,
     preventDefault: true,
     useKey,
+    // A produced character already includes Shift (`?` is Shift + /).
+    ignoreModifiers: useKey,
   })
 }

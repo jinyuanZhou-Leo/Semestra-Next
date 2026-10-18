@@ -6,6 +6,7 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
 import type { DraftCard } from './Board'
@@ -109,21 +110,27 @@ export function CardFrame({
             </PluginBoundary>
           ) : null}
           {editing && contribution.sizes.length > 1 ? (
-            <fieldset aria-label={m.board_card_size({ card: title })} className="flex gap-0.5 rounded-lg bg-muted p-0.5">
+            <ToggleGroup
+              aria-label={m.board_card_size({ card: title })}
+              size="sm"
+              value={[card.size]}
+              onValueChange={(value) => {
+                const size = contribution.sizes.find((s) => s === value[0])
+                if (size) onResize(size)
+              }}
+            >
               {contribution.sizes.map((size) => (
-                <button
+                <ToggleGroupItem
                   key={size}
-                  type="button"
-                  aria-pressed={card.size === size}
+                  value={size}
                   aria-label={SIZE_LABEL[size]()}
                   title={SIZE_LABEL[size]()}
-                  onClick={() => onResize(size)}
-                  className="rounded-md px-1.5 py-0.5 text-[0.625rem] font-medium text-muted-foreground uppercase aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="h-6 min-w-6 px-1.5 text-[0.625rem] uppercase"
                 >
                   {size}
-                </button>
+                </ToggleGroupItem>
               ))}
-            </fieldset>
+            </ToggleGroup>
           ) : null}
           {contribution.settings ? (
             <Button

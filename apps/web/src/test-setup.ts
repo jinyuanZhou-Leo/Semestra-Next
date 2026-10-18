@@ -3,6 +3,8 @@ import { FakeEventSource } from './test-event-source'
 
 // jsdom gaps used by input-otp and Base UI.
 document.elementFromPoint ??= () => null
+// cmdk scrolls the selected command into view.
+Element.prototype.scrollIntoView ??= () => {}
 window.matchMedia ??= (query: string) =>
   ({
     matches: false,

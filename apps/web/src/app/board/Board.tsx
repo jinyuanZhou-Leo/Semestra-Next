@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import type { BoardKind, CardContribution, CardSize, Scope } from '../extensions'
+import { useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
 import { useCards } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
@@ -118,7 +119,15 @@ export function Board({ scope, board }: { scope: Scope; board?: 'today' }) {
   const query = useBoard(ref)
   return (
     <AsyncBoundary query={query}>
-      {(data) => <BoardView key={`${ref.scope_type}:${ref.scope_id}`} scope={scope} kind={board ?? scope.kind} boardRef={ref} data={data} />}
+      {(data) => (
+        <BoardView
+          key={`${ref.scope_type}:${ref.scope_id}`}
+          scope={scope}
+          kind={board ?? scope.kind}
+          boardRef={ref}
+          data={data}
+        />
+      )}
     </AsyncBoundary>
   )
 }
@@ -206,6 +215,16 @@ function BoardView({
     description: m.hotkeys_edit_board,
     order: 30,
   })
+
+  useHostAction('board.edit', startEditing, wide && !editing)
+  useHostAction(
+    'board.add',
+    () => {
+      if (!editing) startEditing()
+      setAdding(true)
+    },
+    wide,
+  )
 
   function update(fn: (cards: DraftCard[]) => DraftCard[]) {
     setDraft((current) => (current ? compact(fn(current)) : current))
@@ -331,7 +350,9 @@ function BoardView({
     const y = origin.current.y + Math.round(delta.y / row)
     const preview = moveItem(draft, String(active.id), x, y)
     setDrag((current) =>
-      current && sameLayout(current.preview, preview) ? current : { id: String(active.id), preview },
+      current && sameLayout(current.preview, preview)
+        ? current
+        : { id: String(active.id), preview },
     )
   }
   const onDragEnd = () => {
@@ -360,7 +381,9 @@ function BoardView({
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
-                render={<Button variant="outline" size="icon-sm" aria-label={m.board_default_menu()} />}
+                render={
+                  <Button variant="outline" size="icon-sm" aria-label={m.board_default_menu()} />
+                }
               >
                 <MoreHorizontal aria-hidden />
               </DropdownMenuTrigger>
@@ -447,8 +470,9 @@ function BoardView({
                   onResize={(size) => update((current) => resizeItem(current, card.id, size))}
                   onRemove={() => update((current) => current.filter((c) => c.id !== card.id))}
                   onDraftSettings={(settings) =>
-                    setDraft((current) =>
-                      current?.map((c) => (c.id === card.id ? { ...c, settings } : c)) ?? current,
+                    setDraft(
+                      (current) =>
+                        current?.map((c) => (c.id === card.id ? { ...c, settings } : c)) ?? current,
                     )
                   }
                 />
@@ -462,7 +486,10 @@ function BoardView({
                   return (
                     <div
                       aria-hidden
-                      className={cn('rounded-2xl border-2 border-dashed border-primary/50 bg-primary/5', className)}
+                      className={cn(
+                        'rounded-2xl border-2 border-dashed border-primary/50 bg-primary/5',
+                        className,
+                      )}
                       style={style}
                     />
                   )

@@ -119,7 +119,12 @@ export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }
             </p>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => onOpenChange(false)}
+            >
               {m.common_cancel()}
             </Button>
             <Button type="submit" disabled={pending}>

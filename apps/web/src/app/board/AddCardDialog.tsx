@@ -19,7 +19,10 @@ function SizePreview({ size }: { size: CardSize }) {
       {Array.from({ length: 8 }, (_, i) => (
         <span
           key={i}
-          className={cn('size-1.5', i % 4 < w && Math.floor(i / 4) < h ? 'bg-primary' : 'bg-background')}
+          className={cn(
+            'size-1.5',
+            i % 4 < w && Math.floor(i / 4) < h ? 'bg-primary' : 'bg-background',
+          )}
         />
       ))}
     </span>
@@ -82,7 +85,9 @@ export function AddCardDialog({
         />
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
           {groups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">{m.board_add_card_none()}</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {m.board_add_card_none()}
+            </p>
           ) : null}
           {groups.map(({ module, cards }) => (
             <section key={module.id} aria-label={module.name()}>
@@ -98,7 +103,10 @@ export function AddCardDialog({
                         onClick={() => onAdd(card)}
                         className="flex w-full items-start gap-3 rounded-xl border border-border p-3 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <card.icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                        <card.icon
+                          aria-hidden
+                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                        />
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium">{card.title()}</span>
                           {card.description ? (
