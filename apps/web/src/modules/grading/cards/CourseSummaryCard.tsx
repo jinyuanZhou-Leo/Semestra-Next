@@ -34,7 +34,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
             ? result.pass_fail_result === 'pass'
               ? m.grading_pass()
               : m.grading_fail()
-            : s.weights_ok || s.overridden
+            : s.weights_ok || s.overridden || !result.gradebook_enabled
               ? percentText(grade)
               : '—'}
         </p>

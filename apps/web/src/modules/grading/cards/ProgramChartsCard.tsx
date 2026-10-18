@@ -1,7 +1,9 @@
 import type { TermGradePoint } from '@semestra/api-client'
+import { useState } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { GPA_MASK } from '../display'
 import { useProgramGrades } from '../queries'
 
 const W = 400
@@ -35,6 +37,7 @@ function Legend({ color, label }: { color: string; label: string }) {
 /** GPA and cumulative GPA by term, and credits per term (M03 §5.3). Colors are `--chart-*` tokens. */
 export default function ProgramChartsCard({ scope }: CardProps) {
   const { data } = useProgramGrades(scope.programId)
+  const [revealed, setRevealed] = useState(false)
   if (!data) return null
   const terms: TermGradePoint[] = data.terms
   if (terms.every((t) => t.gpa === null)) {
@@ -46,64 +49,78 @@ export default function ProgramChartsCard({ scope }: CardProps) {
     terms.length === 1 ? W / 2 : PAD.left + (i / (terms.length - 1)) * (W - PAD.left - PAD.right)
   const y = (v: number) => PAD.top + (1 - v / data.max_points) * (H - PAD.top - PAD.bottom)
   const maxCredits = Math.max(...terms.map((t) => t.credits_counted), 0.5)
+  const masked = data.hide_gpa && !revealed
   const barWidth = Math.min(36, (W - PAD.left - PAD.right) / terms.length - 8)
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
-        <Legend color="var(--chart-1)" label={m.grading_term_gpa()} />
-        <Legend color="var(--chart-2)" label={m.grading_cumulative_gpa()} />
-      </div>
-      {/* An SVG chart is an image for assistive tech; the <title>s give each point's value. */}
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an SVG chart has no <img> form
-        role="img"
-        aria-label={m.grading_chart_gpa_label()}
-        className="w-full"
-      >
-        {[0, 0.5, 1].map((f) => (
-          <line
-            key={f}
-            x1={PAD.left}
-            x2={W - PAD.right}
-            y1={y(f * data.max_points)}
-            y2={y(f * data.max_points)}
-            stroke="var(--border)"
-            strokeDasharray="3 3"
-          />
-        ))}
-        <path
-          d={linePath(
-            terms.map((t) => t.cumulative_gpa),
-            x,
-            y,
-          )}
-          fill="none"
-          stroke="var(--chart-2)"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d={linePath(
-            terms.map((t) => t.gpa),
-            x,
-            y,
-          )}
-          fill="none"
-          stroke="var(--chart-1)"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {terms.map((t, i) =>
-          t.gpa === null ? null : (
-            <circle key={t.term_id} cx={x(i)} cy={y(t.gpa)} r={3} fill="var(--chart-1)">
-              <title>{`${t.name}: ${formatGpa(t.gpa)}`}</title>
-            </circle>
-          ),
-        )}
-      </svg>
+      {masked ? (
+        <button
+          type="button"
+          className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:bg-muted/50"
+          aria-label={m.grading_gpa_show()}
+          onClick={() => setRevealed(true)}
+        >
+          {GPA_MASK}
+        </button>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
+            <Legend color="var(--chart-1)" label={m.grading_term_gpa()} />
+            <Legend color="var(--chart-2)" label={m.grading_cumulative_gpa()} />
+          </div>
+          {/* An SVG chart is an image for assistive tech; the <title>s give each point's value. */}
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an SVG chart has no <img> form
+            role="img"
+            aria-label={m.grading_chart_gpa_label()}
+            className="w-full"
+          >
+            {[0, 0.5, 1].map((f) => (
+              <line
+                key={f}
+                x1={PAD.left}
+                x2={W - PAD.right}
+                y1={y(f * data.max_points)}
+                y2={y(f * data.max_points)}
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+              />
+            ))}
+            <path
+              d={linePath(
+                terms.map((t) => t.cumulative_gpa),
+                x,
+                y,
+              )}
+              fill="none"
+              stroke="var(--chart-2)"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d={linePath(
+                terms.map((t) => t.gpa),
+                x,
+                y,
+              )}
+              fill="none"
+              stroke="var(--chart-1)"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {terms.map((t, i) =>
+              t.gpa === null ? null : (
+                <circle key={t.term_id} cx={x(i)} cy={y(t.gpa)} r={3} fill="var(--chart-1)">
+                  <title>{`${t.name}: ${formatGpa(t.gpa)}`}</title>
+                </circle>
+              ),
+            )}
+          </svg>
+        </>
+      )}
       <svg
         viewBox={`0 0 ${W} 60`}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an SVG chart has no <img> form

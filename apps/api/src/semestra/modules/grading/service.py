@@ -637,6 +637,8 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
             "due_at",
             "weight",
             "score_percentage",
+            "points_earned",
+            "points_possible",
             "dropped",
             "note",
         )

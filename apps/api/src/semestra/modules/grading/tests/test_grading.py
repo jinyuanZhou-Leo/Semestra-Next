@@ -455,6 +455,11 @@ async def test_events_say_what_changed(api: Api, app: FastAPI):
     with collect_events(app, owner) as pushed:
         a = await api.assessment(course["id"], "Quiz", 10, due_date="2025-10-01")
         await api.call("PATCH", f"/assessments/{a['id']}", json={"score_percentage": 80})
+        points = {"points_earned": 9, "points_possible": 10}
+        await api.call("PATCH", f"/assessments/{a['id']}", json=points)
+        # 90/100 is the same 90 percent but a different score as typed
+        points = {"points_earned": 90, "points_possible": 100}
+        await api.call("PATCH", f"/assessments/{a['id']}", json=points)
         await api.call("PATCH", f"/assessments/{a['id']}", json={"due_date": "2025-10-02"})
         await api.call("PATCH", f"/assessments/{a['id']}", json={"note": "same"})
         await api.call("PATCH", f"/assessments/{a['id']}", json={"note": "same"})
@@ -466,13 +471,15 @@ async def test_events_say_what_changed(api: Api, app: FastAPI):
     assert kinds == [
         ("grading.assessment.created", ["due_at"]),
         ("grading.assessment.updated", ["score_percentage"]),
+        ("grading.assessment.updated", ["score_percentage", "points_earned", "points_possible"]),
+        ("grading.assessment.updated", ["points_earned", "points_possible"]),
         ("grading.assessment.updated", ["due_at"]),
         ("grading.assessment.updated", ["note"]),  # the repeated identical note publishes nothing
         ("grading.course_result.updated", None),
         ("grading.assessment.deleted", []),
     ]
     updated = [e for e in pushed if e["type"] == "grading.assessment.updated"]
-    assert [e["data"]["due_changed"] for e in updated] == [False, True, False]
+    assert [e["data"]["due_changed"] for e in updated] == [False, False, False, True, False]
 
 
 # --- term and Program figures ---------------------------------------------------------------
