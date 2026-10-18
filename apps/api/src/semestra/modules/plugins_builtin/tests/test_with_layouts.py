@@ -160,3 +160,27 @@ async def test_world_clock_zones_must_be_real_time_zones(client: AsyncClient, us
     assert (await save({"zones": ["America/Toronto", "Europe/London"]})).status_code == 200
     # The label is optional and the card may be saved with no zone at all (the local zone).
     assert (await save({"zones": []})).status_code == 200
+
+
+async def test_sticky_notes_of_a_board_that_follows_the_template_are_listed(
+    client: AsyncClient, user: UserHandle
+):
+    first = await program(client)
+    await add_card(client, first, "sticky.note")
+    saved = await client.post(
+        "/layouts/templates/program:from-board", json={"scope_type": "program", "scope_id": first}
+    )
+    assert saved.status_code == 200, saved.text
+    # A second Program was never edited, so its board is generated from that template.
+    second = await program(client)
+    board = (await client.get(f"/layouts/boards/program/{second}")).json()
+    assert board["customized"] is False
+    assert [c["card_id"] for c in board["cards"]].count("sticky.note") == 1
+
+    listed = await client.get("/sticky/notes", params={"scope_type": "program", "scope_id": second})
+    assert listed.status_code == 200, listed.text
+    notes = listed.json()["items"]
+    assert [n["content"] for n in notes] == [""]  # templates carry no settings
+    # The note an agent found can be written.
+    r = await client.put(f"/sticky/notes/{notes[0]['instance_id']}", json={"content": "edited"})
+    assert r.status_code == 200, r.text

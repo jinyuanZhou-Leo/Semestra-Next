@@ -14,7 +14,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.layouts import CardInstance
 from semestra.modules.layouts import service as layouts
-from semestra.modules.layouts.schemas import CardSettingsUpdateInput
+from semestra.modules.layouts.schemas import BoardRef, CardSettingsUpdateInput
 
 
 async def get_card_instance(
@@ -45,7 +45,17 @@ async def instance_program(ctx: Ctx, instance: CardInstance) -> AcademicsProgram
 async def list_card_instances(
     ctx: Ctx, *, card_id: str, scope_type: str, scope_id: str
 ) -> list[CardInstance]:
-    """The user's stored instances of `card_id` on one board."""
+    """The user's instances of `card_id` on one board.
+
+    A board that still follows the template only generates its cards; reading them stores them,
+    so a card the user can see is listed even if nothing was ever saved for it.
+    """
+    board = await layouts.get_board(
+        ctx, BoardRef(scope_type=cast(Any, scope_type), scope_id=scope_id)
+    )
+    for card in board.cards:
+        if card.card_id == card_id:
+            await layouts.get_card_instance(ctx, card.instance_id)
     return await layouts.list_card_instances(ctx, card_id, scope_type, scope_id)
 
 

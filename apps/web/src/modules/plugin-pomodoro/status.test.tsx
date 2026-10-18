@@ -114,3 +114,43 @@ test('a phase that ran out while the card was off screen is ended and recorded h
   // The break was not set to start by itself, so nothing is left running to show.
   await waitFor(() => expect(result.current).toBeNull())
 })
+
+test('a session whose record fails on the server is tried again', async () => {
+  let attempts = 0
+  server.use(
+    http.post(`${API}/pomodoro/sessions`, () => {
+      attempts += 1
+      if (attempts === 1) {
+        return HttpResponse.json({ error: { code: 'unknown', params: {} } }, { status: 503 })
+      }
+      return HttpResponse.json({ id: 's1', duplicate: false })
+    }),
+  )
+  const startedAt = Date.now() - 26 * 60_000
+  withStored({
+    'pomodoro.active': {
+      instanceId: 'i2',
+      path: '/p/p1',
+      runtime: {
+        courseId: null,
+        sound: false,
+        notify: false,
+        config: {
+          focus_min: 25,
+          short_break_min: 5,
+          long_break_min: 15,
+          long_break_every: 4,
+          auto_start_next: false,
+        },
+      },
+    },
+    'pomodoro.i2': {
+      ...base,
+      status: 'running',
+      endsAt: Date.now() - 60_000,
+      sessionStartedAt: startedAt,
+      runStartedAt: startedAt,
+    },
+  })
+  await waitFor(() => expect(attempts).toBe(2), { timeout: 4000 })
+})

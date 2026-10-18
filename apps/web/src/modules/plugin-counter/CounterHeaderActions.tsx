@@ -4,14 +4,13 @@ import type { CardProps } from '@/app/extensions'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { useCardSettings } from '../plugin-kit/useCardSettings'
+import { resetCounter } from './resetBus'
 import type { CounterSettings } from './schema'
 
 /** The counter's "reset" button in the card header (M14 §1), asking before it resets. */
 export default function CounterHeaderActions({ instanceId, settings }: CardProps<CounterSettings>) {
-  const { value: current, update } = useCardSettings(instanceId, settings, 300)
   const [open, setOpen] = useState(false)
-  const label = current.label || m.counter_default_label()
+  const label = settings.label || m.counter_default_label()
   return (
     <>
       <Button
@@ -28,10 +27,10 @@ export default function CounterHeaderActions({ instanceId, settings }: CardProps
         open={open}
         onOpenChange={setOpen}
         title={m.counter_reset_title({ label })}
-        description={m.counter_reset_description({ initial: current.initial })}
+        description={m.counter_reset_description({ initial: settings.initial })}
         confirmLabel={m.counter_reset()}
         onConfirm={() => {
-          update({ value: current.initial })
+          resetCounter(instanceId)
           setOpen(false)
         }}
       />

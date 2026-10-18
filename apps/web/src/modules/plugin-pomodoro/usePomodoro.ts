@@ -4,6 +4,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toApiError } from '@/app/api'
 import { refreshUiPrefs, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -134,6 +135,13 @@ export function useRecordSession() {
   const queryClient = useQueryClient()
   return useMutation({
     ...pomodoroSessionRecordMutation(),
+    // A finished focus session is worth a few more tries when the network or server hiccups; the
+    // backend ignores a repeat of the same start time, so retrying cannot double-count it.
+    retry: (failures, error) => {
+      const { status } = toApiError(error)
+      return failures < 4 && (status === 0 || status >= 500)
+    },
+    retryDelay: (attempt) => Math.min(30_000, 1000 * 2 ** attempt),
     onError: toastError,
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: [{ _id: 'pomodoroStats' }] }),
   })
@@ -204,7 +212,11 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
         path: here().path,
         state: current.state,
         now: t,
-        runtime: runtimeOf(current.settings),
+        // The settings as they were when the timer started, as when the status bar finishes it.
+        runtime:
+          current.active?.instanceId === instanceId && current.active.runtime
+            ? current.active.runtime
+            : runtimeOf(current.settings),
         active: current.active,
         setState,
         setActive,

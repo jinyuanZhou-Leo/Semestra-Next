@@ -71,9 +71,11 @@ test('reset asks first and then returns to the initial value', async () => {
   expect(screen.getByRole('status')).toHaveTextContent('7')
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Reset' }))
-  // The header and the card share the saved settings; here only the header holds the change, so
-  // the confirmation is what we can observe: the dialog closes.
   await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+  expect(screen.getByRole('status')).toHaveTextContent('1')
+  // A press right after the reset counts from the reset value, not from the old count.
+  await userEvent.click(screen.getByRole('button', { name: 'Increase Pages' }))
+  expect(screen.getByRole('status')).toHaveTextContent('2')
 })
 
 test('two counters do not share their value', async () => {

@@ -1,4 +1,5 @@
 import { Minus, Plus } from 'lucide-react'
+import { useEffect } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -6,11 +7,17 @@ import { Button } from '@/ui/button'
 import { Ring } from '../plugin-kit/Ring'
 import { useCardSettings } from '../plugin-kit/useCardSettings'
 import { currentValue, ratio, stepped } from './counter'
+import { registerReset } from './resetBus'
 import type { CounterSettings } from './schema'
 
 /** Counter card (M14 §1): a count between a minimum and a maximum, optionally as a ring. */
 export default function CounterCard({ instanceId, size, settings }: CardProps<CounterSettings>) {
   const { value: current, update } = useCardSettings(instanceId, settings, 300)
+  const initial = current.initial
+  useEffect(
+    () => registerReset(instanceId, () => update({ value: initial })),
+    [instanceId, update, initial],
+  )
   const count = currentValue(current)
   const label = current.label || m.counter_default_label()
   const showRing = current.show_ring && size !== 's'
