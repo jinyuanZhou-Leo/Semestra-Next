@@ -644,7 +644,7 @@
   "grading_color_cyan": "青色",
   "grading_color_rose": "玫红",
   "grading_color_slate": "灰色",
-  "error_grading_scale_invalid": "换算表无效：区间必须覆盖 0 到 100%，不能有缺口或重叠，绩点不能超过满分绩点。",
+  "error_grading_scale_invalid": "换算表无效：区间必须覆盖 0 到 100%，不能有缺口或重叠，绩点不能超过满分绩点，分数越高绩点不能越低。",
   "error_grading_weights_not_100": "权重合计为 {weight_total}%，不是 100%。",
   "error_grading_points_invalid": "请检查分数：满分必须大于 0，绩点不能超过换算表的满分绩点。",
   "error_grading_category_key_conflict": "已有相同标识的分类。",

@@ -644,7 +644,7 @@
   "grading_color_cyan": "Cyan",
   "grading_color_rose": "Rose",
   "grading_color_slate": "Gray",
-  "error_grading_scale_invalid": "The conversion table isn't valid. The bands must cover 0 to 100% without gaps or overlaps, with points up to the top value.",
+  "error_grading_scale_invalid": "The conversion table isn't valid. The bands must cover 0 to 100% without gaps or overlaps, with points up to the top value and never fewer points for a higher mark.",
   "error_grading_weights_not_100": "The weights add up to {weight_total}%, not 100%.",
   "error_grading_points_invalid": "Check the score: points possible must be above zero, and points can't exceed the top of the scale.",
   "error_grading_category_key_conflict": "A category with that key already exists.",

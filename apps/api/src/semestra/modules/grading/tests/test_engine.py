@@ -305,15 +305,12 @@ def test_term_what_if_target_needs_an_average_for_the_blank_courses() -> None:
     assert result.max_possible_gpa == 3.925  # with the blank course at 100%
 
 
-def test_term_what_if_best_case_uses_the_scales_highest_band() -> None:
-    # A scale whose 100% band is not its best one: the maximum comes from the 90-99 band.
-    scale = engine.make_scale([Band(0, 89, 1.0), Band(90, 99, 4.0), Band(100, 100, 3.0)], 4.0)
-    course = engine.CourseInput("c", 1.0, True, ("t",), gradebook_enabled=False)
-    graded = [engine.GradedCourse(course, engine.course_grade(course, scale))]
-    result = engine.simulate_term(graded, "t", "end_term", scale, {}, 4.0)
-    assert result.max_possible_gpa == 4.0
-    assert result.reachable is True
-    assert result.required_percentage == 90
+def test_a_scale_must_not_pay_less_for_a_higher_mark() -> None:
+    bands = [Band(0, 89, 1.0), Band(90, 99, 4.0), Band(100, 100, 3.0)]
+    with pytest.raises(engine.ScaleError) as error:
+        engine.validate_bands(bands, 4.0)
+    assert error.value.reason == "not_monotonic"
+    engine.validate_bands([Band(0, 89, 1.0), Band(90, 100, 4.0)], 4.0)
 
 
 def test_term_what_if_unreachable_target() -> None:

@@ -61,7 +61,8 @@ def make_scale(bands: Sequence[Band], max_points: float) -> Scale:
 
 
 def validate_bands(bands: Sequence[Band], max_points: float) -> None:
-    """Raise `ScaleError` unless the bands are non-overlapping and reach from 0 to 100.
+    """Raise `ScaleError` unless the bands are non-overlapping and reach from 0 to 100, and a
+    higher percentage never earns fewer points (targets and forecasts rely on that).
 
     Gaps between neighbouring bands (89 → 90 in whole-number tables) are fine: a percentage in
     the gap belongs to the band below, because lookup uses each band's `min` only.
@@ -79,6 +80,9 @@ def validate_bands(bands: Sequence[Band], max_points: float) -> None:
     for lower, upper in pairwise(ordered):
         if upper.min <= lower.max:
             raise ScaleError("overlap")
+    for lower, upper in pairwise(ordered):
+        if upper.points < lower.points:
+            raise ScaleError("not_monotonic")
     if ordered[0].min != 0:
         raise ScaleError("not_from_zero")
     if ordered[-1].max < 100:
@@ -571,9 +575,7 @@ def simulate_term(
         and g.course.include_in_gpa
         and attribute_credits(g.course.credits, g.course.term_ids, rule).get(term_id, 0) > 0
     ]
-    # A scale need not award the most points at 100%, so fill with the best band's lowest mark.
-    top = max(scale.bands, key=lambda b: (b.points, -b.min))
-    best = term_aggregate(with_blank(top.min), term_id, rule).gpa
+    best = term_aggregate(with_blank(100.0), term_id, rule).gpa
     gap = None
     reachable: bool | None = None
     required: float | None = None

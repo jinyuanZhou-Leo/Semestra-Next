@@ -95,7 +95,7 @@ grading_assessments
 | name | effect | http | 说明 |
 |---|---|---|---|
 | `grading.scale.get` | read | GET /programs/{program_id}/grading-scale | |
-| `grading.scale.update` | write | PUT /programs/{program_id}/grading-scale | 校验区间不重叠、覆盖 0-100、points ≤ max_points |
+| `grading.scale.update` | write | PUT /programs/{program_id}/grading-scale | 校验区间不重叠、覆盖 0-100、points ≤ max_points、分数越高绩点不会更低 |
 | `grading.scale.presets` | read | GET /grading/scale-presets | |
 | `grading.gradebook.get` | read | GET /courses/{course_id}/gradebook | 分类、考核、course_result、**计算摘要**（第 3 节全部指标） |
 | `grading.course_result.update` | write | PATCH /courses/{course_id}/grade | basis、manual、override、pass_fail、target、forecast_model、gradebook_enabled |
@@ -179,7 +179,7 @@ grading_assessments
 - 事件：除第 4 节列出的三类外，删除考核前在事务内发 `grading.assessment.deleting`；`created|updated` 的 payload 带 `changed`（变化的字段名），`deleted` 带 `due_changed`。分类的增删改没有事件（本标签页靠失效刷新，其它标签页要等下一次拉取）。
 - `assessment_deadlines()`（`service.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。**M04 日历源还没有落地，所以本 PR 没有注册 `CalendarSourceContribution`，也没有后端侧的日历接线**；M04 落地后在 `grading/manifest.ts` 里加 `calendarSources`，点击打开课程 `grades` Page 并高亮 `data-assessment` 行。
 - 官方成绩覆盖（`final_override_percentage`）即使权重不足 100 也生效（用户已经知道最终成绩）；此时不给 `required_average` 与 `reachable`。`include_in_gpa=false` 的课程不进 GPA，但已完成的学分仍计入"已获学分"。
-- 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`。前端对每个码只给一条文案，不按 reason 细分。
+- 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_monotonic`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`。前端对每个码只给一条文案，不按 reason 细分。
 
 **前端**（`apps/web/src/modules/grading/`）
 - 页面 `grades`（`pages/GradesPage.tsx` 按作用域分发到课程页 / 学期页）；卡片 `grading.courseSummary`、`termSummary`、`programKpis`、`programCharts`（纯 SVG，颜色用 `--chart-*`）、`upcoming`；设置分区 `program-grading`（换算表编辑器、预设重置、年课规则、默认预测模型、隐藏 GPA、默认分类）与 `course-grading`（计分方式、是否用成绩簿、预测模型、分类管理）。
