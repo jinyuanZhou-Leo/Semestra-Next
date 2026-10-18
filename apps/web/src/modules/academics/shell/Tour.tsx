@@ -29,6 +29,10 @@ const STEPS: readonly Step[] = [
   },
 ]
 
+/** Targets M02's own pages always render; the others belong to modules that may be absent. */
+const PAGE_TARGETS = ['sidebar', 'page-tabs', 'cards']
+const TARGET_WAIT_MS = 10_000
+
 function findTarget(target: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${target}"]`)
 }
@@ -126,9 +130,16 @@ export function Tour() {
   const [steps, setSteps] = useState<readonly Step[] | null>(null)
   useEffect(() => {
     if (done !== false) return
-    // Wait for the page under the tour (lazy pages and cards) to render its targets.
-    const timer = setTimeout(() => setSteps(STEPS.filter((step) => findTarget(step.target))), 400)
-    return () => clearTimeout(timer)
+    // Wait for the page under the tour (lazy pages and cards) to render its targets: poll until
+    // every step of this module's own page is there, or give up after a while and show the rest.
+    const started = Date.now()
+    const timer = setInterval(() => {
+      const ready = PAGE_TARGETS.every(findTarget)
+      if (!ready && Date.now() - started < TARGET_WAIT_MS) return
+      clearInterval(timer)
+      setSteps(STEPS.filter((step) => findTarget(step.target)))
+    }, 200)
+    return () => clearInterval(timer)
   }, [done])
   if (done !== false || !steps || steps.length === 0) return null
   return (

@@ -62,8 +62,8 @@ function TermWeekLine({ termId }: { termId: string }) {
   if (!info) return null
   const week = info.weeks.find((w) => w.start_date <= info.today && info.today <= w.end_date)
   if (week?.break_info && week.number == null) return <> · {week.break_info.name}</>
-  if (info.today_week == null) return null
-  return <> · {m.academics_week_number({ number: info.today_week })}</>
+  if (week?.number == null) return null
+  return <> · {m.academics_week_number({ number: week.number })}</>
 }
 
 export function TermView({
