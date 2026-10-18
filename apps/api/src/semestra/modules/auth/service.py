@@ -514,7 +514,8 @@ async def login_with_google(
     ).scalar_one_or_none()
     user = await db.get(AuthUser, identity.user_id) if identity else None
     if user is not None and user.deleted_at is not None:
-        user = None
+        # The Google account belongs to a deleted user: never fall through to provisioning.
+        raise AppError("auth.invalid_credentials", 401)
     if user is None:
         user = await user_by_email(db, claims.email)
         if user is None:

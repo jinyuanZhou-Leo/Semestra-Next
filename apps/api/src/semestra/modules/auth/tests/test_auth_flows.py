@@ -396,6 +396,25 @@ async def test_deleted_users_cannot_sign_in(
     assert r.status_code == 401
 
 
+async def test_google_identity_of_a_deleted_user_is_rejected(
+    client: AsyncClient, app, clock: Clock, google: FakeGoogle
+) -> None:
+    from semestra.modules.auth.models import AuthUser
+
+    google.add("tok", subject="g-del", email="gone@gmail.com")
+    first = await client.post("/auth/google", json={"id_token": "tok"})
+    async with app.state.session_factory() as db:
+        row = await db.get(AuthUser, first.json()["user"]["id"])
+        row.deleted_at = clock.now
+        await db.commit()
+    # Same subject again: no 500 from re-provisioning, no sign-in as anyone else.
+    again = await client.post("/auth/google", json={"id_token": "tok"})
+    assert again.status_code == 401
+    google.add("tok2", subject="g-del", email="other@gmail.com")
+    renamed = await client.post("/auth/google", json={"id_token": "tok2"})
+    assert renamed.status_code == 401
+
+
 async def test_config_exposes_google_client_id(client: AsyncClient) -> None:
     r = await client.get("/auth/config")
     assert r.json() == {"google_client_id": "test-client-id"}
