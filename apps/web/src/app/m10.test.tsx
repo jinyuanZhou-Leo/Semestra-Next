@@ -172,7 +172,10 @@ test('a page change made before the stored nav loads keeps the ids it does not s
   function Saver() {
     const save = useSaveNav('term')
     return (
-      <button type="button" onClick={() => void save({ order: ['template'], hidden: ['template'] })}>
+      <button
+        type="button"
+        onClick={() => void save({ order: ['template'], hidden: ['template'] })}
+      >
         Save
       </button>
     )
