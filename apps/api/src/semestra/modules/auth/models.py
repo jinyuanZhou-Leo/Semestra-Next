@@ -51,24 +51,14 @@ class AuthSession(Base):
     kind: Mapped[str] = mapped_column(String)  # 'web' | 'native'
     # Hash of the cookie value (web) or of the current refresh token (native).
     refresh_token_hash: Mapped[str] = mapped_column(String, unique=True)
+    # Hash of the refresh token rotated out last; presenting it again means it was stolen.
+    previous_refresh_token_hash: Mapped[str | None] = mapped_column(String, index=True)
     user_agent: Mapped[str | None] = mapped_column(String, default=None)
     ip: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     last_used_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
-
-
-class AuthUsedRefreshToken(Base):
-    """Every refresh token rotated out of a session; presenting one again means it was stolen."""
-
-    __tablename__ = "auth_used_refresh_tokens"
-
-    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(
-        String, ForeignKey("auth_sessions.id", ondelete="CASCADE"), index=True
-    )
-    used_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
 class AuthEmailChallenge(Base):

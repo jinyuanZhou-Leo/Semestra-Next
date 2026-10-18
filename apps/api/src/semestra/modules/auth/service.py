@@ -8,7 +8,6 @@ from typing import Literal
 
 import structlog
 from sqlalchemy import select, update
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +23,6 @@ from semestra.modules.auth.models import (
     AuthIdentity,
     AuthPersonalAccessToken,
     AuthSession,
-    AuthUsedRefreshToken,
     AuthUser,
 )
 from semestra.modules.auth.schemas import (
@@ -360,9 +358,7 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
     if session is None:
         replayed = (
             await ctx.db.execute(
-                select(AuthSession)
-                .join(AuthUsedRefreshToken, AuthUsedRefreshToken.session_id == AuthSession.id)
-                .where(AuthUsedRefreshToken.token_hash == digest)
+                select(AuthSession).where(AuthSession.previous_refresh_token_hash == digest)
             )
         ).scalar_one_or_none()
         if replayed is not None and replayed.revoked_at is None:
@@ -386,6 +382,7 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
                 .where(AuthSession.id == session.id, AuthSession.refresh_token_hash == digest)
                 .values(
                     refresh_token_hash=crypto.hash_token(new_token),
+                    previous_refresh_token_hash=digest,
                     last_used_at=ctx.now,
                     expires_at=ctx.now + timedelta(days=ctx.settings.refresh_token_ttl_days),
                     user_agent=meta.user_agent[:512] if meta.user_agent else session.user_agent,
@@ -399,11 +396,6 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
         raise expired from None
     if claimed is None:
         raise expired
-    await ctx.db.execute(
-        insert(AuthUsedRefreshToken)
-        .values(token_hash=digest, session_id=session.id, used_at=ctx.now)
-        .on_conflict_do_nothing(index_elements=["token_hash"])
-    )
     await ctx.db.refresh(session)
     return SignedIn(user, session, new_token, "native")
 

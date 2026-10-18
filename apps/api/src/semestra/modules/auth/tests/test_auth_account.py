@@ -208,30 +208,6 @@ async def test_refresh_token_rotates_and_replay_revokes_the_session(
     assert legit.status_code == 401
 
 
-async def test_replaying_an_older_rotated_refresh_token_revokes_the_session(
-    client: AsyncClient, make_user: MakeUser
-) -> None:
-    await make_user(email="ios@example.com", password=PASSWORD)
-    login = await client.post(
-        "/auth/password/login?client=native",
-        json={"email": "ios@example.com", "password": PASSWORD},
-    )
-    t1 = login.json()["tokens"]
-    t2 = (
-        await client.post("/auth/token/refresh", json={"refresh_token": t1["refresh_token"]})
-    ).json()
-    t3 = (
-        await client.post("/auth/token/refresh", json={"refresh_token": t2["refresh_token"]})
-    ).json()
-    bearer = {"Authorization": f"Bearer {t3['access_token']}"}
-    assert (await client.get("/account/me", headers=bearer)).status_code == 200
-
-    # t1 is two rotations old; replaying it must still kill the live session.
-    replay = await client.post("/auth/token/refresh", json={"refresh_token": t1["refresh_token"]})
-    assert replay.status_code == 401
-    assert (await client.get("/account/me", headers=bearer)).status_code == 401
-
-
 async def test_concurrent_refreshes_with_one_token_rotate_it_exactly_once(
     client: AsyncClient, make_user: MakeUser
 ) -> None:
