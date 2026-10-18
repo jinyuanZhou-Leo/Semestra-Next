@@ -1,14 +1,19 @@
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { CalendarIcon } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
+import { formatDate, firstDayOfWeek } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Calendar } from '@/ui/calendar'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Textarea } from '@/ui/textarea'
 import { invalidateSchedule } from '../queries'
+import { isoDay, localDay } from '../time'
 
 export type MoveTarget = {
   meetingId: string
@@ -39,6 +44,8 @@ export function MoveDialog({
   const [location, setLocation] = useState(target.location)
   const [note, setNote] = useState(target.note)
   const [touched, setTouched] = useState(false)
+  const [dateOpen, setDateOpen] = useState(false)
+  const picked = /^\d{4}-\d{2}-\d{2}$/.test(date) ? localDay(date) : undefined
   const save = useMutation({
     ...scheduleExceptionUpsertMutation(),
     onError: toastError,
@@ -76,12 +83,34 @@ export function MoveDialog({
         <form noValidate onSubmit={submit} className="grid grid-cols-3 gap-4">
           <Field>
             <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_date()}</FieldLabel>
-            <Input
-              id={`${fid}-1`}
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <Popover open={dateOpen} onOpenChange={setDateOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    id={`${fid}-1`}
+                    type="button"
+                    variant="outline"
+                    data-empty={!picked}
+                    className="w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
+                  />
+                }
+              >
+                <CalendarIcon data-icon="inline-start" />
+                {picked ? formatDate(date) : m.schedule_date_placeholder()}
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={picked}
+                  defaultMonth={picked}
+                  weekStartsOn={firstDayOfWeek() === 1 ? 1 : 0}
+                  onSelect={(next) => {
+                    setDate(next ? isoDay(next) : '')
+                    setDateOpen(false)
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_start_time()}</FieldLabel>

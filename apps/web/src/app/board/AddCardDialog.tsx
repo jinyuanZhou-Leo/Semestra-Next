@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Empty, EmptyDescription } from '@/ui/empty'
+import { Empty, EmptyDescription, EmptyHeader } from '@/ui/empty'
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Input } from '@/ui/input'
 import type { BoardKind, CardContribution, CardSize } from '../extensions'
 import { useModules } from '../registry'
@@ -87,7 +88,9 @@ export function AddCardDialog({
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
           {groups.length === 0 ? (
             <Empty className="p-6">
-              <EmptyDescription>{m.board_add_card_none()}</EmptyDescription>
+              <EmptyHeader>
+                <EmptyDescription>{m.board_add_card_none()}</EmptyDescription>
+              </EmptyHeader>
             </Empty>
           ) : null}
           {groups.map(({ module, cards }) => (
@@ -98,35 +101,36 @@ export function AddCardDialog({
                   const taken = !card.multiple && present.has(card.id)
                   return (
                     <li key={card.id}>
-                      <button
-                        type="button"
-                        disabled={taken}
-                        onClick={() => onAdd(card)}
-                        className="flex w-full items-start gap-3 rounded-xl border border-border p-3 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      <Item
+                        variant="outline"
+                        className="h-auto items-start hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                        render={
+                          <button
+                            type="button"
+                            disabled={taken}
+                            aria-label={card.title()}
+                            onClick={() => onAdd(card)}
+                          />
+                        }
                       >
-                        <card.icon
-                          aria-hidden
-                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium">{card.title()}</span>
+                        <ItemMedia variant="icon">
+                          <card.icon aria-hidden className="text-muted-foreground" />
+                        </ItemMedia>
+                        <ItemContent className="min-w-0">
+                          <ItemTitle>{card.title()}</ItemTitle>
                           {card.description ? (
-                            <span className="block text-xs text-muted-foreground">
-                              {card.description()}
-                            </span>
+                            <ItemDescription>{card.description()}</ItemDescription>
                           ) : null}
                           {taken ? (
-                            <span className="block text-xs text-muted-foreground">
-                              {m.board_add_card_taken()}
-                            </span>
+                            <ItemDescription>{m.board_add_card_taken()}</ItemDescription>
                           ) : null}
                           <span className="mt-1.5 flex gap-1.5">
                             {card.sizes.map((size) => (
                               <SizePreview key={size} size={size} />
                             ))}
                           </span>
-                        </span>
-                      </button>
+                        </ItemContent>
+                      </Item>
                     </li>
                   )
                 })}

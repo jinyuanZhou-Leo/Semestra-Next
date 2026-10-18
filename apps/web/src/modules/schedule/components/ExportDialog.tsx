@@ -12,7 +12,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Field, FieldLabel } from '@/ui/field'
+import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import {
   Select,
   SelectContent,
@@ -273,11 +273,12 @@ export function ExportDialog({
             </div>
           ) : null}
           {effectiveRange !== 'template' ? (
-            <fieldset className="space-y-2">
-              <legend className="mb-2 text-sm font-medium">{m.schedule_filter_sources()}</legend>
+            <FieldSet className="gap-2">
+              <FieldLegend variant="label">{m.schedule_filter_sources()}</FieldLegend>
               {sources.map((s) => (
-                <label key={s.source} className="flex items-center gap-2 text-sm">
+                <Field key={s.source} orientation="horizontal" className="w-auto gap-2">
                   <Checkbox
+                    id={`${fid}-source-${s.source}`}
                     checked={picked.has(s.source)}
                     onCheckedChange={(on) => {
                       const next = new Set(picked)
@@ -286,10 +287,12 @@ export function ExportDialog({
                       setPicked(next)
                     }}
                   />
-                  {s.label()}
-                </label>
+                  <FieldLabel htmlFor={`${fid}-source-${s.source}`} className="font-normal">
+                    {s.label()}
+                  </FieldLabel>
+                </Field>
               ))}
-            </fieldset>
+            </FieldSet>
           ) : null}
           {format !== 'ics' ? (
             <div className="flex flex-wrap gap-4">

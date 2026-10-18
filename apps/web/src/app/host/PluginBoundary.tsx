@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
+import { Skeleton } from '@/ui/skeleton'
 import {
   Empty,
   EmptyContent,
@@ -60,12 +61,9 @@ class ErrorBoundary extends Component<{ children: ReactNode; compact?: boolean }
 /** Skeleton while a lazy page or card loads. */
 export function LoadingBlock({ className }: { className?: string }) {
   return (
-    <div
+    <Skeleton
       aria-hidden
-      className={cn(
-        'h-full min-h-8 animate-pulse rounded-lg bg-muted motion-reduce:animate-none',
-        className,
-      )}
+      className={cn('h-full min-h-8 rounded-lg motion-reduce:animate-none', className)}
     />
   )
 }

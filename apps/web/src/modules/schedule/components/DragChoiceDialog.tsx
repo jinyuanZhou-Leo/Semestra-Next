@@ -1,13 +1,14 @@
 import { m } from '@/paraglide/messages'
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/ui/alert-dialog'
-import { Button } from '@/ui/button'
 
 /**
  * Asked after a class is dragged to a new time (M04 §5.2): change only this class (an
@@ -37,17 +38,17 @@ export function DragChoiceDialog({
           <AlertDialogDescription>{m.schedule_drag_description()}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <Button variant="ghost" disabled={pending} onClick={onCancel}>
+          <AlertDialogCancel variant="ghost" disabled={pending}>
             {m.common_cancel()}
-          </Button>
+          </AlertDialogCancel>
           {allowAll ? (
-            <Button variant="outline" disabled={pending} onClick={onAll}>
+            <AlertDialogAction variant="outline" disabled={pending} onClick={onAll}>
               {m.schedule_drag_all()}
-            </Button>
+            </AlertDialogAction>
           ) : null}
-          <Button disabled={pending} onClick={onOnlyThis}>
+          <AlertDialogAction disabled={pending} onClick={onOnlyThis}>
             {m.schedule_drag_only_this()}
-          </Button>
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

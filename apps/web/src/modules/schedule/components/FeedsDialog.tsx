@@ -15,6 +15,7 @@ import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldLabel } from '@/ui/field'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { Input } from '@/ui/input'
 import { invalidateSchedule, useFeeds } from '../queries'
 
@@ -125,17 +126,20 @@ export function FeedsDialog({
               onChange={(e) => setName(e.target.value)}
             />
           </Field>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
             {FEED_SOURCES.map((source) => (
-              <label key={source} className="flex items-center gap-2 text-sm">
+              <Field key={source} orientation="horizontal" className="w-auto">
                 <Checkbox
+                  id={`${fid}-${source}`}
                   checked={sources.includes(source)}
                   onCheckedChange={(on) =>
                     setSources(on ? [...sources, source] : sources.filter((s) => s !== source))
                   }
                 />
-                {sourceLabel(source)}
-              </label>
+                <FieldLabel htmlFor={`${fid}-${source}`} className="font-normal">
+                  {sourceLabel(source)}
+                </FieldLabel>
+              </Field>
             ))}
           </div>
           <Button type="submit" disabled={create.isPending || sources.length === 0}>
@@ -144,32 +148,34 @@ export function FeedsDialog({
           </Button>
         </form>
         {feeds.length > 0 ? (
-          <ul className="divide-y divide-border text-sm">
+          <ItemGroup className="gap-0">
             {feeds.map((feed) => (
-              <li key={feed.id} className="flex items-center gap-3 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+              <Item key={feed.id} size="sm" className="px-0">
+                <ItemContent className="min-w-0">
+                  <ItemTitle>
                     {feed.name}{' '}
                     <span className="font-normal text-muted-foreground">{feed.prefix}…</span>
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  </ItemTitle>
+                  <ItemDescription>
                     {feed.sources.map(sourceLabel).join(' · ')} ·{' '}
                     {feed.last_fetched_at
                       ? m.schedule_feed_last_fetched({ when: formatDateTime(feed.last_fetched_at) })
                       : m.schedule_feed_never_fetched()}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => setRevoking(feed)}
-                >
-                  {m.schedule_feed_revoke()}
-                </Button>
-              </li>
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => setRevoking(feed)}
+                  >
+                    {m.schedule_feed_revoke()}
+                  </Button>
+                </ItemActions>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         ) : null}
         <ConfirmDialog
           open={revoking !== null}
