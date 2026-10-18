@@ -1,6 +1,6 @@
 import { useId, type ComponentProps, type ReactNode } from 'react'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Label } from '@/ui/label'
 
 type Props = Omit<ComponentProps<typeof Input>, 'id'> & {
   label: string
@@ -15,26 +15,16 @@ export function TextField({ label, error, hint, className, ...input }: Props) {
     .filter(Boolean)
     .join(' ')
   return (
-    <div className={className}>
-      <Label htmlFor={id} className="mb-2">
-        {label}
-      </Label>
+    <Field data-invalid={error ? true : undefined} className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
         {...input}
       />
-      {hint && !error ? (
-        <p id={`${id}-hint`} className="mt-1.5 text-xs text-muted-foreground">
-          {hint}
-        </p>
-      ) : null}
-      {error ? (
-        <p id={`${id}-error`} role="alert" className="mt-1.5 text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </div>
+      {hint && !error ? <FieldDescription id={`${id}-hint`}>{hint}</FieldDescription> : null}
+      {error ? <FieldError id={`${id}-error`}>{error}</FieldError> : null}
+    </Field>
   )
 }
