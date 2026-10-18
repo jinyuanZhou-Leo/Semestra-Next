@@ -249,7 +249,10 @@ async def _ensure_board(ctx: Ctx, scope_type: str, scope_id: str) -> LayoutsBoar
     row = await _board_row(ctx, scope_type, scope_id)
     if row is not None:
         return row
-    placed = await _generated(ctx, scope_type, scope_id, await installed_ids(ctx))
+    # Every module counts here: cards of plugins uninstalled meanwhile are stored too (hidden
+    # until reinstalled), as they would be on a board stored before the uninstall.
+    every_module = {m.id for m in catalog.modules()}
+    placed = await _generated(ctx, scope_type, scope_id, every_module)
     row = LayoutsBoard(
         user_id=ctx.user_id, scope_type=scope_type, scope_id=scope_id, cards=_entries(placed)
     )

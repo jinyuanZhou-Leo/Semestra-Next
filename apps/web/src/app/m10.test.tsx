@@ -11,7 +11,7 @@ import type { ModuleManifest, Scope } from './extensions'
 import { CardGrid } from './host/CardGrid'
 import { orderPages } from './host/nav'
 import { ScopeNav } from './host/ScopeNav'
-import { visibleJobs } from './host/StatusBar'
+import { StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
 
 beforeAll(() => server.listen())
@@ -241,4 +241,45 @@ test('the status bar keeps running jobs, recent successes and unseen failures', 
     'done-now',
     'failed',
   ])
+})
+
+test('a failed job stays listed while its list is open and goes once it closes', async () => {
+  const failed = {
+    id: 'j1',
+    kind: 'files.parse',
+    status: 'failed',
+    progress: 30,
+    step: null,
+    step_current: null,
+    step_total: null,
+    result: null,
+    error_code: 'common.internal',
+    error_params: {},
+    attempts: 1,
+    max_attempts: 1,
+    cancel_requested: false,
+    created_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+  }
+  server.use(
+    http.get(`${API}/jobs`, () => HttpResponse.json({ items: [failed], next_cursor: null })),
+    http.get(`${API}/jobs/j1`, () => HttpResponse.json(failed)),
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[]}>
+      <StatusBar />
+    </ModuleRegistry>,
+  )
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: /failed/ }))
+  expect(await screen.findByText('Background tasks')).toBeInTheDocument()
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(screen.getByText('Background tasks')).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /failed/ })).not.toBeInTheDocument(),
+  )
 })

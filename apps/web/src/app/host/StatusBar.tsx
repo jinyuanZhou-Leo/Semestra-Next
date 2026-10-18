@@ -203,6 +203,13 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
     if (failed.length > 0) setSeen([...failed, ...seen].slice(0, 50))
   }
 
+  // Failures count as seen once the list that showed them closes (not on open: they would
+  // vanish, and the list with them, while the user reads them).
+  const close = () => {
+    markSeen()
+    setOpen(false)
+  }
+
   if (jobs.length === 0) return null
 
   let item: StatusItem & { spin?: boolean }
@@ -247,19 +254,13 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
 
   return (
     <li>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (next) markSeen()
-        }}
-      >
+      <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
         {trigger}
         <PopoverContent side={collapsed ? 'right' : 'top'} align="start" className="w-80">
           <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
           <ul className="divide-y divide-border">
             {jobs.map((job) => (
-              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={() => setOpen(false)} />
+              <JobRow key={job.id} job={job} kinds={kinds} onNavigate={close} />
             ))}
           </ul>
         </PopoverContent>
