@@ -36,8 +36,16 @@ async def record(ctx: Ctx, inp: SessionRecordInput) -> SessionRecorded:
     elapsed = (ended - started).total_seconds()
     if elapsed <= 0 or inp.duration_sec > elapsed + 2 or ended > ctx.now + CLOCK_SKEW:
         raise AppError("pomodoro.session_invalid", 422)
-    if inp.course_id is not None:
-        await academics.get_course_row(ctx, inp.course_id)
+    # A course that was deleted since the card chose it must not lose the focus time: the
+    # session is kept without a course.
+    course_id = inp.course_id
+    if course_id is not None:
+        try:
+            await academics.get_course_row(ctx, course_id)
+        except AppError as exc:
+            if exc.status != 404:
+                raise
+            course_id = None
 
     async def existing() -> PomodoroSession | None:
         return await ctx.db.scalar(
@@ -53,7 +61,7 @@ async def record(ctx: Ctx, inp: SessionRecordInput) -> SessionRecorded:
     row = PomodoroSession(
         user_id=ctx.user_id,
         instance_id=inp.instance_id,
-        course_id=inp.course_id,
+        course_id=course_id,
         started_at=started,
         ended_at=ended,
         duration_sec=inp.duration_sec,

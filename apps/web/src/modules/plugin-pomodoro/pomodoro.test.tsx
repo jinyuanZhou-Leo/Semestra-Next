@@ -156,3 +156,19 @@ test('a tab that comes back shows the timer as another tab left it', async () =>
   act(() => void window.dispatchEvent(new Event('focus')))
   await vi.waitFor(() => expect(screen.getByLabelText('Focus 10:00')).toBeInTheDocument())
 })
+
+test('resetting an idle card leaves another running timer in the status bar', async () => {
+  backend()
+  // Let the debounced preference writes of the previous test land before the pointer is set.
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  stored['pomodoro.active'] = { instanceId: 'other', path: '/p/p2' }
+  card()
+  expect(await screen.findByLabelText('Focus 25:00', {}, { timeout: 4000 })).toBeInTheDocument()
+  await userEvent
+    .setup({ advanceTimers: vi.advanceTimersByTime })
+    .click(screen.getByRole('button', { name: 'Reset' }))
+  // Writes to the preference are debounced, so wait for the stored pointer to settle.
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  expect(stored['pomodoro.active']).toEqual({ instanceId: 'other', path: '/p/p2' })
+})

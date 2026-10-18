@@ -6,7 +6,8 @@ export type SaveStatus = 'idle' | 'saving' | 'error'
  * Local, instantly applied copy of a card's settings that is saved with a delay (M14 §1, §4:
  * counter 300 ms, sticky note 800 ms). `incoming` is what the server last said; local changes win
  * over it until they are saved. `save` must put the saved values into the query cache before it
- * resolves. A failed save drops the local changes again and reports `status: 'error'`.
+ * resolves. A failed save drops the changes it carried and reports `status: 'error'`; edits made
+ * while it was in flight are kept and sent on their own.
  * Pending changes are sent when the card unmounts or the page is hidden.
  */
 export function useOptimisticSettings<T extends object>(
@@ -44,8 +45,8 @@ export function useOptimisticSettings<T extends object>(
           setStatus('idle')
         }
       } catch {
-        pendingRef.current = null
-        setPending(null)
+        // Only what this request carried is rolled back; later edits are still waiting to be sent.
+        setPending(pendingRef.current)
         setStatus('error')
       }
     })

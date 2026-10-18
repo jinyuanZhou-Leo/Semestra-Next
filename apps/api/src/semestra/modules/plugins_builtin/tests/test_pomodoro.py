@@ -123,6 +123,27 @@ async def test_stats_group_focus_time_by_day_and_course(
     assert today["total_sessions"] == 2
 
 
+async def test_a_session_for_a_deleted_course_is_kept_without_a_course(
+    client: AsyncClient, user: UserHandle, cards: FakeCards
+):
+    pid = await program(client)
+    timer = cards.add(user.id, "pomodoro.timer", "program", pid)
+    gone = await course(client, pid, "APS105")
+    assert (await client.delete(f"/courses/{gone}")).status_code == 200
+    r = await client.post(
+        "/pomodoro/sessions",
+        json={
+            "instance_id": timer,
+            "course_id": gone,
+            **session("2026-01-15T10:00:00Z", "2026-01-15T10:25:00Z", 1500),
+        },
+    )
+    assert r.status_code == 200, r.text
+    stats = (await client.get("/pomodoro/stats")).json()
+    assert stats["total_sessions"] == 1
+    assert [c["course_id"] for c in stats["by_course"]] == [None]
+
+
 async def test_stats_defaults_to_utc_without_a_program_and_validates_the_range(
     client: AsyncClient, user: UserHandle
 ):

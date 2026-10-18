@@ -51,6 +51,7 @@ export function usePomodoroStatus(): StatusItem | null {
         state: s,
         now: t,
         runtime: a.runtime,
+        active: a,
         setState,
         setActive,
         record: (body) => recordSession({ body }),

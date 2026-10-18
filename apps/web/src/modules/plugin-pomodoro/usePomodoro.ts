@@ -71,6 +71,8 @@ type Finish = {
   now: number
   runtime: Runtime
   setState: (state: TimerState) => void
+  /** The timer the status bar follows now; another card's timer is never taken over or cleared. */
+  active: ActiveTimer | null
   setActive: (active: ActiveTimer | null) => void
   record: (body: SessionBody) => void
 }
@@ -96,7 +98,9 @@ export function finishPhase(args: Finish) {
   finishedPhases.add(key)
   const done = complete(state, now, runtime.config)
   args.setState(done.state)
-  args.setActive(done.state.status === 'idle' ? null : { instanceId, path, runtime })
+  if (args.active === null || args.active.instanceId === instanceId) {
+    args.setActive(done.state.status === 'idle' ? null : { instanceId, path, runtime })
+  }
   if (done.finished) {
     args.record({
       instance_id: instanceId,
@@ -154,7 +158,7 @@ export function usePomodoroToday(programId: string) {
 export function usePomodoro(instanceId: string, programId: string, settings: PomodoroSettings) {
   const queryClient = useQueryClient()
   const [state, setState] = useUiPref<TimerState>(stateKey(instanceId), INITIAL_STATE)
-  const [, setActive] = useUiPref<ActiveTimer | null>(ACTIVE_KEY, null)
+  const [active, setActive] = useUiPref<ActiveTimer | null>(ACTIVE_KEY, null)
   const { focus_min, short_break_min, long_break_min, long_break_every, auto_start_next } = settings
   const config = useMemo(
     () => ({ focus_min, short_break_min, long_break_min, long_break_every, auto_start_next }),
@@ -163,9 +167,9 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
   const [now, setNow] = useState(() => Date.now())
   const { mutate: recordSession } = useRecordSession()
 
-  const latest = useRef({ state, config, settings })
+  const latest = useRef({ state, config, settings, active })
   useEffect(() => {
-    latest.current = { state, config, settings }
+    latest.current = { state, config, settings, active }
   })
 
   // The same timer may be open in another tab: when this tab comes back, take the latest state.
@@ -201,6 +205,7 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
         state: current.state,
         now: t,
         runtime: runtimeOf(current.settings),
+        active: current.active,
         setState,
         setActive,
         record: (body) => recordSession({ body }),
@@ -210,6 +215,11 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     const timer = window.setInterval(tick, 250)
     return () => window.clearInterval(timer)
   }, [state.status, state.endsAt, instanceId, here, setState, setActive, recordSession])
+
+  // Only this card's own timer is dropped from the status bar, not one running on another board.
+  const clearActive = () => {
+    if (active?.instanceId === instanceId) setActive(null)
+  }
 
   const remaining = remainingAt(state, now, config)
 
@@ -242,11 +252,11 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     },
     skip: () => {
       setState(skip(state, Date.now(), config))
-      setActive(null)
+      clearActive()
     },
     reset: () => {
       setState(reset())
-      setActive(null)
+      clearActive()
     },
   }
 }
