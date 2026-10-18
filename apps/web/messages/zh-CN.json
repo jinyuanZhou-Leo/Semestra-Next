@@ -184,5 +184,17 @@
   "template_settings_title": "模块模板",
   "template_settings_compact": "紧凑的任务列表",
   "template_command_home": "前往首页",
-  "template_storage_used_unlimited": "已用 {used}，不限容量"
+  "template_storage_used_unlimited": "已用 {used}，不限容量",
+  "job_pending": "排队中",
+  "job_running": "处理中…",
+  "job_cancelled": "已终止",
+  "job_stage_count": "{stage} {current}/{total}",
+  "job_retry_prefix": "重新执行 · {label}",
+  "job_step_template_countdown_counting": "计数中",
+  "ai_action_done": "已完成",
+  "ai_action_retry": "重试",
+  "ai_action_cancel": "终止",
+  "ai_action_cancelling": "终止中",
+  "status_bar_label": "进行中",
+  "status_jobs_running": "{count} 个任务进行中"
 }

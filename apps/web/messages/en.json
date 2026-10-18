@@ -184,5 +184,17 @@
   "template_settings_title": "Module template",
   "template_settings_compact": "Compact task list",
   "template_command_home": "Go to home",
-  "template_storage_used_unlimited": "{used} used, no limit"
+  "template_storage_used_unlimited": "{used} used, no limit",
+  "job_pending": "Waiting",
+  "job_running": "Working…",
+  "job_cancelled": "Stopped",
+  "job_stage_count": "{stage} {current}/{total}",
+  "job_retry_prefix": "Retrying · {label}",
+  "job_step_template_countdown_counting": "Counting",
+  "ai_action_done": "Done",
+  "ai_action_retry": "Retry",
+  "ai_action_cancel": "Stop",
+  "ai_action_cancelling": "Stopping…",
+  "status_bar_label": "In progress",
+  "status_jobs_running": "{count} tasks running"
 }
