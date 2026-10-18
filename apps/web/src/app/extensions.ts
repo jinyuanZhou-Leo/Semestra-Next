@@ -12,6 +12,9 @@ export type Message = () => string
 
 export type ScopeKind = 'program' | 'term' | 'course'
 
+/** Where a card can be placed: a scope, or M04's "today" board of a Program. */
+export type CardScopeKind = ScopeKind | 'today'
+
 export type Scope =
   | { kind: 'program'; programId: string }
   | { kind: 'term'; programId: string; termId: string }
@@ -44,7 +47,7 @@ export type CardProps<Settings = unknown> = {
 
 export type CardContribution = {
   id: string
-  scopes: readonly ScopeKind[]
+  scopes: readonly CardScopeKind[]
   title: Message
   icon: LucideIcon
   sizes: readonly CardSize[]
