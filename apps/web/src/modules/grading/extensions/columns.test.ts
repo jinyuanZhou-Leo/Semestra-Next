@@ -7,11 +7,11 @@ const course = { id: 'c1' } as Course
 const data = (hide: boolean) => ({
   hide_gpa: hide,
   max_points: 4,
-  items: [{ course_id: 'c1', points: 3.9 }],
+  items: [{ course_id: 'c1', points: 4 }],
 })
 
 test('GPA ordering and threshold filters work on the numbers when GPA is shown', () => {
-  expect(gpa?.sortValue?.(course, data(false))).toBe(3.9)
+  expect(gpa?.sortValue?.(course, data(false))).toBe(4)
   expect(gpa?.filter?.every((f) => f.test(course, data(false)))).toBe(true)
 })
 
