@@ -330,6 +330,8 @@ async def test_google_signs_in_by_subject_even_if_email_changed(
     google.add("b", subject="g-2", email="renamed@gmail.com")
     second = await client.post("/auth/google", json={"id_token": "b"})
     assert second.json()["user"]["id"] == first.json()["user"]["id"]
+    # The linked identity shows the Google account's current address.
+    assert second.json()["user"]["identities"][0]["email"] == "renamed@gmail.com"
 
 
 async def test_google_auto_links_existing_account_by_verified_email(

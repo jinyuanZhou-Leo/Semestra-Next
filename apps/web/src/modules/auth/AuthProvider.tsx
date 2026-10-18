@@ -2,7 +2,9 @@ import { accountMeGetOptions, authLogoutMutation } from '@semestra/api-client/re
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
+import { toApiError } from '@/app/api'
 import { setSignedIn } from '@/app/session-expiry'
+import { toastError } from '@/lib/errors'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext, type AuthState } from './useAuth'
 
@@ -25,11 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut: async () => {
       try {
         await logOut({})
-      } finally {
-        setSignedIn(false)
-        queryClient.clear()
-        await navigate({ to: '/login' })
+      } catch (err) {
+        // The HttpOnly cookie can only be cleared by the server. A 401 means the session is
+        // already gone; anything else (network, 5xx) leaves it usable, so stay put and say so.
+        if (toApiError(err).status !== 401) {
+          toastError(err)
+          return
+        }
       }
+      setSignedIn(false)
+      queryClient.clear()
+      await navigate({ to: '/login' })
     },
   }
 

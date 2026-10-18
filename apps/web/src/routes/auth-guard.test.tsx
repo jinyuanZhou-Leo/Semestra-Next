@@ -1,6 +1,7 @@
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
@@ -65,4 +66,43 @@ test('/login/reset renders the reset form, not the sign-in form', async () => {
   server.use(signedOut(), noGoogle, healthy)
   mount('/login/reset')
   expect(await screen.findByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
+})
+
+const settingsData = [
+  http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
+  http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
+]
+
+test('signing out navigates to /login once the server has cleared the session', async () => {
+  let loggedOut = false
+  const e = apiError('common.unauthenticated', 401)
+  server.use(
+    http.get(`${API}/account/me`, () =>
+      loggedOut ? HttpResponse.json(e.body, { status: 401 }) : HttpResponse.json(user),
+    ),
+    healthy,
+    noGoogle,
+    ...settingsData,
+    http.post(`${API}/auth/logout`, () => {
+      loggedOut = true
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  const router = mount('/settings/account')
+  await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+})
+
+test('a failed logout keeps the user on the page instead of pretending to sign out', async () => {
+  server.use(
+    signedIn,
+    healthy,
+    noGoogle,
+    ...settingsData,
+    http.post(`${API}/auth/logout`, () => HttpResponse.error()),
+  )
+  const router = mount('/settings/account')
+  await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled())
+  expect(router.state.location.pathname).toBe('/settings/account')
 })

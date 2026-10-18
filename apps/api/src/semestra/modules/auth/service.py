@@ -536,6 +536,8 @@ async def login_with_google(
             )
         if user.email_verified_at is None:
             user.email_verified_at = ctx.now  # Google verified this address
+    elif identity is not None:
+        identity.email = claims.email  # the Google account's address may have changed
     signed_in = await create_session(ctx, user, client, meta)
     await _notify_new_sign_in(ctx, user, meta)
     return signed_in
