@@ -12,6 +12,12 @@ export type Message = () => string
 
 export type ScopeKind = 'program' | 'term' | 'course'
 
+/**
+ * Where a card can go: the overview of a Program, term or course, or a Program's Today page
+ * (`today`, M04). On the Today board a card gets the Program's scope.
+ */
+export type BoardKind = ScopeKind | 'today'
+
 export type Scope =
   | { kind: 'program'; programId: string }
   | { kind: 'term'; programId: string; termId: string }
@@ -44,7 +50,7 @@ export type CardProps<Settings = unknown> = {
 
 export type CardContribution = {
   id: string
-  scopes: readonly ScopeKind[]
+  scopes: readonly BoardKind[]
   title: Message
   icon: LucideIcon
   sizes: readonly CardSize[]
@@ -58,7 +64,14 @@ export type CardContribution = {
     component?: ComponentType<{ value: any; onChange: (value: any) => void }>
   }
   multiple: boolean
+  /** Buttons in the card's header next to its title (e.g. a counter's reset). */
+  // oxlint-disable-next-line no-explicit-any
+  headerActions?: ComponentType<CardProps<any>>
+  description?: Message
 }
+
+/** A card of a module's default layout; `size` falls back to the card's `defaultSize`. */
+export type BoardSlot = { card: string; size?: CardSize }
 
 export type SettingsLevel = 'account' | 'program' | 'term' | 'course'
 
@@ -114,15 +127,39 @@ export type SettingsSectionContribution = SettingsSectionBase &
     | { namespace: string; fields?: FieldOverrides; component?: undefined }
   )
 
-export type CommandContext = { scope?: Scope; navigate: (to: string) => void }
+export type CommandContext = {
+  /** The scope of the page the palette was opened on. */
+  scope?: Scope
+  /** The Program being viewed (also on account settings pages). */
+  programId?: string
+  navigate: (to: string) => void
+}
 
-/** Details in M10. A command either runs code or navigates (`to`). */
+/**
+ * An entry of the command palette (M10 §5.4). It runs code, navigates (`to`), or opens a
+ * second list (`useChildren`, a hook called while that list is open, e.g. "Switch term →"). `scopes` limits it to pages of those scopes.
+ */
 export type CommandContribution = {
   id: string
   title: Message
   keywords?: readonly string[]
   icon?: LucideIcon
   scopes?: readonly ScopeKind[]
+} & (
+  | { run: (ctx: CommandContext) => void | Promise<void> }
+  | { to: string }
+  | { useChildren: (ctx: CommandContext) => readonly CommandChild[] }
+)
+
+/** An entry of a command's second-level list. */
+export type CommandChild = {
+  id: string
+  title: string
+  subtitle?: string
+  keywords?: readonly string[]
+  icon?: LucideIcon
+  /** A colour dot, e.g. a course colour. */
+  dot?: string
 } & ({ run: (ctx: CommandContext) => void | Promise<void> } | { to: string })
 
 /** Defined by M04; kept open here so M04 can refine it without changing the contract. */
@@ -177,6 +214,8 @@ export type ModuleManifest = {
   statusItems?: readonly StatusItemContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
+  /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */
+  defaultBoard?: Readonly<Partial<Record<BoardKind, readonly BoardSlot[]>>>
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */
   realtimeInvalidations?: Readonly<Record<string, readonly QueryKeyPrefix[]>>
 }

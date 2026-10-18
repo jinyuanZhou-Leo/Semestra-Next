@@ -65,9 +65,20 @@ class Capability:
         return head + "".join(p.capitalize() for p in rest)
 
 
+# Returns the plugin ids the ctx user has installed (registered by M10's plugins module).
+PluginGate = Callable[[Ctx], Awaitable[set[str]]]
+
+
 class Registry:
     def __init__(self) -> None:
         self._items: dict[str, Capability] = {}
+        self._plugin_gate: PluginGate | None = None
+
+    def set_plugin_gate(self, gate: PluginGate | None) -> None:
+        """Capabilities with a `plugin_id` are refused (`plugins.not_installed`) and left out of
+        `available()` unless the gate lists that plugin. Without a gate every plugin counts as
+        installed."""
+        self._plugin_gate = gate
 
     def register(self, cap: Capability) -> None:
         if cap.name in self._items:
@@ -80,12 +91,19 @@ class Registry:
         except KeyError:
             raise AppError("common.not_found", 404) from None
 
-    def list(self, expose: Surface | None = None, user: object | None = None) -> list[Capability]:
-        # `user` is reserved for plugin gating (M10): capabilities of plugins the user has not
-        # installed will be filtered out here.
-        del user
+    def list(self, expose: Surface | None = None) -> list[Capability]:
+        """Every registered capability, regardless of the user's plugins (see `available`)."""
         caps = sorted(self._items.values(), key=lambda c: c.name)
         return [c for c in caps if expose is None or expose in c.expose]
+
+    async def available(self, ctx: Ctx, expose: Surface) -> list[Capability]:
+        """What the ctx user can call on a surface: plugin capabilities only when installed.
+        The agent and MCP tool lists (M12) use this."""
+        caps = self.list(expose)
+        if self._plugin_gate is None or not any(c.plugin_id for c in caps):
+            return caps
+        installed = await self._plugin_gate(ctx)
+        return [c for c in caps if c.plugin_id is None or c.plugin_id in installed]
 
     async def invoke(
         self,
@@ -106,6 +124,9 @@ class Registry:
                 raise AppError("auth.token_scope", 403)
             if cap.effect != "read" and "write" not in ctx.auth.scopes:
                 raise AppError("auth.token_scope", 403, required="write")
+        gate = self._plugin_gate
+        if cap.plugin_id is not None and gate is not None and cap.plugin_id not in await gate(ctx):
+            raise AppError("plugins.not_installed", 403, plugin_id=cap.plugin_id)
         try:
             inp = cap.input_model.model_validate(raw_args or {})
         except ValidationError as exc:

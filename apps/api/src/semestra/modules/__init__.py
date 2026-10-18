@@ -3,8 +3,10 @@ from fastapi import FastAPI
 
 def register_all(app: FastAPI) -> None:
     """Every feature module registers its routes and runtimes here, in dependency order."""
-    from semestra.modules import academics, auth, settings
+    from semestra.modules import academics, auth, layouts, plugins, settings
 
     auth.register(app)
     settings.register(app)
     academics.register(app)
+    plugins.register(app)
+    layouts.register(app)
