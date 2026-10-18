@@ -666,6 +666,7 @@
   "grading_assessment_category": "Category",
   "grading_assessment_due": "Due",
   "grading_assessment_due_date": "Due date",
+  "grading_assessment_due_date_placeholder": "Choose a date",
   "grading_assessment_due_time": "Due time",
   "grading_assessment_weight": "Weight (%)",
   "grading_assessment_score": "Score",

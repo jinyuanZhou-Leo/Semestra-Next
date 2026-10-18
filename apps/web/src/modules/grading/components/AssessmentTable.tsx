@@ -16,6 +16,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Toggle } from '@/ui/toggle'
 import { invalidateGrading } from '../queries'
 import { parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
@@ -182,14 +183,9 @@ export function AssessmentTable({
             {m.grading_assessment_add()}
           </Button>
           {actions}
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-pressed={grouped}
-            onClick={() => setGrouped(!grouped)}
-          >
+          <Toggle variant="outline" size="sm" pressed={grouped} onPressedChange={setGrouped}>
             {m.grading_group_by_category()}
-          </Button>
+          </Toggle>
         </div>
 
         <div className="rounded-2xl border border-border">
@@ -213,10 +209,11 @@ export function AssessmentTable({
                         }
                       >
                         {h.column.getCanSort() ? (
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="-ml-2 h-8 px-2 font-normal text-muted-foreground"
                             onClick={h.column.getToggleSortingHandler()}
-                            className="inline-flex items-center gap-1 hover:text-foreground"
                           >
                             <table.FlexRender header={h} />
                             {sorted === 'asc' ? (
@@ -224,7 +221,7 @@ export function AssessmentTable({
                             ) : sorted === 'desc' ? (
                               <ArrowDown aria-hidden className="size-3" />
                             ) : null}
-                          </button>
+                          </Button>
                         ) : (
                           <table.FlexRender header={h} />
                         )}
@@ -253,9 +250,10 @@ export function AssessmentTable({
                     {grouped ? (
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableCell colSpan={columnCount} className="py-1.5">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 font-medium"
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto px-1 font-medium"
                             aria-expanded={!isCollapsed}
                             onClick={() => toggleGroup(groupId)}
                           >
@@ -272,7 +270,7 @@ export function AssessmentTable({
                               )}
                               %
                             </span>
-                          </button>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ) : null}

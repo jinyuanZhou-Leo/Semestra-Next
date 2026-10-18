@@ -1,8 +1,11 @@
 import type { TermGradePoint } from '@semestra/api-client'
+import { ChartLine } from 'lucide-react'
 import { useState } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { GPA_MASK } from '../display'
 import { useProgramGrades } from '../queries'
 
@@ -42,7 +45,14 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   const terms: TermGradePoint[] = data.terms
   if (terms.every((t) => t.gpa === null)) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">{m.grading_charts_empty()}</p>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ChartLine aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.grading_charts_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     )
   }
   const x = (i: number) =>
@@ -54,14 +64,15 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   return (
     <div className="flex h-full flex-col gap-3">
       {masked ? (
-        <button
+        <Button
           type="button"
-          className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:bg-muted/50"
+          variant="outline"
+          className="h-24 w-full rounded-xl border-dashed font-normal text-muted-foreground"
           aria-label={m.grading_gpa_show()}
           onClick={() => setRevealed(true)}
         >
           {GPA_MASK}
-        </button>
+        </Button>
       ) : (
         <>
           <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">

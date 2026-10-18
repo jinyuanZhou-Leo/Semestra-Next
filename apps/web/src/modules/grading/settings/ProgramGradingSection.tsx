@@ -15,8 +15,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { ItemGroup } from '@/ui/item'
+import { Item, ItemGroup } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -157,6 +158,7 @@ const toRows = (bands: readonly ScaleBand[]): BandRow[] =>
 
 /** The conversion table: a bar showing the ranges, an editable table, and preset reset. */
 function BandEditor({ scale }: { scale: GradingScale }) {
+  const maxPointsId = useId()
   const queryClient = useQueryClient()
   const presets = useScalePresets().data?.items
   const [rows, setRows] = useState(() => toRows(scale.bands))
@@ -274,16 +276,18 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           <Plus aria-hidden />
           {m.grading_band_add()}
         </Button>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">{m.grading_max_points()}</span>
+        <Field orientation="horizontal" className="w-auto">
+          <FieldLabel htmlFor={maxPointsId} className="font-normal text-muted-foreground">
+            {m.grading_max_points()}
+          </FieldLabel>
           <Input
-            aria-label={m.grading_max_points()}
+            id={maxPointsId}
             inputMode="decimal"
             value={maxPoints}
             onChange={(event) => setMaxPoints(event.target.value)}
             className="h-8 w-20 tabular-nums"
           />
-        </label>
+        </Field>
         <Button
           size="sm"
           disabled={!valid || !dirty || save.isPending}
@@ -363,7 +367,7 @@ function DefaultCategories({
       </div>
       <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
         {items.map((item, i) => (
-          <div key={item.key} className="flex flex-wrap items-center gap-2 p-3">
+          <Item key={item.key} size="sm">
             <Input
               aria-label={m.grading_category_name()}
               value={item.name}
@@ -389,14 +393,18 @@ function DefaultCategories({
             >
               <Trash2 aria-hidden />
             </Button>
-          </div>
+          </Item>
         ))}
-        <form
-          className="flex items-center gap-2 p-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            add()
-          }}
+        <Item
+          size="sm"
+          render={
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                add()
+              }}
+            />
+          }
         >
           <Input
             aria-label={m.grading_category_new()}
@@ -409,7 +417,7 @@ function DefaultCategories({
             <Plus aria-hidden />
             {m.grading_category_add()}
           </Button>
-        </form>
+        </Item>
       </ItemGroup>
     </section>
   )

@@ -6,7 +6,7 @@ import {
   aiProviderUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
+import { KeyRound, Plus } from 'lucide-react'
 import { Fragment, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -17,6 +17,7 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Card, CardContent } from '@/ui/card'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import {
   Dialog,
   DialogContent,
@@ -265,7 +266,16 @@ export function ProvidersSection() {
         <AsyncBoundary
           query={providers}
           isEmpty={(data) => data.items.length === 0}
-          empty={<p className="text-sm text-muted-foreground">{m.ai_providers_empty()}</p>}
+          empty={
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <KeyRound aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.ai_providers_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          }
         >
           {(data) => (
             <ItemGroup className="gap-0 rounded-2xl border">
