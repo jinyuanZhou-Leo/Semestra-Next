@@ -511,7 +511,9 @@ async def test_structured_retries_with_the_validation_error(
     assert len(await usage_rows(app)) == 2
 
 
-async def test_structured_gives_up_with_output_invalid(ai: Ai, mock: respx.MockRouter):
+async def test_structured_gives_up_with_output_invalid(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
     models_ok(mock)
     await ai.provider("openai")
     route = mock.post(f"{OPENAI}/chat/completions").mock(return_value=openai_reply("not json"))
@@ -525,6 +527,11 @@ async def test_structured_gives_up_with_output_invalid(ai: Ai, mock: respx.MockR
     body = json.loads(route.calls[0].request.content)
     assert body["response_format"]["type"] == "json_schema"
     assert body["model"] == "gpt-5-mini"
+    # The retried call counts as a normal one; the final unusable reply is the error.
+    assert [(r.status, r.error_code) for r in await usage_rows(app)] == [
+        ("ok", None),
+        ("error", "ai.output_invalid"),
+    ]
 
 
 async def test_json_mode_fallback_for_compatible_endpoints(ai: Ai, mock: respx.MockRouter):

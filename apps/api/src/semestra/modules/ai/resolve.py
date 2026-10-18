@@ -93,9 +93,15 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
     ).all()
     by_id = {p.id: p for p in providers}
 
-    # 1. The user's choice for this purpose (ignored while its provider is turned off).
+    # 1. The user's choice for this purpose (ignored while its provider is turned off, or once
+    #    the capability it needs was unticked on an editable provider).
     assignment = await ctx.db.get(AiModelAssignment, (ctx.user_id, purpose))
-    if assignment is not None and (row := by_id.get(assignment.provider_id)) is not None:
+    row = by_id.get(assignment.provider_id) if assignment is not None else None
+    if (
+        assignment is not None
+        and row is not None
+        and can_serve(provider_capabilities(row), purpose)
+    ):
         return Resolved(
             purpose,
             endpoint_for(ctx.settings, row, with_key=with_key),

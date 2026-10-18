@@ -229,6 +229,26 @@ async def test_disabled_provider_is_skipped(ai: Ai, mock: respx.MockRouter):
     assert all(not s["available"] for s in status["items"])
 
 
+async def test_assignment_falls_back_when_its_capability_is_unticked(
+    ai: Ai, mock: respx.MockRouter
+):
+    mock.get(f"{COMPAT}/models").mock(return_value=Response(200, json={"data": [{"id": "m"}]}))
+    created = await ai.provider("openai_compatible", capabilities=["chat", "vision"])
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={"purpose": "vision", "provider_id": created["id"], "model": "m"},
+    )
+
+    async def vision_available() -> bool:
+        status = await ai.call("GET", "/ai/status")
+        return next(s for s in status["items"] if s["purpose"] == "vision")["available"]
+
+    assert await vision_available()
+    await ai.call("PATCH", f"/ai/providers/{created['id']}", json={"capabilities": ["chat"]})
+    assert not await vision_available()
+
+
 async def test_test_and_models_endpoints(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     created = await ai.provider("anthropic")

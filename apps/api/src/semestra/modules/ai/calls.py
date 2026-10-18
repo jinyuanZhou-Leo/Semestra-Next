@@ -210,7 +210,9 @@ def _client(ctx: Ctx, *, stream: bool) -> httpx.AsyncClient:
 # --- chat -----------------------------------------------------------------------------------
 
 
-async def _complete_once(call: _Call, req: ChatRequest) -> Completion:
+async def _complete_once(call: _Call, req: ChatRequest, *, record_ok: bool = True) -> Completion:
+    """One call with its usage recorded. With `record_ok=False` a successful reply is left for
+    the caller to record (structured output only knows after validating it)."""
     ep = call.resolved.endpoint
     try:
         async with _client(call.ctx, stream=False) as client, asyncio.timeout(CALL_TIMEOUT_SECONDS):
@@ -224,7 +226,8 @@ async def _complete_once(call: _Call, req: ChatRequest) -> Completion:
         raise
     completion.provider_kind = ep.kind
     completion.model = completion.model or req.model
-    _finish(call, completion.usage, output=completion.text, model=completion.model)
+    if record_ok:
+        _finish(call, completion.usage, output=completion.text, model=completion.model)
     return completion
 
 
@@ -386,12 +389,21 @@ async def structured_with[T: BaseModel](
     usage = Usage()
     for attempt in range(max_retries + 1):
         call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), req.messages)
-        completion = await _complete_once(call, req)
+        completion = await _complete_once(call, req, record_ok=False)
         usage.add(completion.usage)
         try:
-            return schema.model_validate(_parse_json(completion.text)), usage
+            value = schema.model_validate(_parse_json(completion.text))
         except (ValidationError, json.JSONDecodeError) as exc:
-            if attempt == max_retries:
+            last = attempt == max_retries
+            # A retried reply was still a normal, billed call; only the last one is the failure.
+            _finish(
+                call,
+                completion.usage,
+                error=AppError("ai.output_invalid", 502) if last else None,
+                output=completion.text,
+                model=completion.model,
+            )
+            if last:
                 break
             # Show the model its mistake and ask again (M06 §5).
             req = replace(
@@ -404,6 +416,9 @@ async def structured_with[T: BaseModel](
                     ),
                 ],
             )
+            continue
+        _finish(call, completion.usage, output=completion.text, model=completion.model)
+        return value, usage
     raise AppError("ai.output_invalid", 502)
 
 
