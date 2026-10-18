@@ -58,11 +58,12 @@ async def export_ics(
 
 @router.get("/feeds/{token}.ics", include_in_schema=False)
 async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> Response:
-    """Public: the token is the credential. Rate limited per token."""
-    await hit(
-        ctx.db, ctx.settings, ctx.now, "schedule.feed", token, limit=FEED_LIMIT, window=FEED_WINDOW
-    )
+    """Public: the token is the credential. Rate limited per feed; unknown tokens are looked up
+    first so they cannot create limiter rows."""
     row = await service.feed_by_token(ctx, token)
+    await hit(
+        ctx.db, ctx.settings, ctx.now, "schedule.feed", row.id, limit=FEED_LIMIT, window=FEED_WINDOW
+    )
     user = await ctx.db.get(AuthUser, row.user_id)
     if user is None:
         raise not_found()

@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CalendarSettings(BaseModel):
@@ -28,3 +28,9 @@ class CalendarSettings(BaseModel):
     cancelled_display: Literal["strike", "hide"] = Field(
         default="strike", description="How cancelled classes are shown"
     )
+
+    @model_validator(mode="after")
+    def _hours_increase(self) -> CalendarSettings:
+        if self.day_end <= self.day_start:
+            raise ValueError("day_end must be later than day_start")
+        return self

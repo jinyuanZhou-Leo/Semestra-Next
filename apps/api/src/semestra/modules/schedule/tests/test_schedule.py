@@ -7,9 +7,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from icalendar import Calendar
+from sqlalchemy import func, select
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
+from semestra.modules.auth.models import AuthRateLimit
 from semestra.modules.schedule.schemas import Occurrences
 from semestra.testing import Clock, MakeUser, UserHandle
 
@@ -482,8 +484,13 @@ async def test_ics_export_and_feed(api: Api, client: AsyncClient):
     assert unknown.json()["error"]["code"] == "common.not_found"
 
 
-async def test_feed_rate_limit(api: Api, client: AsyncClient):
+async def test_feed_rate_limit(api: Api, client: AsyncClient, app: FastAPI):
     program_id, _, _ = await api.setup()
+    # Unknown tokens are rejected before the limiter, so they cannot fill its table.
+    for n in range(3):
+        assert (await client.get(f"/feeds/guess{n}.ics")).status_code == 404
+    async with app.state.session_factory() as db:
+        assert await db.scalar(select(func.count()).select_from(AuthRateLimit)) == 0
     created = await api.call("POST", f"/programs/{program_id}/calendar-feeds", json={"name": "A"})
     path = created["url"].removeprefix("https://test")
     for _ in range(60):
@@ -589,3 +596,18 @@ async def test_feed_window_moves_with_today(api: Api, clock: Clock):
     r = await api.client.get(path)  # no session needed
     assert r.status_code == 200
     assert list(Calendar.from_ical(r.content).walk("VEVENT")) == []
+
+
+async def test_calendar_hours_must_increase(api: Api):
+    await api.setup()
+    body = {"scope_type": "account", "values": {"day_start": "22:00", "day_end": "08:00"}}
+    r = await api.call("PATCH", "/settings/calendar", 422, json=body)
+    assert r["error"]["code"] == "settings.invalid_value"
+    body["values"] = {"day_start": "09:00"}
+    await api.call("PATCH", "/settings/calendar", json=body)
+    await api.call(
+        "PATCH",
+        "/settings/calendar",
+        422,
+        json={"scope_type": "account", "values": {"day_end": "09:00"}},
+    )

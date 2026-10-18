@@ -97,7 +97,8 @@ export function EventDialog({
 }) {
   const queryClient = useQueryClient()
   const types = useEventTypes(programId).data?.items ?? []
-  const courses = useCourses(programId, termId).data?.items ?? []
+  // An existing event may belong to a course outside this term, so editing lists them all.
+  const courses = useCourses(programId, event ? undefined : termId).data?.items ?? []
   const [draft, setDraft] = useState<Draft>(() => draftOf(event, slot, timezone, courseId))
   const [touched, setTouched] = useState(false)
   const [deleting, setDeleting] = useState(false)

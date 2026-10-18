@@ -22,7 +22,7 @@ import {
   Plus,
   TriangleAlert,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
@@ -119,6 +119,8 @@ function TermCalendar({
     scope: term.id,
   })
   const today = todayIn(timezone)
+  // FullCalendar gets Program wall-clock times, so its "now" (today, the now line) must be too.
+  const now = useCallback(() => toWall(new Date().toISOString(), timezone), [timezone])
   const view: CalendarView = nav?.view ?? settings.default_view
   const anchor =
     nav?.date ?? (today >= term.start_date && today <= term.end_date ? today : term.start_date)
@@ -416,6 +418,7 @@ function TermCalendar({
                 slotMaxTime={settings.day_end === '24:00' ? '24:00:00' : settings.day_end}
                 scrollTime={settings.day_start}
                 nowIndicator
+                now={now}
                 weekNumbers
                 weekNumberContent={(arg) => weekNumberLabel(arg.date)}
                 allDayText={m.schedule_all_day()}
