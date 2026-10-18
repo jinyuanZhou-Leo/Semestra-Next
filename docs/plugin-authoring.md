@@ -98,7 +98,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 ### 4.3 数据与清理
 
 - 表用 `OwnedMixin`（带 `user_id`），以 `instance_id` 关联卡片；`instance_id` 不是外键（卡片实例由 M10 管）。
-- 订阅 `layouts.card.deleted`（按 `card_id` 过滤）删除该卡片的行；订阅 `plugins.purge`（按 `plugin_id` 过滤）删除用户的全部行；它在卸载事务内发布，订阅要写 `@events.subscribe("plugins.purge", in_transaction=True)`，抛错会让卸载回滚。想让统计在卡片删除后保留的，可以只响应 `plugins.purge`（番茄钟这样做）。
+- 订阅 `layouts.card.deleted`（按 `card_id` 过滤）删除该卡片的行；订阅 `plugins.purge`（按 `plugin_id` 过滤）删除用户的全部行；它在卸载事务内发布，订阅要写 `@events.subscribe("plugins.purge", in_transaction=True)`，抛错会让卸载回滚。想让统计在卡片删除后保留的，可以只响应 `plugins.purge`（番茄钟这样做）。数据放在 `useUiPref` 里的插件，在同一订阅里用 `settings.service.purge_ui_state(ctx, user_id, '<前缀>')` 一并清掉。
 - 迁移走 Alembic 单一链：在 `migrations/env.py` import 你的 `models`，`alembic revision --autogenerate`，检查生成结果。
 
 ### 4.4 导出/导入适配器（M13 §3）

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
+from semestra.modules.layouts import service as layouts
 from semestra.modules.plugins_builtin.habit_streak import service as habit
 from semestra.modules.plugins_builtin.habit_streak.models import HabitCheckin
 from semestra.modules.plugins_builtin.pomodoro import service as pomodoro
@@ -101,9 +102,10 @@ async def import_(
             select(HabitCheckin).where(HabitCheckin.user_id == ctx.user_id)
         )
     }
+    known: dict[str, bool] = {}
     for row in data.habit_checkins:
-        instance_id = id_map.get(row.instance_id, row.instance_id)
-        if (instance_id, row.day) in have_days:
+        instance_id = await _instance_id(ctx, row.instance_id, id_map, known)
+        if instance_id is None or (instance_id, row.day) in have_days:
             report.skipped["habit_checkins"] = report.skipped.get("habit_checkins", 0) + 1
             continue
         have_days.add((instance_id, row.day))
@@ -120,8 +122,8 @@ async def import_(
         if not _valid_session(srow):
             report.skipped["pomodoro_sessions"] = report.skipped.get("pomodoro_sessions", 0) + 1
             continue
-        instance_id = id_map.get(srow.instance_id, srow.instance_id)
-        if (instance_id, srow.started_at) in have_starts:
+        instance_id = await _instance_id(ctx, srow.instance_id, id_map, known)
+        if instance_id is None or (instance_id, srow.started_at) in have_starts:
             report.skipped["pomodoro_sessions"] = report.skipped.get("pomodoro_sessions", 0) + 1
             continue
         have_starts.add((instance_id, srow.started_at))
@@ -153,6 +155,23 @@ def _valid_session(row: SessionRow) -> bool:
         return False
     elapsed = (row.ended_at.astimezone(UTC) - row.started_at.astimezone(UTC)).total_seconds()
     return elapsed > 0 and row.duration_sec <= elapsed + 2
+
+
+async def _instance_id(
+    ctx: Ctx, source: str, id_map: Mapping[str, str], known: dict[str, bool]
+) -> str | None:
+    """The card a row belongs to after import: the mapped one, or the same id if that card
+    exists here. None when the card was left out of the import: no card could ever show the
+    row, and its id may belong to another account."""
+    if source in id_map:
+        return id_map[source]
+    if source not in known:
+        try:
+            await layouts.get_card_instance(ctx, source)
+            known[source] = True
+        except AppError:
+            known[source] = False
+    return source if known[source] else None
 
 
 async def _course_id(ctx: Ctx, source: str | None, id_map: Mapping[str, str]) -> str | None:

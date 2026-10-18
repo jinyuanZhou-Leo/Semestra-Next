@@ -104,6 +104,9 @@ async def test_uninstalling_with_data_removes_the_habit_and_pomodoro_rows(
         },
     )
     assert r.status_code == 200, r.text
+    for key, value in (("pomodoro.active", {"instanceId": timer}), (f"pomodoro.{timer}", {})):
+        assert (await client.put(f"/me/ui-state/{key}", json={"value": value})).status_code == 200
+    assert (await client.put("/me/ui-state/tasks.sort", json={"value": "due"})).status_code == 200
 
     for plugin in ("habit-streak", "pomodoro"):
         r = await client.request(
@@ -113,6 +116,11 @@ async def test_uninstalling_with_data_removes_the_habit_and_pomodoro_rows(
         assert (await client.put(f"/plugins/{plugin}/installation")).status_code == 200
 
     assert (await client.get("/pomodoro/stats")).json()["total_sessions"] == 0
+    # The timer state the plugin kept in UI preferences goes with it; other keys stay.
+    items = (
+        await client.post("/me/ui-state:get", json={"prefixes": ["pomodoro.", "tasks."]})
+    ).json()
+    assert items["items"] == {"tasks.sort": "due"}
     # Purging removed the cards too, so the habit is unknown now.
     assert (await client.get(f"/habit/instances/{habit}/stats")).status_code == 404
 

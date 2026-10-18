@@ -55,13 +55,13 @@ async def _round_trip(ctx: Ctx, user_id: str) -> None:
     for table in (HabitCheckin, PomodoroSession):
         assert await db.scalar(select(func.count()).select_from(table)) == 0
 
-    report = await portability.import_(ctx, payload, {"old-1": "new-1"})
+    report = await portability.import_(ctx, payload, {"old-1": "new-1", "old-2": "new-2"})
     assert report.imported == {"habit_checkins": 2, "pomodoro_sessions": 1}
     days = set(await db.scalars(select(HabitCheckin.instance_id)))
     assert days == {"new-1"}
 
     # Importing again changes nothing.
-    again = await portability.import_(ctx, payload, {"old-1": "new-1"})
+    again = await portability.import_(ctx, payload, {"old-1": "new-1", "old-2": "new-2"})
     assert again.imported == {"habit_checkins": 0, "pomodoro_sessions": 0}
     assert again.skipped == {"habit_checkins": 2, "pomodoro_sessions": 1}
 
@@ -85,7 +85,7 @@ async def test_a_session_of_a_course_left_out_of_the_import_is_kept_without_it(
         ],
     }
     async with system_ctx(app.state, user.id) as ctx:
-        report = await portability.import_(ctx, payload, {})
+        report = await portability.import_(ctx, payload, {"old-2": "new-2"})
         assert report.imported["pomodoro_sessions"] == 1
         assert await ctx.db.scalar(select(PomodoroSession.course_id)) is None
 
@@ -118,7 +118,30 @@ async def test_sessions_the_recording_endpoint_would_refuse_are_skipped_on_impor
         ],
     }
     async with system_ctx(app.state, user.id) as ctx:
-        report = await portability.import_(ctx, payload, {})
+        report = await portability.import_(ctx, payload, {"old-2": "new-2"})
         assert report.imported["pomodoro_sessions"] == 1
         assert report.skipped["pomodoro_sessions"] == 5
         assert await ctx.db.scalar(select(func.sum(PomodoroSession.duration_sec))) == 1500
+
+
+async def test_rows_of_a_card_that_was_not_imported_are_skipped(
+    make_user: MakeUser, app: FastAPI
+) -> None:
+    user = await make_user()
+    start = datetime(2026, 1, 15, 14, 0, tzinfo=UTC)
+    payload = {
+        "habit_checkins": [{"instance_id": "gone", "day": "2026-01-15"}],
+        "pomodoro_sessions": [
+            {
+                "instance_id": "gone",
+                "started_at": start.isoformat(),
+                "ended_at": start.replace(minute=25).isoformat(),
+                "duration_sec": 1500,
+                "mode": "focus",
+            }
+        ],
+    }
+    async with system_ctx(app.state, user.id) as ctx:
+        report = await portability.import_(ctx, payload, {})
+        assert report.imported == {"habit_checkins": 0, "pomodoro_sessions": 0}
+        assert report.skipped == {"habit_checkins": 1, "pomodoro_sessions": 1}
