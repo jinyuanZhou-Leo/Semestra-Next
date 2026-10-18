@@ -62,7 +62,12 @@ function CourseCell({ c }: { c: CourseGrade }) {
  * percentage, and carries credits in this term (a year-long course counts in one term only).
  */
 function canAssume(c: CourseGrade): boolean {
-  return c.status === 'in_progress' && c.basis === 'percentage' && (c.attributed_credits ?? 0) > 0
+  return (
+    c.status === 'in_progress' &&
+    c.basis === 'percentage' &&
+    c.include_in_gpa &&
+    (c.attributed_credits ?? 0) > 0
+  )
 }
 
 function PercentageCell({ c }: { c: CourseGrade }) {

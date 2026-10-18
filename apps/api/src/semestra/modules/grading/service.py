@@ -191,6 +191,19 @@ async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
         _validate_templates([t.model_dump() for t in inp.default_categories])
         row.default_categories = [t.model_dump(mode="json") for t in inp.default_categories]
     row.bands = sorted(bands, key=lambda b: -b["min"])
+    if max_points < row.max_points:
+        # A target above the new maximum could no longer be set; drop the ones that now exceed it.
+        course_ids = [c.id for c in await _program_courses(ctx, row.program_id)]
+        if course_ids:
+            await ctx.db.execute(
+                update(models.GradingCourseResult)
+                .where(
+                    models.GradingCourseResult.user_id == ctx.user_id,
+                    models.GradingCourseResult.course_id.in_(course_ids),
+                    models.GradingCourseResult.target_points > max_points,
+                )
+                .values(target_points=None, updated_at=ctx.now)
+            )
     row.max_points = max_points
     if inp.year_course_attribution is not None:
         row.year_course_attribution = inp.year_course_attribution

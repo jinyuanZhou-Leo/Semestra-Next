@@ -77,6 +77,8 @@ test('only courses that can move the term plan take an assumed percentage', asyn
             courseGrade({ course_id: 'c2', basis: 'pass_fail', current_percentage: null }),
             // a year-long course whose credits land in its last term
             courseGrade({ course_id: 'c3', year_long: true, attributed_credits: 0 }),
+            // counted nowhere in the term GPA, so an assumed score would change nothing
+            courseGrade({ course_id: 'c4', include_in_gpa: false }),
           ],
           false,
         ),
@@ -89,6 +91,7 @@ test('only courses that can move the term plan take an assumed percentage', asyn
   ).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: /Assumed score: Course c2/ })).toBeNull()
   expect(screen.queryByRole('textbox', { name: /Assumed score: Course c3/ })).toBeNull()
+  expect(screen.queryByRole('textbox', { name: /Assumed score: Course c4/ })).toBeNull()
 })
 
 test('a hidden planned GPA cannot be worked out from the target gap', async () => {

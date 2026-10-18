@@ -126,6 +126,24 @@ async def test_scale_update_validates_and_keeps_unsent_fields(api: Api):
     await api.call("PUT", url, 422, json={"hide_gpa": None})
 
 
+async def test_lowering_the_scale_maximum_drops_targets_above_it(api: Api):
+    program = await api.program()
+    term = await api.term(program["id"], "Fall", "2025-09-01", "2025-12-31")
+    high = await api.course(program["id"], [term["id"]])
+    low = await api.course(program["id"], [term["id"]])
+    await api.call("PATCH", f"/courses/{high['id']}/grade", json={"target_points": 3.9})
+    await api.call("PATCH", f"/courses/{low['id']}/grade", json={"target_points": 2.5})
+
+    bands = [
+        {"min": 0, "max": 59, "points": 0.0, "letter": "F"},
+        {"min": 60, "max": 100, "points": 3.0, "letter": "P"},
+    ]
+    url = f"/programs/{program['id']}/grading-scale"
+    await api.call("PUT", url, json={"bands": bands, "max_points": 3.0})
+    assert (await api.gradebook(high["id"]))["result"]["target_points"] is None
+    assert (await api.gradebook(low["id"]))["result"]["target_points"] == 2.5
+
+
 # --- gradebook ------------------------------------------------------------------------------
 
 
