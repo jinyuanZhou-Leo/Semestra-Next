@@ -11,9 +11,9 @@ from typing import Any, cast
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.modules.academics import service as academics
-from semestra.modules import layouts
 from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.layouts import CardInstance
+from semestra.modules.layouts import service as layouts
 from semestra.modules.layouts.schemas import CardSettingsUpdateInput
 
 

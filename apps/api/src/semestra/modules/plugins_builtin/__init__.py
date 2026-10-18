@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from semestra.modules.plugins import PluginInfo, register_plugin
 from semestra.modules.plugins_builtin import (  # noqa: F401  (registers on import)
+    counter,
     habit_streak,
     pomodoro,
     sticky_note,

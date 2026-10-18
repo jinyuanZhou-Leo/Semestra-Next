@@ -1,16 +1,28 @@
 """The plugin template works end to end (M14 §6): settings, capabilities, agent tools."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 
 import pytest
 from httpx import AsyncClient
 
 import semestra.modules.plugins_builtin._template  # noqa: F401  (registers for this session)
 from semestra.core.capability import registry
+from semestra.modules.plugins import PluginInfo, catalog
 from semestra.modules.plugins_builtin.tests.conftest import FakeCards
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
+
+
+@pytest.fixture(autouse=True)
+def hello_note_plugin(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """The template is not part of the app, so its plugin entry exists for these tests only."""
+    info = PluginInfo(id="hello-note", default_installed=True)
+    monkeypatch.setitem(catalog._plugins, info.id, info)  # pyright: ignore[reportPrivateUsage]
+    catalog.reload()
+    yield
+    monkeypatch.undo()
+    catalog.reload()
 
 
 @pytest.fixture

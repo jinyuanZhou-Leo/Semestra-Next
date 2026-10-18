@@ -106,6 +106,419 @@
           }
         ]
       }
+    },
+    {
+      "id": "habit-streak",
+      "kind": "plugin",
+      "pages": [],
+      "cards": [
+        {
+          "id": "habit.board",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "m",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "name": {
+                "default": "",
+                "type": "string",
+                "maxLength": 60
+              },
+              "icon": {
+                "default": "target",
+                "type": "string",
+                "enum": [
+                  "target",
+                  "book-open",
+                  "dumbbell",
+                  "droplets",
+                  "moon",
+                  "sun",
+                  "pencil",
+                  "music",
+                  "code",
+                  "coffee",
+                  "apple",
+                  "brain",
+                  "heart",
+                  "footprints",
+                  "bike",
+                  "languages",
+                  "leaf",
+                  "flame",
+                  "star",
+                  "smile"
+                ]
+              },
+              "goal": {
+                "default": "daily",
+                "type": "string",
+                "enum": [
+                  "daily",
+                  "weekly"
+                ]
+              },
+              "weekly_target": {
+                "default": 3,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "color": {
+                "default": "primary",
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "success",
+                  "subject-1",
+                  "subject-2",
+                  "subject-7",
+                  "subject-9",
+                  "subject-10",
+                  "subject-11"
+                ]
+              },
+              "show_toast": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "id": "habit.ring",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "s",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "name": {
+                "default": "",
+                "type": "string",
+                "maxLength": 60
+              },
+              "icon": {
+                "default": "target",
+                "type": "string",
+                "enum": [
+                  "target",
+                  "book-open",
+                  "dumbbell",
+                  "droplets",
+                  "moon",
+                  "sun",
+                  "pencil",
+                  "music",
+                  "code",
+                  "coffee",
+                  "apple",
+                  "brain",
+                  "heart",
+                  "footprints",
+                  "bike",
+                  "languages",
+                  "leaf",
+                  "flame",
+                  "star",
+                  "smile"
+                ]
+              },
+              "goal": {
+                "default": "daily",
+                "type": "string",
+                "enum": [
+                  "daily",
+                  "weekly"
+                ]
+              },
+              "weekly_target": {
+                "default": 3,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              "color": {
+                "default": "primary",
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "success",
+                  "subject-1",
+                  "subject-2",
+                  "subject-7",
+                  "subject-9",
+                  "subject-10",
+                  "subject-11"
+                ]
+              },
+              "show_toast": {
+                "default": true,
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ],
+      "default_board": {}
+    },
+    {
+      "id": "pomodoro",
+      "kind": "plugin",
+      "pages": [],
+      "cards": [
+        {
+          "id": "pomodoro.timer",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "s",
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "focus_min": {
+                "default": 25,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 180
+              },
+              "short_break_min": {
+                "default": 5,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              },
+              "long_break_min": {
+                "default": 15,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 120
+              },
+              "long_break_every": {
+                "default": 4,
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 12
+              },
+              "auto_start_next": {
+                "default": false,
+                "type": "boolean"
+              },
+              "sound": {
+                "default": true,
+                "type": "boolean"
+              },
+              "notify": {
+                "default": true,
+                "type": "boolean"
+              },
+              "course_id": {
+                "type": "string",
+                "maxLength": 64
+              }
+            }
+          }
+        }
+      ],
+      "default_board": {}
+    },
+    {
+      "id": "sticky-note",
+      "kind": "plugin",
+      "pages": [],
+      "cards": [
+        {
+          "id": "sticky.note",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "s",
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "m",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "content": {
+                "default": "",
+                "type": "string",
+                "maxLength": 10000
+              },
+              "color": {
+                "default": "subject-3",
+                "type": "string",
+                "enum": [
+                  "subject-3",
+                  "subject-4",
+                  "subject-7",
+                  "subject-8",
+                  "subject-10",
+                  "subject-11"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "default_board": {}
+    },
+    {
+      "id": "counter",
+      "kind": "plugin",
+      "pages": [],
+      "cards": [
+        {
+          "id": "counter.counter",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "s",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "label": {
+                "default": "",
+                "type": "string",
+                "maxLength": 60
+              },
+              "min": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "max": {
+                "default": 10,
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "step": {
+                "default": 1,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "initial": {
+                "default": 0,
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "show_ring": {
+                "default": true,
+                "type": "boolean"
+              },
+              "value": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            }
+          }
+        }
+      ],
+      "default_board": {}
+    },
+    {
+      "id": "world-clock",
+      "kind": "plugin",
+      "pages": [],
+      "cards": [
+        {
+          "id": "clock.world",
+          "scopes": [
+            "program",
+            "term",
+            "course",
+            "today"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "s",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "zones": {
+                "default": [],
+                "maxItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "show_seconds": {
+                "default": false,
+                "type": "boolean"
+              },
+              "show_offset": {
+                "default": true,
+                "type": "boolean"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 60
+              }
+            }
+          }
+        }
+      ],
+      "default_board": {}
     }
   ]
 }

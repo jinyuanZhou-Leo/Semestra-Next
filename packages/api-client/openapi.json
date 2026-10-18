@@ -2338,6 +2338,175 @@
         }
       }
     },
+    "/habit/instances/{instance_id}/checkins/toggle": {
+      "post": {
+        "tags": [
+          "habit"
+        ],
+        "summary": "Check or uncheck a habit for a day (today or the past 7 days).",
+        "description": "Use when the user says they did a habit (\"check in my reading habit\"). Find the\ninstance_id with layouts.board.get (the habit card of the course, term, Program or today board).\nCalling it on a day that is already checked removes the check-in, so read habit.checkins.list\nfirst when the user only wants it checked. Days older than 7 days or in the future are refused.",
+        "operationId": "habitCheckinToggle",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Habit card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Habit card instance id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinToggleInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinToggleResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/habit/instances/{instance_id}/checkins": {
+      "get": {
+        "tags": [
+          "habit"
+        ],
+        "summary": "List the checked days of a habit within a date range.",
+        "description": "Use to see which days a habit was done. The range is at most 400 days and in the\nProgram's time zone.",
+        "operationId": "habitCheckinsList",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Habit card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Habit card instance id"
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "First day to list (inclusive)",
+              "title": "From Date"
+            },
+            "description": "First day to list (inclusive)"
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Last day to list (inclusive)",
+              "title": "To Date"
+            },
+            "description": "Last day to list (inclusive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/habit/instances/{instance_id}/stats": {
+      "get": {
+        "tags": [
+          "habit"
+        ],
+        "summary": "Current streak, longest streak and total check-ins of a habit.",
+        "description": "Use to answer how long the user's streak is or how often they did a habit. For a\nweekly goal the streaks count weeks that reached the weekly target; a streak stays alive while\nthe running day (or week) is still open. Also returns today's date in the Program's time zone.",
+        "operationId": "habitStats",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Habit card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Habit card instance id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitStats"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/layouts/boards/{scope_type}/{scope_id}": {
       "get": {
         "tags": [
@@ -3086,6 +3255,156 @@
         }
       }
     },
+    "/pomodoro/sessions": {
+      "post": {
+        "tags": [
+          "pomodoro"
+        ],
+        "summary": "Record a finished pomodoro focus session.",
+        "description": "Called by the pomodoro card when a focus session completes. Do not use it to\nlog time the user only mentions in chat: sessions come from the timer.",
+        "operationId": "pomodoroSessionRecord",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRecordInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionRecorded"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pomodoro/stats": {
+      "get": {
+        "tags": [
+          "pomodoro"
+        ],
+        "summary": "Focus time per day and per course from the pomodoro timer.",
+        "description": "Use to answer how long the user focused, e.g. \"how long did I study APS105 this\nweek\". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the\nlast 7 days. Days follow the Program's time zone.",
+        "operationId": "pomodoroStats",
+        "parameters": [
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (inclusive); defaults to 6 days before to_date",
+              "title": "From Date"
+            },
+            "description": "First day (inclusive); defaults to 6 days before to_date"
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (inclusive); defaults to today",
+              "title": "To Date"
+            },
+            "description": "Last day (inclusive); defaults to today"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only count focus time spent on this course",
+              "title": "Course Id"
+            },
+            "description": "Only count focus time spent on this course"
+          },
+          {
+            "name": "program_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Program whose time zone defines the days; defaults to the active Program",
+              "title": "Program Id"
+            },
+            "description": "Program whose time zone defines the days; defaults to the active Program"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PomodoroStats"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/me/preferences": {
       "get": {
         "tags": [
@@ -3496,6 +3815,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResolvedSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/sticky/notes": {
+      "get": {
+        "tags": [
+          "sticky"
+        ],
+        "summary": "List the sticky notes on a Program, term or course board.",
+        "description": "Use to find a note before reading or changing it (\"what is in my note for this\ncourse\"). Returns each note's instance_id and Markdown text.",
+        "operationId": "stickyNoteList",
+        "parameters": [
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "program",
+                "term",
+                "course"
+              ],
+              "type": "string",
+              "description": "Kind of board the note sits on",
+              "title": "Scope Type"
+            },
+            "description": "Kind of board the note sits on"
+          },
+          {
+            "name": "scope_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id of that Program, term or course",
+              "title": "Scope Id"
+            },
+            "description": "Id of that Program, term or course"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/sticky/notes/{instance_id}": {
+      "put": {
+        "tags": [
+          "sticky"
+        ],
+        "summary": "Replace the text of a sticky note.",
+        "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"). It replaces the whole text, so call sticky.note.list first and send\nthe old text with the new lines added. At most 10 000 characters.",
+        "operationId": "stickyNoteUpdate",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Sticky note card instance id",
+              "title": "Instance Id"
+            },
+            "description": "Sticky note card instance id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Note"
                 }
               }
             }
@@ -4015,6 +4450,63 @@
         ],
         "title": "CardSettingsUpdateInputBody"
       },
+      "CheckinList": {
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Checked days, ascending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CheckinList"
+      },
+      "CheckinToggleInputBody": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date",
+            "description": "Day to check or uncheck, in the Program's time zone: today or up to 7 days ago"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "CheckinToggleInputBody"
+      },
+      "CheckinToggleResult": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "checked": {
+            "type": "boolean",
+            "title": "Checked",
+            "description": "Whether the day is checked after the call"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/HabitStats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "checked",
+          "stats"
+        ],
+        "title": "CheckinToggleResult"
+      },
       "Course": {
         "properties": {
           "id": {
@@ -4277,7 +4769,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -4422,7 +4915,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -4586,7 +5080,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -4610,6 +5105,37 @@
         ],
         "title": "CourseFields",
         "description": "Fields shared by course creation inputs."
+      },
+      "CourseFocus": {
+        "properties": {
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Null for focus time not tied to a course"
+          },
+          "focus_sec": {
+            "type": "integer",
+            "title": "Focus Sec"
+          },
+          "sessions": {
+            "type": "integer",
+            "title": "Sessions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "focus_sec",
+          "sessions"
+        ],
+        "title": "CourseFocus"
       },
       "CourseList": {
         "properties": {
@@ -4845,7 +5371,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -4883,6 +5410,30 @@
         },
         "type": "object",
         "title": "CourseUpdateInputBody"
+      },
+      "DayFocus": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "focus_sec": {
+            "type": "integer",
+            "title": "Focus Sec"
+          },
+          "sessions": {
+            "type": "integer",
+            "title": "Sessions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "focus_sec",
+          "sessions"
+        ],
+        "title": "DayFocus"
       },
       "Deleted": {
         "properties": {
@@ -5079,6 +5630,80 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HabitStats": {
+        "properties": {
+          "goal": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "weekly"
+            ],
+            "title": "Goal"
+          },
+          "weekly_target": {
+            "type": "integer",
+            "title": "Weekly Target",
+            "description": "Check-ins needed per week (weekly goal)"
+          },
+          "current_streak": {
+            "type": "integer",
+            "title": "Current Streak",
+            "description": "Days (daily goal) or weeks (weekly goal) in a row"
+          },
+          "longest_streak": {
+            "type": "integer",
+            "title": "Longest Streak"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "All checked days"
+          },
+          "period_done": {
+            "type": "integer",
+            "title": "Period Done",
+            "description": "Check-ins in the current day (daily) or week (weekly)"
+          },
+          "period_target": {
+            "type": "integer",
+            "title": "Period Target",
+            "description": "1 for a daily goal, the weekly target otherwise"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "Today in the Program's time zone"
+          },
+          "week_start": {
+            "type": "integer",
+            "enum": [
+              1,
+              7
+            ],
+            "title": "Week Start",
+            "description": "First day of the week: 1 Monday, 7 Sunday"
+          },
+          "checked_today": {
+            "type": "boolean",
+            "title": "Checked Today"
+          }
+        },
+        "type": "object",
+        "required": [
+          "goal",
+          "weekly_target",
+          "current_streak",
+          "longest_streak",
+          "total",
+          "period_done",
+          "period_target",
+          "today",
+          "week_start",
+          "checked_today"
+        ],
+        "title": "HabitStats"
       },
       "Health": {
         "properties": {
@@ -5429,6 +6054,66 @@
         ],
         "title": "NavUpdateInputBody"
       },
+      "Note": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "title": "Instance Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "content"
+        ],
+        "title": "Note"
+      },
+      "NoteList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Note"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "NoteList"
+      },
+      "NoteUpdateInputBody": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 10000,
+            "title": "Content",
+            "description": "The new Markdown text of the note; replaces the old text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "NoteUpdateInputBody"
+      },
       "PaletteColor": {
         "properties": {
           "palette": {
@@ -5650,6 +6335,66 @@
           "capabilities"
         ],
         "title": "PluginProvides"
+      },
+      "PomodoroStats": {
+        "properties": {
+          "from_date": {
+            "type": "string",
+            "format": "date",
+            "title": "From Date"
+          },
+          "to_date": {
+            "type": "string",
+            "format": "date",
+            "title": "To Date"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "Today in the time zone used for the days"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "total_focus_sec": {
+            "type": "integer",
+            "title": "Total Focus Sec"
+          },
+          "total_sessions": {
+            "type": "integer",
+            "title": "Total Sessions"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayFocus"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "Days with focus time, ascending"
+          },
+          "by_course": {
+            "items": {
+              "$ref": "#/components/schemas/CourseFocus"
+            },
+            "type": "array",
+            "title": "By Course",
+            "description": "Focus time per course, longest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_date",
+          "to_date",
+          "today",
+          "timezone",
+          "total_focus_sec",
+          "total_sessions",
+          "days",
+          "by_course"
+        ],
+        "title": "PomodoroStats"
       },
       "Preferences": {
         "properties": {
@@ -6059,7 +6804,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100.0,
+                "maximum": 10000.0,
                 "minimum": 0.0
               },
               {
@@ -6162,7 +6907,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100.0,
+                "maximum": 10000.0,
                 "minimum": 0.0
               },
               {
@@ -6432,6 +7177,87 @@
           "current"
         ],
         "title": "SessionOut"
+      },
+      "SessionRecordInputBody": {
+        "properties": {
+          "instance_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance Id",
+            "description": "Pomodoro card instance id"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course the focus time was spent on, if any"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At",
+            "description": "When the session started (UTC, timezone-aware)"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At",
+            "description": "When the session ended (UTC, timezone-aware)"
+          },
+          "duration_sec": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 1.0,
+            "title": "Duration Sec",
+            "description": "Seconds actually spent, without pauses"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "focus",
+              "short_break",
+              "long_break"
+            ],
+            "title": "Mode",
+            "description": "Only focus sessions count towards statistics",
+            "default": "focus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "started_at",
+          "ended_at",
+          "duration_sec"
+        ],
+        "title": "SessionRecordInputBody"
+      },
+      "SessionRecorded": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate",
+            "description": "True when this session had been recorded before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "duplicate"
+        ],
+        "title": "SessionRecorded"
       },
       "SettingsSchemaList": {
         "properties": {

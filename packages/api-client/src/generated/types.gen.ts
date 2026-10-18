@@ -321,6 +321,47 @@ export type CardSettingsUpdateInputBody = {
 };
 
 /**
+ * CheckinList
+ */
+export type CheckinList = {
+    /**
+     * Items
+     *
+     * Checked days, ascending
+     */
+    items: Array<string>;
+};
+
+/**
+ * CheckinToggleInputBody
+ */
+export type CheckinToggleInputBody = {
+    /**
+     * Date
+     *
+     * Day to check or uncheck, in the Program's time zone: today or up to 7 days ago
+     */
+    date: string;
+};
+
+/**
+ * CheckinToggleResult
+ */
+export type CheckinToggleResult = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Checked
+     *
+     * Whether the day is checked after the call
+     */
+    checked: boolean;
+    stats: HabitStats;
+};
+
+/**
  * Course
  */
 export type Course = {
@@ -653,6 +694,26 @@ export type CourseFields = {
 };
 
 /**
+ * CourseFocus
+ */
+export type CourseFocus = {
+    /**
+     * Course Id
+     *
+     * Null for focus time not tied to a course
+     */
+    course_id: string | null;
+    /**
+     * Focus Sec
+     */
+    focus_sec: number;
+    /**
+     * Sessions
+     */
+    sessions: number;
+};
+
+/**
  * CourseList
  */
 export type CourseList = {
@@ -790,6 +851,24 @@ export type CourseUpdateInputBody = {
      * Default position within a term
      */
     sort_order?: number | null;
+};
+
+/**
+ * DayFocus
+ */
+export type DayFocus = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Focus Sec
+     */
+    focus_sec: number;
+    /**
+     * Sessions
+     */
+    sessions: number;
 };
 
 /**
@@ -935,6 +1014,66 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * HabitStats
+ */
+export type HabitStats = {
+    /**
+     * Goal
+     */
+    goal: 'daily' | 'weekly';
+    /**
+     * Weekly Target
+     *
+     * Check-ins needed per week (weekly goal)
+     */
+    weekly_target: number;
+    /**
+     * Current Streak
+     *
+     * Days (daily goal) or weeks (weekly goal) in a row
+     */
+    current_streak: number;
+    /**
+     * Longest Streak
+     */
+    longest_streak: number;
+    /**
+     * Total
+     *
+     * All checked days
+     */
+    total: number;
+    /**
+     * Period Done
+     *
+     * Check-ins in the current day (daily) or week (weekly)
+     */
+    period_done: number;
+    /**
+     * Period Target
+     *
+     * 1 for a daily goal, the weekly target otherwise
+     */
+    period_target: number;
+    /**
+     * Today
+     *
+     * Today in the Program's time zone
+     */
+    today: string;
+    /**
+     * Week Start
+     *
+     * First day of the week: 1 Monday, 7 Sunday
+     */
+    week_start: 1 | 7;
+    /**
+     * Checked Today
+     */
+    checked_today: boolean;
 };
 
 /**
@@ -1132,6 +1271,46 @@ export type NavUpdateInputBody = {
 };
 
 /**
+ * Note
+ */
+export type Note = {
+    /**
+     * Instance Id
+     */
+    instance_id: string;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Color
+     */
+    color?: string | null;
+};
+
+/**
+ * NoteList
+ */
+export type NoteList = {
+    /**
+     * Items
+     */
+    items: Array<Note>;
+};
+
+/**
+ * NoteUpdateInputBody
+ */
+export type NoteUpdateInputBody = {
+    /**
+     * Content
+     *
+     * The new Markdown text of the note; replaces the old text
+     */
+    content: string;
+};
+
+/**
  * PaletteColor
  */
 export type PaletteColor = {
@@ -1282,6 +1461,50 @@ export type PluginProvides = {
      * Capability names gated by the plugin
      */
     capabilities: Array<string>;
+};
+
+/**
+ * PomodoroStats
+ */
+export type PomodoroStats = {
+    /**
+     * From Date
+     */
+    from_date: string;
+    /**
+     * To Date
+     */
+    to_date: string;
+    /**
+     * Today
+     *
+     * Today in the time zone used for the days
+     */
+    today: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Total Focus Sec
+     */
+    total_focus_sec: number;
+    /**
+     * Total Sessions
+     */
+    total_sessions: number;
+    /**
+     * Days
+     *
+     * Days with focus time, ascending
+     */
+    days: Array<DayFocus>;
+    /**
+     * By Course
+     *
+     * Focus time per course, longest first
+     */
+    by_course: Array<CourseFocus>;
 };
 
 /**
@@ -1704,6 +1927,64 @@ export type SessionOut = {
      * Current
      */
     current: boolean;
+};
+
+/**
+ * SessionRecordInputBody
+ */
+export type SessionRecordInputBody = {
+    /**
+     * Instance Id
+     *
+     * Pomodoro card instance id
+     */
+    instance_id: string;
+    /**
+     * Course Id
+     *
+     * Course the focus time was spent on, if any
+     */
+    course_id?: string | null;
+    /**
+     * Started At
+     *
+     * When the session started (UTC, timezone-aware)
+     */
+    started_at: string;
+    /**
+     * Ended At
+     *
+     * When the session ended (UTC, timezone-aware)
+     */
+    ended_at: string;
+    /**
+     * Duration Sec
+     *
+     * Seconds actually spent, without pauses
+     */
+    duration_sec: number;
+    /**
+     * Mode
+     *
+     * Only focus sessions count towards statistics
+     */
+    mode?: 'focus' | 'short_break' | 'long_break';
+};
+
+/**
+ * SessionRecorded
+ */
+export type SessionRecorded = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Duplicate
+     *
+     * True when this session had been recorded before
+     */
+    duplicate: boolean;
 };
 
 /**
@@ -3802,6 +4083,115 @@ export type CoreStorageUsageResponses = {
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
 
+export type HabitCheckinToggleData = {
+    body: CheckinToggleInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Habit card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/habit/instances/{instance_id}/checkins/toggle';
+};
+
+export type HabitCheckinToggleErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type HabitCheckinToggleError = HabitCheckinToggleErrors[keyof HabitCheckinToggleErrors];
+
+export type HabitCheckinToggleResponses = {
+    /**
+     * Successful Response
+     */
+    200: CheckinToggleResult;
+};
+
+export type HabitCheckinToggleResponse = HabitCheckinToggleResponses[keyof HabitCheckinToggleResponses];
+
+export type HabitCheckinsListData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Habit card instance id
+         */
+        instance_id: string;
+    };
+    query: {
+        /**
+         * From Date
+         *
+         * First day to list (inclusive)
+         */
+        from_date: string;
+        /**
+         * To Date
+         *
+         * Last day to list (inclusive)
+         */
+        to_date: string;
+    };
+    url: '/habit/instances/{instance_id}/checkins';
+};
+
+export type HabitCheckinsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type HabitCheckinsListError = HabitCheckinsListErrors[keyof HabitCheckinsListErrors];
+
+export type HabitCheckinsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CheckinList;
+};
+
+export type HabitCheckinsListResponse = HabitCheckinsListResponses[keyof HabitCheckinsListResponses];
+
+export type HabitStatsData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Habit card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/habit/instances/{instance_id}/stats';
+};
+
+export type HabitStatsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type HabitStatsError = HabitStatsErrors[keyof HabitStatsErrors];
+
+export type HabitStatsResponses = {
+    /**
+     * Successful Response
+     */
+    200: HabitStats;
+};
+
+export type HabitStatsResponse = HabitStatsResponses[keyof HabitStatsResponses];
+
 export type LayoutsBoardGetData = {
     body?: never;
     path: {
@@ -4268,6 +4658,81 @@ export type PluginsInstallResponses = {
 
 export type PluginsInstallResponse = PluginsInstallResponses[keyof PluginsInstallResponses];
 
+export type PomodoroSessionRecordData = {
+    body: SessionRecordInputBody;
+    path?: never;
+    query?: never;
+    url: '/pomodoro/sessions';
+};
+
+export type PomodoroSessionRecordErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PomodoroSessionRecordError = PomodoroSessionRecordErrors[keyof PomodoroSessionRecordErrors];
+
+export type PomodoroSessionRecordResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionRecorded;
+};
+
+export type PomodoroSessionRecordResponse = PomodoroSessionRecordResponses[keyof PomodoroSessionRecordResponses];
+
+export type PomodoroStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * From Date
+         *
+         * First day (inclusive); defaults to 6 days before to_date
+         */
+        from_date?: string | null;
+        /**
+         * To Date
+         *
+         * Last day (inclusive); defaults to today
+         */
+        to_date?: string | null;
+        /**
+         * Course Id
+         *
+         * Only count focus time spent on this course
+         */
+        course_id?: string | null;
+        /**
+         * Program Id
+         *
+         * Program whose time zone defines the days; defaults to the active Program
+         */
+        program_id?: string | null;
+    };
+    url: '/pomodoro/stats';
+};
+
+export type PomodoroStatsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PomodoroStatsError = PomodoroStatsErrors[keyof PomodoroStatsErrors];
+
+export type PomodoroStatsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PomodoroStats;
+};
+
+export type PomodoroStatsResponse = PomodoroStatsResponses[keyof PomodoroStatsResponses];
+
 export type SettingsPreferencesGetData = {
     body?: never;
     path?: never;
@@ -4527,3 +4992,73 @@ export type SettingsValuesResetResponses = {
 };
 
 export type SettingsValuesResetResponse = SettingsValuesResetResponses[keyof SettingsValuesResetResponses];
+
+export type StickyNoteListData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Scope Type
+         *
+         * Kind of board the note sits on
+         */
+        scope_type: 'program' | 'term' | 'course';
+        /**
+         * Scope Id
+         *
+         * Id of that Program, term or course
+         */
+        scope_id: string;
+    };
+    url: '/sticky/notes';
+};
+
+export type StickyNoteListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type StickyNoteListError = StickyNoteListErrors[keyof StickyNoteListErrors];
+
+export type StickyNoteListResponses = {
+    /**
+     * Successful Response
+     */
+    200: NoteList;
+};
+
+export type StickyNoteListResponse = StickyNoteListResponses[keyof StickyNoteListResponses];
+
+export type StickyNoteUpdateData = {
+    body: NoteUpdateInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Sticky note card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/sticky/notes/{instance_id}';
+};
+
+export type StickyNoteUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type StickyNoteUpdateError = StickyNoteUpdateErrors[keyof StickyNoteUpdateErrors];
+
+export type StickyNoteUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Note;
+};
+
+export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];
