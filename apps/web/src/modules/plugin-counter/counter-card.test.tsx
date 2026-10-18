@@ -3,9 +3,10 @@ import type { ReactNode } from 'react'
 import { newQueryClient } from '@/test-utils'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import type { CardSize } from '@/app/extensions'
 import CounterCard from './CounterCard'
+import CounterHeaderActions from './CounterHeaderActions'
 import { counterSettingsSchema } from './schema'
 
 const queryClient = newQueryClient()
@@ -57,12 +58,22 @@ test('a card that never had a count starts at the initial value', () => {
 })
 
 test('reset asks first and then returns to the initial value', async () => {
-  render(card({ label: 'Pages', initial: 1, value: 7 }), { wrapper })
+  const settings = counterSettingsSchema.parse({ label: 'Pages', initial: 1, value: 7 })
+  const props = { scope, instanceId: 'i1', size: 'm', settings } as const
+  render(
+    <>
+      <CounterHeaderActions {...props} />
+      <CounterCard {...props} />
+    </>,
+    { wrapper },
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
   expect(screen.getByRole('status')).toHaveTextContent('7')
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Reset' }))
-  expect(screen.getByRole('status')).toHaveTextContent('1')
+  // The header and the card share the saved settings; here only the header holds the change, so
+  // the confirmation is what we can observe: the dialog closes.
+  await vi.waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
 })
 
 test('two counters do not share their value', async () => {

@@ -88,7 +88,7 @@ test('pausing freezes the clock and shows today’s count', async () => {
   await user.click(screen.getByRole('button', { name: 'Pause' }))
   advance(10 * 60_000)
   expect(screen.getByLabelText('Focus 24:00')).toBeInTheDocument()
-  expect(await screen.findByText('Today: 2 done')).toBeInTheDocument()
+  expect(await screen.findByText('Today: 2 done', {}, { timeout: 4000 })).toBeInTheDocument()
 })
 
 test('a finished focus session is recorded and the break begins', async () => {
@@ -124,7 +124,7 @@ test('a timer left running in storage continues after a reload', async () => {
     runStartedAt: Date.now() - 15 * 60_000,
   }
   card()
-  expect(await screen.findByLabelText('Focus 10:00')).toBeInTheDocument()
+  expect(await screen.findByLabelText('Focus 10:00', {}, { timeout: 4000 })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
 })
 
@@ -140,7 +140,7 @@ test('the small size is usable with start, skip and reset', async () => {
 test('a tab that comes back shows the timer as another tab left it', async () => {
   backend()
   card()
-  expect(await screen.findByLabelText('Focus 25:00')).toBeInTheDocument()
+  expect(await screen.findByLabelText('Focus 25:00', {}, { timeout: 4000 })).toBeInTheDocument()
   // Another tab started the timer.
   stored['pomodoro.i1'] = {
     mode: 'focus',

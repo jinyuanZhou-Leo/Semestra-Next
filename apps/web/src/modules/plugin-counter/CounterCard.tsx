@@ -1,7 +1,5 @@
-import { Minus, Plus, RotateCcw } from 'lucide-react'
-import { useState } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -13,7 +11,6 @@ import type { CounterSettings } from './schema'
 /** Counter card (M14 §1): a count between a minimum and a maximum, optionally as a ring. */
 export default function CounterCard({ instanceId, size, settings }: CardProps<CounterSettings>) {
   const { value: current, update } = useCardSettings(instanceId, settings, 300)
-  const [confirmReset, setConfirmReset] = useState(false)
   const count = currentValue(current)
   const label = current.label || m.counter_default_label()
   const showRing = current.show_ring && size !== 's'
@@ -57,21 +54,9 @@ export default function CounterCard({ instanceId, size, settings }: CardProps<Co
 
   return (
     <div className="relative flex h-full flex-col justify-between gap-2">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate text-sm text-muted-foreground" title={label}>
-          {label}
-        </p>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={m.counter_reset()}
-          title={m.counter_reset()}
-          onClick={() => setConfirmReset(true)}
-          className="-mt-1 -mr-1 shrink-0 text-muted-foreground"
-        >
-          <RotateCcw aria-hidden />
-        </Button>
-      </div>
+      <p className="min-w-0 truncate text-sm text-muted-foreground" title={label}>
+        {label}
+      </p>
       {showRing ? (
         <div className="flex min-h-0 flex-1 items-center justify-between gap-3">
           <Ring ratio={ratio(current)} className="h-full max-h-24" strokeWidth={9}>
@@ -85,17 +70,6 @@ export default function CounterCard({ instanceId, size, settings }: CardProps<Co
           {controls}
         </div>
       )}
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title={m.counter_reset_title({ label })}
-        description={m.counter_reset_description({ initial: current.initial })}
-        confirmLabel={m.counter_reset()}
-        onConfirm={() => {
-          update({ value: current.initial })
-          setConfirmReset(false)
-        }}
-      />
     </div>
   )
 }

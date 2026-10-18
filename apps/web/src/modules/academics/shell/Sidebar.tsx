@@ -15,12 +15,15 @@ import {
   PinOff,
   Plus,
   Repeat,
+  Search,
   Settings,
   Sun,
   Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
+import { openCommandPalette } from '@/app/commands'
 import { scopePath, scopeSettingsPath } from '@/app/extensions'
+import { formatHotkey } from '@/app/hotkeys'
 import { usePages } from '@/app/registry'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useUiPref } from '@/app/ui-pref'
@@ -30,6 +33,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Kbd } from '@/ui/kbd'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -403,6 +407,16 @@ export function Sidebar({ programId, collapsed, onToggleCollapsed, drawer, onNav
         >
           <PanelLeftOpen aria-hidden />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          data-tour="command-palette"
+          onClick={() => openCommandPalette()}
+          aria-label={m.commands_open()}
+          title={`${m.commands_open()} (${formatHotkey('mod+k')})`}
+        >
+          <Search aria-hidden />
+        </Button>
         <div className="mt-2 flex w-full flex-col gap-1">
           <NavLink
             collapsed
@@ -429,6 +443,7 @@ export function Sidebar({ programId, collapsed, onToggleCollapsed, drawer, onNav
           />
         </div>
         <div className="mt-auto flex w-full flex-col gap-1">
+          <StatusBar collapsed />
           <NavLink
             collapsed
             href={settingsHref}
@@ -472,6 +487,19 @@ export function Sidebar({ programId, collapsed, onToggleCollapsed, drawer, onNav
           </Button>
         )}
       </div>
+
+      {drawer ? null : (
+        <button
+          type="button"
+          data-tour="command-palette"
+          onClick={() => openCommandPalette()}
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground ring-1 ring-foreground/10 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <Search aria-hidden className="size-4" />
+          <span className="flex-1 truncate text-left">{m.commands_open()}</span>
+          <Kbd>{formatHotkey('mod+k')}</Kbd>
+        </button>
+      )}
 
       <div className="space-y-0.5">
         {drawer ? null : (

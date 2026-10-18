@@ -1,3 +1,4 @@
+import type { JobOut } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { ZodType } from 'zod'
@@ -58,10 +59,17 @@ export type CardContribution = {
   // Each card declares its own settings type; the host only passes what `settings.schema` parses.
   // oxlint-disable-next-line no-explicit-any
   component: Lazy<CardProps<any>>
+  /**
+   * Per-instance settings, edited from the card's gear button: `component` if given, else a
+   * form generated from `schema` (texts `settings_card_<card id>_<field>_label|_description`,
+   * dots and dashes as underscores). `fields` hides fields the card itself writes (a counter's
+   * value) or orders them. The schema's JSON Schema is exported to the backend for validation.
+   */
   settings?: {
     schema: ZodType
     // oxlint-disable-next-line no-explicit-any
     component?: ComponentType<{ value: any; onChange: (value: any) => void }>
+    fields?: FieldOverrides
   }
   multiple: boolean
   /** Buttons in the card's header next to its title (e.g. a counter's reset). */
@@ -145,6 +153,10 @@ export type CommandContribution = {
   keywords?: readonly string[]
   icon?: LucideIcon
   scopes?: readonly ScopeKind[]
+  /** Hides the command when it cannot run here, e.g. "Add card" on a page without a board. */
+  isAvailable?: (ctx: CommandContext) => boolean
+  /** A shortcut shown next to the command (the shortcut itself is registered with `useHotkey`). */
+  hotkey?: string
 } & (
   | { run: (ctx: CommandContext) => void | Promise<void> }
   | { to: string }
@@ -161,6 +173,20 @@ export type CommandChild = {
   /** A colour dot, e.g. a course colour. */
   dot?: string
 } & ({ run: (ctx: CommandContext) => void | Promise<void> } | { to: string })
+
+/**
+ * Entries of the palette's "Navigation" group besides the scope's pages (M10 §5.4), e.g. the
+ * terms and courses of the Program. `useItems` is a hook, called while the palette is open.
+ */
+export type NavigationSourceContribution = {
+  id: string
+  useItems: (ctx: CommandContext) => readonly CommandChild[]
+}
+
+/** The AI assistant (M12): `Cmd/Ctrl + J` and the palette's "Ask AI" call `open`. */
+export type AssistantContribution = {
+  open: (ctx: CommandContext, question?: string) => void
+}
 
 /** Defined by M04; kept open here so M04 can refine it without changing the contract. */
 export type CalendarSourceContribution = { id: string; title: Message } & Record<string, unknown>
@@ -195,6 +221,17 @@ export type StatusItemContribution = {
   useStatus: () => StatusItem | null
 }
 
+/**
+ * How the status bar names a kind of background job (`core_jobs.kind`) and where clicking it goes,
+ * e.g. the import review page of a syllabus parse (M10 §5.6).
+ */
+export type JobKindContribution = {
+  kind: string
+  title: Message
+  /** The page the job belongs to; `job.result` is available once it has finished. */
+  to?: (job: JobOut) => string | undefined
+}
+
 /** `operationId` of a generated query (e.g. `coreJobList`): all its cached queries are refetched. */
 export type QueryKeyPrefix = string
 
@@ -205,13 +242,19 @@ export type ModuleManifest = {
   name: Message
   description: Message
   icon: LucideIcon
+  /** What a plugin needs before it is useful, shown on its catalog page (M10 §5.3). */
+  requirements?: Message
   pages?: readonly PageContribution[]
   cards?: readonly CardContribution[]
   settingsSections?: readonly SettingsSectionContribution[]
   commands?: readonly CommandContribution[]
+  navigationSources?: readonly NavigationSourceContribution[]
+  /** At most one module provides the assistant. */
+  assistant?: AssistantContribution
   calendarSources?: readonly CalendarSourceContribution[]
   searchProviders?: readonly SearchProviderContribution[]
   statusItems?: readonly StatusItemContribution[]
+  jobKinds?: readonly JobKindContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */

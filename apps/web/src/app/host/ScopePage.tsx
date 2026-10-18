@@ -1,9 +1,9 @@
 import { FileQuestion } from 'lucide-react'
-import { Suspense } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
 import type { Scope } from '../extensions'
 import { usePages } from '../registry'
+import { PluginBoundary } from './PluginBoundary'
 
 /** Renders the page `pageId` of a scope, or an "unavailable" state for unknown ids (M00 §4.3). */
 export function ScopePage({ scope, pageId }: { scope: Scope; pageId: string }) {
@@ -19,8 +19,8 @@ export function ScopePage({ scope, pageId }: { scope: Scope; pageId: string }) {
   }
   const Page = page.component
   return (
-    <Suspense fallback={null}>
+    <PluginBoundary key={`${pageId}:${JSON.stringify(scope)}`}>
       <Page scope={scope} />
-    </Suspense>
+    </PluginBoundary>
   )
 }

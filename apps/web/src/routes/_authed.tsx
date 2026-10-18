@@ -1,8 +1,10 @@
-import { accountMeGetOptions } from '@semestra/api-client/react-query'
+import { accountMeGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { toApiError } from '@/app/api'
+import { CommandCenter } from '@/app/commands'
 import { PreferencesSync } from '@/app/preferences'
 import { useRealtime } from '@/app/realtime'
+import { InstalledPluginsProvider } from '@/app/registry'
 import { prefetchUiPrefs } from '@/app/ui-pref'
 
 /** Everything below requires a signed-in user; others are sent to /login?redirect=… */
@@ -15,6 +17,8 @@ export const Route = createFileRoute('/_authed')({
       })
       // Not awaited: pages that read UI state wait for it themselves (see `useUiPref`).
       void prefetchUiPrefs(context.queryClient)
+      // Which plugins are installed decides the pages, cards and commands shown (M10).
+      void context.queryClient.prefetchQuery(pluginsCatalogListOptions())
     } catch (err) {
       if (toApiError(err).status === 401) {
         throw redirect({ to: '/login', search: { redirect: location.href } })
@@ -28,9 +32,10 @@ export const Route = createFileRoute('/_authed')({
 function AuthedLayout() {
   useRealtime()
   return (
-    <>
+    <InstalledPluginsProvider>
       <PreferencesSync />
       <Outlet />
-    </>
+      <CommandCenter />
+    </InstalledPluginsProvider>
   )
 }

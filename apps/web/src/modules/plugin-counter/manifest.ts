@@ -2,6 +2,7 @@ import { Hash } from 'lucide-react'
 import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import CounterHeaderActions from './CounterHeaderActions'
 import { counterSettingsSchema } from './schema'
 
 /** M14 §1 计数器: a counter card with a range, a step and an optional ring. */
@@ -25,6 +26,7 @@ export default defineModule({
         component: lazy(() => import('./CounterSettingsForm')),
       },
       multiple: true,
+      headerActions: CounterHeaderActions,
     },
   ],
 })
