@@ -4,17 +4,19 @@ import {
   accountProfileUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { TextField } from '@/components/TextField'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Field, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { SettingsCard } from './SettingsCard'
 import { UserAvatar } from './UserAvatar'
 
 export function ProfileSection({ user }: { user: UserOut }) {
   const queryClient = useQueryClient()
+  const id = useId()
   const [name, setName] = useState(user.display_name)
   const update = useMutation({
     ...accountProfileUpdateMutation(),
@@ -50,14 +52,16 @@ export function ProfileSection({ user }: { user: UserOut }) {
         </div>
       </div>
       <form onSubmit={submit} className="flex items-end gap-3">
-        <TextField
-          className="flex-1"
-          label={m.auth_display_name_label()}
-          value={name}
-          maxLength={60}
-          onChange={(e) => setName(e.target.value)}
-          disabled={update.isPending}
-        />
+        <Field className="flex-1">
+          <FieldLabel htmlFor={id}>{m.auth_display_name_label()}</FieldLabel>
+          <Input
+            id={id}
+            value={name}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+            disabled={update.isPending}
+          />
+        </Field>
         <Button type="submit" disabled={!dirty || update.isPending}>
           {update.isPending ? m.common_saving() : m.common_save()}
         </Button>

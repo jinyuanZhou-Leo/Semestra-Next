@@ -461,7 +461,9 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
   await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'Tokens' }))
   expect(rows()[0]).toContain('Reading documents')
 
-  await user.click(screen.getByRole('radio', { name: 'Model' }))
+  const model = screen.getByRole('button', { name: 'Model' })
+  await user.click(model)
+  expect(model).toHaveAttribute('aria-pressed', 'true')
   expect(rows()).toEqual([
     'claude-sonnet-5-5 (Anthropic)10 (1 failed)34,000$0.20',
     'qwen3:8b (Ollama)211,000$0.00',

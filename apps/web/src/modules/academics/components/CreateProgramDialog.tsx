@@ -3,8 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { AppDialogContent } from '@/components/AppDialogContent'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { newTermPath } from '../paths'
 import { invalidateAcademics } from '../queries'
 import { ProgramForm } from './ProgramForm'
@@ -30,7 +29,7 @@ export function CreateProgramDialog({
   })
   return (
     <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
-      <AppDialogContent>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.academics_program_new()}</DialogTitle>
           <DialogDescription>{m.academics_program_new_description()}</DialogDescription>
@@ -42,7 +41,7 @@ export function CreateProgramDialog({
             onSubmit={(body) => create.mutate({ body })}
           />
         ) : null}
-      </AppDialogContent>
+      </DialogContent>
     </Dialog>
   )
 }
