@@ -102,8 +102,8 @@ test('controls are generated from the JSON Schema and use the field messages', a
   renderWithQuery(<NamespaceForm namespace={NAMESPACE} level="account" />)
 
   expect(await screen.findByRole('switch', { name: 'Compact task list' })).not.toBeChecked()
-  expect(screen.getByRole('radio', { name: 'Casual' })).toBeChecked()
-  expect(screen.getByRole('radio', { name: 'Formal' })).not.toBeChecked()
+  expect(screen.getByRole('button', { name: 'Casual' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Formal' })).toHaveAttribute('aria-pressed', 'false')
   expect(screen.getByRole('spinbutton', { name: 'Countdown steps' })).toHaveValue(3)
   // Account level has no "inherited" labels.
   expect(screen.queryByText('Default')).not.toBeInTheDocument()
@@ -114,7 +114,7 @@ test('changes are merged into one request and the section shows Saving… then S
   renderWithQuery(<SectionFrame section={section} />)
 
   await userEvent.click(await screen.findByRole('switch', { name: 'Compact task list' }))
-  await userEvent.click(screen.getByRole('radio', { name: 'Formal' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Formal' }))
   expect(store.patches).toEqual([])
 
   expect(await screen.findByText('Saved', {}, { timeout: 3000 })).toBeInTheDocument()
@@ -250,7 +250,7 @@ test('Restore waits for a save that is still running, so the reset is applied la
     />,
   )
 
-  await userEvent.click(await screen.findByRole('radio', { name: 'Formal' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Formal' }))
   await waitFor(() => expect(order).toHaveLength(1), { timeout: 3000 }) // the save is in flight
   await userEvent.click(screen.getAllByRole('button', { name: 'Restore' })[0]!)
   await new Promise((resolve) => setTimeout(resolve, 50))

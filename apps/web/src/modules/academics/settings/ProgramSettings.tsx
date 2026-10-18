@@ -6,15 +6,15 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { DangerZone, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { SettingList } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { ItemGroup, ItemSeparator } from '@/ui/item'
 import { ColorPicker } from '../components/ColorPicker'
 import { TimezoneSelect } from '../components/TimezoneSelect'
 import { invalidateAcademics, useCourses, useProgram } from '../queries'
@@ -58,18 +58,20 @@ function ProgramBasics({ program }: { program: Program }) {
   })
   return (
     <>
-      <SettingList>
+      <ItemGroup className="gap-0 rounded-2xl border">
         <TextRow
           label={m.academics_program_name()}
           value={program.name}
           required
           onChange={(name) => queue({ name })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_program_institution()}
           value={program.institution ?? ''}
           onChange={(text) => queue({ institution: text.trim() || null })}
         />
+        <ItemSeparator className="my-0" />
         <ControlRow
           label={m.academics_program_timezone()}
           description={m.academics_program_timezone_hint()}
@@ -85,6 +87,7 @@ function ProgramBasics({ program }: { program: Program }) {
             />
           )}
         </ControlRow>
+        <ItemSeparator className="my-0" />
         <NumberRow
           label={m.academics_program_default_credits()}
           description={m.academics_program_default_credits_hint()}
@@ -92,6 +95,7 @@ function ProgramBasics({ program }: { program: Program }) {
           max={100}
           onChange={(value) => value !== null && queue({ default_course_credits: value })}
         />
+        <ItemSeparator className="my-0" />
         <NumberRow
           label={m.academics_program_credit_requirement()}
           description={m.academics_program_credit_requirement_hint()}
@@ -100,7 +104,7 @@ function ProgramBasics({ program }: { program: Program }) {
           nullable
           onChange={(value) => queue({ credit_requirement: value })}
         />
-      </SettingList>
+      </ItemGroup>
       <DangerZone>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
@@ -148,25 +152,28 @@ export function SubjectColorsSection({ scope }: SettingsSectionProps) {
           return <p className="text-sm text-muted-foreground">{m.academics_subjects_empty()}</p>
         }
         return (
-          <SettingList>
-            {subjects.map((subject) => (
-              <ControlRow key={subject} label={subject}>
-                {() => (
-                  <ColorPicker
-                    label={m.academics_subject_color_of({ subject })}
-                    value={p.subject_colors[subject] ?? null}
-                    onChange={(color) =>
-                      color &&
-                      setColor.mutate({
-                        path: { program_id: p.id, subject_code: subject },
-                        body: { color },
-                      })
-                    }
-                  />
-                )}
-              </ControlRow>
+          <ItemGroup className="gap-0 rounded-2xl border">
+            {subjects.map((subject, index) => (
+              <Fragment key={subject}>
+                {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                <ControlRow label={subject}>
+                  {() => (
+                    <ColorPicker
+                      label={m.academics_subject_color_of({ subject })}
+                      value={p.subject_colors[subject] ?? null}
+                      onChange={(color) =>
+                        color &&
+                        setColor.mutate({
+                          path: { program_id: p.id, subject_code: subject },
+                          body: { color },
+                        })
+                      }
+                    />
+                  )}
+                </ControlRow>
+              </Fragment>
             ))}
-          </SettingList>
+          </ItemGroup>
         )
       }}
     </AsyncBoundary>

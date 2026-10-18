@@ -29,7 +29,7 @@ export function CreateProgramDialog({
   })
   return (
     <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.academics_program_new()}</DialogTitle>
           <DialogDescription>{m.academics_program_new_description()}</DialogDescription>

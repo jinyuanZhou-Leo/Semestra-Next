@@ -7,14 +7,23 @@ import {
 } from '@semestra/api-client/react-query'
 import type { ResolvedSettings } from '@semestra/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { Fragment, useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { SettingList, SettingRow } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
+import { Label } from '@/ui/label'
 import type { FieldOverrides, Scope, SettingsLevel } from '../extensions'
 import { useAutosave } from './autosave'
 import { FieldControlView } from './fields'
@@ -160,57 +169,62 @@ function Form({
   }
 
   return (
-    <SettingList>
-      {fields.map((field) => {
+    <ItemGroup className="gap-0 rounded-2xl border">
+      {fields.map((field, index) => {
         const id = `${idBase}-${field.key}`
         const labelId = `${id}-label`
         const value = field.key in draft ? draft[field.key] : data.values[field.key]
         const source = field.key in draft ? level : data.sources[field.key]
+        const description = fieldDescription(namespace, field.key)
         return (
-          <SettingRow
-            key={field.key}
-            data-field={field.key}
-            label={fieldLabel(namespace, field.key)}
-            labelId={labelId}
-            htmlFor={id}
-            description={fieldDescription(namespace, field.key)}
-            extra={
-              level !== 'account' ? (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  {source === level ? (
-                    <>
-                      <Badge variant="outline">{m.settings_inherit_set_here()}</Badge>
-                      <Button
-                        variant="link"
-                        size="xs"
-                        className="h-auto px-1"
-                        onClick={() => void restore(field.key)}
-                      >
-                        {m.settings_inherit_restore()}
-                      </Button>
-                    </>
-                  ) : (
-                    <Badge variant="secondary">
-                      {source && source !== 'default'
-                        ? m.settings_inherit_from({ level: LEVEL_NAMES[source]() })
-                        : m.settings_inherit_default()}
-                    </Badge>
-                  )}
-                </div>
-              ) : null
-            }
-          >
-            <FieldControlView
-              namespace={namespace}
-              field={field}
-              id={id}
-              labelId={labelId}
-              value={value}
-              onChange={(next) => change(field.key, next)}
-            />
-          </SettingRow>
+          <Fragment key={field.key}>
+            {index > 0 ? <ItemSeparator className="my-0" /> : null}
+            <Item data-field={field.key}>
+              <ItemContent className="min-w-0 basis-64">
+                <ItemTitle>
+                  <Label id={labelId} htmlFor={id}>
+                    {fieldLabel(namespace, field.key)}
+                  </Label>
+                </ItemTitle>
+                {description ? <ItemDescription>{description}</ItemDescription> : null}
+                {level !== 'account' ? (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {source === level ? (
+                      <>
+                        <Badge variant="outline">{m.settings_inherit_set_here()}</Badge>
+                        <Button
+                          variant="link"
+                          size="xs"
+                          className="h-auto px-1"
+                          onClick={() => void restore(field.key)}
+                        >
+                          {m.settings_inherit_restore()}
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="secondary">
+                        {source && source !== 'default'
+                          ? m.settings_inherit_from({ level: LEVEL_NAMES[source]() })
+                          : m.settings_inherit_default()}
+                      </Badge>
+                    )}
+                  </div>
+                ) : null}
+              </ItemContent>
+              <ItemActions>
+                <FieldControlView
+                  namespace={namespace}
+                  field={field}
+                  id={id}
+                  labelId={labelId}
+                  value={value}
+                  onChange={(next) => change(field.key, next)}
+                />
+              </ItemActions>
+            </Item>
+          </Fragment>
         )
       })}
-    </SettingList>
+    </ItemGroup>
   )
 }

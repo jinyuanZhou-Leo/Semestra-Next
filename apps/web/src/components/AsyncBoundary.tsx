@@ -1,10 +1,18 @@
 import type { UseQueryResult } from '@tanstack/react-query'
-import { CircleAlert, Inbox, LoaderCircle } from 'lucide-react'
+import { CircleAlert, Inbox } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { EmptyState } from './EmptyState'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
+import { Spinner } from '@/ui/spinner'
 
 type Props<T> = {
   query: UseQueryResult<T, unknown>
@@ -19,27 +27,42 @@ export function AsyncBoundary<T>({ query, isEmpty, empty, children }: Props<T>) 
   if (query.isPending) {
     return (
       <output className="flex items-center justify-center gap-2 py-12 text-sm">
-        <LoaderCircle aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+        <Spinner aria-hidden className="motion-reduce:animate-none" />
         <span className="text-muted-foreground">{m.common_loading()}</span>
       </output>
     )
   }
   if (query.isError) {
     return (
-      <EmptyState
-        icon={CircleAlert}
-        title={m.common_load_failed()}
-        description={errorMessage(query.error)}
-        action={
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CircleAlert aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.common_load_failed()}</EmptyTitle>
+          <EmptyDescription>{errorMessage(query.error)}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
           <Button variant="outline" onClick={() => void query.refetch()}>
             {m.common_retry()}
           </Button>
-        }
-      />
+        </EmptyContent>
+      </Empty>
     )
   }
   if (isEmpty?.(query.data)) {
-    return empty ?? <EmptyState icon={Inbox} title={m.common_empty()} />
+    return (
+      empty ?? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Inbox aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>{m.common_empty()}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      )
+    )
   }
   return children(query.data)
 }

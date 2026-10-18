@@ -4,7 +4,8 @@ import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { ProgressBar, ProgressRing } from './Progress'
+import { Progress } from '@/ui/progress'
+import { ProgressRing } from './Progress'
 
 /**
  * Read-only progress of a background job (file rows, the status bar, review screens). Use
@@ -75,7 +76,15 @@ export function JobProgress({
         </span>
         <span className="text-muted-foreground tabular-nums">{percent}</span>
       </div>
-      <ProgressBar value={value} tone={tone} label={text} />
+      <Progress
+        value={value}
+        aria-label={text}
+        className={cn(
+          '[&_[data-slot=progress-track]]:h-1',
+          tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+          tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+        )}
+      />
     </div>
   )
 }

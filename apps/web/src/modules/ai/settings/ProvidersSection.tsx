@@ -7,11 +7,10 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { Fragment, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { TextField } from '@/components/TextField'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -26,6 +25,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { CAPABILITY_TITLES, KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
@@ -52,7 +63,7 @@ function EditProviderDialog({
 }) {
   return (
     <Dialog open={provider !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.ai_provider_edit_title()}</DialogTitle>
           <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
@@ -67,6 +78,7 @@ function EditProviderDialog({
 
 function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: () => void }) {
   const queryClient = useQueryClient()
+  const id = useId()
   const info = KIND_INFO[provider.kind]
   const [name, setName] = useState(provider.display_name)
   const [baseUrl, setBaseUrl] = useState(provider.base_url ?? '')
@@ -95,43 +107,53 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
 
   return (
     <form onSubmit={submit} noValidate>
-      <fieldset disabled={update.isPending} className="space-y-4">
-        <TextField
-          label={m.ai_provider_name()}
-          value={name}
-          maxLength={60}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {info.needsBaseUrl ? (
-          <TextField
-            label={m.ai_provider_base_url()}
-            value={baseUrl}
-            spellCheck={false}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        ) : null}
-        <TextField
-          label={m.ai_provider_new_key()}
-          type="password"
-          autoComplete="off"
-          placeholder={provider.key_hint ?? undefined}
-          hint={m.ai_provider_new_key_hint()}
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        {provider.capabilities_editable ? (
-          <CapabilityChecks value={capabilities} onChange={setCapabilities} />
-        ) : null}
-        {update.error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {errorMessage(update.error)}
-          </p>
-        ) : null}
-        <DialogFooter>
-          <Button type="submit">
-            {update.isPending ? m.ai_provider_checking() : m.common_save()}
-          </Button>
-        </DialogFooter>
+      <fieldset disabled={update.isPending}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={`${id}-name`}>{m.ai_provider_name()}</FieldLabel>
+            <Input
+              id={`${id}-name`}
+              value={name}
+              maxLength={60}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+          {info.needsBaseUrl ? (
+            <Field>
+              <FieldLabel htmlFor={`${id}-base-url`}>{m.ai_provider_base_url()}</FieldLabel>
+              <Input
+                id={`${id}-base-url`}
+                value={baseUrl}
+                spellCheck={false}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </Field>
+          ) : null}
+          <Field>
+            <FieldLabel htmlFor={`${id}-key`}>{m.ai_provider_new_key()}</FieldLabel>
+            <Input
+              id={`${id}-key`}
+              type="password"
+              autoComplete="off"
+              placeholder={provider.key_hint ?? undefined}
+              aria-describedby={`${id}-key-hint`}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+            <FieldDescription id={`${id}-key-hint`}>
+              {m.ai_provider_new_key_hint()}
+            </FieldDescription>
+          </Field>
+          {provider.capabilities_editable ? (
+            <CapabilityChecks value={capabilities} onChange={setCapabilities} />
+          ) : null}
+          <FieldError>{update.error ? errorMessage(update.error) : null}</FieldError>
+          <DialogFooter>
+            <Button type="submit">
+              {update.isPending ? m.ai_provider_checking() : m.common_save()}
+            </Button>
+          </DialogFooter>
+        </FieldGroup>
       </fieldset>
     </form>
   )
@@ -173,19 +195,21 @@ function ProviderRow({
   ].filter(Boolean)
 
   return (
-    <li className="flex flex-wrap items-center gap-3 p-4">
-      <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1 basis-56">
-        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+    <Item>
+      <ItemMedia variant="icon">
+        <Icon aria-hidden className="size-5 text-muted-foreground" />
+      </ItemMedia>
+      <ItemContent className="min-w-0 basis-56">
+        <ItemTitle>
           <span className="truncate">{provider.display_name}</span>
           <StatusBadge provider={provider} />
-        </div>
-        <p className="truncate text-xs text-muted-foreground">{details.join(' · ')}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        </ItemTitle>
+        <ItemDescription className="truncate">{details.join(' · ')}</ItemDescription>
+        <ItemDescription>
           {provider.capabilities.map((c) => CAPABILITY_TITLES[c]()).join(' · ')}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="shrink-0">
         <Switch
           checked={provider.enabled}
           aria-label={m.ai_provider_enabled_aria({ name: provider.display_name })}
@@ -213,8 +237,8 @@ function ProviderRow({
         >
           {m.common_delete()}
         </Button>
-      </div>
-    </li>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -244,16 +268,18 @@ export function ProvidersSection() {
           empty={<p className="text-sm text-muted-foreground">{m.ai_providers_empty()}</p>}
         >
           {(data) => (
-            <ul className="divide-y divide-border rounded-2xl border border-border">
-              {data.items.map((provider) => (
-                <ProviderRow
-                  key={provider.id}
-                  provider={provider}
-                  onEdit={() => setEditing(provider)}
-                  onDelete={() => setDeleting(provider)}
-                />
+            <ItemGroup className="gap-0 rounded-2xl border">
+              {data.items.map((provider, index) => (
+                <Fragment key={provider.id}>
+                  {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                  <ProviderRow
+                    provider={provider}
+                    onEdit={() => setEditing(provider)}
+                    onDelete={() => setDeleting(provider)}
+                  />
+                </Fragment>
               ))}
-            </ul>
+            </ItemGroup>
           )}
         </AsyncBoundary>
         <Button size="sm" onClick={() => setAdding(true)}>
@@ -262,7 +288,7 @@ export function ProvidersSection() {
         </Button>
       </CardContent>
       <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent closeLabel={m.common_close()}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{m.ai_provider_add()}</DialogTitle>
             <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>

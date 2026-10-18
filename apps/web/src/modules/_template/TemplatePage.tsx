@@ -4,15 +4,24 @@ import {
   settingsValuesGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { Fragment } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { JobProgress } from '@/components/JobProgress'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
 
 const STATUS_LABEL = {
   pending: m.template_job_pending,
@@ -51,38 +60,40 @@ export default function TemplatePage() {
         empty={<p className="text-sm text-muted-foreground">{m.template_jobs_empty()}</p>}
       >
         {(page) => (
-          <ul className={cn('divide-y divide-border', compact ? 'text-sm' : '')}>
+          <ItemGroup className="gap-0">
             {page.items
               .filter(
                 (job) => !hideFinished || job.status === 'pending' || job.status === 'running',
               )
-              .map((job) => (
-                <li
-                  key={job.id}
-                  className={cn('flex items-center gap-4', compact ? 'py-1' : 'py-3')}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{job.kind}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDateTime(job.created_at)}
-                    </div>
-                  </div>
-                  <JobProgress jobId={job.id} job={job} className="w-40" />
-                  <Badge variant="secondary">{STATUS_LABEL[job.status]()}</Badge>
-                  {job.status === 'pending' || job.status === 'running' ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={cancel.isPending || job.cancel_requested}
-                      aria-label={m.template_job_cancel_aria({ kind: job.kind })}
-                      onClick={() => cancel.mutate({ path: { job_id: job.id } })}
-                    >
-                      {m.template_job_cancel()}
-                    </Button>
-                  ) : null}
-                </li>
+              .map((job, index) => (
+                <Fragment key={job.id}>
+                  {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                  <Item size={compact ? 'xs' : 'default'}>
+                    <ItemContent className="min-w-0">
+                      <ItemTitle>{job.kind}</ItemTitle>
+                      <ItemDescription className="text-xs">
+                        {formatDateTime(job.created_at)}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions className="gap-4">
+                      <JobProgress jobId={job.id} job={job} className="w-40" />
+                      <Badge variant="secondary">{STATUS_LABEL[job.status]()}</Badge>
+                      {job.status === 'pending' || job.status === 'running' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={cancel.isPending || job.cancel_requested}
+                          aria-label={m.template_job_cancel_aria({ kind: job.kind })}
+                          onClick={() => cancel.mutate({ path: { job_id: job.id } })}
+                        >
+                          {m.template_job_cancel()}
+                        </Button>
+                      ) : null}
+                    </ItemActions>
+                  </Item>
+                </Fragment>
               ))}
-          </ul>
+          </ItemGroup>
         )}
       </AsyncBoundary>
     </div>

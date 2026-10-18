@@ -2,10 +2,19 @@ import { useId } from 'react'
 import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { type AppLocale, useLocale } from '@/app/locale'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { SegmentedControl } from '@/components/SegmentedControl'
-import { SettingList, SettingRow } from '@/components/SettingRow'
 import { m } from '@/paraglide/messages'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
+import { Label } from '@/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 type TimeFormat = 'auto' | '12h' | '24h'
 type WeekStart = '0' | '1' | '7'
@@ -15,6 +24,18 @@ const LANGUAGES: readonly { value: AppLocale | 'browser'; label: () => string }[
   { value: 'browser', label: m.settings_language_browser },
   { value: 'en', label: () => 'English' },
   { value: 'zh-CN', label: () => '简体中文' },
+]
+
+const TIME_FORMATS: readonly { value: TimeFormat; label: () => string }[] = [
+  { value: 'auto', label: m.settings_time_format_auto },
+  { value: '12h', label: m.settings_time_format_12h },
+  { value: '24h', label: m.settings_time_format_24h },
+]
+
+const WEEK_STARTS: readonly { value: WeekStart; label: () => string }[] = [
+  { value: '0', label: m.settings_week_start_auto },
+  { value: '1', label: m.settings_week_start_monday },
+  { value: '7', label: m.settings_week_start_sunday },
 ]
 
 export default function LanguageSettings() {
@@ -35,58 +56,89 @@ function LanguageForm({
   const { changeLocale } = useLocale()
 
   return (
-    <SettingList>
-      <SettingRow
-        label={m.settings_language_label()}
-        labelId={`${id}-language`}
-        htmlFor={`${id}-language-select`}
-        description={m.settings_language_description()}
-      >
-        <Select
-          value={prefs.locale ?? 'browser'}
-          items={LANGUAGES.map((l) => ({ value: l.value, label: l.label() }))}
-          onValueChange={(next) => {
-            const locale = next === 'browser' ? null : (next as AppLocale)
-            changeLocale(locale)
-            update({ locale })
-          }}
-        >
-          <SelectTrigger id={`${id}-language-select`} aria-labelledby={`${id}-language`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LANGUAGES.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                {l.label()}
-              </SelectItem>
+    <ItemGroup className="gap-0 rounded-2xl border">
+      <Item>
+        <ItemContent className="min-w-0 basis-64">
+          <ItemTitle>
+            <Label id={`${id}-language`} htmlFor={`${id}-language-select`}>
+              {m.settings_language_label()}
+            </Label>
+          </ItemTitle>
+          <ItemDescription>{m.settings_language_description()}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Select
+            value={prefs.locale ?? 'browser'}
+            items={LANGUAGES.map((l) => ({ value: l.value, label: l.label() }))}
+            onValueChange={(next) => {
+              const locale = next === 'browser' ? null : (next as AppLocale)
+              changeLocale(locale)
+              update({ locale })
+            }}
+          >
+            <SelectTrigger id={`${id}-language-select`} aria-labelledby={`${id}-language`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGES.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ItemActions>
+      </Item>
+      <ItemSeparator className="my-0" />
+      <Item>
+        <ItemContent className="min-w-0 basis-64">
+          <ItemTitle>
+            <Label id={`${id}-time`}>{m.settings_time_format_label()}</Label>
+          </ItemTitle>
+        </ItemContent>
+        <ItemActions>
+          <ToggleGroup
+            aria-labelledby={`${id}-time`}
+            value={[prefs.time_format]}
+            onValueChange={(next) => {
+              if (next[0]) update({ time_format: next[0] as TimeFormat })
+            }}
+            variant="outline"
+            size="sm"
+          >
+            {TIME_FORMATS.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value}>
+                {option.label()}
+              </ToggleGroupItem>
             ))}
-          </SelectContent>
-        </Select>
-      </SettingRow>
-      <SettingRow label={m.settings_time_format_label()} labelId={`${id}-time`}>
-        <SegmentedControl<TimeFormat>
-          aria-labelledby={`${id}-time`}
-          value={prefs.time_format}
-          onValueChange={(next) => update({ time_format: next })}
-          options={[
-            { value: 'auto', label: m.settings_time_format_auto() },
-            { value: '12h', label: m.settings_time_format_12h() },
-            { value: '24h', label: m.settings_time_format_24h() },
-          ]}
-        />
-      </SettingRow>
-      <SettingRow label={m.settings_week_start_label()} labelId={`${id}-week`}>
-        <SegmentedControl<WeekStart>
-          aria-labelledby={`${id}-week`}
-          value={String(prefs.week_start) as WeekStart}
-          onValueChange={(next) => update({ week_start: Number(next) as 0 | 1 | 7 })}
-          options={[
-            { value: '0', label: m.settings_week_start_auto() },
-            { value: '1', label: m.settings_week_start_monday() },
-            { value: '7', label: m.settings_week_start_sunday() },
-          ]}
-        />
-      </SettingRow>
-    </SettingList>
+          </ToggleGroup>
+        </ItemActions>
+      </Item>
+      <ItemSeparator className="my-0" />
+      <Item>
+        <ItemContent className="min-w-0 basis-64">
+          <ItemTitle>
+            <Label id={`${id}-week`}>{m.settings_week_start_label()}</Label>
+          </ItemTitle>
+        </ItemContent>
+        <ItemActions>
+          <ToggleGroup
+            aria-labelledby={`${id}-week`}
+            value={[String(prefs.week_start)]}
+            onValueChange={(next) => {
+              if (next[0]) update({ week_start: Number(next[0]) as 0 | 1 | 7 })
+            }}
+            variant="outline"
+            size="sm"
+          >
+            {WEEK_STARTS.map((option) => (
+              <ToggleGroupItem key={option.value} value={option.value}>
+                {option.label()}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </ItemActions>
+      </Item>
+    </ItemGroup>
   )
 }

@@ -2,10 +2,10 @@ import { useLocation, useRouter } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { HistoryLink } from '@/components/HistoryLink'
-import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
 import { useSettingsSections } from '../registry'
 import { GROUP_TITLES, buildNavigation } from './groups'
@@ -127,7 +127,11 @@ export function SettingsPage({ level, scope, groupId, title, hrefFor, fallbackHr
         {current ? (
           <SettingsSections level={level} scope={scope} group={current.id} />
         ) : (
-          <EmptyState title={m.settings_empty()} />
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{m.settings_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         )}
       </div>
     </div>

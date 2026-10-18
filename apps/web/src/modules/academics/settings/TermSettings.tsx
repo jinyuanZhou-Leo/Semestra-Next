@@ -5,10 +5,10 @@ import { useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { DangerZone, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { SettingList } from '@/components/SettingRow'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Item, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { academicsTermGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
@@ -46,13 +46,14 @@ function TermBasics({ term }: { term: Term }) {
   const rangeInvalid = Boolean(start && end && end < start)
   return (
     <>
-      <SettingList>
+      <ItemGroup className="gap-0 rounded-2xl border">
         <TextRow
           label={m.academics_term_name()}
           value={term.name}
           required
           onChange={(name) => queue({ name })}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_term_start()}
           type="date"
@@ -63,6 +64,7 @@ function TermBasics({ term }: { term: Term }) {
             if (!(end && end < value)) queue({ start_date: value, end_date: end })
           }}
         />
+        <ItemSeparator className="my-0" />
         <TextRow
           label={m.academics_term_end()}
           type="date"
@@ -74,6 +76,7 @@ function TermBasics({ term }: { term: Term }) {
             if (!(start && value < start)) queue({ start_date: start, end_date: value })
           }}
         />
+        <ItemSeparator className="my-0" />
         <ControlRow
           label={m.academics_term_count_break_weeks()}
           description={m.academics_term_count_break_weeks_hint()}
@@ -89,20 +92,23 @@ function TermBasics({ term }: { term: Term }) {
             />
           )}
         </ControlRow>
-        <div className="space-y-2 p-4">
-          <p className="text-sm font-medium">{m.academics_term_breaks()}</p>
-          <BreaksEditor
-            value={breaks}
-            min={start}
-            max={end}
-            onChange={(next) => {
-              setBreaks(next)
-              // Half-filled rows wait until they are complete.
-              if (completeBreaks(next).length === next.length) queue({ breaks: next })
-            }}
-          />
-        </div>
-      </SettingList>
+        <ItemSeparator className="my-0" />
+        <Item>
+          <ItemContent className="gap-2">
+            <ItemTitle>{m.academics_term_breaks()}</ItemTitle>
+            <BreaksEditor
+              value={breaks}
+              min={start}
+              max={end}
+              onChange={(next) => {
+                setBreaks(next)
+                // Half-filled rows wait until they are complete.
+                if (completeBreaks(next).length === next.length) queue({ breaks: next })
+              }}
+            />
+          </ItemContent>
+        </Item>
+      </ItemGroup>
       <DangerZone>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">{m.academics_term_delete_description()}</p>
