@@ -179,7 +179,7 @@ async def test_access_token_expires_after_15_minutes(
 
 
 async def test_refresh_token_rotates_and_replay_revokes_the_session(
-    client: AsyncClient, make_user: MakeUser
+    client: AsyncClient, make_user: MakeUser, clock: Clock
 ) -> None:
     await make_user(email="ios@example.com", password=PASSWORD)
     login = await client.post(
@@ -196,6 +196,7 @@ async def test_refresh_token_rotates_and_replay_revokes_the_session(
     assert (await client.get("/account/me", headers=bearer)).status_code == 200
 
     # The rotated-out token is presented again (stolen): the whole session dies.
+    clock.advance(seconds=11)  # past the grace period for concurrent refreshes
     replay = await client.post(
         "/auth/token/refresh", json={"refresh_token": first["refresh_token"]}
     )

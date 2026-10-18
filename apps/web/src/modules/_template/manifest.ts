@@ -50,7 +50,7 @@ export default defineModule({
     },
   ],
   commands: [{ id: 'template.home', title: m.template_command_home, icon: House, to: '/' }],
-  // Events this module's backend publishes → queries to refetch (core.job.updated is handled
+  // Events this module's backend publishes → queries to refetch (core.job.progress is handled
   // by the core, see app/realtime.ts).
   realtimeInvalidations: { 'template.countdown.finished': ['coreJobList'] },
 })

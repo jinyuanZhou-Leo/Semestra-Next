@@ -1,13 +1,17 @@
 """Background jobs and periodic tasks (M00 §3.7).
 
-* `@job_handler("files.parse")` registers `async def handler(ctx: JobCtx, payload: In) -> Out`.
+* `@job_handler("files.parse", stages=[("parsing", 25), ("ocr", 30)])` registers
+  `async def handler(ctx: JobCtx, payload: In) -> Out`. Handlers that take more than a few
+  seconds declare weighted stages and call `ctx.stage(...)` / `ctx.skip_stage(...)`; the overall
+  percentage is computed here, never by the frontend.
 * `await enqueue(ctx, "files.parse", In(...), dedupe_key=...)` adds a row to `core_jobs` inside
   the caller's transaction; workers pick it up after commit.
 * Workers are asyncio tasks in the API process. A claimed job holds a lease that a heartbeat
   renews; if the process dies the lease runs out and another worker retries the job.
 * An `AppError` from a handler fails the job at once (the input is wrong, retrying will not
   help). Any other exception is retried with exponential backoff up to `max_attempts`.
-* Every state or progress change publishes `core.job.updated` to the job's owner (SSE).
+* Every state or progress change publishes `core.job.progress` to the job's owner (SSE);
+  progress-only updates are throttled to one per 250 ms.
 * `@periodic("core.cleanup", every=timedelta(hours=1))` runs a function in this process.
 """
 
@@ -16,8 +20,9 @@ import contextlib
 import inspect
 import os
 import socket
+import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, get_type_hints
@@ -57,7 +62,9 @@ TERMINAL: tuple[JobStatus, ...] = ("succeeded", "failed", "cancelled")
 LEASE_SECONDS = 60
 POLL_SECONDS = 2.0
 RETENTION = timedelta(days=7)
-JOB_UPDATED = "core.job.updated"
+JOB_PROGRESS = "core.job.progress"
+PROGRESS_THROTTLE_SECONDS = 0.25
+_monotonic = time.monotonic  # patched in tests
 
 
 class CoreJob(Base, OwnedMixin):
@@ -72,7 +79,10 @@ class CoreJob(Base, OwnedMixin):
     kind: Mapped[str] = mapped_column(String)
     status: Mapped[str] = mapped_column(String, default="pending")
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    step: Mapped[str | None] = mapped_column(String, default=None)
+    step: Mapped[str | None] = mapped_column(String, default=None)  # current stage key
+    # Count within the stage, e.g. OCR page 3 of 12.
+    step_current: Mapped[int | None] = mapped_column(Integer, default=None)
+    step_total: Mapped[int | None] = mapped_column(Integer, default=None)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     error_code: Mapped[str | None] = mapped_column(String, default=None)
@@ -97,6 +107,8 @@ class JobOut(BaseModel):
     status: JobStatus
     progress: int
     step: str | None
+    step_current: int | None
+    step_total: int | None
     result: dict[str, Any] | None
     error_code: str | None
     error_params: dict[str, Any] | None
@@ -126,13 +138,59 @@ class JobCtx(Ctx):
 
     job_id: str = ""
     lease_owner: str = ""
-    report_hook: Callable[[int, str | None], Awaitable[None]] | None = field(
+    stages: tuple[tuple[str, float], ...] = ()
+    progress_hook: Callable[[dict[str, Any]], Awaitable[None]] | None = field(
         default=None, repr=False
     )
+    _progress: float = field(default=0.0, repr=False)
+    _skipped: set[str] = field(default_factory=lambda: set[str](), repr=False)
+    _last_step: str | None = field(default=None, repr=False)
+    _last_sent: float = field(default=-1.0, repr=False)
 
     async def report(self, progress: int, step: str | None = None) -> None:
-        if self.report_hook is not None:
-            await self.report_hook(max(0, min(100, progress)), step)
+        """Overall progress for jobs without stages."""
+        await self._emit(progress, step, None, None)
+
+    async def stage(
+        self,
+        key: str,
+        *,
+        current: int | None = None,
+        total: int | None = None,
+        fraction: float | None = None,
+    ) -> None:
+        """Enter stage `key` or report progress within it (`current`/`total`, or `fraction`)."""
+        keys = [k for k, _ in self.stages]
+        if key not in keys:
+            raise ValueError(f"unknown stage {key!r} (declared: {keys})")
+        if fraction is None:
+            fraction = current / total if current is not None and total else 0.0
+        weights = {k: w for k, w in self.stages if k not in self._skipped}
+        done = sum(weights.get(k, 0.0) for k in keys[: keys.index(key)])
+        within = weights.get(key, 0.0) * max(0.0, min(1.0, fraction))
+        total_weight = sum(weights.values()) or 1.0
+        await self._emit(100 * (done + within) / total_weight, key, current, total)
+
+    async def skip_stage(self, key: str) -> None:
+        """The stage will not run; its weight goes to the others (progress never goes back)."""
+        self._skipped.add(key)
+
+    async def _emit(
+        self, progress: float, step: str | None, current: int | None, total: int | None
+    ) -> None:
+        self._progress = max(self._progress, max(0.0, min(100.0, progress)))
+        now = _monotonic()
+        if step == self._last_step and now - self._last_sent < PROGRESS_THROTTLE_SECONDS:
+            return
+        self._last_step, self._last_sent = step, now
+        if self.progress_hook is not None:
+            values = {
+                "progress": int(self._progress),
+                "step": step,
+                "step_current": current,
+                "step_total": total,
+            }
+            await self.progress_hook(values)
 
     async def check_cancelled(self) -> None:
         async with self.state.session_factory() as db:
@@ -149,14 +207,19 @@ class JobHandler:
     payload_model: type[BaseModel]
     fn: Callable[[JobCtx, Any], Awaitable[BaseModel]]
     max_attempts: int
+    stages: tuple[tuple[str, float], ...]
 
 
 _handlers: dict[str, JobHandler] = {}
 
 
 def job_handler(
-    kind: str, *, max_attempts: int = 3
+    kind: str, *, max_attempts: int = 3, stages: Sequence[tuple[str, float]] = ()
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
+    keys = [k for k, _ in stages]
+    if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
+        raise ValueError(f"{kind}: stage keys must be unique and weights positive")
+
     def decorate(
         fn: Callable[[JobCtx, Any], Awaitable[Any]],
     ) -> Callable[[JobCtx, Any], Awaitable[Any]]:
@@ -170,7 +233,7 @@ def job_handler(
         for model in (payload_model, result_model):
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
-        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts)
+        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts, tuple(stages))
         return fn
 
     return decorate
@@ -178,13 +241,15 @@ def job_handler(
 
 def _event(job: CoreJob) -> Event:
     data = {
-        "id": job.id,
+        "job_id": job.id,
         "kind": job.kind,
         "status": job.status,
         "progress": job.progress,
         "step": job.step,
+        "step_current": job.step_current,
+        "step_total": job.step_total,
     }
-    return Event(JOB_UPDATED, data, job.user_id)
+    return Event(JOB_PROGRESS, data, job.user_id)
 
 
 async def enqueue(
@@ -214,7 +279,7 @@ async def enqueue(
     )
     ctx.db.add(job)
     await ctx.db.flush()
-    await events.publish(ctx, JOB_UPDATED, _event(job).data)
+    await events.publish(ctx, JOB_PROGRESS, _event(job).data)
     state = ctx.state
 
     async def _wake() -> None:
@@ -426,8 +491,8 @@ class JobRunner:
                 job.id, {"status": "failed", "error_code": "core.job_unknown_kind", **end}
             )
 
-        async def report(progress: int, step: str | None) -> None:
-            row = await self._update(job.id, {"progress": progress, "step": step})
+        async def report(values: dict[str, Any]) -> None:
+            row = await self._update(job.id, values)
             if row is not None:
                 await events.dispatch(self.state, _event(row))
 
@@ -436,7 +501,8 @@ class JobRunner:
                 **{f: getattr(base, f) for f in Ctx.__dataclass_fields__},
                 job_id=job.id,
                 lease_owner=self.owner,
-                report_hook=report,
+                stages=handler.stages,
+                progress_hook=report,
             )
             try:
                 payload = handler.payload_model.model_validate(job.payload)
@@ -570,5 +636,5 @@ async def job_cancel(ctx: Ctx, inp: JobRef) -> JobOut:
     else:
         return JobOut.of(job)
     await ctx.db.flush()
-    await events.publish(ctx, JOB_UPDATED, _event(job).data)
+    await events.publish(ctx, JOB_PROGRESS, _event(job).data)
     return JobOut.of(job)

@@ -137,6 +137,27 @@ export type SearchProviderContribution = {
   search: (query: string, scope?: Scope) => Promise<SearchResult[]>
 }
 
+/** One line of the sidebar status bar: something still in progress the user should see anywhere. */
+export type StatusItem = {
+  icon: LucideIcon
+  label: string
+  /** 0–100; shows a thin bar under the label. */
+  progress?: number
+  /** Where clicking the line goes. */
+  to?: string
+  tone?: 'default' | 'success' | 'error'
+}
+
+/**
+ * Rendered at the bottom of the sidebar by the host (M10): a running timer, a background or AI
+ * task. Not for notifications. `useStatus` is a hook; returning null hides the line.
+ */
+export type StatusItemContribution = {
+  id: string
+  order: number
+  useStatus: () => StatusItem | null
+}
+
 /** `operationId` of a generated query (e.g. `coreJobList`): all its cached queries are refetched. */
 export type QueryKeyPrefix = string
 
@@ -153,6 +174,7 @@ export type ModuleManifest = {
   commands?: readonly CommandContribution[]
   calendarSources?: readonly CalendarSourceContribution[]
   searchProviders?: readonly SearchProviderContribution[]
+  statusItems?: readonly StatusItemContribution[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */

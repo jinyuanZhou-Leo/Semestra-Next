@@ -2,15 +2,17 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from pydantic import BaseModel
 from sqlalchemy import select, update
 
+from semestra.core import jobs
 from semestra.core.context import run_after_commit, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.jobs import CoreJob, JobCtx, JobRunner, enqueue, job_handler, run_periodic
-from semestra.testing import Clock, MakeUser
+from semestra.testing import Clock, MakeUser, collect_events
 
 calls: dict[str, int] = {}
 
@@ -58,6 +60,18 @@ async def cancels_itself(ctx: JobCtx, payload: Payload) -> Result:
 async def ok(ctx: JobCtx, payload: Payload) -> Result:
     assert ctx.user is not None
     assert ctx.actor == "system"
+    return Result()
+
+
+@job_handler("test.staged", stages=[("parsing", 1), ("ocr", 2), ("indexing", 1)])
+async def staged(ctx: JobCtx, payload: Payload) -> Result:
+    await ctx.stage("parsing", current=1, total=2)  # 1/2 of 1/4
+    await ctx.stage("parsing", fraction=1)
+    await ctx.skip_stage("ocr")  # remaining weight: parsing 1 + indexing 1
+    await ctx.stage("indexing", current=0, total=4)
+    await ctx.stage("indexing", current=3, total=4)
+    with pytest.raises(ValueError, match="unknown stage"):
+        await ctx.stage("nope")
     return Result()
 
 
@@ -202,3 +216,53 @@ async def test_worker_runs_jobs_in_the_background(
         assert (await get(app, job_id)).status == "succeeded"
     finally:
         await runner.stop()
+
+
+def test_stage_declarations_are_validated():
+    with pytest.raises(ValueError, match="unique and weights positive"):
+        job_handler("test.dup", stages=[("a", 1), ("a", 2)])
+    with pytest.raises(ValueError, match="unique and weights positive"):
+        job_handler("test.zero", stages=[("a", 0)])
+
+
+async def test_stages_are_weighted_and_skipped_without_going_back(
+    app: FastAPI, make_user: MakeUser, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(jobs, "PROGRESS_THROTTLE_SECONDS", 0)
+    user = await make_user()
+    with collect_events(app, user.id) as messages:
+        job_id = await start(app, user.id, "test.staged")
+        await app.state.jobs.run_until_idle()
+    running = [m["data"] for m in messages if m["data"].get("step")]
+    assert [(u["step"], u["progress"], u["step_current"], u["step_total"]) for u in running] == [
+        ("parsing", 12, 1, 2),
+        ("parsing", 25, None, None),
+        ("indexing", 50, 0, 4),  # ocr skipped: parsing is now half the job
+        ("indexing", 87, 3, 4),
+        ("indexing", 100, 3, 4),  # succeeded
+    ]
+    assert (await get(app, job_id)).status == "succeeded"
+
+
+async def test_progress_within_a_stage_is_throttled(
+    app: FastAPI, make_user: MakeUser, monkeypatch: pytest.MonkeyPatch
+):
+    now = [0.0]
+    monkeypatch.setattr(jobs, "_monotonic", lambda: now[0])
+    sent: list[dict[str, Any]] = []
+
+    async def hook(values: dict[str, Any]) -> None:
+        sent.append(values)
+
+    async with system_ctx(app.state) as base:
+        ctx = JobCtx(
+            **{f: getattr(base, f) for f in base.__dataclass_fields__},
+            stages=(("a", 1), ("b", 1)),
+            progress_hook=hook,
+        )
+    await ctx.stage("a", current=1, total=10)
+    await ctx.stage("a", current=2, total=10)  # dropped: same stage within 250 ms
+    now[0] = 0.3
+    await ctx.stage("a", current=3, total=10)
+    await ctx.stage("b")  # stage changes are always sent
+    assert [(v["step"], v["step_current"]) for v in sent] == [("a", 1), ("a", 3), ("b", None)]

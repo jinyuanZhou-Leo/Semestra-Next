@@ -218,6 +218,14 @@ export type JobOut = {
      */
     step: string | null;
     /**
+     * Step Current
+     */
+    step_current: number | null;
+    /**
+     * Step Total
+     */
+    step_total: number | null;
+    /**
      * Result
      */
     result: {

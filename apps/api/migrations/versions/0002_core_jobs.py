@@ -28,6 +28,8 @@ def upgrade() -> None:
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('progress', sa.Integer(), nullable=False),
     sa.Column('step', sa.String(), nullable=True),
+    sa.Column('step_current', sa.Integer(), nullable=True),
+    sa.Column('step_total', sa.Integer(), nullable=True),
     sa.Column('payload', sa.JSON(), nullable=False),
     sa.Column('result', sa.JSON(), nullable=True),
     sa.Column('error_code', sa.String(), nullable=True),

@@ -5,9 +5,10 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { JobProgress } from '@/components/JobProgress'
 import { useUiPref } from '@/app/ui-pref'
-import { errorMessage, toastError } from '@/lib/errors'
-import { formatDateTime, formatPercent } from '@/lib/format'
+import { toastError } from '@/lib/errors'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -21,7 +22,7 @@ const STATUS_LABEL = {
   cancelled: m.template_job_cancelled,
 } as const
 
-/** The user's background jobs, kept live by `core.job.updated` events. */
+/** The user's background jobs, kept live by `core.job.progress` events. */
 export default function TemplatePage() {
   const jobs = useQuery(coreJobListOptions())
   const cancel = useMutation({ ...coreJobCancelMutation(), onError: toastError })
@@ -64,20 +65,9 @@ export default function TemplatePage() {
                     <div className="truncate font-medium">{job.kind}</div>
                     <div className="text-xs text-muted-foreground">
                       {formatDateTime(job.created_at)}
-                      {job.error_code
-                        ? ` · ${errorMessage({ error: { code: job.error_code, params: job.error_params ?? {} } })}`
-                        : null}
                     </div>
                   </div>
-                  <progress
-                    value={job.progress}
-                    max={100}
-                    aria-label={job.kind}
-                    className="h-2 w-32 accent-primary"
-                  />
-                  <span className="w-12 text-right text-xs tabular-nums">
-                    {formatPercent(job.progress / 100, 0)}
-                  </span>
+                  <JobProgress jobId={job.id} job={job} className="w-40" />
                   <Badge variant="secondary">{STATUS_LABEL[job.status]()}</Badge>
                   {job.status === 'pending' || job.status === 'running' ? (
                     <Button

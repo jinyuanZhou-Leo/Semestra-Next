@@ -1956,6 +1956,28 @@
             ],
             "title": "Step"
           },
+          "step_current": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Current"
+          },
+          "step_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Total"
+          },
           "result": {
             "anyOf": [
               {
@@ -2040,6 +2062,8 @@
           "status",
           "progress",
           "step",
+          "step_current",
+          "step_total",
           "result",
           "error_code",
           "error_params",

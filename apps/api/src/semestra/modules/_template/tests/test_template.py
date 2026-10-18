@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
 
 import semestra.modules._template  # noqa: F401  (registers the template for this test session)
@@ -39,8 +40,14 @@ def test_capabilities_are_listed_for_agent_and_mcp() -> None:
 
 
 async def test_job_runs_reports_progress_and_streams_events(
-    app: Any, client: AsyncClient, make_user: MakeUser, login_as: Login, run_jobs: RunJobs
+    app: Any,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: Login,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    monkeypatch.setattr("semestra.core.jobs.PROGRESS_THROTTLE_SECONDS", 0)
     user = await make_user()
     await login_as(client, user)
     with collect_events(app, user.id) as messages:
@@ -55,13 +62,14 @@ async def test_job_runs_reports_progress_and_streams_events(
     assert r.json()["result"] == {"steps_done": 2}
     assert r.json()["progress"] == 100
 
-    updates = [m["data"] for m in messages if m["type"] == "core.job.updated"]
-    assert [(u["status"], u["progress"], u["step"]) for u in updates] == [
-        ("pending", 0, None),
-        ("running", 0, None),
-        ("running", 0, "1/2"),
-        ("running", 50, "2/2"),
-        ("succeeded", 100, "2/2"),
+    updates = [m["data"] for m in messages if m["type"] == "core.job.progress"]
+    assert {u["job_id"] for u in updates} == {job["id"]}
+    assert [(u["status"], u["progress"], u["step"], u["step_current"]) for u in updates] == [
+        ("pending", 0, None, None),
+        ("running", 0, None, None),
+        ("running", 0, "counting", 0),
+        ("running", 50, "counting", 1),
+        ("succeeded", 100, "counting", 1),
     ]
     assert {"type": "template.countdown.finished", "data": {"job_id": job["id"]}} in messages
 

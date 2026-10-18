@@ -10,6 +10,7 @@ import type {
   ScopeKind,
   SettingsLevel,
   SettingsSectionContribution,
+  StatusItemContribution,
 } from './extensions'
 
 /**
@@ -47,6 +48,12 @@ export function useSettingsSections(level: SettingsLevel): SettingsSectionContri
   return useModules()
     .flatMap((m) => m.settingsSections ?? [])
     .filter((s) => s.level === level)
+    .sort(byOrder)
+}
+
+export function useStatusItems(): StatusItemContribution[] {
+  return useModules()
+    .flatMap((m) => m.statusItems ?? [])
     .sort(byOrder)
 }
 

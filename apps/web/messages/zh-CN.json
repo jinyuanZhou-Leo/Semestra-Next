@@ -266,5 +266,17 @@
   "settings_plugin_template_greeting_option_casual": "随意",
   "settings_plugin_template_countdown_steps_label": "倒计时步数",
   "settings_plugin_template_countdown_steps_description": "倒计时任务默认的步数。",
-  "template_page_hide_finished": "隐藏已结束的任务"
+  "template_page_hide_finished": "隐藏已结束的任务",
+  "job_pending": "排队中",
+  "job_running": "处理中…",
+  "job_cancelled": "已终止",
+  "job_stage_count": "{stage} {current}/{total}",
+  "job_retry_prefix": "重新执行 · {label}",
+  "job_step_template_countdown_counting": "计数中",
+  "ai_action_done": "已完成",
+  "ai_action_retry": "重试",
+  "ai_action_cancel": "终止",
+  "ai_action_cancelling": "终止中",
+  "status_bar_label": "进行中",
+  "status_jobs_running": "{count} 个任务进行中"
 }

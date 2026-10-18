@@ -266,5 +266,17 @@
   "settings_plugin_template_greeting_option_casual": "Casual",
   "settings_plugin_template_countdown_steps_label": "Countdown steps",
   "settings_plugin_template_countdown_steps_description": "Default number of steps of the countdown task.",
-  "template_page_hide_finished": "Hide finished tasks"
+  "template_page_hide_finished": "Hide finished tasks",
+  "job_pending": "Waiting",
+  "job_running": "Working…",
+  "job_cancelled": "Stopped",
+  "job_stage_count": "{stage} {current}/{total}",
+  "job_retry_prefix": "Retrying · {label}",
+  "job_step_template_countdown_counting": "Counting",
+  "ai_action_done": "Done",
+  "ai_action_retry": "Retry",
+  "ai_action_cancel": "Stop",
+  "ai_action_cancelling": "Stopping…",
+  "status_bar_label": "In progress",
+  "status_jobs_running": "{count} tasks running"
 }
