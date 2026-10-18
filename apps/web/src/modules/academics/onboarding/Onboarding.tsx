@@ -21,25 +21,23 @@ import { TermWizard } from '../wizard/TermWizard'
 
 const STORAGE_KEY = 'semestra.onboarding'
 
-type Progress = { step: number; programId?: string; termId?: string }
+/** Progress of one user: another account signing in to the same tab starts over. */
+type Progress = { userId?: string; step: number; programId?: string; termId?: string }
 
 /** Whether an onboarding was started in this tab (it then continues after the Program exists). */
-export function onboardingInProgress(): boolean {
-  try {
-    return sessionStorage.getItem(STORAGE_KEY) !== null
-  } catch {
-    return false
-  }
+export function onboardingInProgress(userId: string): boolean {
+  return load(userId).step > 0
 }
 
-function load(): Progress {
+function load(userId: string | undefined): Progress {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as Progress
+    const progress = raw ? (JSON.parse(raw) as Progress) : null
+    if (progress && progress.userId === userId) return progress
   } catch {
     // Start over.
   }
-  return { step: 0 }
+  return { userId, step: 0 }
 }
 
 function store(progress: Progress | null) {
@@ -65,7 +63,7 @@ export function Onboarding() {
     (a, b) => a.order - b.order,
   )
   const { user, signOut } = useAuth()
-  const [progress, setProgress] = useState<Progress>(load)
+  const [progress, setProgress] = useState<Progress>(() => load(user?.id))
   useEffect(() => store(progress), [progress])
 
   const createProgram = useMutation({
@@ -74,7 +72,7 @@ export function Onboarding() {
     onSuccess: async (program) => {
       await invalidateAcademics(queryClient)
       updatePreferences({ active_program_id: program.id })
-      setProgress({ step: 2, programId: program.id })
+      setProgress((current) => ({ userId: current.userId, step: 2, programId: program.id }))
     },
   })
 
