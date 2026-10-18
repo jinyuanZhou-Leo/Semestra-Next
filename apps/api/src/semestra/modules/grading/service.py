@@ -851,13 +851,13 @@ async def assessment_deadlines(
 # --- one course: result, gradebook, what-if -------------------------------------------------
 
 
-async def _program_courses(ctx: Ctx, program_id: str) -> list[Course]:
-    """Every course of the Program, through the academics service (pages of 500)."""
+async def _program_courses(ctx: Ctx, program_id: str, term_id: str | None = None) -> list[Course]:
+    """Every course of the Program, or of one term, through the academics service (500 a page)."""
     courses: list[Course] = []
     cursor: str | None = None
     while True:
         page = await academics.list_courses(
-            ctx, CourseListInput(program_id=program_id, cursor=cursor, limit=500)
+            ctx, CourseListInput(program_id=program_id, term_id=term_id, cursor=cursor, limit=500)
         )
         courses.extend(page.items)
         if page.next_cursor is None:
@@ -1220,14 +1220,7 @@ async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool) -> Term
     graded = _grade_all(state, include_in_progress)
     rule = state.attribution
     aggregate = engine.term_aggregate(graded, term_id, rule)
-    order = [
-        c.id
-        for c in (
-            await academics.list_courses(
-                ctx, CourseListInput(program_id=term.program_id, term_id=term_id, limit=500)
-            )
-        ).items
-    ]
+    order = [c.id for c in await _program_courses(ctx, term.program_id, term_id)]
     by_course = {g.course.course_id: g for g in graded}
     courses = {c.id: c for c in state.courses}
     rows = [
