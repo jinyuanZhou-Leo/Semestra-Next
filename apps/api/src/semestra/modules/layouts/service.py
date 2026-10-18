@@ -211,6 +211,19 @@ async def _generated(ctx: Ctx, scope_type: str, scope_id: str, installed: set[st
 async def save_template_from_board(ctx: Ctx, inp: TemplateFromBoardInput) -> Template:
     board = await get_board(ctx, BoardRef(scope_type=inp.scope_type, scope_id=inp.scope_id))
     cards = [{"card_id": c.card_id, "size": c.size, "x": c.x, "y": c.y} for c in board.cards]
+    # Cards of uninstalled plugins are not on the visible board; keep the ones the board (or,
+    # while it follows the template, the template) holds, so a reinstall brings them back.
+    installed = await installed_ids(ctx)
+    stored = await _board_row(ctx, inp.scope_type, inp.scope_id)
+    source = (
+        [{k: e[k] for k in ("card_id", "size", "x", "y")} for e in stored.cards]
+        if stored is not None
+        else [c.model_dump() for c in await _template_cards(ctx, inp.scope_type)]
+    )
+    for entry in source:
+        card = catalog.card(entry["card_id"])
+        if card is not None and card.module_id not in installed:
+            cards.append(entry)
     row = await _template_row(ctx, inp.scope_type)
     if row is None:
         ctx.db.add(LayoutsTemplate(user_id=ctx.user_id, scope_type=inp.scope_type, cards=cards))

@@ -237,6 +237,14 @@ async def test_uninstalled_cards_survive_the_first_change_of_a_template_board(ap
     ]
 
 
+async def test_saving_a_board_as_default_keeps_uninstalled_plugin_cards(api: Api):
+    _, _, course_id = await api.scopes()
+    await api.call("DELETE", "/plugins/notes/installation")
+    await api.call("POST", "/layouts/templates/course:from-board", json={"scope_id": course_id})
+    template = await api.call("GET", "/layouts/templates/course")
+    assert [c["card_id"] for c in template["cards"]] == ["academics.courseInfo", "notes.note"]
+
+
 async def test_purge_removes_cards_for_good(app: FastAPI, api: Api, user: UserHandle):
     program_id, _, course_id = await api.scopes()
     await api.call(
