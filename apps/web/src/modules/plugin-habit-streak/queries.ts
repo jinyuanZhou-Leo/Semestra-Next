@@ -16,6 +16,9 @@ export function useHabitStats(instanceId: string, settings: HabitSettings) {
     // `tags` is part of the key, so a new goal means a new query.
     queryKey: [{ ...options.queryKey[0], tags: [settings.goal, String(settings.weekly_target)] }],
     staleTime: 30_000,
+    // The backend says what "today" is in the Program's zone: ask again now and then, so a card
+    // left open overnight does not check in yesterday.
+    refetchInterval: 5 * 60_000,
   })
 }
 

@@ -5,7 +5,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toApiError } from '@/app/api'
-import { refreshUiPrefs, useUiPref } from '@/app/ui-pref'
+import { refreshUiPrefs, updateUiPref, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { askNotificationPermission, playChime, showNotification, unlockAudio } from './alerts'
@@ -252,6 +252,16 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     config,
     start: () => {
       if (settings.sound) unlockAudio()
+      // One timer runs at a time: the status bar follows the newest, so the earlier one stops
+      // here instead of running out unwatched.
+      if (active && active.instanceId !== instanceId) {
+        const previous = active
+        void updateUiPref<TimerState>(queryClient, stateKey(previous.instanceId), (other) =>
+          other?.status === 'running'
+            ? pause(other, Date.now(), previous.runtime?.config ?? config)
+            : undefined,
+        )
+      }
       if (settings.notify && state.status === 'idle') askNotificationPermission()
       const t = Date.now()
       setNow(t)

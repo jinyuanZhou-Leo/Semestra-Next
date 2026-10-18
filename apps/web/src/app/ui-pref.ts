@@ -208,6 +208,24 @@ function write(queryClient: QueryClient, key: string, value: unknown) {
 }
 
 /**
+ * Changes a key that no mounted hook owns (state of another card, say): `change` gets the current
+ * value (undefined when nothing is stored) and returns the new one, or undefined to leave it.
+ */
+export async function updateUiPref<T>(
+  queryClient: QueryClient,
+  key: string,
+  change: (current: T | undefined) => T | undefined,
+): Promise<void> {
+  try {
+    const entry = await load(queryClient, key)
+    const next = change(entry.found ? (entry.value as T) : undefined)
+    if (next !== undefined) write(queryClient, key, next)
+  } catch {
+    // The value could not be read; leave the key as it is.
+  }
+}
+
+/**
  * `const [sort, setSort] = useUiPref('tasks.sort', 'due')`. Key naming: `<module>.<what>`,
  * plus `.<scopeId>` for per-scope state (pass `scope` to append it). The default is used while
  * loading and when nothing has been saved.

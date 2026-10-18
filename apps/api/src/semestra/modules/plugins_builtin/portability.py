@@ -8,7 +8,7 @@ other modules in the archive (card instances, courses) to the ids they got on im
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ from semestra.modules.plugins_builtin.habit_streak import service as habit
 from semestra.modules.plugins_builtin.habit_streak.models import HabitCheckin
 from semestra.modules.plugins_builtin.pomodoro import service as pomodoro
 from semestra.modules.plugins_builtin.pomodoro.models import PomodoroSession
+from semestra.modules.plugins_builtin.pomodoro.schemas import MAX_SESSION_SEC
 
 SCHEMA_VERSION = 1
 
@@ -116,6 +117,9 @@ async def import_(
         )
     }
     for srow in data.pomodoro_sessions:
+        if not _valid_session(srow):
+            report.skipped["pomodoro_sessions"] = report.skipped.get("pomodoro_sessions", 0) + 1
+            continue
         instance_id = id_map.get(srow.instance_id, srow.instance_id)
         if (instance_id, srow.started_at) in have_starts:
             report.skipped["pomodoro_sessions"] = report.skipped.get("pomodoro_sessions", 0) + 1
@@ -135,6 +139,20 @@ async def import_(
         report.imported["pomodoro_sessions"] += 1
     await ctx.db.flush()
     return report
+
+
+_MODES = ("focus", "short_break", "long_break")
+
+
+def _valid_session(row: SessionRow) -> bool:
+    """The same rules as recording a session; an edited backup must not put rows in the table
+    that the statistics cannot add up (negative durations, a mode that does not exist)."""
+    if row.mode not in _MODES or not 1 <= row.duration_sec <= MAX_SESSION_SEC:
+        return False
+    if row.started_at.tzinfo is None or row.ended_at.tzinfo is None:
+        return False
+    elapsed = (row.ended_at.astimezone(UTC) - row.started_at.astimezone(UTC)).total_seconds()
+    return elapsed > 0 and row.duration_sec <= elapsed + 2
 
 
 async def _course_id(ctx: Ctx, source: str | None, id_map: Mapping[str, str]) -> str | None:

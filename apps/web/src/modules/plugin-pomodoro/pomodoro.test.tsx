@@ -111,6 +111,8 @@ test('a finished focus session is recorded and the break begins', async () => {
 
 test('a timer left running in storage continues after a reload', async () => {
   backend()
+  // Let the debounced preference writes of the previous test land first.
+  await new Promise((resolve) => setTimeout(resolve, 400))
   const endsAt = Date.now() + 10 * 60_000
   stored['pomodoro.i1'] = {
     mode: 'focus',
@@ -171,4 +173,34 @@ test('resetting an idle card leaves another running timer in the status bar', as
   await act(() => vi.advanceTimersByTimeAsync(0))
   await new Promise((resolve) => setTimeout(resolve, 500))
   expect(stored['pomodoro.active']).toEqual({ instanceId: 'other', path: '/p/p2' })
+})
+
+test('starting a timer stops the one still running on another card, so none runs out unwatched', async () => {
+  backend()
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  stored['pomodoro.active'] = { instanceId: 'other', path: '/p/p2' }
+  stored['pomodoro.other'] = {
+    mode: 'focus',
+    status: 'running',
+    endsAt: Date.now() + 10 * 60_000,
+    remainingMs: null,
+    phaseMs: 25 * 60_000,
+    cycleIndex: 0,
+    sessionStartedAt: Date.now() - 15 * 60_000,
+    activeMs: 0,
+    runStartedAt: Date.now() - 15 * 60_000,
+  }
+  card()
+  expect(await screen.findByLabelText('Focus 25:00', {}, { timeout: 4000 })).toBeInTheDocument()
+  await userEvent
+    .setup({ advanceTimers: vi.advanceTimersByTime })
+    .click(screen.getByRole('button', { name: 'Start' }))
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  await vi.waitFor(
+    () => {
+      expect(stored['pomodoro.other']).toMatchObject({ status: 'paused', remainingMs: 10 * 60_000 })
+      expect(stored['pomodoro.active']).toMatchObject({ instanceId: 'i1' })
+    },
+    { timeout: 3000 },
+  )
 })
