@@ -38,7 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { courseColor } from '../color'
 import { coursePath, programPath } from '../paths'
-import { invalidateAcademics, useCourses, useProgram, useTerms } from '../queries'
+import { invalidateAcademics, useColumnData, useCourses, useProgram, useTerms } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
@@ -93,6 +93,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
   const queryClient = useQueryClient()
   const terms = useTerms(programId).data?.items ?? []
   const extensions = useExtensions<CourseColumn>(COURSE_COLUMNS)
+  const columnData = useColumnData(extensions, programId)
   const [sorting, setSorting] = useUiPref<SortingState>('academics.courses_sort', [])
   const [termFilter, setTermFilter] = useState(ALL)
   const [subjectFilter, setSubjectFilter] = useState(ALL)
@@ -109,7 +110,9 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
     return course.term_ids.length > 1 ? `${first} – ${last}` : first
   }
   const subjects = [...new Set(courses.map((c) => c.subject_code).filter(Boolean))].toSorted()
-  const quickFilters = extensions.flatMap((col) => col.filter ?? [])
+  const quickFilters = extensions.flatMap((col) =>
+    (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })),
+  )
   const needle = search.trim().toLowerCase().replaceAll(/\s+/g, '')
 
   const visible = courses.filter((course) => {
@@ -121,7 +124,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
         .join('\n')
       if (!haystack.includes(needle)) return false
     }
-    return quickFilters.every((f) => !quick.includes(f.id) || f.test(course))
+    return quickFilters.every((f) => !quick.includes(f.id) || f.test(course, f.data))
   })
   const visibleIds = visible.map((c) => c.id)
   const selectedVisible = visibleIds.filter((id) => selected.has(id))
@@ -217,9 +220,11 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
       column.display({
         id: `ext:${ext.id}`,
         header: header(ext.header()),
-        cell: ({ row }) => ext.cell(row.original),
+        cell: ({ row }) => ext.cell(row.original, columnData.get(ext.id)),
         enableSorting: ext.sortValue !== undefined,
-        sortFn: ext.sortValue ? sortBy(ext.sortValue) : undefined,
+        sortFn: ext.sortValue
+          ? sortBy((course) => ext.sortValue?.(course, columnData.get(ext.id)) ?? null)
+          : undefined,
       }),
     ),
   ])

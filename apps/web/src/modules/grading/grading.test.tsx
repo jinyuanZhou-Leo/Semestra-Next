@@ -1,0 +1,120 @@
+import { act, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import type { Scope } from '@/app/extensions'
+import { API, renderWithRouter, server } from '@/test-utils'
+import CourseGradesPage from './pages/CourseGradesPage'
+import { assessment, gradebook, summary } from './test-data'
+
+beforeAll(() => server.listen())
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
+
+const scope: Scope = { kind: 'course', programId: 'p1', courseId: 'c1' }
+
+let book = gradebook()
+let patches: { id: string; body: unknown }[] = []
+let simulations: unknown[] = []
+
+beforeEach(() => {
+  book = gradebook()
+  patches = []
+  simulations = []
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+    http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)),
+    http.patch(`${API}/assessments/:id`, async ({ request, params }) => {
+      patches.push({ id: String(params.id), body: await request.json() })
+      return HttpResponse.json(book.assessments[0])
+    }),
+    http.post(`${API}/courses/c1/gradebook\\:simulate`, async ({ request }) => {
+      simulations.push(await request.json())
+      return HttpResponse.json(
+        summary({ status: 'completed', final_percentage: 88, final_letter: 'A', final_points: 4 }),
+      )
+    }),
+  )
+})
+
+const mount = () => renderWithRouter(<CourseGradesPage scope={scope} />)
+
+test('the summary shows the current grade and what the rest has to average', async () => {
+  mount()
+  expect(await screen.findByText('Current')).toBeInTheDocument()
+  expect(screen.getByText('80%')).toBeInTheDocument()
+  expect(screen.getByText('88.3%')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Score: Quiz 1' })).toHaveValue('80')
+})
+
+test('weights that do not add up to 100 warn and hold back the figures', async () => {
+  book = gradebook({
+    summary: summary({
+      weights_ok: false,
+      weight_total: 80,
+      weight_gap: 20,
+      current_percentage: null,
+    }),
+  })
+  mount()
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('The weights add up to 80%')
+  expect(screen.getByRole('switch', { name: /Plan mode/ })).toHaveAttribute('aria-disabled', 'true')
+})
+
+test('typing 18/20 in a score cell saves points, not a percentage', async () => {
+  mount()
+  const cell = await screen.findByRole('textbox', { name: 'Score: Final exam' })
+  await userEvent.type(cell, '18/20')
+  await userEvent.tab()
+  await waitFor(() => expect(patches).toHaveLength(1))
+  expect(patches[0]).toEqual({
+    id: 'a2',
+    body: { points_earned: 18, points_possible: 20 },
+  })
+})
+
+test('an unreadable score is flagged and not sent', async () => {
+  mount()
+  const cell = await screen.findByRole('textbox', { name: 'Score: Final exam' })
+  await userEvent.type(cell, 'ninety')
+  await userEvent.tab()
+  expect(cell).toBeInvalid()
+  expect(patches).toHaveLength(0)
+})
+
+test('plan mode simulates the assumed scores and shows the result without saving them', async () => {
+  mount()
+  await userEvent.click(await screen.findByRole('switch', { name: /Plan mode/ }))
+  const assumed = await screen.findByRole('textbox', { name: 'Assumed score: Final exam' })
+  await userEvent.type(assumed, '90')
+  await userEvent.tab()
+  const result = await screen.findByTestId('plan-result')
+  await waitFor(() => expect(within(result).getByText('88%')).toBeInTheDocument())
+  expect(simulations.at(-1)).toMatchObject({ scores: { a2: 90 } })
+  expect(patches).toHaveLength(0)
+  // A graded item has no assumption to make.
+  expect(screen.queryByRole('textbox', { name: 'Assumed score: Quiz 1' })).not.toBeInTheDocument()
+})
+
+test('hide_gpa shows a mask until it is clicked', async () => {
+  book = gradebook({ scale: { max_points: 4, hide_gpa: true } })
+  mount()
+  const mask = await screen.findByRole('button', { name: 'Show GPA' })
+  expect(mask).toHaveTextContent('•••')
+  expect(screen.queryByText('3.70')).not.toBeInTheDocument()
+  await act(async () => {
+    await userEvent.click(mask)
+  })
+  expect(await screen.findByText('3.70')).toBeInTheDocument()
+})
+
+test('dropped items stay in the table but are crossed out', async () => {
+  book = gradebook({
+    assessments: [assessment({ id: 'a1', title: 'Quiz 1', dropped: true, weight: 10 })],
+  })
+  mount()
+  const row = (await screen.findByRole('textbox', { name: 'Weight (%): Quiz 1' })).closest('tr')
+  expect(row).toHaveClass('line-through')
+})

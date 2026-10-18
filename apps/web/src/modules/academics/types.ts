@@ -1,4 +1,5 @@
 import type { Course } from '@semestra/api-client'
+import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import type { Message } from '@/app/extensions'
@@ -8,14 +9,21 @@ import type { Message } from '@/app/extensions'
  * `extensions: { [POINT]: [...] }` in their manifest; read them with `useExtensions<T>(POINT)`.
  */
 
-/** A column of the all-courses table, and optionally of the term's course card. */
+/**
+ * A column of the all-courses table, and optionally of the term's course card.
+ * Data that lives in another module's API is loaded with `query`, once for the whole table,
+ * and passed to `cell`, `sortValue` and the filters as `data` (undefined until it has loaded).
+ */
 export type CourseColumn = {
   id: string
   header: Message
-  cell: (course: Course) => ReactNode
-  sortValue?: (course: Course) => string | number | null
+  /** Loads what the column shows for a Program; the options come from a generated `…Options()`. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (programId: string) => UseQueryOptions<any, any, any, any>
+  cell: (course: Course, data?: unknown) => ReactNode
+  sortValue?: (course: Course, data?: unknown) => string | number | null
   /** Quick filters offered above the table (e.g. GPA ≥ 3.5). */
-  filter?: { id: string; label: Message; test: (course: Course) => boolean }[]
+  filter?: { id: string; label: Message; test: (course: Course, data?: unknown) => boolean }[]
   /** Also shown in the `academics.termCourses` card. */
   showInTermCard?: boolean
 }

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, GradingAssessmentCreateData, GradingAssessmentCreateErrors, GradingAssessmentCreateManyData, GradingAssessmentCreateManyErrors, GradingAssessmentCreateManyResponses, GradingAssessmentCreateResponses, GradingAssessmentDeleteData, GradingAssessmentDeleteErrors, GradingAssessmentDeleteResponses, GradingAssessmentListData, GradingAssessmentListErrors, GradingAssessmentListResponses, GradingAssessmentReorderData, GradingAssessmentReorderErrors, GradingAssessmentReorderResponses, GradingAssessmentUpdateData, GradingAssessmentUpdateErrors, GradingAssessmentUpdateResponses, GradingCategoryCreateData, GradingCategoryCreateErrors, GradingCategoryCreateResponses, GradingCategoryDeleteData, GradingCategoryDeleteErrors, GradingCategoryDeleteResponses, GradingCategoryReorderData, GradingCategoryReorderErrors, GradingCategoryReorderResponses, GradingCategoryUpdateData, GradingCategoryUpdateErrors, GradingCategoryUpdateResponses, GradingCourseResultUpdateData, GradingCourseResultUpdateErrors, GradingCourseResultUpdateResponses, GradingCourseSummariesData, GradingCourseSummariesErrors, GradingCourseSummariesResponses, GradingGradebookGetData, GradingGradebookGetErrors, GradingGradebookGetResponses, GradingScaleGetData, GradingScaleGetErrors, GradingScaleGetResponses, GradingScalePresetsData, GradingScalePresetsErrors, GradingScalePresetsResponses, GradingScaleUpdateData, GradingScaleUpdateErrors, GradingScaleUpdateResponses, GradingSimulateCourseData, GradingSimulateCourseErrors, GradingSimulateCourseResponses, GradingSimulateTermData, GradingSimulateTermErrors, GradingSimulateTermResponses, GradingSuggestScoresData, GradingSuggestScoresErrors, GradingSuggestScoresResponses, GradingSummaryProgramData, GradingSummaryProgramErrors, GradingSummaryProgramResponses, GradingSummaryTermData, GradingSummaryTermErrors, GradingSummaryTermResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -521,6 +521,261 @@ export const coreJobList = <ThrowOnError extends boolean = false>(options?: Opti
  * rejected for exceeding the quota.
  */
 export const coreStorageUsage = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageUsageData, ThrowOnError>): RequestResult<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError>({ url: '/storage/usage', ...options });
+
+/**
+ * List a course's assessments with deadline, weight and score.
+ *
+ * Use to see what is graded, still pending or overdue in a course. To locate one
+ * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
+ */
+export const gradingAssessmentList = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentListData, ThrowOnError>): RequestResult<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError> => (options.client ?? client).get<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError>({ url: '/courses/{course_id}/assessments', ...options });
+
+/**
+ * Add an assessment (quiz, exam, assignment...) to a course gradebook.
+ *
+ * Use when the user adds a graded item. Give the deadline as `due_date` (and
+ * `due_time` if known) in the Program's time zone. Do not use to record a score on an existing
+ * assessment; use grading.assessment.update.
+ */
+export const gradingAssessmentCreate = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentCreateData, ThrowOnError>): RequestResult<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError>({
+    url: '/courses/{course_id}/assessments',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add several assessments at once (imports from a syllabus or an LMS).
+ *
+ * Items that carry `source_kind` and `source_ref` are skipped when the course
+ * already has an assessment from the same source, so repeating an import creates no duplicates.
+ */
+export const gradingAssessmentCreateMany = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentCreateManyData, ThrowOnError>): RequestResult<GradingAssessmentCreateManyResponses, GradingAssessmentCreateManyErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentCreateManyResponses, GradingAssessmentCreateManyErrors, ThrowOnError>({
+    url: '/courses/{course_id}/assessments:batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete an assessment from a gradebook.
+ *
+ * Irreversible. To ignore an assessment in the grade, set `dropped` instead.
+ */
+export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteData, ThrowOnError>): RequestResult<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError>({ url: '/assessments/{assessment_id}', ...options });
+
+/**
+ * Change an assessment, mainly to record its score.
+ *
+ * Record a score with `score_percentage` (82), or `points_earned` with
+ * `points_possible` (18 of 20). Send null to clear the score again. Also changes title, category,
+ * deadline, weight, `dropped` (ignore it in every calculation) and note. Only the fields that are sent
+ * change.
+ */
+export const gradingAssessmentUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentUpdateData, ThrowOnError>): RequestResult<GradingAssessmentUpdateResponses, GradingAssessmentUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingAssessmentUpdateResponses, GradingAssessmentUpdateErrors, ThrowOnError>({
+    url: '/assessments/{assessment_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the order of a course's assessments.
+ *
+ * Assessments not listed keep their order after the listed ones.
+ */
+export const gradingAssessmentReorder = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentReorderData, ThrowOnError>): RequestResult<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError>({
+    url: '/courses/{course_id}/assessment-order',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add an assessment category (e.g. 'Midterm') to a course's gradebook.
+ *
+ * Use when the syllabus has a kind of assessment the built-in categories lack.
+ */
+export const gradingCategoryCreate = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryCreateData, ThrowOnError>): RequestResult<GradingCategoryCreateResponses, GradingCategoryCreateErrors, ThrowOnError> => (options.client ?? client).post<GradingCategoryCreateResponses, GradingCategoryCreateErrors, ThrowOnError>({
+    url: '/courses/{course_id}/grading-categories',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete an assessment category; its assessments become uncategorised.
+ *
+ * Irreversible, but no assessment is deleted. Prefer archiving.
+ */
+export const gradingCategoryDelete = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryDeleteData, ThrowOnError>): RequestResult<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError>({ url: '/grading-categories/{category_id}', ...options });
+
+/**
+ * Rename, recolor or archive an assessment category.
+ *
+ * Partial update. Archived categories keep their assessments but leave the pickers.
+ */
+export const gradingCategoryUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryUpdateData, ThrowOnError>): RequestResult<GradingCategoryUpdateResponses, GradingCategoryUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingCategoryUpdateResponses, GradingCategoryUpdateErrors, ThrowOnError>({
+    url: '/grading-categories/{category_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the display order of a course's assessment categories.
+ *
+ * Categories not listed keep their order after the listed ones.
+ */
+export const gradingCategoryReorder = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryReorderData, ThrowOnError>): RequestResult<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError>({
+    url: '/courses/{course_id}/grading-category-order',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Change how a course is graded: official final grade, target, pass/fail, forecast.
+ *
+ * Use to enter the official final grade (`final_override_percentage`, which wins
+ * over the calculated one; null clears it), set the target in grade points, switch a course to
+ * pass/fail, or enter a final grade for a course without a gradebook (`manual_percentage` with
+ * `gradebook_enabled: false`). To record the score of one assessment use
+ * grading.assessment.update.
+ */
+export const gradingCourseResultUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingCourseResultUpdateData, ThrowOnError>): RequestResult<GradingCourseResultUpdateResponses, GradingCourseResultUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingCourseResultUpdateResponses, GradingCourseResultUpdateErrors, ThrowOnError>({
+    url: '/courses/{course_id}/grade',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The grade, grade points and status of every course in a Program.
+ *
+ * Use to compare courses or list which are finished, in progress or pass/fail.
+ */
+export const gradingCourseSummaries = <ThrowOnError extends boolean = false>(options: Options<GradingCourseSummariesData, ThrowOnError>): RequestResult<GradingCourseSummariesResponses, GradingCourseSummariesErrors, ThrowOnError> => (options.client ?? client).get<GradingCourseSummariesResponses, GradingCourseSummariesErrors, ThrowOnError>({ url: '/programs/{program_id}/course-grades', ...options });
+
+/**
+ * A course's gradebook: categories, assessments, and every calculated figure.
+ *
+ * Use to answer questions about a course's grade: the current average, the final
+ * grade, the forecast, or what the remaining assessments must average to reach a target grade
+ * (`summary.required_average`). The summary figures are null while the weights do not add up to
+ * 100 (`summary.weight_gap` says how much is missing). Never calculate grades yourself.
+ */
+export const gradingGradebookGet = <ThrowOnError extends boolean = false>(options: Options<GradingGradebookGetData, ThrowOnError>): RequestResult<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError> => (options.client ?? client).get<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError>({ url: '/courses/{course_id}/gradebook', ...options });
+
+/**
+ * Get a Program's grading scale: percentage ranges → grade points and letters.
+ *
+ * Use to convert a percentage to grade points or a letter, or to read the Program's
+ * grading defaults (how year-long courses count, default categories, hidden GPA).
+ */
+export const gradingScaleGet = <ThrowOnError extends boolean = false>(options: Options<GradingScaleGetData, ThrowOnError>): RequestResult<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError> => (options.client ?? client).get<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError>({ url: '/programs/{program_id}/grading-scale', ...options });
+
+/**
+ * Change a Program's grading scale or grading defaults.
+ *
+ * Partial update: only the fields that are sent change. `bands` replaces the whole
+ * table; the ranges must not overlap and must reach from 0 to 100, with points of at most
+ * `max_points`. Every GPA of the Program is recalculated from the new scale.
+ */
+export const gradingScaleUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingScaleUpdateData, ThrowOnError>): RequestResult<GradingScaleUpdateResponses, GradingScaleUpdateErrors, ThrowOnError> => (options.client ?? client).put<GradingScaleUpdateResponses, GradingScaleUpdateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/grading-scale',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the built-in grading scales (UofT 4.0, US 4.0, China 100-point, custom).
+ *
+ * Use to offer ready-made scales; apply one with grading.scale.update.
+ */
+export const gradingScalePresets = <ThrowOnError extends boolean = false>(options?: Options<GradingScalePresetsData, ThrowOnError>): RequestResult<GradingScalePresetsResponses, GradingScalePresetsErrors, ThrowOnError> => (options?.client ?? client).get<GradingScalePresetsResponses, GradingScalePresetsErrors, ThrowOnError>({ url: '/grading/scale-presets', ...options });
+
+/**
+ * What-if: the course figures if ungraded assessments scored the given marks.
+ *
+ * Use to answer "what if I get 80 on the final". Nothing is saved: never change
+ * real scores to simulate. Fails with grading.weights_not_100 while the weights do not add up.
+ */
+export const gradingSimulateCourse = <ThrowOnError extends boolean = false>(options: Options<GradingSimulateCourseData, ThrowOnError>): RequestResult<GradingSimulateCourseResponses, GradingSimulateCourseErrors, ThrowOnError> => (options.client ?? client).post<GradingSimulateCourseResponses, GradingSimulateCourseErrors, ThrowOnError>({
+    url: '/courses/{course_id}/gradebook:simulate',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * What-if for a term: the term GPA if unfinished courses ended with given marks.
+ *
+ * Pass assumed final percentages per unfinished course in `scores`; with
+ * `target_gpa` the result says whether it is reachable and what average the other unfinished courses
+ * need. Nothing is saved.
+ */
+export const gradingSimulateTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSimulateTermData, ThrowOnError>): RequestResult<GradingSimulateTermResponses, GradingSimulateTermErrors, ThrowOnError> => (options.client ?? client).post<GradingSimulateTermResponses, GradingSimulateTermErrors, ThrowOnError>({
+    url: '/terms/{term_id}/grade-summary:simulate',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Suggest a score for every ungraded assessment that reaches the target grade.
+ *
+ * Scores follow the student's results so far in each category and land exactly on
+ * the target. Used to auto-fill a what-if plan. Fails with grading.weights_not_100 while the
+ * weights do not add up.
+ */
+export const gradingSuggestScores = <ThrowOnError extends boolean = false>(options: Options<GradingSuggestScoresData, ThrowOnError>): RequestResult<GradingSuggestScoresResponses, GradingSuggestScoresErrors, ThrowOnError> => (options.client ?? client).post<GradingSuggestScoresResponses, GradingSuggestScoresErrors, ThrowOnError>({
+    url: '/courses/{course_id}/gradebook:suggest',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Cumulative GPA, earned credits, progress to graduation and GPA per term.
+ *
+ * Use for "what is my overall GPA" or "how many credits do I have left". Every
+ * course counts once, a year-long one in the term the Program's setting names.
+ */
+export const gradingSummaryProgram = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryProgramData, ThrowOnError>): RequestResult<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError>({ url: '/programs/{program_id}/grade-summary', ...options });
+
+/**
+ * A term's GPA, average, credits and every course's grade.
+ *
+ * Use for "what is my GPA this term". Unfinished courses are left out unless
+ * `include_in_progress` counts their current average.
+ */
+export const gradingSummaryTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryTermData, ThrowOnError>): RequestResult<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError>({ url: '/terms/{term_id}/grade-summary', ...options });
 
 /**
  * Get the user's personal preferences.
