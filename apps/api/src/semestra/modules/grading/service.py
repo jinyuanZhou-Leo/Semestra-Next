@@ -24,6 +24,7 @@ from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram
 from semestra.modules.academics.schemas import Course, CourseListInput, Term
 from semestra.modules.grading import engine, models, presets
 from semestra.modules.grading.schemas import (
+    PERCENT_MAX,
     Assessment,
     AssessmentCandidate,
     AssessmentCandidates,
@@ -507,7 +508,10 @@ def _score_fields(
     if earned is not None:
         if possible is None:
             raise AppError("grading.points_invalid", 422, reason="points_possible_missing")
-        return earned / possible * 100, earned, possible
+        derived = earned / possible * 100
+        if derived > PERCENT_MAX:  # the same bound the percentage field itself enforces
+            raise AppError("grading.points_invalid", 422, reason="percentage_out_of_range")
+        return derived, earned, possible
     return percentage, None, possible if percentage is None else None
 
 
@@ -561,7 +565,7 @@ async def _announce_assessment(
             "course_id": row.course_id,
             "program_id": program_id,
             "changed": list(changed),
-            "due_changed": "due_at" in changed,
+            "due_changed": bool({"due_at", "due_has_time"} & set(changed)),
         },
     )
 
@@ -635,6 +639,7 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
             "title",
             "category_id",
             "due_at",
+            "due_has_time",
             "weight",
             "score_percentage",
             "points_earned",
@@ -807,7 +812,7 @@ async def assessment_deadlines(
     end: datetime,
     course_ids: Sequence[str] | None = None,
 ) -> list[Assessment]:
-    """Assessments due in [start, end) for the calendar (M04 registers them as a source)."""
+    """Unscored, undropped assessments due in [start, end): the calendar source M04 registers."""
     program = await academics.get_program_row(ctx, program_id)
     allowed = {c.id for c in await _program_courses(ctx, program_id)}
     wanted = [c for c in (course_ids or allowed) if c in allowed]
@@ -820,6 +825,7 @@ async def assessment_deadlines(
                 models.GradingAssessment.user_id == ctx.user_id,
                 models.GradingAssessment.course_id.in_(wanted),
                 models.GradingAssessment.dropped.is_(False),
+                models.GradingAssessment.score_percentage.is_(None),
                 models.GradingAssessment.due_at >= start,
                 models.GradingAssessment.due_at < end,
             )

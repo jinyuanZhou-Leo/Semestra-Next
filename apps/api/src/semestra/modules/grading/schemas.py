@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field, model_validator
 from semestra.modules.academics.schemas import Id, Name
 
 # Scores may exceed 100 (bonus marks); weights are shares of the course in percent.
-Percent = Annotated[float, Field(ge=0, le=1000)]
+PERCENT_MAX = 1000
+Percent = Annotated[float, Field(ge=0, le=PERCENT_MAX)]
 Weight = Annotated[float, Field(ge=0, le=100)]
 Points = Annotated[float, Field(ge=0, le=100)]
 Note = Annotated[str, Field(max_length=2000)]

@@ -1,6 +1,7 @@
 """Grading over HTTP and the agent surface (M03 §8)."""
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -11,7 +12,7 @@ from sqlalchemy import func, select
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
-from semestra.modules.grading import models
+from semestra.modules.grading import models, service
 from semestra.modules.grading.schemas import AssessmentCandidates
 from semestra.testing import MakeUser, UserHandle, collect_events
 
@@ -461,6 +462,8 @@ async def test_events_say_what_changed(api: Api, app: FastAPI):
         points = {"points_earned": 90, "points_possible": 100}
         await api.call("PATCH", f"/assessments/{a['id']}", json=points)
         await api.call("PATCH", f"/assessments/{a['id']}", json={"due_date": "2025-10-02"})
+        # an explicit 23:59 is the same instant as "end of day", but now shows a time
+        await api.call("PATCH", f"/assessments/{a['id']}", json={"due_time": "23:59:00"})
         await api.call("PATCH", f"/assessments/{a['id']}", json={"note": "same"})
         await api.call("PATCH", f"/assessments/{a['id']}", json={"note": "same"})
         await api.call("PATCH", f"/courses/{course['id']}/grade", json={"target_points": 3.7})
@@ -474,12 +477,49 @@ async def test_events_say_what_changed(api: Api, app: FastAPI):
         ("grading.assessment.updated", ["score_percentage", "points_earned", "points_possible"]),
         ("grading.assessment.updated", ["points_earned", "points_possible"]),
         ("grading.assessment.updated", ["due_at"]),
+        ("grading.assessment.updated", ["due_has_time"]),
         ("grading.assessment.updated", ["note"]),  # the repeated identical note publishes nothing
         ("grading.course_result.updated", None),
         ("grading.assessment.deleted", []),
     ]
     updated = [e for e in pushed if e["type"] == "grading.assessment.updated"]
-    assert [e["data"]["due_changed"] for e in updated] == [False, False, False, True, False]
+    assert [e["data"]["due_changed"] for e in updated] == [False, False, False, True, True, False]
+
+
+async def test_point_scores_obey_the_percentage_limit(api: Api):
+    _, course = await one_course(api)
+    a = await api.assessment(course["id"], "Quiz", 10)
+    r = await api.call(
+        "PATCH",
+        f"/assessments/{a['id']}",
+        422,
+        json={"points_earned": 1001, "points_possible": 100},
+    )
+    assert r["error"]["code"] == "grading.points_invalid"
+    bonus = await api.call(
+        "PATCH", f"/assessments/{a['id']}", json={"points_earned": 105, "points_possible": 100}
+    )
+    assert bonus["score_percentage"] == 105
+
+
+async def test_calendar_deadlines_leave_out_scored_and_dropped_work(api: Api, app: FastAPI):
+    program, course = await one_course(api)
+    cid = course["id"]
+    open_ = await api.assessment(cid, "Open", 10, due_date="2025-10-01")
+    done = await api.assessment(cid, "Done", 10, due_date="2025-10-02", score_percentage=90)
+    gone = await api.assessment(cid, "Gone", 10, due_date="2025-10-03", dropped=True)
+    del done, gone
+    async with app.state.session_factory() as db:
+        owner = await db.scalar(select(models.GradingScale.user_id))
+    assert owner
+    async with system_ctx(app.state, owner) as ctx:
+        found = await service.assessment_deadlines(
+            ctx,
+            program["id"],
+            datetime(2025, 9, 1, tzinfo=UTC),
+            datetime(2025, 11, 1, tzinfo=UTC),
+        )
+    assert [a.id for a in found] == [open_["id"]]
 
 
 # --- term and Program figures ---------------------------------------------------------------
