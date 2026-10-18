@@ -567,7 +567,10 @@ async def weeks_of(ctx: Ctx, term: AcademicsTerm) -> list[rules.Week]:
 
 
 async def term_week_of(ctx: Ctx, term: AcademicsTerm, day: date) -> int | rules.BreakSpan | None:
-    """Week number of `day` in the term (M02 §3), for other modules such as the schedule."""
+    """Week number of `day` in the term (M02 §3), for other modules such as the schedule; None
+    outside the term's own dates (its first and last calendar weeks reach past them)."""
+    if not term.start_date <= day <= term.end_date:
+        return None
     return rules.term_week_of(await weeks_of(ctx, term), day)
 
 
