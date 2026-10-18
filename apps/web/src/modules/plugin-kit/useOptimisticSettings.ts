@@ -18,6 +18,8 @@ export function useOptimisticSettings<T extends object>(
   const [pending, setPending] = useState<Partial<T> | null>(null)
   const [status, setStatus] = useState<SaveStatus>('idle')
   const pendingRef = useRef<Partial<T> | null>(null)
+  /** Patches handed to `save` (or queued behind one) that have not finished yet, oldest first. */
+  const outstanding = useRef<Partial<T>[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const saveRef = useRef(save)
   const inflight = useRef<Promise<void>>(Promise.resolve())
@@ -25,42 +27,45 @@ export function useOptimisticSettings<T extends object>(
     saveRef.current = save
   })
 
+  // What the card shows over `incoming`: every change that is not saved yet, in order.
+  const show = useCallback(() => {
+    const unsaved = [...outstanding.current, ...(pendingRef.current ? [pendingRef.current] : [])]
+    setPending(unsaved.length > 0 ? Object.assign({}, ...unsaved) : null)
+  }, [])
+
   const send = useCallback(() => {
     clearTimeout(timer.current)
     timer.current = undefined
     const patch = pendingRef.current
     if (!patch) return
     pendingRef.current = null
+    outstanding.current.push(patch)
     setStatus('saving')
     // One request at a time, so the newest values are what the server ends with.
     inflight.current = inflight.current.then(async () => {
+      let failed = false
       try {
         await saveRef.current(patch)
-        // `save` has put the new values into the query cache, so `incoming` already has them,
-        // unless the user changed something again meanwhile.
-        if (pendingRef.current) {
-          setStatus('saving')
-        } else {
-          setPending(null)
-          setStatus('idle')
-        }
       } catch {
-        // Only what this request carried is rolled back; later edits are still waiting to be sent.
-        setPending(pendingRef.current)
-        setStatus('error')
+        failed = true
       }
+      // On success `save` has put the values into the query cache, so `incoming` has them; on
+      // failure only what this request carried is rolled back. Later edits keep showing.
+      outstanding.current = outstanding.current.filter((p) => p !== patch)
+      show()
+      if (failed) setStatus('error')
+      else setStatus(outstanding.current.length > 0 || pendingRef.current ? 'saving' : 'idle')
     })
-  }, [])
+  }, [show])
 
   const update = useCallback(
     (patch: Partial<T>) => {
-      const next = { ...pendingRef.current, ...patch }
-      pendingRef.current = next
-      setPending(next)
+      pendingRef.current = { ...pendingRef.current, ...patch }
+      show()
       clearTimeout(timer.current)
       timer.current = setTimeout(send, delayMs)
     },
-    [delayMs, send],
+    [delayMs, send, show],
   )
 
   useEffect(() => {

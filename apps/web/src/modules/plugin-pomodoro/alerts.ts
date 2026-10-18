@@ -1,29 +1,49 @@
 /** Sound and browser notification when a phase ends (M14 §3). Both degrade to nothing. */
 
+let audio: AudioContext | undefined
+
+function audioContext(): AudioContext | undefined {
+  if (audio && audio.state !== 'closed') return audio
+  const Ctx =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  audio = Ctx ? new Ctx() : undefined
+  return audio
+}
+
+/**
+ * Call from a click handler (Start): browsers only let an AudioContext make sound once it was
+ * created or resumed during a user gesture, and the chime plays later from a timer callback.
+ */
+export function unlockAudio(): void {
+  try {
+    void audioContext()?.resume()
+  } catch {
+    // No audio device: stay silent.
+  }
+}
+
 export function playChime(): void {
   try {
-    const Ctx =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctx) return
-    const audio = new Ctx()
-    const gain = audio.createGain()
-    gain.connect(audio.destination)
-    gain.gain.setValueAtTime(0.0001, audio.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + 0.03)
-    gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 1.2)
+    const ctx = audioContext()
+    if (!ctx) return
+    void ctx.resume()
+    const gain = ctx.createGain()
+    gain.connect(ctx.destination)
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.03)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2)
     for (const [offset, frequency] of [
       [0, 784],
       [0.25, 1047],
     ] as const) {
-      const osc = audio.createOscillator()
+      const osc = ctx.createOscillator()
       osc.type = 'sine'
       osc.frequency.value = frequency
       osc.connect(gain)
-      osc.start(audio.currentTime + offset)
-      osc.stop(audio.currentTime + offset + 0.5)
+      osc.start(ctx.currentTime + offset)
+      osc.stop(ctx.currentTime + offset + 0.5)
     }
-    window.setTimeout(() => void audio.close(), 1800)
   } catch {
     // No audio device, or the browser blocked it before any interaction: stay silent.
   }

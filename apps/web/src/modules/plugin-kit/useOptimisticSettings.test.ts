@@ -37,3 +37,25 @@ test('an edit made while a save fails is kept and sent on its own', async () => 
   await act(() => vi.advanceTimersByTimeAsync(100))
   expect(save).toHaveBeenLastCalledWith({ other: 5 })
 })
+
+test('a change whose save has not started yet stays visible when the save before it succeeds', async () => {
+  let finish!: () => void
+  let finishSecond!: () => void
+  const save = vi
+    .fn<(patch: Partial<Settings>) => Promise<void>>()
+    .mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)))
+    .mockImplementationOnce(() => new Promise<void>((resolve) => (finishSecond = resolve)))
+  const { result } = renderHook(() => useOptimisticSettings(incoming, save, 100))
+  act(() => result.current.update({ other: 1 }))
+  await act(() => vi.advanceTimersByTimeAsync(100))
+  // A second change's delay runs out while the first request is still out: it is queued behind it.
+  act(() => result.current.update({ other: 2 }))
+  await act(() => vi.advanceTimersByTimeAsync(100))
+  expect(save).toHaveBeenCalledTimes(1)
+  await act(async () => finish())
+  expect(save).toHaveBeenCalledTimes(2)
+  expect(result.current.value.other).toBe(2)
+  expect(result.current.status).toBe('saving')
+  await act(async () => finishSecond())
+  expect(result.current.status).toBe('idle')
+})

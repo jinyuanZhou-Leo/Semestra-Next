@@ -8,7 +8,7 @@ import { toApiError } from '@/app/api'
 import { refreshUiPrefs, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { askNotificationPermission, playChime, showNotification } from './alerts'
+import { askNotificationPermission, playChime, showNotification, unlockAudio } from './alerts'
 import type { PomodoroSettings } from './schema'
 import {
   INITIAL_STATE,
@@ -251,6 +251,7 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
     remaining,
     config,
     start: () => {
+      if (settings.sound) unlockAudio()
       if (settings.notify && state.status === 'idle') askNotificationPermission()
       const t = Date.now()
       setNow(t)
