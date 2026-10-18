@@ -113,9 +113,7 @@ export function WeekGrid({
         <div key={day.weekday} className="truncate px-1 pb-1 text-center font-medium">
           {day.label}
           {day.sublabel ? (
-            <span className="block truncate font-normal text-muted-foreground">
-              {day.sublabel}
-            </span>
+            <span className="block truncate font-normal text-muted-foreground">{day.sublabel}</span>
           ) : null}
         </div>
       ))}

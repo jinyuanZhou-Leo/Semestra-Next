@@ -99,8 +99,16 @@ export function MeetingDialog({
     await invalidateSchedule(queryClient)
     onOpenChange(false)
   }
-  const create = useMutation({ ...scheduleMeetingCreateMutation(), onError: toastError, onSuccess: done })
-  const update = useMutation({ ...scheduleMeetingUpdateMutation(), onError: toastError, onSuccess: done })
+  const create = useMutation({
+    ...scheduleMeetingCreateMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
+  const update = useMutation({
+    ...scheduleMeetingUpdateMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
   const remove = useMutation({
     ...scheduleMeetingDeleteMutation(),
     onError: toastError,
@@ -152,7 +160,9 @@ export function MeetingDialog({
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent closeLabel={m.common_close()} className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{meeting ? m.schedule_meeting_edit() : m.schedule_meeting_add()}</DialogTitle>
+          <DialogTitle>
+            {meeting ? m.schedule_meeting_edit() : m.schedule_meeting_add()}
+          </DialogTitle>
         </DialogHeader>
         <form noValidate onSubmit={submit} className="grid grid-cols-2 gap-4">
           {termIds.length > 1 ? (

@@ -5,7 +5,15 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { CalendarX2, ExternalLink, MapPin, Pencil, RotateCcw, TriangleAlert, User } from 'lucide-react'
+import {
+  CalendarX2,
+  ExternalLink,
+  MapPin,
+  Pencil,
+  RotateCcw,
+  TriangleAlert,
+  User,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCalendarSources } from '@/app/registry'
 import { toastError } from '@/lib/errors'
@@ -60,8 +68,16 @@ export function OccurrenceDetails({
     await invalidateSchedule(queryClient)
     onOpenChange(false)
   }
-  const cancel = useMutation({ ...scheduleExceptionUpsertMutation(), onError: toastError, onSuccess: done })
-  const restore = useMutation({ ...scheduleExceptionDeleteMutation(), onError: toastError, onSuccess: done })
+  const cancel = useMutation({
+    ...scheduleExceptionUpsertMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
+  const restore = useMutation({
+    ...scheduleExceptionDeleteMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
   const meetingId = o.meta?.meeting_id
   const originalDate = o.meta?.original_date
   const busy = cancel.isPending || restore.isPending
@@ -99,12 +115,18 @@ export function OccurrenceDetails({
               <Badge variant="destructive">{m.schedule_status_overdue()}</Badge>
             ) : null}
           </div>
-          {course ? <p className="font-medium">{courseLabel(course)} · {course.title}</p> : null}
+          {course ? (
+            <p className="font-medium">
+              {courseLabel(course)} · {course.title}
+            </p>
+          ) : null}
           {o.location ? <Line icon={MapPin}>{o.location}</Line> : null}
           {o.meta?.instructor ? <Line icon={User}>{o.meta.instructor}</Line> : null}
           {conflicts > 0 ? (
             <Line icon={TriangleAlert}>
-              <span className="text-destructive">{m.schedule_conflict_with({ count: conflicts })}</span>
+              <span className="text-destructive">
+                {m.schedule_conflict_with({ count: conflicts })}
+              </span>
             </Line>
           ) : null}
           {o.status === 'moved' && o.meta?.original_start_at ? (
@@ -117,7 +139,9 @@ export function OccurrenceDetails({
               })}
             </p>
           ) : null}
-          {o.meta?.note ? <p className="whitespace-pre-line text-muted-foreground">{o.meta.note}</p> : null}
+          {o.meta?.note ? (
+            <p className="whitespace-pre-line text-muted-foreground">{o.meta.note}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {isMeeting(o) && meetingId && originalDate ? (

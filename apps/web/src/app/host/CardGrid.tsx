@@ -37,9 +37,7 @@ export function CardGrid({ scope, board }: { scope: Scope; board?: BoardKind }) 
       .map((d) => [d.card, d.size] as const),
   )
   const listed = [...defaults.keys()]
-  const ordered = [...cards].sort(
-    (a, b) => rank(listed, a.id) - rank(listed, b.id),
-  )
+  const ordered = [...cards].sort((a, b) => rank(listed, a.id) - rank(listed, b.id))
   return (
     <div className="grid auto-rows-[10rem] grid-cols-1 gap-4 md:grid-cols-4">
       {ordered.map((card) => {

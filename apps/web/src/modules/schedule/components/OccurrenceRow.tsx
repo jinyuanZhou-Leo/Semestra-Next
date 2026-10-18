@@ -45,9 +45,7 @@ export function OccurrenceRow({
           {o.type_code ? (
             <span className="text-xs font-medium text-muted-foreground">{o.type_code}</span>
           ) : null}
-          <span className={cn('truncate font-medium', cancelled && 'line-through')}>
-            {o.title}
-          </span>
+          <span className={cn('truncate font-medium', cancelled && 'line-through')}>{o.title}</span>
           {(o.meta?.conflicts_with?.length ?? 0) > 0 ? (
             <TriangleAlert
               aria-label={m.schedule_conflict()}

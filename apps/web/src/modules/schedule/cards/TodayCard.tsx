@@ -22,9 +22,7 @@ export default function TodayCard({ scope, size }: CardProps) {
   const now = useNow()
   if (!today) return null
   const termId = scope.kind === 'term' ? scope.termId : undefined
-  const items = today.items.filter(
-    (o) => !termId || !o.meta?.term_id || o.meta.term_id === termId,
-  )
+  const items = today.items.filter((o) => !termId || !o.meta?.term_id || o.meta.term_id === termId)
   if (items.length === 0) {
     return <EmptyState icon={CalendarCheck} title={m.schedule_today_empty()} />
   }

@@ -15,7 +15,11 @@ export type CalendarFilters = {
   showCancelled: boolean | null
 }
 
-export const DEFAULT_FILTERS: CalendarFilters = { sources: {}, hiddenCourses: [], showCancelled: null }
+export const DEFAULT_FILTERS: CalendarFilters = {
+  sources: {},
+  hiddenCourses: [],
+  showCancelled: null,
+}
 
 export function visibleSources(
   filters: CalendarFilters,

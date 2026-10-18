@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import academics from '@/modules/academics/manifest'
 import auth from '@/modules/auth/manifest'
+import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
   BoardKind,
@@ -19,7 +20,7 @@ import type {
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
  * `modules/_template` is a starting point to copy and is deliberately not listed.
  */
-const builtInModules: readonly ModuleManifest[] = [auth, settings, academics]
+const builtInModules: readonly ModuleManifest[] = [auth, settings, academics, schedule]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
 export const ModuleRegistry = createContext<readonly ModuleManifest[]>(builtInModules)

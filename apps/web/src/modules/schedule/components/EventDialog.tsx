@@ -37,7 +37,12 @@ type Draft = {
   note: string
 }
 
-function draftOf(event: OneOffEvent | undefined, slot: EventSlot | undefined, tz: string, courseId?: string): Draft {
+function draftOf(
+  event: OneOffEvent | undefined,
+  slot: EventSlot | undefined,
+  tz: string,
+  courseId?: string,
+): Draft {
   if (event) {
     const start = toWall(event.start_at, tz).slice(0, 16)
     const end = toWall(event.end_at, tz).slice(0, 16)
@@ -103,8 +108,16 @@ export function EventDialog({
     await invalidateSchedule(queryClient)
     onOpenChange(false)
   }
-  const create = useMutation({ ...scheduleEventCreateMutation(), onError: toastError, onSuccess: done })
-  const update = useMutation({ ...scheduleEventUpdateMutation(), onError: toastError, onSuccess: done })
+  const create = useMutation({
+    ...scheduleEventCreateMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
+  const update = useMutation({
+    ...scheduleEventUpdateMutation(),
+    onError: toastError,
+    onSuccess: done,
+  })
   const remove = useMutation({
     ...scheduleEventDeleteMutation(),
     onError: toastError,

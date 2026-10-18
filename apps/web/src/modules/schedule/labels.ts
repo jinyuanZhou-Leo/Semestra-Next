@@ -22,7 +22,10 @@ export function weekLabel(number: number | null | undefined, breakName?: string 
 }
 
 /** "10:00 – 11:00" in the Program's time zone; "All day" for all-day items. */
-export function timeRange(o: Pick<Occurrence, 'start_at' | 'end_at' | 'all_day'>, tz: string): string {
+export function timeRange(
+  o: Pick<Occurrence, 'start_at' | 'end_at' | 'all_day'>,
+  tz: string,
+): string {
   if (o.all_day) return m.schedule_all_day()
   const fmt = new Intl.DateTimeFormat(getLocale(), { timeStyle: 'short', timeZone: tz })
   const start = fmt.format(new Date(o.start_at))
