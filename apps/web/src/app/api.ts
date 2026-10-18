@@ -47,6 +47,8 @@ function withCsrf(request: Request): Request {
 }
 
 // An unconsumed copy of every request, so a 401 can be retried after re-login.
+const SESSION_LAPSED = new Set(['common.unauthenticated', 'auth.session_expired'])
+
 const backups = new WeakMap<Request, Request>()
 
 client.interceptors.request.use((request) => {
@@ -59,6 +61,13 @@ client.interceptors.response.use(async (response, request) => {
   if (response.status !== 401 || isAuthRoute || !(isSignedIn() || isReauthPending())) {
     return response
   }
+  // Only a lapsed session asks for re-login. Other 401s (e.g. a wrong current password while
+  // changing it) are ordinary errors the page shows itself.
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: { code?: string } } | null
+  if (!SESSION_LAPSED.has(body?.error?.code ?? '')) return response
   const backup = backups.get(request)
   if (!backup || !(await requestReauth())) return response
   return fetch(withCsrf(backup), { credentials: 'include' })

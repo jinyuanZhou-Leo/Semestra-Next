@@ -58,6 +58,19 @@ test('a 401 when nobody was signed in is just an error (no dialog)', async () =>
   expect(isReauthPending()).toBe(false)
 })
 
+test('a 401 that is not a lapsed session (wrong password) is a plain error', async () => {
+  const e = apiError('auth.invalid_credentials', 401)
+  server.use(
+    http.get(`${API}/account/sessions`, () => HttpResponse.json(e.body, { status: e.status })),
+  )
+  setSignedIn(true)
+  await expect(accountSessionsList({ throwOnError: true })).rejects.toMatchObject({
+    status: 401,
+    code: 'auth.invalid_credentials',
+  })
+  expect(isReauthPending()).toBe(false)
+})
+
 test('writes carry the CSRF header from the cookie', async () => {
   document.cookie = 'semestra_csrf=tok123; path=/'
   let header: string | null = null

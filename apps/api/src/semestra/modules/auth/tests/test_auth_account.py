@@ -1,5 +1,6 @@
 """CSRF, native tokens, PATs, sessions and account management (M01 §3, §5, §10)."""
 
+import asyncio
 from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI
@@ -229,6 +230,29 @@ async def test_replaying_an_older_rotated_refresh_token_revokes_the_session(
     replay = await client.post("/auth/token/refresh", json={"refresh_token": t1["refresh_token"]})
     assert replay.status_code == 401
     assert (await client.get("/account/me", headers=bearer)).status_code == 401
+
+
+async def test_concurrent_refreshes_with_one_token_rotate_it_exactly_once(
+    client: AsyncClient, make_user: MakeUser
+) -> None:
+    await make_user(email="ios@example.com", password=PASSWORD)
+    login = await client.post(
+        "/auth/password/login?client=native",
+        json={"email": "ios@example.com", "password": PASSWORD},
+    )
+    token = login.json()["tokens"]["refresh_token"]
+    results = await asyncio.gather(
+        *(client.post("/auth/token/refresh", json={"refresh_token": token}) for _ in range(4))
+    )
+    codes = sorted(r.status_code for r in results)
+    assert codes.count(200) == 1
+    assert set(codes) <= {200, 401}  # losers get a plain 401, never a 500
+    winner = next(r for r in results if r.status_code == 200).json()
+    # The session survives the lost races and keeps working with the new token.
+    again = await client.post(
+        "/auth/token/refresh", json={"refresh_token": winner["refresh_token"]}
+    )
+    assert again.status_code == 200
 
 
 async def test_native_logout_revokes_the_access_token(

@@ -8,6 +8,8 @@ from typing import Literal
 
 import structlog
 from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from semestra.core.context import Ctx
@@ -369,12 +371,34 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
         raise expired
 
     new_token = crypto.new_token(crypto.REFRESH_PREFIX)
-    ctx.db.add(AuthUsedRefreshToken(token_hash=digest, session_id=session.id, used_at=ctx.now))
-    session.refresh_token_hash = crypto.hash_token(new_token)
-    session.last_used_at = ctx.now
-    session.expires_at = ctx.now + timedelta(days=ctx.settings.refresh_token_ttl_days)
-    if meta.user_agent:
-        session.user_agent = meta.user_agent[:512]
+    # Claim the current token atomically: of several concurrent refreshes with the same token,
+    # exactly one rotates it; the rest lose here and get a plain 401 (not a replay revocation).
+    try:
+        claimed = (
+            await ctx.db.execute(
+                update(AuthSession)
+                .where(AuthSession.id == session.id, AuthSession.refresh_token_hash == digest)
+                .values(
+                    refresh_token_hash=crypto.hash_token(new_token),
+                    last_used_at=ctx.now,
+                    expires_at=ctx.now + timedelta(days=ctx.settings.refresh_token_ttl_days),
+                    user_agent=meta.user_agent[:512] if meta.user_agent else session.user_agent,
+                )
+                .returning(AuthSession.id)
+                .execution_options(synchronize_session=False)
+            )
+        ).first()
+    except OperationalError:  # SQLite refuses the write when a concurrent rotation committed first
+        await ctx.db.rollback()
+        raise expired from None
+    if claimed is None:
+        raise expired
+    await ctx.db.execute(
+        insert(AuthUsedRefreshToken)
+        .values(token_hash=digest, session_id=session.id, used_at=ctx.now)
+        .on_conflict_do_nothing(index_elements=["token_hash"])
+    )
+    await ctx.db.refresh(session)
     return SignedIn(user, session, new_token, "native")
 
 
