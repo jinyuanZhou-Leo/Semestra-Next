@@ -112,9 +112,29 @@ class Registry:
             errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
             raise AppError("common.validation", 422, errors=errors) from exc
         out = await cap.handler(ctx, inp)
-        if surface != "http" and cap.agent_output_fields is not None:
+        if surface == "http":
+            return out
+        if cap.agent_output_fields is not None:
             return out.model_dump(include=set(cap.agent_output_fields), mode="json")
+        fields: object = getattr(inp, "fields", None)
+        if isinstance(fields, list) and fields:
+            return _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         return out
+
+
+def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
+    """Field selection of list capabilities (M00 §3.6): agents and MCP clients get only the
+    requested fields of each item, to keep their context small. HTTP callers get everything."""
+    dumped = out.model_dump(mode="json")
+    items: object = dumped.get("items")
+    if isinstance(items, list):
+        dumped["items"] = [
+            {k: v for k, v in item.items() if k in keep}  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            for item in items  # pyright: ignore[reportUnknownVariableType]
+            if isinstance(item, dict)
+        ]
+        return dumped
+    return {k: v for k, v in dumped.items() if k in keep}
 
 
 registry = Registry()

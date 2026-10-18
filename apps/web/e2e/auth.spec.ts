@@ -36,7 +36,9 @@ test('sign up with an email code, manage tokens, sign out, sign back in with a p
   await page.reload()
   await expect(page.getByTestId('signed-in-as')).toContainText('Eve')
 
-  await page.getByRole('link', { name: 'Settings' }).click()
+  // A new account has no Program yet: it lands on onboarding; settings are one URL away.
+  await expect(page).toHaveURL(/\/onboarding/)
+  await page.goto('/settings/account')
   await page.getByRole('button', { name: 'Set password' }).click()
   await page.getByLabel('New password').fill('a long enough passphrase')
   await page.getByRole('button', { name: 'Save', exact: true }).last().click()

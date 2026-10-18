@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
-import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, healthz, type Options, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HealthzData, HealthzResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -228,6 +228,492 @@ export const authLogoutMutation = (options?: Partial<Options<AuthLogoutData>>): 
     };
     return mutationOptions;
 };
+
+export const academicsCourseListQueryKey = (options: Options<AcademicsCourseListData>) => createQueryKey('academicsCourseList', options);
+
+/**
+ * List the courses of a Program, optionally of one term, subject or search text.
+ *
+ * Use to see all courses of a term or Program. To locate one course the user
+ * described in words ("my programming course"), prefer academics.course.find.
+ */
+export const academicsCourseListOptions = (options: Options<AcademicsCourseListData>) => queryOptions<AcademicsCourseListResponse, AcademicsCourseListError, AcademicsCourseListResponse, ReturnType<typeof academicsCourseListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsCourseList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsCourseListQueryKey(options)
+});
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const academicsCourseListInfiniteQueryKey = (options: Options<AcademicsCourseListData>): QueryKey<Options<AcademicsCourseListData>> => createQueryKey('academicsCourseList', options, true);
+
+/**
+ * List the courses of a Program, optionally of one term, subject or search text.
+ *
+ * Use to see all courses of a term or Program. To locate one course the user
+ * described in words ("my programming course"), prefer academics.course.find.
+ */
+export const academicsCourseListInfiniteOptions = (options: Options<AcademicsCourseListData>) => {
+    const opts = infiniteQueryOptions<AcademicsCourseListResponse, AcademicsCourseListError, InfiniteData<AcademicsCourseListResponse>, QueryKey<Options<AcademicsCourseListData>>, string | null | Pick<QueryKey<Options<AcademicsCourseListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<AcademicsCourseListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await academicsCourseList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: academicsCourseListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Add a course to one term, or to consecutive terms for a year-long course.
+ *
+ * Use when the user adds a course. Get term ids from academics.term.list.
+ * For a year-long course whose second term does not exist yet, link the current term only and set
+ * `planned_terms` to 2; the term wizard offers to continue it later.
+ */
+export const academicsCourseCreateMutation = (options?: Partial<Options<AcademicsCourseCreateData>>): UseMutationOptions<AcademicsCourseCreateResponse, AcademicsCourseCreateError, Options<AcademicsCourseCreateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseCreateResponse, AcademicsCourseCreateError, Options<AcademicsCourseCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Add several courses at once (imports).
+ *
+ * Use to create a batch of courses, e.g. from an imported timetable.
+ */
+export const academicsCourseCreateManyMutation = (options?: Partial<Options<AcademicsCourseCreateManyData>>): UseMutationOptions<AcademicsCourseCreateManyResponse, AcademicsCourseCreateManyError, Options<AcademicsCourseCreateManyData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseCreateManyResponse, AcademicsCourseCreateManyError, Options<AcademicsCourseCreateManyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseCreateMany({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a course and all of its data (grades, files, schedule).
+ *
+ * Irreversible. Use only when the user clearly asks to delete the course.
+ */
+export const academicsCourseDeleteMutation = (options?: Partial<Options<AcademicsCourseDeleteData>>): UseMutationOptions<AcademicsCourseDeleteResponse, AcademicsCourseDeleteError, Options<AcademicsCourseDeleteData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseDeleteResponse, AcademicsCourseDeleteError, Options<AcademicsCourseDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsCourseGetQueryKey = (options: Options<AcademicsCourseGetData>) => createQueryKey('academicsCourseGet', options);
+
+/**
+ * Get one course with its terms, credits, instructors and resolved color.
+ *
+ * Use when you need the details of a course whose id you know.
+ */
+export const academicsCourseGetOptions = (options: Options<AcademicsCourseGetData>) => queryOptions<AcademicsCourseGetResponse, AcademicsCourseGetError, AcademicsCourseGetResponse, ReturnType<typeof academicsCourseGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsCourseGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsCourseGetQueryKey(options)
+});
+
+/**
+ * Change a course's code, title, alias, credits, color, instructors or other fields.
+ *
+ * Partial update: only the fields that are sent change. To move a course to other
+ * terms or make it year-long, use academics.course.set_terms.
+ */
+export const academicsCourseUpdateMutation = (options?: Partial<Options<AcademicsCourseUpdateData>>): UseMutationOptions<AcademicsCourseUpdateResponse, AcademicsCourseUpdateError, Options<AcademicsCourseUpdateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseUpdateResponse, AcademicsCourseUpdateError, Options<AcademicsCourseUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the display order of the courses within a term.
+ *
+ * Courses not listed keep their default order after the listed ones.
+ */
+export const academicsCourseReorderMutation = (options?: Partial<Options<AcademicsCourseReorderData>>): UseMutationOptions<AcademicsCourseReorderResponse, AcademicsCourseReorderError, Options<AcademicsCourseReorderData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseReorderResponse, AcademicsCourseReorderError, Options<AcademicsCourseReorderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseReorder({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set which terms a course runs in (consecutive terms for a year-long course).
+ *
+ * Replaces the course's terms. They must belong to its Program and be next to each
+ * other in time.
+ */
+export const academicsCourseSetTermsMutation = (options?: Partial<Options<AcademicsCourseSetTermsData>>): UseMutationOptions<AcademicsCourseSetTermsResponse, AcademicsCourseSetTermsError, Options<AcademicsCourseSetTermsData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsCourseSetTermsResponse, AcademicsCourseSetTermsError, Options<AcademicsCourseSetTermsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsCourseSetTerms({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsProgramListQueryKey = (options?: Options<AcademicsProgramListData>) => createQueryKey('academicsProgramList', options);
+
+/**
+ * List the user's Programs (degrees) with their term and course counts.
+ *
+ * Use to find the Program ids of the user, e.g. before listing terms or courses
+ * when no Program is given. Most users have exactly one Program.
+ */
+export const academicsProgramListOptions = (options?: Options<AcademicsProgramListData>) => queryOptions<AcademicsProgramListResponse, AcademicsProgramListError, AcademicsProgramListResponse, ReturnType<typeof academicsProgramListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsProgramList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsProgramListQueryKey(options)
+});
+
+/**
+ * Create a Program (a degree or study plan).
+ *
+ * Use only when the user explicitly wants a new, separate Program, e.g. a second
+ * degree. Do not use to add a term or a course; use academics.term.create or
+ * academics.course.create.
+ */
+export const academicsProgramCreateMutation = (options?: Partial<Options<AcademicsProgramCreateData>>): UseMutationOptions<AcademicsProgramCreateResponse, AcademicsProgramCreateError, Options<AcademicsProgramCreateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsProgramCreateResponse, AcademicsProgramCreateError, Options<AcademicsProgramCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsProgramCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a Program with all of its terms, courses and their data.
+ *
+ * Irreversible. Use only when the user clearly asks to delete the whole Program.
+ * To remove one term or course use academics.term.delete or academics.course.delete.
+ */
+export const academicsProgramDeleteMutation = (options?: Partial<Options<AcademicsProgramDeleteData>>): UseMutationOptions<AcademicsProgramDeleteResponse, AcademicsProgramDeleteError, Options<AcademicsProgramDeleteData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsProgramDeleteResponse, AcademicsProgramDeleteError, Options<AcademicsProgramDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsProgramDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsProgramGetQueryKey = (options: Options<AcademicsProgramGetData>) => createQueryKey('academicsProgramGet', options);
+
+/**
+ * Get one Program: name, school, time zone, credit defaults and subject colors.
+ *
+ * Use when you need a Program's details such as its time zone or credit goal.
+ */
+export const academicsProgramGetOptions = (options: Options<AcademicsProgramGetData>) => queryOptions<AcademicsProgramGetResponse, AcademicsProgramGetError, AcademicsProgramGetResponse, ReturnType<typeof academicsProgramGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsProgramGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsProgramGetQueryKey(options)
+});
+
+/**
+ * Change a Program's name, school, time zone or credit settings.
+ *
+ * Partial update: only the fields that are sent change.
+ */
+export const academicsProgramUpdateMutation = (options?: Partial<Options<AcademicsProgramUpdateData>>): UseMutationOptions<AcademicsProgramUpdateResponse, AcademicsProgramUpdateError, Options<AcademicsProgramUpdateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsProgramUpdateResponse, AcademicsProgramUpdateError, Options<AcademicsProgramUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsProgramUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the color of a subject code (e.g. all 'APS' courses) in a Program.
+ *
+ * Use when the user wants every course of a subject in another color. To color a
+ * single course differently, use academics.course.update with `color`.
+ */
+export const academicsProgramSetSubjectColorMutation = (options?: Partial<Options<AcademicsProgramSetSubjectColorData>>): UseMutationOptions<AcademicsProgramSetSubjectColorResponse, AcademicsProgramSetSubjectColorError, Options<AcademicsProgramSetSubjectColorData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsProgramSetSubjectColorResponse, AcademicsProgramSetSubjectColorError, Options<AcademicsProgramSetSubjectColorData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsProgramSetSubjectColor({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsTermCalendarInfoQueryKey = (options: Options<AcademicsTermCalendarInfoData>) => createQueryKey('academicsTermCalendarInfo', options);
+
+/**
+ * Week numbers of a term: each week's dates, number or break, and today's week.
+ *
+ * Use to translate between dates and week numbers ("week 6", "reading week"),
+ * e.g. to resolve "the Friday of week 3". Week 1 is the week the term starts in.
+ */
+export const academicsTermCalendarInfoOptions = (options: Options<AcademicsTermCalendarInfoData>) => queryOptions<AcademicsTermCalendarInfoResponse, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, ReturnType<typeof academicsTermCalendarInfoQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsTermCalendarInfo({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsTermCalendarInfoQueryKey(options)
+});
+
+export const academicsTermListQueryKey = (options: Options<AcademicsTermListData>) => createQueryKey('academicsTermList', options);
+
+/**
+ * List the terms (semesters) of a Program in chronological order.
+ *
+ * Use to find a term id, or which term is current (`is_current`), before creating
+ * courses or answering questions about a semester.
+ */
+export const academicsTermListOptions = (options: Options<AcademicsTermListData>) => queryOptions<AcademicsTermListResponse, AcademicsTermListError, AcademicsTermListResponse, ReturnType<typeof academicsTermListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsTermList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsTermListQueryKey(options)
+});
+
+/**
+ * Create a term, optionally with its courses, in one step.
+ *
+ * Use when the user starts a new semester. Check academics.term.list first so the
+ * term does not exist already. `courses` creates courses in the new term; `continue_course_ids`
+ * extends year-long courses of the previous term into it.
+ */
+export const academicsTermCreateMutation = (options?: Partial<Options<AcademicsTermCreateData>>): UseMutationOptions<AcademicsTermCreateResponse, AcademicsTermCreateError, Options<AcademicsTermCreateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsTermCreateResponse, AcademicsTermCreateError, Options<AcademicsTermCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsTermCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a term and the courses that are only in it.
+ *
+ * Irreversible. Year-long courses that also run in other terms are kept and only
+ * lose this term. Show academics.term.delete_preview to the user first.
+ */
+export const academicsTermDeleteMutation = (options?: Partial<Options<AcademicsTermDeleteData>>): UseMutationOptions<AcademicsTermDeleteResponse, AcademicsTermDeleteError, Options<AcademicsTermDeleteData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsTermDeleteResponse, AcademicsTermDeleteError, Options<AcademicsTermDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsTermDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsTermGetQueryKey = (options: Options<AcademicsTermGetData>) => createQueryKey('academicsTermGet', options);
+
+/**
+ * Get one term with its dates and breaks.
+ *
+ * Use when you need a term's dates, reading weeks or holidays.
+ */
+export const academicsTermGetOptions = (options: Options<AcademicsTermGetData>) => queryOptions<AcademicsTermGetResponse, AcademicsTermGetError, AcademicsTermGetResponse, ReturnType<typeof academicsTermGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsTermGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsTermGetQueryKey(options)
+});
+
+/**
+ * Change a term's name, dates, breaks or week numbering.
+ *
+ * Partial update. `breaks` replaces the whole list; keep the ids of breaks that
+ * stay. Fails with academics.course_terms_not_adjacent when new dates would separate the terms of
+ * a year-long course.
+ */
+export const academicsTermUpdateMutation = (options?: Partial<Options<AcademicsTermUpdateData>>): UseMutationOptions<AcademicsTermUpdateResponse, AcademicsTermUpdateError, Options<AcademicsTermUpdateData>> => {
+    const mutationOptions: UseMutationOptions<AcademicsTermUpdateResponse, AcademicsTermUpdateError, Options<AcademicsTermUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await academicsTermUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const academicsTermDeletePreviewQueryKey = (options: Options<AcademicsTermDeletePreviewData>) => createQueryKey('academicsTermDeletePreview', options);
+
+/**
+ * What deleting a term would remove: its own courses vs. year-long courses kept.
+ *
+ * Use before academics.term.delete to tell the user what will be deleted.
+ */
+export const academicsTermDeletePreviewOptions = (options: Options<AcademicsTermDeletePreviewData>) => queryOptions<AcademicsTermDeletePreviewResponse, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, ReturnType<typeof academicsTermDeletePreviewQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await academicsTermDeletePreview({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: academicsTermDeletePreviewQueryKey(options)
+});
 
 /**
  * Confirm the new account email with its code.
@@ -541,35 +1027,6 @@ export const coreJobListOptions = (options?: Options<CoreJobListData>) => queryO
     },
     queryKey: coreJobListQueryKey(options)
 });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
 
 export const coreJobListInfiniteQueryKey = (options?: Options<CoreJobListData>): QueryKey<Options<CoreJobListData>> => createQueryKey('coreJobList', options, true);
 
