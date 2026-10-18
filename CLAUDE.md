@@ -37,6 +37,8 @@ docs/                设计稿与模块规格
 - 用户可见字符串全部走 Paraglide（`messages/en.json` 与 `zh-CN.json` 同步，`pnpm --filter @semestra/web i18n:lint` 检查）。
 - 颜色只用 token，不写死颜色值。
 - Alembic 保持单一 head；合并前基于最新 head 重新生成迁移。
+- 耗时任务在 `@job_handler` 里声明 `stages`（阶段与权重），进度由后端换算；前端只用 `<AiAction>` / `<JobProgress>` 展示，不自己拼阶段权重（M00 3.7、4.7.1）。
+- 确认原则：表单提交就是确认，AI 回填表单不加确认框；只有不可撤销且没有其他确认步骤的操作才弹确认（M00 4.8）。AI 界面保持低调，规则见 M06 第 7 节。
 
 ## 环境注意事项（M00 搭建时发现）
 

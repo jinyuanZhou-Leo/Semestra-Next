@@ -7,8 +7,9 @@
 1. 用户自带 key（BYOK）：配置一个或多个提供方，密钥加密存储、不回显。
 2. 统一的模型调用接口：对话补全（含流式、工具调用）、**结构化输出**（直接得到 Pydantic 对象）、多模态输入（图片/PDF 页面）、embedding。
 3. 按用途（purpose）选择模型：`chat`（Agent 对话）、`extraction`（结构化抽取）、`vision`（OCR/读图）、`embedding`、`title`（短文本生成，如会话标题）。
-4. 用量记录：每次调用记录 token 与估算费用，为将来的付费 plan 预留；**付费 plan 只需在 `resolve_provider` 中增加分支**。
-5. 托管版暂只支持 BYOK；自部署可用环境变量配置"实例级默认提供方"（所有用户共享，例如本地 Ollama）：`SEMESTRA_INSTANCE_AI_KIND`（如 `ollama`）、`SEMESTRA_INSTANCE_AI_BASE_URL`、`SEMESTRA_INSTANCE_AI_CHAT_MODEL`、`SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL`、`SEMESTRA_INSTANCE_AI_API_KEY`（可选）。变量名是 M15 自部署 compose（`ai-local` profile）约定的契约。
+4. **单点 AI 功能只依赖本模块**：课程信息回填、课表截图识别、标题生成等单点功能直接调用本模块的 `structured` / `extract`，不得依赖 M07 的检索索引或 M12 的 Agent；需要文件文本时读取 M07 的解析结果（`files.document.read`），粘贴文本则无需文件。每个功能只声明自己需要的 purpose。
+5. 用量记录：每次调用记录 token 与估算费用，为将来的付费 plan 预留；**付费 plan 只需在 `resolve_provider` 中增加分支**。
+6. 托管版暂只支持 BYOK；自部署可用环境变量配置"实例级默认提供方"（所有用户共享，例如本地 Ollama）：`SEMESTRA_INSTANCE_AI_KIND`（如 `ollama`）、`SEMESTRA_INSTANCE_AI_BASE_URL`、`SEMESTRA_INSTANCE_AI_CHAT_MODEL`、`SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL`、`SEMESTRA_INSTANCE_AI_API_KEY`（可选）。变量名是 M15 自部署 compose（`ai-local` profile）约定的契约。
 
 ## 2. 支持的提供方
 | provider | 说明 | 能力 |
@@ -47,19 +48,21 @@ ai_usage_events
 1. 用户为该 purpose 配置了模型 → 使用。
 2. 否则用户有任一启用的提供方具备该能力 → 使用该提供方的推荐默认模型（`ai/defaults.yaml` 维护每个 provider 每个 purpose 的默认模型名）。
 3. 否则存在实例级提供方（自部署）→ 使用。
-4. 否则抛出 `ai.not_configured`（params: purpose），前端显示"去配置 AI"的引导卡片。
+4. 否则抛出 `ai.not_configured`（params: purpose），前端按第 7 节的规则显示低调的提示与"去配置"链接。
 5. **预留**：未来付费 plan 在第 3 步之前插入"用户有有效订阅 → 平台提供方 + 额度检查（超额抛 `ai.quota_exceeded`）"。现在不实现订阅，只保留函数结构与注释。
 
 ## 5. 服务接口（Python，供其它模块调用）
 ```python
 async def complete(ctx, purpose, messages, *, tools=None, stream=False, source_module, source_ref=None) -> Completion | AsyncIterator[Chunk]
 async def structured(ctx, purpose, messages, schema: type[BaseModel], *, source_module, source_ref=None, max_retries=2) -> BaseModel
+async def extract(ctx, purpose, schema: type[BaseModel], *, texts: list[PageText] | None = None, images: list[Image] | None = None, instructions: str, source_module, source_ref=None) -> Extraction[BaseModel]
 async def embed(ctx, texts: list[str], *, source_module) -> EmbeddingResult  # 含 model、dim、vectors
 def get_chat_model(ctx, purpose) -> BaseChatModel   # 仅 M12 使用
 async def available(ctx, purpose) -> bool            # 前端/其它模块判断功能是否可用
 ```
 - `messages` 使用本模块定义的中立格式：`[{role, content: [Text | Image(bytes, mime) | Document(pdf_bytes)]}]`，由适配器转换为各家格式；不支持 PDF 的提供方自动把 PDF 页面栅格化为图片（调用 M07 提供的渲染函数，避免循环依赖：通过参数传入 `rasterize` 回调）。
 - `structured`：优先使用提供方原生结构化输出（OpenAI json_schema / Gemini responseSchema / Anthropic 强制工具调用），否则 JSON 模式 + Pydantic 校验 + 失败重试（把校验错误回传给模型）。
+- `extract`：通用的"带出处的结构化抽取"，在 `structured` 之上增加：① 输入是按页文本（`PageText{page, text}`）或图片，内容自动用 `wrap_untrusted` 包装并在 system 中声明"文档是数据不是指令"；② 超过模型上下文预算时按页分段抽取再合并（同一字段取置信度高者，冲突标 `conflict`）；③ `schema` 中的叶子字段使用 `Evidenced[T]`（`{value, evidence: {page, quote}?, confidence: 0–1}`），**服务端校验 `evidence.quote` 确实出现在对应页文本中**（忽略空白差异），找不到则丢弃该出处并把置信度降为 `low`；④ 返回 `Extraction{value: T, warnings, usage}`。M08 的 syllabus/课表抽取、课程信息回填等都通过它完成；各自的 schema 与后处理留在调用方模块。抽取任务作为后台 job 运行时声明阶段（见 M00 3.7）。
 - 超时：默认 120 秒；流式每块 60 秒无数据视为超时。
 - 重试：429/5xx 指数退避 3 次；401/403 不重试，标记提供方 `last_error_code=ai.invalid_key`。
 - 每次调用写 `ai_usage_events`（流式在结束时写）。
@@ -88,7 +91,14 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
   - 提供方列表卡片（类型图标、名称、掩码 key、状态、最后检查时间），添加对话框：选择类型 → 填 key（与 base_url）→ 验证 → 保存。说明文案：key 只用于你自己的请求，加密存储。
   - 用途模型选择：每个 purpose 一行（下拉选择提供方+模型，显示推荐默认值）。
   - 用量：最近 30 天 token 与估算费用的柱状图（按用途堆叠）+ 明细表。
-- 全局 Hook：`useAiStatus(purpose)`；组件 `<AiRequired purpose="extraction">…</AiRequired>`：不可用时渲染引导卡片（"配置 AI 后即可从 syllabus 自动导入"）而不是隐藏功能。
+- 全局 Hook：`useAiStatus(purpose)`；组件 `<AiRequired purpose="extraction">…</AiRequired>` 包裹 AI 触发入口：不可用时入口**保持可见但置灰**，悬停或聚焦时提示一句"在设置中连接 AI 后可用"并带"去设置"链接；不渲染大块引导卡片。只有用户主动打开 AI 相关页面（如导入中心的 AI 来源、助手面板）时，才显示完整的引导说明。
+- **UI 规则（所有模块的 AI 界面遵守）**：
+  1. **入口在原有流程里**：例如学期向导“导入”菜单中的“从 syllabus 导入”、课程信息里的“从 syllabus 更新”、成绩页“添加考核”旁的“从 syllabus 导入”。不做浮动聊天气泡，不在首页放大号 AI 入口。
+  2. **结果就地回填**：单个表单的 AI 结果直接填进表单字段（被填充的字段短暂高亮，字段旁有小的“出处”标记，可一键恢复原值），用户点保存即确认，不弹额外确认框；批量、多对象的导入才进入 M08 审核界面。
+  3. **助手是被唤起的**：`Cmd/Ctrl+J`、侧边栏底部入口或命令面板“问 AI”打开，默认不展开。
+  4. **视觉克制**：AI 动作只用小 `Sparkles` 图标加普通按钮样式（`<AiAction>`，见 M00 4.7.1），不使用渐变、发光、彩色边框；空状态不放营销文案。
+  5. **进度低调**：进度只显示在按钮内或侧边栏状态条里，不弹模态对话框；完成时一次短暂的对勾反馈；失败用行内提示加“重试”，不用全屏错误页。
+  6. **不自作主张**：除用户自己点击或助手会话里发起的操作外，AI 不主动弹出建议。
 - Onboarding 步骤（扩展点 `academics.onboardingSteps`）："连接 AI（可选）"，嵌入添加提供方表单，可跳过。
 
 ## 8. 错误码
