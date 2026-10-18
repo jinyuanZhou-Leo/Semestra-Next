@@ -174,6 +174,18 @@ async def test_dedupe_key_returns_unfinished_job(app: FastAPI, make_user: MakeUs
     assert await start(app, user.id, "test.ok", dedupe_key="k") != first
 
 
+async def test_concurrent_enqueues_with_one_dedupe_key_share_the_job(
+    app: FastAPI, make_user: MakeUser
+):
+    user = await make_user()
+    async with system_ctx(app.state, user.id) as a, system_ctx(app.state, user.id) as b:
+        first = await enqueue(a, "test.ok", Payload(), dedupe_key="k")  # holds the write lock
+        second = asyncio.create_task(enqueue(b, "test.ok", Payload(), dedupe_key="k"))
+        await asyncio.sleep(0.05)  # b found nothing committed and waits for the lock
+        await a.db.commit()
+        assert (await second).id == first.id
+
+
 async def test_cleanup_removes_old_finished_jobs(app: FastAPI, make_user: MakeUser, clock: Clock):
     user = await make_user()
     old = await start(app, user.id, "test.ok")

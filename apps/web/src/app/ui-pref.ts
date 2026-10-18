@@ -16,10 +16,16 @@ function read<T>(key: string, fallback: T): T {
  * localStorage until M11 provides the server-side UI preferences API; the signature stays.
  */
 export function useUiPref<T>(key: string, defaultValue: T): [T, (value: T) => void] {
-  const [value, setValue] = useState(() => read(key, defaultValue))
+  const [state, setState] = useState(() => ({ key, value: read(key, defaultValue) }))
+  let { value } = state
+  if (state.key !== key) {
+    // The key changed (e.g. another course on a reused route): load that key's value.
+    value = read(key, defaultValue)
+    setState({ key, value })
+  }
   const update = useCallback(
     (next: T) => {
-      setValue(next)
+      setState({ key, value: next })
       try {
         localStorage.setItem(PREFIX + key, JSON.stringify(next))
       } catch {
