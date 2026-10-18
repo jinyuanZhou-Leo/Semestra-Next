@@ -55,12 +55,19 @@ export function useSaveNav(kind: ScopeKind) {
   return useCallback(
     async (next: { order: string[]; hidden: string[] }) => {
       const { queryKey } = navOptions(kind)
-      const previous = queryClient.getQueryData<Nav>(queryKey)
+      let previous: Nav
+      try {
+        // A change made before the stored nav has loaded must still keep its other ids.
+        previous = await queryClient.ensureQueryData(navOptions(kind))
+      } catch (err) {
+        toastError(err)
+        return
+      }
       const keep = (ids: readonly string[] | undefined, shown: readonly string[]) =>
         (ids ?? []).filter((id) => !shown.includes(id))
       const merged = {
-        order: [...next.order, ...keep(previous?.order, next.order)],
-        hidden: [...next.hidden, ...keep(previous?.hidden, [...next.order, ...next.hidden])],
+        order: [...next.order, ...keep(previous.order, next.order)],
+        hidden: [...next.hidden, ...keep(previous.hidden, [...next.order, ...next.hidden])],
       }
       queryClient.setQueryData<Nav>(queryKey, { scope_type: kind, ...merged })
       try {
