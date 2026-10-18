@@ -1,0 +1,202 @@
+{
+  "description": "Hand-calculated cases for the grading engine, on the UofT 4.0 scale (M03 §9). Percentages are 0-100, weights are percent of the course.",
+  "course_cases": [
+    {
+      "name": "complete course: weighted sum",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 10, "score": 80},
+        {"id": "e", "category": "exam", "weight": 40, "score": 70},
+        {"id": "a", "category": "assignment", "weight": 20, "score": 90},
+        {"id": "p", "category": "project", "weight": 30, "score": 85}
+      ],
+      "expect": {
+        "weights_ok": true, "weight_total": 100, "weight_gap": 0,
+        "graded_count": 4, "remaining_count": 0,
+        "locked_contribution": 79.5, "current_percentage": 79.5,
+        "computed_percentage": 79.5, "final_percentage": 79.5, "final_source": "computed",
+        "forecast_percentage": 79.5
+      },
+      "grade": {"status": "completed", "percentage": 79.5, "points": 3.3, "letter": "B+"}
+    },
+    {
+      "name": "in progress, target 4.0",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 20, "score": 90},
+        {"id": "a", "category": "assignment", "weight": 20, "score": 70},
+        {"id": "m", "category": "exam", "weight": 20, "score": 80},
+        {"id": "f", "category": "exam", "weight": 40, "score": null}
+      ],
+      "target_points": 4.0,
+      "expect": {
+        "weights_ok": true, "graded_count": 3, "remaining_count": 1, "graded_weight": 60,
+        "remaining_weight": 40, "locked_contribution": 48, "current_percentage": 80,
+        "computed_percentage": null, "final_percentage": null, "final_source": null,
+        "forecast_percentage": 80, "predictions": {"f": 80}, "target_percentage": 85,
+        "required_average": 92.5, "reachable": true
+      },
+      "grade": {"status": "in_progress", "percentage": null, "points": null, "letter": null}
+    },
+    {
+      "name": "in progress, target 3.7",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 20, "score": 90},
+        {"id": "a", "category": "assignment", "weight": 20, "score": 70},
+        {"id": "m", "category": "exam", "weight": 20, "score": 80},
+        {"id": "f", "category": "exam", "weight": 40, "score": null}
+      ],
+      "target_points": 3.7,
+      "expect": {"target_percentage": 80, "required_average": 80, "reachable": true}
+    },
+    {
+      "name": "in progress, target 3.0",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 20, "score": 90},
+        {"id": "a", "category": "assignment", "weight": 20, "score": 70},
+        {"id": "m", "category": "exam", "weight": 20, "score": 80},
+        {"id": "f", "category": "exam", "weight": 40, "score": null}
+      ],
+      "target_points": 3.0,
+      "expect": {"target_percentage": 73, "required_average": 62.5, "reachable": true}
+    },
+    {
+      "name": "target already locked in",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 80, "score": 100},
+        {"id": "f", "category": "exam", "weight": 20, "score": null}
+      ],
+      "target_points": 3.7,
+      "expect": {"locked_contribution": 80, "required_average": 0, "reachable": true}
+    },
+    {
+      "name": "target out of reach",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 50, "score": 40},
+        {"id": "f", "category": "exam", "weight": 50, "score": null}
+      ],
+      "target_points": 4.0,
+      "expect": {"locked_contribution": 20, "required_average": 130, "reachable": false}
+    },
+    {
+      "name": "weights do not add up",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 30, "score": 80},
+        {"id": "e", "category": "exam", "weight": 30, "score": 70}
+      ],
+      "target_points": 4.0,
+      "expect": {
+        "weights_ok": false, "weight_total": 60, "weight_gap": 40,
+        "locked_contribution": null, "current_percentage": null, "final_percentage": null,
+        "forecast_percentage": null, "required_average": null
+      },
+      "grade": {"status": "in_progress", "percentage": null, "points": null, "letter": null}
+    },
+    {
+      "name": "official grade wins over the calculation",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 50, "score": 40},
+        {"id": "f", "category": "exam", "weight": 50, "score": null}
+      ],
+      "override": 91,
+      "target_points": 4.0,
+      "expect": {
+        "final_percentage": 91, "final_source": "override", "computed_percentage": null,
+        "required_average": null, "reachable": null
+      },
+      "grade": {"status": "completed", "percentage": 91, "points": 4.0, "letter": "A+"}
+    },
+    {
+      "name": "official grade even when the gradebook is incomplete",
+      "items": [{"id": "q", "category": "quiz", "weight": 30, "score": 40}],
+      "override": 68,
+      "expect": {"weights_ok": false, "final_percentage": 68, "final_source": "override"},
+      "grade": {"status": "completed", "percentage": 68, "points": 2.3, "letter": "C+"}
+    },
+    {
+      "name": "dropped items take no part",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 20, "score": 90},
+        {"id": "a", "category": "assignment", "weight": 20, "score": 70},
+        {"id": "m", "category": "exam", "weight": 20, "score": 80},
+        {"id": "f", "category": "exam", "weight": 40, "score": null},
+        {"id": "x", "category": "quiz", "weight": 50, "score": 0, "dropped": true}
+      ],
+      "target_points": 4.0,
+      "expect": {
+        "weights_ok": true, "weight_total": 100, "graded_count": 3,
+        "locked_contribution": 48, "current_percentage": 80, "required_average": 92.5
+      }
+    },
+    {
+      "name": "no history for a category: no forecast",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 50, "score": 80},
+        {"id": "f", "category": "exam", "weight": 50, "score": null}
+      ],
+      "expect": {
+        "forecast_percentage": null, "predictions": {}, "missing_history": ["exam"],
+        "current_percentage": 80, "locked_contribution": 40
+      }
+    },
+    {
+      "name": "forecast averages a category by weight",
+      "items": [
+        {"id": "q1", "category": "quiz", "weight": 10, "score": 100},
+        {"id": "q2", "category": "quiz", "weight": 30, "score": 60},
+        {"id": "q3", "category": "quiz", "weight": 60, "score": null}
+      ],
+      "expect": {"predictions": {"q3": 70}, "forecast_percentage": 70, "locked_contribution": 28}
+    }
+  ],
+  "suggest_cases": [
+    {
+      "name": "even split when nothing is graded yet",
+      "items": [
+        {"id": "a", "category": "quiz", "weight": 50, "score": null},
+        {"id": "b", "category": "exam", "weight": 50, "score": null}
+      ],
+      "target_percentage": 85,
+      "expect": {"scores": {"a": 85, "b": 85}, "resulting_percentage": 85, "reachable": true}
+    },
+    {
+      "name": "unreachable target tops out at 100",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 80, "score": 20},
+        {"id": "f", "category": "exam", "weight": 20, "score": null}
+      ],
+      "target_percentage": 85,
+      "expect": {"scores": {"f": 100}, "resulting_percentage": 36, "reachable": false}
+    }
+  ],
+  "program": {
+    "terms": ["T1", "T2", "T3"],
+    "courses": [
+      {"id": "c1", "credits": 0.5, "include_in_gpa": true, "terms": ["T1"], "final": 85},
+      {"id": "c2", "credits": 0.5, "include_in_gpa": true, "terms": ["T1"], "final": 72},
+      {"id": "c3", "credits": 1.0, "include_in_gpa": true, "terms": ["T1", "T2"], "final": 77},
+      {"id": "c4", "credits": 0.5, "include_in_gpa": true, "terms": ["T2"], "final": 60},
+      {"id": "c5", "credits": 0.5, "include_in_gpa": false, "terms": ["T2"], "final": 95},
+      {"id": "c6", "credits": 0.5, "include_in_gpa": true, "terms": ["T3"], "final": null},
+      {"id": "c7", "credits": 0.5, "include_in_gpa": true, "terms": ["T3"], "pass_fail": "pass"}
+    ],
+    "expect": {
+      "end_term": {
+        "terms": {
+          "T1": {"gpa": 3.35, "average": 78.5, "credits_counted": 1.0, "earned": 1.0, "excluded": 0},
+          "T2": {"gpa": 2.767, "average": 71.333, "credits_counted": 1.5, "earned": 2.0, "excluded": 1},
+          "T3": {"gpa": null, "average": null, "credits_counted": 0, "earned": 0.5, "excluded": 2}
+        },
+        "cumulative_gpa": {"T1": 3.35, "T2": 3.0, "T3": 3.0}
+      },
+      "split_evenly": {
+        "terms": {
+          "T1": {"gpa": 3.333, "average": 78.0, "credits_counted": 1.5, "earned": 1.5, "excluded": 0},
+          "T2": {"gpa": 2.5, "average": 68.5, "credits_counted": 1.0, "earned": 1.5, "excluded": 1}
+        },
+        "cumulative_gpa": {"T1": 3.333, "T2": 3.0, "T3": 3.0}
+      },
+      "program": {
+        "gpa": 3.0, "average": 74.2, "credits_counted": 2.5, "earned": 3.5
+      }
+    }
+  }
+}

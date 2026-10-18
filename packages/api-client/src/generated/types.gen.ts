@@ -15,6 +15,444 @@ export type AiStatus = {
 };
 
 /**
+ * Assessment
+ */
+export type Assessment = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Category Id
+     */
+    category_id: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Due At
+     *
+     * Deadline (UTC)
+     */
+    due_at: string | null;
+    /**
+     * Due Has Time
+     *
+     * False when only the date is known
+     */
+    due_has_time: boolean;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone
+     */
+    due_time: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+    /**
+     * Score Percentage
+     */
+    score_percentage: number | null;
+    /**
+     * Points Earned
+     */
+    points_earned: number | null;
+    /**
+     * Points Possible
+     */
+    points_possible: number | null;
+    /**
+     * Dropped
+     */
+    dropped: boolean;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source Kind
+     */
+    source_kind: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Status
+     */
+    status: 'graded' | 'pending' | 'overdue';
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AssessmentCategory
+ */
+export type AssessmentCategory = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Archived
+     */
+    archived: boolean;
+};
+
+/**
+ * AssessmentCreateInputBody
+ */
+export type AssessmentCreateInputBody = {
+    /**
+     * Title
+     *
+     * Assessment title, e.g. 'Midterm 1'
+     */
+    title: string;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, from the gradebook
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline with time zone; wins over due_date/due_time
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone; without it the deadline is the end of due_date and only the date is shown
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course grade in percent
+     */
+    weight?: number;
+    /**
+     * Score Percentage
+     *
+     * Score in percent; leave empty until it is graded
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, e.g. 18 of 20; sets the percentage
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation (e.g. lowest quiz dropped)
+     */
+    dropped?: boolean;
+    /**
+     * Note
+     *
+     * Free-form note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where an imported item came from; used to skip duplicates
+     */
+    source_kind?: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in its source, used with source_kind
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * AssessmentCreateManyInputBody
+ */
+export type AssessmentCreateManyInputBody = {
+    /**
+     * Assessments
+     *
+     * Assessments to add
+     */
+    assessments: Array<AssessmentFields>;
+};
+
+/**
+ * AssessmentCreateManyResult
+ */
+export type AssessmentCreateManyResult = {
+    /**
+     * Created
+     */
+    created: Array<Assessment>;
+    /**
+     * Skipped
+     *
+     * Items left out because the course already has one from the same source
+     */
+    skipped: Array<SkippedAssessment>;
+};
+
+/**
+ * AssessmentFields
+ *
+ * Fields shared by the creation inputs.
+ */
+export type AssessmentFields = {
+    /**
+     * Title
+     *
+     * Assessment title, e.g. 'Midterm 1'
+     */
+    title: string;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, from the gradebook
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline with time zone; wins over due_date/due_time
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone; without it the deadline is the end of due_date and only the date is shown
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course grade in percent
+     */
+    weight?: number;
+    /**
+     * Score Percentage
+     *
+     * Score in percent; leave empty until it is graded
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, e.g. 18 of 20; sets the percentage
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation (e.g. lowest quiz dropped)
+     */
+    dropped?: boolean;
+    /**
+     * Note
+     *
+     * Free-form note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where an imported item came from; used to skip duplicates
+     */
+    source_kind?: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in its source, used with source_kind
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * AssessmentOrder
+ */
+export type AssessmentOrder = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Assessment Ids
+     */
+    assessment_ids: Array<string>;
+};
+
+/**
+ * AssessmentOrderInputBody
+ */
+export type AssessmentOrderInputBody = {
+    /**
+     * Assessment Ids
+     *
+     * Assessment ids in order
+     */
+    assessment_ids: Array<string>;
+};
+
+/**
+ * AssessmentPage
+ */
+export type AssessmentPage = {
+    /**
+     * Items
+     */
+    items: Array<Assessment>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * AssessmentUpdateInputBody
+ */
+export type AssessmentUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, or null for none
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline, or null to clear
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date, or null to clear
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time, or null for date only
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course in percent
+     */
+    weight?: number | null;
+    /**
+     * Score Percentage
+     *
+     * Score in percent, or null
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, or null
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible, or null
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation
+     */
+    dropped?: boolean | null;
+    /**
+     * Note
+     *
+     * Note, or null to clear
+     */
+    note?: string | null;
+};
+
+/**
  * Assignment
  */
 export type Assignment = {
@@ -386,6 +824,100 @@ export type CardSettingsUpdateInputBody = {
     settings: {
         [key: string]: JsonValue;
     };
+};
+
+/**
+ * CategoryCreateInputBody
+ */
+export type CategoryCreateInputBody = {
+    /**
+     * Name
+     *
+     * AssessmentCategory name, e.g. 'Midterm'
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * Color name or #rrggbb
+     */
+    color?: string;
+    /**
+     * Key
+     *
+     * Stable key; derived from the name when omitted
+     */
+    key?: string | null;
+};
+
+/**
+ * CategoryList
+ */
+export type CategoryList = {
+    /**
+     * Items
+     */
+    items: Array<AssessmentCategory>;
+};
+
+/**
+ * CategoryOrderInputBody
+ */
+export type CategoryOrderInputBody = {
+    /**
+     * Category Ids
+     *
+     * AssessmentCategory ids in display order
+     */
+    category_ids: Array<string>;
+};
+
+/**
+ * CategoryTemplate
+ */
+export type CategoryTemplate = {
+    /**
+     * Key
+     *
+     * Stable key such as 'quiz'; unique in the list
+     */
+    key: string;
+    /**
+     * Name
+     *
+     * Display name
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * Color name or #rrggbb
+     */
+    color: string;
+};
+
+/**
+ * CategoryUpdateInputBody
+ */
+export type CategoryUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * New color
+     */
+    color?: string | null;
+    /**
+     * Archived
+     *
+     * Archived categories are hidden from pickers
+     */
+    archived?: boolean | null;
 };
 
 /**
@@ -782,6 +1314,98 @@ export type CourseFocus = {
 };
 
 /**
+ * CourseGrade
+ *
+ * A course's effective grade as the summaries count it.
+ */
+export type CourseGrade = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Alias
+     */
+    alias: string | null;
+    /**
+     * Credits
+     */
+    credits: number;
+    /**
+     * Include In Gpa
+     */
+    include_in_gpa: boolean;
+    /**
+     * Basis
+     */
+    basis: 'percentage' | 'pass_fail';
+    /**
+     * Status
+     */
+    status: 'completed' | 'in_progress' | 'passed' | 'failed';
+    /**
+     * Percentage
+     */
+    percentage: number | null;
+    /**
+     * Current Percentage
+     */
+    current_percentage: number | null;
+    /**
+     * Points
+     */
+    points: number | null;
+    /**
+     * Letter
+     */
+    letter: string | null;
+    /**
+     * Counts In Gpa
+     */
+    counts_in_gpa: boolean;
+    /**
+     * Year Long
+     */
+    year_long: boolean;
+    /**
+     * Attributed Credits
+     *
+     * Credits that land in the requested term (term summaries only)
+     */
+    attributed_credits: number | null;
+};
+
+/**
+ * CourseGrades
+ */
+export type CourseGrades = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Items
+     */
+    items: Array<CourseGrade>;
+};
+
+/**
  * CourseList
  */
 export type CourseList = {
@@ -829,6 +1453,98 @@ export type CoursePage = {
      * Next Cursor
      */
     next_cursor: string | null;
+};
+
+/**
+ * CourseResult
+ */
+export type CourseResult = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Basis
+     */
+    basis: 'percentage' | 'pass_fail';
+    /**
+     * Manual Percentage
+     */
+    manual_percentage: number | null;
+    /**
+     * Final Override Percentage
+     */
+    final_override_percentage: number | null;
+    /**
+     * Pass Fail Result
+     */
+    pass_fail_result: 'pass' | 'fail' | null;
+    /**
+     * Target Points
+     *
+     * Chosen goal; the scale's top points if null
+     */
+    target_points: number | null;
+    /**
+     * Forecast Model
+     */
+    forecast_model: 'auto' | 'simple_minimum_needed';
+    /**
+     * Gradebook Enabled
+     */
+    gradebook_enabled: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * CourseResultUpdateInputBody
+ */
+export type CourseResultUpdateInputBody = {
+    /**
+     * Basis
+     *
+     * 'pass_fail' courses have no GPA
+     */
+    basis?: 'percentage' | 'pass_fail' | null;
+    /**
+     * Manual Percentage
+     *
+     * Final grade of a course without a gradebook, or null
+     */
+    manual_percentage?: number | null;
+    /**
+     * Final Override Percentage
+     *
+     * Official final grade; wins over the calculated one. Null clears
+     */
+    final_override_percentage?: number | null;
+    /**
+     * Pass Fail Result
+     *
+     * Result of a pass/fail course, or null while unknown
+     */
+    pass_fail_result?: 'pass' | 'fail' | null;
+    /**
+     * Target Points
+     *
+     * Goal in grade points, or null for the scale's maximum
+     */
+    target_points?: number | null;
+    /**
+     * Forecast Model
+     *
+     * Forecast model
+     */
+    forecast_model?: 'auto' | 'simple_minimum_needed' | null;
+    /**
+     * Gradebook Enabled
+     *
+     * False when only a final grade is entered for the course
+     */
+    gradebook_enabled?: boolean | null;
 };
 
 /**
@@ -1072,6 +1788,245 @@ export type GoogleLoginIn = {
      * Id Token
      */
     id_token: string;
+};
+
+/**
+ * GradeTarget
+ */
+export type GradeTarget = {
+    /**
+     * Kind
+     *
+     * What `value` is measured in
+     */
+    kind: 'points' | 'percentage';
+    /**
+     * Value
+     *
+     * Target value
+     */
+    value: number;
+};
+
+/**
+ * Gradebook
+ */
+export type Gradebook = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    scale: GradingScaleInfo;
+    result: CourseResult;
+    /**
+     * Categories
+     */
+    categories: Array<AssessmentCategory>;
+    /**
+     * Assessments
+     */
+    assessments: Array<Assessment>;
+    summary: GradebookSummary;
+};
+
+/**
+ * GradebookSummary
+ *
+ * Every figure of M03 §3 for one course; null where it cannot be calculated.
+ */
+export type GradebookSummary = {
+    /**
+     * Status
+     */
+    status: 'completed' | 'in_progress' | 'passed' | 'failed';
+    /**
+     * Weight Total
+     */
+    weight_total: number;
+    /**
+     * Weight Gap
+     *
+     * 100 - weight_total; positive means weight is missing
+     */
+    weight_gap: number;
+    /**
+     * Weights Ok
+     *
+     * False: the weights do not add up to 100, so no figures
+     */
+    weights_ok: boolean;
+    /**
+     * Graded Count
+     */
+    graded_count: number;
+    /**
+     * Remaining Count
+     */
+    remaining_count: number;
+    /**
+     * Graded Weight
+     */
+    graded_weight: number;
+    /**
+     * Remaining Weight
+     */
+    remaining_weight: number;
+    /**
+     * Locked Contribution
+     *
+     * The final grade if everything still to come scored 0
+     */
+    locked_contribution: number | null;
+    /**
+     * Current Percentage
+     *
+     * Weighted average of the graded items
+     */
+    current_percentage: number | null;
+    /**
+     * Current Points
+     */
+    current_points: number | null;
+    /**
+     * Current Letter
+     */
+    current_letter: string | null;
+    /**
+     * Final Percentage
+     *
+     * Official or fully calculated final grade, null while the course is running
+     */
+    final_percentage: number | null;
+    /**
+     * Final Points
+     */
+    final_points: number | null;
+    /**
+     * Final Letter
+     */
+    final_letter: string | null;
+    /**
+     * Final Source
+     */
+    final_source: 'override' | 'computed' | 'manual' | null;
+    /**
+     * Overridden
+     */
+    overridden: boolean;
+    /**
+     * Forecast Percentage
+     *
+     * Predicted final grade ('auto' model)
+     */
+    forecast_percentage: number | null;
+    /**
+     * Forecast Points
+     */
+    forecast_points: number | null;
+    /**
+     * Forecast Letter
+     */
+    forecast_letter: string | null;
+    /**
+     * Predictions
+     *
+     * Predicted score per ungraded assessment id
+     */
+    predictions: {
+        [key: string]: number;
+    };
+    /**
+     * Missing History Category Ids
+     *
+     * Categories of ungraded items without any graded item to predict from
+     */
+    missing_history_category_ids: Array<string | null>;
+    /**
+     * Target Points
+     */
+    target_points: number;
+    /**
+     * Target Percentage
+     *
+     * Lowest percentage reaching the target
+     */
+    target_percentage: number | null;
+    /**
+     * Required Average
+     *
+     * Average the remaining items need to reach the target
+     */
+    required_average: number | null;
+    /**
+     * Reachable
+     *
+     * False when the target needs more than 100%
+     */
+    reachable: boolean | null;
+};
+
+/**
+ * GradingScale
+ */
+export type GradingScale = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Bands
+     *
+     * Highest percentage first
+     */
+    bands: Array<ScaleBand>;
+    /**
+     * Max Points
+     *
+     * Points of a perfect grade, e.g. 4.0
+     */
+    max_points: number;
+    /**
+     * Year Course Attribution
+     *
+     * Which term a year-long course's grade counts in
+     */
+    year_course_attribution: 'end_term' | 'split_evenly';
+    /**
+     * Default Forecast Model
+     */
+    default_forecast_model: 'auto' | 'simple_minimum_needed';
+    /**
+     * Default Categories
+     *
+     * Categories every new course of the Program starts with
+     */
+    default_categories: Array<CategoryTemplate>;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * GradingScaleInfo
+ */
+export type GradingScaleInfo = {
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
 };
 
 /**
@@ -1850,6 +2805,64 @@ export type ProgramCreateInputBody = {
 };
 
 /**
+ * ProgramGrades
+ */
+export type ProgramGrades = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Credits Earned
+     */
+    credits_earned: number;
+    /**
+     * Credits Required
+     */
+    credits_required: number | null;
+    /**
+     * Progress
+     *
+     * credits_earned / credits_required, 0-1
+     */
+    progress: number | null;
+    /**
+     * Graded Course Count
+     */
+    graded_course_count: number;
+    /**
+     * Term Count
+     */
+    term_count: number;
+    /**
+     * Terms
+     *
+     * Chronological, for charts
+     */
+    terms: Array<TermGradePoint>;
+};
+
+/**
  * ProgramList
  */
 export type ProgramList = {
@@ -2218,6 +3231,130 @@ export type Revoked = {
 };
 
 /**
+ * ScaleBand
+ */
+export type ScaleBand = {
+    /**
+     * Min
+     *
+     * Lowest percentage in the band
+     */
+    min: number;
+    /**
+     * Max
+     *
+     * Highest percentage in the band
+     */
+    max: number;
+    /**
+     * Points
+     *
+     * Grade points of the band
+     */
+    points: number;
+    /**
+     * Letter
+     *
+     * Letter grade shown for the band, e.g. 'A-'
+     */
+    letter?: string | null;
+};
+
+/**
+ * ScalePreset
+ */
+export type ScalePreset = {
+    /**
+     * Id
+     *
+     * Preset id: uoft_4_0, us_4_0, cn_100 or custom
+     */
+    id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Bands
+     */
+    bands: Array<ScaleBand>;
+};
+
+/**
+ * ScalePresets
+ */
+export type ScalePresets = {
+    /**
+     * Items
+     */
+    items: Array<ScalePreset>;
+};
+
+/**
+ * ScaleUpdateInputBody
+ */
+export type ScaleUpdateInputBody = {
+    /**
+     * Bands
+     *
+     * The percentage → points table; must cover 0-100 without overlapping
+     */
+    bands?: Array<ScaleBand> | null;
+    /**
+     * Max Points
+     *
+     * Points of a perfect grade
+     */
+    max_points?: number | null;
+    /**
+     * Year Course Attribution
+     *
+     * 'end_term' counts a year-long course once in its last term
+     */
+    year_course_attribution?: 'end_term' | 'split_evenly' | null;
+    /**
+     * Default Forecast Model
+     *
+     * Forecast model new courses start with
+     */
+    default_forecast_model?: 'auto' | 'simple_minimum_needed' | null;
+    /**
+     * Default Categories
+     *
+     * AssessmentCategory template for new courses
+     */
+    default_categories?: Array<CategoryTemplate> | null;
+    /**
+     * Hide Gpa
+     *
+     * Mask GPA figures in the interface
+     */
+    hide_gpa?: boolean | null;
+};
+
+/**
+ * ScoreSuggestion
+ */
+export type ScoreSuggestion = {
+    /**
+     * Items
+     */
+    items: Array<SuggestedScore>;
+    /**
+     * Target Percentage
+     */
+    target_percentage: number | null;
+    /**
+     * Resulting Percentage
+     */
+    resulting_percentage: number;
+    /**
+     * Reachable
+     */
+    reachable: boolean;
+};
+
+/**
  * SessionList
  */
 export type SessionList = {
@@ -2362,6 +3499,44 @@ export type SettingsSchemaOut = {
 };
 
 /**
+ * SimulateCourseInputBody
+ */
+export type SimulateCourseInputBody = {
+    /**
+     * Scores
+     *
+     * Assumed score in percent per ungraded assessment id; nothing is saved
+     */
+    scores?: {
+        [key: string]: number;
+    };
+    /**
+     * Goal; the course's own target when omitted
+     */
+    target?: GradeTarget | null;
+};
+
+/**
+ * SkippedAssessment
+ */
+export type SkippedAssessment = {
+    /**
+     * Source Kind
+     */
+    source_kind: 'lms' | 'syllabus' | 'manual';
+    /**
+     * Source Ref
+     */
+    source_ref: string;
+    /**
+     * Assessment Id
+     *
+     * The existing assessment with this source
+     */
+    assessment_id: string;
+};
+
+/**
  * StorageUsage
  */
 export type StorageUsage = {
@@ -2393,6 +3568,30 @@ export type SubjectColorInputBody = {
      * Palette slot or custom hex color
      */
     color: PaletteColor | HexColor;
+};
+
+/**
+ * SuggestInputBody
+ */
+export type SuggestInputBody = {
+    /**
+     * Goal; the course's own target when omitted
+     */
+    target?: GradeTarget | null;
+};
+
+/**
+ * SuggestedScore
+ */
+export type SuggestedScore = {
+    /**
+     * Assessment Id
+     */
+    assessment_id: string;
+    /**
+     * Score
+     */
+    score: number;
 };
 
 /**
@@ -2607,6 +3806,138 @@ export type TermDeleteResult = {
 };
 
 /**
+ * TermGradePoint
+ */
+export type TermGradePoint = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Cumulative Gpa
+     */
+    cumulative_gpa: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Cumulative Credits
+     */
+    cumulative_credits: number;
+};
+
+/**
+ * TermGradeSimulation
+ */
+export type TermGradeSimulation = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Target Gpa
+     */
+    target_gpa: number | null;
+    /**
+     * Gap
+     *
+     * target - simulated GPA; positive means short
+     */
+    gap: number | null;
+    /**
+     * Max Possible Gpa
+     */
+    max_possible_gpa: number | null;
+    /**
+     * Reachable
+     */
+    reachable: boolean | null;
+    /**
+     * Required Percentage
+     *
+     * One average for the courses left blank that reaches the target
+     */
+    required_percentage: number | null;
+};
+
+/**
+ * TermGrades
+ */
+export type TermGrades = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     *
+     * Credits behind the GPA
+     */
+    credits_counted: number;
+    /**
+     * Credits Total
+     *
+     * Credits of all courses landing in the term
+     */
+    credits_total: number;
+    /**
+     * Credits Earned
+     */
+    credits_earned: number;
+    /**
+     * Excluded Count
+     *
+     * Courses not counted towards the GPA
+     */
+    excluded_count: number;
+    /**
+     * Courses
+     */
+    courses: Array<CourseGrade>;
+};
+
+/**
  * TermList
  */
 export type TermList = {
@@ -2616,6 +3947,32 @@ export type TermList = {
      * Sorted by start date
      */
     items: Array<Term>;
+};
+
+/**
+ * TermSimulateInputBody
+ */
+export type TermSimulateInputBody = {
+    /**
+     * Scores
+     *
+     * Assumed final percentage per unfinished course id; nothing is saved
+     */
+    scores?: {
+        [key: string]: number;
+    };
+    /**
+     * Target Gpa
+     *
+     * Term GPA to aim for
+     */
+    target_gpa?: number | null;
+    /**
+     * Include In Progress
+     *
+     * Count the current average of unfinished courses
+     */
+    include_in_progress?: boolean;
 };
 
 /**
@@ -4894,6 +6251,717 @@ export type CoreStorageUsageResponses = {
 };
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+
+export type GradingAssessmentListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Status
+         *
+         * graded, pending (no score yet) or overdue (pending, past due)
+         */
+        status?: 'graded' | 'pending' | 'overdue' | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each assessment (and its id)
+         */
+        fields?: Array<'course_id' | 'category_id' | 'title' | 'due_at' | 'due_has_time' | 'due_date' | 'due_time' | 'weight' | 'score_percentage' | 'points_earned' | 'points_possible' | 'dropped' | 'note' | 'source_kind' | 'source_ref' | 'position' | 'status' | 'created_at' | 'updated_at'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/courses/{course_id}/assessments';
+};
+
+export type GradingAssessmentListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentListError = GradingAssessmentListErrors[keyof GradingAssessmentListErrors];
+
+export type GradingAssessmentListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentPage;
+};
+
+export type GradingAssessmentListResponse = GradingAssessmentListResponses[keyof GradingAssessmentListResponses];
+
+export type GradingAssessmentCreateData = {
+    body: AssessmentCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments';
+};
+
+export type GradingAssessmentCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentCreateError = GradingAssessmentCreateErrors[keyof GradingAssessmentCreateErrors];
+
+export type GradingAssessmentCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Assessment;
+};
+
+export type GradingAssessmentCreateResponse = GradingAssessmentCreateResponses[keyof GradingAssessmentCreateResponses];
+
+export type GradingAssessmentCreateManyData = {
+    body: AssessmentCreateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments:batch';
+};
+
+export type GradingAssessmentCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentCreateManyError = GradingAssessmentCreateManyErrors[keyof GradingAssessmentCreateManyErrors];
+
+export type GradingAssessmentCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCreateManyResult;
+};
+
+export type GradingAssessmentCreateManyResponse = GradingAssessmentCreateManyResponses[keyof GradingAssessmentCreateManyResponses];
+
+export type GradingAssessmentDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}';
+};
+
+export type GradingAssessmentDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentDeleteError = GradingAssessmentDeleteErrors[keyof GradingAssessmentDeleteErrors];
+
+export type GradingAssessmentDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type GradingAssessmentDeleteResponse = GradingAssessmentDeleteResponses[keyof GradingAssessmentDeleteResponses];
+
+export type GradingAssessmentUpdateData = {
+    body: AssessmentUpdateInputBody;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}';
+};
+
+export type GradingAssessmentUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentUpdateError = GradingAssessmentUpdateErrors[keyof GradingAssessmentUpdateErrors];
+
+export type GradingAssessmentUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Assessment;
+};
+
+export type GradingAssessmentUpdateResponse = GradingAssessmentUpdateResponses[keyof GradingAssessmentUpdateResponses];
+
+export type GradingAssessmentReorderData = {
+    body: AssessmentOrderInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessment-order';
+};
+
+export type GradingAssessmentReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentReorderError = GradingAssessmentReorderErrors[keyof GradingAssessmentReorderErrors];
+
+export type GradingAssessmentReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentOrder;
+};
+
+export type GradingAssessmentReorderResponse = GradingAssessmentReorderResponses[keyof GradingAssessmentReorderResponses];
+
+export type GradingCategoryCreateData = {
+    body: CategoryCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grading-categories';
+};
+
+export type GradingCategoryCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryCreateError = GradingCategoryCreateErrors[keyof GradingCategoryCreateErrors];
+
+export type GradingCategoryCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCategory;
+};
+
+export type GradingCategoryCreateResponse = GradingCategoryCreateResponses[keyof GradingCategoryCreateResponses];
+
+export type GradingCategoryDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Category Id
+         *
+         * AssessmentCategory id
+         */
+        category_id: string;
+    };
+    query?: never;
+    url: '/grading-categories/{category_id}';
+};
+
+export type GradingCategoryDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryDeleteError = GradingCategoryDeleteErrors[keyof GradingCategoryDeleteErrors];
+
+export type GradingCategoryDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type GradingCategoryDeleteResponse = GradingCategoryDeleteResponses[keyof GradingCategoryDeleteResponses];
+
+export type GradingCategoryUpdateData = {
+    body: CategoryUpdateInputBody;
+    path: {
+        /**
+         * Category Id
+         *
+         * AssessmentCategory id
+         */
+        category_id: string;
+    };
+    query?: never;
+    url: '/grading-categories/{category_id}';
+};
+
+export type GradingCategoryUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryUpdateError = GradingCategoryUpdateErrors[keyof GradingCategoryUpdateErrors];
+
+export type GradingCategoryUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCategory;
+};
+
+export type GradingCategoryUpdateResponse = GradingCategoryUpdateResponses[keyof GradingCategoryUpdateResponses];
+
+export type GradingCategoryReorderData = {
+    body: CategoryOrderInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grading-category-order';
+};
+
+export type GradingCategoryReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryReorderError = GradingCategoryReorderErrors[keyof GradingCategoryReorderErrors];
+
+export type GradingCategoryReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: CategoryList;
+};
+
+export type GradingCategoryReorderResponse = GradingCategoryReorderResponses[keyof GradingCategoryReorderResponses];
+
+export type GradingCourseResultUpdateData = {
+    body: CourseResultUpdateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grade';
+};
+
+export type GradingCourseResultUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCourseResultUpdateError = GradingCourseResultUpdateErrors[keyof GradingCourseResultUpdateErrors];
+
+export type GradingCourseResultUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseResult;
+};
+
+export type GradingCourseResultUpdateResponse = GradingCourseResultUpdateResponses[keyof GradingCourseResultUpdateResponses];
+
+export type GradingCourseSummariesData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/programs/{program_id}/course-grades';
+};
+
+export type GradingCourseSummariesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCourseSummariesError = GradingCourseSummariesErrors[keyof GradingCourseSummariesErrors];
+
+export type GradingCourseSummariesResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseGrades;
+};
+
+export type GradingCourseSummariesResponse = GradingCourseSummariesResponses[keyof GradingCourseSummariesResponses];
+
+export type GradingGradebookGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook';
+};
+
+export type GradingGradebookGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingGradebookGetError = GradingGradebookGetErrors[keyof GradingGradebookGetErrors];
+
+export type GradingGradebookGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Gradebook;
+};
+
+export type GradingGradebookGetResponse = GradingGradebookGetResponses[keyof GradingGradebookGetResponses];
+
+export type GradingScaleGetData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/grading-scale';
+};
+
+export type GradingScaleGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScaleGetError = GradingScaleGetErrors[keyof GradingScaleGetErrors];
+
+export type GradingScaleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradingScale;
+};
+
+export type GradingScaleGetResponse = GradingScaleGetResponses[keyof GradingScaleGetResponses];
+
+export type GradingScaleUpdateData = {
+    body: ScaleUpdateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/grading-scale';
+};
+
+export type GradingScaleUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScaleUpdateError = GradingScaleUpdateErrors[keyof GradingScaleUpdateErrors];
+
+export type GradingScaleUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradingScale;
+};
+
+export type GradingScaleUpdateResponse = GradingScaleUpdateResponses[keyof GradingScaleUpdateResponses];
+
+export type GradingScalePresetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/grading/scale-presets';
+};
+
+export type GradingScalePresetsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScalePresetsError = GradingScalePresetsErrors[keyof GradingScalePresetsErrors];
+
+export type GradingScalePresetsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScalePresets;
+};
+
+export type GradingScalePresetsResponse = GradingScalePresetsResponses[keyof GradingScalePresetsResponses];
+
+export type GradingSimulateCourseData = {
+    body: SimulateCourseInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook:simulate';
+};
+
+export type GradingSimulateCourseErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSimulateCourseError = GradingSimulateCourseErrors[keyof GradingSimulateCourseErrors];
+
+export type GradingSimulateCourseResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradebookSummary;
+};
+
+export type GradingSimulateCourseResponse = GradingSimulateCourseResponses[keyof GradingSimulateCourseResponses];
+
+export type GradingSimulateTermData = {
+    body: TermSimulateInputBody;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/grade-summary:simulate';
+};
+
+export type GradingSimulateTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSimulateTermError = GradingSimulateTermErrors[keyof GradingSimulateTermErrors];
+
+export type GradingSimulateTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermGradeSimulation;
+};
+
+export type GradingSimulateTermResponse = GradingSimulateTermResponses[keyof GradingSimulateTermResponses];
+
+export type GradingSuggestScoresData = {
+    body: SuggestInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook:suggest';
+};
+
+export type GradingSuggestScoresErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSuggestScoresError = GradingSuggestScoresErrors[keyof GradingSuggestScoresErrors];
+
+export type GradingSuggestScoresResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScoreSuggestion;
+};
+
+export type GradingSuggestScoresResponse = GradingSuggestScoresResponses[keyof GradingSuggestScoresResponses];
+
+export type GradingSummaryProgramData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/programs/{program_id}/grade-summary';
+};
+
+export type GradingSummaryProgramErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSummaryProgramError = GradingSummaryProgramErrors[keyof GradingSummaryProgramErrors];
+
+export type GradingSummaryProgramResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramGrades;
+};
+
+export type GradingSummaryProgramResponse = GradingSummaryProgramResponses[keyof GradingSummaryProgramResponses];
+
+export type GradingSummaryTermData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/terms/{term_id}/grade-summary';
+};
+
+export type GradingSummaryTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSummaryTermError = GradingSummaryTermErrors[keyof GradingSummaryTermErrors];
+
+export type GradingSummaryTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermGrades;
+};
+
+export type GradingSummaryTermResponse = GradingSummaryTermResponses[keyof GradingSummaryTermResponses];
 
 export type HabitCheckinToggleData = {
     body: CheckinToggleInputBody;

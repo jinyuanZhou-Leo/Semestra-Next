@@ -95,7 +95,7 @@ grading_assessments
 | name | effect | http | 说明 |
 |---|---|---|---|
 | `grading.scale.get` | read | GET /programs/{program_id}/grading-scale | |
-| `grading.scale.update` | write | PUT /programs/{program_id}/grading-scale | 校验区间不重叠、覆盖 0-100、points ≤ max_points |
+| `grading.scale.update` | write | PUT /programs/{program_id}/grading-scale | 校验区间不重叠、覆盖 0-100、points ≤ max_points、分数越高绩点不会更低 |
 | `grading.scale.presets` | read | GET /grading/scale-presets | |
 | `grading.gradebook.get` | read | GET /courses/{course_id}/gradebook | 分类、考核、course_result、**计算摘要**（第 3 节全部指标） |
 | `grading.course_result.update` | write | PATCH /courses/{course_id}/grade | basis、manual、override、pass_fail、target、forecast_model、gradebook_enabled |
@@ -165,3 +165,30 @@ grading_assessments
 ## 9. 验收
 - 用户能在 1 分钟内为一门课建好成绩构成并录入分数，看到当前成绩与达标所需分数。
 - 学期页与 Program 概览的 GPA 与手工计算一致（附测试数据集 `tests/fixtures/grading_cases.json`）。
+
+
+## 实现说明（M03 落地时补充）
+以下是实现时做出的取舍与对上文的细化，以代码为准。
+
+**后端**（`apps/api/src/semestra/modules/grading/`）
+- 计算全部在 `engine.py`（纯函数 + dataclass，结果四舍五入到 3 位小数）：换算表校验与查表、`compute_course`（第 3 节规则 1–6）、`suggest_scores`（整体平移二分 + 向上取 0.5 + K=3 收缩）、年课学分归属、学期/Program 汇总与序列、学期 What If。`service.py` 只负责读库、组装与事件。
+- 表 `grading_scales`（每个 Program 一行）、`grading_course_results`（主键 `course_id`）、`grading_categories`、`grading_assessments`；跨模块的 id 都是普通字符串，不建外键，清理靠订阅 `academics.course.deleting` / `academics.program.deleting`（同事务）。分类删除时考核的 `category_id` 置空。
+- 预设 `uoft_4_0`、`us_4_0`、`cn_100`、`custom`；`custom` 起点只有一个 0–100 的单区间，由用户自己拆分。预设与默认分类模板的文本都在 `presets.py`，分类颜色是名称（blue、amber、emerald、violet、cyan、rose、slate）或 `#rrggbb`，前端把名称映射到主题的科目色令牌。
+- 考核的截止时间输入除 `due_at` 外还接受 `due_date` + `due_time`（按 Program 时区解释，没有时间则只显示日期、截止点是当天结束）；输出同时给 `due_at` 和本地的 `due_date`/`due_time`，前端表单直接用后者。
+- 分数输入：`points_earned` + `points_possible` 优先并换算出百分比；只给 `score_percentage` 会清除分数制；`points_earned: null` 清除分数。`status` 由服务端算出（`graded` / `pending` / `overdue`）。
+- 事件：除第 4 节列出的三类外，删除考核前在事务内发 `grading.assessment.deleting`；`created|updated` 的 payload 带 `changed`（变化的字段名），`deleted` 带 `due_changed`。分类的增删改没有事件（本标签页靠失效刷新，其它标签页要等下一次拉取）。
+- `assessment_deadlines()`（`service.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。**M04 日历源还没有落地，所以本 PR 没有注册 `CalendarSourceContribution`，也没有后端侧的日历接线**；M04 落地后在 `grading/manifest.ts` 里加 `calendarSources`，点击打开课程 `grades` Page 并高亮 `data-assessment` 行。
+- 官方成绩覆盖（`final_override_percentage`）即使权重不足 100 也生效（用户已经知道最终成绩）；此时不给 `required_average` 与 `reachable`。`include_in_gpa=false` 的课程不进 GPA，但已完成的学分仍计入"已获学分"。
+- 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_monotonic`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`。前端对每个码只给一条文案，不按 reason 细分。
+
+**前端**（`apps/web/src/modules/grading/`）
+- 页面 `grades`（`pages/GradesPage.tsx` 按作用域分发到课程页 / 学期页）；卡片 `grading.courseSummary`、`termSummary`、`programKpis`、`programCharts`（纯 SVG，颜色用 `--chart-*`）、`upcoming`；设置分区 `program-grading`（换算表编辑器、预设重置、年课规则、默认预测模型、隐藏 GPA、默认分类）与 `course-grading`（计分方式、是否用成绩簿、预测模型、分类管理）。
+- 考核表与学期课程表都用 TanStack Table v9。**列定义必须放在组件外**（单元格里是会输入的 `InlineInput`，列在渲染时重新创建会让单元格每次渲染都被重新挂载、丢掉正在输入的内容），单元格需要的回调通过 context 传入。
+- 分数单元格输入 `82` / `82%` 为百分比，`18/20` 为分数制（`score.ts` 的 `parseScore`），空为清除，无法识别时标红不发送。
+- 计划模式：假设分数存 `useUiPref('grading.whatif', …, { scope: courseId })`，只保留仍未出分的考核；200ms 防抖调用 `grading.simulate.course`，结果只显示不保存；目标默认用课程自己的目标，可单独切换"绩点/百分比"；"自动填充"调用 `grading.suggest_scores` 并把结果写进假设分数。权重不足 100 时计划模式不可用（服务端也会拒绝）。学期 What If 同理（`grading.term.whatif`，按学期保存）。
+- `hide_gpa`：所有 GPA 数字通过 `GpaValue` 显示，开启时显示"•••"，点击后临时显示。
+- 内置分类名（Quiz、Exam…）没改过名时按界面语言显示；改过名就显示用户的名字。
+- 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, icon, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页的"从…导入"菜单列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
+- 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放。
+- UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
+- 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。
