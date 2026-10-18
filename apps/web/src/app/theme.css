@@ -47,6 +47,18 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --color-subject-1: var(--subject-1);
+  --color-subject-2: var(--subject-2);
+  --color-subject-3: var(--subject-3);
+  --color-subject-4: var(--subject-4);
+  --color-subject-5: var(--subject-5);
+  --color-subject-6: var(--subject-6);
+  --color-subject-7: var(--subject-7);
+  --color-subject-8: var(--subject-8);
+  --color-subject-9: var(--subject-9);
+  --color-subject-10: var(--subject-10);
+  --color-subject-11: var(--subject-11);
+  --color-subject-12: var(--subject-12);
 }
 
 :root {
@@ -82,6 +94,19 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Course and subject colors (M00 §4.6): use subjectColor(), not these directly. */
+  --subject-1: oklch(0.62 0.15 25);
+  --subject-2: oklch(0.62 0.15 55);
+  --subject-3: oklch(0.62 0.15 85);
+  --subject-4: oklch(0.62 0.15 125);
+  --subject-5: oklch(0.62 0.15 155);
+  --subject-6: oklch(0.62 0.15 185);
+  --subject-7: oklch(0.62 0.15 215);
+  --subject-8: oklch(0.62 0.15 245);
+  --subject-9: oklch(0.62 0.15 275);
+  --subject-10: oklch(0.62 0.15 305);
+  --subject-11: oklch(0.62 0.15 335);
+  --subject-12: oklch(0.55 0.02 260);
 }
 
 .dark {
@@ -116,6 +141,19 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Course and subject colors (M00 §4.6): use subjectColor(), not these directly. */
+  --subject-1: oklch(0.74 0.13 25);
+  --subject-2: oklch(0.74 0.13 55);
+  --subject-3: oklch(0.74 0.13 85);
+  --subject-4: oklch(0.74 0.13 125);
+  --subject-5: oklch(0.74 0.13 155);
+  --subject-6: oklch(0.74 0.13 185);
+  --subject-7: oklch(0.74 0.13 215);
+  --subject-8: oklch(0.74 0.13 245);
+  --subject-9: oklch(0.74 0.13 275);
+  --subject-10: oklch(0.74 0.13 305);
+  --subject-11: oklch(0.74 0.13 335);
+  --subject-12: oklch(0.72 0.02 260);
 }
 
 @layer base {

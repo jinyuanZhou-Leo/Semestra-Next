@@ -62,15 +62,19 @@ docs/                设计稿与模块规格
 - **Node 通过 nvm 管理**：切换 Node 版本不会带走全局包（`pnpm`、`@openai/codex` 等需要重装）；非交互 shell 的 PATH 可能仍指向旧版本。
 - **macOS 没有 `timeout` 命令**；长时间运行的命令用后台任务，不要用 `timeout N cmd`。
 - Alembic 的 `env.py` 里要手动 import 各模块的 models，否则 autogenerate 与 `alembic check` 看不到它们；新增模块时记得加。
+- **测试里没有后台 worker**（`jobs_autostart=False`）：入队后用 `run_jobs()` fixture 执行；推给用户的 SSE 消息用 `collect_events(app, user_id)` 收集。冻结的 `clock` 也驱动任务退避与租约，测重试要 `clock.advance(...)`。
+- **structlog 的 `event` 是保留参数**：`log.info("x", event=...)` 会抛 TypeError，换个字段名。
+- **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
+- **`@capability`、`@job_handler`、`@periodic`、`@events.subscribe` 在 import 时注册**：模块 `__init__.py` 必须 import 定义它们的文件。
+- jsdom 没有 `EventSource`：`test-setup.ts` 装了 `FakeEventSource`（`src/test-event-source.ts`），测试里用 `FakeEventSource.last().emit({type, data})` 模拟推送。
 
 ## 已完成的模块
 
-- M00（环境部分）：monorepo、配置、数据库基础（PRAGMA、UUIDv7、UTC 类型、mixin）、统一错误信封、`/healthz` `/readyz`、Alembic、OpenAPI 生成链路、i18n 与 shadcn 骨架、lint/测试工具链。
-  **尚未实现**：任务队列、事件总线与 SSE、存储抽象、扩展契约宿主（`defineModule`）、示例模块 —— 这些仍属于 M00 的交付内容。
+- M00：monorepo、配置、数据库基础（PRAGMA、UUIDv7、UTC 类型、mixin）、统一错误信封、`/healthz` `/readyz`、Alembic、OpenAPI 生成链路、i18n 与 shadcn 骨架、lint/测试工具链；后台任务（`core/jobs.py`，表 `core_jobs`，`@job_handler`/`enqueue`/`@periodic`）、事件总线（`core/events.py`）与 SSE（`core/realtime.py`，`GET /events/stream`）、存储（`core/storage.py`）、密钥加密（`core/security.py`）、安全出站客户端（`core/http.py`）；前端扩展契约 `app/extensions.ts`（`defineModule`）、注册表 `app/registry.ts`、最小宿主 `app/host/`、实时刷新 `app/realtime.ts`、`ThemeProvider`、`useUiPref`、`subjectColor`、`lib/format.ts`、`AsyncBoundary`/`EmptyState`。
+  新模块从模板开始：`apps/api/src/semestra/modules/_template`、`apps/web/src/modules/_template`（不注册进应用，复制后改名，再加到 `modules/__init__.py` 的 `register_all` 和 `app/registry.ts`）。
 - M01 认证与账户：`apps/api/src/semestra/modules/auth/`（邮箱验证码、密码、Google、Cookie 会话 + CSRF、原生 JWT/refresh、PAT、DB 持久化限流）与 `apps/web/src/modules/auth/`（登录流程、会话过期对话框、`/settings/account` 各分区）。同时落地了 M00 缺的最小 Capability 注册表（`core/capability.py`，生成 REST 路由与 operationId）和邮件渲染（`core/i18n.py`）。
   新模块的受保护路由放在 `routes/_authed.*`；API 调用统一走 `src/app/api.ts`（自动带 CSRF 头、401 时触发会话过期对话框）。
   本地开发注意：① 沙箱里 Paraglide 的 inlang 插件 CDN 拉不到时，把 `apps/web/project.inlang/settings.json` 临时指向本地副本，且不要提交；② `src/ui/` 里 M01 新增的组件是手写的（shadcn registry 不可达），见 M01 规格第 12 节。
-  **仍缺 M00**：任务队列、事件总线与 SSE、存储抽象、`defineModule`、示例模块。
 - M15（部署与运维）：`deploy/docker/Dockerfile`（目标 `api` / `api-office` / `allinone`，上下文是仓库根）、`deploy/hosted/`（GCP VM：Caddy + Litestream + `deploy.sh` 自动回滚）、`deploy/selfhost/`（一条命令的 compose，中英 README）、`apps/web/vercel.json`、`core/webapp.py`（`SEMESTRA_SERVE_WEB` 同源托管 SPA）、`core/backup.py` 与 `semestra backup`、可选 Sentry。总览与首次上线要手动做的事见 [deploy/README.md](deploy/README.md)。
-  **尚未实现**：`/metrics`、每周 `VACUUM`（依赖 M00 的 `@periodic`）。
+  **尚未实现**：`/metrics`、每周 `VACUUM`（M00 的 `@periodic` 已可用，上线前需评估与 Litestream 的配合）。
   给其它模块的约定：持久数据只写 `/data`；后端 GET 路径不要与前端路由同名（同源托管时 API 优先）；系统库加在 Dockerfile 的 `api` 目标；新增环境变量同步 `deploy/.env.example`；Docker 里的 pnpm 版本（`PNPM_VERSION`）要与根 `package.json` 的 `packageManager` 一致。

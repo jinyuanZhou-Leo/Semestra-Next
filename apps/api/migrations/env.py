@@ -16,6 +16,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Import every module's models here so autogenerate and `alembic check` see them.
+from semestra.core import jobs as _core_jobs  # noqa: E402,F401
 from semestra.core.config import get_settings  # noqa: E402
 from semestra.core.db import Base, ensure_sqlite_dir  # noqa: E402
 from semestra.modules.auth import models as _auth_models  # noqa: E402,F401

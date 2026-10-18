@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses } from './types.gen';
+import type { AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, HealthzData, HealthzResponses, ReadyzData, ReadyzErrors, ReadyzResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -255,3 +255,35 @@ export const accountTokensCreate = <ThrowOnError extends boolean = false>(option
  * Revokes the token immediately.
  */
 export const accountTokensRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokensRevokeData, ThrowOnError>): RequestResult<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokensRevokeResponses, AccountTokensRevokeErrors, ThrowOnError>({ url: '/account/tokens/{id}', ...options });
+
+/**
+ * Cancel a pending or running background job.
+ *
+ * Use when the user wants to stop a background operation. A running job stops at
+ * its next checkpoint, so it may still finish. Cancelling a finished job changes nothing.
+ */
+export const coreJobCancel = <ThrowOnError extends boolean = false>(options: Options<CoreJobCancelData, ThrowOnError>): RequestResult<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError> => (options.client ?? client).post<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError>({ url: '/jobs/{job_id}/cancel', ...options });
+
+/**
+ * Get the state and progress of a background job.
+ *
+ * Use to check on a long-running operation (file parsing, imports, syncs) that
+ * another capability started and returned a job id for.
+ */
+export const coreJobGet = <ThrowOnError extends boolean = false>(options: Options<CoreJobGetData, ThrowOnError>): RequestResult<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError> => (options.client ?? client).get<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError>({ url: '/jobs/{job_id}', ...options });
+
+/**
+ * List the user's background jobs, newest first.
+ *
+ * Use to find recent or running background operations and their outcome.
+ * Do not use to read the data a job produced; use the capability of the module that owns it.
+ */
+export const coreJobList = <ThrowOnError extends boolean = false>(options?: Options<CoreJobListData, ThrowOnError>): RequestResult<CoreJobListResponses, CoreJobListErrors, ThrowOnError> => (options?.client ?? client).get<CoreJobListResponses, CoreJobListErrors, ThrowOnError>({ url: '/jobs', ...options });
+
+/**
+ * Get how much file storage the user has used and their quota.
+ *
+ * Use when the user asks how much space their files take or why an upload was
+ * rejected for exceeding the quota.
+ */
+export const coreStorageUsage = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageUsageData, ThrowOnError>): RequestResult<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageUsageResponses, CoreStorageUsageErrors, ThrowOnError>({ url: '/storage/usage', ...options });

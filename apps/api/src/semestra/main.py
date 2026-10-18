@@ -10,13 +10,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from semestra.core import jobs, storage
 from semestra.core.backup import backup_loop
 from semestra.core.capability import mount_http
 from semestra.core.config import Settings, get_settings
 from semestra.core.db import make_engine, make_sessionmaker, utcnow
-from semestra.core.errors import ErrorResponse, install_error_handlers
+from semestra.core.errors import AppError, ErrorResponse, install_error_handlers
 from semestra.core.logging import configure_logging
 from semestra.core.observability import init_sentry
+from semestra.core.realtime import Broadcaster
+from semestra.core.realtime import router as realtime_router
 from semestra.core.webapp import install_web
 from semestra.modules import register_all
 
@@ -28,6 +31,8 @@ class Health(BaseModel):
 class Ready(BaseModel):
     status: Literal["ok"]
     database: Literal["ok"]
+    # "off" when SEMESTRA_JOBS_AUTOSTART is false.
+    worker: Literal["ok", "off"]
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -41,15 +46,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = make_engine(settings)
         app.state.engine = engine
         app.state.session_factory = make_sessionmaker(engine)
+        runner = jobs.JobRunner(app.state, settings.job_concurrency)
+        app.state.jobs = runner
+        if settings.jobs_autostart:
+            runner.start()
         backup_task = asyncio.create_task(backup_loop(settings)) if settings.backup_dir else None
         yield
         if backup_task:
             backup_task.cancel()
+        await runner.stop()
         await engine.dispose()
 
     app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.now = utcnow  # tests replace this clock
+    app.state.realtime = Broadcaster()
+    app.state.storage = storage.LocalStorage(settings.storage_local_root)
 
     app.add_middleware(
         CORSMiddleware,
@@ -86,8 +98,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def readyz(request: Request) -> Ready:  # pyright: ignore[reportUnusedFunction]
         async with request.app.state.session_factory() as session:
             await session.execute(text("SELECT 1"))
-        return Ready(status="ok", database="ok")
+        runner: jobs.JobRunner = request.app.state.jobs
+        if settings.jobs_autostart and not runner.running:
+            raise AppError("common.unavailable", 503, component="worker")
+        return Ready(status="ok", database="ok", worker="ok" if runner.running else "off")
 
+    app.include_router(realtime_router)
     register_all(app)
     mount_http(app)
 

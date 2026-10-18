@@ -194,6 +194,86 @@ export type IdentityOut = {
 };
 
 /**
+ * JobOut
+ */
+export type JobOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+    /**
+     * Progress
+     */
+    progress: number;
+    /**
+     * Step
+     */
+    step: string | null;
+    /**
+     * Result
+     */
+    result: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Error Params
+     */
+    error_params: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Max Attempts
+     */
+    max_attempts: number;
+    /**
+     * Cancel Requested
+     */
+    cancel_requested: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Started At
+     */
+    started_at: string | null;
+    /**
+     * Finished At
+     */
+    finished_at: string | null;
+};
+
+/**
+ * JobPage
+ */
+export type JobPage = {
+    /**
+     * Items
+     */
+    items: Array<JobOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
  * PasswordChangeInputBody
  */
 export type PasswordChangeInputBody = {
@@ -273,6 +353,10 @@ export type Ready = {
      * Database
      */
     database: 'ok';
+    /**
+     * Worker
+     */
+    worker: 'ok' | 'off';
 };
 
 /**
@@ -359,6 +443,28 @@ export type SessionOut = {
      * Current
      */
     current: boolean;
+};
+
+/**
+ * StorageUsage
+ */
+export type StorageUsage = {
+    /**
+     * Used Bytes
+     */
+    used_bytes: number;
+    /**
+     * Quota Bytes
+     *
+     * 0 means unlimited.
+     */
+    quota_bytes: number;
+    /**
+     * By Module
+     */
+    by_module: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -1180,3 +1286,142 @@ export type AccountTokensRevokeResponses = {
 };
 
 export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
+
+export type CoreJobCancelData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         *
+         * Job id, as returned when the job was started.
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/jobs/{job_id}/cancel';
+};
+
+export type CoreJobCancelErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CoreJobCancelError = CoreJobCancelErrors[keyof CoreJobCancelErrors];
+
+export type CoreJobCancelResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type CoreJobCancelResponse = CoreJobCancelResponses[keyof CoreJobCancelResponses];
+
+export type CoreJobGetData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         *
+         * Job id, as returned when the job was started.
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/jobs/{job_id}';
+};
+
+export type CoreJobGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CoreJobGetError = CoreJobGetErrors[keyof CoreJobGetErrors];
+
+export type CoreJobGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type CoreJobGetResponse = CoreJobGetResponses[keyof CoreJobGetResponses];
+
+export type CoreJobListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         *
+         * Only jobs in this state.
+         */
+        status?: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | null;
+        /**
+         * Kind
+         *
+         * Only jobs of this kind, e.g. files.parse.
+         */
+        kind?: string | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page.
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size.
+         */
+        limit?: number;
+    };
+    url: '/jobs';
+};
+
+export type CoreJobListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CoreJobListError = CoreJobListErrors[keyof CoreJobListErrors];
+
+export type CoreJobListResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobPage;
+};
+
+export type CoreJobListResponse = CoreJobListResponses[keyof CoreJobListResponses];
+
+export type CoreStorageUsageData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/storage/usage';
+};
+
+export type CoreStorageUsageErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CoreStorageUsageError = CoreStorageUsageErrors[keyof CoreStorageUsageErrors];
+
+export type CoreStorageUsageResponses = {
+    /**
+     * Successful Response
+     */
+    200: StorageUsage;
+};
+
+export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
