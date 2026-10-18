@@ -305,6 +305,15 @@ def test_term_what_if_target_needs_an_average_for_the_blank_courses() -> None:
     assert result.max_possible_gpa == 3.925  # with the blank course at 100%
 
 
+def test_an_ungraded_zero_weight_item_does_not_hold_the_course_open() -> None:
+    items = [Item("exam", None, 100, 80), Item("placeholder", None, 0, None)]
+    calc = engine.compute_course(items)
+    assert calc.computed_percentage == 80
+    assert calc.remaining_count == 0
+    assert calc.final_percentage == 80
+    assert engine.suggest_scores(items, 70).scores == {}
+
+
 def test_a_scale_must_not_pay_less_for_a_higher_mark() -> None:
     bands = [Band(0, 89, 1.0), Band(90, 99, 4.0), Band(100, 100, 3.0)]
     with pytest.raises(engine.ScaleError) as error:

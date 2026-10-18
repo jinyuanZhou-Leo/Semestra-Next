@@ -175,7 +175,8 @@ def compute_course(
     active = [i for i in items if not i.dropped]
     total, gap, ok = weight_status(active)
     graded = [i for i in active if i.score is not None]
-    remaining = [i for i in active if i.score is None]
+    # An ungraded item worth nothing cannot change the grade, so it never holds a course open.
+    remaining = [i for i in active if i.score is None and i.weight > 0]
     graded_weight = sum(i.weight for i in graded)
     remaining_weight = sum(i.weight for i in remaining)
     base = {
@@ -299,7 +300,7 @@ def suggest_scores(items: Sequence[Item], target_percentage: float) -> Suggestio
     """
     active = [i for i in items if not i.dropped]
     graded = [i for i in active if i.score is not None]
-    remaining = [i for i in active if i.score is None]
+    remaining = [i for i in active if i.score is None and i.weight > 0]
     contribution = sum(i.weight * (i.score or 0) for i in graded) / 100
     if not remaining:
         return Suggestion(
