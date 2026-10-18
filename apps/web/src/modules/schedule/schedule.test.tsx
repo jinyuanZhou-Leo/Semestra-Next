@@ -1,4 +1,4 @@
-import type { EventType, Meeting, Occurrence } from '@semestra/api-client'
+import type { EventType, Meeting, OneOffEvent, Occurrence } from '@semestra/api-client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
@@ -13,6 +13,7 @@ import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, server, user } from '@/test-utils'
+import { EventDialog } from './components/EventDialog'
 import schedule from './manifest'
 
 /** FullCalendar does not lay out in jsdom; a stand-in exposes its props to the tests. */
@@ -187,6 +188,10 @@ function scheduleHandlers(log: Log) {
       await record(request)
       return HttpResponse.json(meeting)
     }),
+    http.patch(`${API}/events/:id`, async ({ request }) => {
+      await record(request)
+      return HttpResponse.json({})
+    }),
     http.put(`${API}/me/ui-state/:key`, async ({ request }) => {
       await record(request)
       return HttpResponse.json({ ok: true })
@@ -318,4 +323,50 @@ test('exporting the week as PNG renders it and saves the file', async () => {
   await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
   await waitFor(() => expect(clicks).toEqual(['semestra-schedule.png']))
   expect(shots.count).toBe(1)
+})
+
+test('saving a multi-day all-day event keeps its last day', async () => {
+  const studyDays: OneOffEvent = {
+    id: 'e1',
+    program_id: 'p1',
+    term_id: null,
+    course_id: null,
+    type_code: null,
+    title: 'Study days',
+    // Oct 1–3 in Toronto: the stored end is the midnight after the last day.
+    start_at: '2026-10-01T04:00:00Z',
+    end_at: '2026-10-04T04:00:00Z',
+    all_day: true,
+    location: null,
+    note: null,
+    source_kind: null,
+    source_ref: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <EventDialog
+        programId="p1"
+        timezone="America/Toronto"
+        event={studyDays}
+        open
+        onOpenChange={() => {}}
+      />
+    </QueryClientProvider>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(log.requests).toContainEqual(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: '/events/e1',
+        body: expect.objectContaining({
+          start_at: '2026-10-01T00:00',
+          end_at: '2026-10-04T00:00',
+          all_day: true,
+        }),
+      }),
+    ),
+  )
 })

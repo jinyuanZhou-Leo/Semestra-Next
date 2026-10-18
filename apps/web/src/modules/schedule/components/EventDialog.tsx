@@ -132,7 +132,8 @@ export function EventDialog({
   const startDay = draft.start.slice(0, 10)
   const endDay = draft.end.slice(0, 10)
   const start = draft.all_day ? `${startDay}T00:00` : draft.start
-  const end = draft.all_day ? `${endDay || startDay}T00:00` : draft.end || draft.start
+  // The form shows an all-day event's last day; the API takes the midnight after it.
+  const end = draft.all_day ? `${plusDays(endDay || startDay, 1)}T00:00` : draft.end || draft.start
   const titleMissing = draft.title.trim() === ''
   const timeMissing = startDay === ''
   const timeInvalid = !timeMissing && end < start
