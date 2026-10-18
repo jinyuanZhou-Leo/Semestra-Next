@@ -126,6 +126,7 @@ export function Board({ scope, board }: { scope: Scope; board?: 'today' }) {
           kind={board ?? scope.kind}
           boardRef={ref}
           data={data}
+          fetching={query.isFetching}
         />
       )}
     </AsyncBoundary>
@@ -137,11 +138,14 @@ function BoardView({
   kind,
   boardRef: ref,
   data,
+  fetching,
 }: {
   scope: Scope
   kind: BoardKind
   boardRef: BoardRef
   data: BoardData
+  /** A refetch is running: the cached board may miss cards of a plugin installed since. */
+  fetching: boolean
 }) {
   const queryClient = useQueryClient()
   const contributions = useCards(kind)
@@ -151,9 +155,10 @@ function BoardView({
 
   const [draft, setDraft] = useState<DraftCard[] | null>(null)
   const [saving, setSaving] = useState(false)
-  // Editing waits for the installed plugins (or their cards would be left out of the draft and
-  // removed on save) and for the previous save (whose new cards have no ids yet).
-  const canEdit = useInstalledPluginsReady() && !saving
+  // Editing waits for the installed plugins and a fresh board (or a plugin's cards would be left
+  // out of the draft and removed on save) and for the previous save (whose new cards have no ids
+  // yet).
+  const canEdit = useInstalledPluginsReady() && !fetching && !saving
   const [adding, setAdding] = useState(false)
   const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
   const editing = draft !== null

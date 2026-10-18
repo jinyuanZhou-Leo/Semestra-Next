@@ -214,6 +214,7 @@ async def test_uninstall_hides_cards_and_reinstall_restores_them(app: FastAPI, a
     assert [c["card_id"] for c in board["cards"]] == ["academics.courseInfo"]
     # Saving the layout meanwhile keeps the hidden card.
     await api.put_board("course", course_id, [{**board["cards"][0], "size": "m"}])
+    assert await api.error("GET", url, 403) == "plugins.not_installed"
     assert await api.error("PUT", url, 403, json={"settings": {}}) == "plugins.not_installed"
     card_url = f"/layouts/cards/{note['instance_id']}"
     assert await api.error("DELETE", card_url, 403) == "plugins.not_installed"

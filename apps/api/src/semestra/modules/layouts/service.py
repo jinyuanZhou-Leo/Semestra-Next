@@ -500,6 +500,9 @@ async def remove_card(ctx: Ctx, instance_id: str) -> Removed:
 
 async def get_card_settings(ctx: Ctx, instance_id: str) -> CardSettings:
     row = await _instance_row(ctx, instance_id)
+    card = catalog.card(row.card_id)
+    if card is not None and card.module_id not in await installed_ids(ctx):
+        raise AppError("plugins.not_installed", 403, plugin_id=card.module_id)
     return CardSettings(instance_id=row.instance_id, card_id=row.card_id, settings=row.settings)
 
 
