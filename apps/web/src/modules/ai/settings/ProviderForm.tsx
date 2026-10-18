@@ -22,7 +22,14 @@ import {
   FieldSet,
 } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import {
   CAPABILITIES,
   CAPABILITY_TITLES,
@@ -159,11 +166,13 @@ export function ProviderForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {kindItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {kindItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <FieldDescription>{info.hint()}</FieldDescription>

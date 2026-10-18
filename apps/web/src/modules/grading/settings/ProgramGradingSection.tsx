@@ -17,7 +17,14 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { ItemGroup } from '@/ui/item'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -103,11 +110,13 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {forecastItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {forecastItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </SettingRow>

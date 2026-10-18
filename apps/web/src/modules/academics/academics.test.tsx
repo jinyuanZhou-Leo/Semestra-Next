@@ -47,6 +47,25 @@ beforeEach(() => {
   world = defaultWorld()
   server.use(
     http.get(`${API}/account/me`, () => HttpResponse.json(user)),
+    http.get(`${API}/plugins/catalog`, () =>
+      HttpResponse.json(
+        { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+        { status: 500 },
+      ),
+    ),
+    http.get(`${API}/layouts/nav/:kind`, () =>
+      HttpResponse.json({ scope_type: 'program', order: [], hidden: [] }),
+    ),
+    http.get(`${API}/layouts/boards/:kind/:id`, () =>
+      HttpResponse.json({
+        scope_type: 'program',
+        scope_id: 'p1',
+        customized: false,
+        updated_at: null,
+        cards: [],
+      }),
+    ),
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     ...academicsHandlers(world),
   )
 })
@@ -152,12 +171,7 @@ test('the term wizard survives a reload and creates the term in one request', as
 })
 
 test('on a phone the sidebar is a drawer and other pages ask for a desktop', async () => {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query.includes('max-width'),
-    media: query,
-    addEventListener() {},
-    removeEventListener() {},
-  }))
+  vi.stubGlobal('innerWidth', 500)
   mount('/p/p1')
   expect(await screen.findByText('Open this on a computer')).toBeInTheDocument()
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()

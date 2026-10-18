@@ -12,7 +12,14 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
 import { categoryName } from '../display'
 import { invalidateGrading } from '../queries'
@@ -168,11 +175,13 @@ function AssessmentForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {items.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {items.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </Field>

@@ -13,7 +13,14 @@ import {
   ItemTitle,
 } from '@/ui/item'
 import { Label } from '@/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 type TimeFormat = 'auto' | '12h' | '24h'
@@ -80,11 +87,13 @@ function LanguageForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LANGUAGES.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label()}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {LANGUAGES.map((l) => (
+                  <SelectItem key={l.value} value={l.value}>
+                    {l.label()}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </ItemActions>

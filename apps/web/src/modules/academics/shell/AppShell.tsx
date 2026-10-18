@@ -1,75 +1,78 @@
 import { useLocation } from '@tanstack/react-router'
-import { Menu, MonitorSmartphone } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { MonitorSmartphone } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Sheet, SheetContent, SheetTitle } from '@/ui/sheet'
+import { Separator } from '@/ui/separator'
+import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/ui/sidebar'
 import { useProgram } from '../queries'
-import { useIsNarrow } from './media'
-import { Sidebar } from './Sidebar'
+import { AppSidebar } from './AppSidebar'
 import { Tour } from './Tour'
 
 /** Pages that work on a phone; everything else asks for a desktop (M02 §5.1). */
 const PHONE_PAGE = /\/today$/
 
-/** The signed-in app around a Program's pages: sidebar (a drawer on phones) and content. */
-export function AppShell({ programId, children }: { programId: string; children: ReactNode }) {
-  const narrow = useIsNarrow()
+function ShellInset({ programId, children }: { programId: string; children: ReactNode }) {
+  const { isMobile, open } = useSidebar()
   const pathname = useLocation({ select: (l) => l.pathname })
-  const [collapsed, setCollapsed] = useUiPref('layout.sidebar_collapsed', false)
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const programName = useProgram(programId).data?.name ?? ''
-
-  if (narrow) {
-    return (
-      <div className="flex min-h-dvh flex-col bg-background">
-        <header className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={m.academics_open_navigation()}
-            onClick={() => setDrawerOpen(true)}
-          >
-            <Menu aria-hidden />
-          </Button>
-          <span className="truncate font-heading text-sm font-semibold">{programName}</span>
-        </header>
-        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <SheetContent side="left" className="p-0">
-            <SheetTitle className="sr-only">{m.academics_sidebar_label()}</SheetTitle>
-            <Sidebar programId={programId} drawer onNavigate={() => setDrawerOpen(false)} />
-          </SheetContent>
-        </Sheet>
-        <main className="min-w-0 flex-1">
-          {PHONE_PAGE.test(pathname) ? (
-            children
-          ) : (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <MonitorSmartphone aria-hidden />
-                </EmptyMedia>
-                <EmptyTitle>{m.academics_desktop_only_title()}</EmptyTitle>
-                <EmptyDescription>{m.academics_desktop_only_description()}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
-        </main>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex h-dvh bg-background">
-      <Sidebar
-        programId={programId}
-        collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
-      />
-      <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+    <SidebarInset className="h-full min-w-0 overflow-hidden">
+      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+        <div className="flex min-w-0 items-center gap-2 px-4">
+          <SidebarTrigger
+            className="-ml-1"
+            aria-label={
+              isMobile
+                ? m.academics_open_navigation()
+                : open
+                  ? m.academics_sidebar_collapse()
+                  : m.academics_sidebar_expand()
+            }
+          />
+          {isMobile ? (
+            <>
+              <Separator
+                orientation="vertical"
+                className="mr-2 data-vertical:h-4 data-vertical:self-auto"
+              />
+              <span className="truncate font-heading text-sm font-semibold">{programName}</span>
+            </>
+          ) : null}
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {isMobile && !PHONE_PAGE.test(pathname) ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MonitorSmartphone aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.academics_desktop_only_title()}</EmptyTitle>
+              <EmptyDescription>{m.academics_desktop_only_description()}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          children
+        )}
+      </div>
+    </SidebarInset>
+  )
+}
+
+/** The signed-in app around a Program's pages: the sidebar (a drawer on phones) and content. */
+export function AppShell({ programId, children }: { programId: string; children: ReactNode }) {
+  const [collapsed, setCollapsed] = useUiPref('layout.sidebar_collapsed', false)
+  return (
+    <SidebarProvider
+      open={!collapsed}
+      onOpenChange={(open) => setCollapsed(!open)}
+      className="h-dvh min-h-0"
+    >
+      <AppSidebar programId={programId} />
+      <ShellInset programId={programId}>{children}</ShellInset>
       <Tour />
-    </div>
+    </SidebarProvider>
   )
 }

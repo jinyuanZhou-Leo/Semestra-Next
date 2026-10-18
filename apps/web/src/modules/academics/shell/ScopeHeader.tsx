@@ -203,6 +203,7 @@ export function ScopeHeader({
             size="icon-sm"
             aria-label={m.academics_scope_settings()}
             title={m.academics_scope_settings()}
+            nativeButton={false}
             render={<HistoryLink href={scopeSettingsPath(scope)} />}
           >
             <Settings aria-hidden />

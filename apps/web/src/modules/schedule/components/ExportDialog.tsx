@@ -13,13 +13,20 @@ import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldLabel } from '@/ui/field'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { pngsToPdf, renderPng } from '../export'
 import { weekLabel } from '../labels'
 import { weekGridItems } from '../occurrence'
 import type { CalendarSettings } from '../queries'
 import { dayInWeek, localDay, plusDays, wallDate } from '../time'
-import { SimpleSelect } from './SimpleSelect'
 import { meetingGridItems } from './TimetableView'
 import { type GridDay, WeekGrid, minutes, weekDays } from './WeekGrid'
 
@@ -94,6 +101,7 @@ export function ExportDialog({
     value: w.start_date,
     label: `${weekLabel(w.number, w.break_info?.name)} · ${formatDate(localDay(w.start_date))}`,
   }))
+  const toOptions = weekOptions.filter((option) => option.value >= from)
   const wanted = sources.filter((s) => picked.has(s.source)).map((s) => s.source)
 
   const fetchWeeks = async (): Promise<Occurrence[]> => {
@@ -220,22 +228,46 @@ export function ExportDialog({
                 <FieldLabel htmlFor={`${fid}-1`}>
                   {effectiveRange === 'weeks' ? m.schedule_export_from() : m.schedule_export_week()}
                 </FieldLabel>
-                <SimpleSelect
-                  id={`${fid}-1`}
+                <Select
                   value={from}
-                  onChange={setFrom}
-                  options={weekOptions}
-                />
+                  items={weekOptions}
+                  onValueChange={(next) => next && setFrom(next)}
+                >
+                  <SelectTrigger id={`${fid}-1`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {weekOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </Field>
               {effectiveRange === 'weeks' ? (
                 <Field>
                   <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_export_to()}</FieldLabel>
-                  <SimpleSelect
-                    id={`${fid}-2`}
+                  <Select
                     value={to}
-                    onChange={setTo}
-                    options={weekOptions.filter((o) => o.value >= from)}
-                  />
+                    items={toOptions}
+                    onValueChange={(next) => next && setTo(next)}
+                  >
+                    <SelectTrigger id={`${fid}-2`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {toOptions.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </Field>
               ) : null}
             </div>

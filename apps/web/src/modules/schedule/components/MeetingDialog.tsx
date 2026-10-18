@@ -15,11 +15,18 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { weekdayName } from '../time'
-import { SimpleSelect } from './SimpleSelect'
 
 type Draft = {
   term_id: string
@@ -157,6 +164,10 @@ export function MeetingDialog({
   if (!typeOptions.some((o) => o.value === draft.type_code)) {
     typeOptions.push({ value: draft.type_code, label: draft.type_code })
   }
+  const termItems = termIds.map((id) => ({
+    value: id,
+    label: terms.find((t) => t.id === id)?.name ?? id,
+  }))
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
@@ -170,25 +181,46 @@ export function MeetingDialog({
           {termIds.length > 1 ? (
             <Field className="col-span-2">
               <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_term()}</FieldLabel>
-              <SimpleSelect
-                id={`${fid}-1`}
+              <Select
                 value={draft.term_id}
-                onChange={(v) => set('term_id', v)}
-                options={termIds.map((id) => ({
-                  value: id,
-                  label: terms.find((t) => t.id === id)?.name ?? id,
-                }))}
-              />
+                items={termItems}
+                onValueChange={(next) => next && set('term_id', next)}
+              >
+                <SelectTrigger id={`${fid}-1`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {termItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
           ) : null}
           <Field>
             <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_type()}</FieldLabel>
-            <SimpleSelect
-              id={`${fid}-2`}
+            <Select
               value={draft.type_code}
-              onChange={(v) => set('type_code', v)}
-              options={typeOptions}
-            />
+              items={typeOptions}
+              onValueChange={(next) => next && set('type_code', next)}
+            >
+              <SelectTrigger id={`${fid}-2`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {typeOptions.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_section_code()}</FieldLabel>
@@ -201,12 +233,24 @@ export function MeetingDialog({
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_weekday()}</FieldLabel>
-            <SimpleSelect
-              id={`${fid}-4`}
+            <Select
               value={draft.weekday}
-              onChange={(v) => set('weekday', v)}
-              options={weekdays}
-            />
+              items={weekdays}
+              onValueChange={(next) => next && set('weekday', next)}
+            >
+              <SelectTrigger id={`${fid}-4`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {weekdays.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field>

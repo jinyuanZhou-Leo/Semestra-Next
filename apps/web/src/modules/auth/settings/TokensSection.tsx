@@ -34,7 +34,14 @@ import {
   ItemSeparator,
   ItemTitle,
 } from '@/ui/item'
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { SettingsCard } from './SettingsCard'
 
 /** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
@@ -79,9 +86,22 @@ function CreateTokenDialog({
   onCreated: (token: TokenCreated) => void
 }) {
   const nameId = useId()
+  const scopeId = useId()
+  const expiryId = useId()
+  const scopeItems = [
+    { value: 'read', label: m.auth_account_tokens_scope_read() },
+    { value: 'write', label: m.auth_account_tokens_scope_write() },
+  ]
+  const expiryItems = [
+    { value: 'never', label: m.auth_account_tokens_expiry_never() },
+    ...[30, 90, 365].map((d) => ({
+      value: String(d),
+      label: m.auth_account_tokens_expiry_days({ days: d }),
+    })),
+  ]
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
-  const [days, setDays] = useState('')
+  const [days, setDays] = useState('never')
   const create = useMutation(accountTokensCreateMutation())
 
   const submit = (e: FormEvent) => {
@@ -92,14 +112,14 @@ function CreateTokenDialog({
         body: {
           name: name.trim(),
           scopes: scope === 'write' ? ['read', 'write'] : ['read'],
-          expires_in_days: days ? Number(days) : null,
+          expires_in_days: days === 'never' ? null : Number(days),
         },
       },
       {
         onSuccess: (token) => {
           setName('')
           setScope('read')
-          setDays('')
+          setDays('never')
           onCreated(token)
         },
       },
@@ -135,38 +155,46 @@ function CreateTokenDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="token-scope">{m.auth_account_tokens_scope_label()}</FieldLabel>
-              <NativeSelect
-                id="token-scope"
-                className="w-full"
+              <FieldLabel id={scopeId}>{m.auth_account_tokens_scope_label()}</FieldLabel>
+              <Select
                 value={scope}
-                onChange={(e) => setScope(e.target.value === 'write' ? 'write' : 'read')}
+                items={scopeItems}
+                onValueChange={(next) => setScope(next === 'write' ? 'write' : 'read')}
               >
-                <NativeSelectOption value="read">
-                  {m.auth_account_tokens_scope_read()}
-                </NativeSelectOption>
-                <NativeSelectOption value="write">
-                  {m.auth_account_tokens_scope_write()}
-                </NativeSelectOption>
-              </NativeSelect>
+                <SelectTrigger aria-labelledby={scopeId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {scopeItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
             <Field>
-              <FieldLabel htmlFor="token-expiry">{m.auth_account_tokens_expiry_label()}</FieldLabel>
-              <NativeSelect
-                id="token-expiry"
-                className="w-full"
+              <FieldLabel id={expiryId}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
+              <Select
                 value={days}
-                onChange={(e) => setDays(e.target.value)}
+                items={expiryItems}
+                onValueChange={(next) => next && setDays(next)}
               >
-                <NativeSelectOption value="">
-                  {m.auth_account_tokens_expiry_never()}
-                </NativeSelectOption>
-                {[30, 90, 365].map((d) => (
-                  <NativeSelectOption key={d} value={d}>
-                    {m.auth_account_tokens_expiry_days({ days: d })}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger aria-labelledby={expiryId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {expiryItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
             <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>

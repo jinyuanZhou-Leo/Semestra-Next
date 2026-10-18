@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { FieldDescriptor } from './schema'
@@ -114,11 +121,13 @@ export function FieldControlView(props: ControlProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {field.options.map((o) => (
-              <SelectItem key={String(o)} value={String(o)}>
-                {optionLabel(namespace, field.key, o)}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {field.options.map((o) => (
+                <SelectItem key={String(o)} value={String(o)}>
+                  {optionLabel(namespace, field.key, o)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       )

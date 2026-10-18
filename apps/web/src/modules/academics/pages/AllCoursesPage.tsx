@@ -35,7 +35,14 @@ import {
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
 import { coursePath, programPath } from '../paths'
@@ -463,11 +470,13 @@ function FilterSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

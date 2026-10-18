@@ -24,7 +24,14 @@ import {
   ItemSeparator,
   ItemTitle,
 } from '@/ui/item'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { PURPOSE_HINTS, PURPOSE_TITLES, canServe } from '../labels'
 import { invalidateAi } from '../queries'
 
@@ -111,11 +118,13 @@ function ModelPicker({
         <SelectValue placeholder={m.ai_models_pick_model()} />
       </SelectTrigger>
       <SelectContent>
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )
@@ -197,11 +206,13 @@ function PurposeRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {providerItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {providerItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         {providerId ? (

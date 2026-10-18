@@ -1,7 +1,14 @@
 import { Languages } from 'lucide-react'
 import { type AppLocale, useLocale } from '@/app/locale'
 import { m } from '@/paraglide/messages'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 
 const LANGUAGES: readonly { value: AppLocale; label: string }[] = [
   { value: 'en', label: 'English' },
@@ -28,11 +35,13 @@ export function LanguageSwitcher() {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {LANGUAGES.map((l) => (
-          <SelectItem key={l.value} value={l.value}>
-            {l.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {LANGUAGES.map((l) => (
+            <SelectItem key={l.value} value={l.value}>
+              {l.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

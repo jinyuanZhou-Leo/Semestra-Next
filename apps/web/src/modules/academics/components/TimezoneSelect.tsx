@@ -1,4 +1,11 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 
 /** The browser's time zone, e.g. 'America/Toronto' (the default for a new Program). */
 export function detectTimezone(): string {
@@ -38,11 +45,13 @@ export function TimezoneSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="max-h-72">
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

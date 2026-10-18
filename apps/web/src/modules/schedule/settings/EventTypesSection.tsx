@@ -20,7 +20,14 @@ import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { SimpleSelect } from '../components/SimpleSelect'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { TYPE_ICONS } from '../icons'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
@@ -163,26 +170,42 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
     column.display({
       id: 'icon',
       header: () => m.schedule_type_icon(),
-      cell: ({ row }) => (
-        <SimpleSelect
-          aria-label={m.schedule_type_icon()}
-          className="w-40"
-          value={row.original.icon ?? NO_ICON}
-          onChange={(value) => patch(row.original, { icon: value === NO_ICON ? null : value })}
-          options={[
-            { value: NO_ICON, label: m.schedule_type_no_icon() },
-            ...Object.entries(TYPE_ICONS).map(([key, Icon]) => ({
-              value: key,
-              label: (
-                <span className="flex items-center gap-2">
-                  <Icon aria-hidden className="size-4" />
-                  {key}
-                </span>
-              ),
-            })),
-          ]}
-        />
-      ),
+      cell: ({ row }) => {
+        const iconItems = [
+          { value: NO_ICON, label: m.schedule_type_no_icon() },
+          ...Object.entries(TYPE_ICONS).map(([key, Icon]) => ({
+            value: key,
+            label: (
+              <span className="flex items-center gap-2">
+                <Icon aria-hidden className="size-4" />
+                {key}
+              </span>
+            ),
+          })),
+        ]
+        return (
+          <Select
+            value={row.original.icon ?? NO_ICON}
+            items={iconItems}
+            onValueChange={(next) =>
+              next && patch(row.original, { icon: next === NO_ICON ? null : next })
+            }
+          >
+            <SelectTrigger aria-label={m.schedule_type_icon()} className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {iconItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )
+      },
     }),
     column.display({
       id: 'actions',

@@ -1,5 +1,12 @@
 import { m } from '@/paraglide/messages'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 
 /** Ids the backend offers (`presets.PRESET_IDS`); the texts live here. */
 const PRESET_LABELS: Record<string, () => string> = {
@@ -32,11 +39,13 @@ export function PresetSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

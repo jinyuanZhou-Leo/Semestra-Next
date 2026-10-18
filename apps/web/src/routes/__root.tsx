@@ -4,13 +4,16 @@ import { LocaleProvider } from '@/app/locale'
 import { ThemeProvider } from '@/app/theme'
 import { AuthProvider } from '@/modules/auth/AuthProvider'
 import { Toaster } from '@/ui/sonner'
+import { TooltipProvider } from '@/ui/tooltip'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: () => (
     <ThemeProvider>
       <LocaleProvider>
         <AuthProvider>
-          <Outlet />
+          <TooltipProvider>
+            <Outlet />
+          </TooltipProvider>
           <Toaster />
         </AuthProvider>
       </LocaleProvider>

@@ -16,11 +16,18 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { plusDays, toWall } from '../time'
-import { SimpleSelect } from './SimpleSelect'
 
 const NONE = '__none__'
 
@@ -164,6 +171,14 @@ export function EventDialog({
     else create.mutate({ path: { program_id: programId }, body })
   }
 
+  const courseItems = [
+    { value: NONE, label: m.schedule_no_course() },
+    ...courses.map((c) => ({ value: c.id, label: courseLabel(c) })),
+  ]
+  const typeItems = [
+    { value: NONE, label: m.schedule_no_type() },
+    ...types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` })),
+  ]
   const dateType = draft.all_day ? 'date' : 'datetime-local'
   const dateValue = (value: string) => (draft.all_day ? value.slice(0, 10) : value)
   const fromInput = (value: string, previous: string) =>
@@ -189,27 +204,45 @@ export function EventDialog({
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_course()}</FieldLabel>
-            <SimpleSelect
-              id={`${fid}-2`}
+            <Select
               value={draft.course_id}
-              onChange={(v) => set('course_id', v)}
-              options={[
-                { value: NONE, label: m.schedule_no_course() },
-                ...courses.map((c) => ({ value: c.id, label: courseLabel(c) })),
-              ]}
-            />
+              items={courseItems}
+              onValueChange={(next) => next && set('course_id', next)}
+            >
+              <SelectTrigger id={`${fid}-2`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {courseItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_type()}</FieldLabel>
-            <SimpleSelect
-              id={`${fid}-3`}
+            <Select
               value={draft.type_code}
-              onChange={(v) => set('type_code', v)}
-              options={[
-                { value: NONE, label: m.schedule_no_type() },
-                ...types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` })),
-              ]}
-            />
+              items={typeItems}
+              onValueChange={(next) => next && set('type_code', next)}
+            >
+              <SelectTrigger id={`${fid}-3`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {typeItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </Field>
           <label className="col-span-2 flex items-center gap-2 text-sm">
             <Checkbox checked={draft.all_day} onCheckedChange={(on) => set('all_day', on)} />

@@ -207,6 +207,25 @@ beforeEach(() => {
   log = { requests: [] }
   server.use(
     http.get(`${API}/account/me`, () => HttpResponse.json(user)),
+    http.get(`${API}/plugins/catalog`, () =>
+      HttpResponse.json(
+        { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+        { status: 500 },
+      ),
+    ),
+    http.get(`${API}/layouts/nav/:kind`, () =>
+      HttpResponse.json({ scope_type: 'program', order: [], hidden: [] }),
+    ),
+    http.get(`${API}/layouts/boards/:kind/:id`, () =>
+      HttpResponse.json({
+        scope_type: 'program',
+        scope_id: 'p1',
+        customized: false,
+        updated_at: null,
+        cards: [],
+      }),
+    ),
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     ...scheduleHandlers(log),
     ...academicsHandlers(world),
   )
