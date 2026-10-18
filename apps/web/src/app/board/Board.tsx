@@ -20,7 +20,6 @@ import { Check, LayoutTemplate, MoreHorizontal, Pencil, Plus } from 'lucide-reac
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { EmptyState } from '@/components/EmptyState'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -32,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import type { BoardKind, CardContribution, CardSize, Scope } from '../extensions'
 import { useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
@@ -418,16 +418,18 @@ function BoardView({
       </div>
 
       {cards.length === 0 && !editing ? (
-        <EmptyState
-          title={m.board_empty_title()}
-          description={m.board_empty_description()}
-          action={
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{m.board_empty_title()}</EmptyTitle>
+            <EmptyDescription>{m.board_empty_description()}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
             <Button variant="outline" onClick={startEditing}>
               <Pencil aria-hidden />
               {m.board_edit()}
             </Button>
-          }
-        />
+          </EmptyContent>
+        </Empty>
       ) : (
         <DndContext
           sensors={sensors}

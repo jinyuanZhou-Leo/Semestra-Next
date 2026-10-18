@@ -1,10 +1,7 @@
 import { errorMessage } from '@/lib/errors'
+import { FieldError } from '@/ui/field'
 
 export function FormError({ error }: { error: unknown }) {
   if (!error) return null
-  return (
-    <p role="alert" className="text-sm text-destructive">
-      {errorMessage(error)}
-    </p>
-  )
+  return <FieldError>{errorMessage(error)}</FieldError>
 }

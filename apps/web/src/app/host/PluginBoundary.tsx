@@ -1,9 +1,17 @@
 import { CircleAlert } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode, Suspense } from 'react'
-import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 
 type State = { error: unknown }
 
@@ -27,25 +35,24 @@ class ErrorBoundary extends Component<{ children: ReactNode; compact?: boolean }
     )
     if (this.props.compact) {
       return (
-        <div
-          role="alert"
-          className="flex h-full flex-col items-center justify-center gap-2 text-sm"
-        >
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <CircleAlert aria-hidden className="size-4" />
-            {m.host_plugin_failed_title()}
-          </span>
-          {retry}
-        </div>
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden />
+          <AlertTitle>{m.host_plugin_failed_title()}</AlertTitle>
+          <AlertAction>{retry}</AlertAction>
+        </Alert>
       )
     }
     return (
-      <EmptyState
-        icon={CircleAlert}
-        title={m.host_plugin_failed_title()}
-        description={m.host_plugin_failed_description()}
-        action={retry}
-      />
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CircleAlert aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.host_plugin_failed_title()}</EmptyTitle>
+          <EmptyDescription>{m.host_plugin_failed_description()}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>{retry}</EmptyContent>
+      </Empty>
     )
   }
 }

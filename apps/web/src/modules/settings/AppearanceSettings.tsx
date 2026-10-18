@@ -8,7 +8,8 @@ import { SegmentedControl } from '@/components/SegmentedControl'
 import { SettingList, SettingRow } from '@/components/SettingRow'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { RadioGroup, RadioItem } from '@/ui/radio-group'
+import { RadioCard } from '@/components/RadioCard'
+import { RadioGroup } from '@/ui/radio-group'
 
 const THEMES: readonly Theme[] = ['system', 'light', 'dark']
 
@@ -86,10 +87,10 @@ function AppearanceForm({
             applied.setTheme(next as Theme)
             update({ theme: next as Theme })
           }}
-          className="gap-3"
+          className="flex w-auto gap-3"
         >
           {THEMES.map((option) => (
-            <RadioItem
+            <RadioCard
               key={option}
               value={option}
               className="group flex w-28 flex-col gap-1.5 rounded-2xl text-left text-sm"
@@ -98,7 +99,7 @@ function AppearanceForm({
                 <ThemePreview theme={option} />
               </span>
               <span className="px-1">{THEME_LABELS[option]()}</span>
-            </RadioItem>
+            </RadioCard>
           ))}
         </RadioGroup>
       </SettingRow>
@@ -110,10 +111,10 @@ function AppearanceForm({
             applied.setAccent(next as Accent)
             update({ accent: next as Accent })
           }}
-          className="flex-wrap gap-2"
+          className="flex w-auto flex-wrap gap-2"
         >
           {ACCENTS.map((option) => (
-            <RadioItem
+            <RadioCard
               key={option}
               value={option}
               data-accent={option}
@@ -122,7 +123,7 @@ function AppearanceForm({
               className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-primary"
             >
               <Check aria-hidden className="size-4 opacity-0 in-data-checked:opacity-100" />
-            </RadioItem>
+            </RadioCard>
           ))}
         </RadioGroup>
       </SettingRow>

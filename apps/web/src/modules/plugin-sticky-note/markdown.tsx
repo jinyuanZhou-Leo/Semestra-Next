@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
+import { cn } from '@/lib/utils'
 import { Checkbox } from '@/ui/checkbox'
+import { Field, FieldLabel } from '@/ui/field'
 
 /**
  * The small Markdown subset sticky notes support (M14 §4): paragraphs, **bold**, *italic*,
@@ -86,6 +88,7 @@ export function Markdown({
   /** Accessible name of a checkbox, given the task's text. */
   taskLabel: (text: string) => string
 }) {
+  const id = useId()
   return (
     <div className="space-y-1 text-sm break-words">
       {parseBlocks(content).map((block) => {
@@ -103,18 +106,25 @@ export function Markdown({
             )
           case 'task':
             return (
-              <label key={block.line} className="flex items-start gap-2">
+              <Field key={block.line} orientation="horizontal" className="items-start gap-2">
                 <Checkbox
+                  id={`${id}-${block.line}`}
                   checked={block.checked}
                   disabled={!onToggleTask}
                   aria-label={taskLabel(block.text)}
                   onCheckedChange={() => onToggleTask?.(toggleTask(content, block.line))}
                   className="mt-0.5"
                 />
-                <span className={block.checked ? 'text-muted-foreground line-through' : undefined}>
+                <FieldLabel
+                  htmlFor={`${id}-${block.line}`}
+                  className={cn(
+                    'block font-normal leading-normal',
+                    block.checked && 'text-muted-foreground line-through',
+                  )}
+                >
                   {renderInline(block.text)}
-                </span>
-              </label>
+                </FieldLabel>
+              </Field>
             )
         }
       })}

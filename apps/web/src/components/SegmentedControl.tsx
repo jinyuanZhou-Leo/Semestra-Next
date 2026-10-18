@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
-import { RadioGroup, RadioItem } from '@/ui/radio-group'
+import { RadioCard } from '@/components/RadioCard'
+import { RadioGroup } from '@/ui/radio-group'
 
 type Option<T extends string> = { value: T; label: string }
 
@@ -22,17 +23,17 @@ export function SegmentedControl<T extends string>({
     <RadioGroup
       value={value}
       onValueChange={(next) => onValueChange(next as T)}
-      className={cn('gap-0.5 rounded-4xl bg-muted p-0.5', className)}
+      className={cn('flex w-auto gap-0.5 rounded-4xl bg-muted p-0.5', className)}
       {...aria}
     >
       {options.map((option) => (
-        <RadioItem
+        <RadioCard
           key={option.value}
           value={option.value}
           className="rounded-4xl px-3 py-1 text-sm text-muted-foreground transition-colors data-checked:bg-background data-checked:text-foreground data-checked:shadow-sm"
         >
           {option.label}
-        </RadioItem>
+        </RadioCard>
       ))}
     </RadioGroup>
   )

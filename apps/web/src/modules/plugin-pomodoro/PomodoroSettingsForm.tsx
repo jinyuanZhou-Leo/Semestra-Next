@@ -1,7 +1,8 @@
-import { useId } from 'react'
-import { SettingList, SettingRow } from '@/components/SettingRow'
+import { Fragment, useId } from 'react'
 import { m } from '@/paraglide/messages'
 import { Input } from '@/ui/input'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
+import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import type { PomodoroSettings } from './schema'
 
@@ -32,38 +33,55 @@ export default function PomodoroSettingsForm({ value, onChange }: Props) {
     ['notify', m.pomodoro_settings_notify_label()],
   ]
   return (
-    <SettingList>
-      {numbers.map(([field, label]) => (
-        <SettingRow
-          key={field}
-          label={label}
-          labelId={`${id}-${field}`}
-          htmlFor={`${id}-${field}-input`}
-        >
-          <Input
-            id={`${id}-${field}-input`}
-            type="number"
-            min={LIMITS[field][0]}
-            max={LIMITS[field][1]}
-            value={value[field]}
-            onChange={(event) => {
-              const n = Math.trunc(Number(event.target.value))
-              const [min, max] = LIMITS[field]
-              if (n >= min && n <= max) onChange({ ...value, [field]: n })
-            }}
-            className="w-20"
-          />
-        </SettingRow>
+    <ItemGroup className="gap-0 rounded-2xl border">
+      {numbers.map(([field, label], index) => (
+        <Fragment key={field}>
+          {index > 0 ? <ItemSeparator className="my-0" /> : null}
+          <Item render={<li />}>
+            <ItemContent>
+              <ItemTitle>
+                <Label id={`${id}-${field}`} htmlFor={`${id}-${field}-input`}>
+                  {label}
+                </Label>
+              </ItemTitle>
+            </ItemContent>
+            <ItemActions>
+              <Input
+                id={`${id}-${field}-input`}
+                type="number"
+                min={LIMITS[field][0]}
+                max={LIMITS[field][1]}
+                value={value[field]}
+                onChange={(event) => {
+                  const n = Math.trunc(Number(event.target.value))
+                  const [min, max] = LIMITS[field]
+                  if (n >= min && n <= max) onChange({ ...value, [field]: n })
+                }}
+                className="w-20"
+              />
+            </ItemActions>
+          </Item>
+        </Fragment>
       ))}
       {switches.map(([field, label]) => (
-        <SettingRow key={field} label={label} labelId={`${id}-${field}`}>
-          <Switch
-            aria-labelledby={`${id}-${field}`}
-            checked={value[field]}
-            onCheckedChange={(checked) => onChange({ ...value, [field]: checked })}
-          />
-        </SettingRow>
+        <Fragment key={field}>
+          <ItemSeparator className="my-0" />
+          <Item render={<li />}>
+            <ItemContent>
+              <ItemTitle>
+                <Label id={`${id}-${field}`}>{label}</Label>
+              </ItemTitle>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                aria-labelledby={`${id}-${field}`}
+                checked={value[field]}
+                onCheckedChange={(checked) => onChange({ ...value, [field]: checked })}
+              />
+            </ItemActions>
+          </Item>
+        </Fragment>
       ))}
-    </SettingList>
+    </ItemGroup>
   )
 }

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
 import { Kbd } from '@/ui/kbd'
 import { scopePath } from '../extensions'
 import { formatHotkey, useHotkey, useListedHotkeys } from '../hotkeys'
@@ -26,20 +27,25 @@ function HotkeysHelp({
   })
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.hotkeys_title()}</DialogTitle>
         </DialogHeader>
-        <dl className="divide-y divide-border">
-          {rows.map((hotkey) => (
-            <div key={hotkey.id} className="flex items-center justify-between gap-4 py-2 text-sm">
-              <dt>{hotkey.description()}</dt>
-              <dd>
-                <Kbd>{formatHotkey(hotkey.keys)}</Kbd>
-              </dd>
-            </div>
+        <ItemGroup className="gap-0">
+          {rows.map((hotkey, index) => (
+            <Fragment key={hotkey.id}>
+              {index > 0 ? <ItemSeparator className="my-0" /> : null}
+              <Item render={<li />} size="xs" className="px-0">
+                <ItemContent>
+                  <ItemTitle className="font-normal">{hotkey.description()}</ItemTitle>
+                </ItemContent>
+                <ItemActions>
+                  <Kbd>{formatHotkey(hotkey.keys)}</Kbd>
+                </ItemActions>
+              </Item>
+            </Fragment>
           ))}
-        </dl>
+        </ItemGroup>
       </DialogContent>
     </Dialog>
   )

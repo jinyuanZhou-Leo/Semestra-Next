@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Empty, EmptyDescription } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import type { BoardKind, CardContribution, CardSize } from '../extensions'
 import { useModules } from '../registry'
@@ -71,7 +72,7 @@ export function AddCardDialog({
         if (!next) setQuery('')
       }}
     >
-      <DialogContent closeLabel={m.common_close()} className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{m.board_add_card()}</DialogTitle>
           <DialogDescription>{m.board_add_card_description()}</DialogDescription>
@@ -85,9 +86,9 @@ export function AddCardDialog({
         />
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
           {groups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {m.board_add_card_none()}
-            </p>
+            <Empty className="p-6">
+              <EmptyDescription>{m.board_add_card_none()}</EmptyDescription>
+            </Empty>
           ) : null}
           {groups.map(({ module, cards }) => (
             <section key={module.id} aria-label={module.name()}>

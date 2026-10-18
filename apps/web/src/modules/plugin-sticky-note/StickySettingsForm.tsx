@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { m } from '@/paraglide/messages'
-import { RadioGroup, RadioItem } from '@/ui/radio-group'
+import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { colorTint } from '../plugin-kit/colors'
 import { NOTE_COLORS, type StickySettings } from './schema'
 
@@ -27,15 +27,15 @@ export default function StickySettingsForm({ value, onChange }: Props) {
         aria-labelledby={id}
         value={value.color}
         onValueChange={(color) => onChange({ ...value, color: color as StickySettings['color'] })}
-        className="flex-wrap"
+        className="flex flex-wrap gap-2"
       >
         {NOTE_COLORS.map((color) => (
-          <RadioItem
+          <RadioGroupItem
             key={color}
             value={color}
             aria-label={NAMES[color]()}
             title={NAMES[color]()}
-            className="size-8 rounded-lg border border-border ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-foreground/60"
+            className="size-8 rounded-lg border-border ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-foreground/60"
             style={{ backgroundColor: colorTint(color, 40) }}
           />
         ))}

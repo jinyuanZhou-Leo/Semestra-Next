@@ -1,10 +1,20 @@
 import { X } from 'lucide-react'
-import { useId, useState } from 'react'
-import { SettingList, SettingRow } from '@/components/SettingRow'
-import { TextField } from '@/components/TextField'
+import { Fragment, useId, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
+import { Field, FieldDescription, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@/ui/item'
+import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { MAX_ZONES, type WorldClockSettings } from './schema'
 import { searchZones, zoneLabel } from './zones'
@@ -41,59 +51,93 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
             </li>
           ))}
         </ul>
-        <TextField
-          label={m.world_clock_settings_search_label()}
-          placeholder={m.world_clock_settings_search_placeholder()}
-          disabled={full}
-          hint={full ? m.world_clock_settings_full({ max: MAX_ZONES }) : undefined}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <Field data-disabled={full || undefined}>
+          <FieldLabel htmlFor={`${id}-search`}>{m.world_clock_settings_search_label()}</FieldLabel>
+          <Input
+            id={`${id}-search`}
+            placeholder={m.world_clock_settings_search_placeholder()}
+            disabled={full}
+            aria-describedby={full ? `${id}-search-hint` : undefined}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {full ? (
+            <FieldDescription id={`${id}-search-hint`}>
+              {m.world_clock_settings_full({ max: MAX_ZONES })}
+            </FieldDescription>
+          ) : null}
+        </Field>
         {results.length > 0 ? (
-          <ul
+          <ItemGroup
             aria-label={m.world_clock_settings_results()}
-            className="mt-2 divide-y divide-border rounded-2xl border border-border"
+            className="mt-2 gap-0 overflow-hidden rounded-2xl border"
           >
-            {results.map((zone) => (
-              <li key={`${zone.tz}|${zone.label}`}>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted"
-                  onClick={() => {
-                    onChange({ ...value, zones: [...value.zones, zone.tz] })
-                    setQuery('')
-                  }}
-                >
-                  {zone.label}
-                  <span className="text-xs text-muted-foreground">{zone.tz}</span>
-                </button>
-              </li>
+            {results.map((zone, index) => (
+              <Fragment key={`${zone.tz}|${zone.label}`}>
+                {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                <li>
+                  <Item
+                    size="xs"
+                    className="rounded-none text-left hover:bg-muted"
+                    render={(props) => <button type="button" {...props} />}
+                    onClick={() => {
+                      onChange({ ...value, zones: [...value.zones, zone.tz] })
+                      setQuery('')
+                    }}
+                  >
+                    <ItemContent>
+                      <ItemTitle>{zone.label}</ItemTitle>
+                    </ItemContent>
+                    <ItemActions>
+                      <ItemDescription className="text-xs">{zone.tz}</ItemDescription>
+                    </ItemActions>
+                  </Item>
+                </li>
+              </Fragment>
             ))}
-          </ul>
+          </ItemGroup>
         ) : null}
       </div>
-      <TextField
-        label={m.world_clock_settings_label_label()}
-        maxLength={60}
-        value={value.label ?? ''}
-        onChange={(event) => onChange({ ...value, label: event.target.value || undefined })}
-      />
-      <SettingList>
-        <SettingRow label={m.world_clock_settings_show_seconds_label()} labelId={`${id}-seconds`}>
-          <Switch
-            aria-labelledby={`${id}-seconds`}
-            checked={value.show_seconds}
-            onCheckedChange={(show_seconds) => onChange({ ...value, show_seconds })}
-          />
-        </SettingRow>
-        <SettingRow label={m.world_clock_settings_show_offset_label()} labelId={`${id}-offset`}>
-          <Switch
-            aria-labelledby={`${id}-offset`}
-            checked={value.show_offset}
-            onCheckedChange={(show_offset) => onChange({ ...value, show_offset })}
-          />
-        </SettingRow>
-      </SettingList>
+      <Field>
+        <FieldLabel htmlFor={`${id}-label`}>{m.world_clock_settings_label_label()}</FieldLabel>
+        <Input
+          id={`${id}-label`}
+          maxLength={60}
+          value={value.label ?? ''}
+          onChange={(event) => onChange({ ...value, label: event.target.value || undefined })}
+        />
+      </Field>
+      <ItemGroup className="gap-0 rounded-2xl border">
+        <Item render={<li />}>
+          <ItemContent>
+            <ItemTitle>
+              <Label id={`${id}-seconds`}>{m.world_clock_settings_show_seconds_label()}</Label>
+            </ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              aria-labelledby={`${id}-seconds`}
+              checked={value.show_seconds}
+              onCheckedChange={(show_seconds) => onChange({ ...value, show_seconds })}
+            />
+          </ItemActions>
+        </Item>
+        <ItemSeparator className="my-0" />
+        <Item render={<li />}>
+          <ItemContent>
+            <ItemTitle>
+              <Label id={`${id}-offset`}>{m.world_clock_settings_show_offset_label()}</Label>
+            </ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              aria-labelledby={`${id}-offset`}
+              checked={value.show_offset}
+              onCheckedChange={(show_offset) => onChange({ ...value, show_offset })}
+            />
+          </ItemActions>
+        </Item>
+      </ItemGroup>
     </div>
   )
 }

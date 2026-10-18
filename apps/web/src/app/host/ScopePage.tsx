@@ -1,6 +1,6 @@
 import { FileQuestion } from 'lucide-react'
-import { EmptyState } from '@/components/EmptyState'
 import { m } from '@/paraglide/messages'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import type { Scope } from '../extensions'
 import { usePages } from '../registry'
 import { PluginBoundary } from './PluginBoundary'
@@ -10,11 +10,15 @@ export function ScopePage({ scope, pageId }: { scope: Scope; pageId: string }) {
   const page = usePages(scope).find((p) => p.id === pageId)
   if (!page) {
     return (
-      <EmptyState
-        icon={FileQuestion}
-        title={m.host_page_unavailable_title()}
-        description={m.host_page_unavailable_description()}
-      />
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileQuestion aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.host_page_unavailable_title()}</EmptyTitle>
+          <EmptyDescription>{m.host_page_unavailable_description()}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
   const Page = page.component

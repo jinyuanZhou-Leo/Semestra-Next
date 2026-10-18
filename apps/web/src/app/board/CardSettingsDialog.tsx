@@ -6,6 +6,8 @@ import { fieldDescription, fieldLabel } from '../settings/texts'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { FieldError } from '@/ui/field'
+import { Label } from '@/ui/label'
 import type { CardContribution } from '../extensions'
 import { cardNamespace } from './settings'
 
@@ -42,9 +44,9 @@ function GeneratedForm({
         return (
           <div key={field.key} className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <label id={`${id}-label`} htmlFor={id} className="text-sm font-medium">
+              <Label id={`${id}-label`} htmlFor={id}>
                 {fieldLabel(namespace, field.key)}
-              </label>
+              </Label>
               {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
             </div>
             <FieldControlView
@@ -99,7 +101,7 @@ export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent closeLabel={m.common_close()}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.board_card_settings_title({ card: card.title() })}</DialogTitle>
         </DialogHeader>
@@ -113,11 +115,7 @@ export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }
               onChange={setDraft}
             />
           )}
-          {invalid ? (
-            <p role="alert" className="text-sm text-destructive">
-              {m.board_card_settings_invalid()}
-            </p>
-          ) : null}
+          {invalid ? <FieldError>{m.board_card_settings_invalid()}</FieldError> : null}
           <DialogFooter>
             <Button
               type="button"
