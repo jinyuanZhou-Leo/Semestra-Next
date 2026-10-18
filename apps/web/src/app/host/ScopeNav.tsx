@@ -7,6 +7,7 @@ import { Button } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
@@ -73,9 +74,11 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
           <MoreHorizontal aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setManaging(true)}>
-            {m.host_nav_manage_pages()}
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => setManaging(true)}>
+              {m.host_nav_manage_pages()}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       <ManagePagesDialog scope={scope} open={managing} onOpenChange={setManaging} />

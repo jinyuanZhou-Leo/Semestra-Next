@@ -6,8 +6,7 @@ import { fieldDescription, fieldLabel } from '../settings/texts'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { FieldError } from '@/ui/field'
-import { Label } from '@/ui/label'
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import type { CardContribution } from '../extensions'
 import { cardNamespace } from './settings'
 
@@ -42,13 +41,13 @@ function GeneratedForm({
         const id = `${baseId}-${field.key}`
         const description = fieldDescription(namespace, field.key)
         return (
-          <div key={field.key} className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <Label id={`${id}-label`} htmlFor={id}>
+          <Field key={field.key} orientation="horizontal" className="items-start justify-between">
+            <FieldContent className="min-w-0">
+              <FieldLabel id={`${id}-label`} htmlFor={id}>
                 {fieldLabel(namespace, field.key)}
-              </Label>
-              {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-            </div>
+              </FieldLabel>
+              {description ? <FieldDescription>{description}</FieldDescription> : null}
+            </FieldContent>
             <FieldControlView
               namespace={namespace}
               field={field}
@@ -57,7 +56,7 @@ function GeneratedForm({
               value={value[field.key]}
               onChange={(next) => onChange({ ...value, [field.key]: next })}
             />
-          </div>
+          </Field>
         )
       })}
     </div>

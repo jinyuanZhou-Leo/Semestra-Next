@@ -992,6 +992,7 @@
   "schedule_starts": "Starts",
   "schedule_ends": "Ends",
   "schedule_date": "Date",
+  "schedule_date_placeholder": "Pick a date",
   "schedule_note": "Note",
   "schedule_required": "Required",
   "schedule_filters": "Filters",

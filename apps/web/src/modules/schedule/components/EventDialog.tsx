@@ -5,17 +5,21 @@ import {
   scheduleEventUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { CalendarIcon } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { formatDate, firstDayOfWeek } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { courseLabel } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Calendar } from '@/ui/calendar'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
   SelectContent,
@@ -27,7 +31,25 @@ import {
 import { Textarea } from '@/ui/textarea'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
-import { plusDays, toWall } from '../time'
+import { isoDay, localDay, plusDays, toWall } from '../time'
+
+function calendarDay(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : ''
+}
+
+function clock(value: string): string {
+  return value.match(/T(\d{2}:\d{2})/)?.[1] ?? ''
+}
+
+function withDay(value: string, day: string): string {
+  return `${day}T${clock(value) || '00:00'}`
+}
+
+function withClock(value: string, time: string): string {
+  const day = calendarDay(value)
+  if (!day) return time ? `T${time}` : ''
+  return `${day}T${time || '00:00'}`
+}
 
 const NONE = '__none__'
 
@@ -111,6 +133,8 @@ export function EventDialog({
   const [draft, setDraft] = useState<Draft>(() => draftOf(event, slot, timezone, courseId))
   const [touched, setTouched] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [startOpen, setStartOpen] = useState(false)
+  const [endOpen, setEndOpen] = useState(false)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
 
@@ -138,8 +162,8 @@ export function EventDialog({
   })
   const pending = create.isPending || update.isPending
 
-  const startDay = draft.start.slice(0, 10)
-  const endDay = draft.end.slice(0, 10)
+  const startDay = calendarDay(draft.start)
+  const endDay = calendarDay(draft.end)
   const start = draft.all_day ? `${startDay}T00:00` : draft.start
   // The form shows an all-day event's last day; the API takes the midnight after it.
   const end = draft.all_day ? `${plusDays(endDay || startDay, 1)}T00:00` : draft.end || draft.start
@@ -179,10 +203,9 @@ export function EventDialog({
     { value: NONE, label: m.schedule_no_type() },
     ...types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` })),
   ]
-  const dateType = draft.all_day ? 'date' : 'datetime-local'
-  const dateValue = (value: string) => (draft.all_day ? value.slice(0, 10) : value)
-  const fromInput = (value: string, previous: string) =>
-    draft.all_day ? `${value}T${previous.slice(11, 16) || '00:00'}` : value
+  const weekStartsOn = firstDayOfWeek() === 1 ? 1 : 0
+  const startSelected = startDay ? localDay(startDay) : undefined
+  const endSelected = endDay ? localDay(endDay) : undefined
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
@@ -244,30 +267,107 @@ export function EventDialog({
               </SelectContent>
             </Select>
           </Field>
-          <label className="col-span-2 flex items-center gap-2 text-sm">
-            <Checkbox checked={draft.all_day} onCheckedChange={(on) => set('all_day', on)} />
-            {m.schedule_all_day()}
-          </label>
+          <Field orientation="horizontal" className="col-span-2 w-auto">
+            <Checkbox
+              id={`${fid}-all-day`}
+              checked={draft.all_day}
+              onCheckedChange={(on) => set('all_day', on)}
+            />
+            <FieldLabel htmlFor={`${fid}-all-day`} className="font-normal">
+              {m.schedule_all_day()}
+            </FieldLabel>
+          </Field>
           <Field data-invalid={(touched && timeMissing) || undefined}>
             <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_starts()}</FieldLabel>
-            <Input
-              id={`${fid}-4`}
-              aria-invalid={(touched && timeMissing) || undefined}
-              type={dateType}
-              value={dateValue(draft.start)}
-              onChange={(e) => set('start', fromInput(e.target.value, draft.start))}
-            />
+            <div className="flex gap-2">
+              <Popover open={startOpen} onOpenChange={setStartOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      id={`${fid}-4`}
+                      type="button"
+                      variant="outline"
+                      aria-invalid={(touched && timeMissing) || undefined}
+                      data-empty={!startSelected}
+                      className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
+                    />
+                  }
+                >
+                  <CalendarIcon data-icon="inline-start" />
+                  {startSelected ? formatDate(startDay) : m.schedule_date_placeholder()}
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={startSelected}
+                    defaultMonth={startSelected}
+                    weekStartsOn={weekStartsOn}
+                    onSelect={(next) => {
+                      const day = next ? isoDay(next) : ''
+                      set(
+                        'start',
+                        day ? withDay(draft.start, day) : withClock('', clock(draft.start)),
+                      )
+                      setStartOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+              {draft.all_day ? null : (
+                <Input
+                  type="time"
+                  aria-label={m.schedule_start_time()}
+                  className="w-32 shrink-0"
+                  value={clock(draft.start)}
+                  onChange={(input) => set('start', withClock(draft.start, input.target.value))}
+                />
+              )}
+            </div>
             {touched && timeMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
           </Field>
           <Field data-invalid={(touched && timeInvalid) || undefined}>
             <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_ends()}</FieldLabel>
-            <Input
-              id={`${fid}-5`}
-              aria-invalid={(touched && timeInvalid) || undefined}
-              type={dateType}
-              value={dateValue(draft.end)}
-              onChange={(e) => set('end', fromInput(e.target.value, draft.end))}
-            />
+            <div className="flex gap-2">
+              <Popover open={endOpen} onOpenChange={setEndOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      id={`${fid}-5`}
+                      type="button"
+                      variant="outline"
+                      aria-invalid={(touched && timeInvalid) || undefined}
+                      data-empty={!endSelected}
+                      className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
+                    />
+                  }
+                >
+                  <CalendarIcon data-icon="inline-start" />
+                  {endSelected ? formatDate(endDay) : m.schedule_date_placeholder()}
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={endSelected}
+                    defaultMonth={endSelected}
+                    weekStartsOn={weekStartsOn}
+                    onSelect={(next) => {
+                      const day = next ? isoDay(next) : ''
+                      set('end', day ? withDay(draft.end, day) : withClock('', clock(draft.end)))
+                      setEndOpen(false)
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+              {draft.all_day ? null : (
+                <Input
+                  type="time"
+                  aria-label={m.schedule_end_time()}
+                  className="w-32 shrink-0"
+                  value={clock(draft.end)}
+                  onChange={(input) => set('end', withClock(draft.end, input.target.value))}
+                />
+              )}
+            </div>
             {touched && timeInvalid ? (
               <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
             ) : null}

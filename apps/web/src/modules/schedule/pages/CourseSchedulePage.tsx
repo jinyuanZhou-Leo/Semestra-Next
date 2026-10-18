@@ -19,6 +19,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
@@ -404,22 +405,24 @@ function MeetingGroup({
             <MoreHorizontal aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(row.original)}>
-              {m.schedule_meeting_edit()}
-            </DropdownMenuItem>
-            {meetings.length > 1 ? (
-              <DropdownMenuItem
-                onClick={() => {
-                  onToggle([row.original.id], true)
-                  onToggle(
-                    meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
-                    false,
-                  )
-                }}
-              >
-                {m.schedule_keep_only_this()}
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={() => onEdit(row.original)}>
+                {m.schedule_meeting_edit()}
               </DropdownMenuItem>
-            ) : null}
+              {meetings.length > 1 ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    onToggle([row.original.id], true)
+                    onToggle(
+                      meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
+                      false,
+                    )
+                  }}
+                >
+                  {m.schedule_keep_only_this()}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       ),

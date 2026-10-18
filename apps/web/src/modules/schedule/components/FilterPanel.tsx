@@ -1,8 +1,10 @@
 import type { Course } from '@semestra/api-client'
+import { useId } from 'react'
 import type { CalendarSourceContribution } from '@/app/extensions'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
+import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 
 /** The calendar's filters, saved per term (`calendar.filters.<termId>`, M04 §5.2). */
@@ -41,62 +43,72 @@ export function FilterPanel({
   courses: readonly Course[]
   showCancelled: boolean
 }) {
+  const id = useId()
   const shown = new Set(visibleSources(filters, sources))
   const hidden = new Set(filters.hiddenCourses)
   return (
     <div className="space-y-5 text-sm">
-      <fieldset className="space-y-2">
-        <legend className="mb-2 text-xs font-medium text-muted-foreground">
+      <FieldSet className="gap-2">
+        <FieldLegend variant="label" className="text-xs text-muted-foreground">
           {m.schedule_filter_sources()}
-        </legend>
+        </FieldLegend>
         {sources.map((s) => (
-          <label key={s.source} className="flex items-center gap-2">
+          <Field key={s.source} orientation="horizontal" className="w-auto gap-2">
             <Checkbox
+              id={`${id}-source-${s.source}`}
               checked={shown.has(s.source)}
               onCheckedChange={(on) =>
                 onChange({ ...filters, sources: { ...filters.sources, [s.source]: on } })
               }
             />
-            <s.icon aria-hidden className="size-4 text-muted-foreground" />
-            {s.label()}
-          </label>
+            <FieldLabel htmlFor={`${id}-source-${s.source}`} className="font-normal">
+              <s.icon aria-hidden className="size-4 text-muted-foreground" />
+              {s.label()}
+            </FieldLabel>
+          </Field>
         ))}
-      </fieldset>
+      </FieldSet>
       {courses.length > 0 ? (
-        <fieldset className="space-y-2">
-          <legend className="mb-2 text-xs font-medium text-muted-foreground">
+        <FieldSet className="gap-2">
+          <FieldLegend variant="label" className="text-xs text-muted-foreground">
             {m.schedule_filter_courses()}
-          </legend>
+          </FieldLegend>
           {courses.map((c) => (
-            <label key={c.id} className="flex items-center gap-2">
+            <Field key={c.id} orientation="horizontal" className="w-auto gap-2">
               <Checkbox
+                id={`${id}-course-${c.id}`}
                 checked={!hidden.has(c.id)}
                 onCheckedChange={(on) =>
                   onChange({
                     ...filters,
                     hiddenCourses: on
-                      ? filters.hiddenCourses.filter((id) => id !== c.id)
+                      ? filters.hiddenCourses.filter((courseId) => courseId !== c.id)
                       : [...filters.hiddenCourses, c.id],
                   })
                 }
               />
-              <span
-                aria-hidden
-                className="size-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: courseColor(c) }}
-              />
-              <span className="truncate">{courseLabel(c)}</span>
-            </label>
+              <FieldLabel htmlFor={`${id}-course-${c.id}`} className="min-w-0 font-normal">
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: courseColor(c) }}
+                />
+                <span className="truncate">{courseLabel(c)}</span>
+              </FieldLabel>
+            </Field>
           ))}
-        </fieldset>
+        </FieldSet>
       ) : null}
-      <label className="flex items-center justify-between gap-2">
-        {m.schedule_filter_show_cancelled()}
+      <Field orientation="horizontal" className="justify-between">
+        <FieldLabel htmlFor={`${id}-cancelled`} className="font-normal">
+          {m.schedule_filter_show_cancelled()}
+        </FieldLabel>
         <Switch
+          id={`${id}-cancelled`}
           checked={showCancelled}
           onCheckedChange={(on) => onChange({ ...filters, showCancelled: on })}
         />
-      </label>
+      </Field>
     </div>
   )
 }

@@ -27,6 +27,7 @@ import { Button } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -401,17 +402,21 @@ function BoardView({
                 <MoreHorizontal aria-hidden />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuItem onClick={() => void saveAsDefault()}>
-                  <LayoutTemplate aria-hidden />
-                  {m.board_default_save()}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void restoreDefault()}>
-                  {m.board_default_restore()}
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => void saveAsDefault()}>
+                    <LayoutTemplate aria-hidden />
+                    {m.board_default_save()}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void restoreDefault()}>
+                    {m.board_default_restore()}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void resetDefault()}>
-                  {m.board_default_reset()}
-                </DropdownMenuItem>
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => void resetDefault()}>
+                    {m.board_default_reset()}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" onClick={finishEditing}>

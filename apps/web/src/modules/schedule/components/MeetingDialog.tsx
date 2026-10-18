@@ -358,13 +358,16 @@ export function MeetingDialog({
               ) : null}
             </Field>
           </div>
-          <label className="col-span-2 flex items-center gap-2 text-sm">
+          <Field orientation="horizontal" className="col-span-2 w-auto">
             <Checkbox
+              id={`${fid}-skip`}
               checked={draft.skip_breaks}
               onCheckedChange={(checked) => set('skip_breaks', checked)}
             />
-            {m.schedule_skip_breaks()}
-          </label>
+            <FieldLabel htmlFor={`${fid}-skip`} className="font-normal">
+              {m.schedule_skip_breaks()}
+            </FieldLabel>
+          </Field>
           <DialogFooter className="col-span-2">
             {meeting ? (
               <Button
