@@ -5,6 +5,11 @@ import { createContext, createElement, type ReactNode, useContext, useMemo } fro
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
+import counter from '@/modules/plugin-counter/manifest'
+import habitStreak from '@/modules/plugin-habit-streak/manifest'
+import pomodoro from '@/modules/plugin-pomodoro/manifest'
+import stickyNote from '@/modules/plugin-sticky-note/manifest'
+import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
 import settings from '@/modules/settings/manifest'
 import type {
@@ -23,7 +28,18 @@ import type {
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
  * `modules/_template` is a starting point to copy and is deliberately not listed.
  */
-export const builtInModules: readonly ModuleManifest[] = [auth, settings, academics, ai, plugins]
+export const builtInModules: readonly ModuleManifest[] = [
+  auth,
+  settings,
+  academics,
+  ai,
+  plugins,
+  habitStreak,
+  pomodoro,
+  stickyNote,
+  counter,
+  worldClock,
+]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
 export const ModuleRegistry = createContext<readonly ModuleManifest[]>(builtInModules)

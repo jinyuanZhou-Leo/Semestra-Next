@@ -121,6 +121,7 @@ function ProvidesList({
 /** A plugin's page (M10 §5.3): what it adds, install or uninstall, and its own settings. */
 function PluginDetails({ entry }: { entry: Entry }) {
   const refresh = useRefreshInstalled()
+  const queryClient = useQueryClient()
   const [pending, setPending] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [purge, setPurge] = useState(false)
@@ -155,6 +156,8 @@ function PluginDetails({ entry }: { entry: Entry }) {
         query: { purge_data: purge },
         throwOnError: true,
       })
+      // Deleted data may include remembered UI state (a running timer): forget this tab's copy.
+      if (purge) queryClient.removeQueries({ queryKey: ['ui-pref'] })
       await refresh()
       setConfirming(false)
       toast.success(m.plugins_uninstalled_toast({ name: entry.name }))
