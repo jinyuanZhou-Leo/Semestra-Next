@@ -153,7 +153,13 @@ async def _send_later(
 ) -> None:
     """Queues an email to go out once the request's transaction has committed."""
     runtime: AuthRuntime = ctx.state.auth_runtime
-    message = OutgoingEmail(to, render_email(template, locale, params))
+    category = "auth_verification" if template.startswith("verification_code") else "auth_notice"
+    message = OutgoingEmail(
+        to,
+        render_email(template, locale, params),
+        idempotency_key=challenge_id,
+        tags=(("category", category), ("purpose", template)),
+    )
     session_factory = ctx.state.session_factory
 
     async def deliver() -> None:

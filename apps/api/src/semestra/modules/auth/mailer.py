@@ -21,6 +21,9 @@ log = structlog.get_logger()
 class OutgoingEmail:
     to: str
     content: RenderedEmail
+    # Lets the provider deduplicate a retried send (the challenge id for verification codes).
+    idempotency_key: str | None = None
+    tags: tuple[tuple[str, str], ...] = ()
 
 
 class Mailer(Protocol):
@@ -68,23 +71,40 @@ class MemoryMailer:
 
 
 class ResendMailer:
-    def __init__(self, api_key: str, sender: str) -> None:
+    """Resend delivery, same request shape as the old Semestra: Bearer key, Idempotency-Key per
+    verification challenge, category/purpose tags, optional reply_to."""
+
+    URL = "https://api.resend.com/emails"
+
+    def __init__(
+        self,
+        api_key: str,
+        sender: str,
+        reply_to: str = "",
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._api_key = api_key
         self._sender = sender
+        self._reply_to = reply_to
+        self._transport = transport
 
     async def send(self, msg: OutgoingEmail) -> str | None:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json={
-                    "from": self._sender,
-                    "to": [msg.to],
-                    "subject": msg.content.subject,
-                    "text": msg.content.text,
-                    "html": msg.content.html,
-                },
-            )
+        payload: dict[str, object] = {
+            "from": self._sender,
+            "to": [msg.to],
+            "subject": msg.content.subject,
+            "text": msg.content.text,
+            "html": msg.content.html,
+        }
+        if msg.tags:
+            payload["tags"] = [{"name": name, "value": value} for name, value in msg.tags]
+        if self._reply_to:
+            payload["reply_to"] = self._reply_to
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        if msg.idempotency_key:
+            headers["Idempotency-Key"] = msg.idempotency_key
+        async with httpx.AsyncClient(timeout=10, transport=self._transport) as client:
+            resp = await client.post(self.URL, headers=headers, json=payload)
         resp.raise_for_status()
         return resp.json().get("id")
 
@@ -115,7 +135,9 @@ class SmtpMailer:
 def build_mailer(settings: Settings) -> Mailer:
     match settings.email_backend:
         case "resend":
-            return ResendMailer(settings.resend_api_key, settings.email_from)
+            return ResendMailer(
+                settings.resend_api_key, settings.email_from, settings.email_reply_to
+            )
         case "smtp":
             return SmtpMailer(settings)
         case _:

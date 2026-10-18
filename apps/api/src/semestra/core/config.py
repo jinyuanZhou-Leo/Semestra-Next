@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"
+    email_reply_to: str = ""
     resend_api_key: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
@@ -59,6 +60,15 @@ class Settings(BaseSettings):
             self.secret_key.startswith("dev-only") or not self.encryption_key
         ):
             raise ValueError("SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod")
+        return self
+
+    @model_validator(mode="after")
+    def _require_resend_credentials(self) -> Settings:
+        if self.email_backend == "resend" and not (self.resend_api_key and self.email_from):
+            raise ValueError(
+                "SEMESTRA_RESEND_API_KEY and SEMESTRA_EMAIL_FROM must be set when "
+                "SEMESTRA_EMAIL_BACKEND=resend"
+            )
         return self
 
     @property
