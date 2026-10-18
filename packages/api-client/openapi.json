@@ -470,6 +470,1145 @@
         }
       }
     },
+    "/programs/{program_id}/courses": {
+      "post": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Add a course to one term, or to consecutive terms for a year-long course.",
+        "description": "Use when the user adds a course. Get term ids from academics.term.list.\nFor a year-long course whose second term does not exist yet, link the current term only and set\n`planned_terms` to 2; the term wizard offers to continue it later.",
+        "operationId": "academicsCourseCreate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Course"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "List the courses of a Program, optionally of one term, subject or search text.",
+        "description": "Use to see all courses of a term or Program. To locate one course the user\ndescribed in words (\"my programming course\"), prefer academics.course.find.",
+        "operationId": "academicsCourseList",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only courses in this term, in the term's display order",
+              "title": "Term Id"
+            },
+            "description": "Only courses in this term, in the term's display order"
+          },
+          {
+            "name": "subject_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this subject",
+              "title": "Subject Code"
+            },
+            "description": "Only this subject"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fuzzy match on code, title and alias (case and spaces ignored)",
+              "title": "Search"
+            },
+            "description": "Fuzzy match on code, title and alias (case and spaces ignored)"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "code",
+                      "title",
+                      "alias",
+                      "subject_code",
+                      "color",
+                      "resolved_color",
+                      "credits",
+                      "include_in_gpa",
+                      "instructors",
+                      "description",
+                      "website_url",
+                      "planned_terms",
+                      "sort_order",
+                      "term_ids",
+                      "end_term_id",
+                      "created_at",
+                      "updated_at"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each course (and its id)",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each course (and its id)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Page size",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoursePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/courses:batch": {
+      "post": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Add several courses at once (imports).",
+        "description": "Use to create a batch of courses, e.g. from an imported timetable.",
+        "operationId": "academicsCourseCreateMany",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseCreateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}": {
+      "delete": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Delete a course and all of its data (grades, files, schedule).",
+        "description": "Irreversible. Use only when the user clearly asks to delete the course.",
+        "operationId": "academicsCourseDelete",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Get one course with its terms, credits, instructors and resolved color.",
+        "description": "Use when you need the details of a course whose id you know.",
+        "operationId": "academicsCourseGet",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Course"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Change a course's code, title, alias, credits, color, instructors or other fields.",
+        "description": "Partial update: only the fields that are sent change. To move a course to other\nterms or make it year-long, use academics.course.set_terms.",
+        "operationId": "academicsCourseUpdate",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Course"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/course-order": {
+      "put": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Set the display order of the courses within a term.",
+        "description": "Courses not listed keep their default order after the listed ones.",
+        "operationId": "academicsCourseReorder",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseOrderInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseOrder"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/terms": {
+      "put": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Set which terms a course runs in (consecutive terms for a year-long course).",
+        "description": "Replaces the course's terms. They must belong to its Program and be next to each\nother in time.",
+        "operationId": "academicsCourseSetTerms",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseSetTermsInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Course"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs": {
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "List the user's Programs (degrees) with their term and course counts.",
+        "description": "Use to find the Program ids of the user, e.g. before listing terms or courses\nwhen no Program is given. Most users have exactly one Program.",
+        "operationId": "academicsProgramList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgramList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Create a Program (a degree or study plan).",
+        "description": "Use only when the user explicitly wants a new, separate Program, e.g. a second\ndegree. Do not use to add a term or a course; use academics.term.create or\nacademics.course.create.",
+        "operationId": "academicsProgramCreate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramCreateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Program"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programs/{program_id}": {
+      "delete": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Delete a Program with all of its terms, courses and their data.",
+        "description": "Irreversible. Use only when the user clearly asks to delete the whole Program.\nTo remove one term or course use academics.term.delete or academics.course.delete.",
+        "operationId": "academicsProgramDelete",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Get one Program: name, school, time zone, credit defaults and subject colors.",
+        "description": "Use when you need a Program's details such as its time zone or credit goal.",
+        "operationId": "academicsProgramGet",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Program"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Change a Program's name, school, time zone or credit settings.",
+        "description": "Partial update: only the fields that are sent change.",
+        "operationId": "academicsProgramUpdate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Program"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/subject-colors/{subject_code}": {
+      "put": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Set the color of a subject code (e.g. all 'APS' courses) in a Program.",
+        "description": "Use when the user wants every course of a subject in another color. To color a\nsingle course differently, use academics.course.update with `color`.",
+        "operationId": "academicsProgramSetSubjectColor",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "subject_code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Subject code such as 'APS'",
+              "title": "Subject Code"
+            },
+            "description": "Subject code such as 'APS'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectColorInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Program"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/calendar-info": {
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Week numbers of a term: each week's dates, number or break, and today's week.",
+        "description": "Use to translate between dates and week numbers (\"week 6\", \"reading week\"),\ne.g. to resolve \"the Friday of week 3\". Week 1 is the week the term starts in.",
+        "operationId": "academicsTermCalendarInfo",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarInfo"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/terms": {
+      "post": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Create a term, optionally with its courses, in one step.",
+        "description": "Use when the user starts a new semester. Check academics.term.list first so the\nterm does not exist already. `courses` creates courses in the new term; `continue_course_ids`\nextends year-long courses of the previous term into it.",
+        "operationId": "academicsTermCreate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program to add the term to",
+              "title": "Program Id"
+            },
+            "description": "Program to add the term to"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermCreateResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "List the terms (semesters) of a Program in chronological order.",
+        "description": "Use to find a term id, or which term is current (`is_current`), before creating\ncourses or answering questions about a semester.",
+        "operationId": "academicsTermList",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}": {
+      "delete": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Delete a term and the courses that are only in it.",
+        "description": "Irreversible. Year-long courses that also run in other terms are kept and only\nlose this term. Show academics.term.delete_preview to the user first.",
+        "operationId": "academicsTermDelete",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermDeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Get one term with its dates and breaks.",
+        "description": "Use when you need a term's dates, reading weeks or holidays.",
+        "operationId": "academicsTermGet",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Term"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "Change a term's name, dates, breaks or week numbering.",
+        "description": "Partial update. `breaks` replaces the whole list; keep the ids of breaks that\nstay. Fails with academics.course_terms_not_adjacent when new dates would separate the terms of\na year-long course.",
+        "operationId": "academicsTermUpdate",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Term"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/delete-preview": {
+      "get": {
+        "tags": [
+          "academics"
+        ],
+        "summary": "What deleting a term would remove: its own courses vs. year-long courses kept.",
+        "description": "Use before academics.term.delete to tell the user what will be deleted.",
+        "operationId": "academicsTermDeletePreview",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermDeletePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/account/email/change-confirm": {
       "post": {
         "tags": [
@@ -1697,6 +2836,1035 @@
         ],
         "title": "AuthResult"
       },
+      "Break": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "title": "Break"
+      },
+      "BreakIn": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Keep the id when editing an existing break"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "E.g. 'Reading week'"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date",
+            "description": "First day of the break"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "Last day of the break"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "title": "BreakIn"
+      },
+      "BreakRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "BreakRef"
+      },
+      "CalendarInfo": {
+        "properties": {
+          "term_id": {
+            "type": "string",
+            "title": "Term Id"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "week_start": {
+            "type": "integer",
+            "enum": [
+              1,
+              7
+            ],
+            "title": "Week Start",
+            "description": "1 = Monday, 7 = Sunday"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/TermWeek"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today",
+            "description": "Today in the Program's time zone"
+          },
+          "today_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Today Week",
+            "description": "Index into `weeks` of today's week, if in term"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term_id",
+          "timezone",
+          "week_start",
+          "weeks",
+          "today",
+          "today_week"
+        ],
+        "title": "CalendarInfo"
+      },
+      "Course": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
+          },
+          "subject_code": {
+            "type": "string",
+            "title": "Subject Code"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "The course's own color, if set"
+          },
+          "resolved_color": {
+            "type": "string",
+            "title": "Resolved Color",
+            "description": "Color to display: 'subject-<1..12>' (palette token) or '#rrggbb'"
+          },
+          "credits": {
+            "type": "number",
+            "title": "Credits"
+          },
+          "include_in_gpa": {
+            "type": "boolean",
+            "title": "Include In Gpa"
+          },
+          "instructors": {
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            },
+            "type": "array",
+            "title": "Instructors"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
+          },
+          "planned_terms": {
+            "type": "integer",
+            "title": "Planned Terms"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
+          "term_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Term Ids",
+            "description": "Linked terms in chronological order"
+          },
+          "end_term_id": {
+            "type": "string",
+            "title": "End Term Id",
+            "description": "The latest linked term; grades count there"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "code",
+          "title",
+          "alias",
+          "subject_code",
+          "color",
+          "resolved_color",
+          "credits",
+          "include_in_gpa",
+          "instructors",
+          "description",
+          "website_url",
+          "planned_terms",
+          "sort_order",
+          "term_ids",
+          "end_term_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Course"
+      },
+      "CourseCreateInputBody": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Course code such as 'APS105H1'"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "description": "Course title"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "Short name shown in navigation"
+          },
+          "subject_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Code",
+            "description": "Subject; parsed from the code when omitted"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Own color; null uses the subject's"
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credits",
+            "description": "Credits; the Program default when omitted"
+          },
+          "include_in_gpa": {
+            "type": "boolean",
+            "title": "Include In Gpa",
+            "description": "Whether the course counts for GPA",
+            "default": true
+          },
+          "instructors": {
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Instructors",
+            "description": "Instructors and TAs"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Course description"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url",
+            "description": "Course website"
+          },
+          "planned_terms": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Planned Terms",
+            "description": "Consecutive terms the course spans; 2 for a year-long course",
+            "default": 1
+          },
+          "term_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Term Ids",
+            "description": "Terms the course runs in; consecutive terms for a year-long one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "term_ids"
+        ],
+        "title": "CourseCreateInputBody"
+      },
+      "CourseCreateItem": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Course code such as 'APS105H1'"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "description": "Course title"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "Short name shown in navigation"
+          },
+          "subject_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Code",
+            "description": "Subject; parsed from the code when omitted"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Own color; null uses the subject's"
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credits",
+            "description": "Credits; the Program default when omitted"
+          },
+          "include_in_gpa": {
+            "type": "boolean",
+            "title": "Include In Gpa",
+            "description": "Whether the course counts for GPA",
+            "default": true
+          },
+          "instructors": {
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Instructors",
+            "description": "Instructors and TAs"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Course description"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url",
+            "description": "Course website"
+          },
+          "planned_terms": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Planned Terms",
+            "description": "Consecutive terms the course spans; 2 for a year-long course",
+            "default": 1
+          },
+          "term_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Term Ids",
+            "description": "Terms the course runs in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "term_ids"
+        ],
+        "title": "CourseCreateItem"
+      },
+      "CourseCreateManyInputBody": {
+        "properties": {
+          "courses": {
+            "items": {
+              "$ref": "#/components/schemas/CourseCreateItem"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Courses",
+            "description": "Courses to create"
+          }
+        },
+        "type": "object",
+        "required": [
+          "courses"
+        ],
+        "title": "CourseCreateManyInputBody"
+      },
+      "CourseFields": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Course code such as 'APS105H1'"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "description": "Course title"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "Short name shown in navigation"
+          },
+          "subject_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Code",
+            "description": "Subject; parsed from the code when omitted"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Own color; null uses the subject's"
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credits",
+            "description": "Credits; the Program default when omitted"
+          },
+          "include_in_gpa": {
+            "type": "boolean",
+            "title": "Include In Gpa",
+            "description": "Whether the course counts for GPA",
+            "default": true
+          },
+          "instructors": {
+            "items": {
+              "$ref": "#/components/schemas/Instructor"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Instructors",
+            "description": "Instructors and TAs"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Course description"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url",
+            "description": "Course website"
+          },
+          "planned_terms": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Planned Terms",
+            "description": "Consecutive terms the course spans; 2 for a year-long course",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "CourseFields",
+        "description": "Fields shared by course creation inputs."
+      },
+      "CourseList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CourseList"
+      },
+      "CourseOrder": {
+        "properties": {
+          "term_id": {
+            "type": "string",
+            "title": "Term Id"
+          },
+          "course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Course Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term_id",
+          "course_ids"
+        ],
+        "title": "CourseOrder"
+      },
+      "CourseOrderInputBody": {
+        "properties": {
+          "course_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Course Ids",
+            "description": "Courses of the term in display order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_ids"
+        ],
+        "title": "CourseOrderInputBody"
+      },
+      "CoursePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "CoursePage"
+      },
+      "CourseSetTermsInputBody": {
+        "properties": {
+          "term_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Term Ids",
+            "description": "All terms of the course; must be consecutive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term_ids"
+        ],
+        "title": "CourseSetTermsInputBody"
+      },
+      "CourseUpdateInputBody": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Code"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Title"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "Alias"
+          },
+          "subject_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Code",
+            "description": "Subject code"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Own color, or null for the subject's"
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credits",
+            "description": "Credits"
+          },
+          "include_in_gpa": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include In Gpa",
+            "description": "Counts for GPA"
+          },
+          "instructors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Instructor"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructors",
+            "description": "Replaces all instructors"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Description"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url",
+            "description": "Website"
+          },
+          "planned_terms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Terms",
+            "description": "Consecutive terms the course spans"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order",
+            "description": "Default position within a term"
+          }
+        },
+        "type": "object",
+        "title": "CourseUpdateInputBody"
+      },
+      "Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Deleted"
+      },
       "Done": {
         "properties": {
           "ok": {
@@ -1895,6 +4063,21 @@
         ],
         "title": "Health"
       },
+      "HexColor": {
+        "properties": {
+          "hex": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "title": "Hex",
+            "description": "Custom color as #rrggbb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hex"
+        ],
+        "title": "HexColor"
+      },
       "IdentityOut": {
         "properties": {
           "provider": {
@@ -1919,6 +4102,48 @@
           "created_at"
         ],
         "title": "IdentityOut"
+      },
+      "Instructor": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Instructor name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Email address"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "E.g. 'Lecturer', 'TA'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Instructor"
       },
       "JobOut": {
         "properties": {
@@ -2105,6 +4330,22 @@
         "title": "JobPage"
       },
       "JsonValue": {},
+      "PaletteColor": {
+        "properties": {
+          "palette": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Palette",
+            "description": "Slot 1-12 of the subject palette"
+          }
+        },
+        "type": "object",
+        "required": [
+          "palette"
+        ],
+        "title": "PaletteColor"
+      },
       "PasswordChangeInputBody": {
         "properties": {
           "current_password": {
@@ -2453,6 +4694,271 @@
         "type": "object",
         "title": "ProfileUpdateInputBody"
       },
+      "Program": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "default_course_credits": {
+            "type": "number",
+            "title": "Default Course Credits"
+          },
+          "credit_requirement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Requirement"
+          },
+          "subject_colors": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PaletteColor"
+                },
+                {
+                  "$ref": "#/components/schemas/HexColor"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Subject Colors",
+            "description": "Color of each subject code"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
+          "term_count": {
+            "type": "integer",
+            "title": "Term Count"
+          },
+          "course_count": {
+            "type": "integer",
+            "title": "Course Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "institution",
+          "timezone",
+          "default_course_credits",
+          "credit_requirement",
+          "subject_colors",
+          "sort_order",
+          "term_count",
+          "course_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Program"
+      },
+      "ProgramCreateInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Program name, e.g. 'BASc Computer Engineering'"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution",
+            "description": "School or university"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Timezone",
+            "description": "IANA time zone of the school, e.g. 'America/Toronto'"
+          },
+          "default_course_credits": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Default Course Credits",
+            "description": "Credits a new course gets when none are given",
+            "default": 0.5
+          },
+          "credit_requirement": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Requirement",
+            "description": "Credits needed to graduate, if known"
+          },
+          "setup": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Setup",
+            "description": "Choices of other modules' setup fields (e.g. a GPA scale preset), passed on to them with the academics.program.created event"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "timezone"
+        ],
+        "title": "ProgramCreateInputBody"
+      },
+      "ProgramList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Program"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ProgramList"
+      },
+      "ProgramUpdateInputBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Program name"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution",
+            "description": "School, or null"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "IANA time zone"
+          },
+          "default_course_credits": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Course Credits",
+            "description": "Credits a new course gets"
+          },
+          "credit_requirement": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Requirement",
+            "description": "Credits needed to graduate, or null"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order",
+            "description": "Position in the Program switcher"
+          }
+        },
+        "type": "object",
+        "title": "ProgramUpdateInputBody"
+      },
       "Ready": {
         "properties": {
           "status": {
@@ -2774,6 +5280,383 @@
           "by_module"
         ],
         "title": "StorageUsage"
+      },
+      "SubjectColorInputBody": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaletteColor"
+              },
+              {
+                "$ref": "#/components/schemas/HexColor"
+              }
+            ],
+            "title": "Color",
+            "description": "Palette slot or custom hex color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "color"
+        ],
+        "title": "SubjectColorInputBody"
+      },
+      "Term": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/Break"
+            },
+            "type": "array",
+            "title": "Breaks"
+          },
+          "count_break_weeks": {
+            "type": "boolean",
+            "title": "Count Break Weeks"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current",
+            "description": "The term the Program is in now (see academics rules)"
+          },
+          "course_count": {
+            "type": "integer",
+            "title": "Course Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "name",
+          "start_date",
+          "end_date",
+          "breaks",
+          "count_break_weeks",
+          "is_current",
+          "course_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Term"
+      },
+      "TermCreateInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "E.g. 'Fall 2026'"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date",
+            "description": "First day of the term"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date",
+            "description": "Last day of the term"
+          },
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/BreakIn"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Breaks",
+            "description": "Reading weeks and holidays"
+          },
+          "count_break_weeks": {
+            "type": "boolean",
+            "title": "Count Break Weeks",
+            "description": "Whether break weeks get a week number",
+            "default": false
+          },
+          "courses": {
+            "items": {
+              "$ref": "#/components/schemas/CourseFields"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Courses",
+            "description": "Courses to create in the new term"
+          },
+          "continue_course_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Continue Course Ids",
+            "description": "Year-long courses of the previous term that continue into the new term"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "title": "TermCreateInputBody"
+      },
+      "TermCreateResult": {
+        "properties": {
+          "term": {
+            "$ref": "#/components/schemas/Term"
+          },
+          "course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Course Ids",
+            "description": "Ids of the created courses, in input order"
+          },
+          "continued_course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Continued Course Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term",
+          "course_ids",
+          "continued_course_ids"
+        ],
+        "title": "TermCreateResult"
+      },
+      "TermDeletePreview": {
+        "properties": {
+          "deleted_course_count": {
+            "type": "integer",
+            "title": "Deleted Course Count",
+            "description": "Courses only in this term, deleted with it"
+          },
+          "kept_course_count": {
+            "type": "integer",
+            "title": "Kept Course Count",
+            "description": "Multi-term courses that stay in their other terms"
+          },
+          "deleted_course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Course Ids"
+          },
+          "kept_course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kept Course Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_course_count",
+          "kept_course_count",
+          "deleted_course_ids",
+          "kept_course_ids"
+        ],
+        "title": "TermDeletePreview"
+      },
+      "TermDeleteResult": {
+        "properties": {
+          "deleted_course_count": {
+            "type": "integer",
+            "title": "Deleted Course Count"
+          },
+          "kept_course_count": {
+            "type": "integer",
+            "title": "Kept Course Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_course_count",
+          "kept_course_count"
+        ],
+        "title": "TermDeleteResult"
+      },
+      "TermList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Term"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Sorted by start date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TermList"
+      },
+      "TermUpdateInputBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Term name"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date",
+            "description": "First day"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date",
+            "description": "Last day"
+          },
+          "breaks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BreakIn"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breaks",
+            "description": "Replaces all breaks"
+          },
+          "count_break_weeks": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Break Weeks",
+            "description": "Whether break weeks get a week number"
+          }
+        },
+        "type": "object",
+        "title": "TermUpdateInputBody"
+      },
+      "TermWeek": {
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date",
+            "description": "First day of the week (user's week start)"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number",
+            "description": "Week number; null for an uncounted break week"
+          },
+          "break_info": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BreakRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The break, for a break week"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_date",
+          "end_date",
+          "number",
+          "break_info"
+        ],
+        "title": "TermWeek"
       },
       "TokenCreateInputBody": {
         "properties": {
