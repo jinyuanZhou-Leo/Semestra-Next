@@ -23,6 +23,8 @@ export type TimerState = {
   endsAt: number | null
   /** Time left while idle (null = the full length of the mode) or paused. */
   remainingMs: number | null
+  /** Full length of the running phase, so a progress bar needs no settings. */
+  phaseMs: number | null
   /** Focus sessions completed since the last long break. */
   cycleIndex: number
   /** Focus mode only: when the session was first started, and the time spent before this run. */
@@ -43,6 +45,7 @@ export const INITIAL_STATE: TimerState = {
   status: 'idle',
   endsAt: null,
   remainingMs: null,
+  phaseMs: null,
   cycleIndex: 0,
   sessionStartedAt: null,
   activeMs: 0,
@@ -69,7 +72,7 @@ export function remainingAt(state: TimerState, now: number, config: TimerConfig)
 
 /** 0–1 of the current phase that has passed. */
 export function progressAt(state: TimerState, now: number, config: TimerConfig): number {
-  const total = modeDurationMs(state.mode, config)
+  const total = state.phaseMs ?? modeDurationMs(state.mode, config)
   return total <= 0 ? 0 : Math.min(1, Math.max(0, 1 - remainingAt(state, now, config) / total))
 }
 
@@ -81,6 +84,7 @@ export function start(state: TimerState, now: number, config: TimerConfig): Time
     status: 'running',
     endsAt: now + left,
     remainingMs: null,
+    phaseMs: state.phaseMs ?? modeDurationMs(state.mode, config),
     sessionStartedAt: state.mode === 'focus' ? (state.sessionStartedAt ?? now) : null,
     runStartedAt: now,
   }

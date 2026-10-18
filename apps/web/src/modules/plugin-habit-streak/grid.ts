@@ -30,7 +30,7 @@ export type DayCell = { date: string; future: boolean }
 export function weekColumns(today: string, weekStart: WeekStart, weeks: number): DayCell[][] {
   const first = addDays(weekStartOf(today, weekStart), -7 * (weeks - 1))
   return Array.from({ length: weeks }, (_, w) =>
-    Array.from({ length: 7 }, (_, d) => {
+    Array.from({ length: 7 }, (__, d) => {
       const date = addDays(first, w * 7 + d)
       return { date, future: date > today }
     }),

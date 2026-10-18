@@ -16,8 +16,11 @@ export const COLOR_TOKENS = [
 
 export type ColorToken = (typeof COLOR_TOKENS)[number]
 
+const TOKEN = /^(primary|success|subject-(1[0-2]|[1-9]))$/
+
+/** Any color token the plugins use: `primary`, `success` or a subject palette slot. */
 export function colorVar(token: string): string {
-  return (COLOR_TOKENS as readonly string[]).includes(token) ? `var(--${token})` : 'var(--primary)'
+  return TOKEN.test(token) ? `var(--${token})` : 'var(--primary)'
 }
 
 /** A soft background of the same color that stays readable in both themes. */

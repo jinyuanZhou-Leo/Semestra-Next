@@ -2,8 +2,9 @@ import { useId } from 'react'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { SettingList, SettingRow } from '@/components/SettingRow'
 import { TextField } from '@/components/TextField'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Input } from '@/ui/input'
+import { RadioGroup, RadioItem } from '@/ui/radio-group'
 import { Switch } from '@/ui/switch'
 import { COLOR_TOKENS, colorVar } from '../plugin-kit/colors'
 import { HabitIcon } from './icons'
@@ -35,28 +36,28 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
         value={value.name}
         onChange={(event) => set({ name: event.target.value })}
       />
-      <fieldset className="m-0 min-w-0 border-0 p-0">
-        <legend className="mb-2 text-sm font-medium">{m.habit_settings_icon_label()}</legend>
-        <div className="flex flex-wrap gap-1.5">
-          {HABIT_ICONS.map((name) => {
-            return (
-              <button
-                key={name}
-                type="button"
-                aria-pressed={value.icon === name}
-                aria-label={name}
-                onClick={() => set({ icon: name })}
-                className={cn(
-                  'flex size-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-muted',
-                  value.icon === name && 'border-primary bg-primary/10 text-primary',
-                )}
-              >
-                <HabitIcon name={name} aria-hidden className="size-4" />
-              </button>
-            )
-          })}
-        </div>
-      </fieldset>
+      <div>
+        <p id={`${id}-icon`} className="mb-2 text-sm font-medium">
+          {m.habit_settings_icon_label()}
+        </p>
+        <RadioGroup
+          aria-labelledby={`${id}-icon`}
+          value={value.icon}
+          onValueChange={(icon) => set({ icon: icon as HabitSettings['icon'] })}
+          className="flex-wrap gap-1.5"
+        >
+          {HABIT_ICONS.map((name) => (
+            <RadioItem
+              key={name}
+              value={name}
+              aria-label={name}
+              className="flex size-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-muted data-checked:border-primary data-checked:bg-primary/10 data-checked:text-primary"
+            >
+              <HabitIcon name={name} aria-hidden className="size-4" />
+            </RadioItem>
+          ))}
+        </RadioGroup>
+      </div>
       <SettingList>
         <SettingRow label={m.habit_settings_goal_label()} labelId={`${id}-goal`}>
           <SegmentedControl
@@ -75,7 +76,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
             labelId={`${id}-target`}
             htmlFor={`${id}-target-input`}
           >
-            <input
+            <Input
               id={`${id}-target-input`}
               type="number"
               min={1}
@@ -85,7 +86,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
                 const n = Math.trunc(Number(event.target.value))
                 if (n >= 1 && n <= 7) set({ weekly_target: n })
               }}
-              className="h-9 w-20 rounded-4xl border border-input bg-transparent px-3 text-sm"
+              className="w-20"
             />
           </SettingRow>
         ) : null}
@@ -101,26 +102,28 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           />
         </SettingRow>
       </SettingList>
-      <fieldset className="m-0 min-w-0 border-0 p-0">
-        <legend className="mb-2 text-sm font-medium">{m.habit_settings_color_label()}</legend>
-        <div className="flex flex-wrap gap-2">
+      <div>
+        <p id={`${id}-color`} className="mb-2 text-sm font-medium">
+          {m.habit_settings_color_label()}
+        </p>
+        <RadioGroup
+          aria-labelledby={`${id}-color`}
+          value={value.color}
+          onValueChange={(color) => set({ color: color as HabitSettings['color'] })}
+          className="flex-wrap"
+        >
           {COLOR_TOKENS.map((token) => (
-            <button
+            <RadioItem
               key={token}
-              type="button"
-              aria-pressed={value.color === token}
+              value={token}
               aria-label={COLOR_NAMES[token]()}
               title={COLOR_NAMES[token]()}
-              onClick={() => set({ color: token })}
-              className={cn(
-                'size-7 rounded-full ring-offset-2 ring-offset-background',
-                value.color === token && 'ring-2 ring-foreground/60',
-              )}
+              className="size-7 rounded-full ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-foreground/60"
               style={{ backgroundColor: colorVar(token) }}
             />
           ))}
-        </div>
-      </fieldset>
+        </RadioGroup>
+      </div>
     </div>
   )
 }

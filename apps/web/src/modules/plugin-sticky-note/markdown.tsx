@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Checkbox } from '@/ui/checkbox'
 
 /**
  * The small Markdown subset sticky notes support (M14 §4): paragraphs, **bold**, *italic*,
@@ -103,13 +104,12 @@ export function Markdown({
           case 'task':
             return (
               <label key={block.line} className="flex items-start gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={block.checked}
                   disabled={!onToggleTask}
                   aria-label={taskLabel(block.text)}
-                  onChange={() => onToggleTask?.(toggleTask(content, block.line))}
-                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  onCheckedChange={() => onToggleTask?.(toggleTask(content, block.line))}
+                  className="mt-0.5"
                 />
                 <span className={block.checked ? 'text-muted-foreground line-through' : undefined}>
                   {renderInline(block.text)}
