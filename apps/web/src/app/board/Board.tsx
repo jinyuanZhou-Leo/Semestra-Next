@@ -35,7 +35,7 @@ import {
 import type { BoardKind, CardContribution, CardSize, Scope } from '../extensions'
 import { useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
-import { useCards } from '../registry'
+import { useCards, useInstalledPluginsReady } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
 import { CardFrame } from './CardFrame'
 import { compact, firstFree, moveItem, resizeItem, rows, sameLayout, SPANS } from './layout'
@@ -150,6 +150,10 @@ function BoardView({
   const wide = useMediaQuery(WIDE)
 
   const [draft, setDraft] = useState<DraftCard[] | null>(null)
+  const [saving, setSaving] = useState(false)
+  // Editing waits for the installed plugins (or their cards would be left out of the draft and
+  // removed on save) and for the previous save (whose new cards have no ids yet).
+  const canEdit = useInstalledPluginsReady() && !saving
   const [adding, setAdding] = useState(false)
   const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
   const editing = draft !== null
@@ -180,6 +184,7 @@ function BoardView({
         })),
       })
     }
+    setSaving(true)
     try {
       queryClient.setQueryData(key, await saveLayout(ref, next))
     } catch (err) {
@@ -187,6 +192,8 @@ function BoardView({
       toast.error(m.board_save_failed())
       toastError(err)
       throw err
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -200,7 +207,7 @@ function BoardView({
   )
 
   function startEditing() {
-    setDraft(saved)
+    if (canEdit) setDraft(saved)
   }
 
   function finishEditing() {
@@ -215,11 +222,15 @@ function BoardView({
     order: 30,
   })
 
-  useHostAction('board.edit', startEditing, !editing)
-  useHostAction('board.add', () => {
-    if (!editing) startEditing()
-    setAdding(true)
-  })
+  useHostAction('board.edit', startEditing, !editing && canEdit)
+  useHostAction(
+    'board.add',
+    () => {
+      if (!editing) startEditing()
+      setAdding(true)
+    },
+    editing || canEdit,
+  )
 
   function update(fn: (cards: DraftCard[]) => DraftCard[]) {
     setDraft((current) => (current ? compact(fn(current)) : current))
@@ -408,6 +419,7 @@ function BoardView({
             variant="ghost"
             size="sm"
             onClick={startEditing}
+            disabled={!canEdit}
             title={`${m.board_edit()} (${formatHotkey('e')})`}
             data-tour="board-edit"
           >
@@ -422,7 +434,7 @@ function BoardView({
           title={m.board_empty_title()}
           description={m.board_empty_description()}
           action={
-            <Button variant="outline" onClick={startEditing}>
+            <Button variant="outline" onClick={startEditing} disabled={!canEdit}>
               <Pencil aria-hidden />
               {m.board_edit()}
             </Button>

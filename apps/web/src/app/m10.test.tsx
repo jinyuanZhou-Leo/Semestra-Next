@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import template from '@/modules/_template/manifest'
 import plugins from '@/modules/plugins/manifest'
@@ -105,6 +105,30 @@ test('narrow screens can edit cards but not drag them', async () => {
   await user.click(await screen.findByRole('button', { name: 'Edit layout' }))
   expect(screen.getByRole('button', { name: 'Remove Storage' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Move Storage' })).not.toBeInTheDocument()
+})
+
+test('a board cannot be edited before the installed plugins are known', async () => {
+  server.use(
+    http.get(`${API}/plugins/catalog`, async () => {
+      await delay('infinite')
+      return HttpResponse.json({ items: [] })
+    }),
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
+    ),
+    http.get(`${API}/layouts/boards/term/t1`, () =>
+      HttpResponse.json(board([{ instance_id: 'c1', card_id: 'template.storage' }])),
+    ),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[plugins, template]}>
+      <InstalledPluginsProvider>
+        <CardGrid scope={scope} />
+      </InstalledPluginsProvider>
+    </ModuleRegistry>,
+  )
+  const buttons = await screen.findAllByRole('button', { name: 'Edit layout' })
+  for (const button of buttons) expect(button).toBeDisabled()
 })
 
 test('tabs follow the saved order and leave hidden pages out', async () => {

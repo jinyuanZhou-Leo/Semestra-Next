@@ -41,6 +41,8 @@ const NONE: ReadonlySet<string> = new Set()
 
 /** Ids of the installed plugins; null means "do not filter" (tests, or the catalog failed). */
 const InstalledPlugins = createContext<ReadonlySet<string> | null>(null)
+/** False while the catalog is loading, when installed plugins are not known yet. */
+const InstalledPluginsReady = createContext(true)
 
 /**
  * Loads which plugins this account installed (M10 §1), for everything below it. Plugins stay
@@ -55,7 +57,20 @@ export function InstalledPluginsProvider({ children }: { children: ReactNode }) 
     select: installedIds,
   })
   const value = !hasPlugins || isError ? null : (data ?? NONE)
-  return createElement(InstalledPlugins.Provider, { value }, children)
+  const ready = !hasPlugins || isError || data !== undefined
+  return createElement(
+    InstalledPluginsReady.Provider,
+    { value: ready },
+    createElement(InstalledPlugins.Provider, { value }, children),
+  )
+}
+
+/**
+ * Whether the installed plugins are known. Until then their cards and pages are missing, so
+ * anything that saves a whole list (a board layout) must wait for it.
+ */
+export function useInstalledPluginsReady(): boolean {
+  return useContext(InstalledPluginsReady)
 }
 
 /** The modules in use: core modules, and the plugins this account installed. */
