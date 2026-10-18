@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 import { createContext, useContext } from 'react'
-import { formatDate, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -17,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { percentText } from '../display'
+import { dueText, percentText } from '../display'
 import { scoreText } from '../score'
 import { compareValues } from '../sort'
 import type { WhatIf } from '../whatif'
@@ -55,11 +54,6 @@ function useActions(): TableActions {
   const actions = useContext(TableActionsContext)
   if (!actions) throw new Error('AssessmentTable cells render inside AssessmentTable')
   return actions
-}
-
-function dueText(a: Assessment): string {
-  if (a.due_at === null) return '—'
-  return a.due_has_time ? formatDateTime(a.due_at) : formatDate(a.due_at)
 }
 
 type Sortable = { original: AssessmentRow }

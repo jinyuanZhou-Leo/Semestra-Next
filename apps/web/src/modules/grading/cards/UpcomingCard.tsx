@@ -3,12 +3,12 @@ import { gradingAssessmentListOptions } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
-import { formatDate, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { useCourse, useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
+import { dueText } from '../display'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
@@ -70,7 +70,7 @@ export default function UpcomingCard({ scope, size }: CardProps) {
                 a.status === 'overdue' && 'text-destructive',
               )}
             >
-              {a.due_has_time && a.due_at ? formatDateTime(a.due_at) : formatDate(a.due_at ?? '')}
+              {dueText(a)}
             </span>
           </HistoryLink>
         </li>

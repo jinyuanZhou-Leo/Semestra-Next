@@ -118,3 +118,38 @@ test('dropped items stay in the table but are crossed out', async () => {
   const row = (await screen.findByRole('textbox', { name: 'Weight (%): Quiz 1' })).closest('tr')
   expect(row).toHaveClass('line-through')
 })
+
+test('a Pass/Fail result can be set back to pending', async () => {
+  const results: unknown[] = []
+  server.use(
+    http.patch(`${API}/courses/c1/grade`, async ({ request }) => {
+      results.push(await request.json())
+      return HttpResponse.json(book.result)
+    }),
+  )
+  book = gradebook({
+    result: { ...gradebook().result, basis: 'pass_fail', pass_fail_result: 'pass' },
+  })
+  mount()
+  const pending = await screen.findByRole('radio', { name: 'Pending' })
+  await userEvent.click(pending)
+  await waitFor(() => expect(results).toEqual([{ pass_fail_result: null }]))
+})
+
+test('deadlines show the Program-local date, not the browser-zone conversion', async () => {
+  book = gradebook({
+    assessments: [
+      assessment({
+        id: 'a1',
+        title: 'Quiz 1',
+        // End of 2026-10-18 in Toronto is already the 19th in Tokyo.
+        due_at: '2026-10-19T03:59:59Z',
+        due_date: '2026-10-18',
+        due_time: null,
+        due_has_time: false,
+      }),
+    ],
+  })
+  mount()
+  expect(await screen.findByText('Oct 18, 2026')).toBeInTheDocument()
+})

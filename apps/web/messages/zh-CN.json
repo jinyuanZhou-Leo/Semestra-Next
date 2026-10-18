@@ -489,6 +489,7 @@
   "grading_status_failed": "未通过",
   "grading_pass": "通过",
   "grading_fail": "未通过",
+  "grading_pass_fail_pending": "待定",
   "grading_pass_fail_result": "结果",
   "grading_final_grade": "最终成绩",
   "grading_grade": "成绩",

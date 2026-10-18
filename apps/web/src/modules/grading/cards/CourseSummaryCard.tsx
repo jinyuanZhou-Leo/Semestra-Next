@@ -1,11 +1,10 @@
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { coursePath } from '@/modules/academics/paths'
-import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { GpaValue } from '../components/GpaValue'
 import { requiredText } from '../components/SummaryStrip'
-import { percentText } from '../display'
+import { dueText, percentText } from '../display'
 import { useGradebook } from '../queries'
 
 /** Current or final grade, GPA, the average still needed and the next deadline (M03 §5.3). */
@@ -52,7 +51,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
           {next?.due_at ? (
             <div className="flex justify-between gap-2">
               <dt className="truncate">{next.title}</dt>
-              <dd>{formatDate(next.due_at)}</dd>
+              <dd>{dueText(next)}</dd>
             </div>
           ) : null}
         </dl>

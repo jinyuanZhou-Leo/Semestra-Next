@@ -489,6 +489,7 @@
   "grading_status_failed": "Failed",
   "grading_pass": "Pass",
   "grading_fail": "Fail",
+  "grading_pass_fail_pending": "Pending",
   "grading_pass_fail_result": "Result",
   "grading_final_grade": "Final grade",
   "grading_grade": "Grade",

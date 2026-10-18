@@ -1,5 +1,5 @@
-import type { AssessmentCategory } from '@semestra/api-client'
-import { formatPercent } from '@/lib/format'
+import type { Assessment, AssessmentCategory } from '@semestra/api-client'
+import { formatDate, formatDateTime, formatPercent } from '@/lib/format'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 
@@ -41,3 +41,17 @@ export function percentText(value: number | null | undefined): string {
 
 /** The mask shown in place of a GPA while `hide_gpa` is on (M03 §5.3). */
 export const GPA_MASK = '•••'
+
+/**
+ * A deadline as the Program's own calendar shows it. `due_date`/`due_time` are already in the
+ * Program's time zone, so they are shown as written instead of converting `due_at` into the
+ * browser's zone (which would move the day for someone viewing from another zone).
+ */
+export function dueText(a: Pick<Assessment, 'due_date' | 'due_time'>): string {
+  if (!a.due_date) return '—'
+  const [year, month, day] = a.due_date.split('-').map(Number)
+  const [hours = 0, minutes = 0] = (a.due_time ?? '').split(':').map(Number)
+  // A wall-clock date built in the browser zone prints back the same wall clock.
+  const wall = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1, hours, minutes)
+  return a.due_time ? formatDateTime(wall) : formatDate(wall)
+}

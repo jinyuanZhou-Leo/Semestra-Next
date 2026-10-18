@@ -30,9 +30,10 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
       <Stat label={m.grading_pass_fail_result()}>
         <SegmentedControl
           aria-label={m.grading_pass_fail_result()}
-          value={result.pass_fail_result ?? ('' as 'pass')}
-          onValueChange={(next) => patch({ pass_fail_result: next })}
+          value={result.pass_fail_result ?? 'pending'}
+          onValueChange={(next) => patch({ pass_fail_result: next === 'pending' ? null : next })}
           options={[
+            { value: 'pending', label: m.grading_pass_fail_pending() },
             { value: 'pass', label: m.grading_pass() },
             { value: 'fail', label: m.grading_fail() },
           ]}
