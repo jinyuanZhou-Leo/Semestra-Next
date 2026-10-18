@@ -64,3 +64,27 @@ async def _round_trip(ctx: Ctx, user_id: str) -> None:
     again = await portability.import_(ctx, payload, {"old-1": "new-1"})
     assert again.imported == {"habit_checkins": 0, "pomodoro_sessions": 0}
     assert again.skipped == {"habit_checkins": 2, "pomodoro_sessions": 1}
+
+
+async def test_a_session_of_a_course_left_out_of_the_import_is_kept_without_it(
+    make_user: MakeUser, app: FastAPI
+) -> None:
+    user = await make_user()
+    start = datetime(2026, 1, 15, 14, 0, tzinfo=UTC)
+    payload = {
+        "habit_checkins": [],
+        "pomodoro_sessions": [
+            {
+                "instance_id": "old-2",
+                "course_id": "course-not-imported",
+                "started_at": start.isoformat(),
+                "ended_at": start.replace(minute=25).isoformat(),
+                "duration_sec": 1500,
+                "mode": "focus",
+            }
+        ],
+    }
+    async with system_ctx(app.state, user.id) as ctx:
+        report = await portability.import_(ctx, payload, {})
+        assert report.imported["pomodoro_sessions"] == 1
+        assert await ctx.db.scalar(select(PomodoroSession.course_id)) is None

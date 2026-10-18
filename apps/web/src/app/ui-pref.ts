@@ -31,6 +31,8 @@ type Store = {
   /** Values changed locally and not yet saved: they win over whatever the server says. */
   pending: Map<string, unknown>
   timers: Map<string, ReturnType<typeof setTimeout>>
+  /** How often each key was written here; tells a refresh that a newer change happened meanwhile. */
+  writes: Map<string, number>
   /** The save in progress per key: the next one for the same key waits for it. */
   inflight: Map<string, Promise<void>>
   /** Reads queued for the next batch. */
@@ -48,6 +50,7 @@ function storeOf(queryClient: QueryClient): Store {
     store = {
       pending: new Map(),
       timers: new Map(),
+      writes: new Map(),
       inflight: new Map(),
       waiting: new Map(),
       batchScheduled: false,
@@ -174,11 +177,13 @@ export async function refreshUiPrefs(
   const store = storeOf(queryClient)
   const stale = keys.filter((key) => !store.pending.has(key))
   if (stale.length === 0) return
+  const before = new Map(stale.map((key) => [key, store.writes.get(key) ?? 0]))
   try {
     const { data } = await settingsUiStateGetMany({ body: { keys: stale }, throwOnError: true })
     for (const key of stale) {
-      // A change made here while the request was out is newer than the answer.
-      if (store.pending.has(key)) continue
+      // A change made here while the request was out is newer than the answer, even if it has
+      // been saved since.
+      if (store.pending.has(key) || (store.writes.get(key) ?? 0) !== before.get(key)) continue
       const found = key in data.items
       queryClient.setQueryData<Entry>(queryKeyFor(key), {
         found,
@@ -193,6 +198,7 @@ export async function refreshUiPrefs(
 function write(queryClient: QueryClient, key: string, value: unknown) {
   const store = storeOf(queryClient)
   store.pending.set(key, value)
+  store.writes.set(key, (store.writes.get(key) ?? 0) + 1)
   queryClient.setQueryData<Entry>(queryKeyFor(key), { found: true, value })
   clearTimeout(store.timers.get(key))
   store.timers.set(

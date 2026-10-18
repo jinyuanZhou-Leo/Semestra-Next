@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
+from semestra.modules.academics import service as academics
 from semestra.modules.plugins_builtin.habit_streak import service as habit
 from semestra.modules.plugins_builtin.habit_streak.models import HabitCheckin
 from semestra.modules.plugins_builtin.pomodoro import service as pomodoro
@@ -123,7 +125,7 @@ async def import_(
             PomodoroSession(
                 user_id=ctx.user_id,
                 instance_id=instance_id,
-                course_id=id_map.get(srow.course_id, srow.course_id) if srow.course_id else None,
+                course_id=await _course_id(ctx, srow.course_id, id_map),
                 started_at=srow.started_at,
                 ended_at=srow.ended_at,
                 duration_sec=srow.duration_sec,
@@ -133,6 +135,20 @@ async def import_(
         report.imported["pomodoro_sessions"] += 1
     await ctx.db.flush()
     return report
+
+
+async def _course_id(ctx: Ctx, source: str | None, id_map: Mapping[str, str]) -> str | None:
+    """The course a session belongs to after import: the mapped one, the same id if that course
+    exists here, else none (a selective import may leave the course's Program out)."""
+    if not source:
+        return None
+    if source in id_map:
+        return id_map[source]
+    try:
+        await academics.get_course_row(ctx, source)
+    except AppError:
+        return None
+    return source
 
 
 async def preview(payload: dict[str, Any]) -> dict[str, int]:

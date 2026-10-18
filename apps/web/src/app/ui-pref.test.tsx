@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { API, newQueryClient, server } from '@/test-utils'
-import { flushUiPrefs, prefetchUiPrefs, useUiPref } from './ui-pref'
+import { flushUiPrefs, prefetchUiPrefs, refreshUiPrefs, useUiPref } from './ui-pref'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -161,4 +161,32 @@ test('a slow save never overwrites a newer value: saves of one key go out one at
   releaseFirst()
   await Promise.all([first, second])
   expect(order).toEqual(['start first', 'end first', 'start second', 'end second'])
+})
+
+test('a slow refresh does not undo a change made, and already saved, while it was out', async () => {
+  let answer!: () => void
+  const answered = new Promise<void>((resolve) => (answer = resolve))
+  let reads = 0
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, async () => {
+      reads += 1
+      // The first read (the hook's own) is quick; the refresh is slow and answers with old data.
+      if (reads > 1) await answered
+      return HttpResponse.json({ items: { 'layout.sidebar': 'open' } })
+    }),
+    http.put(`${API}/me/ui-state/:key`, async ({ request }) => {
+      const { value } = (await request.json()) as { value: string }
+      return HttpResponse.json({ key: 'layout.sidebar', value })
+    }),
+  )
+  const { result } = renderHook(() => useUiPref('layout.sidebar', 'x'), { wrapper })
+  await waitFor(() => expect(result.current[0]).toBe('open'))
+
+  const refreshing = refreshUiPrefs(queryClient, ['layout.sidebar'])
+  await waitFor(() => expect(reads).toBe(2))
+  act(() => result.current[1]('closed'))
+  await flushUiPrefs(queryClient) // saved: no longer pending
+  answer()
+  await refreshing
+  await waitFor(() => expect(result.current[0]).toBe('closed'))
 })
