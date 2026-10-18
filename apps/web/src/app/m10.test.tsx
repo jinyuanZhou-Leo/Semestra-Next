@@ -9,7 +9,7 @@ import { openCommandPalette } from './commands'
 import { CommandCenter } from './commands/CommandCenter'
 import type { ModuleManifest, Scope } from './extensions'
 import { CardGrid } from './host/CardGrid'
-import { orderPages } from './host/nav'
+import { orderPages, useSaveNav } from './host/nav'
 import { ScopeNav } from './host/ScopeNav'
 import { mergeJobs, StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
@@ -156,6 +156,32 @@ test('hiding a page from Manage pages saves it for the scope type', async () => 
   const dialog = await screen.findByRole('dialog', { name: 'Manage pages' })
   await user.click(within(dialog).getByRole('switch', { name: 'Show Background tasks' }))
   await waitFor(() => expect(saved).toEqual({ order: ['template'], hidden: ['template'] }))
+})
+
+test('a page change made before the stored nav loads keeps the ids it does not show', async () => {
+  let saved: unknown = null
+  server.use(
+    http.get(`${API}/layouts/nav/term`, () =>
+      HttpResponse.json({ scope_type: 'term', order: ['gone', 'template'], hidden: ['gone'] }),
+    ),
+    http.put(`${API}/layouts/nav/term`, async ({ request }) => {
+      saved = await request.json()
+      return HttpResponse.json({ scope_type: 'term', ...(saved as object) })
+    }),
+  )
+  function Saver() {
+    const save = useSaveNav('term')
+    return (
+      <button type="button" onClick={() => void save({ order: ['template'], hidden: ['template'] })}>
+        Save
+      </button>
+    )
+  }
+  renderWithRouter(<Saver />)
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(saved).toEqual({ order: ['template', 'gone'], hidden: ['template', 'gone'] }),
+  )
 })
 
 test('the palette ranks courses by pinyin initials and lists only actions after /', async () => {
