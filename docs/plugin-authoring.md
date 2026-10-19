@@ -107,7 +107,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 
 ### 4.5 Agent skill
 
-`<插件包>/skills/<名称>.md`，frontmatter 写 `name` 和 `description`，正文说明遇到什么请求按什么顺序调用哪些 capability（模板里的 `hello-note.md`）。
+`<插件包>/skills/<名称>.md`，frontmatter 写 `name`、`title: { en: "…", zh-CN: "…" }`（界面显示名）、`description` 和 `tools`（用到的 capability，全部可用时 skill 才出现），可选 `command`（斜杠命令，如 `/note`，全局唯一）；正文说明遇到什么请求按什么顺序调用哪些 capability（模板里的 `hello-note.md`）。每个 `expose` 含 agent 的 capability 都要在 `messages/*.json` 里有 `capability_<名称下划线化>_title`，后端测试会检查。
 
 ## 5. 测试要求
 

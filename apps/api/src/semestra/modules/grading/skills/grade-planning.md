@@ -1,5 +1,7 @@
 ---
 name: grade-planning
+title: { en: "Plan grades", zh-CN: "成绩规划" }
+command: /plan
 description: Answer "what do I need on the final to get an A" and what-if questions without changing real scores.
 tools: [academics.course.find, grading.gradebook.get, grading.simulate.course, grading.suggest_scores, grading.summary.term, grading.simulate.term, grading.summary.program]
 ---

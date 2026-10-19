@@ -123,6 +123,7 @@ async def event_type_update(ctx: Ctx, inp: EventTypeUpdateInput) -> EventType:
     description="Fails with schedule.event_type_in_use while anything uses the type.",
     effect="destructive",
     http=Http("DELETE", "/event-types/{event_type_id}"),
+    preview=service.preview_event_type_delete,
     tags=TAGS,
 )
 async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
@@ -210,6 +211,7 @@ schedule.exception.upsert with kind 'cancelled'; to hide a section the user does
 schedule.meeting.set_enabled.""",
     effect="destructive",
     http=Http("DELETE", "/meetings/{meeting_id}"),
+    preview=service.preview_meeting_delete,
     tags=TAGS,
 )
 async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
@@ -317,6 +319,7 @@ async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
     description="Irreversible.",
     effect="destructive",
     http=Http("DELETE", "/events/{event_id}"),
+    preview=service.preview_event_delete,
     tags=TAGS,
 )
 async def event_delete(ctx: Ctx, inp: EventRef) -> Deleted:

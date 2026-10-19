@@ -41,8 +41,10 @@ from semestra.modules.schedule.schemas import (
     ConflictPair,
     EventCreateInput,
     EventListInput,
+    EventRef,
     EventType,
     EventTypeCreateInput,
+    EventTypeRef,
     EventTypeUpdateInput,
     EventUpdateInput,
     ExceptionUpsertInput,
@@ -53,6 +55,7 @@ from semestra.modules.schedule.schemas import (
     MeetingCreateManyResult,
     MeetingException,
     MeetingFields,
+    MeetingRef,
     MeetingUpdateInput,
     Occurrences,
     OccurrencesInput,
@@ -686,6 +689,27 @@ async def _event_row(ctx: Ctx, event_id: str) -> ScheduleEvent:
     if row is None or row.user_id != ctx.user_id:
         raise not_found()
     return row
+
+
+# Targets for the assistant's confirmation cards of deletes (M12 §3.5): what goes, by name.
+
+
+async def preview_event_type_delete(ctx: Ctx, inp: EventTypeRef) -> dict[str, Any]:
+    row = await _type_row(ctx, inp.event_type_id)
+    return {"target": f"{row.code} {row.name}", "changes": []}
+
+
+async def preview_meeting_delete(ctx: Ctx, inp: MeetingRef) -> dict[str, Any]:
+    row = await _meeting_row(ctx, inp.meeting_id)
+    course = await academics.get_course_row(ctx, row.course_id)
+    section = " ".join(p for p in (row.type_code, row.section_code) if p)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {"target": f"{section} · {label}", "changes": []}
+
+
+async def preview_event_delete(ctx: Ctx, inp: EventRef) -> dict[str, Any]:
+    row = await _event_row(ctx, inp.event_id)
+    return {"target": row.title, "changes": []}
 
 
 def _aware(value: datetime, tz: ZoneInfo) -> datetime:

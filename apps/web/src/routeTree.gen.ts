@@ -21,6 +21,7 @@ import { Route as AuthedPProgramIdIndexRouteImport } from './routes/_authed.p.$p
 import { Route as AuthedPProgramIdPageRouteImport } from './routes/_authed.p.$programId.$page'
 import { Route as AuthedPProgramIdAcademicsRouteImport } from './routes/_authed.p.$programId.academics'
 import { Route as AuthedPProgramIdCoursesRouteImport } from './routes/_authed.p.$programId.courses'
+import { Route as AuthedPProgramIdAssistantChar123SessionIdChar125RouteImport } from './routes/_authed.p.$programId.assistant.{-$sessionId}'
 import { Route as AuthedPProgramIdCCourseIdRouteImport } from './routes/_authed.p.$programId.c.$courseId'
 import { Route as AuthedPProgramIdImportsSessionIdRouteImport } from './routes/_authed.p.$programId.imports.$sessionId'
 import { Route as AuthedPProgramIdSettingsIndexRouteImport } from './routes/_authed.p.$programId.settings.index'
@@ -95,6 +96,12 @@ const AuthedPProgramIdCoursesRoute = AuthedPProgramIdCoursesRouteImport.update({
   path: '/courses',
   getParentRoute: () => AuthedPProgramIdRoute,
 } as any)
+const AuthedPProgramIdAssistantChar123SessionIdChar125Route =
+  AuthedPProgramIdAssistantChar123SessionIdChar125RouteImport.update({
+    id: '/assistant/{-$sessionId}',
+    path: '/assistant/{-$sessionId}',
+    getParentRoute: () => AuthedPProgramIdRoute,
+  } as any)
 const AuthedPProgramIdCCourseIdRoute =
   AuthedPProgramIdCCourseIdRouteImport.update({
     id: '/c/$courseId',
@@ -186,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/p/$programId/academics': typeof AuthedPProgramIdAcademicsRoute
   '/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
   '/p/$programId/': typeof AuthedPProgramIdIndexRoute
+  '/p/$programId/assistant/{-$sessionId}': typeof AuthedPProgramIdAssistantChar123SessionIdChar125Route
   '/p/$programId/c/$courseId': typeof AuthedPProgramIdCCourseIdRouteWithChildren
   '/p/$programId/imports/$sessionId': typeof AuthedPProgramIdImportsSessionIdRoute
   '/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
@@ -211,6 +219,7 @@ export interface FileRoutesByTo {
   '/p/$programId/academics': typeof AuthedPProgramIdAcademicsRoute
   '/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
   '/p/$programId': typeof AuthedPProgramIdIndexRoute
+  '/p/$programId/assistant/{-$sessionId}': typeof AuthedPProgramIdAssistantChar123SessionIdChar125Route
   '/p/$programId/imports/$sessionId': typeof AuthedPProgramIdImportsSessionIdRoute
   '/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
   '/p/$programId/terms/new': typeof AuthedPProgramIdTermsNewRoute
@@ -238,6 +247,7 @@ export interface FileRoutesById {
   '/_authed/p/$programId/academics': typeof AuthedPProgramIdAcademicsRoute
   '/_authed/p/$programId/courses': typeof AuthedPProgramIdCoursesRoute
   '/_authed/p/$programId/': typeof AuthedPProgramIdIndexRoute
+  '/_authed/p/$programId/assistant/{-$sessionId}': typeof AuthedPProgramIdAssistantChar123SessionIdChar125Route
   '/_authed/p/$programId/c/$courseId': typeof AuthedPProgramIdCCourseIdRouteWithChildren
   '/_authed/p/$programId/imports/$sessionId': typeof AuthedPProgramIdImportsSessionIdRoute
   '/_authed/p/$programId/settings/$group': typeof AuthedPProgramIdSettingsGroupRoute
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/p/$programId/academics'
     | '/p/$programId/courses'
     | '/p/$programId/'
+    | '/p/$programId/assistant/{-$sessionId}'
     | '/p/$programId/c/$courseId'
     | '/p/$programId/imports/$sessionId'
     | '/p/$programId/settings/$group'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/p/$programId/academics'
     | '/p/$programId/courses'
     | '/p/$programId'
+    | '/p/$programId/assistant/{-$sessionId}'
     | '/p/$programId/imports/$sessionId'
     | '/p/$programId/settings/$group'
     | '/p/$programId/terms/new'
@@ -317,6 +329,7 @@ export interface FileRouteTypes {
     | '/_authed/p/$programId/academics'
     | '/_authed/p/$programId/courses'
     | '/_authed/p/$programId/'
+    | '/_authed/p/$programId/assistant/{-$sessionId}'
     | '/_authed/p/$programId/c/$courseId'
     | '/_authed/p/$programId/imports/$sessionId'
     | '/_authed/p/$programId/settings/$group'
@@ -422,6 +435,13 @@ declare module '@tanstack/react-router' {
       path: '/courses'
       fullPath: '/p/$programId/courses'
       preLoaderRoute: typeof AuthedPProgramIdCoursesRouteImport
+      parentRoute: typeof AuthedPProgramIdRoute
+    }
+    '/_authed/p/$programId/assistant/{-$sessionId}': {
+      id: '/_authed/p/$programId/assistant/{-$sessionId}'
+      path: '/assistant/{-$sessionId}'
+      fullPath: '/p/$programId/assistant/{-$sessionId}'
+      preLoaderRoute: typeof AuthedPProgramIdAssistantChar123SessionIdChar125RouteImport
       parentRoute: typeof AuthedPProgramIdRoute
     }
     '/_authed/p/$programId/c/$courseId': {
@@ -545,6 +565,7 @@ interface AuthedPProgramIdRouteChildren {
   AuthedPProgramIdAcademicsRoute: typeof AuthedPProgramIdAcademicsRoute
   AuthedPProgramIdCoursesRoute: typeof AuthedPProgramIdCoursesRoute
   AuthedPProgramIdIndexRoute: typeof AuthedPProgramIdIndexRoute
+  AuthedPProgramIdAssistantChar123SessionIdChar125Route: typeof AuthedPProgramIdAssistantChar123SessionIdChar125Route
   AuthedPProgramIdCCourseIdRoute: typeof AuthedPProgramIdCCourseIdRouteWithChildren
   AuthedPProgramIdImportsSessionIdRoute: typeof AuthedPProgramIdImportsSessionIdRoute
   AuthedPProgramIdSettingsGroupRoute: typeof AuthedPProgramIdSettingsGroupRoute
@@ -561,6 +582,8 @@ const AuthedPProgramIdRouteChildren: AuthedPProgramIdRouteChildren = {
   AuthedPProgramIdAcademicsRoute: AuthedPProgramIdAcademicsRoute,
   AuthedPProgramIdCoursesRoute: AuthedPProgramIdCoursesRoute,
   AuthedPProgramIdIndexRoute: AuthedPProgramIdIndexRoute,
+  AuthedPProgramIdAssistantChar123SessionIdChar125Route:
+    AuthedPProgramIdAssistantChar123SessionIdChar125Route,
   AuthedPProgramIdCCourseIdRoute: AuthedPProgramIdCCourseIdRouteWithChildren,
   AuthedPProgramIdImportsSessionIdRoute: AuthedPProgramIdImportsSessionIdRoute,
   AuthedPProgramIdSettingsGroupRoute: AuthedPProgramIdSettingsGroupRoute,

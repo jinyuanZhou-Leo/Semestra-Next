@@ -34,15 +34,18 @@ from semestra.modules.academics.schemas import (
     CourseListInput,
     CourseOrder,
     CoursePage,
+    CourseRef,
     CourseUpdateInput,
     Program,
     ProgramCreateInput,
+    ProgramRef,
     ProgramUpdateInput,
     Term,
     TermCreateInput,
     TermCreateResult,
     TermDeletePreview,
     TermDeleteResult,
+    TermRef,
     TermUpdateInput,
     TermWeek,
 )
@@ -70,6 +73,28 @@ async def get_course_row(ctx: Ctx, course_id: str) -> AcademicsCourse:
     if row is None or row.user_id != ctx.user_id:
         raise not_found()
     return row
+
+
+# Targets for the assistant's confirmation cards of deletes (M12 §3.5): what goes, by name.
+
+
+async def preview_program_delete(ctx: Ctx, inp: ProgramRef) -> dict[str, Any]:
+    program = await get_program_row(ctx, inp.program_id)
+    return {"target": program.name, "changes": []}
+
+
+async def preview_term_delete(ctx: Ctx, inp: TermRef) -> dict[str, Any]:
+    term = await get_term_row(ctx, inp.term_id)
+    program = await get_program_row(ctx, term.program_id)
+    return {"target": f"{term.name} · {program.name}", "changes": []}
+
+
+async def preview_course_delete(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
+    course = await get_course_row(ctx, inp.course_id)
+    return {
+        "target": f"{course.code} {course.title}" if course.code else course.title,
+        "changes": [],
+    }
 
 
 async def program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:

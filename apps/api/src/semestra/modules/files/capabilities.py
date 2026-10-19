@@ -76,6 +76,7 @@ async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
 and everything derived from it (text, search index) is removed and cannot be restored.""",
     effect="destructive",
     http=Http("DELETE", "/files/{item_id}"),
+    preview=service.preview_item_delete,
     tags=TAGS,
 )
 async def item_delete(ctx: Ctx, inp: ItemRef) -> Deleted:
@@ -131,6 +132,7 @@ async def folder_update(ctx: Ctx, inp: FolderUpdateInput) -> FolderOut:
 unless recursive=true, which permanently deletes all its files, links and subfolders.""",
     effect="destructive",
     http=Http("DELETE", "/folders/{folder_id}"),
+    preview=service.preview_folder_delete,
     tags=TAGS,
 )
 async def folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> Deleted:

@@ -1,5 +1,7 @@
 ---
 name: import-from-documents
+title: { en: "Import from documents", zh-CN: "从文档导入" }
+command: /import
 description: Import courses, grading schemes, meeting times and dates from a syllabus, timetable or ICS file the user shared ("import this", "set up my courses from these").
 tools: [academics.course.find, academics.term.list, imports.session.create, imports.session.get, imports.item.update, imports.items.bulk_decide, imports.items.add, imports.session.commit, imports.session.discard]
 ---

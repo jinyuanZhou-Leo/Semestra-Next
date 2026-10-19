@@ -47,6 +47,12 @@ function withCsrf(request: Request): Request {
   return request
 }
 
+/** The CSRF header for requests made outside the generated client (an SSE POST). */
+export function csrfHeaders(): Record<string, string> {
+  const token = readCookie(CSRF_COOKIE)
+  return token ? { [CSRF_HEADER]: token } : {}
+}
+
 // An unconsumed copy of every request, so a 401 can be retried after re-login.
 const SESSION_LAPSED = new Set(['common.unauthenticated', 'auth.session_expired'])
 

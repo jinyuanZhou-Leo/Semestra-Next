@@ -3,6 +3,7 @@
 import re
 from collections.abc import AsyncIterable, Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import delete, func, select
@@ -28,8 +29,10 @@ from semestra.modules.files.schemas import (
     FilesList,
     FilesListInput,
     FilesUsage,
+    FolderDeleteInput,
     FolderOut,
     ItemOut,
+    ItemRef,
     ItemUpdateInput,
     SourceKind,
 )
@@ -69,6 +72,19 @@ async def get_folder(ctx: Ctx, folder_id: str, course_id: str | None = None) -> 
     if row is None:
         raise not_found()
     return row
+
+
+# Targets for the assistant's confirmation cards of deletes (M12 §3.5): what goes, by name.
+
+
+async def preview_item_delete(ctx: Ctx, inp: ItemRef) -> dict[str, Any]:
+    row = await get_item(ctx, inp.item_id)
+    return {"target": row.display_name, "changes": []}
+
+
+async def preview_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> dict[str, Any]:
+    row = await get_folder(ctx, inp.folder_id)
+    return {"target": row.name, "changes": [{"field": "recursive", "after": inp.recursive}]}
 
 
 async def _course_folders(ctx: Ctx, course_id: str) -> list[FilesFolder]:

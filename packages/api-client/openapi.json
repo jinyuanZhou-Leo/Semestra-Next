@@ -1038,6 +1038,47 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/agent/attachments": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Upload a file or image for the assistant.",
+        "operationId": "agentAttachmentUpload",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_agentAttachmentUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAttachmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programs/{program_id}/courses": {
       "post": {
         "tags": [
@@ -2673,6 +2714,489 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             },
             "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/attachments/{id}": {
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Remove an uploaded attachment that has not been sent.",
+        "description": "Attachments already part of a message stay until the conversation is deleted.",
+        "operationId": "agentAttachmentDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Attachment id.",
+              "title": "Id"
+            },
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__agent__capabilities__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/preferences": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Get the assistant preferences.",
+        "description": "Which write actions run without a confirmation card; MCP delete permission.",
+        "operationId": "agentPreferencesGet",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPreferencesOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Change the assistant preferences.",
+        "description": "Only write actions can be auto-approved; delete actions always ask.",
+        "operationId": "agentPreferencesUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPreferencesUpdateInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPreferencesOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/sessions": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Start a new conversation.",
+        "description": "The page scope (Program, term, course) is the conversation's context.",
+        "operationId": "agentSessionCreate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSessionCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "List the user's assistant conversations.",
+        "description": "Newest first; pinned ones are sorted by the client.",
+        "operationId": "agentSessionList",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Matches the title.",
+              "title": "Query"
+            },
+            "description": "Matches the title."
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "List archived sessions instead.",
+              "default": false,
+              "title": "Archived"
+            },
+            "description": "List archived sessions instead."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "At most this many, newest first.",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "At most this many, newest first."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Delete a conversation with its messages and attachments.",
+        "description": "Cannot be undone.",
+        "operationId": "agentSessionDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Session id.",
+              "title": "Id"
+            },
+            "description": "Session id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__agent__capabilities__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Get a conversation with its messages and proposals.",
+        "description": "Pending proposals older than 24 hours are reported as expired.",
+        "operationId": "agentSessionGet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Session id.",
+              "title": "Id"
+            },
+            "description": "Session id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Rename, pin, archive a conversation or change its context.",
+        "description": "Only the fields sent are changed.",
+        "operationId": "agentSessionUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Session id.",
+              "title": "Id"
+            },
+            "description": "Session id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSessionUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/sessions/{id}:stop": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Stop the answer being generated.",
+        "description": "What was written so far is kept.",
+        "operationId": "agentSessionStop",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Session id.",
+              "title": "Id"
+            },
+            "description": "Session id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentStopResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/skills": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "List the skills the user can run as slash commands.",
+        "description": "Titles are in both interface languages.",
+        "operationId": "agentSkillsList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/tools": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "List every tool the assistant can use for this user.",
+        "description": "Plugin tools appear once the plugin is installed.",
+        "operationId": "agentToolsCatalog",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentToolCatalog"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -11236,6 +11760,705 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
   },
   "components": {
     "schemas": {
+      "AgentAttachmentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "image",
+              "file"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "kind",
+          "name",
+          "mime",
+          "size",
+          "created_at"
+        ],
+        "title": "AgentAttachmentOut"
+      },
+      "AgentMessageOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "tool"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Content",
+            "description": "Blocks: text, image_ref, file_ref, skill, tool_call, tool_result, proposal_ref, citation, note."
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content",
+          "model",
+          "input_tokens",
+          "output_tokens",
+          "created_at"
+        ],
+        "title": "AgentMessageOut"
+      },
+      "AgentPreferencesOut": {
+        "properties": {
+          "auto_approve": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Auto Approve",
+            "description": "Write capabilities that run without asking."
+          },
+          "mcp_allow_destructive": {
+            "type": "boolean",
+            "title": "Mcp Allow Destructive",
+            "description": "MCP clients may run delete actions."
+          }
+        },
+        "type": "object",
+        "required": [
+          "auto_approve",
+          "mcp_allow_destructive"
+        ],
+        "title": "AgentPreferencesOut"
+      },
+      "AgentPreferencesUpdateInputBody": {
+        "properties": {
+          "auto_approve": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Approve",
+            "description": "Write capabilities that run without asking."
+          },
+          "mcp_allow_destructive": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcp Allow Destructive",
+            "description": "Let MCP clients run delete actions."
+          }
+        },
+        "type": "object",
+        "title": "AgentPreferencesUpdateInputBody"
+      },
+      "AgentProposalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          },
+          "call_id": {
+            "type": "string",
+            "title": "Call Id"
+          },
+          "capability": {
+            "type": "string",
+            "title": "Capability"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "destructive"
+            ],
+            "title": "Effect"
+          },
+          "args": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Args"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input Schema",
+            "description": "JSON schema of `args`, for the edit form."
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "executed",
+              "failed",
+              "expired"
+            ],
+            "title": "Status"
+          },
+          "result": {
+            "title": "Result"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "message_id",
+          "call_id",
+          "capability",
+          "effect",
+          "args",
+          "input_schema",
+          "preview",
+          "status",
+          "result",
+          "error_code",
+          "created_at",
+          "decided_at",
+          "executed_at"
+        ],
+        "title": "AgentProposalOut"
+      },
+      "AgentScope": {
+        "properties": {
+          "program_id": {
+            "type": "string",
+            "title": "Program Id",
+            "description": "Program of the page the assistant was opened on."
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term of the page, if any."
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course of the page, if any."
+          }
+        },
+        "type": "object",
+        "required": [
+          "program_id"
+        ],
+        "title": "AgentScope"
+      },
+      "AgentSessionCreateInputBody": {
+        "properties": {
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentScope"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Page scope to start from."
+          }
+        },
+        "type": "object",
+        "title": "AgentSessionCreateInputBody"
+      },
+      "AgentSessionDetail": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/AgentSessionOut"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMessageOut"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProposalOut"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAttachmentOut"
+            },
+            "type": "array",
+            "title": "Attachments"
+          },
+          "generating": {
+            "type": "boolean",
+            "title": "Generating",
+            "description": "An answer is being generated right now."
+          }
+        },
+        "type": "object",
+        "required": [
+          "session",
+          "messages",
+          "proposals",
+          "attachments",
+          "generating"
+        ],
+        "title": "AgentSessionDetail"
+      },
+      "AgentSessionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSessionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AgentSessionList"
+      },
+      "AgentSessionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "program_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Id"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "program_id",
+          "scope",
+          "pinned",
+          "created_at",
+          "updated_at",
+          "archived_at"
+        ],
+        "title": "AgentSessionOut"
+      },
+      "AgentSessionUpdateInputBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "New title."
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned",
+            "description": "Pin to the top of the list."
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived",
+            "description": "Archive or restore."
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentScope"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Change the context (e.g. from a course to its Program)."
+          }
+        },
+        "type": "object",
+        "title": "AgentSessionUpdateInputBody"
+      },
+      "AgentSkillInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "title": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Title"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "module": {
+            "type": "string",
+            "title": "Module"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "command",
+          "description",
+          "module"
+        ],
+        "title": "AgentSkillInfo"
+      },
+      "AgentSkillList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AgentSkillList"
+      },
+      "AgentStopResult": {
+        "properties": {
+          "stopped": {
+            "type": "boolean",
+            "title": "Stopped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stopped"
+        ],
+        "title": "AgentStopResult"
+      },
+      "AgentToolCatalog": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentToolInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AgentToolCatalog"
+      },
+      "AgentToolInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "module": {
+            "type": "string",
+            "title": "Module"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "destructive"
+            ],
+            "title": "Effect"
+          },
+          "plugin_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plugin Id"
+          },
+          "core": {
+            "type": "boolean",
+            "title": "Core",
+            "description": "Always bound in the assistant."
+          },
+          "mcp": {
+            "type": "boolean",
+            "title": "Mcp",
+            "description": "Also offered to MCP clients."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "module",
+          "summary",
+          "effect",
+          "plugin_id",
+          "core",
+          "mcp"
+        ],
+        "title": "AgentToolInfo"
+      },
       "AiStatus": {
         "properties": {
           "items": {
@@ -12844,6 +14067,25 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "file"
         ],
         "title": "Body_accountAvatarUpload"
+      },
+      "Body_agentAttachmentUpload": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "file"
+        ],
+        "title": "Body_agentAttachmentUpload"
       },
       "Body_filesUpload": {
         "properties": {
@@ -26714,6 +27956,19 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           }
         },
         "type": "object",
+        "title": "Deleted"
+      },
+      "semestra__modules__agent__capabilities__Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
         "title": "Deleted"
       },
       "semestra__modules__ai__schemas__AssignmentList": {

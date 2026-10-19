@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import { MonitorSmartphone } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import { useModules } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -61,9 +62,14 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
   )
 }
 
-/** The signed-in app around a Program's pages: the sidebar (a drawer on phones) and content. */
+/**
+ * The signed-in app around a Program's pages: the sidebar (a drawer on phones), the content and
+ * the assistant panel docked on the right.
+ */
 export function AppShell({ programId, children }: { programId: string; children: ReactNode }) {
   const [collapsed, setCollapsed] = useUiPref('layout.sidebar_collapsed', false)
+  // The assistant (M12) docks beside the content when it is installed.
+  const Dock = useModules().find((module) => module.assistant)?.assistant?.Dock ?? Fragment
   return (
     <SidebarProvider
       open={!collapsed}
@@ -71,7 +77,9 @@ export function AppShell({ programId, children }: { programId: string; children:
       className="h-dvh min-h-0"
     >
       <AppSidebar programId={programId} />
-      <ShellInset programId={programId}>{children}</ShellInset>
+      <Dock>
+        <ShellInset programId={programId}>{children}</ShellInset>
+      </Dock>
       <Tour />
     </SidebarProvider>
   )

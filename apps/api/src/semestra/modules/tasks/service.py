@@ -30,12 +30,14 @@ from semestra.modules.tasks.schemas import (
     TaskFindInput,
     TaskList,
     TaskListCreateInput,
+    TaskListDeleteInput,
     TaskListDeleteResult,
     TaskListOut,
     TaskListUpdateInput,
     TaskMoveInput,
     TaskPage,
     TaskQueryInput,
+    TaskRef,
     TaskSkipped,
     TaskUpdateInput,
     View,
@@ -57,6 +59,19 @@ async def get_list_row(ctx: Ctx, list_id: str) -> TasksList:
     if row is None or row.user_id != ctx.user_id:
         raise not_found()
     return row
+
+
+# Targets for the assistant's confirmation cards of deletes (M12 §3.5): what goes, by name.
+
+
+async def preview_item_delete(ctx: Ctx, inp: TaskRef) -> dict[str, Any]:
+    row = await get_item_row(ctx, inp.task_id)
+    return {"target": row.title, "changes": []}
+
+
+async def preview_list_delete(ctx: Ctx, inp: TaskListDeleteInput) -> dict[str, Any]:
+    row = await get_list_row(ctx, inp.list_id)
+    return {"target": row.name, "changes": [{"field": "delete_tasks", "after": inp.delete_tasks}]}
 
 
 async def program_settings(ctx: Ctx, program_id: str) -> TasksSettings:

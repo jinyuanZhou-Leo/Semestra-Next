@@ -1,5 +1,7 @@
 ---
 name: use-lms
+title: { en: "Use the LMS", zh-CN: "使用学习平台" }
+command: /lms
 description: Read announcements, assignments, pages and grades from the user's LMS (Canvas) and import assignments safely.
 tools: [lms.course.link.get, lms.course.overview, lms.announcements.list, lms.assignments.list, lms.grades.list, lms.modules.list, lms.module_items.list, lms.pages.list, lms.page.get, lms.quizzes.list, lms.syllabus.get, lms.file.get, lms.courses.list, lms.course.link.set, lms.import.assignments, lms.import.syllabus, lms.course.check_updates, lms.course.apply_updates, lms.file.save_to_course]
 ---

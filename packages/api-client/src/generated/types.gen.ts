@@ -5,6 +5,416 @@ export type ClientOptions = {
 };
 
 /**
+ * AgentAttachmentOut
+ */
+export type AgentAttachmentOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Kind
+     */
+    kind: 'image' | 'file';
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime
+     */
+    mime: string;
+    /**
+     * Size
+     */
+    size: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AgentMessageOut
+ */
+export type AgentMessageOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant' | 'tool';
+    /**
+     * Content
+     *
+     * Blocks: text, image_ref, file_ref, skill, tool_call, tool_result, proposal_ref, citation, note.
+     */
+    content: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Input Tokens
+     */
+    input_tokens: number | null;
+    /**
+     * Output Tokens
+     */
+    output_tokens: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AgentPreferencesOut
+ */
+export type AgentPreferencesOut = {
+    /**
+     * Auto Approve
+     *
+     * Write capabilities that run without asking.
+     */
+    auto_approve: Array<string>;
+    /**
+     * Mcp Allow Destructive
+     *
+     * MCP clients may run delete actions.
+     */
+    mcp_allow_destructive: boolean;
+};
+
+/**
+ * AgentPreferencesUpdateInputBody
+ */
+export type AgentPreferencesUpdateInputBody = {
+    /**
+     * Auto Approve
+     *
+     * Write capabilities that run without asking.
+     */
+    auto_approve?: Array<string> | null;
+    /**
+     * Mcp Allow Destructive
+     *
+     * Let MCP clients run delete actions.
+     */
+    mcp_allow_destructive?: boolean | null;
+};
+
+/**
+ * AgentProposalOut
+ */
+export type AgentProposalOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Message Id
+     */
+    message_id: string;
+    /**
+     * Call Id
+     */
+    call_id: string;
+    /**
+     * Capability
+     */
+    capability: string;
+    /**
+     * Effect
+     */
+    effect: 'read' | 'write' | 'destructive';
+    /**
+     * Args
+     */
+    args: {
+        [key: string]: unknown;
+    };
+    /**
+     * Input Schema
+     *
+     * JSON schema of `args`, for the edit form.
+     */
+    input_schema: {
+        [key: string]: unknown;
+    };
+    /**
+     * Preview
+     */
+    preview: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Status
+     */
+    status: 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'expired';
+    /**
+     * Result
+     */
+    result: unknown;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Decided At
+     */
+    decided_at: string | null;
+    /**
+     * Executed At
+     */
+    executed_at: string | null;
+};
+
+/**
+ * AgentScope
+ */
+export type AgentScope = {
+    /**
+     * Program Id
+     *
+     * Program of the page the assistant was opened on.
+     */
+    program_id: string;
+    /**
+     * Term Id
+     *
+     * Term of the page, if any.
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course of the page, if any.
+     */
+    course_id?: string | null;
+};
+
+/**
+ * AgentSessionCreateInputBody
+ */
+export type AgentSessionCreateInputBody = {
+    /**
+     * Page scope to start from.
+     */
+    scope?: AgentScope | null;
+};
+
+/**
+ * AgentSessionDetail
+ */
+export type AgentSessionDetail = {
+    session: AgentSessionOut;
+    /**
+     * Messages
+     */
+    messages: Array<AgentMessageOut>;
+    /**
+     * Proposals
+     */
+    proposals: Array<AgentProposalOut>;
+    /**
+     * Attachments
+     */
+    attachments: Array<AgentAttachmentOut>;
+    /**
+     * Generating
+     *
+     * An answer is being generated right now.
+     */
+    generating: boolean;
+};
+
+/**
+ * AgentSessionList
+ */
+export type AgentSessionList = {
+    /**
+     * Items
+     */
+    items: Array<AgentSessionOut>;
+};
+
+/**
+ * AgentSessionOut
+ */
+export type AgentSessionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Program Id
+     */
+    program_id: string | null;
+    scope: AgentScope | null;
+    /**
+     * Pinned
+     */
+    pinned: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Archived At
+     */
+    archived_at: string | null;
+};
+
+/**
+ * AgentSessionUpdateInputBody
+ */
+export type AgentSessionUpdateInputBody = {
+    /**
+     * Title
+     *
+     * New title.
+     */
+    title?: string | null;
+    /**
+     * Pinned
+     *
+     * Pin to the top of the list.
+     */
+    pinned?: boolean | null;
+    /**
+     * Archived
+     *
+     * Archive or restore.
+     */
+    archived?: boolean | null;
+    /**
+     * Change the context (e.g. from a course to its Program).
+     */
+    scope?: AgentScope | null;
+};
+
+/**
+ * AgentSkillInfo
+ */
+export type AgentSkillInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Title
+     */
+    title: {
+        [key: string]: string;
+    };
+    /**
+     * Command
+     */
+    command: string | null;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Module
+     */
+    module: string;
+};
+
+/**
+ * AgentSkillList
+ */
+export type AgentSkillList = {
+    /**
+     * Items
+     */
+    items: Array<AgentSkillInfo>;
+};
+
+/**
+ * AgentStopResult
+ */
+export type AgentStopResult = {
+    /**
+     * Stopped
+     */
+    stopped: boolean;
+};
+
+/**
+ * AgentToolCatalog
+ */
+export type AgentToolCatalog = {
+    /**
+     * Items
+     */
+    items: Array<AgentToolInfo>;
+};
+
+/**
+ * AgentToolInfo
+ */
+export type AgentToolInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Module
+     */
+    module: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Effect
+     */
+    effect: 'read' | 'write' | 'destructive';
+    /**
+     * Plugin Id
+     */
+    plugin_id: string | null;
+    /**
+     * Core
+     *
+     * Always bound in the assistant.
+     */
+    core: boolean;
+    /**
+     * Mcp
+     *
+     * Also offered to MCP clients.
+     */
+    mcp: boolean;
+};
+
+/**
  * AiStatus
  */
 export type AiStatus = {
@@ -844,6 +1254,20 @@ export type BoardUpdateInputBody = {
  * Body_accountAvatarUpload
  */
 export type BodyAccountAvatarUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_agentAttachmentUpload
+ */
+export type BodyAgentAttachmentUpload = {
+    /**
+     * Session Id
+     */
+    session_id: string;
     /**
      * File
      */
@@ -8755,6 +9179,16 @@ export type SemestraModulesAcademicsSchemasDeleted = {
 };
 
 /**
+ * Deleted
+ */
+export type SemestraModulesAgentCapabilitiesDeleted = {
+    /**
+     * Deleted
+     */
+    deleted: boolean;
+};
+
+/**
  * AssignmentList
  */
 export type SemestraModulesAiSchemasAssignmentList = {
@@ -9611,6 +10045,31 @@ export type LmsFileContentResponses = {
      */
     200: unknown;
 };
+
+export type AgentAttachmentUploadData = {
+    body: BodyAgentAttachmentUpload;
+    path?: never;
+    query?: never;
+    url: '/agent/attachments';
+};
+
+export type AgentAttachmentUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AgentAttachmentUploadError = AgentAttachmentUploadErrors[keyof AgentAttachmentUploadErrors];
+
+export type AgentAttachmentUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentAttachmentOut;
+};
+
+export type AgentAttachmentUploadResponse = AgentAttachmentUploadResponses[keyof AgentAttachmentUploadResponses];
 
 export type AcademicsCourseListData = {
     body?: never;
@@ -10651,6 +11110,335 @@ export type AccountTokensRevokeResponses = {
 };
 
 export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
+
+export type AgentAttachmentDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Attachment id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/attachments/{id}';
+};
+
+export type AgentAttachmentDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentAttachmentDeleteError = AgentAttachmentDeleteErrors[keyof AgentAttachmentDeleteErrors];
+
+export type AgentAttachmentDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesAgentCapabilitiesDeleted;
+};
+
+export type AgentAttachmentDeleteResponse = AgentAttachmentDeleteResponses[keyof AgentAttachmentDeleteResponses];
+
+export type AgentPreferencesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/preferences';
+};
+
+export type AgentPreferencesGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentPreferencesGetError = AgentPreferencesGetErrors[keyof AgentPreferencesGetErrors];
+
+export type AgentPreferencesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentPreferencesOut;
+};
+
+export type AgentPreferencesGetResponse = AgentPreferencesGetResponses[keyof AgentPreferencesGetResponses];
+
+export type AgentPreferencesUpdateData = {
+    body: AgentPreferencesUpdateInputBody;
+    path?: never;
+    query?: never;
+    url: '/agent/preferences';
+};
+
+export type AgentPreferencesUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentPreferencesUpdateError = AgentPreferencesUpdateErrors[keyof AgentPreferencesUpdateErrors];
+
+export type AgentPreferencesUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentPreferencesOut;
+};
+
+export type AgentPreferencesUpdateResponse = AgentPreferencesUpdateResponses[keyof AgentPreferencesUpdateResponses];
+
+export type AgentSessionListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Query
+         *
+         * Matches the title.
+         */
+        query?: string | null;
+        /**
+         * Archived
+         *
+         * List archived sessions instead.
+         */
+        archived?: boolean;
+        /**
+         * Limit
+         *
+         * At most this many, newest first.
+         */
+        limit?: number;
+    };
+    url: '/agent/sessions';
+};
+
+export type AgentSessionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionListError = AgentSessionListErrors[keyof AgentSessionListErrors];
+
+export type AgentSessionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSessionList;
+};
+
+export type AgentSessionListResponse = AgentSessionListResponses[keyof AgentSessionListResponses];
+
+export type AgentSessionCreateData = {
+    body: AgentSessionCreateInputBody;
+    path?: never;
+    query?: never;
+    url: '/agent/sessions';
+};
+
+export type AgentSessionCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionCreateError = AgentSessionCreateErrors[keyof AgentSessionCreateErrors];
+
+export type AgentSessionCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSessionOut;
+};
+
+export type AgentSessionCreateResponse = AgentSessionCreateResponses[keyof AgentSessionCreateResponses];
+
+export type AgentSessionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Session id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/sessions/{id}';
+};
+
+export type AgentSessionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionDeleteError = AgentSessionDeleteErrors[keyof AgentSessionDeleteErrors];
+
+export type AgentSessionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesAgentCapabilitiesDeleted;
+};
+
+export type AgentSessionDeleteResponse = AgentSessionDeleteResponses[keyof AgentSessionDeleteResponses];
+
+export type AgentSessionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Session id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/sessions/{id}';
+};
+
+export type AgentSessionGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionGetError = AgentSessionGetErrors[keyof AgentSessionGetErrors];
+
+export type AgentSessionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSessionDetail;
+};
+
+export type AgentSessionGetResponse = AgentSessionGetResponses[keyof AgentSessionGetResponses];
+
+export type AgentSessionUpdateData = {
+    body: AgentSessionUpdateInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Session id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/sessions/{id}';
+};
+
+export type AgentSessionUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionUpdateError = AgentSessionUpdateErrors[keyof AgentSessionUpdateErrors];
+
+export type AgentSessionUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSessionOut;
+};
+
+export type AgentSessionUpdateResponse = AgentSessionUpdateResponses[keyof AgentSessionUpdateResponses];
+
+export type AgentSessionStopData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Session id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/sessions/{id}:stop';
+};
+
+export type AgentSessionStopErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSessionStopError = AgentSessionStopErrors[keyof AgentSessionStopErrors];
+
+export type AgentSessionStopResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentStopResult;
+};
+
+export type AgentSessionStopResponse = AgentSessionStopResponses[keyof AgentSessionStopResponses];
+
+export type AgentSkillsListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/skills';
+};
+
+export type AgentSkillsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSkillsListError = AgentSkillsListErrors[keyof AgentSkillsListErrors];
+
+export type AgentSkillsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSkillList;
+};
+
+export type AgentSkillsListResponse = AgentSkillsListResponses[keyof AgentSkillsListResponses];
+
+export type AgentToolsCatalogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/tools';
+};
+
+export type AgentToolsCatalogErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentToolsCatalogError = AgentToolsCatalogErrors[keyof AgentToolsCatalogErrors];
+
+export type AgentToolsCatalogResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentToolCatalog;
+};
+
+export type AgentToolsCatalogResponse = AgentToolsCatalogResponses[keyof AgentToolsCatalogResponses];
 
 export type AiAssignmentGetData = {
     body?: never;

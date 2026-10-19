@@ -82,6 +82,7 @@ async def list_update(ctx: Ctx, inp: TaskListUpdateInput) -> TaskList:
 it when the user asked for that. By default the tasks are kept in the inbox.""",
     effect="destructive",
     http=Http("DELETE", "/task-lists/{list_id}"),
+    preview=service.preview_list_delete,
     tags=TAGS,
 )
 async def list_delete(ctx: Ctx, inp: TaskListDeleteInput) -> TaskListDeleteResult:
@@ -206,6 +207,7 @@ async def item_move(ctx: Ctx, inp: TaskMoveInput) -> Task:
 the user asks to remove it.""",
     effect="destructive",
     http=Http("DELETE", "/tasks/{task_id}"),
+    preview=service.preview_item_delete,
     tags=TAGS,
 )
 async def item_delete(ctx: Ctx, inp: TaskRef) -> TaskDeleted:

@@ -1,5 +1,7 @@
 ---
 name: manage-terms-and-courses
+title: { en: "Manage terms and courses", zh-CN: "管理学期与课程" }
+command: /terms
 description: Create terms, add courses, make a course year-long, and delete terms or courses safely.
 tools: [academics.program.list, academics.term.list, academics.term.create, academics.term.delete_preview, academics.term.delete, academics.course.find, academics.course.create, academics.course.set_terms, academics.course.update, academics.course.delete]
 ---

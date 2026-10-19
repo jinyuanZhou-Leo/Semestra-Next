@@ -103,6 +103,7 @@ async def card_add(ctx: Ctx, inp: CardAddInput) -> BoardCard:
 layouts.board.get.""",
     effect="destructive",
     http=Http("DELETE", "/layouts/cards/{instance_id}"),
+    preview=service.preview_card_remove,
     tags=TAGS,
 )
 async def card_remove(ctx: Ctx, inp: CardRef) -> Removed:

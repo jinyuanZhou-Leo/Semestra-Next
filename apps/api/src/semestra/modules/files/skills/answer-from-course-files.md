@@ -1,5 +1,7 @@
 ---
 name: answer-from-course-files
+title: { en: "Answer from course files", zh-CN: "根据课程文件回答" }
+command: /files
 description: Answer questions about course content (syllabus rules, lecture notes, assignment handouts) from the files the user uploaded, with citations.
 tools: [files.search, files.document.read, files.document.outline, files.list, academics.course.find]
 ---

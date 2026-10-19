@@ -1,5 +1,7 @@
 ---
 name: setup-gradebook
+title: { en: "Set up a gradebook", zh-CN: "设置成绩簿" }
+command: /gradebook
 description: Build a course gradebook (categories and weighted assessments) from the syllabus's grading scheme.
 tools: [academics.course.find, grading.gradebook.get, grading.category.create, grading.assessment.create_many, grading.assessment.update, grading.course_result.update]
 ---

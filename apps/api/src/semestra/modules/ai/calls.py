@@ -510,6 +510,10 @@ class ChatModel:
         return "tools" in self.resolved.endpoint.capabilities
 
     @property
+    def reads_pdf(self) -> bool:
+        return catalog.KIND_INFO[self.resolved.endpoint.kind].reads_pdf  # pyright: ignore[reportArgumentType]
+
+    @property
     def endpoint(self) -> Endpoint:
         return self.resolved.endpoint
 

@@ -35,8 +35,10 @@ from semestra.modules.grading.schemas import (
     AssessmentListInput,
     AssessmentOrder,
     AssessmentPage,
+    AssessmentRef,
     AssessmentUpdateInput,
     CategoryCreateInput,
+    CategoryRef,
     CategoryUpdateInput,
     CourseGrade,
     CourseGrades,
@@ -633,6 +635,44 @@ async def create_assessments(
     return AssessmentCreateManyResult(
         created=[assessment_out(r, program.timezone, ctx.now) for r in created], skipped=skipped
     )
+
+
+def _plain(value: Any) -> Any:
+    return value.isoformat() if isinstance(value, date | time | datetime) else value
+
+
+async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): the assessment, its course, each sent field
+    as before → after, and a link to the course's grades page."""
+    row = await _get_assessment(ctx, inp.assessment_id)
+    course, program = await _course_and_program(ctx, row.course_id)
+    # Before-values as the user sees them: the deadline as a local date and time.
+    current = assessment_out(row, program.timezone, ctx.now)
+    changes: list[dict[str, Any]] = []
+    for field in sorted(inp.model_fields_set - {"assessment_id"}):
+        after = getattr(inp, field)
+        before = getattr(current, field, None)
+        changes.append({"field": field, "before": _plain(before), "after": _plain(after)})
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {
+        "target": f"{row.title} · {label}",
+        "changes": changes,
+        "link": {"to": f"/p/{program.id}/c/{course.id}/grades", "page": "grades"},
+    }
+
+
+async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
+    row = await _get_assessment(ctx, inp.assessment_id)
+    course, _ = await _course_and_program(ctx, row.course_id)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {"target": f"{row.title} · {label}", "changes": []}
+
+
+async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
+    row = await _get_category(ctx, inp.category_id)
+    course, _ = await _course_and_program(ctx, row.course_id)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {"target": f"{row.name} · {label}", "changes": []}
 
 
 async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:

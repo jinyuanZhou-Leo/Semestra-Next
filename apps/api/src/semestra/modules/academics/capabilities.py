@@ -98,6 +98,7 @@ async def program_update(ctx: Ctx, inp: ProgramUpdateInput) -> Program:
 To remove one term or course use academics.term.delete or academics.course.delete.""",
     effect="destructive",
     http=Http("DELETE", "/programs/{program_id}"),
+    preview=service.preview_program_delete,
     tags=TAGS,
 )
 async def program_delete(ctx: Ctx, inp: ProgramRef) -> Deleted:
@@ -207,6 +208,7 @@ async def term_delete_preview(ctx: Ctx, inp: TermRef) -> TermDeletePreview:
 lose this term. Show academics.term.delete_preview to the user first.""",
     effect="destructive",
     http=Http("DELETE", "/terms/{term_id}"),
+    preview=service.preview_term_delete,
     tags=TAGS,
 )
 async def term_delete(ctx: Ctx, inp: TermRef) -> TermDeleteResult:
@@ -315,6 +317,7 @@ async def course_set_terms(ctx: Ctx, inp: CourseSetTermsInput) -> Course:
     description="Irreversible. Use only when the user clearly asks to delete the course.",
     effect="destructive",
     http=Http("DELETE", "/courses/{course_id}"),
+    preview=service.preview_course_delete,
     tags=TAGS,
 )
 async def course_delete(ctx: Ctx, inp: CourseRef) -> Deleted:

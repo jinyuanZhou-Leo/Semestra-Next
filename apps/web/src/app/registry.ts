@@ -11,6 +11,7 @@ import {
 } from 'react'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
+import assistant from '@/modules/assistant/manifest'
 import auth from '@/modules/auth/manifest'
 import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
@@ -48,6 +49,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   academics,
   grading,
   ai,
+  assistant,
   plugins,
   schedule,
   files,
