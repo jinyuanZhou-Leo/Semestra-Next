@@ -646,6 +646,7 @@ async def test_avatar_upload_body_limit_applies_to_chunked_uploads(
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
     )
     assert (r.status_code, r.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+    assert r.json()["error"]["request_id"] == r.headers["x-request-id"]
 
 
 async def test_avatar_upload_requires_login(client: AsyncClient) -> None:

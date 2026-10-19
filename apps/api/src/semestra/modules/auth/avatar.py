@@ -115,7 +115,8 @@ class UploadBodyLimit:
 
     async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
         error = AppError("auth.avatar_too_large", 413, limit_bytes=MAX_UPLOAD_BYTES)
-        body = {"error": {"code": error.code, "params": error.params, "request_id": None}}
+        request_id = scope.get("state", {}).get("request_id")
+        body = {"error": {"code": error.code, "params": error.params, "request_id": request_id}}
         await JSONResponse(body, status_code=413, headers={"Connection": "close"})(
             scope, receive, send
         )
