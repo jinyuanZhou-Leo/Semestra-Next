@@ -619,6 +619,14 @@ async def test_avatar_upload_rejects_bad_files(
     assert (big.status_code, big.json()["error"]["code"]) == (413, "auth.avatar_too_large")
 
 
+async def test_avatar_upload_body_limit_applies_before_parsing(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    huge = await client.post("/account/avatar", files={"file": ("a.png", b"0" * (6 * 1024 * 1024))})
+    assert (huge.status_code, huge.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+
+
 async def test_avatar_upload_requires_login(client: AsyncClient) -> None:
     r = await client.post("/account/avatar", files={"file": ("a.png", _png((8, 8)))})
     assert r.status_code == 401
