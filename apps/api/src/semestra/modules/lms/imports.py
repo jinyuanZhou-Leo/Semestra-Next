@@ -514,14 +514,17 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         target_id = created.get(item_id)
         if target_id is None or item.type not in ("assessment", "task"):
             continue
+        # Looked up across kinds: an assignment is imported once, as an assessment or a task.
         exists = await ctx.db.scalar(
             select(LmsImportedRef).where(
                 LmsImportedRef.link_id == link.id,
                 LmsImportedRef.external_kind == "assignment",
                 LmsImportedRef.external_id == info["external_id"],
-                LmsImportedRef.target_kind == item.type,
             )
         )
+        if exists is not None and exists.target_kind != item.type:
+            # Another session imported it as the other kind meanwhile: roll this commit back.
+            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
         if exists is not None:
             exists.target_id = target_id
             continue

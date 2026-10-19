@@ -547,21 +547,25 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
 
 def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
     """The same draft as the other kind: an assessment of a course ↔ a task (M09 lets the user
-    pick for each LMS assignment). Fields the other kind lacks are dropped."""
+    pick for each LMS assignment). Fields the other kind lacks are held, so switching back
+    restores them."""
     if item.type not in ("assessment", "task"):
         raise AppError("common.validation", 422, errors=[{"loc": ["type"], "code": "invalid"}])
     data = item.data
     common = {k: data[k] for k in ("course_ref", "title", "due_date", "due_time", "due_text",
                                     "source_ref") if data.get(k) is not None}  # fmt: skip
+    restored = data.get("held") or {}
     if to == "task":
         if data.get("note"):
             common["notes"] = data["note"]
-        return _validated_data("task", common)
+        held = {k: data[k] for k in ("category_ref", "weight") if data.get(k) is not None}
+        return _validated_data("task", {**restored, **common, "held": held or None})
     if not str(common.get("course_ref", "")).startswith(("course:", "item:")):
         raise AppError("import.course_ref_missing", 422)
     if data.get("notes"):
         common["note"] = str(data["notes"])[:2000]
-    return _validated_data("assessment", common)
+    held = {"priority": data["priority"]} if data.get("priority", "none") != "none" else {}
+    return _validated_data("assessment", {**restored, **common, "held": held or None})
 
 
 async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:

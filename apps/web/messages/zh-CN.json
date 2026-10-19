@@ -1437,5 +1437,6 @@
   "error_lms_connection_in_use": "仍有学业项目在使用这个连接",
   "error_lms_course_not_linked": "本课程尚未关联到平台",
   "error_lms_course_already_linked": "已有其他课程关联到它",
+  "error_lms_assignment_already_imported": "“{title}”已经从平台导入过了",
   "error_lms_credentials_missing": "请重新填写 API 令牌"
 }

@@ -1437,5 +1437,6 @@
   "error_lms_connection_in_use": "Programs still use this connection",
   "error_lms_course_not_linked": "This course isn't linked to the platform",
   "error_lms_course_already_linked": "Another course is already linked to it",
+  "error_lms_assignment_already_imported": "“{title}” was already imported from the platform",
   "error_lms_credentials_missing": "Enter the API token again"
 }

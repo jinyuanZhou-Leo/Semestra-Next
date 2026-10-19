@@ -183,8 +183,14 @@ async def list_connections(ctx: Ctx) -> list[Connection]:
 async def _check(
     ctx: Ctx, provider: LmsProvider, cfg: BaseModel, creds: BaseModel
 ) -> ConnectionSummary:
-    async with io(ctx) as i:
-        return await provider.validate(i, cfg, creds)
+    try:
+        async with io(ctx) as i:
+            return await provider.validate(i, cfg, creds)
+    except AppError as exc:
+        # A reachable host without the platform's API answers the profile read with 404.
+        if exc.code == "common.not_found":
+            raise lms_error("lms.invalid_config", field="base_url", reason="not_canvas") from exc
+        raise
 
 
 async def create_connection(ctx: Ctx, inp: ConnectionCreateInput) -> Connection:
@@ -302,8 +308,6 @@ async def validate(ctx: Ctx, inp: ConnectionValidateInput) -> ConnectionCheck:
             raise lms_error("lms.credentials_missing")
         summary = await _check(ctx, provider, cfg, creds)
     except AppError as exc:
-        if exc.code == "common.not_found" and row is None:
-            exc = lms_error("lms.invalid_config", field="base_url", reason="not_canvas")
         if row is not None and inp.config is None and inp.credentials is None:
             await _record(ctx, row, exc.code)
         return ConnectionCheck(

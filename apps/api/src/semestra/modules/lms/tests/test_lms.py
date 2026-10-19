@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from sqlalchemy import select
 
 from semestra.core.context import system_ctx
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, not_found
 from semestra.modules.imports import service as imports_service
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
@@ -294,7 +294,13 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
     back = await api.call(
         "PATCH", f"/imports/{session['id']}/items/{item_id}", json={"type": "assessment"}
     )
-    assert next(i for i in back["items"] if i["id"] == item_id)["type"] == "assessment"
+    restored = next(i for i in back["items"] if i["id"] == item_id)
+    assert restored["type"] == "assessment"
+    # The weight and category come back with it.
+    original = assessments[2]["data"]
+    assert (restored["data"]["weight"], restored["data"]["category_ref"]) == (
+        original["weight"], original["category_ref"]
+    )  # fmt: skip
 
     done = await api.commit(started["session_id"])
     assert done["failed"] == 0
@@ -602,6 +608,43 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     err = await api.commit(started["session_id"], 409)
     assert err["error"]["code"] == "lms.course_not_linked"
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
+
+
+async def test_an_assignment_imported_as_the_other_kind_meanwhile_rolls_back(
+    api: Api, app: FastAPI
+):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    link = (await api.link(course, "101"))["link"]
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    # Another session committed it as a task after this one was opened.
+    async with system_ctx(app.state) as ctx:
+        owner = await ctx.db.get(LmsConnection, link["connection_id"])
+        assert owner is not None
+        ctx.db.add(
+            LmsImportedRef(user_id=owner.user_id, link_id=link["id"], external_kind="assignment",
+                           external_id="a1", target_kind="task", target_id="t1",
+                           snapshot={}, imported_at=datetime(2026, 1, 15, tzinfo=UTC))
+        )  # fmt: skip
+        await ctx.db.commit()
+    err = await api.commit(started["session_id"], 409)
+    assert err["error"]["code"] == "lms.assignment_already_imported"
+    assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
+
+
+async def test_a_host_without_the_api_is_a_config_error_on_save(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    async def missing(*_: Any) -> Any:
+        raise not_found()
+
+    monkeypatch.setattr(fake, "validate", missing)
+    payload = {"provider": "fake", "config": {"base_url": "https://fake.example.edu"},
+               "credentials": {"token": "good-token-1"}}  # fmt: skip
+    err = await api.call("POST", "/lms/connections", 422, json=payload)
+    assert err["error"]["code"] == "lms.invalid_config"
 
 
 async def test_check_results_announce_error_changes_within_a_status(
