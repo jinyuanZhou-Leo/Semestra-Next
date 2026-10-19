@@ -26,6 +26,11 @@ STATUS = {
 CONNECTION_ERRORS = frozenset(
     ("lms.invalid_credentials", "lms.forbidden", "lms.blocked_address", "lms.credentials_missing")
 )
+# A read that fails with these marks the connection broken. `lms.forbidden` is left out: on a
+# read it means one resource is off limits (a course without Pages, a locked file), while a
+# connection check (`validate`, the periodic refresh) reads the user's own profile, where a
+# refusal does mean the token can't be used.
+BROKEN_ON_READ = CONNECTION_ERRORS - {"lms.forbidden"}
 
 
 def lms_error(code: str, **params: Any) -> AppError:

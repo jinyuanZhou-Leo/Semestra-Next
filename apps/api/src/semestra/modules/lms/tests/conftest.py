@@ -319,7 +319,8 @@ def canvas_api(router: respx.MockRouter) -> None:
             {"id": 1, "name": "Labs", "group_weight": 20, "assignments": [
                 {"id": 11, "name": "Lab 1", "due_at": "2026-02-07T04:59:00Z",
                  "points_possible": 10, "html_url": f"{CANVAS}/courses/101/assignments/11",
-                 "submission": {"workflow_state": "graded", "score": 9}},
+                 "submission": {"workflow_state": "graded", "score": 9,
+                                "graded_at": "2026-02-10T12:00:00Z"}},
             ]},
         ])
     )  # fmt: skip

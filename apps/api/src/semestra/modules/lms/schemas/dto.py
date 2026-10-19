@@ -92,6 +92,7 @@ class Announcement(Dto):
 class Submission(BaseModel):
     state: str | None = Field(default=None, description="e.g. submitted, graded, unsubmitted")
     submitted_at: datetime | None = None
+    graded_at: datetime | None = None
     score: float | None = None
     grade: str | None = None
     late: bool = False
