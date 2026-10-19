@@ -30,7 +30,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
       staleTime: 60_000,
     })),
   })
-  const linked = courses.filter((_, i) => links[i]?.data?.link?.sync_enabled)
+  const linked = courses.filter((_, i) => links[i]?.data?.link)
   const lists = useQueries({
     queries: linked.map((course) => ({
       ...lmsAnnouncementsListOptions({ path: { course_id: course.id } }),

@@ -69,6 +69,8 @@ def test_base_url_normalized(settings: Settings, raw: str, expected: str):
         ("https://canvas.example.edu/api/v1", "api_path"),
         ("https://canvas.example.edu/api/v1/", "api_path"),
         ("https://user:pw@canvas.example.edu", "url"),
+        ("https://canvas.example.edu:notaport", "url"),
+        ("https://canvas.example.edu:99999", "url"),
     ],
 )
 def test_base_url_rejected(settings: Settings, raw: str, reason: str):

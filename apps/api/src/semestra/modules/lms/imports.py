@@ -419,6 +419,11 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
     meta: dict[str, dict[str, Any]] = lms.get("items") or {}
     if kind == "courses":
         connection = await service.get_connection_row(ctx, row.source_meta["connection_id"])
+        binding = await service.binding_row(ctx, row.program_id)
+        if binding is None or binding.connection_id != connection.id:
+            # The Program moved to another connection since the session started: its courses
+            # are still created, but links must use the Program's current connection.
+            return
         for item_id, external in meta.items():
             course_id = created.get(item_id)
             if course_id is None:

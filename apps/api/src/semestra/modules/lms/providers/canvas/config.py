@@ -45,7 +45,11 @@ def normalize_base_url(raw: str, settings: Settings) -> str:
     if path == API_PREFIX or path.startswith(f"{API_PREFIX}/"):
         raise lms_error("lms.invalid_config", field="base_url", reason="api_path")
     host = parts.hostname.lower()
-    port = f":{parts.port}" if parts.port else ""
+    try:
+        port_number = parts.port  # raises on "host:abc" or a port out of range
+    except ValueError:
+        raise lms_error("lms.invalid_config", field="base_url", reason="url") from None
+    port = f":{port_number}" if port_number else ""
     return f"{scheme}://{host}{port}{path}"
 
 

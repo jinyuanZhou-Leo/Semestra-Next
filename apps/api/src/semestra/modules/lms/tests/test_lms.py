@@ -553,3 +553,18 @@ async def test_refresh_survives_a_broken_connection(
         rows = {r.id: r for r in await ctx.db.scalars(select(LmsConnection))}
     assert rows[first["id"]].status == "connected"
     assert rows[second["id"]].last_error_code == "lms.invalid_credentials"
+
+
+async def test_course_import_links_only_through_the_current_binding(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    started = await api.call(
+        "POST", f"/programs/{program_id}/lms/imports:courses",
+        json={"external_course_ids": ["101"], "term_id": term_id},
+    )  # fmt: skip
+    # The Program moves to another connection before the review is saved.
+    other = await api.connection(display_name="Other")
+    await api.bind(program_id, other["id"])
+    done = await api.commit(started["session_id"])
+    assert done["failed"] == 0
+    courses = await api.call("GET", f"/programs/{program_id}/lms/courses")
+    assert all(c["linked_course_id"] is None for c in courses["items"])
