@@ -10,7 +10,13 @@ from fastapi import FastAPI
 
 from semestra.core.context import Ctx
 from semestra.core.jobs import periodic
-from semestra.modules.imports import capabilities, jobs, models, subscribers  # noqa: F401
+from semestra.modules.imports import (  # noqa: F401
+    capabilities,
+    jobs,
+    models,
+    portability,
+    subscribers,
+)
 from semestra.modules.imports.service import CommitHook, cleanup, register_commit_hook
 
 __all__ = ["CommitHook", "register", "register_commit_hook"]

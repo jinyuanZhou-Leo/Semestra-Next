@@ -28,6 +28,7 @@ from semestra.modules.grading.models import (
     GradingCourseResult,
     GradingScale,
 )
+from semestra.modules.imports.models import ImportsItem, ImportsSession, ImportsUpload
 from semestra.modules.layouts.models import (
     LayoutsBoard,
     LayoutsCardSetting,
@@ -104,7 +105,14 @@ async def populate(
     )
     task_list = TasksList(**u, program_id=program.id, name="Errands")
     folder = FilesFolder(**u, course_id=course.id, name="Lectures")
-    db.add_all([category, meeting, card, provider, task_list, folder])
+    import_session = ImportsSession(
+        **u,
+        program_id=program.id,
+        source_kind="ics",
+        target={"program_id": program.id},
+        status="review",
+    )
+    db.add_all([category, meeting, card, provider, task_list, folder, import_session])
     await db.flush()
     # A link: a stored file needs storage, see `test_course_files_travel_with_their_contents`.
     link = FilesItem(
@@ -212,6 +220,17 @@ async def populate(
                 created_at=NOW,
             ),
             HabitCheckin(**u, instance_id=card.instance_id, day=date(2026, 1, 14)),
+            ImportsItem(**u, session_id=import_session.id, type="course", data={"code": "APS100"}),
+            ImportsUpload(
+                **u,
+                session_id=import_session.id,
+                storage_key=f"users/{user_id}/imports/x",
+                filename="timetable.ics",
+                mime_type="text/calendar",
+                size_bytes=10,
+                sha256="0" * 64,
+                created_at=NOW,
+            ),
             TasksItem(
                 **u,
                 program_id=program.id,
