@@ -45,7 +45,7 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   const terms: TermGradePoint[] = data.terms
   if (terms.every((t) => t.gpa === null)) {
     return (
-      <Empty>
+      <Empty className="border-0 p-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <ChartLine aria-hidden />

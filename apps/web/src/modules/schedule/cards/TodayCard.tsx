@@ -25,7 +25,7 @@ export default function TodayCard({ scope, size }: CardProps) {
   const items = today.items.filter((o) => !termId || !o.meta?.term_id || o.meta.term_id === termId)
   if (items.length === 0) {
     return (
-      <Empty>
+      <Empty className="border-0 p-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <CalendarCheck aria-hidden />

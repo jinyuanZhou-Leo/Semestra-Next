@@ -43,7 +43,7 @@ export default function UpcomingCard({ scope, size }: CardProps) {
     .slice(0, LIMIT[size] ?? 8)
   if (rows.length === 0) {
     return (
-      <Empty>
+      <Empty className="border-0 p-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <CalendarClock aria-hidden />

@@ -145,7 +145,7 @@ test('a Program without terms says so once in the sidebar, with a single way to 
   world.courses = []
   mount('/p/p1')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(await within(nav).findByText('No terms yet.')).toBeInTheDocument()
+  expect(await within(nav).findByText('No terms yet')).toBeInTheDocument()
   expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
 })
 
