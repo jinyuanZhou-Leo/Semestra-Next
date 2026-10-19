@@ -4,7 +4,8 @@ import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { GpaValue } from '../components/GpaValue'
 import { requiredText } from '../components/SummaryStrip'
-import { dueText, percentText } from '../display'
+import { AnimatedPercent } from '../components/AnimatedPercent'
+import { dueText } from '../display'
 import { useGradebook } from '../queries'
 
 /** Current or final grade, GPA, the average still needed and the next deadline (M03 §5.3). */
@@ -29,17 +30,21 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
           {s.final_percentage === null ? m.grading_current() : m.grading_final()}
         </p>
         <p className="text-3xl font-semibold tabular-nums">
-          {s.status === 'passed' || s.status === 'failed'
-            ? result.pass_fail_result === 'pass'
-              ? m.grading_pass()
-              : m.grading_fail()
-            : s.weights_ok || s.overridden || !result.gradebook_enabled
-              ? percentText(grade)
-              : '—'}
+          {s.status === 'passed' || s.status === 'failed' ? (
+            result.pass_fail_result === 'pass' ? (
+              m.grading_pass()
+            ) : (
+              m.grading_fail()
+            )
+          ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
+            <AnimatedPercent value={grade} />
+          ) : (
+            '—'
+          )}
         </p>
         <p className="text-sm text-muted-foreground">
           {letter ? `${letter} · ` : null}
-          {m.grading_gpa()} <GpaValue value={points} hidden={scale.hide_gpa} />
+          {m.grading_gpa()} <GpaValue value={points} hidden={scale.hide_gpa} animated />
         </p>
       </div>
       {size === 'm' && result.basis === 'percentage' ? (

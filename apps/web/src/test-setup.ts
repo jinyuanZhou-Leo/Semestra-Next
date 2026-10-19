@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
 import { FakeEventSource } from './test-event-source'
 
 // jsdom gaps used by input-otp and Base UI.
@@ -18,6 +19,8 @@ window.matchMedia ??= (query: string) =>
   }) as MediaQueryList
 // jsdom prints "not implemented" for scrolling, which the router does on every navigation.
 window.scrollTo = () => {}
+// Calligraph splits text into per-character nodes; tests read the text AnimatedNumber also renders.
+vi.mock('calligraph', () => ({ Calligraph: () => null }))
 globalThis.EventSource ??= FakeEventSource as unknown as typeof EventSource
 globalThis.ResizeObserver ??= class {
   observe() {}

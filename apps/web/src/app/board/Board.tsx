@@ -34,7 +34,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import type { BoardKind, CardContribution, CardSize, Scope } from '../extensions'
-import { useHostAction } from '../commands/bus'
+import { useHasHostAction, useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
 import { useCards, useInstalledPluginsReady } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
@@ -163,6 +163,8 @@ function BoardView({
   const [adding, setAdding] = useState(false)
   const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
   const editing = draft !== null
+  // A tab bar on the page (every scope page, Today included) hosts the "Edit layout" button; a board rendered without one keeps its own row.
+  const navHostsEdit = useHasHostAction('nav.manage')
   const cards = drag?.preview ?? draft ?? saved
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -229,6 +231,7 @@ function BoardView({
   })
 
   useHostAction('board.edit', startEditing, !editing && canEdit)
+  useHostAction('board.shown', () => {}, !editing)
   useHostAction(
     'board.add',
     () => {
@@ -382,61 +385,63 @@ function BoardView({
 
   return (
     <div className="space-y-3" data-board={kind}>
-      <div className="flex min-h-8 items-center justify-end gap-2">
-        {editing ? (
-          <>
-            <p className="mr-auto text-sm text-muted-foreground">
-              {wide ? m.board_editing_hint() : m.board_editing_hint_narrow()}
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-              <Plus aria-hidden />
-              {m.board_add_card()}
+      {editing || !navHostsEdit ? (
+        <div className="flex min-h-8 items-center justify-end gap-2">
+          {editing ? (
+            <>
+              <p className="mr-auto text-sm text-muted-foreground">
+                {wide ? m.board_editing_hint() : m.board_editing_hint_narrow()}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+                <Plus aria-hidden />
+                {m.board_add_card()}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="outline" size="icon-sm" aria-label={m.board_default_menu()} />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => void saveAsDefault()}>
+                      <LayoutTemplate aria-hidden />
+                      {m.board_default_save()}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void restoreDefault()}>
+                      {m.board_default_restore()}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => void resetDefault()}>
+                      {m.board_default_reset()}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button size="sm" onClick={finishEditing}>
+                <Check aria-hidden />
+                {m.board_done()}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startEditing}
+              disabled={!canEdit}
+              title={`${m.board_edit()} (${formatHotkey('e')})`}
+              data-tour="board-edit"
+            >
+              <Pencil aria-hidden />
+              {m.board_edit()}
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant="outline" size="icon-sm" aria-label={m.board_default_menu()} />
-                }
-              >
-                <MoreHorizontal aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => void saveAsDefault()}>
-                    <LayoutTemplate aria-hidden />
-                    {m.board_default_save()}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void restoreDefault()}>
-                    {m.board_default_restore()}
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => void resetDefault()}>
-                    {m.board_default_reset()}
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="sm" onClick={finishEditing}>
-              <Check aria-hidden />
-              {m.board_done()}
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startEditing}
-            disabled={!canEdit}
-            title={`${m.board_edit()} (${formatHotkey('e')})`}
-            data-tour="board-edit"
-          >
-            <Pencil aria-hidden />
-            {m.board_edit()}
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
 
       {cards.length === 0 && !editing ? (
         <Empty>

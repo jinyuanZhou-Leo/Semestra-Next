@@ -155,6 +155,30 @@ test('a board cannot be edited while it is refetched', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Edit layout' })).toBeDisabled())
 })
 
+test('with a tab bar on the page, "Edit layout" is an icon button there and not a row of its own', async () => {
+  server.use(
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
+    ),
+    http.get(`${API}/layouts/boards/term/t1`, () =>
+      HttpResponse.json(board([{ instance_id: 'c1', card_id: 'template.storage' }])),
+    ),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[template]}>
+      <ScopeNav scope={scope} />
+      <CardGrid scope={scope} />
+    </ModuleRegistry>,
+  )
+  const user = userEvent.setup()
+  const edit = await screen.findByRole('button', { name: 'Edit layout' })
+  expect(screen.getAllByRole('button', { name: 'Edit layout' })).toHaveLength(1)
+  await waitFor(() => expect(edit).toBeEnabled())
+  await user.click(edit)
+  expect(await screen.findByRole('button', { name: 'Done' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Edit layout' })).not.toBeInTheDocument()
+})
+
 test('tabs follow the saved order and leave hidden pages out', async () => {
   const second = {
     ...template,
