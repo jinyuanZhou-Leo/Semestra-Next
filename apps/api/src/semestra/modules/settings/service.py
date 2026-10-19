@@ -172,7 +172,9 @@ async def _resolved(
 ) -> ResolvedSettings:
     layers = await _layer_rows(ctx, definition, chain)
     values, sources = _effective(definition, layers)
-    above, above_sources = _effective(definition, [l for l in layers if l[0] != scope_type])
+    above, above_sources = _effective(
+        definition, [layer for layer in layers if layer[0] != scope_type]
+    )
     return ResolvedSettings(
         namespace=definition.namespace,
         scope_type=scope_type,

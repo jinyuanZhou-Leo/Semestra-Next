@@ -1,8 +1,3 @@
-import {
-  academicsCourseGetOptions,
-  academicsProgramGetOptions,
-  academicsTermGetOptions,
-} from '@semestra/api-client/react-query'
 import { useLocation, useRouterState } from '@tanstack/react-router'
 import {
   BarChart3,
@@ -23,8 +18,7 @@ import {
   UserRound,
   Wrench,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { type CSSProperties, useEffect } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -47,9 +41,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
 } from '@/ui/sidebar'
 import { useHostAction } from '../commands'
-import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
+import type { SettingsGroup, SettingsLevel } from '../extensions'
 import { useSettingsSections } from '../registry'
 import {
   CLUSTER_TITLES,
@@ -58,8 +53,10 @@ import {
   buildNavigation,
   clusterNavigation,
 } from './groups'
+import { type PathIds, type SettingsPath, scopeIdAt, useSettingsPath } from './scope-path'
+import { PATH_LEVEL_NAMES, ScopePath } from './ScopePath'
 import { SettingsSections } from './SettingsSections'
-import { useSettingsDialog } from './use-settings-dialog'
+import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
 
 const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   general: SlidersHorizontal,
@@ -82,84 +79,50 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
 
 type Params = { programId?: string; termId?: string; courseId?: string }
 
-/** The scope a settings level applies to on the page on screen; none when the page has none. */
-function scopeOf(level: SettingsLevel, { programId, termId, courseId }: Params) {
-  if (level === 'program' && programId) return { kind: 'program', programId } as const
-  if (level === 'term' && programId && termId) return { kind: 'term', programId, termId } as const
-  if (level === 'course' && programId && courseId) {
-    return { kind: 'course', programId, courseId } as const
-  }
-  return undefined
-}
-
 /** The name shown above the groups: the Program, term or course being configured. */
-function useScopeName(scope: Scope | undefined): string | undefined {
-  const program = useQuery({
-    ...academicsProgramGetOptions({
-      path: { program_id: scope?.kind === 'program' ? scope.programId : '' },
-    }),
-    enabled: scope?.kind === 'program',
-    staleTime: 60_000,
-  })
-  const term = useQuery({
-    ...academicsTermGetOptions({ path: { term_id: scope?.kind === 'term' ? scope.termId : '' } }),
-    enabled: scope?.kind === 'term',
-    staleTime: 60_000,
-  })
-  const course = useQuery({
-    ...academicsCourseGetOptions({
-      path: { course_id: scope?.kind === 'course' ? scope.courseId : '' },
-    }),
-    enabled: scope?.kind === 'course',
-    staleTime: 60_000,
-  })
-  if (scope?.kind === 'program') return program.data?.name
-  if (scope?.kind === 'term') return term.data?.name
-  if (scope?.kind === 'course') return course.data ? courseLabel(course.data) : undefined
+function scopeName(path: SettingsPath): string | undefined {
+  if (path.level === 'program') return path.program?.name
+  if (path.level === 'term') return path.term?.name
+  if (path.level === 'course') return path.course ? courseLabel(path.course) : undefined
   return undefined
 }
 
 /**
- * Settings as a dialog (M11 §5.2), shaped like shadcn's "sidebar in a dialog": the groups on the
- * left, the sections of the chosen group on the right. Account settings and the Program, term
- * and course settings share it; the level comes from `?settings=` and the scope from the page.
+ * Settings as a dialog (M11 §5.2), shaped like shadcn's "sidebar in a dialog": the level path and
+ * the groups on the left, the sections of the chosen group on the right. Account, Program, term
+ * and course settings share it; `?settings=` names the level and `&scope=` its Program, term or
+ * course, which otherwise comes from the page.
  */
 export function SettingsDialog() {
   const { target, open, close } = useSettingsDialog()
-  // The dialog sits above the pages, so the scope comes from the deepest match, not its own.
+  // The dialog sits above the pages, so the page's scope comes from the deepest match.
   const params = useRouterState({ select: (state) => state.matches.at(-1)?.params ?? {} }) as Params
-  const scope = target ? scopeOf(target.level, params) : undefined
-  // A scope level only exists on the pages of that scope.
-  const available = target !== undefined && (target.level === 'account' || scope !== undefined)
 
   // "Manage plugins" in the command palette opens the plugin group of the account settings.
   useHostAction('settings.plugins', () => open({ level: 'account', group: 'plugins' }))
 
   return (
-    <Dialog open={available} onOpenChange={(next) => !next && close()}>
-      {available ? (
+    <Dialog open={target !== undefined} onOpenChange={(next) => !next && close()}>
+      {target ? (
         <DialogContent
           className="gap-0 overflow-hidden p-0 h-[min(46rem,calc(100svh-2rem))] md:w-[72rem] md:max-w-[calc(100%-2rem)]"
           showCloseButton
         >
-          <SettingsBody level={target.level} scope={scope} groupId={target.group} />
+          <SettingsBody target={target} page={params} />
         </DialogContent>
       ) : null}
     </Dialog>
   )
 }
 
-function SettingsBody({
-  level,
-  scope,
-  groupId,
-}: {
-  level: SettingsLevel
-  scope?: Scope
-  groupId?: string
-}) {
-  const { select } = useSettingsDialog()
-  const name = useScopeName(scope)
+function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }) {
+  const { select, switchTo } = useSettingsDialog()
+  // What was picked on the level path; until then the path follows the page on screen.
+  const [picked, setPicked] = useState<PathIds | undefined>(undefined)
+  const path = useSettingsPath(target, picked ?? page)
+  const { level, scope } = path
+  const groupId = target.group
+  const name = scopeName(path)
   const sections = useSettingsSections(level)
   const groups = buildNavigation(sections, level)
   const runs = clusterNavigation(groups, level)
@@ -173,6 +136,21 @@ function SettingsBody({
     groups.find((g) => g.id === wanted) ??
     groups[0]
   const title = name ?? m.settings_title()
+
+  // Another level keeps the group on screen when that level has one with the same name.
+  const goTo = (next: SettingsLevel, ids: PathIds) => {
+    setPicked(ids)
+    const id =
+      next === 'program'
+        ? ids.programId
+        : next === 'term'
+          ? ids.termId
+          : (ids.courseId ?? undefined)
+    switchTo({ level: next, group: current?.id, scope: id })
+  }
+  const levels = (['account', 'program', 'term', 'course'] as const).filter(
+    (l) => l === 'account' || scopeIdAt(l, path) !== undefined,
+  )
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   useEffect(() => {
@@ -189,6 +167,8 @@ function SettingsBody({
       >
         <Sidebar collapsible="none" className="hidden border-r md:flex">
           <SidebarContent>
+            <ScopePath path={path} onSelect={goTo} />
+            <SidebarSeparator className="mx-3" />
             <nav aria-label={m.settings_title()}>
               {runs.map((run) => (
                 <SidebarGroup key={run.cluster ?? 'all'}>
@@ -234,7 +214,25 @@ function SettingsBody({
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            {/* Without the sidebar column, a select switches the group. */}
+            {/* Without the sidebar column, selects switch the level and the group. */}
+            <NativeSelect
+              aria-label={m.settings_path_label()}
+              className="md:hidden"
+              value={level}
+              onChange={(event) =>
+                goTo(event.target.value as SettingsLevel, {
+                  programId: path.program?.id,
+                  termId: path.term?.id,
+                  courseId: path.course?.id ?? null,
+                })
+              }
+            >
+              {levels.map((l) => (
+                <NativeSelectOption key={l} value={l}>
+                  {PATH_LEVEL_NAMES[l]()}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
             {current ? (
               <NativeSelect
                 aria-label={m.settings_title()}
@@ -259,9 +257,12 @@ function SettingsBody({
               </NativeSelect>
             ) : null}
           </header>
-          {/* Keyed by group so a new group opens at its top instead of the old scroll position. */}
-          <div key={current?.id} className="flex-1 overflow-y-auto px-4 pb-8 md:px-6">
-            {current ? (
+          {/* Keyed by scope and group: a new one opens at its top and its forms start fresh. */}
+          <div
+            key={`${level}:${scopeIdAt(level, path) ?? ''}:${current?.id ?? ''}`}
+            className="flex-1 overflow-y-auto px-4 pb-8 md:px-6"
+          >
+            {path.pending ? null : current ? (
               <div className="mx-auto max-w-3xl">
                 <SettingsSections level={level} scope={scope} group={current.id} />
               </div>
