@@ -101,19 +101,115 @@ test('/ without any Program starts onboarding', async () => {
   expect(await screen.findByRole('heading', { name: 'Welcome to Semestra' })).toBeInTheDocument()
 })
 
-test('the sidebar lists terms, the current one expanded, year-long courses in both', async () => {
+test('the sidebar shows the current term with its courses and leaves other terms out', async () => {
   mount('/p/p1')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
   expect(await within(nav).findByRole('link', { name: /APS105H1/ })).toHaveAttribute(
     'href',
     '/p/p1/c/c1?fromTerm=t2',
   )
-  // Fall is collapsed until opened; the year-long course appears there too.
-  expect(within(nav).queryAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(1)
-  await userEvent.click(within(nav).getAllByRole('button', { name: 'Show courses' })[0]!)
+  expect(within(nav).getByText('Current term')).toBeInTheDocument()
+  expect(within(nav).getByRole('link', { name: 'Winter 2026' })).toBeInTheDocument()
+  expect(within(nav).queryByRole('link', { name: 'Fall 2025' })).not.toBeInTheDocument()
+  expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(1)
+  expect(within(nav).queryByText('Pinned')).not.toBeInTheDocument()
+})
+
+test('a term the user chose as current replaces the one of today in the sidebar', async () => {
+  world.uiState['academics.current_term.p1'] = 't1'
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await within(nav).findByRole('link', { name: 'Fall 2025' })).toBeInTheDocument()
+  expect(await within(nav).findByRole('link', { name: /ESC180Y1/ })).toHaveAttribute(
+    'href',
+    '/p/p1/c/c3?fromTerm=t1',
+  )
+  expect(within(nav).queryByRole('link', { name: 'Winter 2026' })).not.toBeInTheDocument()
+})
+
+test('a chosen current term that no longer exists falls back to the term of today', async () => {
+  world.uiState['academics.current_term.p1'] = 'deleted'
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await within(nav).findByRole('link', { name: 'Winter 2026' })).toBeInTheDocument()
+})
+
+test('the Program pages are in the sidebar and have no tab bar', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await within(nav).findByRole('link', { name: 'Overview' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(within(nav).getByRole('link', { name: 'Terms & courses' })).toBeInTheDocument()
+  await screen.findByRole('heading', { level: 1, name: 'Overview' })
+  expect(document.querySelector('[data-tour="page-tabs"]')).toBeNull()
+})
+
+test('a term page keeps its tab bar and pins to the sidebar', async () => {
+  mount('/p/p1/t/t1')
+  await screen.findByRole('heading', { level: 1, name: 'Fall 2025' })
+  expect(document.querySelector('[data-tour="page-tabs"]')).not.toBeNull()
+  expect(await screen.findByRole('button', { name: 'Pin to sidebar' })).toBeInTheDocument()
+})
+
+test('the sidebar offers each entry once', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await within(nav).findByRole('link', { name: /APS105H1/ })
+  // Settings, pin and the page tabs live on the page; the current term's menu keeps only delete.
+  await userEvent.click(within(nav).getByRole('button', { name: 'More for Winter 2026' }))
+  expect(await screen.findByRole('menuitem', { name: 'Delete term' })).toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: /settings|pin|move/i })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  // New terms are made on the Terms & courses page, not from the sidebar.
+  expect(within(nav).queryByRole('link', { name: 'New term' })).not.toBeInTheDocument()
+})
+
+test('"+" adds another term to the sidebar, where it unfolds to its courses and can be unpinned', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await userEvent.click(
+    await within(nav).findByRole('button', { name: 'Add a term to the sidebar' }),
+  )
+  // The current term is already there, so only the other one is offered.
+  expect(screen.queryByRole('option', { name: /Winter 2026/ })).not.toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('option', { name: /Fall 2025/ }))
+  expect(await within(nav).findByText('Pinned')).toBeInTheDocument()
+  expect(within(nav).getByRole('link', { name: 'Fall 2025' })).toHaveAttribute('href', '/p/p1/t/t1')
+  expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(1)
+  await userEvent.click(within(nav).getByRole('button', { name: 'Show courses' }))
   await waitFor(() =>
     expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(2),
   )
+  await userEvent.click(within(nav).getByRole('button', { name: 'More for Fall 2025' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Unpin' }))
+  await waitFor(() => expect(within(nav).queryByText('Pinned')).not.toBeInTheDocument())
+})
+
+test('pinned terms and courses keep their order and move with the menu', async () => {
+  world.uiState['academics.pinned.p1'] = [
+    { kind: 'course', id: 'c2' },
+    { kind: 'term', id: 't1' },
+    // A pin of the current term waits until it stops being current; a deleted course is skipped.
+    { kind: 'term', id: 't2' },
+    { kind: 'course', id: 'gone' },
+  ]
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  const pinned = (await within(nav).findByText('Pinned')).closest('[data-slot="sidebar-group"]')
+  const rows = () =>
+    within(pinned as HTMLElement)
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+  await waitFor(() => expect(rows()).toEqual(['MAT188H1', 'Fall 2025']))
+  await userEvent.click(within(nav).getByRole('button', { name: 'More for MAT188H1' }))
+  expect(await screen.findByRole('menuitem', { name: 'Move up' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+  await waitFor(() => expect(rows()).toEqual(['Fall 2025', 'MAT188H1']))
 })
 
 test('with a single Program the Program menu still offers a new one', async () => {
@@ -124,20 +220,6 @@ test('with a single Program the Program menu still offers a new one', async () =
     'href',
     '/p/p1',
   )
-})
-
-test('the sidebar offers each entry once and leaves page tabs to the page', async () => {
-  mount('/p/p1')
-  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  await within(nav).findByRole('link', { name: /APS105H1/ })
-  // Overview is the first tab of the page; the Program header and the breadcrumbs lead back to it.
-  expect(within(nav).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument()
-  // Settings, pin and delete of a term live on the page header; the term menu keeps only delete.
-  await userEvent.click(within(nav).getAllByRole('button', { name: /^More for / })[0]!)
-  expect(await screen.findByRole('menuitem', { name: 'Delete term' })).toBeInTheDocument()
-  expect(screen.queryByRole('menuitem', { name: /settings|pin/i })).not.toBeInTheDocument()
-  await userEvent.keyboard('{Escape}')
-  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
 })
 
 test('a Program without terms says so once in the sidebar, with a single way to add one', async () => {
@@ -271,8 +353,8 @@ test('on a phone the sidebar is a drawer and other pages ask for a desktop', asy
   await userEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
   const drawer = await screen.findByRole('dialog')
   expect(await within(drawer).findByRole('link', { name: /APS105H1/ })).toBeInTheDocument()
-  // Only Today and the terms and courses: no overview or all-courses links.
-  expect(within(drawer).queryByRole('link', { name: 'All courses' })).not.toBeInTheDocument()
+  // Only Today and the terms and courses: no overview or terms & courses links.
+  expect(within(drawer).queryByRole('link', { name: 'Terms & courses' })).not.toBeInTheDocument()
   await act(async () => {
     await userEvent.click(within(drawer).getByRole('link', { name: /APS105H1/ }))
   })

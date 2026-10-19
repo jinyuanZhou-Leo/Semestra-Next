@@ -78,7 +78,7 @@ test('the settings dialog groups sections in a navigation and shows the chosen g
     'page',
   )
   expect(within(nav).getByRole('button', { name: 'About' })).toBeInTheDocument()
-  // Sessions and access tokens moved out of Account into Security; groups sit under headings.
+  // Sessions and API tokens moved out of Account into Security; groups sit under headings.
   expect(within(nav).getByRole('button', { name: 'Security' })).toBeInTheDocument()
   expect(within(nav).getByText('Personal')).toBeInTheDocument()
   expect(within(nav).getByText('System')).toBeInTheDocument()

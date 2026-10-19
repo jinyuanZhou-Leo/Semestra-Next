@@ -59,11 +59,6 @@ export function invalidateAcademics(queryClient: QueryClient) {
   })
 }
 
-/** The term that is current now (`is_current`), else the first. */
-export function currentTerm(terms: readonly Term[] | undefined): Term | undefined {
-  return terms?.find((t) => t.is_current) ?? terms?.[0]
-}
-
 /** Courses of one term in the order of the term's list (the server already sorted them). */
 export function coursesOfTerm(courses: readonly Course[], termId: string): Course[] {
   return courses.filter((c) => c.term_ids.includes(termId))

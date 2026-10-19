@@ -1,9 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AllCoursesPage } from '@/modules/academics/pages/AllCoursesPage'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/_authed/p/$programId/courses')({ component: AllCourses })
-
-function AllCourses() {
-  const { programId } = Route.useParams()
-  return <AllCoursesPage programId={programId} />
-}
+/** The old "All courses" page is now the courses tab of "Terms & courses". */
+export const Route = createFileRoute('/_authed/p/$programId/courses')({
+  beforeLoad: ({ params }) => {
+    throw redirect({ href: `/p/${params.programId}/academics?tab=courses`, replace: true })
+  },
+})

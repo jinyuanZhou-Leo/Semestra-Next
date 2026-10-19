@@ -29,19 +29,6 @@
       ],
       "cards": [
         {
-          "id": "academics.pinned",
-          "scopes": [
-            "program"
-          ],
-          "sizes": [
-            "m",
-            "xl"
-          ],
-          "default_size": "m",
-          "multiple": false,
-          "settings_schema": null
-        },
-        {
           "id": "academics.terms",
           "scopes": [
             "program"
@@ -83,16 +70,6 @@
         }
       ],
       "default_board": {
-        "program": [
-          {
-            "card": "academics.pinned",
-            "size": "m"
-          },
-          {
-            "card": "academics.terms",
-            "size": "l"
-          }
-        ],
         "term": [
           {
             "card": "academics.termCourses",
