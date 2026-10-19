@@ -9,8 +9,9 @@ import {
   MoreHorizontal,
   Plus,
   Search,
+  MessageCircle,
+  PanelRight,
   Settings,
-  Sparkles,
 } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
 import { openCommandPalette, useHostAction } from '@/app/commands'
@@ -47,6 +48,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -58,6 +60,8 @@ import { CreateProgramDialog } from '../components/CreateProgramDialog'
 import { programPath, termsAndCoursesPath } from '../paths'
 import { usePrograms } from '../queries'
 import { SidebarTerms } from './SidebarTerms'
+
+const ASSISTANT_PAGE = /\/assistant(\/|$)/
 
 /** One link of the main navigation; on the icon rail it shows its label as a tooltip. */
 function NavItem({
@@ -210,24 +214,59 @@ function AccountMenu() {
   )
 }
 
-/** Opens and closes the assistant panel (M12); the interface tour points at it. */
-function AssistantNavItem({ assistant }: { assistant: AssistantContribution }) {
+/**
+ * The assistant (M12): the row opens its full page; the small button on its right opens or closes
+ * the side panel (also `Cmd/Ctrl + J`). The interface tour points at the row.
+ */
+function AssistantNavItem({
+  assistant,
+  programId,
+  active,
+  onNavigate,
+}: {
+  assistant: AssistantContribution
+  programId: string
+  active: boolean
+  onNavigate: () => void
+}) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
   const ctx = useCommandContext()
   const label = m.academics_nav_assistant()
+  const panelLabel = open ? m.assistant_close_panel() : m.assistant_open_in_panel()
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         data-tour="assistant"
-        tooltip={`${label} (${formatHotkey('mod+j')})`}
-        isActive={open}
-        aria-pressed={open}
-        onClick={() => assistant.open(ctx)}
+        tooltip={label}
+        isActive={active}
+        render={
+          <HistoryLink
+            href={`${programPath(programId)}/assistant`}
+            onClick={onNavigate}
+            aria-current={active ? 'page' : undefined}
+          />
+        }
       >
-        <Sparkles aria-hidden />
+        <MessageCircle aria-hidden />
         <span className="truncate">{label}</span>
-        <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">{formatHotkey('mod+j')}</Kbd>
       </SidebarMenuButton>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <SidebarMenuAction
+              aria-label={panelLabel}
+              aria-pressed={open}
+              className="aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground"
+              onClick={() => assistant.open(ctx)}
+            />
+          }
+        >
+          <PanelRight aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
+        </TooltipContent>
+      </Tooltip>
     </SidebarMenuItem>
   )
 }
@@ -279,7 +318,14 @@ export function AppSidebar({ programId }: { programId: string }) {
                     </Kbd>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {assistant ? <AssistantNavItem assistant={assistant} /> : null}
+                {assistant ? (
+                  <AssistantNavItem
+                    assistant={assistant}
+                    programId={programId}
+                    active={ASSISTANT_PAGE.test(pathname)}
+                    onNavigate={onNavigate}
+                  />
+                ) : null}
               </SidebarMenu>
             </SidebarGroup>
           )}

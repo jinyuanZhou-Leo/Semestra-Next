@@ -24,7 +24,7 @@ from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.modules.agent import history, service, skills, tools
-from semestra.modules.agent.context import system_prompt
+from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.models import AgentProposal, AgentSession
 from semestra.modules.agent.runtime import agent_ctx
 from semestra.modules.ai import Completion, Message, ToolCall, wrap_untrusted
@@ -183,7 +183,9 @@ def _meta(
 
 @dataclass
 class Prepared:
-    system: str
+    system: list[str]
+    """The fixed instructions, then the work context (see `context`), as two system messages
+    so the fixed part is a byte-identical prefix on every request."""
     messages: list[Message]
     tools: list[Any] | None
     model: Any
@@ -197,6 +199,10 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
     status = {p.call_id: p.status for p in props}
     st = dict(session.state or {})
     model = await rt.chat_model(ctx)
+    work = await work_context(ctx, ctx.scope)
+
+    def stamp(at: Any) -> str:
+        return sent_note(at, work.timezone)
 
     async def load(att: Any) -> bytes:
         return await service.read_attachment(ctx, att)
@@ -216,6 +222,7 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
         load=load,
         reads_pdf=model.reads_pdf,
         summary=st.get("summary"),
+        stamp=stamp,
     )
     window = ai_catalog.context_window(model.model)
     cut = history.compaction_cut(current)
@@ -249,6 +256,7 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
                 load=load,
                 reads_pdf=model.reads_pdf,
                 summary=st["summary"],
+                stamp=stamp,
             )
     available = await registry.available(ctx, "agent")
     bound = (
@@ -256,7 +264,7 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
         if model.supports_tools
         else None
     )
-    return Prepared(await system_prompt(ctx, ctx.scope), msgs, bound, model)
+    return Prepared([STATIC_PROMPT, work.text], msgs, bound, model)
 
 
 async def _title(state: State, user_id: str, session_id: str) -> str | None:
@@ -318,7 +326,9 @@ async def _stream(
     str when stopped). A stop is noticed while waiting for the next chunk, not only after it."""
     text = ""
     chunks = aiter(
-        prepared.model.stream([Message.system(prepared.system), *prepared.messages], prepared.tools)
+        prepared.model.stream(
+            [*(Message.system(s) for s in prepared.system), *prepared.messages], prepared.tools
+        )
     )
     stopped = asyncio.ensure_future(cancel.wait())
     try:

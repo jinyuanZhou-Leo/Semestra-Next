@@ -63,7 +63,7 @@ async def session_get(ctx: Ctx, inp: SessionIdInput) -> AgentSessionDetail:
 @capability(
     name="agent.session.create",
     summary="Start a new conversation.",
-    description="The page scope (Program, term, course) is the conversation's context.",
+    description="Where the assistant works: a Program or one of its terms.",
     effect="write",
     http=Http("POST", "/agent/sessions"),
     expose=HTTP_ONLY,
@@ -75,7 +75,7 @@ async def session_create(ctx: Ctx, inp: AgentSessionCreateInput) -> AgentSession
 
 @capability(
     name="agent.session.update",
-    summary="Rename, pin, archive a conversation or change its context.",
+    summary="Rename, pin, archive a conversation or change where it works.",
     description="Only the fields sent are changed.",
     effect="write",
     http=Http("PATCH", "/agent/sessions/{id}"),

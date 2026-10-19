@@ -1,6 +1,6 @@
-"""Streaming routes (M12 §4): sending a message, deciding proposals and regenerating answer
-with server-sent events, plus attachment upload. The SSE routes are left out of the OpenAPI
-schema; the web client reads them with `fetch` (see web `modules/assistant/stream.ts`)."""
+"""Streaming routes (M12 §4): sending, editing a message, deciding proposals and regenerating
+an answer with server-sent events, plus attachment upload. The SSE routes are left out of the
+OpenAPI schema; the web client reads them with `fetch` (see web `modules/assistant/stream.ts`)."""
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
@@ -30,6 +30,7 @@ from semestra.modules.agent.schemas import (
     DecideBody,
     DecideManyBody,
     Decision,
+    EditMessageBody,
     SendMessageBody,
 )
 
@@ -206,6 +207,31 @@ async def regenerate(
     claim = rt.claim(ctx.user_id, session.id)
     try:
         await _drop_last_answer(ctx, session, message_id)
+    except BaseException:
+        claim.release()
+        raise
+    state = request.app.state
+    await ctx.db.close()
+    return _respond(_events(state, claim), claim)
+
+
+@router.post("/agent/sessions/{session_id}/messages/{message_id}:edit", include_in_schema=False)
+async def edit_message(
+    session_id: str,
+    message_id: str,
+    body: EditMessageBody,
+    request: Request,
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+) -> EventSourceResponse:
+    """Replaces the text of one of the user's messages, drops everything after it (messages and
+    proposals) and answers again. The slot is held from the edit to the end of the answer."""
+    rt = _runtime(request)
+    session = await service.get_session_row(ctx, session_id)
+    await _check_ai(ctx, rt)
+    claim = rt.claim(ctx.user_id, session.id)
+    try:
+        await service.edit_message(ctx, session, message_id, body.text)
+        await ctx.db.commit()
     except BaseException:
         claim.release()
         raise

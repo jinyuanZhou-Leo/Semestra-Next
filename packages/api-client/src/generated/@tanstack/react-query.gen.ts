@@ -1350,7 +1350,7 @@ export const agentSessionListOptions = (options?: Options<AgentSessionListData>)
 /**
  * Start a new conversation.
  *
- * The page scope (Program, term, course) is the conversation's context.
+ * Where the assistant works: a Program or one of its terms.
  */
 export const agentSessionCreateMutation = (options?: Partial<Options<AgentSessionCreateData>>): UseMutationOptions<AgentSessionCreateResponse, AgentSessionCreateError, Options<AgentSessionCreateData>> => {
     const mutationOptions: UseMutationOptions<AgentSessionCreateResponse, AgentSessionCreateError, Options<AgentSessionCreateData>> = {
@@ -1406,7 +1406,7 @@ export const agentSessionGetOptions = (options: Options<AgentSessionGetData>) =>
 });
 
 /**
- * Rename, pin, archive a conversation or change its context.
+ * Rename, pin, archive a conversation or change where it works.
  *
  * Only the fields sent are changed.
  */

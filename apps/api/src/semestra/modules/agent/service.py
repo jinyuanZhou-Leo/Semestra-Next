@@ -201,6 +201,48 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
     )
 
 
+def _has_content(row: AgentMessage) -> bool:
+    """A user row the person wrote (rows of only `note` blocks are late tool results)."""
+    return row.role == "user" and any(b.get("type") != "note" for b in row.content)
+
+
+async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: str) -> None:
+    """Replaces the text of one of the user's messages and drops everything after it: later
+    messages and their proposals (pending cards included). Changes that already ran stay; the
+    conversation simply continues from the edited message. Skill and attachments are kept."""
+    rows = await messages(ctx, session.id)
+    index = next((i for i, r in enumerate(rows) if r.id == message_id and _has_content(r)), None)
+    if index is None:
+        raise not_found()
+    row = rows[index]
+    text = text.strip()
+    blocks = [dict(b) for b in row.content]
+    at = next((i for i, b in enumerate(blocks) if b.get("type") == "text"), None)
+    if at is None:
+        at = next((i + 1 for i, b in enumerate(blocks) if b.get("type") == "skill"), 0)
+    else:
+        blocks.pop(at)
+    if text:
+        blocks.insert(at, {"type": "text", "text": text})
+    if not any(b.get("type") != "note" for b in blocks):
+        raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])
+
+    dropped = [r.id for r in rows[index + 1 :]]
+    if dropped:
+        await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(dropped)))
+        await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(dropped)))
+    row.content = blocks
+    row.created_at = ctx.now  # what the `[Sent …]` note shows
+    st = dict(session.state or {})
+    if st.get("summarized_until") and st["summarized_until"] not in {r.id for r in rows[:index]}:
+        # The summary covered messages that are gone or changed.
+        st.pop("summary", None)
+        st.pop("summarized_until", None)
+        session.state = st
+    session.updated_at = ctx.now
+    await ctx.db.flush()
+
+
 # --- proposals -----------------------------------------------------------------------------
 
 

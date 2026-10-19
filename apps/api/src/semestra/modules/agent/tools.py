@@ -108,16 +108,22 @@ def tool_spec(cap: Capability) -> Tool:
 
 
 def bound_tools(available: list[Capability], loaded: list[str]) -> list[Tool]:
-    """Core tools, loaded tools and the meta tools, in a stable order."""
+    """Core tools, the meta tools, then loaded tools in the order they were loaded. Loading a
+    tool only appends to the list, so the tool definitions before it stay a cacheable prefix."""
     by_name = {c.name: c for c in available}
-    names = [c.name for c in core_capabilities(available)]
-    names += [n for n in loaded if n in by_name and n not in names]
-    return [tool_spec(by_name[n]) for n in names] + list(META_SPECS.values())
+    core = [c.name for c in core_capabilities(available)]
+    extra = [n for n in loaded if n in by_name and n not in core]
+    return (
+        [tool_spec(by_name[n]) for n in core]
+        + list(META_SPECS.values())
+        + [tool_spec(by_name[n]) for n in extra]
+    )
 
 
 def load(loaded: list[str], names: list[str]) -> list[str]:
-    """Adds `names` as most recently used, dropping the least recently used beyond the limit."""
-    out = [n for n in loaded if n not in names] + list(dict.fromkeys(names))
+    """Appends the names not loaded yet; beyond the limit the earliest loaded are dropped.
+    Already loaded tools keep their place (reordering them would break the cached prefix)."""
+    out = list(loaded) + [n for n in dict.fromkeys(names) if n not in loaded]
     return out[-LOADED_LIMIT:]
 
 

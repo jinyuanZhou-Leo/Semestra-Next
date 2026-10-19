@@ -13,7 +13,9 @@ import {
   Copy,
   FileText,
   ImageIcon,
+  MessageCircle,
   MessageSquareText,
+  Pencil,
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
@@ -43,6 +45,13 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupText,
+  InputGroupTextarea,
+} from '@/ui/input-group'
 import { Message, MessageContent, MessageFooter } from '@/ui/message'
 import {
   MessageScroller,
@@ -94,16 +103,26 @@ function suggestions(scope: AgentScope | null): (() => string)[] {
 function IconAction({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string
   onClick: () => void
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+          />
+        }
       >
         {children}
       </TooltipTrigger>
@@ -129,7 +148,41 @@ function CopyAction({ text }: { text: string }) {
   )
 }
 
-function UserMessage({ item }: { item: Extract<ViewItem, { kind: 'user' }> }) {
+/** Shown on hover (or keyboard focus); `always` for the latest answer. */
+const hoverActions =
+  'opacity-0 transition-opacity group-hover/message:opacity-100 group-focus-within/message:opacity-100'
+
+function UserMessage({
+  item,
+  canEdit,
+  onEdit,
+}: {
+  item: Extract<ViewItem, { kind: 'user' }>
+  canEdit: boolean
+  /** Resolves false when the edit could not be sent; the editor stays open. */
+  onEdit: (text: string) => Promise<boolean>
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const editing = draft !== null
+  const editor = useRef<HTMLTextAreaElement>(null)
+
+  // The editor opens with the caret after the text.
+  useEffect(() => {
+    const field = editor.current
+    if (!editing || !field) return
+    field.focus()
+    field.setSelectionRange(field.value.length, field.value.length)
+  }, [editing])
+  const canSave =
+    draft !== null &&
+    draft.trim() !== item.text.trim() &&
+    (draft.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+
+  async function save() {
+    if (draft === null || !canSave) return
+    if (await onEdit(draft)) setDraft(null)
+  }
+
   return (
     <Message align="end">
       <MessageContent>
@@ -153,11 +206,59 @@ function UserMessage({ item }: { item: Extract<ViewItem, { kind: 'user' }> }) {
             ))}
           </AttachmentGroup>
         ) : null}
-        {item.text ? (
+        {editing ? (
+          <InputGroup className="w-full rounded-2xl">
+            <InputGroupTextarea
+              aria-label={m.assistant_edit_label()}
+              className="max-h-48 min-h-12"
+              value={draft}
+              ref={editor}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setDraft(null)
+                } else if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  void save()
+                }
+              }}
+            />
+            <InputGroupAddon align="block-end" className="justify-between gap-2">
+              <InputGroupText className="text-xs">{m.assistant_edit_hint()}</InputGroupText>
+              <div className="flex gap-1.5">
+                <InputGroupButton variant="ghost" size="sm" onClick={() => setDraft(null)}>
+                  {m.common_cancel()}
+                </InputGroupButton>
+                <InputGroupButton
+                  variant="default"
+                  size="sm"
+                  disabled={!canSave || !canEdit}
+                  onClick={() => void save()}
+                >
+                  {m.assistant_send()}
+                </InputGroupButton>
+              </div>
+            </InputGroupAddon>
+          </InputGroup>
+        ) : item.text ? (
           <Bubble align="end" variant="muted">
             <BubbleContent className="whitespace-pre-wrap">{item.text}</BubbleContent>
           </Bubble>
         ) : null}
+        {editing ? null : (
+          <div className={cn('flex justify-end gap-0.5', hoverActions)}>
+            {item.text ? <CopyAction text={item.text} /> : null}
+            <IconAction
+              label={m.assistant_edit()}
+              disabled={!canEdit}
+              onClick={() => setDraft(item.text)}
+            >
+              <Pencil />
+            </IconAction>
+          </div>
+        )}
       </MessageContent>
     </Message>
   )
@@ -169,12 +270,16 @@ function AssistantMessage({
   busy,
   onDecide,
   footer,
+  latest,
 }: {
   item: Extract<ViewItem, { kind: 'assistant' }>
   citations: ReturnType<typeof citationsOf>
   busy: boolean
   onDecide: (decisions: Decision[]) => void
+  /** Copy and regenerate under the answer; `null` for a step without text. */
   footer: React.ReactNode
+  /** The latest answer shows its actions without hovering. */
+  latest: boolean
 }) {
   const pending = item.proposals.filter((p) => p.status === 'pending')
   return (
@@ -204,8 +309,12 @@ function AssistantMessage({
             onDecide={(decision) => onDecide([decision])}
           />
         ))}
+        {footer ? (
+          <MessageFooter className={cn('-mt-1 -ml-2 gap-0.5 px-0', latest ? null : hoverActions)}>
+            {footer}
+          </MessageFooter>
+        ) : null}
       </MessageContent>
-      {footer ? <MessageFooter className="gap-0.5 px-0">{footer}</MessageFooter> : null}
     </Message>
   )
 }
@@ -216,7 +325,7 @@ function AiSetupNeeded() {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <Sparkles aria-hidden />
+          <MessageCircle aria-hidden />
         </EmptyMedia>
         <EmptyTitle>{m.assistant_ai_missing_title()}</EmptyTitle>
         <EmptyDescription>{m.assistant_ai_missing_description()}</EmptyDescription>
@@ -259,7 +368,9 @@ export function Conversation({
   const queryClient = useQueryClient()
   const ai = useAiStatus('chat')
   const chat = useChat(sessionId, onCreated)
-  const [newScope, setNewScope] = useState<AgentScope | null>(pageScope)
+  // A new conversation works where the page is until the user picks another place.
+  const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
+  const newScope = chosenScope ?? pageScope
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
@@ -279,9 +390,9 @@ export function Conversation({
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [questionKey, ai.available])
 
-  async function changeScope(next: AgentScope | null) {
+  async function changeScope(next: AgentScope) {
     if (!sessionId) {
-      setNewScope(next)
+      setChosenScope(next)
       return
     }
     await agentSessionUpdate({ path: { id: sessionId }, body: { scope: next } })
@@ -448,16 +559,27 @@ export function Conversation({
                     scrollAnchor={item.kind === 'user'}
                   >
                     {item.kind === 'user' ? (
-                      <UserMessage item={item} />
+                      <UserMessage
+                        item={item}
+                        canEdit={!chat.generating && !item.id.startsWith('pending-')}
+                        onEdit={(text) => chat.edit(item.id, text)}
+                      />
                     ) : (
                       <AssistantMessage
                         item={item}
                         citations={citations}
                         busy={chat.generating}
                         onDecide={(decisions) => void chat.decide(decisions)}
+                        latest={item === lastAssistant}
                         footer={
-                          item === lastAssistant && !chat.generating ? (
-                            <>
+                          item.text || regenerateId === item.id ? (
+                            // Kept in the layout while the answer streams, so nothing jumps.
+                            <div
+                              className={cn(
+                                'flex gap-0.5',
+                                item === lastAssistant && chat.generating && 'invisible',
+                              )}
+                            >
                               {item.text ? <CopyAction text={item.text} /> : null}
                               {regenerateId === item.id ? (
                                 <IconAction
@@ -467,7 +589,7 @@ export function Conversation({
                                   <RotateCcw />
                                 </IconAction>
                               ) : null}
-                            </>
+                            </div>
                           ) : null
                         }
                       />
@@ -528,7 +650,7 @@ export function Conversation({
           header={
             <ScopeChip
               scope={scope}
-              pageScope={pageScope}
+              programId={pageScope?.program_id}
               onChange={(next) => void changeScope(next)}
             />
           }

@@ -89,7 +89,7 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     await agent.send(
         session["id"], "what is this?", attachment_ids=[image["id"], note["id"], pdf["id"]]
     )
-    parts = model.requests[0][0][1].content
+    parts = model.requests[0][0][2].content
     assert any(isinstance(p, Image) and p.data == png for p in parts)
     assert any(isinstance(p, Document) for p in parts)
     wrapped = next(p.text for p in parts if isinstance(p, Text) and "notes.txt" in p.text)
@@ -116,7 +116,7 @@ async def test_pdfs_become_a_note_for_models_without_pdf_input(
     monkeypatch.setattr(model, "reads_pdf", False, raising=False)
     model.then(say("Please paste the text."))
     await agent.send(session["id"], "summarize", attachment_ids=[pdf["id"]])
-    parts = model.requests[0][0][1].content
+    parts = model.requests[0][0][2].content
     assert not any(isinstance(p, Document) for p in parts)
     assert any(isinstance(p, Text) and "syllabus.pdf" in p.text for p in parts)
 

@@ -16,8 +16,9 @@ import { Conversation } from './components/Conversation'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
 import { mcpConfig } from './settings/McpSection'
+import { usePageScope } from './scope'
 import { parseSse } from './stream'
-import { applyEvent, buildItems, canRegenerate } from './transcript'
+import { applyEvent, buildItems, canRegenerate, withEditedMessage } from './transcript'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -391,7 +392,7 @@ test('rejecting asks for an optional reason and sends it', async () => {
   )
 })
 
-test('/ picks a skill and @ refers to a course', async () => {
+test('/ picks a skill and @ refers to a course, which works in its term', async () => {
   srv.reply = () => sse([])
   renderConversation({ program_id: 'p1', term_id: null, course_id: null })
   const input = await messageInput()
@@ -403,15 +404,102 @@ test('/ picks a skill and @ refers to a course', async () => {
   await userEvent.type(input, 'for @MAT')
   await userEvent.keyboard('{Enter}')
   expect(input).toHaveValue('for @MAT188H1 ')
-  expect(await screen.findByRole('button', { name: /Context: MAT188H1/ })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Working in: Winter 2026' })).toBeInTheDocument()
 
   await userEvent.type(input, '{Enter}')
   await waitFor(() => expect(srv.sent).toHaveLength(1))
   expect(srv.sent[0]?.body).toMatchObject({
     skill: 'record-grades',
     text: 'for @MAT188H1 ',
-    scope: { program_id: 'p1', course_id: 'c2' },
+    scope: { program_id: 'p1', term_id: 't2', course_id: null },
   })
+})
+
+test('the scope menu offers the whole program and the terms, the current one first', async () => {
+  srv.reply = () => sse([])
+  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  await userEvent.click(await screen.findByRole('button', { name: /^Working in: / }))
+  const items = await screen.findAllByRole('menuitemradio')
+  expect(items.map((item) => item.textContent)).toEqual([
+    'Whole program',
+    'Winter 2026Current',
+    'Fall 2025',
+  ])
+  expect(items[0]).toHaveAttribute('aria-checked', 'true')
+  await userEvent.click(items[2] as HTMLElement)
+  expect(await screen.findByRole('button', { name: 'Working in: Fall 2025' })).toBeInTheDocument()
+
+  await userEvent.type(await messageInput(), 'hi{Enter}')
+  await waitFor(() => expect(srv.sent).toHaveLength(1))
+  expect(srv.sent[0]?.body.scope).toEqual({ program_id: 'p1', term_id: 't1', course_id: null })
+})
+
+test('on a course page the assistant works in the course’s term', async () => {
+  function Probe() {
+    const scope = usePageScope({ kind: 'course', programId: 'p1', courseId: 'c3' })
+    return <span>{scope?.term_id ?? 'program'}</span>
+  }
+  renderWithRouter(<Probe />)
+  // The year-long course runs in both terms; the current one wins.
+  expect(await screen.findByText('t2')).toBeInTheDocument()
+})
+
+test('editing a message sends the new text and drops what came after it', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Lab 3 on Friday.' }]),
+    msg('u2', 'user', [{ type: 'text', text: 'And next week?' }]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'Nothing.' }]),
+  ]
+  srv.reply = () => {
+    srv.detail.messages = [
+      msg('u1', 'user', [{ type: 'text', text: 'What is due this week?' }]),
+      msg('a3', 'assistant', [{ type: 'text', text: 'Only Lab 3.' }]),
+    ]
+    return sse([
+      ['message_start', { message_id: 'a3' }],
+      ['text_delta', { message_id: 'a3', text: 'Only Lab 3.' }],
+      ['message_end', { message_id: 'a3' }],
+    ])
+  }
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await screen.findByText('Nothing.')
+  const [first] = await screen.findAllByRole('button', { name: 'Edit' })
+  await userEvent.click(first as HTMLElement)
+  const editor = screen.getByRole('textbox', { name: 'Edit message' })
+  expect(editor).toHaveValue('What is due?')
+  expect(editor).toHaveFocus()
+  await userEvent.type(editor, '{Backspace} this week?{Enter}')
+
+  expect(await screen.findByText('Only Lab 3.')).toBeInTheDocument()
+  expect(srv.sent[0]).toEqual({
+    path: '/agent/sessions/s1/messages/u1:edit',
+    body: { text: 'What is due this week?' },
+  })
+  expect(screen.queryByText('And next week?')).not.toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+})
+
+test('an edit keeps the skill and attachments and forgets later proposals', () => {
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [
+        { type: 'skill', name: 'record-grades', title: { en: 'Record grades' } },
+        { type: 'text', text: 'Lab 3' },
+        { type: 'image_ref', attachment_id: 'f1', name: 'a.png' },
+      ]),
+      msg('a1', 'assistant', [{ type: 'tool_call', id: 'call1', name: 'x', args: {} }]),
+    ],
+    proposals: [proposal()],
+    attachments: [],
+    generating: false,
+  }
+  const edited = withEditedMessage(detail, 'u1', 'Lab 4')
+  expect(edited.messages).toHaveLength(1)
+  expect(edited.messages[0]?.content.map((b) => b.type)).toEqual(['skill', 'text', 'image_ref'])
+  expect(edited.messages[0]?.content[1]).toEqual({ type: 'text', text: 'Lab 4' })
+  expect(edited.proposals).toEqual([])
 })
 
 test('a suggestion in an empty existing conversation keeps its scope', async () => {

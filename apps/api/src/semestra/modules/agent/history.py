@@ -7,6 +7,7 @@ is told to the model as a note at the point where it happened.
 
 import json
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime
 from typing import Any
 
 from semestra.modules.agent.models import AgentAttachment, AgentMessage
@@ -89,7 +90,10 @@ async def build(
     load: LoadAttachment,
     reads_pdf: bool = True,
     summary: str | None = None,
+    stamp: Callable[[datetime], str] | None = None,
 ) -> list[Message]:
+    """`stamp` turns a user message's stored time into a note put before it. It depends only on
+    that message, so earlier messages read the same on every turn (prompt caching)."""
     out: list[Message] = []
     if summary:
         out.append(Message.user(f"[Summary of the earlier conversation]\n{summary}"))
@@ -98,6 +102,8 @@ async def build(
         row = rows[i]
         if row.role == "user":
             parts = await _user_parts(row, attachments, load, reads_pdf)
+            if parts and stamp is not None and any(b.get("type") != "note" for b in row.content):
+                parts.insert(0, Text(stamp(row.created_at)))
             if parts:
                 out.append(Message("user", parts))
             i += 1

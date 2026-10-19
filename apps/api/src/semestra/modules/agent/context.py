@@ -1,6 +1,19 @@
-"""The system prompt (M12 §3.4): today's date and week, the page scope and the reply language."""
+"""The system prompt (M12 §3.4), ordered for prompt-cache reuse: most stable first.
 
-from datetime import datetime
+1. `STATIC_PROMPT` (`prompts/system.md`): fixed instructions, no variables at all.
+2. Tool definitions (sent by the adapter; core and meta tools in a fixed order, tools loaded on
+   demand only appended, see `tools.bound_tools`).
+3. `work_context`: where the assistant works (Program or term), today's date and current term,
+   the reply language. Stable for a whole day unless the user switches the scope.
+4. The history. Each user message carries a `[Sent …]` note made from its own stored time, so
+   earlier messages never change (nothing is persisted; see `history.build`).
+
+The time of day never appears in 1-3: a minute-precise "now" there would invalidate the whole
+cached prefix every minute.
+"""
+
+from dataclasses import dataclass
+from datetime import datetime, tzinfo
 from pathlib import Path
 from string import Template
 from zoneinfo import ZoneInfo
@@ -14,8 +27,16 @@ from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.ai import UNTRUSTED_NOTICE
 
-_TEMPLATE = Template((Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8"))
+STATIC_PROMPT = Template(
+    (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
+).substitute(untrusted=UNTRUSTED_NOTICE)
 _LANGUAGES = {"en": "English", "zh-CN": "Simplified Chinese"}
+
+
+@dataclass(frozen=True)
+class WorkContext:
+    text: str
+    timezone: tzinfo
 
 
 async def _program(ctx: Ctx, scope: ScopeRef | None) -> AcademicsProgram | None:
@@ -42,6 +63,7 @@ async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRe
             parts.append(f'term "{term.name}" (term_id {term.id})')
         except AppError:
             pass
+    # Conversations started before scopes stopped at the term may still name a course.
     if scope is not None and scope.course_id:
         try:
             course = await academics.get_course_row(ctx, scope.course_id)
@@ -50,7 +72,7 @@ async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRe
         except AppError:
             pass
     if scope is None:
-        parts.append("(their only Program; no page scope)")
+        parts.append("(their only Program)")
     return ", ".join(parts) + "."
 
 
@@ -74,15 +96,23 @@ async def _term_line(ctx: Ctx, program: AcademicsProgram | None) -> str:
     )
 
 
-async def system_prompt(ctx: Ctx, scope: ScopeRef | None) -> str:
+async def work_context(ctx: Ctx, scope: ScopeRef | None) -> WorkContext:
+    """Part 3 of the prompt: changes only with the scope, the day or the interface language."""
     program = await _program(ctx, scope)
     tz = ZoneInfo(program.timezone) if program is not None else ZoneInfo("UTC")
-    now: datetime = ctx.now.astimezone(tz)
-    return _TEMPLATE.substitute(
-        language=_LANGUAGES.get(ctx.locale, "English"),
-        now=now.strftime("%A %Y-%m-%d %H:%M"),
-        timezone=str(tz),
-        term_line=await _term_line(ctx, program),
-        scope_line=await _scope_line(ctx, program, scope),
-        untrusted=UNTRUSTED_NOTICE,
+    today = ctx.now.astimezone(tz)
+    text = "\n".join(
+        [
+            "# Context",
+            f"- You work in: {await _scope_line(ctx, program, scope)}",
+            f"- Today: {today.strftime('%A %Y-%m-%d')} ({tz}).",
+            f"- {await _term_line(ctx, program)}",
+            f"- Answer in the user's interface language: {_LANGUAGES.get(ctx.locale, 'English')}.",
+        ]
     )
+    return WorkContext(text, tz)
+
+
+def sent_note(at: datetime, tz: tzinfo) -> str:
+    """The note on a user message: when it was written, in the Program's time zone."""
+    return f"[Sent {at.astimezone(tz).strftime('%a %Y-%m-%d %H:%M')}]"

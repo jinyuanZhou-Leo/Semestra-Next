@@ -1,6 +1,7 @@
 """The turn loop with a scripted model (M12 §10): reads run, writes wait for a decision."""
 
 import asyncio
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -9,6 +10,7 @@ from fastapi import FastAPI
 
 from semestra.core.errors import AppError
 from semestra.modules.agent import loop, tools
+from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, calls, events_named, say
 from semestra.modules.ai import Chunk, Text, ToolResult
 from semestra.testing import Clock
@@ -51,13 +53,56 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
 
 async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeModel):
     program, course, _ = await agent.course_with_lab()
+    term_id = course["term_ids"][0]
+    session = await agent.session({"program_id": program["id"], "term_id": term_id})
+    model.then(say("Hi"))
+    await agent.send(session["id"], "hello")
+    static, context = model.requests[0][0][:2]
+    assert static.role == context.role == "system"
+    assert text_of(static.content[0]) == STATIC_PROMPT
+    work = text_of(context.content[0])
+    assert f"term_id {term_id}" in work
+    assert "Fall 2026" in work
+    assert "Today: " in work
+
+
+async def test_old_course_scopes_still_work(agent: Agent, model: FakeModel):
+    program, course, _ = await agent.course_with_lab()
     session = await agent.session({"program_id": program["id"], "course_id": course["id"]})
     model.then(say("Hi"))
     await agent.send(session["id"], "hello")
-    system = text_of(model.requests[0][0][0].content[0])
-    assert f"course_id {course['id']}" in system
-    assert "APS105H1" in system
-    assert "Fall 2026" in system
+    work = text_of(model.requests[0][0][1].content[0])
+    assert f"course_id {course['id']}" in work
+    assert "APS105H1" in work
+
+
+async def test_the_prompt_prefix_is_stable_across_turns(
+    agent: Agent, model: FakeModel, clock: Clock
+):
+    """Fixed instructions, tools and earlier messages read the same later (prompt caching); the
+    time of day is only on each user message, taken from when it was sent."""
+    program = await agent.program()
+    session = await agent.session({"program_id": program["id"]})
+    model.then(
+        call("tools_load", {"names": ["schedule.meeting.list"]}), say("First."), say("Second.")
+    )
+    await agent.send(session["id"], "one")
+    clock.advance(minutes=7)
+    await agent.send(session["id"], "two")
+
+    first, second, third = model.requests
+    # Same system messages, and loading a tool only appended to the tool list.
+    assert first[0][:2] == third[0][:2]
+    assert [t.name for t in second[1]][: len(first[1])] == [t.name for t in first[1]]
+    assert second[1][-1].name == "schedule__meeting__list"
+    system = " ".join(text_of(p) for m in first[0][:2] for p in m.content)
+    assert re.search(r"\d{2}:\d{2}", system) is None  # no time of day before the history
+    # The first user message reads the same in the later request.
+    assert third[0][2] == first[0][2]
+    one, two = (m for m in third[0] if m.role == "user")
+    assert text_of(one.content[0]).startswith("[Sent ")
+    assert text_of(one.content[0]) != text_of(two.content[0])
+    assert text_of(two.content[1]) == "two"
 
 
 async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: FakeModel):
@@ -406,14 +451,16 @@ def test_attachment_only_turns_count_for_compaction():
     assert history.compaction_cut(rows) == 2
 
 
-def test_loaded_tools_are_lru_bounded():
+def test_loaded_tools_are_bounded_and_only_appended():
     loaded: list[str] = []
     for i in range(tools.LOADED_LIMIT + 3):
         loaded = tools.load(loaded, [f"t{i}"])
-    loaded = tools.load(loaded, ["t5"])
     assert len(loaded) == tools.LOADED_LIMIT
     assert "t0" not in loaded
-    assert loaded[-1] == "t5"
+    before = list(loaded)
+    # Loading a tool again keeps the order (a cached prompt prefix stays valid).
+    assert tools.load(loaded, ["t5"]) == before
+    assert tools.load(loaded, ["t5", "new"])[-1] == "new"
 
 
 async def test_skill_read_loads_its_tools(agent: Agent, model: FakeModel):
@@ -433,7 +480,7 @@ async def test_slash_skill_is_injected(agent: Agent, model: FakeModel):
     session = await agent.session()
     model.then(say("Which course?"))
     await agent.send(session["id"], "Lab 3 18/20", skill="record-grades")
-    first = text_of(model.requests[0][0][1].content[0])
+    first = text_of(model.requests[0][0][2].content[1])
     assert "record-grades" in first
     assert "Recording grades" in first
     assert "grading__assessment__create" in {t.name for t in model.requests[0][1]}

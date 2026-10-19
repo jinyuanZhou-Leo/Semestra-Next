@@ -8,7 +8,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { agentScope } from '../scope'
+import { usePageScope } from '../scope'
 import { panel, usePanel } from '../store'
 import { Conversation } from './Conversation'
 import { SessionList, sessionTitle } from './SessionList'
@@ -36,6 +36,7 @@ export function AssistantPanel() {
   const ctx = useCommandContext()
   const router = useRouter()
   const [historyOpen, setHistoryOpen] = useState(false)
+  const pageScope = usePageScope(ctx.scope)
   const session = useQuery({
     ...agentSessionGetOptions({ path: { id: state.sessionId ?? '' } }),
     enabled: state.sessionId !== null,
@@ -94,7 +95,7 @@ export function AssistantPanel() {
       <Conversation
         key={state.view}
         sessionId={state.sessionId}
-        pageScope={agentScope(ctx.scope)}
+        pageScope={pageScope}
         onCreated={(id) => panel.created(id)}
         question={state.question}
         onQuestionTaken={() => panel.takeQuestion()}

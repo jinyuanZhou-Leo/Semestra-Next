@@ -161,13 +161,16 @@ agent_preferences
 - **不用 LangGraph，也没有 checkpoint 文件**：LangGraph 依赖的 langchain-core / PyYAML 没有 Python 3.15 wheel（同 M06 不用 LangChain 的原因）。工具循环在 `loop.py` 里自己写：调模型 → 并行执行 read 工具（最多 4 个并发）→ 自动批准的 write 直接执行 → 其余 write/destructive 生成提案并结束本轮；用户决定后由 `decide` 接着跑。会话的运行状态（已加载工具、压缩摘要）存在 `agent_sessions.state` JSON 列，删除会话即一并删除，不需要独立的 SQLite 文件。
 - 表结构相对第 2 节的补充：`agent_sessions.state`；`agent_proposals.call_id`（对应模型的 tool call id，把结果放回正确位置）；`agent_attachments.name`（原文件名）。迁移 `0010`（与并行模块的 PR 冲突时按合并顺序重新编号）。
 - 消息内容块：`text`、`skill`、`note`、`image_ref`、`file_ref`、`tool_call`、`tool_result`、`citation`。提案在等待时，发给模型的历史里该调用的结果是"等待确认"占位；之后决定的结果作为一条备注插在实际发生的位置。超过 24 小时未决定的提案在读取时标记为 `expired`。
-- 工具暴露：`agent_core` 的 capability 直接绑定（最多 20 个），其余通过 `tools_search`（**关键词匹配**，没有用 embedding）和 `tools_load`（每会话 LRU 25 个）加载；`skills_search` / `skills_read` 读取 skill。工具名把 `.` 换成 `__`。工具结果超过 12k 字符截断。
+- 工具暴露：`agent_core` 的 capability 直接绑定（最多 20 个），其余通过 `tools_search`（**关键词匹配**，没有用 embedding）和 `tools_load`（每会话最多 25 个，按加载顺序追加，见下文缓存复用）加载；`skills_search` / `skills_read` 读取 skill。工具名把 `.` 换成 `__`。工具结果超过 12k 字符截断。
 - 每轮最多 12 次工具调用，超出的调用返回 `agent.tool_limit_reached` 并结束本轮；上下文超过模型窗口 70% 时用 `title` 用途的小模型把较早的部分总结掉（保留最近两轮）。
 - 并发：每用户同时最多 2 个生成、每会话 1 个，超出 `agent.busy`（429）。`POST /agent/sessions/{id}:stop` 是 capability `agent.session.stop`。
 - 提案预览契约：capability 可以提供 `preview(ctx, input)`，返回 `{target?, changes: [{field, before?, after}], link?: {to, page?}}`；没有时用参数生成 `changes`。M03 的 `grading.assessment.update` 已实现（考核与课程名、before → after、成绩页链接）。只有 `write` 能加入自动批准，destructive 永远不能（`common.validation`）。
 - 引用契约：工具结果里带 `citations: [{id, title?, snippet?, url?}]` 时，作为 `citation` 事件发出并保存，回答里的 `[[cite:<id>]]` 在前端渲染为角标。M07 接入时按此返回即可。
 - 附件：图片（png/jpeg/webp/gif）直接给模型；PDF 作为文档块交给支持的模型（Ollama、OpenAI 兼容服务商读不了 PDF，这时换成一行说明；M07 目前没有把页面渲染成图片的函数，有了之后可作为 `rasterize` 传入）；文本类（text/*、json、xml）用 `wrap_untrusted` 包装后内联。引用课程文件原文的工具结果（`files.search`、`files.document.read`、`files.document.outline`）与学习平台内容（公告、作业、页面、大纲），见 `tools.UNTRUSTED_RESULTS`，同样包装后再交给模型。**暂未交给 M07 解析与入库**（M07 还在开发中）。上限 10 MB，计入存储配额（模块名 `agent`）。新增错误码 `agent.attachment_unsupported`（415）。
 - 重新生成：只允许最后一个回答，且该回答没有已执行的写操作，否则 `agent.cannot_regenerate`（409）。
+- 编辑消息（UI/UX 第三轮）：`POST /agent/sessions/{id}/messages/{mid}:edit`（SSE，`{text}`）替换一条用户消息的文字（保留 skill 与附件块），删除其后的所有消息和提案（待确认的卡片一起作废），再从这条消息重新回答；不保留分支。已经执行的修改不回滚，所以不像重新生成那样拒绝。与发送、决定、重新生成一样是流式路由而不是 capability（capability 不能流式返回），编辑与回答在同一个会话槽位里完成，中间不会插进别的回合。被编辑消息的时间改为编辑时间；若压缩摘要覆盖到被删除或被改的消息，摘要清空。
+- **提示词与缓存复用**（第三轮）：按"越稳定越靠前"排列（`context.py`）：① `prompts/system.md` 固定指令，不含任何变量（`$untrusted` 是常量），并写明助手名叫 Sem / 小森；② 工具定义：核心工具 → 元工具 → 按需加载的工具，加载只追加在末尾（`tools.load` 不再按最近使用重排，超过 25 个丢最早加载的）；③ 第二条 system 消息 `work_context`：工作范围（Program 或学期，id）、今天的日期与时区、当前学期与周次、回答语言，只在换范围、跨天或换界面语言时变化；④ 历史。具体时刻不进前三段：每条用户消息前加一条 `[Sent 周几 YYYY-MM-DD HH:MM]` 注记，取自该消息自己的保存时间、不入库，因此早先的消息在之后每一轮都逐字不变（计划里写的"只附在最新一条"会让上一条在下一轮变化，从那里起缓存失效，所以改为每条都附）。各适配器把多条 system 消息拼成一个 system 文本，顺序不变；显式的缓存标记（如 Anthropic `cache_control`）属于 `ai/adapters`，本轮没有改。
+- 工作范围只到学期：新会话的 `scope` 只含 `program_id` 与可选 `term_id`；后端仍接受并展示旧会话里的 `course_id`。
 - 新增接口：`POST /agent/sessions/{id}/proposals:decide`（"全部批准"，一次决定多个）、`agent.skills.list`（`GET /agent/skills`，斜杠命令用）。SSE 路由不进 OpenAPI，前端用 `fetch` 读流（`modules/assistant/stream.ts`）。SSE 事件 `title` 在自动命名后发出。
 - Skill frontmatter 新增 `title: { en, zh-CN }`（必填，界面显示）与可选 `command`（如 `/grade`，全局唯一，测试会检查）。
 - MCP：官方 `mcp` SDK 的低层 `Server` + `StreamableHTTPSessionManager(stateless=True, json_response=True)`，**每个请求新建一个 manager**（放在应用 lifespan 里跨 task 会报 cancel scope 错误）。认证只认 `Bearer spat_…`；read 令牌只看到 read 工具；destructive 需要 write 令牌且开启 `mcp_allow_destructive`。prompts = skill，resources 为 `semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}`。
@@ -175,9 +178,12 @@ agent_preferences
 
 **前端**（`apps/web/src/modules/assistant/`）
 - 聊天界面按 shadcn/ui 的 AI Elements 写法组合（组件已由 CLI 装在 `src/ui`）：对话是 `MessageScroller` 里的 `Message`，用户消息用 `Bubble`，附件用 `Attachment`；工具调用是 `Trace` 里的一行（进行中只显示一行，结束后可展开看参数、改动或错误，参数与错误用 `CodeBlock`）；待确认的写操作是 Confirmation 写法的 `Item`（批准、修改、拒绝在 `ItemActions`），确认后变回一行步骤，展开可看 before → after 和跳转链接；引用角标是 `HoverCard`；建议问题是输入框上方一排 `Button`；输入框是 `InputGroup`。
-- 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。侧边栏在"搜索"下方有入口（`data-tour="assistant"`，`Cmd/Ctrl+J`）。
+- 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。面板组件挂载时只读一次记忆宽度作 `defaultSize`：`defaultSize` 变化会让库重新注册面板，之前每次 `onResize` 写回宽度都会打断拖动（只能拖动一步），这是"拖不动"的原因。
+- **名字与入口**（第三轮）：界面上叫「小森 / Sem」（取自 Semestra，拟人化，不突出 AI；模块 id 仍是 `assistant`），图标 `MessageCircle`。侧边栏"搜索"下方一行：点击进入全屏页 `/p/$programId/assistant`（在该页时高亮）；行尾 `SidebarMenuAction`（`PanelRight`，tooltip「在侧边栏打开 ⌘J」）开关右侧面板；`Cmd/Ctrl+J` 仍开关面板。界面导览仍指向这一行（`data-tour="assistant"`）。
+- **工作范围**（取代"上下文"标签）：输入框上方 `FolderOpen` + 范围名（"Fall 2026" 或 Program 名），菜单标题「小森在这里工作」，单选：整个学业项目 + 各学期（当前学期排第一并带「当前」标记，其余按开始日期倒序）。不能移除范围，也不再细到课程：在课程页打开时默认用课程所属学期（`usePageScope`，按 `courseTermId` 取当前学期），`@` 选课程时切换到该课程的学期。全屏页默认整个学业项目。
+- 回答的复制 / 重新生成在回答底部（`MessageFooter` 放进 `MessageContent`）；最后一条回答常显，其余悬停或键盘聚焦时显示；生成中保留占位（`invisible`），不跳动。用户消息悬停出现复制与「编辑」：原位变成输入框（Enter 发送、Esc 取消，提示"发送后，这条消息之后的对话会被删除"）。
 - 全屏页路由为 `/p/$programId/assistant/{-$sessionId}`（放在 Program 外壳内，保留侧边栏），而不是 `/assistant/$sessionId?`；新会话创建后替换 URL，不打断正在进行的回答。
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
-- 上下文标签：新会话默认用当前页面作用域；已有会话显示并修改会话自己的作用域（`agent.session.update`）。`@` 选择课程或学期时同时切换上下文。
+- 工作范围：新会话默认用当前页面的范围，用户选过之后以选择为准；已有会话显示并修改会话自己的范围（`agent.session.update`）。
 - 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
 - 设置分区（账户"AI"分组）：`assistant-approvals`（自动批准）、`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）、`assistant-tools`（工具目录）。
