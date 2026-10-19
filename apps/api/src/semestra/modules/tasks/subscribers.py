@@ -38,6 +38,6 @@ async def on_settings_updated(ctx: Ctx, event: Event) -> None:
     if event.data.get("namespace") != "tasks" or not isinstance(scope, dict):
         return
     program_id = scope.get("id")
-    if scope.get("type") == "program" and isinstance(program_id, str):
-        if await auto.enabled(ctx, program_id):
-            await auto.backfill(ctx, program_id)
+    is_program = scope.get("type") == "program" and isinstance(program_id, str)
+    if is_program and await auto.enabled(ctx, program_id):  # pyright: ignore[reportArgumentType]
+        await auto.backfill(ctx, program_id)  # pyright: ignore[reportArgumentType]

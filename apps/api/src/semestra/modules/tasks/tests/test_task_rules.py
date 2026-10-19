@@ -44,7 +44,9 @@ def test_due_sort_puts_undated_last_and_untimed_before_timed():
 
 
 def test_match_score_prefers_prefixes_and_ignores_spaces_and_case():
-    assert rules.match_score("lab report", "Lab Report 2") > rules.match_score("report", "Lab Report 2")
+    assert rules.match_score("lab report", "Lab Report 2") > rules.match_score(
+        "report", "Lab Report 2"
+    )
     assert rules.match_score("LABREPORT2", "Lab report 2") == 1.0
     assert rules.match_score("zzz", "Lab report") < 0.35
 

@@ -77,9 +77,9 @@ async def list_update(ctx: Ctx, inp: TaskListUpdateInput) -> TaskList:
 
 @capability(
     name="tasks.list.delete",
-    summary="Delete a task list; its tasks move to the inbox unless told to delete them too.",
-    description="""With `delete_tasks` true the list's tasks are deleted for good, so only use it when
-the user asked for that. By default the tasks are kept in the inbox.""",
+    summary="Delete a task list; its tasks move to the inbox unless told otherwise.",
+    description="""With `delete_tasks` true the list's tasks are deleted for good, so only use
+it when the user asked for that. By default the tasks are kept in the inbox.""",
     effect="destructive",
     http=Http("DELETE", "/task-lists/{list_id}"),
     tags=TAGS,
@@ -105,7 +105,7 @@ async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
 
 @capability(
     name="tasks.item.query",
-    summary="List tasks of a Program through a view (today, scheduled, all, completed, inbox, flagged).",
+    summary="List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
     description="""Use for 'what do I have to do'. `today` includes overdue tasks. For questions
 about what is due this week prefer calendar.occurrences, which merges tasks with assessment
 deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
@@ -248,4 +248,4 @@ async def item_find(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
     tags=TAGS,
 )
 async def counts(ctx: Ctx, inp: TaskCountsInput) -> TaskCounts:
-    return await service.counts(ctx, inp.program_id, inp.term_id)
+    return await service.counts(ctx, inp.program_id, inp.term_id, inp.course_id)

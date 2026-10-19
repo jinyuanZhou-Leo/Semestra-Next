@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountAvatarGetData, AccountAvatarGetErrors, AccountAvatarGetResponses, AccountAvatarUploadData, AccountAvatarUploadErrors, AccountAvatarUploadResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AiAssignmentGetData, AiAssignmentGetErrors, AiAssignmentGetResponses, AiAssignmentUpdateData, AiAssignmentUpdateErrors, AiAssignmentUpdateResponses, AiProviderCreateData, AiProviderCreateErrors, AiProviderCreateResponses, AiProviderDeleteData, AiProviderDeleteErrors, AiProviderDeleteResponses, AiProviderListData, AiProviderListErrors, AiProviderListResponses, AiProviderModelsData, AiProviderModelsErrors, AiProviderModelsResponses, AiProviderTestData, AiProviderTestErrors, AiProviderTestResponses, AiProviderUpdateData, AiProviderUpdateErrors, AiProviderUpdateResponses, AiStatusData, AiStatusErrors, AiStatusResponses, AiUsageSummaryData, AiUsageSummaryErrors, AiUsageSummaryResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CalendarOccurrencesData, CalendarOccurrencesErrors, CalendarOccurrencesResponses, CalendarTodayData, CalendarTodayErrors, CalendarTodayResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, GradingAssessmentCreateData, GradingAssessmentCreateErrors, GradingAssessmentCreateManyData, GradingAssessmentCreateManyErrors, GradingAssessmentCreateManyResponses, GradingAssessmentCreateResponses, GradingAssessmentDeleteData, GradingAssessmentDeleteErrors, GradingAssessmentDeleteResponses, GradingAssessmentListData, GradingAssessmentListErrors, GradingAssessmentListResponses, GradingAssessmentReorderData, GradingAssessmentReorderErrors, GradingAssessmentReorderResponses, GradingAssessmentUpdateData, GradingAssessmentUpdateErrors, GradingAssessmentUpdateResponses, GradingCategoryCreateData, GradingCategoryCreateErrors, GradingCategoryCreateResponses, GradingCategoryDeleteData, GradingCategoryDeleteErrors, GradingCategoryDeleteResponses, GradingCategoryReorderData, GradingCategoryReorderErrors, GradingCategoryReorderResponses, GradingCategoryUpdateData, GradingCategoryUpdateErrors, GradingCategoryUpdateResponses, GradingCourseResultUpdateData, GradingCourseResultUpdateErrors, GradingCourseResultUpdateResponses, GradingCourseSummariesData, GradingCourseSummariesErrors, GradingCourseSummariesResponses, GradingGradebookGetData, GradingGradebookGetErrors, GradingGradebookGetResponses, GradingScaleGetData, GradingScaleGetErrors, GradingScaleGetResponses, GradingScalePresetsData, GradingScalePresetsErrors, GradingScalePresetsResponses, GradingScaleUpdateData, GradingScaleUpdateErrors, GradingScaleUpdateResponses, GradingSimulateCourseData, GradingSimulateCourseErrors, GradingSimulateCourseResponses, GradingSimulateTermData, GradingSimulateTermErrors, GradingSimulateTermResponses, GradingSuggestScoresData, GradingSuggestScoresErrors, GradingSuggestScoresResponses, GradingSummaryProgramData, GradingSummaryProgramErrors, GradingSummaryProgramResponses, GradingSummaryTermData, GradingSummaryTermErrors, GradingSummaryTermResponses, HabitCheckinsListData, HabitCheckinsListErrors, HabitCheckinsListResponses, HabitCheckinToggleData, HabitCheckinToggleErrors, HabitCheckinToggleResponses, HabitStatsData, HabitStatsErrors, HabitStatsResponses, HealthzData, HealthzResponses, LayoutsBoardGetData, LayoutsBoardGetErrors, LayoutsBoardGetResponses, LayoutsBoardUpdateData, LayoutsBoardUpdateErrors, LayoutsBoardUpdateResponses, LayoutsCardAddData, LayoutsCardAddErrors, LayoutsCardAddResponses, LayoutsCardRemoveData, LayoutsCardRemoveErrors, LayoutsCardRemoveResponses, LayoutsCardSettingsGetData, LayoutsCardSettingsGetErrors, LayoutsCardSettingsGetResponses, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateErrors, LayoutsCardSettingsUpdateResponses, LayoutsNavGetData, LayoutsNavGetErrors, LayoutsNavGetResponses, LayoutsNavUpdateData, LayoutsNavUpdateErrors, LayoutsNavUpdateResponses, LayoutsTemplateGetData, LayoutsTemplateGetErrors, LayoutsTemplateGetResponses, LayoutsTemplateResetData, LayoutsTemplateResetErrors, LayoutsTemplateResetResponses, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardErrors, LayoutsTemplateSaveFromBoardResponses, PluginsCatalogListData, PluginsCatalogListErrors, PluginsCatalogListResponses, PluginsInstallData, PluginsInstallErrors, PluginsInstallResponses, PluginsUninstallData, PluginsUninstallErrors, PluginsUninstallResponses, PomodoroSessionRecordData, PomodoroSessionRecordErrors, PomodoroSessionRecordResponses, PomodoroStatsData, PomodoroStatsErrors, PomodoroStatsResponses, ReadyzData, ReadyzErrors, ReadyzResponses, ScheduleConflictsData, ScheduleConflictsErrors, ScheduleConflictsResponses, ScheduleEventCreateData, ScheduleEventCreateErrors, ScheduleEventCreateResponses, ScheduleEventDeleteData, ScheduleEventDeleteErrors, ScheduleEventDeleteResponses, ScheduleEventListData, ScheduleEventListErrors, ScheduleEventListResponses, ScheduleEventTypeCreateData, ScheduleEventTypeCreateErrors, ScheduleEventTypeCreateResponses, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteErrors, ScheduleEventTypeDeleteResponses, ScheduleEventTypeListData, ScheduleEventTypeListErrors, ScheduleEventTypeListResponses, ScheduleEventTypeReorderData, ScheduleEventTypeReorderErrors, ScheduleEventTypeReorderResponses, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateErrors, ScheduleEventTypeUpdateResponses, ScheduleEventUpdateData, ScheduleEventUpdateErrors, ScheduleEventUpdateResponses, ScheduleExceptionDeleteData, ScheduleExceptionDeleteErrors, ScheduleExceptionDeleteResponses, ScheduleExceptionUpsertData, ScheduleExceptionUpsertErrors, ScheduleExceptionUpsertResponses, ScheduleFeedCreateData, ScheduleFeedCreateErrors, ScheduleFeedCreateResponses, ScheduleFeedListData, ScheduleFeedListErrors, ScheduleFeedListResponses, ScheduleFeedRevokeData, ScheduleFeedRevokeErrors, ScheduleFeedRevokeResponses, ScheduleMeetingCreateData, ScheduleMeetingCreateErrors, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyErrors, ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateResponses, ScheduleMeetingDeleteData, ScheduleMeetingDeleteErrors, ScheduleMeetingDeleteResponses, ScheduleMeetingListData, ScheduleMeetingListErrors, ScheduleMeetingListResponses, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledErrors, ScheduleMeetingSetEnabledResponses, ScheduleMeetingUpdateData, ScheduleMeetingUpdateErrors, ScheduleMeetingUpdateResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses, StickyNoteListData, StickyNoteListErrors, StickyNoteListResponses, StickyNoteUpdateData, StickyNoteUpdateErrors, StickyNoteUpdateResponses } from './types.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateErrors, AcademicsCourseCreateManyData, AcademicsCourseCreateManyErrors, AcademicsCourseCreateManyResponses, AcademicsCourseCreateResponses, AcademicsCourseDeleteData, AcademicsCourseDeleteErrors, AcademicsCourseDeleteResponses, AcademicsCourseGetData, AcademicsCourseGetErrors, AcademicsCourseGetResponses, AcademicsCourseListData, AcademicsCourseListErrors, AcademicsCourseListResponses, AcademicsCourseReorderData, AcademicsCourseReorderErrors, AcademicsCourseReorderResponses, AcademicsCourseSetTermsData, AcademicsCourseSetTermsErrors, AcademicsCourseSetTermsResponses, AcademicsCourseUpdateData, AcademicsCourseUpdateErrors, AcademicsCourseUpdateResponses, AcademicsProgramCreateData, AcademicsProgramCreateErrors, AcademicsProgramCreateResponses, AcademicsProgramDeleteData, AcademicsProgramDeleteErrors, AcademicsProgramDeleteResponses, AcademicsProgramGetData, AcademicsProgramGetErrors, AcademicsProgramGetResponses, AcademicsProgramListData, AcademicsProgramListErrors, AcademicsProgramListResponses, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorErrors, AcademicsProgramSetSubjectColorResponses, AcademicsProgramUpdateData, AcademicsProgramUpdateErrors, AcademicsProgramUpdateResponses, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoErrors, AcademicsTermCalendarInfoResponses, AcademicsTermCreateData, AcademicsTermCreateErrors, AcademicsTermCreateResponses, AcademicsTermDeleteData, AcademicsTermDeleteErrors, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewErrors, AcademicsTermDeletePreviewResponses, AcademicsTermDeleteResponses, AcademicsTermGetData, AcademicsTermGetErrors, AcademicsTermGetResponses, AcademicsTermListData, AcademicsTermListErrors, AcademicsTermListResponses, AcademicsTermUpdateData, AcademicsTermUpdateErrors, AcademicsTermUpdateResponses, AccountAvatarGetData, AccountAvatarGetErrors, AccountAvatarGetResponses, AccountAvatarUploadData, AccountAvatarUploadErrors, AccountAvatarUploadResponses, AccountEmailChangeConfirmData, AccountEmailChangeConfirmErrors, AccountEmailChangeConfirmResponses, AccountEmailChangeStartData, AccountEmailChangeStartErrors, AccountEmailChangeStartResponses, AccountGoogleLinkData, AccountGoogleLinkErrors, AccountGoogleLinkResponses, AccountGoogleUnlinkData, AccountGoogleUnlinkErrors, AccountGoogleUnlinkResponses, AccountMeGetData, AccountMeGetErrors, AccountMeGetResponses, AccountPasswordChangeData, AccountPasswordChangeErrors, AccountPasswordChangeResponses, AccountProfileUpdateData, AccountProfileUpdateErrors, AccountProfileUpdateResponses, AccountSessionsListData, AccountSessionsListErrors, AccountSessionsListResponses, AccountSessionsRevokeData, AccountSessionsRevokeErrors, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersErrors, AccountSessionsRevokeOthersResponses, AccountSessionsRevokeResponses, AccountTokensCreateData, AccountTokensCreateErrors, AccountTokensCreateResponses, AccountTokensListData, AccountTokensListErrors, AccountTokensListResponses, AccountTokensRevokeData, AccountTokensRevokeErrors, AccountTokensRevokeResponses, AiAssignmentGetData, AiAssignmentGetErrors, AiAssignmentGetResponses, AiAssignmentUpdateData, AiAssignmentUpdateErrors, AiAssignmentUpdateResponses, AiProviderCreateData, AiProviderCreateErrors, AiProviderCreateResponses, AiProviderDeleteData, AiProviderDeleteErrors, AiProviderDeleteResponses, AiProviderListData, AiProviderListErrors, AiProviderListResponses, AiProviderModelsData, AiProviderModelsErrors, AiProviderModelsResponses, AiProviderTestData, AiProviderTestErrors, AiProviderTestResponses, AiProviderUpdateData, AiProviderUpdateErrors, AiProviderUpdateResponses, AiStatusData, AiStatusErrors, AiStatusResponses, AiUsageSummaryData, AiUsageSummaryErrors, AiUsageSummaryResponses, AuthConfigData, AuthConfigResponses, AuthEmailStartData, AuthEmailStartErrors, AuthEmailStartResponses, AuthEmailVerifyData, AuthEmailVerifyErrors, AuthEmailVerifyResponses, AuthGoogleLoginData, AuthGoogleLoginErrors, AuthGoogleLoginResponses, AuthLogoutData, AuthLogoutResponses, AuthPasswordLoginData, AuthPasswordLoginErrors, AuthPasswordLoginResponses, AuthPasswordResetData, AuthPasswordResetErrors, AuthPasswordResetResponses, AuthRegisterCompleteData, AuthRegisterCompleteErrors, AuthRegisterCompleteResponses, AuthTokenRefreshData, AuthTokenRefreshErrors, AuthTokenRefreshResponses, CalendarOccurrencesData, CalendarOccurrencesErrors, CalendarOccurrencesResponses, CalendarTodayData, CalendarTodayErrors, CalendarTodayResponses, CoreJobCancelData, CoreJobCancelErrors, CoreJobCancelResponses, CoreJobGetData, CoreJobGetErrors, CoreJobGetResponses, CoreJobListData, CoreJobListErrors, CoreJobListResponses, CoreStorageUsageData, CoreStorageUsageErrors, CoreStorageUsageResponses, GradingAssessmentCreateData, GradingAssessmentCreateErrors, GradingAssessmentCreateManyData, GradingAssessmentCreateManyErrors, GradingAssessmentCreateManyResponses, GradingAssessmentCreateResponses, GradingAssessmentDeleteData, GradingAssessmentDeleteErrors, GradingAssessmentDeleteResponses, GradingAssessmentListData, GradingAssessmentListErrors, GradingAssessmentListResponses, GradingAssessmentReorderData, GradingAssessmentReorderErrors, GradingAssessmentReorderResponses, GradingAssessmentUpdateData, GradingAssessmentUpdateErrors, GradingAssessmentUpdateResponses, GradingCategoryCreateData, GradingCategoryCreateErrors, GradingCategoryCreateResponses, GradingCategoryDeleteData, GradingCategoryDeleteErrors, GradingCategoryDeleteResponses, GradingCategoryReorderData, GradingCategoryReorderErrors, GradingCategoryReorderResponses, GradingCategoryUpdateData, GradingCategoryUpdateErrors, GradingCategoryUpdateResponses, GradingCourseResultUpdateData, GradingCourseResultUpdateErrors, GradingCourseResultUpdateResponses, GradingCourseSummariesData, GradingCourseSummariesErrors, GradingCourseSummariesResponses, GradingGradebookGetData, GradingGradebookGetErrors, GradingGradebookGetResponses, GradingScaleGetData, GradingScaleGetErrors, GradingScaleGetResponses, GradingScalePresetsData, GradingScalePresetsErrors, GradingScalePresetsResponses, GradingScaleUpdateData, GradingScaleUpdateErrors, GradingScaleUpdateResponses, GradingSimulateCourseData, GradingSimulateCourseErrors, GradingSimulateCourseResponses, GradingSimulateTermData, GradingSimulateTermErrors, GradingSimulateTermResponses, GradingSuggestScoresData, GradingSuggestScoresErrors, GradingSuggestScoresResponses, GradingSummaryProgramData, GradingSummaryProgramErrors, GradingSummaryProgramResponses, GradingSummaryTermData, GradingSummaryTermErrors, GradingSummaryTermResponses, HabitCheckinsListData, HabitCheckinsListErrors, HabitCheckinsListResponses, HabitCheckinToggleData, HabitCheckinToggleErrors, HabitCheckinToggleResponses, HabitStatsData, HabitStatsErrors, HabitStatsResponses, HealthzData, HealthzResponses, LayoutsBoardGetData, LayoutsBoardGetErrors, LayoutsBoardGetResponses, LayoutsBoardUpdateData, LayoutsBoardUpdateErrors, LayoutsBoardUpdateResponses, LayoutsCardAddData, LayoutsCardAddErrors, LayoutsCardAddResponses, LayoutsCardRemoveData, LayoutsCardRemoveErrors, LayoutsCardRemoveResponses, LayoutsCardSettingsGetData, LayoutsCardSettingsGetErrors, LayoutsCardSettingsGetResponses, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateErrors, LayoutsCardSettingsUpdateResponses, LayoutsNavGetData, LayoutsNavGetErrors, LayoutsNavGetResponses, LayoutsNavUpdateData, LayoutsNavUpdateErrors, LayoutsNavUpdateResponses, LayoutsTemplateGetData, LayoutsTemplateGetErrors, LayoutsTemplateGetResponses, LayoutsTemplateResetData, LayoutsTemplateResetErrors, LayoutsTemplateResetResponses, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardErrors, LayoutsTemplateSaveFromBoardResponses, PluginsCatalogListData, PluginsCatalogListErrors, PluginsCatalogListResponses, PluginsInstallData, PluginsInstallErrors, PluginsInstallResponses, PluginsUninstallData, PluginsUninstallErrors, PluginsUninstallResponses, PomodoroSessionRecordData, PomodoroSessionRecordErrors, PomodoroSessionRecordResponses, PomodoroStatsData, PomodoroStatsErrors, PomodoroStatsResponses, ReadyzData, ReadyzErrors, ReadyzResponses, ScheduleConflictsData, ScheduleConflictsErrors, ScheduleConflictsResponses, ScheduleEventCreateData, ScheduleEventCreateErrors, ScheduleEventCreateResponses, ScheduleEventDeleteData, ScheduleEventDeleteErrors, ScheduleEventDeleteResponses, ScheduleEventListData, ScheduleEventListErrors, ScheduleEventListResponses, ScheduleEventTypeCreateData, ScheduleEventTypeCreateErrors, ScheduleEventTypeCreateResponses, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteErrors, ScheduleEventTypeDeleteResponses, ScheduleEventTypeListData, ScheduleEventTypeListErrors, ScheduleEventTypeListResponses, ScheduleEventTypeReorderData, ScheduleEventTypeReorderErrors, ScheduleEventTypeReorderResponses, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateErrors, ScheduleEventTypeUpdateResponses, ScheduleEventUpdateData, ScheduleEventUpdateErrors, ScheduleEventUpdateResponses, ScheduleExceptionDeleteData, ScheduleExceptionDeleteErrors, ScheduleExceptionDeleteResponses, ScheduleExceptionUpsertData, ScheduleExceptionUpsertErrors, ScheduleExceptionUpsertResponses, ScheduleFeedCreateData, ScheduleFeedCreateErrors, ScheduleFeedCreateResponses, ScheduleFeedListData, ScheduleFeedListErrors, ScheduleFeedListResponses, ScheduleFeedRevokeData, ScheduleFeedRevokeErrors, ScheduleFeedRevokeResponses, ScheduleMeetingCreateData, ScheduleMeetingCreateErrors, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyErrors, ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateResponses, ScheduleMeetingDeleteData, ScheduleMeetingDeleteErrors, ScheduleMeetingDeleteResponses, ScheduleMeetingListData, ScheduleMeetingListErrors, ScheduleMeetingListResponses, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledErrors, ScheduleMeetingSetEnabledResponses, ScheduleMeetingUpdateData, ScheduleMeetingUpdateErrors, ScheduleMeetingUpdateResponses, SettingsPreferencesGetData, SettingsPreferencesGetErrors, SettingsPreferencesGetResponses, SettingsPreferencesUpdateData, SettingsPreferencesUpdateErrors, SettingsPreferencesUpdateResponses, SettingsSchemasListData, SettingsSchemasListErrors, SettingsSchemasListResponses, SettingsUiStateGetManyData, SettingsUiStateGetManyErrors, SettingsUiStateGetManyResponses, SettingsUiStateSetData, SettingsUiStateSetErrors, SettingsUiStateSetResponses, SettingsValuesGetData, SettingsValuesGetErrors, SettingsValuesGetResponses, SettingsValuesResetData, SettingsValuesResetErrors, SettingsValuesResetResponses, SettingsValuesUpdateData, SettingsValuesUpdateErrors, SettingsValuesUpdateResponses, StickyNoteListData, StickyNoteListErrors, StickyNoteListResponses, StickyNoteUpdateData, StickyNoteUpdateErrors, StickyNoteUpdateResponses, TasksCountsData, TasksCountsErrors, TasksCountsResponses, TasksItemClearCompletedData, TasksItemClearCompletedErrors, TasksItemClearCompletedResponses, TasksItemCompleteData, TasksItemCompleteErrors, TasksItemCompleteResponses, TasksItemCreateData, TasksItemCreateErrors, TasksItemCreateManyData, TasksItemCreateManyErrors, TasksItemCreateManyResponses, TasksItemCreateResponses, TasksItemDeleteData, TasksItemDeleteErrors, TasksItemDeleteResponses, TasksItemGetData, TasksItemGetErrors, TasksItemGetResponses, TasksItemMoveData, TasksItemMoveErrors, TasksItemMoveResponses, TasksItemQueryData, TasksItemQueryErrors, TasksItemQueryResponses, TasksItemUpdateData, TasksItemUpdateErrors, TasksItemUpdateResponses, TasksListCreateData, TasksListCreateErrors, TasksListCreateResponses, TasksListDeleteData, TasksListDeleteErrors, TasksListDeleteResponses, TasksListListData, TasksListListErrors, TasksListListResponses, TasksListReorderData, TasksListReorderErrors, TasksListReorderResponses, TasksListUpdateData, TasksListUpdateErrors, TasksListUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -1456,6 +1456,191 @@ export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Op
  */
 export const stickyNoteUpdate = <ThrowOnError extends boolean = false>(options: Options<StickyNoteUpdateData, ThrowOnError>): RequestResult<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError> => (options.client ?? client).put<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError>({
     url: '/sticky/notes/{instance_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Counts of unfinished tasks per smart list, list and course (sidebar badges).
+ *
+ * Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.
+ */
+export const tasksCounts = <ThrowOnError extends boolean = false>(options: Options<TasksCountsData, ThrowOnError>): RequestResult<TasksCountsResponses, TasksCountsErrors, ThrowOnError> => (options.client ?? client).get<TasksCountsResponses, TasksCountsErrors, ThrowOnError>({ url: '/programs/{program_id}/task-counts', ...options });
+
+/**
+ * Delete the completed tasks of a Program, optionally of one list, term or course.
+ *
+ * Irreversible; returns how many were deleted. Use only when the user asks to clear
+ * or clean up completed tasks.
+ */
+export const tasksItemClearCompleted = <ThrowOnError extends boolean = false>(options: Options<TasksItemClearCompletedData, ThrowOnError>): RequestResult<TasksItemClearCompletedResponses, TasksItemClearCompletedErrors, ThrowOnError> => (options.client ?? client).post<TasksItemClearCompletedResponses, TasksItemClearCompletedErrors, ThrowOnError>({
+    url: '/programs/{program_id}/tasks:clear-completed',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Mark a task done, or reopen it with completed=false.
+ *
+ * Completing a task never changes grades, even if it came from an assessment.
+ */
+export const tasksItemComplete = <ThrowOnError extends boolean = false>(options: Options<TasksItemCompleteData, ThrowOnError>): RequestResult<TasksItemCompleteResponses, TasksItemCompleteErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCompleteResponses, TasksItemCompleteErrors, ThrowOnError>({
+    url: '/tasks/{task_id}:complete',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.
+ *
+ * Use for 'what do I have to do'. `today` includes overdue tasks. For questions
+ * about what is due this week prefer calendar.occurrences, which merges tasks with assessment
+ * deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
+ * completed tasks are hidden unless the view is `completed` or include_completed is set.
+ */
+export const tasksItemQuery = <ThrowOnError extends boolean = false>(options: Options<TasksItemQueryData, ThrowOnError>): RequestResult<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError> => (options.client ?? client).get<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError>({ url: '/programs/{program_id}/tasks', ...options });
+
+/**
+ * Create a task, optionally with a due date, course, list and priority.
+ *
+ * Always pass the course and due date when the user's words or the current scope
+ * give them. Dates are in the Program's time zone; a time needs a date. The term is inferred from
+ * the course and due date. Omit list_id to put the task in the inbox. Use tasks.item.create_many
+ * for several tasks.
+ */
+export const tasksItemCreate = <ThrowOnError extends boolean = false>(options: Options<TasksItemCreateData, ThrowOnError>): RequestResult<TasksItemCreateResponses, TasksItemCreateErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCreateResponses, TasksItemCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/tasks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Create several tasks at once; items with an already known source are skipped.
+ *
+ * Use for imports and for lists the user dictates. Set source_kind and source_ref
+ * on imported items so that running the import again does not duplicate them; skipped items are
+ * returned with the id of the task that already exists.
+ */
+export const tasksItemCreateMany = <ThrowOnError extends boolean = false>(options: Options<TasksItemCreateManyData, ThrowOnError>): RequestResult<TasksItemCreateManyResponses, TasksItemCreateManyErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCreateManyResponses, TasksItemCreateManyErrors, ThrowOnError>({
+    url: '/programs/{program_id}/tasks:batch',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a task for good.
+ *
+ * Irreversible. To finish a task use tasks.item.complete instead; delete only when
+ * the user asks to remove it.
+ */
+export const tasksItemDelete = <ThrowOnError extends boolean = false>(options: Options<TasksItemDeleteData, ThrowOnError>): RequestResult<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError>({ url: '/tasks/{task_id}', ...options });
+
+/**
+ * Get one task with its notes, due date, priority and source.
+ *
+ * Use when you need the full details of a task you already know the id of.
+ */
+export const tasksItemGet = <ThrowOnError extends boolean = false>(options: Options<TasksItemGetData, ThrowOnError>): RequestResult<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError> => (options.client ?? client).get<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError>({ url: '/tasks/{task_id}', ...options });
+
+/**
+ * Change a task's title, notes, due date and time, priority, flag, list or course.
+ *
+ * Partial update: only the fields that are sent change; null clears the nullable
+ * ones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task
+ * and tasks.item.move to reorder it.
+ */
+export const tasksItemUpdate = <ThrowOnError extends boolean = false>(options: Options<TasksItemUpdateData, ThrowOnError>): RequestResult<TasksItemUpdateResponses, TasksItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<TasksItemUpdateResponses, TasksItemUpdateErrors, ThrowOnError>({
+    url: '/tasks/{task_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Move a task to another list (or the inbox) and/or to a place within the list.
+ *
+ * Send list_id (null = inbox) to change list; leave it out to reorder inside the
+ * current one. before_task_id places the task right before that task, otherwise it goes last.
+ */
+export const tasksItemMove = <ThrowOnError extends boolean = false>(options: Options<TasksItemMoveData, ThrowOnError>): RequestResult<TasksItemMoveResponses, TasksItemMoveErrors, ThrowOnError> => (options.client ?? client).post<TasksItemMoveResponses, TasksItemMoveErrors, ThrowOnError>({
+    url: '/tasks/{task_id}:move',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the task lists of a Program (term lists and Program-wide lists).
+ *
+ * Use to find a list id before creating or moving tasks. Tasks without a list are
+ * in the inbox, which is not a list row.
+ */
+export const tasksListList = <ThrowOnError extends boolean = false>(options: Options<TasksListListData, ThrowOnError>): RequestResult<TasksListListResponses, TasksListListErrors, ThrowOnError> => (options.client ?? client).get<TasksListListResponses, TasksListListErrors, ThrowOnError>({ url: '/programs/{program_id}/task-lists', ...options });
+
+/**
+ * Create a task list, for one term or for the whole Program.
+ *
+ * Use when the user wants a named list such as 'Errands'. Names are unique within
+ * a term (or within the Program-wide lists). Do not create a list just to file one task: leave
+ * tasks in the inbox unless the user names a list.
+ */
+export const tasksListCreate = <ThrowOnError extends boolean = false>(options: Options<TasksListCreateData, ThrowOnError>): RequestResult<TasksListCreateResponses, TasksListCreateErrors, ThrowOnError> => (options.client ?? client).post<TasksListCreateResponses, TasksListCreateErrors, ThrowOnError>({
+    url: '/programs/{program_id}/task-lists',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a task list; its tasks move to the inbox unless told otherwise.
+ *
+ * With `delete_tasks` true the list's tasks are deleted for good, so only use
+ * it when the user asked for that. By default the tasks are kept in the inbox.
+ */
+export const tasksListDelete = <ThrowOnError extends boolean = false>(options: Options<TasksListDeleteData, ThrowOnError>): RequestResult<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError>({ url: '/task-lists/{list_id}', ...options });
+
+/**
+ * Rename a task list or change its color or icon.
+ *
+ * Partial update: only the fields that are sent change.
+ */
+export const tasksListUpdate = <ThrowOnError extends boolean = false>(options: Options<TasksListUpdateData, ThrowOnError>): RequestResult<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError> => (options.client ?? client).patch<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError>({
+    url: '/task-lists/{list_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the display order of a Program's task lists.
+ *
+ * Lists not named keep their relative order after the named ones.
+ */
+export const tasksListReorder = <ThrowOnError extends boolean = false>(options: Options<TasksListReorderData, ThrowOnError>): RequestResult<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError> => (options.client ?? client).put<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError>({
+    url: '/programs/{program_id}/task-list-order',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -1,13 +1,8 @@
-"""Tasks generated from assessments (M05 §3).
-
-The grading module (M03) owns assessments. It plugs in what tasks need to know about them with
-`set_assessment_provider`; this module never imports grading. Without a provider nothing is
-generated.
-"""
+"""Tasks generated from assessments (M05 §3): one task per assessment with a due date, kept in
+sync through the `grading.assessment.*` events and finished once the assessment has a score."""
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -16,6 +11,8 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import events
 from semestra.modules.academics import service as academics
+from semestra.modules.academics.models import AcademicsCourse
+from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.tasks import rules, service
 from semestra.modules.tasks.models import TasksItem
 from semestra.modules.tasks.schemas import TaskFields
@@ -35,20 +32,20 @@ class AssessmentInfo:
     scored: bool = False
 
 
-class AssessmentProvider(Protocol):
-    async def get(self, ctx: Ctx, assessment_id: str) -> AssessmentInfo | None: ...
-
-    async def open_in_program(self, ctx: Ctx, program_id: str) -> list[AssessmentInfo]:
-        """Assessments of the Program that have a due date and no score yet."""
-        ...
-
-
-_provider: AssessmentProvider | None = None
-
-
-def set_assessment_provider(provider: AssessmentProvider | None) -> None:
-    global _provider
-    _provider = provider
+async def _info(ctx: Ctx, row: GradingAssessment) -> AssessmentInfo | None:
+    course = await ctx.db.get(AcademicsCourse, row.course_id)
+    if course is None or course.user_id != ctx.user_id:
+        return None
+    return AssessmentInfo(
+        id=row.id,
+        course_id=course.id,
+        program_id=course.program_id,
+        title=row.title,
+        course_code=course.code or course.alias or course.title,
+        due_at=row.due_at,
+        due_has_time=row.due_has_time,
+        scored=row.score_percentage is not None,
+    )
 
 
 async def enabled(ctx: Ctx, program_id: str) -> bool:
@@ -126,20 +123,33 @@ async def _drop(ctx: Ctx, row: TasksItem) -> None:
 
 
 async def on_assessment_event(ctx: Ctx, kind: str, program_id: str, assessment_id: str) -> None:
-    if _provider is None or not await enabled(ctx, program_id):
+    if not await enabled(ctx, program_id):
         return
-    info = None if kind == "deleted" else await _provider.get(ctx, assessment_id)
+    row = None if kind == "deleted" else await ctx.db.get(GradingAssessment, assessment_id)
+    info = None
+    if row is not None and row.user_id == ctx.user_id:
+        info = await _info(ctx, row)
     await sync_assessment(ctx, info, assessment_id)
 
 
 async def backfill(ctx: Ctx, program_id: str) -> int:
     """Creates the missing tasks of a Program (after the switch is turned on); returns how
     many were created."""
-    if _provider is None:
-        return 0
     before = await _count(ctx, program_id)
-    for info in await _provider.open_in_program(ctx, program_id):
-        await sync_assessment(ctx, info, info.id)
+    rows = await ctx.db.scalars(
+        select(GradingAssessment)
+        .join(AcademicsCourse, AcademicsCourse.id == GradingAssessment.course_id)
+        .where(
+            GradingAssessment.user_id == ctx.user_id,
+            AcademicsCourse.program_id == program_id,
+            GradingAssessment.due_at.is_not(None),
+            GradingAssessment.score_percentage.is_(None),
+        )
+        .order_by(GradingAssessment.due_at)
+    )
+    for row in rows.all():
+        if info := await _info(ctx, row):
+            await sync_assessment(ctx, info, info.id)
     return await _count(ctx, program_id) - before
 
 

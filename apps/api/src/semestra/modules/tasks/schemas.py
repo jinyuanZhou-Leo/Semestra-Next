@@ -171,7 +171,9 @@ class TaskUpdateInput(BaseModel):
 
     task_id: Id = Field(description="Task id")
     title: Title | None = Field(default=None, description="Title")
-    notes: Annotated[str, Field(max_length=20_000)] | None = Field(default=None, description="Notes")
+    notes: Annotated[str, Field(max_length=20_000)] | None = Field(
+        default=None, description="Notes"
+    )
     due_date: date | None = Field(default=None, description="Due date; null clears date and time")
     due_time: time | None = Field(default=None, description="Due time; null clears it")
     priority: Priority | None = Field(default=None, description="Priority")
@@ -268,6 +270,7 @@ class TaskCountsInput(BaseModel):
     term_id: Id | None = Field(
         default=None, description="Only this term's tasks and those that belong to no term"
     )
+    course_id: Id | None = Field(default=None, description="Only this course's tasks")
 
 
 class TaskCounts(BaseModel):

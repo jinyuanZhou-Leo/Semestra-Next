@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from semestra.modules.settings import register_settings
-from semestra.modules.tasks import capabilities, models, subscribers  # noqa: F401  (registers)
+from semestra.modules.tasks import calendar, capabilities, models, subscribers  # noqa: F401  (registers)
 from semestra.modules.tasks.settings import TasksSettings
 
 register_settings(namespace="tasks", schema=TasksSettings, levels=("program",))

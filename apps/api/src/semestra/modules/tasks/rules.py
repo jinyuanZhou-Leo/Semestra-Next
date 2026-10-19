@@ -65,4 +65,3 @@ def match_score(query: str, title: str, notes: str = "") -> float:
 
 def auto_title(course_code: str | None, assessment_title: str) -> str:
     return f"{course_code} · {assessment_title}" if course_code else assessment_title
-
