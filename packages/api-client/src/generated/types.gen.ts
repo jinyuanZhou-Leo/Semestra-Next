@@ -15,6 +15,62 @@ export type AiStatus = {
 };
 
 /**
+ * Announcement
+ */
+export type Announcement = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Posted At
+     */
+    posted_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * AnnouncementList
+ */
+export type AnnouncementList = {
+    /**
+     * Items
+     */
+    items: Array<Announcement>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * Assessment
  */
 export type Assessment = {
@@ -473,13 +529,103 @@ export type Assignment = {
 };
 
 /**
- * AssignmentList
+ * AssignmentOut
  */
-export type AssignmentList = {
+export type AssignmentOut = {
     /**
-     * Items
+     * External Id
      */
-    items: Array<Assignment>;
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Group Id
+     */
+    group_id?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Group Weight
+     */
+    group_weight?: number | null;
+    /**
+     * Submission Types
+     */
+    submission_types?: Array<string>;
+    submission?: Submission | null;
+    /**
+     * Published
+     */
+    published?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Imported As
+     *
+     * Where it was imported to, if anywhere
+     */
+    imported_as: Array<ImportTarget>;
+};
+
+/**
+ * AssignmentUpdate
+ */
+export type AssignmentUpdate = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    target: ImportTarget;
+    /**
+     * Changes
+     *
+     * title, due_at and/or points
+     */
+    changes: {
+        [key: string]: FieldUpdate;
+    };
 };
 
 /**
@@ -511,6 +657,24 @@ export type AssignmentUpdateInputBody = {
 };
 
 /**
+ * AssignmentsImportInputBody
+ */
+export type AssignmentsImportInputBody = {
+    /**
+     * External Ids
+     *
+     * Assignments to import
+     */
+    external_ids: Array<string>;
+    /**
+     * As Kind
+     *
+     * Default type; switchable per item in the review
+     */
+    as_kind?: 'assessment' | 'task';
+};
+
+/**
  * AuthConfig
  */
 export type AuthConfig = {
@@ -534,6 +698,18 @@ export type AuthResult = {
      */
     registration_token?: string | null;
     tokens?: TokenPair | null;
+};
+
+/**
+ * BindingSetInputBody
+ */
+export type BindingSetInputBody = {
+    /**
+     * Connection Id
+     *
+     * Connection to bind
+     */
+    connection_id: string;
 };
 
 /**
@@ -783,7 +959,7 @@ export type BulkDecideInputBody = {
      *
      * Only items of these types
      */
-    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
+    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
     /**
      * Issue Codes
      *
@@ -1161,6 +1337,237 @@ export type ConflictPair = {
      * Dates on which both happen
      */
     dates: Array<string>;
+};
+
+/**
+ * Connection
+ */
+export type Connection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Config
+     *
+     * Non-secret settings, e.g. {base_url}
+     */
+    config: {
+        [key: string]: unknown;
+    };
+    /**
+     * Credentials Hint
+     *
+     * Masked credentials, never the values
+     */
+    credentials_hint: {
+        [key: string]: string;
+    };
+    /**
+     * Has Credentials
+     *
+     * False after a data import: enter them again
+     */
+    has_credentials: boolean;
+    /**
+     * Account Name
+     */
+    account_name: string | null;
+    /**
+     * Status
+     */
+    status: 'connected' | 'error';
+    /**
+     * Last Checked At
+     */
+    last_checked_at: string | null;
+    /**
+     * Last Error Code
+     */
+    last_error_code: string | null;
+    /**
+     * Program Ids
+     *
+     * Programs bound to this connection
+     */
+    program_ids: Array<string>;
+    /**
+     * Link Count
+     *
+     * Courses linked through this connection
+     */
+    link_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ConnectionCheck
+ */
+export type ConnectionCheck = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Error Params
+     */
+    error_params?: {
+        [key: string]: unknown;
+    };
+    summary: ConnectionSummary | null;
+    /**
+     * The saved connection, when one was checked
+     */
+    connection: Connection | null;
+};
+
+/**
+ * ConnectionCreateInputBody
+ */
+export type ConnectionCreateInputBody = {
+    /**
+     * Provider
+     *
+     * Provider kind: canvas
+     */
+    provider: string;
+    /**
+     * Display Name
+     *
+     * Name shown in the app; defaults to the instance name
+     */
+    display_name?: string | null;
+    /**
+     * Config
+     *
+     * Provider settings, e.g. {base_url}
+     */
+    config: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ConnectionDeleted
+ */
+export type ConnectionDeleted = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Unbound Programs
+     */
+    unbound_programs: number;
+    /**
+     * Unlinked Courses
+     */
+    unlinked_courses: number;
+};
+
+/**
+ * ConnectionList
+ */
+export type ConnectionList = {
+    /**
+     * Items
+     */
+    items: Array<Connection>;
+};
+
+/**
+ * ConnectionSummary
+ */
+export type ConnectionSummary = {
+    /**
+     * Account Name
+     */
+    account_name?: string | null;
+    /**
+     * Avatar Url
+     */
+    avatar_url?: string | null;
+    /**
+     * Instance Name
+     */
+    instance_name?: string | null;
+};
+
+/**
+ * ConnectionUpdateInputBody
+ */
+export type ConnectionUpdateInputBody = {
+    /**
+     * Display Name
+     *
+     * New display name
+     */
+    display_name?: string | null;
+    /**
+     * Config
+     *
+     * New provider settings
+     */
+    config?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Credentials
+     *
+     * New credentials (checked before saving)
+     */
+    credentials?: null;
+};
+
+/**
+ * ConnectionValidateInputBody
+ */
+export type ConnectionValidateInputBody = {
+    /**
+     * Connection Id
+     *
+     * Check a saved connection; omitted fields use its stored values
+     */
+    connection_id?: string | null;
+    /**
+     * Provider
+     *
+     * Provider kind (new connection)
+     */
+    provider?: string | null;
+    /**
+     * Config
+     *
+     * Provider settings
+     */
+    config?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Credentials
+     *
+     * Credentials
+     */
+    credentials?: null;
 };
 
 /**
@@ -1608,6 +2015,85 @@ export type CourseGrades = {
 };
 
 /**
+ * CourseLink
+ */
+export type CourseLink = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Connection Id
+     */
+    connection_id: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * External Course Id
+     */
+    external_course_id: string;
+    /**
+     * External Code
+     */
+    external_code: string | null;
+    /**
+     * External Name
+     */
+    external_name: string | null;
+    /**
+     * External Term
+     */
+    external_term: string | null;
+    /**
+     * Web Url
+     */
+    web_url: string | null;
+    /**
+     * Sync Enabled
+     */
+    sync_enabled: boolean;
+    /**
+     * Last Synced At
+     */
+    last_synced_at: string | null;
+    /**
+     * Last Error Code
+     */
+    last_error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * CourseLinkState
+ */
+export type CourseLinkState = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    link: CourseLink | null;
+    /**
+     * Program Connection Id
+     *
+     * Connection bound to the course's Program; null = bind one first
+     */
+    program_connection_id: string | null;
+};
+
+/**
  * CourseList
  */
 export type CourseList = {
@@ -1641,6 +2127,38 @@ export type CourseOrderInputBody = {
      * Courses of the term in display order
      */
     course_ids: Array<string>;
+};
+
+/**
+ * CourseOverview
+ */
+export type CourseOverview = {
+    link: CourseLink;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Provider Name
+     */
+    provider_name: string;
+    /**
+     * Features
+     */
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar'>;
+    course: LmsCourse;
+    /**
+     * Navigation
+     */
+    navigation: Array<NavTab>;
+    /**
+     * Default View
+     */
+    default_view: string | null;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 /**
@@ -1837,6 +2355,42 @@ export type CourseUpdateInputBody = {
      * Default position within a term
      */
     sort_order?: number | null;
+};
+
+/**
+ * CoursesImportInputBody
+ */
+export type CoursesImportInputBody = {
+    /**
+     * External Course Ids
+     *
+     * External courses to import
+     */
+    external_course_ids: Array<string>;
+    /**
+     * Term Id
+     *
+     * Term the courses go into (not for the term wizard)
+     */
+    term_id?: string | null;
+    /**
+     * Term Wizard
+     *
+     * For the new-term wizard: the term is created afterwards
+     */
+    term_wizard?: boolean;
+    /**
+     * Start Date
+     *
+     * Wizard: first day of the term
+     */
+    start_date?: string | null;
+    /**
+     * End Date
+     *
+     * Wizard: last day of the term
+     */
+    end_date?: string | null;
 };
 
 /**
@@ -2347,6 +2901,90 @@ export type ExceptionUpsertInputBody = {
 };
 
 /**
+ * ExternalCourse
+ */
+export type ExternalCourse = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Term
+     *
+     * The platform's term name
+     */
+    term?: string | null;
+    /**
+     * Start At
+     */
+    start_at?: string | null;
+    /**
+     * End At
+     */
+    end_at?: string | null;
+    /**
+     * Default View
+     */
+    default_view?: string | null;
+    /**
+     * Is Current
+     */
+    is_current?: boolean;
+    /**
+     * Linked Course Id
+     *
+     * Course of this Program linked to it
+     */
+    linked_course_id: string | null;
+    /**
+     * Linked Course Name
+     */
+    linked_course_name: string | null;
+};
+
+/**
+ * ExternalCourseList
+ */
+export type ExternalCourseList = {
+    /**
+     * Connection Id
+     */
+    connection_id: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Items
+     */
+    items: Array<ExternalCourse>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * Feed
  */
 export type Feed = {
@@ -2425,6 +3063,74 @@ export type FeedList = {
      * Items
      */
     items: Array<Feed>;
+};
+
+/**
+ * FieldUpdate
+ */
+export type FieldUpdate = {
+    /**
+     * Old
+     */
+    old?: unknown;
+    /**
+     * New
+     */
+    new?: unknown;
+};
+
+/**
+ * FileMeta
+ */
+export type FileMeta = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime Type
+     */
+    mime_type?: string | null;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+};
+
+/**
+ * FileSaveInputBody
+ */
+export type FileSaveInputBody = {
+    /**
+     * Folder Id
+     *
+     * Course folder (M07), default root
+     */
+    folder_id?: string | null;
 };
 
 /**
@@ -2577,6 +3283,70 @@ export type GoogleLoginIn = {
      * Id Token
      */
     id_token: string;
+};
+
+/**
+ * GradeItem
+ */
+export type GradeItem = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Points Possible
+     */
+    points_possible?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Group Name
+     */
+    group_name?: string | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Kind
+     */
+    kind?: 'total' | 'assignment';
+};
+
+/**
+ * GradeList
+ */
+export type GradeList = {
+    /**
+     * Items
+     */
+    items: Array<GradeItem>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 /**
@@ -2943,7 +3713,7 @@ export type ImportItem = {
     /**
      * Type
      */
-    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch';
+    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch';
     /**
      * Data
      *
@@ -3110,6 +3880,40 @@ export type ImportSessionPage = {
 };
 
 /**
+ * ImportStarted
+ */
+export type ImportStarted = {
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Count
+     *
+     * Items put up for review
+     */
+    count: number;
+};
+
+/**
+ * ImportTarget
+ */
+export type ImportTarget = {
+    /**
+     * Kind
+     */
+    kind: 'assessment' | 'task' | 'event';
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
  * Instructor
  */
 export type Instructor = {
@@ -3131,6 +3935,22 @@ export type Instructor = {
      * E.g. 'Lecturer', 'TA'
      */
     role?: string | null;
+};
+
+/**
+ * InternalRef
+ *
+ * A platform link the app can open itself (M16).
+ */
+export type InternalRef = {
+    /**
+     * Kind
+     */
+    kind: 'page' | 'assignment' | 'quiz' | 'file' | 'module' | 'announcement' | 'discussion';
+    /**
+     * Ref
+     */
+    ref: string;
 };
 
 /**
@@ -3377,6 +4197,88 @@ export type LinkCreateInputBody = {
      * Folder to put it in
      */
     folder_id?: string | null;
+};
+
+/**
+ * LinkSetInputBody
+ */
+export type LinkSetInputBody = {
+    /**
+     * External Course Id
+     *
+     * External course id (lms.courses.list)
+     */
+    external_course_id: string;
+    /**
+     * Sync Enabled
+     *
+     * Show in the calendar, check updates
+     */
+    sync_enabled?: boolean;
+};
+
+/**
+ * LinkUpdateInputBody
+ */
+export type LinkUpdateInputBody = {
+    /**
+     * Sync Enabled
+     *
+     * Show in the calendar, check updates
+     */
+    sync_enabled: boolean;
+};
+
+/**
+ * LmsCourse
+ */
+export type LmsCourse = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Term
+     *
+     * The platform's term name
+     */
+    term?: string | null;
+    /**
+     * Start At
+     */
+    start_at?: string | null;
+    /**
+     * End At
+     */
+    end_at?: string | null;
+    /**
+     * Default View
+     */
+    default_view?: string | null;
+    /**
+     * Is Current
+     */
+    is_current?: boolean;
 };
 
 /**
@@ -3950,6 +4852,122 @@ export type ModelParams = {
 };
 
 /**
+ * Module
+ */
+export type Module = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position?: number;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Item Count
+     */
+    item_count?: number;
+};
+
+/**
+ * ModuleItem
+ */
+export type ModuleItem = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Kind
+     */
+    kind: 'page' | 'assignment' | 'quiz' | 'file' | 'discussion' | 'subheader' | 'external_url' | 'external_tool' | 'unknown';
+    /**
+     * Position
+     */
+    position?: number;
+    /**
+     * Indent
+     */
+    indent?: number;
+    /**
+     * Where the item opens in-app
+     */
+    target?: InternalRef | null;
+    /**
+     * External Url
+     */
+    external_url?: string | null;
+};
+
+/**
+ * ModuleItemList
+ */
+export type ModuleItemList = {
+    /**
+     * Items
+     */
+    items: Array<ModuleItem>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
+ * ModuleList
+ */
+export type ModuleList = {
+    /**
+     * Items
+     */
+    items: Array<Module>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * Nav
  */
 export type Nav = {
@@ -3969,6 +4987,44 @@ export type Nav = {
      * Hidden page ids
      */
     hidden: Array<string>;
+};
+
+/**
+ * NavTab
+ */
+export type NavTab = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Kind
+     */
+    kind: 'home' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'discussions' | 'external' | 'unknown';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Position
+     */
+    position?: number;
+    /**
+     * Hidden
+     */
+    hidden?: boolean;
 };
 
 /**
@@ -4301,6 +5357,108 @@ export type OutlineEntry = {
      * Page
      */
     page: number;
+};
+
+/**
+ * PageDetail
+ */
+export type PageDetail = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Ref
+     *
+     * What `page` takes (Canvas: the page url slug)
+     */
+    ref: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Front Page
+     */
+    front_page?: boolean;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+};
+
+/**
+ * PageList
+ */
+export type PageList = {
+    /**
+     * Items
+     */
+    items: Array<PageSummary>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
+ * PageSummary
+ */
+export type PageSummary = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Ref
+     *
+     * What `page` takes (Canvas: the page url slug)
+     */
+    ref: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Front Page
+     */
+    front_page?: boolean;
 };
 
 /**
@@ -4707,6 +5865,27 @@ export type Program = {
 };
 
 /**
+ * ProgramBinding
+ */
+export type ProgramBinding = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Connection Id
+     */
+    connection_id: string | null;
+    connection: Connection | null;
+    /**
+     * Link Count
+     *
+     * Courses of the Program linked through it
+     */
+    link_count: number;
+};
+
+/**
  * ProgramCreateInputBody
  */
 export type ProgramCreateInputBody = {
@@ -4983,13 +6162,37 @@ export type ProviderDeleted = {
 };
 
 /**
- * ProviderList
+ * ProviderInfo
  */
-export type ProviderList = {
+export type ProviderInfo = {
     /**
-     * Items
+     * Kind
      */
-    items: Array<Provider>;
+    kind: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Features
+     */
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar'>;
+    /**
+     * Config Schema
+     *
+     * JSON schema of `config`
+     */
+    config_schema: {
+        [key: string]: unknown;
+    };
+    /**
+     * Credentials Schema
+     *
+     * JSON schema of `credentials`
+     */
+    credentials_schema: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -5060,6 +6263,70 @@ export type PurposeStatus = {
      * Model
      */
     model: string | null;
+};
+
+/**
+ * Quiz
+ */
+export type Quiz = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Lock At
+     */
+    lock_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Question Count
+     */
+    question_count?: number | null;
+};
+
+/**
+ * QuizList
+ */
+export type QuizList = {
+    /**
+     * Items
+     */
+    items: Array<Quiz>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 /**
@@ -5174,6 +6441,34 @@ export type Revoked = {
      * Ok
      */
     ok?: boolean;
+};
+
+/**
+ * RichText
+ */
+export type RichText = {
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Web Url
+     */
+    web_url?: string | null;
+};
+
+/**
+ * SavedFile
+ */
+export type SavedFile = {
+    /**
+     * File Item Id
+     */
+    file_item_id: string;
+    /**
+     * Name
+     */
+    name: string;
 };
 
 /**
@@ -5772,6 +7067,42 @@ export type SubjectColorInputBody = {
      * Palette slot or custom hex color
      */
     color: PaletteColor | HexColor;
+};
+
+/**
+ * Submission
+ */
+export type Submission = {
+    /**
+     * State
+     *
+     * e.g. submitted, graded, unsubmitted
+     */
+    state?: string | null;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Missing
+     */
+    missing?: boolean;
 };
 
 /**
@@ -7091,6 +8422,24 @@ export type UiStateSetInputBody = {
 };
 
 /**
+ * UpdatesOutput
+ */
+export type UpdatesOutput = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items: Array<AssignmentUpdate>;
+};
+
+/**
  * Upload
  */
 export type Upload = {
@@ -7387,6 +8736,12 @@ export type SemestraCoreCapabilityItemUpdateInputBody2 = {
      * accept, reject or pending
      */
     decision?: 'accept' | 'reject' | 'pending' | null;
+    /**
+     * Type
+     *
+     * Turn an assessment item into a task or back
+     */
+    type?: 'assessment' | 'task' | null;
 };
 
 /**
@@ -7400,6 +8755,26 @@ export type SemestraModulesAcademicsSchemasDeleted = {
 };
 
 /**
+ * AssignmentList
+ */
+export type SemestraModulesAiSchemasAssignmentList = {
+    /**
+     * Items
+     */
+    items: Array<Assignment>;
+};
+
+/**
+ * ProviderList
+ */
+export type SemestraModulesAiSchemasProviderList = {
+    /**
+     * Items
+     */
+    items: Array<Provider>;
+};
+
+/**
  * Deleted
  */
 export type SemestraModulesFilesSchemasDeleted = {
@@ -7410,6 +8785,30 @@ export type SemestraModulesFilesSchemasDeleted = {
 };
 
 /**
+ * AssignmentList
+ */
+export type SemestraModulesLmsSchemasIoAssignmentList = {
+    /**
+     * Items
+     */
+    items: Array<AssignmentOut>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
+ * ProviderList
+ */
+export type SemestraModulesLmsSchemasIoProviderList = {
+    /**
+     * Items
+     */
+    items: Array<ProviderInfo>;
+};
+
+/**
  * Deleted
  */
 export type SemestraModulesScheduleSchemasDeleted = {
@@ -7417,6 +8816,102 @@ export type SemestraModulesScheduleSchemasDeleted = {
      * Deleted
      */
     deleted?: true;
+};
+
+/**
+ * ConnectionCreateInputBody
+ */
+export type ConnectionCreateInputBodyWritable = {
+    /**
+     * Provider
+     *
+     * Provider kind: canvas
+     */
+    provider: string;
+    /**
+     * Display Name
+     *
+     * Name shown in the app; defaults to the instance name
+     */
+    display_name?: string | null;
+    /**
+     * Config
+     *
+     * Provider settings, e.g. {base_url}
+     */
+    config: {
+        [key: string]: unknown;
+    };
+    /**
+     * Credentials
+     *
+     * Provider credentials, e.g. {access_token}; stored encrypted
+     */
+    credentials: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * ConnectionUpdateInputBody
+ */
+export type ConnectionUpdateInputBodyWritable = {
+    /**
+     * Display Name
+     *
+     * New display name
+     */
+    display_name?: string | null;
+    /**
+     * Config
+     *
+     * New provider settings
+     */
+    config?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Credentials
+     *
+     * New credentials (checked before saving)
+     */
+    credentials?: {
+        [key: string]: string;
+    } | null;
+};
+
+/**
+ * ConnectionValidateInputBody
+ */
+export type ConnectionValidateInputBodyWritable = {
+    /**
+     * Connection Id
+     *
+     * Check a saved connection; omitted fields use its stored values
+     */
+    connection_id?: string | null;
+    /**
+     * Provider
+     *
+     * Provider kind (new connection)
+     */
+    provider?: string | null;
+    /**
+     * Config
+     *
+     * Provider settings
+     */
+    config?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Credentials
+     *
+     * Credentials
+     */
+    credentials?: {
+        [key: string]: string;
+    } | null;
 };
 
 /**
@@ -8077,6 +9572,45 @@ export type ImportsUploadContentResponses = {
 };
 
 export type ImportsUploadContentResponse = ImportsUploadContentResponses[keyof ImportsUploadContentResponses];
+
+export type LmsFileContentData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         */
+        course_id: string;
+        /**
+         * File Id
+         */
+        file_id: string;
+    };
+    query?: {
+        /**
+         * Download
+         *
+         * Send as an attachment
+         */
+        download?: boolean;
+    };
+    url: '/courses/{course_id}/lms/files/{file_id}/content';
+};
+
+export type LmsFileContentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LmsFileContentError = LmsFileContentErrors[keyof LmsFileContentErrors];
+
+export type LmsFileContentResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type AcademicsCourseListData = {
     body?: never;
@@ -9138,7 +10672,7 @@ export type AiAssignmentGetResponses = {
     /**
      * Successful Response
      */
-    200: AssignmentList;
+    200: SemestraModulesAiSchemasAssignmentList;
 };
 
 export type AiAssignmentGetResponse = AiAssignmentGetResponses[keyof AiAssignmentGetResponses];
@@ -9163,7 +10697,7 @@ export type AiAssignmentUpdateResponses = {
     /**
      * Successful Response
      */
-    200: AssignmentList;
+    200: SemestraModulesAiSchemasAssignmentList;
 };
 
 export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
@@ -9188,7 +10722,7 @@ export type AiProviderListResponses = {
     /**
      * Successful Response
      */
-    200: ProviderList;
+    200: SemestraModulesAiSchemasProviderList;
 };
 
 export type AiProviderListResponse = AiProviderListResponses[keyof AiProviderListResponses];
@@ -11504,6 +13038,1136 @@ export type LayoutsTemplateSaveFromBoardResponses = {
 };
 
 export type LayoutsTemplateSaveFromBoardResponse = LayoutsTemplateSaveFromBoardResponses[keyof LayoutsTemplateSaveFromBoardResponses];
+
+export type LmsAnnouncementsListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+        /**
+         * Since
+         *
+         * Only posted after this time
+         */
+        since?: string | null;
+    };
+    url: '/courses/{course_id}/lms/announcements';
+};
+
+export type LmsAnnouncementsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAnnouncementsListError = LmsAnnouncementsListErrors[keyof LmsAnnouncementsListErrors];
+
+export type LmsAnnouncementsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnouncementList;
+};
+
+export type LmsAnnouncementsListResponse = LmsAnnouncementsListResponses[keyof LmsAnnouncementsListResponses];
+
+export type LmsAssignmentsListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/assignments';
+};
+
+export type LmsAssignmentsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentsListError = LmsAssignmentsListErrors[keyof LmsAssignmentsListErrors];
+
+export type LmsAssignmentsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesLmsSchemasIoAssignmentList;
+};
+
+export type LmsAssignmentsListResponse = LmsAssignmentsListResponses[keyof LmsAssignmentsListResponses];
+
+export type LmsConnectionListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/lms/connections';
+};
+
+export type LmsConnectionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionListError = LmsConnectionListErrors[keyof LmsConnectionListErrors];
+
+export type LmsConnectionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionList;
+};
+
+export type LmsConnectionListResponse = LmsConnectionListResponses[keyof LmsConnectionListResponses];
+
+export type LmsConnectionCreateData = {
+    body: ConnectionCreateInputBodyWritable;
+    path?: never;
+    query?: never;
+    url: '/lms/connections';
+};
+
+export type LmsConnectionCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionCreateError = LmsConnectionCreateErrors[keyof LmsConnectionCreateErrors];
+
+export type LmsConnectionCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Connection;
+};
+
+export type LmsConnectionCreateResponse = LmsConnectionCreateResponses[keyof LmsConnectionCreateResponses];
+
+export type LmsConnectionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Connection id
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Detach All
+         *
+         * Also unbind its Programs and unlink their courses (imports are kept)
+         */
+        detach_all?: boolean;
+    };
+    url: '/lms/connections/{id}';
+};
+
+export type LmsConnectionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionDeleteError = LmsConnectionDeleteErrors[keyof LmsConnectionDeleteErrors];
+
+export type LmsConnectionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionDeleted;
+};
+
+export type LmsConnectionDeleteResponse = LmsConnectionDeleteResponses[keyof LmsConnectionDeleteResponses];
+
+export type LmsConnectionUpdateData = {
+    body: ConnectionUpdateInputBodyWritable;
+    path: {
+        /**
+         * Id
+         *
+         * Connection id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/lms/connections/{id}';
+};
+
+export type LmsConnectionUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionUpdateError = LmsConnectionUpdateErrors[keyof LmsConnectionUpdateErrors];
+
+export type LmsConnectionUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Connection;
+};
+
+export type LmsConnectionUpdateResponse = LmsConnectionUpdateResponses[keyof LmsConnectionUpdateResponses];
+
+export type LmsConnectionValidateData = {
+    body: ConnectionValidateInputBodyWritable;
+    path?: never;
+    query?: never;
+    url: '/lms/connections:validate';
+};
+
+export type LmsConnectionValidateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionValidateError = LmsConnectionValidateErrors[keyof LmsConnectionValidateErrors];
+
+export type LmsConnectionValidateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionCheck;
+};
+
+export type LmsConnectionValidateResponse = LmsConnectionValidateResponses[keyof LmsConnectionValidateResponses];
+
+export type LmsCourseApplyUpdatesData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/updates:review';
+};
+
+export type LmsCourseApplyUpdatesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseApplyUpdatesError = LmsCourseApplyUpdatesErrors[keyof LmsCourseApplyUpdatesErrors];
+
+export type LmsCourseApplyUpdatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsCourseApplyUpdatesResponse = LmsCourseApplyUpdatesResponses[keyof LmsCourseApplyUpdatesResponses];
+
+export type LmsCourseCheckUpdatesData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/updates';
+};
+
+export type LmsCourseCheckUpdatesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseCheckUpdatesError = LmsCourseCheckUpdatesErrors[keyof LmsCourseCheckUpdatesErrors];
+
+export type LmsCourseCheckUpdatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: UpdatesOutput;
+};
+
+export type LmsCourseCheckUpdatesResponse = LmsCourseCheckUpdatesResponses[keyof LmsCourseCheckUpdatesResponses];
+
+export type LmsCourseLinkDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms-link';
+};
+
+export type LmsCourseLinkDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkDeleteError = LmsCourseLinkDeleteErrors[keyof LmsCourseLinkDeleteErrors];
+
+export type LmsCourseLinkDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseLinkDeleteResponse = LmsCourseLinkDeleteResponses[keyof LmsCourseLinkDeleteResponses];
+
+export type LmsCourseLinkGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms-link';
+};
+
+export type LmsCourseLinkGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkGetError = LmsCourseLinkGetErrors[keyof LmsCourseLinkGetErrors];
+
+export type LmsCourseLinkGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseLinkGetResponse = LmsCourseLinkGetResponses[keyof LmsCourseLinkGetResponses];
+
+export type LmsCourseLinkUpdateData = {
+    body: LinkUpdateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms-link';
+};
+
+export type LmsCourseLinkUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkUpdateError = LmsCourseLinkUpdateErrors[keyof LmsCourseLinkUpdateErrors];
+
+export type LmsCourseLinkUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseLinkUpdateResponse = LmsCourseLinkUpdateResponses[keyof LmsCourseLinkUpdateResponses];
+
+export type LmsCourseLinkSetData = {
+    body: LinkSetInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms-link';
+};
+
+export type LmsCourseLinkSetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkSetError = LmsCourseLinkSetErrors[keyof LmsCourseLinkSetErrors];
+
+export type LmsCourseLinkSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseLinkSetResponse = LmsCourseLinkSetResponses[keyof LmsCourseLinkSetResponses];
+
+export type LmsCourseLinkSyncData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms-link:sync';
+};
+
+export type LmsCourseLinkSyncErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkSyncError = LmsCourseLinkSyncErrors[keyof LmsCourseLinkSyncErrors];
+
+export type LmsCourseLinkSyncResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseLinkSyncResponse = LmsCourseLinkSyncResponses[keyof LmsCourseLinkSyncResponses];
+
+export type LmsCourseOverviewData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms';
+};
+
+export type LmsCourseOverviewErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseOverviewError = LmsCourseOverviewErrors[keyof LmsCourseOverviewErrors];
+
+export type LmsCourseOverviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseOverview;
+};
+
+export type LmsCourseOverviewResponse = LmsCourseOverviewResponses[keyof LmsCourseOverviewResponses];
+
+export type LmsCoursesListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include Past
+         *
+         * Also courses of past terms
+         */
+        include_past?: boolean;
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/programs/{program_id}/lms/courses';
+};
+
+export type LmsCoursesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCoursesListError = LmsCoursesListErrors[keyof LmsCoursesListErrors];
+
+export type LmsCoursesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExternalCourseList;
+};
+
+export type LmsCoursesListResponse = LmsCoursesListResponses[keyof LmsCoursesListResponses];
+
+export type LmsFileGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * File Id
+         *
+         * External file id
+         */
+        file_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/files/{file_id}';
+};
+
+export type LmsFileGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFileGetError = LmsFileGetErrors[keyof LmsFileGetErrors];
+
+export type LmsFileGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileMeta;
+};
+
+export type LmsFileGetResponse = LmsFileGetResponses[keyof LmsFileGetResponses];
+
+export type LmsFileSaveToCourseData = {
+    body: FileSaveInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * File Id
+         *
+         * External file id
+         */
+        file_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/files/{file_id}:save';
+};
+
+export type LmsFileSaveToCourseErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFileSaveToCourseError = LmsFileSaveToCourseErrors[keyof LmsFileSaveToCourseErrors];
+
+export type LmsFileSaveToCourseResponses = {
+    /**
+     * Successful Response
+     */
+    200: SavedFile;
+};
+
+export type LmsFileSaveToCourseResponse = LmsFileSaveToCourseResponses[keyof LmsFileSaveToCourseResponses];
+
+export type LmsGradesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/grades';
+};
+
+export type LmsGradesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsGradesListError = LmsGradesListErrors[keyof LmsGradesListErrors];
+
+export type LmsGradesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradeList;
+};
+
+export type LmsGradesListResponse = LmsGradesListResponses[keyof LmsGradesListResponses];
+
+export type LmsImportAssignmentsData = {
+    body: AssignmentsImportInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/imports:assignments';
+};
+
+export type LmsImportAssignmentsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsImportAssignmentsError = LmsImportAssignmentsErrors[keyof LmsImportAssignmentsErrors];
+
+export type LmsImportAssignmentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsImportAssignmentsResponse = LmsImportAssignmentsResponses[keyof LmsImportAssignmentsResponses];
+
+export type LmsImportCoursesData = {
+    body: CoursesImportInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id (must have a bound connection)
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/imports:courses';
+};
+
+export type LmsImportCoursesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsImportCoursesError = LmsImportCoursesErrors[keyof LmsImportCoursesErrors];
+
+export type LmsImportCoursesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsImportCoursesResponse = LmsImportCoursesResponses[keyof LmsImportCoursesResponses];
+
+export type LmsImportSyllabusData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/imports:syllabus';
+};
+
+export type LmsImportSyllabusErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsImportSyllabusError = LmsImportSyllabusErrors[keyof LmsImportSyllabusErrors];
+
+export type LmsImportSyllabusResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsImportSyllabusResponse = LmsImportSyllabusResponses[keyof LmsImportSyllabusResponses];
+
+export type LmsModuleItemsListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * Module Id
+         *
+         * External module id
+         */
+        module_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/modules/{module_id}/items';
+};
+
+export type LmsModuleItemsListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsModuleItemsListError = LmsModuleItemsListErrors[keyof LmsModuleItemsListErrors];
+
+export type LmsModuleItemsListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ModuleItemList;
+};
+
+export type LmsModuleItemsListResponse = LmsModuleItemsListResponses[keyof LmsModuleItemsListResponses];
+
+export type LmsModulesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/modules';
+};
+
+export type LmsModulesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsModulesListError = LmsModulesListErrors[keyof LmsModulesListErrors];
+
+export type LmsModulesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ModuleList;
+};
+
+export type LmsModulesListResponse = LmsModulesListResponses[keyof LmsModulesListResponses];
+
+export type LmsPageGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * Ref
+         *
+         * Page ref from lms.pages.list
+         */
+        ref: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/pages/{ref}';
+};
+
+export type LmsPageGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsPageGetError = LmsPageGetErrors[keyof LmsPageGetErrors];
+
+export type LmsPageGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageDetail;
+};
+
+export type LmsPageGetResponse = LmsPageGetResponses[keyof LmsPageGetResponses];
+
+export type LmsPagesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/pages';
+};
+
+export type LmsPagesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsPagesListError = LmsPagesListErrors[keyof LmsPagesListErrors];
+
+export type LmsPagesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageList;
+};
+
+export type LmsPagesListResponse = LmsPagesListResponses[keyof LmsPagesListResponses];
+
+export type LmsProgramBindingClearData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms-binding';
+};
+
+export type LmsProgramBindingClearErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsProgramBindingClearError = LmsProgramBindingClearErrors[keyof LmsProgramBindingClearErrors];
+
+export type LmsProgramBindingClearResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramBinding;
+};
+
+export type LmsProgramBindingClearResponse = LmsProgramBindingClearResponses[keyof LmsProgramBindingClearResponses];
+
+export type LmsProgramBindingGetData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms-binding';
+};
+
+export type LmsProgramBindingGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsProgramBindingGetError = LmsProgramBindingGetErrors[keyof LmsProgramBindingGetErrors];
+
+export type LmsProgramBindingGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramBinding;
+};
+
+export type LmsProgramBindingGetResponse = LmsProgramBindingGetResponses[keyof LmsProgramBindingGetResponses];
+
+export type LmsProgramBindingSetData = {
+    body: BindingSetInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms-binding';
+};
+
+export type LmsProgramBindingSetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsProgramBindingSetError = LmsProgramBindingSetErrors[keyof LmsProgramBindingSetErrors];
+
+export type LmsProgramBindingSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramBinding;
+};
+
+export type LmsProgramBindingSetResponse = LmsProgramBindingSetResponses[keyof LmsProgramBindingSetResponses];
+
+export type LmsProvidersListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/lms/providers';
+};
+
+export type LmsProvidersListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsProvidersListError = LmsProvidersListErrors[keyof LmsProvidersListErrors];
+
+export type LmsProvidersListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesLmsSchemasIoProviderList;
+};
+
+export type LmsProvidersListResponse = LmsProvidersListResponses[keyof LmsProvidersListResponses];
+
+export type LmsQuizzesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/quizzes';
+};
+
+export type LmsQuizzesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsQuizzesListError = LmsQuizzesListErrors[keyof LmsQuizzesListErrors];
+
+export type LmsQuizzesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: QuizList;
+};
+
+export type LmsQuizzesListResponse = LmsQuizzesListResponses[keyof LmsQuizzesListResponses];
+
+export type LmsSyllabusGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/syllabus';
+};
+
+export type LmsSyllabusGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyllabusGetError = LmsSyllabusGetErrors[keyof LmsSyllabusGetErrors];
+
+export type LmsSyllabusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RichText;
+};
+
+export type LmsSyllabusGetResponse = LmsSyllabusGetResponses[keyof LmsSyllabusGetResponses];
 
 export type PluginsCatalogListData = {
     body?: never;

@@ -1,9 +1,11 @@
 import { ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { CardProps } from '@/app/extensions'
+import { useExtensions } from '@/app/registry'
 import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { useCourse, useTerms } from '../queries'
+import { COURSE_INFO_ROWS, type CourseInfoRow } from '../types'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -19,6 +21,9 @@ export default function CourseInfoCard({ scope }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const course = useCourse(courseId).data
   const terms = useTerms(scope.programId).data?.items ?? []
+  const extraRows = useExtensions<CourseInfoRow>(COURSE_INFO_ROWS).toSorted(
+    (a, b) => a.order - b.order,
+  )
   if (!course) return null
   const termNames = course.term_ids
     .map((id) => terms.find((t) => t.id === id)?.name)
@@ -64,6 +69,9 @@ export default function CourseInfoCard({ scope }: CardProps) {
             </a>
           </Row>
         ) : null}
+        {extraRows.map((row) => (
+          <row.component key={row.id} programId={scope.programId} courseId={course.id} Row={Row} />
+        ))}
       </dl>
       {course.description ? (
         <p className="mt-2 whitespace-pre-line text-muted-foreground">{course.description}</p>

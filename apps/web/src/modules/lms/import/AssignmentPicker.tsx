@@ -1,0 +1,193 @@
+import { lmsImportAssignments, type ImportSessionDetail } from '@semestra/api-client'
+import {
+  lmsAssignmentsListOptions,
+  lmsCourseLinkGetOptions,
+} from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { ClipboardList, Link2 } from 'lucide-react'
+import { useId, useState } from 'react'
+import { useSettingsDialog } from '@/app/settings'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { toastError } from '@/lib/errors'
+import { formatDateTime } from '@/lib/format'
+import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
+import { DialogFooter } from '@/ui/dialog'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
+import { Field, FieldLabel } from '@/ui/field'
+import { Label } from '@/ui/label'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ProgramUnbound, startedSession } from './CoursePicker'
+
+type Kind = 'assessment' | 'task'
+
+/**
+ * "Import assignments from LMS" (M09 §7.2): tick assignments, choose whether they start as
+ * assessments or tasks, then the M08 review, where each item can still switch.
+ */
+export function AssignmentPicker({
+  courseId,
+  onStarted,
+}: {
+  courseId: string
+  onStarted: (session: ImportSessionDetail) => void
+}) {
+  const settings = useSettingsDialog()
+  const state = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } }))
+  return (
+    <AsyncBoundary query={state}>
+      {(data) =>
+        data.link ? (
+          <AssignmentList courseId={courseId} onStarted={onStarted} />
+        ) : data.program_connection_id ? (
+          <Empty className="min-h-0 flex-1">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Link2 aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.lms_course_not_linked()}</EmptyTitle>
+              <EmptyDescription>{m.lms_course_not_linked_hint()}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                size="sm"
+                onClick={() => settings.open({ level: 'course', group: 'integrations' })}
+              >
+                {m.lms_course_open_settings()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ProgramUnbound />
+        )
+      }
+    </AsyncBoundary>
+  )
+}
+
+function AssignmentList({
+  courseId,
+  onStarted,
+}: {
+  courseId: string
+  onStarted: (session: ImportSessionDetail) => void
+}) {
+  const id = useId()
+  const [kind, setKind] = useState<Kind>('assessment')
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
+  const [starting, setStarting] = useState(false)
+  const assignments = useQuery(lmsAssignmentsListOptions({ path: { course_id: courseId } }))
+
+  const start = () => {
+    setStarting(true)
+    lmsImportAssignments({
+      path: { course_id: courseId },
+      body: { external_ids: [...picked], as_kind: kind },
+      throwOnError: true,
+    })
+      .then(({ data }) => startedSession(data.session_id))
+      .then(onStarted, (error: unknown) => {
+        toastError(error)
+        setStarting(false)
+      })
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <Label id={`${id}-kind`}>{m.lms_import_as()}</Label>
+        <ToggleGroup
+          aria-labelledby={`${id}-kind`}
+          value={[kind]}
+          onValueChange={(next) => {
+            if (next[0]) setKind(next[0] as Kind)
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="assessment">{m.imports_type_assessment()}</ToggleGroupItem>
+          <ToggleGroupItem value="task">{m.imports_type_task()}</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <AsyncBoundary
+          query={assignments}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ClipboardList aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.lms_assignments_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          }
+        >
+          {(data) => (
+            <ul>
+              {data.items.map((a) => {
+                const box = `${id}-${a.external_id}`
+                const imported = a.imported_as.length > 0
+                const detail = [
+                  a.group_name,
+                  a.due_at ? formatDateTime(a.due_at) : m.lms_no_due_date(),
+                  a.points != null ? m.lms_points({ points: a.points }) : null,
+                ].filter(Boolean)
+                return (
+                  <li key={a.external_id}>
+                    <Field
+                      orientation="horizontal"
+                      data-disabled={imported || undefined}
+                      className="rounded-xl px-2 py-1.5 hover:bg-muted/50"
+                    >
+                      <Checkbox
+                        id={box}
+                        disabled={imported}
+                        checked={picked.has(a.external_id)}
+                        onCheckedChange={(on) =>
+                          setPicked((current) => {
+                            const next = new Set(current)
+                            if (on) next.add(a.external_id)
+                            else next.delete(a.external_id)
+                            return next
+                          })
+                        }
+                      />
+                      <FieldLabel htmlFor={box} className="min-w-0 flex-1 font-normal">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{a.name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {detail.join(' · ')}
+                          </span>
+                        </span>
+                        {imported ? (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {m.lms_imported()}
+                          </span>
+                        ) : null}
+                      </FieldLabel>
+                    </Field>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </AsyncBoundary>
+      </div>
+      <DialogFooter>
+        <Button disabled={picked.size === 0 || starting} onClick={start}>
+          {starting ? m.common_loading() : m.lms_import_review({ count: picked.size })}
+        </Button>
+      </DialogFooter>
+    </>
+  )
+}

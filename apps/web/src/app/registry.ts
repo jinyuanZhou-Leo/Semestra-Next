@@ -15,6 +15,7 @@ import auth from '@/modules/auth/manifest'
 import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import imports from '@/modules/imports/manifest'
+import lms from '@/modules/lms/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
 import pomodoro from '@/modules/plugin-pomodoro/manifest'
@@ -52,6 +53,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   files,
   imports,
   tasks,
+  lms,
   habitStreak,
   pomodoro,
   stickyNote,

@@ -111,6 +111,9 @@ docs/                设计稿与模块规格
 - M08 导入中心：后端 `apps/api/src/semestra/modules/imports/`（表 `imports_sessions`/`_items`/`_uploads`；ICS 解析 `ics.py`，相对日期 `dates.py`，抽取结果 → item 的纯函数 `build.py` + `extraction.py`，问题校验 `validate.py`，提交顺序与回滚 `service.py`；job `imports.extract`；8 个 capability，`imports.items.add` 只给 agent/MCP；skill `imports/skills/import-from-documents.md`）。对 M05/M07 的依赖在 `deps.py` 里按名字晚绑定（`deps.call(ctx, "<capability>", args)` 与 `importlib`），缺了只让对应 item/文件失败。前端 `apps/web/src/modules/imports/`：任意处调用 `openImport(request)`（`launcher.ts`）打开导入对话框（manifest 新字段 `overlays` 渲染的 `ImportHost`），审核视图 `SessionView` 同时用于对话框和 `/p/$programId/imports/$sessionId`；Program 设置"数据"下的导入历史。
   给其它模块的约定：要在提交导入时做额外写入用 `register_commit_hook(source_kind, fn)`（同一事务，抛错会让整个提交回滚）；新的导入来源在前端调用 `openImport`，不要自己写审核界面。SQLite 坑：pysqlite 只在第一条 DML 才开事务，第一个 `begin_nested()` 会变成外层事务并在 release 时提交，所以 savepoint 前先 flush 一次写入（见 `service.commit`）。细节与偏离见 M08 规格末尾的"实现说明"。
 
+- M09 LMS 集成：后端 `apps/api/src/semestra/modules/lms/`（表 `lms_connections`/`_program_bindings`/`_course_links`/`_imported_refs`/`_cache`；provider 注册 `providers/base.py` 的 `register_lms_provider`，Canvas 在 `providers/canvas/`；HTML 清洗 `html.py`（nh3）；读接口 `reads.py`，导入 `imports.py`（M08 提交钩子），日历源 `calendar.py`；provider 契约测试 `tests/provider_contract.py`，模块测试用假 provider）。前端 `apps/web/src/modules/lms/`：账户/学业项目/课程设置的"集成"分区、学期向导与成绩册的导入来源、`LmsUpdatesBanner`、公告卡片。
+  给其它模块的约定：新 provider 只需实现 `LmsProvider` 并通过 `check_provider` 契约测试，前端贡献 `lms.providerUi`；凭证只经 `service._seal/_open` 加解密，任何输出只给 `credentials_hint`；provider 只抛 `lms.*` 错误码。读平台内容一律走 `lms.*` capability（带缓存与功能标志检查），返回的 HTML 已清洗，但对 agent 仍是不可信数据。细节与偏离见 M09 规格末尾的"实现说明"。
+
 ## UI 相关
  - 使用shadcn/ui组件前先使用context7查对应组件的文档
  - shadcn组件文件夹中的shadcn组件禁止修改 (apps/web/src/ui)

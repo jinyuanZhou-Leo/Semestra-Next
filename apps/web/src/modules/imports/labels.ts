@@ -20,7 +20,9 @@ export const TYPE_LABELS: Record<ItemType, () => string> = {
   event: m.imports_type_event,
   category: m.imports_type_category,
   assessment: m.imports_type_assessment,
+  assessment_patch: m.imports_type_assessment_patch,
   task: m.imports_type_task,
+  task_patch: m.imports_type_task_patch,
 }
 
 export function issueText(issue: Issue): string {
@@ -41,6 +43,9 @@ export function itemTitle(item: ImportItem): string {
     }
     case 'course_patch':
       return m.imports_patch_title({ count: Object.keys((data.changes as object) ?? {}).length })
+    case 'assessment_patch':
+    case 'task_patch':
+      return String(data.label ?? '')
     case 'meeting': {
       const mt = data as MeetingData
       return [mt.section_code || mt.type_code, weekdayName(mt.weekday, 'short')]
@@ -83,6 +88,9 @@ export function itemDetail(item: ImportItem): string {
       const c = data as CourseData
       return (c.planned_terms ?? 1) > 1 ? m.imports_year_long() : ''
     }
+    case 'assessment_patch':
+    case 'task_patch':
+      return m.imports_patch_title({ count: Object.keys((data.changes as object) ?? {}).length })
     default:
       return ''
   }

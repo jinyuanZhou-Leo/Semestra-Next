@@ -5,6 +5,7 @@ import type {
   CourseDraft,
   CourseInfoAction,
   CreatedCourseMapping,
+  TermWizardContext,
   TermWizardImportSource,
 } from '@/modules/academics/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
@@ -12,7 +13,7 @@ import type { MeetingImportSource } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { openImport } from './launcher'
 import { SOURCES } from './sources'
-import type { CourseData, ImportSourceKind } from './types'
+import type { CourseData, ImportRequest, ImportSourceKind } from './types'
 
 /**
  * The import sources M08 contributes to other modules' extension points (M08 §6.1). Each one
@@ -29,18 +30,36 @@ export function setImportQueryClient(client: QueryClient | null) {
 type Extras = { importSessionId: string; importItemId: string }
 
 export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
-  return {
+  return wizardImportSource({
     id: `imports.${source}`,
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
     icon: SOURCES[source].icon,
-    launch: async ({ programId, startDate, endDate }) => {
-      const outcome = await openImport({
-        programId,
-        source,
-        target: { kind: 'term_wizard', start_date: startDate, end_date: endDate },
-        mode: 'wizard',
-      })
+    request: ({ programId, startDate, endDate }) => ({
+      programId,
+      source,
+      target: { kind: 'term_wizard', start_date: startDate, end_date: endDate },
+      mode: 'wizard',
+    }),
+  })
+}
+
+/**
+ * A term wizard source backed by an import session (also M09's "Import courses from LMS"):
+ * the reviewed courses become the wizard's drafts, and once the wizard created them the session
+ * is committed with that mapping, writing everything that belongs to them.
+ */
+export function wizardImportSource({
+  request,
+  ...entry
+}: Omit<TermWizardImportSource, 'launch' | 'onCoursesCreated'> & {
+  request: (ctx: TermWizardContext) => ImportRequest | null
+}): TermWizardImportSource {
+  return {
+    ...entry,
+    launch: async (ctx) => {
+      const wanted = request(ctx)
+      const outcome = wanted ? await openImport(wanted) : null
       if (!outcome) return []
       const { session } = outcome
       return session.items

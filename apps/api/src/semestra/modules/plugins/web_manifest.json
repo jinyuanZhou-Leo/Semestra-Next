@@ -412,6 +412,28 @@
       }
     },
     {
+      "id": "lms",
+      "kind": "core",
+      "pages": [],
+      "cards": [
+        {
+          "id": "lms.announcements",
+          "scopes": [
+            "course",
+            "term"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {}
+    },
+    {
       "id": "habit-streak",
       "kind": "plugin",
       "pages": [],

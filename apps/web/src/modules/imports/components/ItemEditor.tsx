@@ -12,10 +12,11 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, itemTitle, TYPE_LABELS } from '../labels'
 import { storeSession, trackEdit } from '../queries'
-import type { CoursePatchData, FieldChange } from '../types'
+import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
 type Values = Record<string, unknown>
@@ -24,9 +25,14 @@ type Values = Record<string, unknown>
 export function ItemEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-xs text-muted-foreground">{TYPE_LABELS[item.type]()}</p>
-        <h3 className="font-heading text-base font-medium">{itemTitle(item)}</h3>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">{TYPE_LABELS[item.type]()}</p>
+          <h3 className="font-heading text-base font-medium">{itemTitle(item)}</h3>
+        </div>
+        {editable && (item.type === 'assessment' || item.type === 'task') ? (
+          <TypeSwitch item={item} />
+        ) : null}
       </div>
       {item.result?.error_code ? (
         <p className="flex gap-2 text-sm text-destructive">
@@ -49,12 +55,47 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
           ))}
         </ul>
       ) : null}
-      {item.type === 'course_patch' ? (
+      {item.type.endsWith('_patch') ? (
         <PatchEditor item={item} editable={editable} />
       ) : (
-        <FieldsEditor key={item.id} item={item} editable={editable} />
+        <FieldsEditor key={`${item.id}:${item.type}`} item={item} editable={editable} />
       )}
     </div>
+  )
+}
+
+/** Imports the item as an assessment of the course or as a task (M09 LMS assignments). */
+function TypeSwitch({ item }: { item: ImportItem }) {
+  const queryClient = useQueryClient()
+  const save = useMutation({
+    ...importsItemUpdateMutation(),
+    onError: toastError,
+    onSuccess: (session) => storeSession(queryClient, session),
+  })
+  return (
+    <ToggleGroup
+      aria-label={m.imports_import_as()}
+      value={[item.type]}
+      disabled={save.isPending}
+      onValueChange={(next) => {
+        const type = next[0]
+        if ((type === 'assessment' || type === 'task') && type !== item.type) {
+          trackEdit(
+            save
+              .mutateAsync({
+                path: { session_id: item.session_id, item_id: item.id },
+                body: { type },
+              })
+              .catch(() => undefined), // reported by onError
+          )
+        }
+      }}
+      variant="outline"
+      size="sm"
+    >
+      <ToggleGroupItem value="assessment">{m.imports_type_assessment()}</ToggleGroupItem>
+      <ToggleGroupItem value="task">{m.imports_type_task()}</ToggleGroupItem>
+    </ToggleGroup>
   )
 }
 
@@ -207,8 +248,8 @@ function FieldInput({
 }
 
 /**
- * A change to an existing course: old → new per field, each one can be left out
- * (`changes[field].apply`, M08 §6.2).
+ * A change to an existing course, assessment or task: old → new per field, each one can be left
+ * out (`changes[field].apply`, M08 §6.2).
  */
 function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const queryClient = useQueryClient()
@@ -217,7 +258,7 @@ function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }
     onError: toastError,
     onSuccess: (session) => storeSession(queryClient, session),
   })
-  const { changes } = item.data as CoursePatchData
+  const { changes } = item.data as TargetPatchData
   const toggle = (field: string, change: FieldChange, apply: boolean) =>
     save.mutate({
       path: { session_id: item.session_id, item_id: item.id },

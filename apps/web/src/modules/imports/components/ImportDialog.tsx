@@ -18,7 +18,7 @@ import { Textarea } from '@/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
-import type { ImportOutcome, ImportRequest } from '../types'
+import type { FileImportRequest, ImportOutcome, ImportRequest } from '../types'
 import { SessionView } from './SessionView'
 
 /**
@@ -33,9 +33,17 @@ export function ImportDialog({
   request: ImportRequest
   onClose: (outcome: ImportOutcome) => void
 }) {
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const [sessionId, setSessionId] = useState<string | null>(
+    request.source === 'session' ? request.sessionId : null,
+  )
   const session = useImportSession(sessionId).data
-  const spec = SOURCES[request.source]
+  const spec =
+    request.source === 'picker'
+      ? request.picker
+      : request.source === 'session'
+        ? { title: request.title, hint: m.imports_review_hint }
+        : SOURCES[request.source]
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose(null)}>
@@ -51,7 +59,14 @@ export function ImportDialog({
             className="min-h-0 flex-1"
             onDone={(done) => onClose(done ? { session: done } : null)}
           />
-        ) : sessionId ? null : (
+        ) : sessionId || request.source === 'session' ? null : request.source === 'picker' ? (
+          <request.picker.component
+            onStarted={(started) => {
+              storeSession(queryClient, started)
+              setSessionId(started.id)
+            }}
+          />
+        ) : (
           <SourcePicker request={request} onStarted={setSessionId} />
         )}
       </DialogContent>
@@ -60,7 +75,7 @@ export function ImportDialog({
 }
 
 /** Uploads the files one by one, then starts the session (ICS is parsed right away). */
-async function createSession(request: ImportRequest, files: File[], text: string | null) {
+async function createSession(request: FileImportRequest, files: File[], text: string | null) {
   const uploadIds: string[] = []
   for (const file of files) {
     const { data } = await importsUploadCreate({ body: { file }, throwOnError: true })
@@ -84,7 +99,7 @@ function SourcePicker({
   request,
   onStarted,
 }: {
-  request: ImportRequest
+  request: FileImportRequest
   onStarted: (sessionId: string) => void
 }) {
   const inputId = useId()
