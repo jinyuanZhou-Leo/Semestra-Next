@@ -1,6 +1,7 @@
 import { academicsTermCalendarInfoOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
+import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ScopePage } from '@/app/host/ScopePage'
 import { usePages } from '@/app/registry'
 import { SearchX } from 'lucide-react'
@@ -52,7 +53,9 @@ export function ProgramView({
             title={page?.title()}
             subtitle={
               Subtitle ? (
-                <Subtitle scope={scope} />
+                <PluginBoundary silent>
+                  <Subtitle scope={scope} />
+                </PluginBoundary>
               ) : (
                 [
                   p.institution,
