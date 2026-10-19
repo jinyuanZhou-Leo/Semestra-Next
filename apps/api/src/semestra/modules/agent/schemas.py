@@ -7,28 +7,28 @@ Effect = Literal["read", "write", "destructive"]
 ProposalStatus = Literal["pending", "approved", "rejected", "executed", "failed", "expired"]
 
 
-class ScopeIn(BaseModel):
+class AgentScope(BaseModel):
     program_id: str = Field(description="Program of the page the assistant was opened on.")
     term_id: str | None = Field(default=None, description="Term of the page, if any.")
     course_id: str | None = Field(default=None, description="Course of the page, if any.")
 
 
-class SessionOut(BaseModel):
+class AgentSessionOut(BaseModel):
     id: str
     title: str | None
     program_id: str | None
-    scope: ScopeIn | None
+    scope: AgentScope | None
     pinned: bool
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None
 
 
-class SessionList(BaseModel):
-    items: list[SessionOut]
+class AgentSessionList(BaseModel):
+    items: list[AgentSessionOut]
 
 
-class MessageOut(BaseModel):
+class AgentMessageOut(BaseModel):
     id: str
     role: Literal["user", "assistant", "tool"]
     content: list[dict[str, Any]] = Field(
@@ -41,7 +41,7 @@ class MessageOut(BaseModel):
     created_at: datetime
 
 
-class ProposalOut(BaseModel):
+class AgentProposalOut(BaseModel):
     id: str
     session_id: str
     message_id: str
@@ -59,7 +59,7 @@ class ProposalOut(BaseModel):
     executed_at: datetime | None
 
 
-class AttachmentOut(BaseModel):
+class AgentAttachmentOut(BaseModel):
     id: str
     session_id: str
     kind: Literal["image", "file"]
@@ -69,15 +69,15 @@ class AttachmentOut(BaseModel):
     created_at: datetime
 
 
-class SessionDetail(BaseModel):
-    session: SessionOut
-    messages: list[MessageOut]
-    proposals: list[ProposalOut]
-    attachments: list[AttachmentOut]
+class AgentSessionDetail(BaseModel):
+    session: AgentSessionOut
+    messages: list[AgentMessageOut]
+    proposals: list[AgentProposalOut]
+    attachments: list[AgentAttachmentOut]
     generating: bool = Field(description="An answer is being generated right now.")
 
 
-class SessionListInput(BaseModel):
+class AgentSessionListInput(BaseModel):
     query: str | None = Field(default=None, description="Matches the title.")
     archived: bool = Field(default=False, description="List archived sessions instead.")
     limit: int = Field(default=100, ge=1, le=500, description="At most this many, newest first.")
@@ -87,26 +87,26 @@ class SessionIdInput(BaseModel):
     id: str = Field(description="Session id.")
 
 
-class SessionCreateInput(BaseModel):
-    scope: ScopeIn | None = Field(default=None, description="Page scope to start from.")
+class AgentSessionCreateInput(BaseModel):
+    scope: AgentScope | None = Field(default=None, description="Page scope to start from.")
 
 
-class SessionUpdateInput(BaseModel):
+class AgentSessionUpdateInput(BaseModel):
     id: str = Field(description="Session id.")
     title: str | None = Field(default=None, max_length=200, description="New title.")
     pinned: bool | None = Field(default=None, description="Pin to the top of the list.")
     archived: bool | None = Field(default=None, description="Archive or restore.")
-    scope: ScopeIn | None = Field(
+    scope: AgentScope | None = Field(
         default=None, description="Change the context (e.g. from a course to its Program)."
     )
 
 
-class Preferences(BaseModel):
+class AgentPreferencesOut(BaseModel):
     auto_approve: list[str] = Field(description="Write capabilities that run without asking.")
     mcp_allow_destructive: bool = Field(description="MCP clients may run delete actions.")
 
 
-class PreferencesUpdateInput(BaseModel):
+class AgentPreferencesUpdateInput(BaseModel):
     auto_approve: list[str] | None = Field(
         default=None, description="Write capabilities that run without asking."
     )
@@ -115,7 +115,7 @@ class PreferencesUpdateInput(BaseModel):
     )
 
 
-class ToolInfo(BaseModel):
+class AgentToolInfo(BaseModel):
     name: str
     module: str
     summary: str
@@ -125,11 +125,11 @@ class ToolInfo(BaseModel):
     mcp: bool = Field(description="Also offered to MCP clients.")
 
 
-class ToolCatalog(BaseModel):
-    items: list[ToolInfo]
+class AgentToolCatalog(BaseModel):
+    items: list[AgentToolInfo]
 
 
-class SkillInfo(BaseModel):
+class AgentSkillInfo(BaseModel):
     name: str
     title: dict[str, str]
     command: str | None
@@ -137,11 +137,11 @@ class SkillInfo(BaseModel):
     module: str
 
 
-class SkillList(BaseModel):
-    items: list[SkillInfo]
+class AgentSkillList(BaseModel):
+    items: list[AgentSkillInfo]
 
 
-class StopResult(BaseModel):
+class AgentStopResult(BaseModel):
     stopped: bool
 
 
@@ -151,7 +151,7 @@ class StopResult(BaseModel):
 class SendMessageBody(BaseModel):
     text: str = Field(default="", max_length=20_000)
     attachment_ids: list[str] = Field(default_factory=list, max_length=10)
-    scope: ScopeIn | None = None
+    scope: AgentScope | None = None
     skill: str | None = Field(default=None, description="Slash-command skill to apply.")
 
 

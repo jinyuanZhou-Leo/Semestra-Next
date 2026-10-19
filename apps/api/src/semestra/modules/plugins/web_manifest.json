@@ -173,6 +173,13 @@
       "default_board": {}
     },
     {
+      "id": "assistant",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
       "id": "plugins",
       "kind": "core",
       "pages": [],

@@ -18,16 +18,16 @@ from semestra.modules.agent.models import (
     AgentSession,
 )
 from semestra.modules.agent.schemas import (
-    AttachmentOut,
-    MessageOut,
-    Preferences,
-    PreferencesUpdateInput,
-    ProposalOut,
-    ScopeIn,
-    SessionDetail,
-    SessionListInput,
-    SessionOut,
-    SessionUpdateInput,
+    AgentAttachmentOut,
+    AgentMessageOut,
+    AgentPreferencesOut,
+    AgentPreferencesUpdateInput,
+    AgentProposalOut,
+    AgentScope,
+    AgentSessionDetail,
+    AgentSessionListInput,
+    AgentSessionOut,
+    AgentSessionUpdateInput,
 )
 
 PROPOSAL_TTL = timedelta(hours=24)
@@ -36,12 +36,12 @@ PROPOSAL_TTL = timedelta(hours=24)
 # --- sessions -------------------------------------------------------------------------------
 
 
-def session_out(row: AgentSession) -> SessionOut:
-    return SessionOut(
+def session_out(row: AgentSession) -> AgentSessionOut:
+    return AgentSessionOut(
         id=row.id,
         title=row.title,
         program_id=row.program_id,
-        scope=ScopeIn.model_validate(row.scope) if row.scope else None,
+        scope=AgentScope.model_validate(row.scope) if row.scope else None,
         pinned=row.pinned,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -55,7 +55,7 @@ def scope_ref(row: AgentSession) -> ScopeRef | None:
     return ScopeRef(row.scope["program_id"], row.scope.get("term_id"), row.scope.get("course_id"))
 
 
-async def _check_scope(ctx: Ctx, scope: ScopeIn | None) -> None:
+async def _check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
     """The scope must be the user's own Program, term and course."""
     if scope is None:
         return
@@ -79,7 +79,7 @@ async def get_session_row(ctx: Ctx, session_id: str) -> AgentSession:
     return row
 
 
-async def list_sessions(ctx: Ctx, inp: SessionListInput) -> list[SessionOut]:
+async def list_sessions(ctx: Ctx, inp: AgentSessionListInput) -> list[AgentSessionOut]:
     stmt = select(AgentSession).where(AgentSession.user_id == ctx.user_id)
     stmt = stmt.where(
         AgentSession.archived_at.is_not(None)
@@ -92,7 +92,7 @@ async def list_sessions(ctx: Ctx, inp: SessionListInput) -> list[SessionOut]:
     return [session_out(r) for r in (await ctx.db.scalars(stmt)).all()]
 
 
-async def create_session(ctx: Ctx, scope: ScopeIn | None) -> AgentSession:
+async def create_session(ctx: Ctx, scope: AgentScope | None) -> AgentSession:
     await _check_scope(ctx, scope)
     row = AgentSession(
         user_id=ctx.user_id,
@@ -107,7 +107,7 @@ async def create_session(ctx: Ctx, scope: ScopeIn | None) -> AgentSession:
     return row
 
 
-async def update_session(ctx: Ctx, inp: SessionUpdateInput) -> AgentSession:
+async def update_session(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSession:
     row = await get_session_row(ctx, inp.id)
     fields = inp.model_fields_set
     if "title" in fields:
@@ -189,8 +189,8 @@ def add_message(
     return row
 
 
-def message_out(row: AgentMessage) -> MessageOut:
-    return MessageOut(
+def message_out(row: AgentMessage) -> AgentMessageOut:
+    return AgentMessageOut(
         id=row.id,
         role=row.role,  # pyright: ignore[reportArgumentType]
         content=row.content,
@@ -211,9 +211,9 @@ def _capability(name: str) -> Capability | None:
         return None
 
 
-def proposal_out(row: AgentProposal) -> ProposalOut:
+def proposal_out(row: AgentProposal) -> AgentProposalOut:
     cap = _capability(row.capability)
-    return ProposalOut(
+    return AgentProposalOut(
         id=row.id,
         session_id=row.session_id,
         message_id=row.message_id,
@@ -267,8 +267,8 @@ def check_pending(row: AgentProposal) -> None:
 # --- attachments ---------------------------------------------------------------------------
 
 
-def attachment_out(row: AgentAttachment) -> AttachmentOut:
-    return AttachmentOut(
+def attachment_out(row: AgentAttachment) -> AgentAttachmentOut:
+    return AgentAttachmentOut(
         id=row.id,
         session_id=row.session_id,
         kind=row.kind,  # pyright: ignore[reportArgumentType]
@@ -304,9 +304,9 @@ async def _storage_used(ctx: Ctx) -> int:
 # --- detail --------------------------------------------------------------------------------
 
 
-async def detail(ctx: Ctx, session_id: str) -> SessionDetail:
+async def detail(ctx: Ctx, session_id: str) -> AgentSessionDetail:
     row = await get_session_row(ctx, session_id)
-    return SessionDetail(
+    return AgentSessionDetail(
         session=session_out(row),
         messages=[message_out(m) for m in await messages(ctx, row.id)],
         proposals=[proposal_out(p) for p in await proposals(ctx, row.id)],
@@ -322,11 +322,11 @@ async def preferences_row(ctx: Ctx) -> AgentPreferences | None:
     return await ctx.db.get(AgentPreferences, ctx.user_id)
 
 
-async def get_preferences(ctx: Ctx) -> Preferences:
+async def get_preferences(ctx: Ctx) -> AgentPreferencesOut:
     row = await preferences_row(ctx)
     if row is None:
-        return Preferences(auto_approve=[], mcp_allow_destructive=False)
-    return Preferences(
+        return AgentPreferencesOut(auto_approve=[], mcp_allow_destructive=False)
+    return AgentPreferencesOut(
         auto_approve=list(row.auto_approve), mcp_allow_destructive=row.mcp_allow_destructive
     )
 
@@ -344,7 +344,7 @@ def _check_auto_approve(names: Sequence[str]) -> list[str]:
     return sorted(set(names))
 
 
-async def update_preferences(ctx: Ctx, inp: PreferencesUpdateInput) -> Preferences:
+async def update_preferences(ctx: Ctx, inp: AgentPreferencesUpdateInput) -> AgentPreferencesOut:
     row = await preferences_row(ctx)
     if row is None:
         row = AgentPreferences(
@@ -364,5 +364,5 @@ async def remember_auto_approve(ctx: Ctx, capability: str) -> None:
     prefs = await get_preferences(ctx)
     if capability not in prefs.auto_approve:
         await update_preferences(
-            ctx, PreferencesUpdateInput(auto_approve=[*prefs.auto_approve, capability])
+            ctx, AgentPreferencesUpdateInput(auto_approve=[*prefs.auto_approve, capability])
         )

@@ -153,3 +153,30 @@ agent_preferences
 ## 11. 验收
 - 在课程页打开助手说"我 Lab 3 拿了 18/20"，助手找到对应考核并弹出确认卡片，批准后成绩页自动刷新。
 - 在 Claude Desktop 中配置 MCP 后，可以问"我明天有什么课"并得到正确回答。
+
+## 实现说明（M12 落地时补充）
+以下是实现时做出的取舍与对上文的细化，以代码为准。
+
+**后端**（`apps/api/src/semestra/modules/agent/`）
+- **不用 LangGraph，也没有 checkpoint 文件**：LangGraph 依赖的 langchain-core / PyYAML 没有 Python 3.15 wheel（同 M06 不用 LangChain 的原因）。工具循环在 `loop.py` 里自己写：调模型 → 并行执行 read 工具（最多 4 个并发）→ 自动批准的 write 直接执行 → 其余 write/destructive 生成提案并结束本轮；用户决定后由 `decide` 接着跑。会话的运行状态（已加载工具、压缩摘要）存在 `agent_sessions.state` JSON 列，删除会话即一并删除，不需要独立的 SQLite 文件。
+- 表结构相对第 2 节的补充：`agent_sessions.state`；`agent_proposals.call_id`（对应模型的 tool call id，把结果放回正确位置）；`agent_attachments.name`（原文件名）。迁移 `0010`（与并行模块的 PR 冲突时按合并顺序重新编号）。
+- 消息内容块：`text`、`skill`、`note`、`image_ref`、`file_ref`、`tool_call`、`tool_result`、`citation`。提案在等待时，发给模型的历史里该调用的结果是"等待确认"占位；之后决定的结果作为一条备注插在实际发生的位置。超过 24 小时未决定的提案在读取时标记为 `expired`。
+- 工具暴露：`agent_core` 的 capability 直接绑定（最多 20 个），其余通过 `tools_search`（**关键词匹配**，没有用 embedding）和 `tools_load`（每会话 LRU 25 个）加载；`skills_search` / `skills_read` 读取 skill。工具名把 `.` 换成 `__`。工具结果超过 12k 字符截断。
+- 每轮最多 12 次工具调用，超出的调用返回 `agent.tool_limit_reached` 并结束本轮；上下文超过模型窗口 70% 时用 `title` 用途的小模型把较早的部分总结掉（保留最近两轮）。
+- 并发：每用户同时最多 2 个生成、每会话 1 个，超出 `agent.busy`（429）。`POST /agent/sessions/{id}:stop` 是 capability `agent.session.stop`。
+- 提案预览契约：capability 可以提供 `preview(ctx, input)`，返回 `{target?, changes: [{field, before?, after}], link?: {to, page?}}`；没有时用参数生成 `changes`。M03 的 `grading.assessment.update` 已实现（考核与课程名、before → after、成绩页链接）。只有 `write` 能加入自动批准，destructive 永远不能（`common.validation`）。
+- 引用契约：工具结果里带 `citations: [{id, title?, snippet?, url?}]` 时，作为 `citation` 事件发出并保存，回答里的 `[[cite:<id>]]` 在前端渲染为角标。M07 接入时按此返回即可。
+- 附件：图片（png/jpeg/webp/gif）直接给模型；PDF 作为文档块交给支持的模型；文本类（text/*、json、xml）用 `wrap_untrusted` 包装后内联。**暂未交给 M07 解析与入库**（M07 还在开发中）。上限 10 MB，计入存储配额（模块名 `agent`）。新增错误码 `agent.attachment_unsupported`（415）。
+- 重新生成：只允许最后一个回答，且该回答没有已执行的写操作，否则 `agent.cannot_regenerate`（409）。
+- 新增接口：`POST /agent/sessions/{id}/proposals:decide`（"全部批准"，一次决定多个）、`agent.skills.list`（`GET /agent/skills`，斜杠命令用）。SSE 路由不进 OpenAPI，前端用 `fetch` 读流（`modules/assistant/stream.ts`）。SSE 事件 `title` 在自动命名后发出。
+- Skill frontmatter 新增 `title: { en, zh-CN }`（必填，界面显示）与可选 `command`（如 `/grade`，全局唯一，测试会检查）。
+- MCP：官方 `mcp` SDK 的低层 `Server` + `StreamableHTTPSessionManager(stateless=True, json_response=True)`，**每个请求新建一个 manager**（放在应用 lifespan 里跨 task 会报 cancel scope 错误）。认证只认 `Bearer spat_…`；read 令牌只看到 read 工具；destructive 需要 write 令牌且开启 `mcp_allow_destructive`。prompts = skill，resources 为 `semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}`。
+- 测试：后端 33 个（脚本化假模型 `tests/conftest.py`，MCP 用 SDK 客户端走 ASGI）；另有一个测试检查每个 agent capability 都有中英 `capability_*_title`。`@pytest.mark.live` 的真实模型评测没有写。
+
+**前端**（`apps/web/src/modules/assistant/`）
+- 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。侧边栏在"搜索"下方有入口（`data-tour="assistant"`，`Cmd/Ctrl+J`）。
+- 全屏页路由为 `/p/$programId/assistant/{-$sessionId}`（放在 Program 外壳内，保留侧边栏），而不是 `/assistant/$sessionId?`；新会话创建后替换 URL，不打断正在进行的回答。
+- 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
+- 上下文标签：新会话默认用当前页面作用域；已有会话显示并修改会话自己的作用域（`agent.session.update`）。`@` 选择课程或学期时同时切换上下文。
+- 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
+- 设置分区（账户"AI"分组）：`assistant-approvals`（自动批准）、`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）、`assistant-tools`（工具目录）。

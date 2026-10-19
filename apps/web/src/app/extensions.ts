@@ -1,6 +1,6 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
-import type { ComponentType, LazyExoticComponent } from 'react'
+import type { ComponentType, LazyExoticComponent, ReactNode } from 'react'
 import type { ZodType } from 'zod'
 
 /**
@@ -193,7 +193,12 @@ export type NavigationSourceContribution = {
 
 /** The AI assistant (M12): `Cmd/Ctrl + J` and the palette's "Ask AI" call `open`. */
 export type AssistantContribution = {
+  /** Without a question it toggles the panel; with one it asks it in a new conversation. */
   open: (ctx: CommandContext, question?: string) => void
+  /** Whether the panel is open (for `useSyncExternalStore`), e.g. to highlight its entry. */
+  panel: { subscribe: (listener: () => void) => () => void; isOpen: () => boolean }
+  /** Wraps the app shell's content and docks the panel beside it (M12 §6.1). */
+  Dock: ComponentType<{ children: ReactNode }>
 }
 
 /**

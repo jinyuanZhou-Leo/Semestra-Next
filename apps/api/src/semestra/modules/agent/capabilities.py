@@ -7,20 +7,20 @@ from semestra.core.capability import Http, NoInput, capability, registry
 from semestra.core.context import Ctx
 from semestra.modules.agent import service, skills
 from semestra.modules.agent.schemas import (
-    Preferences,
-    PreferencesUpdateInput,
-    SessionCreateInput,
-    SessionDetail,
+    AgentPreferencesOut,
+    AgentPreferencesUpdateInput,
+    AgentSessionCreateInput,
+    AgentSessionDetail,
+    AgentSessionList,
+    AgentSessionListInput,
+    AgentSessionOut,
+    AgentSessionUpdateInput,
+    AgentSkillInfo,
+    AgentSkillList,
+    AgentStopResult,
+    AgentToolCatalog,
+    AgentToolInfo,
     SessionIdInput,
-    SessionList,
-    SessionListInput,
-    SessionOut,
-    SessionUpdateInput,
-    SkillInfo,
-    SkillList,
-    StopResult,
-    ToolCatalog,
-    ToolInfo,
 )
 
 HTTP_ONLY = ("http",)
@@ -40,8 +40,8 @@ class Deleted(BaseModel):
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def session_list(ctx: Ctx, inp: SessionListInput) -> SessionList:
-    return SessionList(items=await service.list_sessions(ctx, inp))
+async def session_list(ctx: Ctx, inp: AgentSessionListInput) -> AgentSessionList:
+    return AgentSessionList(items=await service.list_sessions(ctx, inp))
 
 
 @capability(
@@ -53,7 +53,7 @@ async def session_list(ctx: Ctx, inp: SessionListInput) -> SessionList:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def session_get(ctx: Ctx, inp: SessionIdInput) -> SessionDetail:
+async def session_get(ctx: Ctx, inp: SessionIdInput) -> AgentSessionDetail:
     out = await service.detail(ctx, inp.id)
     await ctx.db.flush()  # expired proposals
     return out
@@ -68,7 +68,7 @@ async def session_get(ctx: Ctx, inp: SessionIdInput) -> SessionDetail:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def session_create(ctx: Ctx, inp: SessionCreateInput) -> SessionOut:
+async def session_create(ctx: Ctx, inp: AgentSessionCreateInput) -> AgentSessionOut:
     return service.session_out(await service.create_session(ctx, inp.scope))
 
 
@@ -81,7 +81,7 @@ async def session_create(ctx: Ctx, inp: SessionCreateInput) -> SessionOut:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def session_update(ctx: Ctx, inp: SessionUpdateInput) -> SessionOut:
+async def session_update(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSessionOut:
     return service.session_out(await service.update_session(ctx, inp))
 
 
@@ -108,9 +108,9 @@ async def session_delete(ctx: Ctx, inp: SessionIdInput) -> Deleted:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def session_stop(ctx: Ctx, inp: SessionIdInput) -> StopResult:
+async def session_stop(ctx: Ctx, inp: SessionIdInput) -> AgentStopResult:
     row = await service.get_session_row(ctx, inp.id)
-    return StopResult(stopped=ctx.state.agent.stop(row.id))
+    return AgentStopResult(stopped=ctx.state.agent.stop(row.id))
 
 
 @capability(
@@ -122,7 +122,7 @@ async def session_stop(ctx: Ctx, inp: SessionIdInput) -> StopResult:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def preferences_get(ctx: Ctx, inp: NoInput) -> Preferences:
+async def preferences_get(ctx: Ctx, inp: NoInput) -> AgentPreferencesOut:
     return await service.get_preferences(ctx)
 
 
@@ -135,7 +135,7 @@ async def preferences_get(ctx: Ctx, inp: NoInput) -> Preferences:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def preferences_update(ctx: Ctx, inp: PreferencesUpdateInput) -> Preferences:
+async def preferences_update(ctx: Ctx, inp: AgentPreferencesUpdateInput) -> AgentPreferencesOut:
     return await service.update_preferences(ctx, inp)
 
 
@@ -148,11 +148,11 @@ async def preferences_update(ctx: Ctx, inp: PreferencesUpdateInput) -> Preferenc
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def tools_catalog(ctx: Ctx, inp: NoInput) -> ToolCatalog:
+async def tools_catalog(ctx: Ctx, inp: NoInput) -> AgentToolCatalog:
     available = await registry.available(ctx, "agent")
-    return ToolCatalog(
+    return AgentToolCatalog(
         items=[
-            ToolInfo(
+            AgentToolInfo(
                 name=c.name,
                 module=c.name.split(".")[0],
                 summary=c.summary,
@@ -175,11 +175,11 @@ async def tools_catalog(ctx: Ctx, inp: NoInput) -> ToolCatalog:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def skills_list(ctx: Ctx, inp: NoInput) -> SkillList:
+async def skills_list(ctx: Ctx, inp: NoInput) -> AgentSkillList:
     visible = skills.visible_skills(await registry.available(ctx, "agent"))
-    return SkillList(
+    return AgentSkillList(
         items=[
-            SkillInfo(
+            AgentSkillInfo(
                 name=s.name,
                 title=s.title,
                 command=s.command,

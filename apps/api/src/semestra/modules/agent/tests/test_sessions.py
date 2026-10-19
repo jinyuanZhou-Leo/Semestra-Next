@@ -1,5 +1,6 @@
 """Sessions, attachments, preferences, the tool catalog and the skill files (M12 §4, §10)."""
 
+import inspect
 import json
 from pathlib import Path
 
@@ -172,8 +173,7 @@ def test_every_agent_capability_has_a_title_in_both_languages():
             c.name
             for c in registry.list("agent")
             # Capabilities registered by tests and the (unregistered) module templates.
-            if ".tests" not in c.handler.__module__
-            and "._template" not in c.handler.__module__
+            if not {"tests", "_template"} & set(Path(inspect.getfile(c.handler)).parts)
             and f"capability_{c.name.replace('.', '_')}_title" not in messages
         ]
         assert not missing, f"{locale}: {missing}"

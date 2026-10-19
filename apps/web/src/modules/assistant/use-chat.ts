@@ -1,0 +1,212 @@
+import {
+  type AgentScope,
+  type AgentSessionDetail,
+  agentSessionCreate,
+  agentSessionStop,
+} from '@semestra/api-client'
+import { agentSessionGetOptions, agentSessionGetQueryKey } from '@semestra/api-client/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
+import { invalidateOperations, toApiError } from '@/app/api'
+import { type AgentEvent, streamAgent } from './stream'
+import { applyEvent, withUserMessage } from './transcript'
+
+export type ChatError = { code: string; params: Record<string, unknown> }
+
+export type SendInput = {
+  text: string
+  attachmentIds?: string[]
+  skill?: { name: string; title: Record<string, string> } | null
+  scope?: AgentScope | null
+}
+
+export type Decision = {
+  proposalId: string
+  decision: 'approve' | 'reject' | 'edit'
+  args?: Record<string, unknown>
+  remember?: boolean
+  reason?: string
+}
+
+const LIST_QUERIES = ['agentSessionList']
+
+/** One streaming request; never throws. `started` is false when it failed before the turn. */
+async function streamTurn(
+  path: string,
+  body: unknown,
+  onEvent: (event: AgentEvent) => void,
+  signal: AbortSignal,
+): Promise<{ started: boolean; error: ChatError | null }> {
+  let started = false
+  try {
+    await streamAgent(
+      path,
+      body,
+      (event) => {
+        started = true
+        onEvent(event)
+      },
+      signal,
+    )
+    return { started, error: null }
+  } catch (err) {
+    if (signal.aborted) return { started, error: null }
+    const apiError = toApiError(err)
+    return { started, error: { code: apiError.code, params: apiError.params } }
+  }
+}
+
+export function emptyDetail(session: AgentSessionDetail['session']): AgentSessionDetail {
+  return { session, messages: [], proposals: [], attachments: [], generating: false }
+}
+
+/**
+ * One conversation: its transcript (the server copy, with streamed events applied as they
+ * arrive) and the actions that start a turn. A new conversation is created on the first send.
+ */
+export function useChat(sessionId: string | null, onCreated: (id: string) => void) {
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<ChatError | null>(null)
+  const controller = useRef<AbortController | null>(null)
+
+  const detail = useQuery({
+    ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
+    enabled: sessionId !== null,
+    // Streamed events are applied to the cache; a refetch mid-turn would undo them.
+    staleTime: 30_000,
+    refetchOnWindowFocus: !busy,
+    // Another tab or device may be answering in this conversation: follow along.
+    refetchInterval: (query) => (query.state.data?.generating && !busy ? 2000 : false),
+  })
+
+  const keyOf = (id: string) => agentSessionGetQueryKey({ path: { id } })
+
+  /** Runs one streaming request; false when it failed before the turn started. */
+  async function run(id: string, path: string, body: unknown): Promise<boolean> {
+    setBusy(true)
+    setError(null)
+    const abort = new AbortController()
+    controller.current = abort
+    const onEvent = (event: AgentEvent) => {
+      if (event.event === 'error') {
+        setError(event.data)
+        return
+      }
+      queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
+        current ? applyEvent(current, event) : current,
+      )
+      if (event.event === 'title') void invalidateOperations(queryClient, LIST_QUERIES)
+    }
+    const result = await streamTurn(path, body, onEvent, abort.signal)
+    if (result.error) setError(result.error)
+    controller.current = null
+    setBusy(false)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: keyOf(id) }),
+      invalidateOperations(queryClient, LIST_QUERIES),
+    ])
+    return result.started
+  }
+
+  async function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
+    if (sessionId) return sessionId
+    const { data } = await agentSessionCreate({
+      body: scope ? { scope } : {},
+      throwOnError: true,
+    })
+    queryClient.setQueryData(keyOf(data.id), emptyDetail(data))
+    onCreated(data.id)
+    return data.id
+  }
+
+  async function send(input: SendInput): Promise<boolean> {
+    let id: string
+    try {
+      id = await ensureSession(input.scope)
+    } catch (err) {
+      const apiError = toApiError(err)
+      setError({ code: apiError.code, params: apiError.params })
+      return false
+    }
+    const blocks: Record<string, unknown>[] = []
+    if (input.skill)
+      blocks.push({ type: 'skill', name: input.skill.name, title: input.skill.title })
+    if (input.text.trim()) blocks.push({ type: 'text', text: input.text.trim() })
+    const attachments = queryClient.getQueryData<AgentSessionDetail>(keyOf(id))?.attachments ?? []
+    for (const attId of input.attachmentIds ?? []) {
+      const att = attachments.find((a) => a.id === attId)
+      blocks.push({
+        type: att?.kind === 'image' ? 'image_ref' : 'file_ref',
+        attachment_id: attId,
+        name: att?.name ?? '',
+      })
+    }
+    queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
+      current ? withUserMessage(current, `pending-${Date.now()}`, blocks) : current,
+    )
+    return run(id, `/agent/sessions/${id}/messages`, {
+      text: input.text,
+      attachment_ids: input.attachmentIds ?? [],
+      scope: input.scope ?? null,
+      skill: input.skill?.name ?? null,
+    })
+  }
+
+  function decide(decisions: Decision[]) {
+    if (!sessionId || decisions.length === 0) return Promise.resolve(false)
+    const body = (d: Decision) => ({
+      decision: d.decision,
+      args: d.args ?? null,
+      remember: d.remember ?? false,
+      reason: d.reason ?? null,
+    })
+    const [first] = decisions
+    if (decisions.length === 1 && first) {
+      return run(
+        sessionId,
+        `/agent/sessions/${sessionId}/proposals/${first.proposalId}:decide`,
+        body(first),
+      )
+    }
+    return run(sessionId, `/agent/sessions/${sessionId}/proposals:decide`, {
+      decisions: decisions.map((d) => ({ proposal_id: d.proposalId, ...body(d) })),
+    })
+  }
+
+  function regenerate(messageId: string) {
+    if (!sessionId) return Promise.resolve(false)
+    queryClient.setQueryData<AgentSessionDetail>(keyOf(sessionId), (current) => {
+      if (!current) return current
+      const lastUser = current.messages.findLastIndex((m) => m.role === 'user')
+      return { ...current, messages: current.messages.slice(0, lastUser + 1) }
+    })
+    return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:regenerate`, {})
+  }
+
+  async function stop() {
+    if (!sessionId) return
+    try {
+      await agentSessionStop({ path: { id: sessionId }, throwOnError: true })
+    } catch {
+      // The server is not answering here (e.g. it already finished): drop the stream.
+      controller.current?.abort()
+    }
+  }
+
+  const generating = busy || Boolean(detail.data?.generating)
+  return {
+    detail: detail.data,
+    loading: sessionId !== null && detail.isPending,
+    loadError: detail.error,
+    busy,
+    generating,
+    error,
+    clearError: () => setError(null),
+    ensureSession,
+    send,
+    decide,
+    regenerate,
+    stop,
+  }
+}

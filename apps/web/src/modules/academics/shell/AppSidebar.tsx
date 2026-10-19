@@ -10,14 +10,17 @@ import {
   Plus,
   Search,
   Settings,
+  Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { openCommandPalette, useHostAction } from '@/app/commands'
-import { scopePath } from '@/app/extensions'
+import { useCommandContext } from '@/app/commands/context'
+import { type AssistantContribution, scopePath } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
 import { ManagePagesDialog } from '@/app/host/ManagePagesDialog'
 import { OVERVIEW_PAGE, useScopePages } from '@/app/host/nav'
 import { StatusBar } from '@/app/host/StatusBar'
+import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
@@ -207,6 +210,28 @@ function AccountMenu() {
   )
 }
 
+/** Opens and closes the assistant panel (M12); the interface tour points at it. */
+function AssistantNavItem({ assistant }: { assistant: AssistantContribution }) {
+  const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
+  const ctx = useCommandContext()
+  const label = m.academics_nav_assistant()
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        data-tour="assistant"
+        tooltip={`${label} (${formatHotkey('mod+j')})`}
+        isActive={open}
+        aria-pressed={open}
+        onClick={() => assistant.open(ctx)}
+      >
+        <Sparkles aria-hidden />
+        <span className="truncate">{label}</span>
+        <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">{formatHotkey('mod+j')}</Kbd>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
 /**
  * The left navigation of the signed-in app (M02 §5.1): the shadcn sidebar that collapses to an
  * icon rail on desktop and becomes a drawer on phones (only Today and the terms and courses).
@@ -220,6 +245,7 @@ export function AppSidebar({ programId }: { programId: string }) {
   const programScope = { kind: 'program', programId } as const
   const { pages } = useScopePages(programScope)
   const [managing, setManaging] = useState(false)
+  const assistant = useModules().find((module) => module.assistant)?.assistant
   // On a term or course page the tab bar's own handler is registered later and wins.
   useHostAction('nav.manage', () => setManaging(true), !isMobile)
   // Following a link closes the drawer on phones.
@@ -253,6 +279,7 @@ export function AppSidebar({ programId }: { programId: string }) {
                     </Kbd>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {assistant ? <AssistantNavItem assistant={assistant} /> : null}
               </SidebarMenu>
             </SidebarGroup>
           )}

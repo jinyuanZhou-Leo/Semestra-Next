@@ -19,7 +19,7 @@ from semestra.modules.agent import loop, service, skills
 from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentProposal
 from semestra.modules.agent.runtime import AgentRuntime
 from semestra.modules.agent.schemas import (
-    AttachmentOut,
+    AgentAttachmentOut,
     DecideBody,
     DecideManyBody,
     Decision,
@@ -217,14 +217,14 @@ async def regenerate(
 @router.post(
     "/agent/attachments",
     operation_id="agentAttachmentUpload",
-    response_model=AttachmentOut,
+    response_model=AgentAttachmentOut,
     summary="Upload a file or image for the assistant.",
 )
 async def upload_attachment(
     session_id: Annotated[str, Form()],
     file: UploadFile,
     ctx: Annotated[Ctx, Depends(get_ctx)],
-) -> AttachmentOut:
+) -> AgentAttachmentOut:
     session = await service.get_session_row(ctx, session_id)
     mime = (file.content_type or "application/octet-stream").split(";")[0].strip().lower()
     if mime in IMAGE_TYPES:
