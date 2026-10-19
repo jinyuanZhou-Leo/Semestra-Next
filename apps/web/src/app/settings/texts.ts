@@ -21,3 +21,8 @@ export function fieldDescription(namespace: string, field: string): string | und
 export function optionLabel(namespace: string, field: string, value: unknown): string {
   return lookup(`settings_${part(namespace)}_${field}_option_${part(value)}`) ?? String(value)
 }
+
+/** `settings_<namespace>_<field>_option_<value>_description`: one line on what a choice does. */
+export function optionHint(namespace: string, field: string, value: unknown): string | undefined {
+  return lookup(`settings_${part(namespace)}_${field}_option_${part(value)}_description`)
+}

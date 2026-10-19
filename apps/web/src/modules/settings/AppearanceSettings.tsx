@@ -6,9 +6,8 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Field, FieldContent, FieldLabel, FieldTitle } from '@/ui/field'
-import { SettingRow, SettingsGroup } from '@/app/settings'
+import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 const THEMES: readonly Theme[] = ['system', 'light', 'dark']
 
@@ -140,24 +139,15 @@ function AppearanceForm({
         labelId={`${id}-motion`}
         description={m.settings_motion_description()}
       >
-        <ToggleGroup
-          aria-labelledby={`${id}-motion`}
-          value={[motion]}
-          onValueChange={(next) => {
-            const value = next[0] as ReduceMotion | undefined
-            if (!value) return
+        <ChoiceControl
+          labelId={`${id}-motion`}
+          options={MOTIONS.map((o) => ({ value: o.value, label: o.label() }))}
+          value={motion}
+          onChange={(value) => {
             applied.setReduceMotion(value)
             update({ reduce_motion: value })
           }}
-          variant="outline"
-          size="sm"
-        >
-          {MOTIONS.map((option) => (
-            <ToggleGroupItem key={option.value} value={option.value}>
-              {option.label()}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        />
       </SettingRow>
     </SettingsGroup>
   )
