@@ -44,11 +44,11 @@ test('sign up with an email code, manage tokens, sign out, sign back in with a p
   await page.getByRole('button', { name: 'Save', exact: true }).last().click()
   await expect(page.getByText('Set', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Create token' }).first().click()
+  await page.getByRole('button', { name: 'Create API token' }).first().click()
   await page.getByLabel('Name').last().fill('Playwright')
   await page
-    .getByRole('dialog', { name: 'Create token' })
-    .getByRole('button', { name: 'Create token' })
+    .getByRole('dialog', { name: 'Create API token' })
+    .getByRole('button', { name: 'Create API token' })
     .click()
   await expect(page.getByTestId('new-token')).toContainText('spat_')
   await page.getByRole('button', { name: 'Done' }).click()
