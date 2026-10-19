@@ -18,7 +18,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
-import { allCoursesPath, coursePath, termPath } from '../paths'
+import { coursePath, termPath, termsAndCoursesPath } from '../paths'
 import { usePins } from '../pins'
 import { modifierKey } from './hotkeys'
 
@@ -184,7 +184,10 @@ export function ScopeHeader({
         term ? (
           <nav aria-label={m.academics_breadcrumbs()}>
             <ol className="-ml-1.5 flex min-w-0 flex-wrap items-center text-sm">
-              <Crumb label={m.academics_nav_all_courses()} href={allCoursesPath(program.id)} />
+              <Crumb
+                label={m.academics_nav_terms_and_courses()}
+                href={termsAndCoursesPath(program.id, { term: term.id })}
+              />
               {course ? (
                 <>
                   <Separator />

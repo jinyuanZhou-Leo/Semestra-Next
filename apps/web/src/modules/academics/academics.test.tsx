@@ -353,8 +353,8 @@ test('on a phone the sidebar is a drawer and other pages ask for a desktop', asy
   await userEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
   const drawer = await screen.findByRole('dialog')
   expect(await within(drawer).findByRole('link', { name: /APS105H1/ })).toBeInTheDocument()
-  // Only Today and the terms and courses: no overview or all-courses links.
-  expect(within(drawer).queryByRole('link', { name: 'All courses' })).not.toBeInTheDocument()
+  // Only Today and the terms and courses: no overview or terms & courses links.
+  expect(within(drawer).queryByRole('link', { name: 'Terms & courses' })).not.toBeInTheDocument()
   await act(async () => {
     await userEvent.click(within(drawer).getByRole('link', { name: /APS105H1/ }))
   })
