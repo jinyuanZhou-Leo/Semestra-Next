@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -188,13 +189,14 @@ export function Composer({
         : `@${option.kind === 'course' ? courseLabel(option.course) : option.term.name} `
     const next = text.slice(0, menu.start) + insert + text.slice(caret)
     const position = menu.start + insert.length
-    setText(next)
-    setCaret(position)
-    setActive(0)
-    requestAnimationFrame(() => {
-      textarea.current?.focus()
-      textarea.current?.setSelectionRange(position, position)
+    // Render the new text now so the caret lands before the user's next keystroke.
+    flushSync(() => {
+      setText(next)
+      setCaret(position)
+      setActive(0)
     })
+    textarea.current?.focus()
+    textarea.current?.setSelectionRange(position, position)
     if (option.kind === 'skill') setSkill(option.skill)
     else if (programId && option.kind === 'course') {
       const { course } = option

@@ -617,12 +617,19 @@ async def decide(
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
         scope = service.scope_ref(session)
-        rows = [await service.get_proposal(ctx, session.id, d.proposal_id) for d in decisions]
+        ids = [d.proposal_id for d in decisions]
+        if len(set(ids)) != len(ids):
+            raise AppError(
+                "common.validation", 422, errors=[{"loc": ["decisions"], "code": "duplicate"}]
+            )
+        rows = [await service.get_proposal(ctx, session.id, i) for i in ids]
         for row in rows:
             if row.status == "expired":
                 await ctx.db.commit()
             service.check_pending(row)
         cap_by_id = {r.id: registry.get(r.capability) for r in rows}
+        # Edited arguments get a fresh preview, so the card shows what actually ran.
+        edited_preview: dict[str, dict[str, Any]] = {}
         for d, row in zip(decisions, rows, strict=True):
             cap = cap_by_id[row.id]
             if d.decision == "edit":
@@ -630,7 +637,7 @@ async def decide(
                     raise AppError(
                         "common.validation", 422, errors=[{"loc": ["args"], "code": "missing"}]
                     )
-                await make_preview(ctx, cap, d.args)  # validates
+                edited_preview[row.id] = await make_preview(ctx, cap, d.args)  # validates
         await ctx.db.commit()
         message_ids = {r.message_id for r in rows}
 
@@ -658,6 +665,8 @@ async def decide(
             fresh = await service.get_proposal(ctx, session.id, row.id)
             fresh.status = status
             fresh.args = row.args
+            if row.id in edited_preview:
+                fresh.preview = edited_preview[row.id]
             fresh.decided_at = ctx.now
             if status != "rejected":
                 fresh.executed_at = ctx.now

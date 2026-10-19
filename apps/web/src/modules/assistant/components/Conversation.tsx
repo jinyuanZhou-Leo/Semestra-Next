@@ -9,7 +9,7 @@ import {
 import { agentSessionGetQueryKey } from '@semestra/api-client/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, FileText, MessageSquareText, RotateCcw, Sparkles } from 'lucide-react'
-import { type DragEvent, useEffect, useState } from 'react'
+import { type DragEvent, useEffect, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
@@ -243,6 +243,8 @@ export function Conversation({
   const [newScope, setNewScope] = useState<AgentScope | null>(pageScope)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
+  // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
+  const removed = useRef(new Set<string>())
   const detail = chat.detail
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
   const items = detail ? buildItems(detail, chat.generating) : []
@@ -302,6 +304,11 @@ export function Conversation({
             body: { session_id: id, file },
             throwOnError: true,
           })
+          if (removed.current.has(entry.key)) {
+            // Removed while it was uploading: nothing will send it.
+            void agentAttachmentDelete({ path: { id: data.id } })
+            return
+          }
           queryClient.setQueryData<AgentSessionDetail>(
             agentSessionGetQueryKey({ path: { id } }),
             (current) =>
@@ -326,6 +333,7 @@ export function Conversation({
     const gone = attachments.find((a) => a.key === key)
     if (gone?.preview) URL.revokeObjectURL(gone.preview)
     setAttachments((current) => current.filter((a) => a.key !== key))
+    removed.current.add(key)
     const id = gone?.id
     const session = detail?.session.id
     if (!id || !session) return

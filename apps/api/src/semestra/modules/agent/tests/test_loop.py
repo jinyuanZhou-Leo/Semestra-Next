@@ -179,6 +179,51 @@ async def test_edit_then_approve_uses_the_edited_arguments(agent: Agent, model: 
     )
     items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
     assert items[0]["score_percentage"] == 75
+    [card] = (await agent.detail(session["id"]))["proposals"]
+    assert card["preview"]["changes"] == [
+        {"field": "score_percentage", "before": None, "after": 75}
+    ]
+
+
+async def test_deadline_preview_is_local(agent: Agent, model: FakeModel):
+    _, _, lab = await agent.course_with_lab()  # America/Toronto
+    await agent.call(
+        "PATCH",
+        f"/assessments/{lab['id']}",
+        json={"due_date": "2026-10-20", "due_time": "23:59:00"},
+    )
+    session = await agent.session()
+    model.then(
+        call(
+            "grading.assessment.update",
+            {"assessment_id": lab["id"], "due_date": "2026-10-22", "due_time": "09:00:00"},
+        )
+    )
+    [proposal] = events_named(await agent.send(session["id"], "move it"), "proposal")
+    changes = {c["field"]: c for c in proposal["preview"]["changes"]}
+    assert changes["due_date"]["before"] == "2026-10-20"
+    assert changes["due_time"]["before"] == "23:59:00"
+
+
+async def test_a_batch_cannot_decide_one_proposal_twice(agent: Agent, model: FakeModel):
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
+    )
+    [proposal] = events_named(await agent.send(session["id"], "lab 3"), "proposal")
+    out = await agent.stream(
+        f"/agent/sessions/{session['id']}/proposals:decide",
+        {
+            "decisions": [
+                {"proposal_id": proposal["id"], "decision": "approve"},
+                {"proposal_id": proposal["id"], "decision": "reject"},
+            ]
+        },
+        status=422,
+    )
+    assert out[0][1]["error"]["code"] == "common.validation"
+    assert (await agent.detail(session["id"]))["proposals"][0]["status"] == "pending"
 
 
 async def test_remember_auto_approves_later_calls(agent: Agent, model: FakeModel):

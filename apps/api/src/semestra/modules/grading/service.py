@@ -644,12 +644,12 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     as before → after, and a link to the course's grades page."""
     row = await _get_assessment(ctx, inp.assessment_id)
     course, program = await _course_and_program(ctx, row.course_id)
+    # Before-values as the user sees them: the deadline as a local date and time.
+    current = assessment_out(row, program.timezone, ctx.now)
     changes: list[dict[str, Any]] = []
     for field in sorted(inp.model_fields_set - {"assessment_id"}):
         after = getattr(inp, field)
-        before = getattr(row, field, None)
-        if field in ("due_date", "due_time"):
-            before = row.due_at
+        before = getattr(current, field, None)
         changes.append({"field": field, "before": _plain(before), "after": _plain(after)})
     label = f"{course.code} {course.title}" if course.code else course.title
     return {
