@@ -86,27 +86,32 @@ class UploadBodyLimit:
         if declared is not None and declared.isdigit() and int(declared) > self.LIMIT:
             return await self._reject(scope, receive, send)
 
-        received, started = 0, False
+        received, started, rejected = 0, False, False
 
         async def counting_receive() -> Message:
-            nonlocal received
+            nonlocal received, rejected
             message = await receive()
-            if message["type"] == "http.request":
+            if message["type"] == "http.request" and not rejected:
                 received += len(message.get("body", b""))
                 if received > self.LIMIT:
-                    raise _TooLarge
+                    # Answer here: an exception would be rewritten by the body parser downstream.
+                    rejected = True
+                    await self._reject(scope, receive, send)
+                    return {"type": "http.disconnect"}
             return message
 
         async def tracking_send(message: Message) -> None:
             nonlocal started
+            if rejected:
+                return
             started = started or message["type"] == "http.response.start"
             await send(message)
 
         try:
             await self.app(scope, counting_receive, tracking_send)
-        except _TooLarge:
-            if not started:
-                await self._reject(scope, receive, send)
+        except Exception:
+            if not rejected:
+                raise
 
     async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
         error = AppError("auth.avatar_too_large", 413, limit_bytes=MAX_UPLOAD_BYTES)
@@ -114,7 +119,3 @@ class UploadBodyLimit:
         await JSONResponse(body, status_code=413, headers={"Connection": "close"})(
             scope, receive, send
         )
-
-
-class _TooLarge(Exception):
-    pass
