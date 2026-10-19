@@ -5,7 +5,7 @@ import {
   settingsPreferencesUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect } from 'react'
 import { toastError } from '@/lib/errors'
 import { getFormatPreferences, setFormatPreferences } from '@/lib/format'
 import { clearLocaleChosen, useLocale, wasLocaleChosenSignedOut } from './locale'
@@ -27,7 +27,7 @@ const MUTATION_KEY = ['settings', 'preferences', 'update']
  */
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()
-  const queryKey = useMemo(() => settingsPreferencesGetQueryKey(), [])
+  const queryKey = settingsPreferencesGetQueryKey()
   const { mutate } = useMutation({
     ...settingsPreferencesUpdateMutation(),
     mutationKey: MUTATION_KEY,

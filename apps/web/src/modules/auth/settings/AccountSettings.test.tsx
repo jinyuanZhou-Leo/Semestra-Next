@@ -62,6 +62,8 @@ test('signing out the current device goes through the normal sign-out flow', asy
   mount(signOut)
 
   await userEvent.click(await screen.findByRole('button', { name: /Sign out of Chrome · macOS/ }))
+  const dialog = await screen.findByRole('alertdialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
   expect(signOut).toHaveBeenCalledTimes(1)
   expect(revoked).not.toHaveBeenCalled()
 })

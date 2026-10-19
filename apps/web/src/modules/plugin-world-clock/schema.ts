@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isValidZone } from './zones'
+import { isValidZone } from '@/lib/zones'
 
 export const MAX_ZONES = 3
 

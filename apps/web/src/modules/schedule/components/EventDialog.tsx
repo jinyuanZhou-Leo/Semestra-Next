@@ -393,8 +393,8 @@ export function EventDialog({
             {event ? (
               <Button
                 type="button"
-                variant="ghost"
-                className="mr-auto text-destructive"
+                variant="destructive"
+                className="mr-auto"
                 onClick={() => setDeleting(true)}
               >
                 {m.schedule_event_delete()}

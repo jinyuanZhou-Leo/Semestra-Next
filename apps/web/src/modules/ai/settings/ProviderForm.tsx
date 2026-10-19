@@ -116,16 +116,15 @@ export function ProviderForm({
     e.preventDefault()
     if (missing || pending) return
     let provider: Provider
+    const body = {
+      kind,
+      display_name: name.trim() || null,
+      base_url: info.needsBaseUrl ? baseUrl.trim() : null,
+      api_key: apiKey.trim() || null,
+      capabilities: info.chooseCapabilities ? capabilities : null,
+    }
     try {
-      provider = await create.mutateAsync({
-        body: {
-          kind,
-          display_name: name.trim() || null,
-          base_url: info.needsBaseUrl ? baseUrl.trim() : null,
-          api_key: apiKey.trim() || null,
-          capabilities: info.chooseCapabilities ? capabilities : null,
-        },
-      })
+      provider = await create.mutateAsync({ body })
     } catch {
       return // shown below the form
     }

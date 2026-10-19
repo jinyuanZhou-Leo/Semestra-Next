@@ -223,46 +223,46 @@ function TermCalendar({
   const dragOnlyThis = async () => {
     if (!drag) return
     const { occurrence: o, start, end } = drag
+    const request = {
+      path: {
+        meeting_id: o.meta?.meeting_id ?? o.ref.id,
+        original_date: o.meta?.original_date ?? '',
+      },
+      body: {
+        kind: 'moved' as const,
+        new_date: isoDay(start),
+        new_start_time: hhmm(start),
+        new_end_time: hhmm(end),
+        new_location: o.location ?? null,
+        note: o.meta?.note ?? null,
+      },
+    }
     try {
-      await upsertException.mutateAsync({
-        path: {
-          meeting_id: o.meta?.meeting_id ?? o.ref.id,
-          original_date: o.meta?.original_date ?? '',
-        },
-        body: {
-          kind: 'moved',
-          new_date: isoDay(start),
-          new_start_time: hhmm(start),
-          new_end_time: hhmm(end),
-          new_location: o.location ?? null,
-          note: o.meta?.note ?? null,
-        },
-      })
+      await upsertException.mutateAsync(request)
       setDrag(null)
     } catch (error) {
       drag.revert()
       setDrag(null)
       toastError(error)
-    } finally {
-      await invalidateSchedule(queryClient)
     }
+    await invalidateSchedule(queryClient)
   }
   const dragAll = async () => {
     if (!drag) return
     const { occurrence: o, start, end } = drag
+    const request = {
+      path: { meeting_id: o.meta?.meeting_id ?? o.ref.id },
+      body: { weekday: isoWeekday(start), start_time: hhmm(start), end_time: hhmm(end) },
+    }
     try {
-      await updateMeeting.mutateAsync({
-        path: { meeting_id: o.meta?.meeting_id ?? o.ref.id },
-        body: { weekday: isoWeekday(start), start_time: hhmm(start), end_time: hhmm(end) },
-      })
+      await updateMeeting.mutateAsync(request)
       setDrag(null)
     } catch (error) {
       drag.revert()
       setDrag(null)
       toastError(error)
-    } finally {
-      await invalidateSchedule(queryClient)
     }
+    await invalidateSchedule(queryClient)
   }
 
   const weekNumberLabel = (date: Date) => {

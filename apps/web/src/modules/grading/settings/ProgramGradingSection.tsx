@@ -254,7 +254,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
                 ))}
                 <TableCell className="py-1">
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon-sm"
                     aria-label={`${m.grading_band_remove()} ${i + 1}`}
                     onClick={() => setRows(rows.filter((_, index) => index !== i))}
@@ -386,7 +386,7 @@ function DefaultCategories({
               }
             />
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon-sm"
               aria-label={`${m.grading_category_remove()}: ${item.name}`}
               onClick={() => apply(items.filter((_, index) => index !== i))}

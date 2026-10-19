@@ -18,7 +18,7 @@ import {
 import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { MAX_ZONES, type WorldClockSettings } from './schema'
-import { searchZones, zoneLabel } from './zones'
+import { searchZones, zoneLabel } from '@/lib/zones'
 
 type Props = { value: WorldClockSettings; onChange: (value: WorldClockSettings) => void }
 
@@ -43,7 +43,7 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
               >
                 {zoneLabel(tz, locale)}
                 <Button
-                  variant="ghost"
+                  variant="destructive"
                   size="icon-xs"
                   aria-label={m.world_clock_settings_remove({ city: zoneLabel(tz, locale) })}
                   onClick={() => onChange({ ...value, zones: value.zones.filter((z) => z !== tz) })}

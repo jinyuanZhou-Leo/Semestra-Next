@@ -105,7 +105,7 @@ function ProvidesList({
   if (items.length === 0) return null
   return (
     <section className="space-y-2">
-      <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
       <ItemGroup className="gap-1.5">
         {items.map((item) => (
           <Item key={item.id} render={<li />} size="xs" className="items-start px-0 py-0">
@@ -151,9 +151,8 @@ function PluginDetails({ entry }: { entry: Entry }) {
       toast.success(m.plugins_installed_toast({ name: entry.name }))
     } catch (err) {
       toastError(err)
-    } finally {
-      setPending(false)
     }
+    setPending(false)
   }
 
   const uninstall = async () => {
@@ -171,9 +170,8 @@ function PluginDetails({ entry }: { entry: Entry }) {
       toast.success(m.plugins_uninstalled_toast({ name: entry.name }))
     } catch (err) {
       toastError(err)
-    } finally {
-      setPending(false)
     }
+    setPending(false)
   }
 
   return (

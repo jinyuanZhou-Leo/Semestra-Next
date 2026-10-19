@@ -268,7 +268,7 @@ function GoogleRow({ user }: { user: UserOut }) {
         </ItemContent>
         {identity ? (
           <ItemActions>
-            <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+            <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
               {m.auth_account_google_unlink()}
             </Button>
           </ItemActions>

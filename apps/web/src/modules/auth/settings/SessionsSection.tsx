@@ -11,7 +11,7 @@ import { deviceLabel } from '@/lib/device'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { useAuth } from '../useAuth'
+import { SignOutDialog } from '../components/SignOutDialog'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { FieldError } from '@/ui/field'
@@ -30,7 +30,7 @@ type Target = { kind: 'one'; id: string } | { kind: 'others' }
 
 export function SessionsSection() {
   const queryClient = useQueryClient()
-  const { signOut } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
   const sessions = useQuery(accountSessionsListOptions())
   const [target, setTarget] = useState<Target | null>(null)
 
@@ -95,13 +95,13 @@ export function SessionsSection() {
                     </ItemContent>
                     <ItemActions>
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
                         aria-label={m.auth_account_sessions_revoke_aria({ device })}
                         // Revoking the session we are using is a sign-out: it must clear the cookies
                         // and leave the page instead of refetching into a 401.
                         onClick={() =>
-                          s.current ? void signOut() : setTarget({ kind: 'one', id: s.id })
+                          s.current ? setSigningOut(true) : setTarget({ kind: 'one', id: s.id })
                         }
                       >
                         {s.current ? m.auth_account_signout() : m.auth_account_sessions_revoke()}
@@ -118,6 +118,7 @@ export function SessionsSection() {
             {m.auth_account_sessions_revoke_others()}
           </Button>
         ) : null}
+        <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
         <ConfirmDialog
           open={target !== null}
           onOpenChange={(open) => !open && setTarget(null)}

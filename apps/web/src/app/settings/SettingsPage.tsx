@@ -91,7 +91,7 @@ export function SettingsPage({ level, scope, groupId, title, hrefFor, fallbackHr
                 href={hrefFor(group.id)}
                 aria-current={group.id === current?.id ? 'page' : undefined}
                 className={cn(
-                  'block text-xs font-medium tracking-wide uppercase',
+                  'block text-xs font-medium',
                   group.id === current?.id ? 'text-foreground' : 'text-muted-foreground',
                 )}
               >

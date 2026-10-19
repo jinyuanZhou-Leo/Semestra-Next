@@ -5,7 +5,7 @@ import { getLocale } from '@/paraglide/runtime'
 import { formatSpan } from '../plugin-kit/duration'
 import type { WorldClockSettings } from './schema'
 import { useClock } from './useClock'
-import { formatZoneDate, formatZoneTime, localZone, offsetFrom, zoneLabel } from './zones'
+import { formatZoneDate, formatZoneTime, localZone, offsetFrom, zoneLabel } from '@/lib/zones'
 
 function offsetText(minutes: number): string {
   if (minutes === 0) return m.world_clock_same_time()

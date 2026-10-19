@@ -46,7 +46,7 @@ export function SessionExpiredDialog() {
         ) : null}
         <DialogFooter className="sm:justify-start">
           <Button
-            variant="ghost"
+            variant="destructive"
             size="sm"
             onClick={() => {
               settleReauth(false)

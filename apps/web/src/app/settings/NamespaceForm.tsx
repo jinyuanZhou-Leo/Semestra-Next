@@ -11,6 +11,7 @@ import { Fragment, useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
+import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -158,7 +159,7 @@ function Form({
     try {
       const result = await reset.mutateAsync({ path: { namespace, key }, query: params })
       queryClient.setQueryData(valuesKey, result)
-      setDraft(({ [key]: _dropped, ...rest }) => rest)
+      setDraft((current) => omitKey(current, key))
     } catch (err) {
       toastError(err)
     }

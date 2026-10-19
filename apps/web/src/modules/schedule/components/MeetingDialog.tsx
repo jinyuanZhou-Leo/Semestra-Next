@@ -372,8 +372,8 @@ export function MeetingDialog({
             {meeting ? (
               <Button
                 type="button"
-                variant="ghost"
-                className="mr-auto text-destructive"
+                variant="destructive"
+                className="mr-auto"
                 onClick={() => setDeleting(true)}
               >
                 {m.schedule_meeting_delete()}

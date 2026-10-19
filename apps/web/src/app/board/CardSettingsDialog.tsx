@@ -93,9 +93,8 @@ export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }
       onOpenChange(false)
     } catch {
       // The caller reported the error; keep the dialog open with the user's input.
-    } finally {
-      setPending(false)
     }
+    setPending(false)
   }
 
   return (

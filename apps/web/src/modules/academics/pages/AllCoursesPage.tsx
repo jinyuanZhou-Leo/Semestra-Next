@@ -105,6 +105,11 @@ export function AllCoursesPage({ programId }: { programId: string }) {
   )
 }
 
+/** One after the other, stopping at the first failure. */
+async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
+  for (const id of ids) await action(id)
+}
+
 function CoursesTable({ programId, courses }: { programId: string; courses: Course[] }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -260,14 +265,9 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
   const remove = useMutation({ ...academicsCourseDeleteMutation() })
   const runBatch = async (action: (id: string) => Promise<unknown>) => {
     setBusy(true)
-    try {
-      for (const id of selectedVisible) await action(id)
-    } catch (error) {
-      toastError(error)
-    } finally {
-      setBusy(false)
-      await invalidateAcademics(queryClient)
-    }
+    await runInOrder(selectedVisible, action).catch(toastError)
+    setBusy(false)
+    await invalidateAcademics(queryClient)
   }
   const setGpa = (include: boolean) =>
     runBatch((id) =>

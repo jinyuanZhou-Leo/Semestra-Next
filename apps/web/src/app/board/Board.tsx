@@ -197,10 +197,10 @@ function BoardView({
       if (previous) queryClient.setQueryData(key, previous)
       toast.error(m.board_save_failed())
       toastError(err)
-      throw err
-    } finally {
       setSaving(false)
+      throw err
     }
+    setSaving(false)
   }
 
   useEffect(
@@ -262,37 +262,36 @@ function BoardView({
   }
 
   async function restoreDefault() {
-    try {
-      const { data: template } = await layoutsTemplateGet({
-        path: { scope_type: ref.scope_type },
-        throwOnError: true,
-      })
-      const reuse = new Map<string, DraftCard[]>()
-      for (const c of draft ?? saved) reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
-      const next: DraftCard[] = []
-      for (const t of template.cards) {
-        const card = known.get(t.card_id)
-        if (!card || !card.sizes.includes(t.size)) continue
-        if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
-        const existing = reuse.get(card.id)?.shift()
-        next.push(
-          existing
-            ? { ...existing, size: t.size, x: t.x, y: t.y }
-            : {
-                id: `new-${crypto.randomUUID()}`,
-                cardId: card.id,
-                size: t.size,
-                x: t.x,
-                y: t.y,
-                settings: {},
-                isNew: true,
-              },
-        )
-      }
-      setDraft(compact(next))
-    } catch (err) {
-      toastError(err)
+    const template = await layoutsTemplateGet({
+      path: { scope_type: ref.scope_type },
+      throwOnError: true,
+    })
+      .then((result) => result.data)
+      .catch(toastError)
+    if (!template) return
+    const reuse = new Map<string, DraftCard[]>()
+    for (const c of draft ?? saved) reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
+    const next: DraftCard[] = []
+    for (const t of template.cards) {
+      const card = known.get(t.card_id)
+      if (!card || !card.sizes.includes(t.size)) continue
+      if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
+      const existing = reuse.get(card.id)?.shift()
+      next.push(
+        existing
+          ? { ...existing, size: t.size, x: t.x, y: t.y }
+          : {
+              id: `new-${crypto.randomUUID()}`,
+              cardId: card.id,
+              size: t.size,
+              x: t.x,
+              y: t.y,
+              settings: {},
+              isNew: true,
+            },
+      )
     }
+    setDraft(compact(next))
   }
 
   async function saveAsDefault() {

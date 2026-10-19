@@ -227,7 +227,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
               <ArrowDown aria-hidden />
             </Button>
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon-sm"
               aria-label={`${m.grading_category_remove()}: ${categoryName(category)}`}
               onClick={() => setRemoving(category)}

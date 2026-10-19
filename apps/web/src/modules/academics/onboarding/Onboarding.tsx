@@ -7,6 +7,7 @@ import { type AppLocale, useLocale } from '@/app/locale'
 import { useUpdatePreferences } from '@/app/preferences'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
+import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -62,7 +63,8 @@ export function Onboarding() {
   const extra = useExtensions<OnboardingStep>(ONBOARDING_STEPS).toSorted(
     (a, b) => a.order - b.order,
   )
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
   const [progress, setProgress] = useState<Progress>(() => load(user?.id))
   useEffect(() => store(progress), [progress])
 
@@ -102,9 +104,10 @@ export function Onboarding() {
             {m.home_signed_in_as({ name: user.display_name })}
           </p>
         ) : null}
-        <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+        <Button variant="destructive" size="sm" onClick={() => setSigningOut(true)}>
           {m.home_sign_out()}
         </Button>
+        <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
       </header>
 
       {step === 0 ? (

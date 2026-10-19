@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "lint": "oxlint src && oxfmt --check src && pnpm i18n:lint",
+    "lint": "oxlint src && oxfmt --check src && pnpm i18n:lint && pnpm compiler:check",
     "format": "oxfmt src",
     "typecheck": "pnpm i18n:compile && tsc --noEmit",
     "test": "pnpm i18n:compile && vitest run",
     "i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --emit-ts-declarations",
     "i18n:lint": "node scripts/check-messages.mjs",
+    "compiler:check": "node scripts/check-react-compiler.mjs",
     "manifest:export": "pnpm i18n:compile && UPDATE_MANIFEST=1 vitest run src/app/manifest-export.test.ts",
     "e2e": "playwright test"
   },
@@ -61,7 +62,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@babel/core": "8.0.7",
+    "@babel/core": "7.29.7",
     "@inlang/paraglide-js": "2.29.0",
     "@playwright/test": "1.64.1",
     "@rolldown/plugin-babel": "0.2.4",
