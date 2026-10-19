@@ -18,9 +18,15 @@ export function AnimatedNumber({
   const text = format(value)
   const reduced = useReducedMotion()
   if (reduced || !Number.isFinite(value)) return <span className={className}>{text}</span>
+  // Calligraph hides its digits from assistive technology, so the value is also in plain text.
   return (
-    <Calligraph variant="number" animation="smooth" initial autoSize={false} className={className}>
-      {text}
-    </Calligraph>
+    <span className={className}>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true">
+        <Calligraph variant="number" animation="smooth" initial autoSize={false}>
+          {text}
+        </Calligraph>
+      </span>
+    </span>
   )
 }

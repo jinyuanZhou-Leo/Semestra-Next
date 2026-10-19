@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom/vitest'
-import { createElement } from 'react'
 import { vi } from 'vitest'
 import { FakeEventSource } from './test-event-source'
 
@@ -20,11 +19,8 @@ window.matchMedia ??= (query: string) =>
   }) as MediaQueryList
 // jsdom prints "not implemented" for scrolling, which the router does on every navigation.
 window.scrollTo = () => {}
-// Calligraph splits text into per-character nodes; tests read the plain text.
-vi.mock('calligraph', () => ({
-  Calligraph: ({ children, className }: { children?: string | number; className?: string }) =>
-    createElement('span', { className }, children),
-}))
+// Calligraph splits text into per-character nodes; tests read the text AnimatedNumber also renders.
+vi.mock('calligraph', () => ({ Calligraph: () => null }))
 globalThis.EventSource ??= FakeEventSource as unknown as typeof EventSource
 globalThis.ResizeObserver ??= class {
   observe() {}
