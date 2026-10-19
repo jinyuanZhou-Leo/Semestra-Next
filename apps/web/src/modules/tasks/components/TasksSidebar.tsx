@@ -161,7 +161,7 @@ function ListItem({
 }
 
 /**
- * The left column of the tasks page (M05 §5.1): smart lists, inbox, the user's lists (term lists
+ * The left column of the tasks page (M05 §5.1): smart lists, Unsorted, the user's lists (term lists
  * first) and the term's courses. Lists can be dragged into a new order.
  */
 export function TasksSidebar({

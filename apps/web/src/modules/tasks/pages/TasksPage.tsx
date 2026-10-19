@@ -13,7 +13,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { Course, Task } from '@semestra/api-client'
+import type { Task } from '@semestra/api-client'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
@@ -64,8 +64,9 @@ const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
 
 /**
  * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): smart lists and lists on the
- * left, the tasks in the middle, the selected task's details on the right. The course page is
- * the same list fixed to the course.
+ * left, the add box and the tasks on the right. Titles are edited in place; "Edit details" in a
+ * row's ⋯ menu (or Enter on the selected row) opens the side panel. The course page is the same
+ * list fixed to the course.
  */
 export default function TasksPage({ scope }: PageProps) {
   const programId = scope.programId
@@ -95,6 +96,7 @@ export default function TasksPage({ scope }: PageProps) {
   const today = useProgramToday(programId)
   const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
   const quickAdd = useRef<HTMLInputElement>(null)
@@ -108,6 +110,7 @@ export default function TasksPage({ scope }: PageProps) {
   const items = [...open, ...done]
   const doneOpen = viewPref.doneOpen ?? settings.show_completed_in_lists
   const selected = items.find((t) => t.id === selectedId) ?? null
+  const detail = items.find((t) => t.id === detailId) ?? null
   const sortableRows =
     viewPref.sort === 'manual' && (selection.kind === 'list' || selection.kind === 'inbox')
   const listChoices =
@@ -116,7 +119,21 @@ export default function TasksPage({ scope }: PageProps) {
   const select = (next: Selection) => {
     setSelectionPref(selectionKey(next))
     setSelectedId(null)
+    setDetailId(null)
   }
+  const rowProps = (task: Task) => ({
+    task,
+    courses,
+    selected: task.id === selectedId,
+    onSelect: () => setSelectedId(task.id),
+    onEdit: () => {
+      setSelectedId(task.id)
+      setDetailId(task.id)
+    },
+    onDelete: () => setDeleteId(task.id),
+    actions,
+    hideCourse: Boolean(courseId),
+  })
   const step = (delta: number) => {
     const index = open.findIndex((t) => t.id === selectedId)
     const next = open[Math.min(open.length - 1, Math.max(0, index + delta))]
@@ -145,6 +162,16 @@ export default function TasksPage({ scope }: PageProps) {
       if (!selected || !keysApply(event)) return
       event.preventDefault()
       void actions.complete(selected.id, selected.completed_at === null)
+    },
+    { enabled: selected !== null },
+  )
+  useHotkey(
+    'enter',
+    (event) => {
+      // Only with nothing focused, so Enter still works on the buttons of a row.
+      if (!selected || event.target !== document.body) return
+      event.preventDefault()
+      setDetailId(selected.id)
     },
     { enabled: selected !== null },
   )
@@ -197,7 +224,7 @@ export default function TasksPage({ scope }: PageProps) {
           ? { title: m.tasks_empty_scheduled(), description: m.tasks_empty_scheduled_description() }
           : { title: m.tasks_empty_title(), description: m.tasks_empty_description() }
   // Only where the finished tasks listed are exactly what would go: not in smart lists that
-  // filter by date or flag, and not in the inbox.
+  // filter by date or flag, and not in Unsorted.
   const canClear = completedView || selection.kind === 'list' || selection.kind === 'course'
 
   const clearScope = {
@@ -259,6 +286,15 @@ export default function TasksPage({ scope }: PageProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        {completedView ? null : (
+          <QuickAdd
+            inputRef={quickAdd}
+            today={today}
+            defaultDue={defaultDue}
+            disabled={actions.pending}
+            onAdd={add}
+          />
+        )}
         <AsyncBoundary query={tasks}>
           {() => (
             <>
@@ -285,15 +321,7 @@ export default function TasksPage({ scope }: PageProps) {
                   >
                     <ul>
                       {open.map((task) => (
-                        <SortableTaskRow
-                          key={task.id}
-                          task={task}
-                          courses={courses}
-                          selected={task.id === selectedId}
-                          onSelect={() => setSelectedId(task.id)}
-                          actions={actions}
-                          hideCourse={Boolean(courseId)}
-                        />
+                        <SortableTaskRow key={task.id} {...rowProps(task)} />
                       ))}
                     </ul>
                   </SortableContext>
@@ -301,28 +329,12 @@ export default function TasksPage({ scope }: PageProps) {
               ) : (
                 <ul>
                   {(completedView ? [] : open).map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      courses={courses}
-                      selected={task.id === selectedId}
-                      onSelect={() => setSelectedId(task.id)}
-                      actions={actions}
-                      hideCourse={Boolean(courseId)}
-                    />
+                    <TaskRow key={task.id} {...rowProps(task)} />
                   ))}
                 </ul>
               )}
               {completedView ? (
-                <CompletedRows
-                  rows={done}
-                  courses={courses}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  actions={actions}
-                  courseId={courseId}
-                  onClear={() => setClearing(true)}
-                />
+                <CompletedRows rows={done} rowProps={rowProps} onClear={() => setClearing(true)} />
               ) : completedView || done.length === 0 ? null : (
                 <Collapsible
                   open={doneOpen}
@@ -349,15 +361,7 @@ export default function TasksPage({ scope }: PageProps) {
                   <CollapsibleContent>
                     <ul>
                       {done.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          courses={courses}
-                          selected={task.id === selectedId}
-                          onSelect={() => setSelectedId(task.id)}
-                          actions={actions}
-                          hideCourse={Boolean(courseId)}
-                        />
+                        <TaskRow key={task.id} {...rowProps(task)} />
                       ))}
                     </ul>
                   </CollapsibleContent>
@@ -366,24 +370,15 @@ export default function TasksPage({ scope }: PageProps) {
             </>
           )}
         </AsyncBoundary>
-        {completedView ? null : (
-          <QuickAdd
-            inputRef={quickAdd}
-            today={today}
-            defaultDue={defaultDue}
-            disabled={actions.pending}
-            onAdd={add}
-          />
-        )}
       </section>
-      {selected ? (
+      {detail ? (
         <TaskDetail
-          key={selected.id}
-          task={selected}
+          key={detail.id}
+          task={detail}
           lists={listChoices}
           courses={courses}
           actions={actions}
-          onClose={() => setSelectedId(null)}
+          onClose={() => setDetailId(null)}
         />
       ) : null}
       <ConfirmDialog
@@ -399,6 +394,7 @@ export default function TasksPage({ scope }: PageProps) {
           setDeleteId(null)
           if (id) {
             if (id === selectedId) setSelectedId(null)
+            if (id === detailId) setDetailId(null)
             void actions.remove(id)
           }
         }}
@@ -420,19 +416,11 @@ export default function TasksPage({ scope }: PageProps) {
 
 function CompletedRows({
   rows,
-  courses,
-  selectedId,
-  onSelect,
-  actions,
-  courseId,
+  rowProps,
   onClear,
 }: {
   rows: readonly Task[]
-  courses: readonly Course[]
-  selectedId: string | null
-  onSelect: (id: string) => void
-  actions: ReturnType<typeof useTaskActions>
-  courseId: string | undefined
+  rowProps: (task: Task) => React.ComponentProps<typeof TaskRow>
   onClear: () => void
 }) {
   if (rows.length === 0) {
@@ -451,15 +439,7 @@ function CompletedRows({
     <>
       <ul>
         {rows.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            courses={courses}
-            selected={task.id === selectedId}
-            onSelect={() => onSelect(task.id)}
-            actions={actions}
-            hideCourse={Boolean(courseId)}
-          />
+          <TaskRow key={task.id} {...rowProps(task)} />
         ))}
       </ul>
       <div className="px-2">

@@ -15,14 +15,14 @@ test('reads an English weekday, time and priority marks', () => {
     title: 'essay',
     dueDate: '2026-01-16',
     dueTime: '17:00',
-    priority: 'urgent',
+    priority: 'high',
     priorityText: '!!!',
   })
 })
 
-test('two marks mean high priority, as in "周五 lab 报告 !!"', () => {
+test('two marks mean medium priority, as in "周五 lab 报告 !!"', () => {
   const r = parseQuickAdd('周五 lab 报告 !!', NOW, 'zh-CN')
-  expect(r).toMatchObject({ title: 'lab 报告', dueDate: '2026-01-16', priority: 'high' })
+  expect(r).toMatchObject({ title: 'lab 报告', dueDate: '2026-01-16', priority: 'medium' })
 })
 
 test('a date alone has no time; text without a date stays whole', () => {

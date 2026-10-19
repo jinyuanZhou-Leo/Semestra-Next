@@ -6,7 +6,7 @@ import { useTaskLists } from '../queries'
 import { INBOX, SMART_VIEWS } from '../types'
 import type { ListCardSettings } from './schema'
 
-/** Which list the list card shows: a smart list, the inbox or one of the Program's lists. */
+/** Which list the list card shows: a smart list, Unsorted (`inbox`) or one of the Program's lists. */
 export default function ListCardSettingsForm({
   value,
   onChange,

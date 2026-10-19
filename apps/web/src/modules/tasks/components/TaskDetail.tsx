@@ -1,9 +1,10 @@
 import type { Course, Task, TaskList } from '@semestra/api-client'
-import { CalendarDays, Trash2, X } from 'lucide-react'
+import { CalendarDays, Flag, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { formatDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -18,8 +19,8 @@ import { Textarea } from '@/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
-import { PRIORITIES, type Priority } from '../types'
-import { PRIORITY_NAMES } from './TaskRow'
+import { PRIORITIES, type Priority, type ShownPriority, shownPriority } from '../types'
+import { PRIORITY_COLORS, PRIORITY_NAMES } from './TaskRow'
 
 const NONE = '__none__'
 
@@ -58,8 +59,9 @@ function toIso(date: Date): string {
 }
 
 /**
- * The side panel of the selected task (M05 §5.1). Changes are collected and saved together with
- * the Save button or Cmd/Ctrl+Enter; mount it with `key={task.id}` so another task starts fresh.
+ * The side panel of a task, opened from the row's ⋯ menu (M05 §5.1). Changes are collected and
+ * saved together with the Save button or Cmd/Ctrl+Enter, which also closes the panel; mount it
+ * with `key={task.id}` so another task starts fresh.
  */
 export function TaskDetail({
   task,
@@ -91,8 +93,13 @@ export function TaskDetail({
       if (base[key] !== draft[key]) body[key] = key === 'title' ? draft.title.trim() : draft[key]
     }
     if (draft.due_date === null) delete body.due_time
-    await actions.update(task.id, body).catch(() => undefined)
+    const saved = await actions.update(task.id, body).then(
+      () => true,
+      () => false,
+    )
     setSaving(false)
+    // Saving finishes the edit; on failure the panel stays open with the changes (the error toasts).
+    if (saved) onClose()
   }
   useHotkey('mod+enter', () => void save(), { allowInInputs: true })
 
@@ -176,15 +183,21 @@ export function TaskDetail({
             <ToggleGroup
               variant="outline"
               className="w-full"
-              value={[draft.priority]}
+              aria-label={m.tasks_priority_field()}
+              value={[shownPriority(draft.priority)]}
               onValueChange={(value) => {
-                const next = value[0] as Priority | undefined
-                if (next) set('priority', next)
+                const next = value[0] as ShownPriority | undefined
+                // Picking the level already shown keeps an `urgent` task as it is.
+                if (next && next !== shownPriority(draft.priority)) set('priority', next)
               }}
             >
               {PRIORITIES.map((p) => (
-                <ToggleGroupItem key={p} value={p} className="flex-1 px-1 text-xs">
-                  {PRIORITY_NAMES[p]()}
+                <ToggleGroupItem key={p} value={p} className="flex-1 gap-1 px-1 text-xs">
+                  <Flag
+                    aria-hidden
+                    className={cn(p !== 'none' && 'fill-current', PRIORITY_COLORS[p])}
+                  />
+                  {p === 'none' ? m.tasks_priority_none_short() : PRIORITY_NAMES[p]()}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>

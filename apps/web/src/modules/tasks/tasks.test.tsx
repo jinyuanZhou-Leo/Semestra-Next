@@ -1,5 +1,5 @@
 import type { Task, TaskList } from '@semestra/api-client'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
@@ -38,13 +38,17 @@ function task(overrides: Partial<Task> & { id: string }): Task {
   } as Task
 }
 
-type Log = { creates: Record<string, unknown>[]; completes: { id: string; body: unknown }[] }
+type Log = {
+  creates: Record<string, unknown>[]
+  completes: { id: string; body: unknown }[]
+  updates: { id: string; body: Record<string, unknown> }[]
+}
 let log: Log
 let items: Task[]
 let lists: TaskList[]
 
 beforeEach(() => {
-  log = { creates: [], completes: [] }
+  log = { creates: [], completes: [], updates: [] }
   items = [task({ id: 't1', title: 'Read chapter 3' }), task({ id: 't2', title: 'Lab report' })]
   lists = []
   server.use(
@@ -79,6 +83,14 @@ beforeEach(() => {
       items = [...items, created]
       return HttpResponse.json(created, { status: 201 })
     }),
+    http.patch(`${API}/tasks/:id`, async ({ params, request }) => {
+      const body = (await request.json()) as Record<string, unknown>
+      log.updates.push({ id: String(params.id), body })
+      const current = items.find((t) => t.id === params.id)!
+      const next = { ...current, ...body } as Task
+      items = items.map((t) => (t.id === next.id ? next : t))
+      return HttpResponse.json(next)
+    }),
     http.post(`${API}/tasks/:id\\:complete`, async ({ params, request }) => {
       const body = await request.json()
       log.completes.push({ id: String(params.id), body })
@@ -94,7 +106,7 @@ test('the page lists the tasks and adds one from the quick-add box', async () =>
   expect(screen.getByText('Lab report')).toBeTruthy()
   await userEvent.type(await screen.findByLabelText('Add a task'), 'Write essay !!{Enter}')
   await waitFor(() => expect(log.creates).toHaveLength(1))
-  expect(log.creates[0]).toMatchObject({ title: 'Write essay', priority: 'high' })
+  expect(log.creates[0]).toMatchObject({ title: 'Write essay', priority: 'medium' })
   expect(await screen.findByText('Write essay')).toBeTruthy()
 })
 
@@ -105,10 +117,12 @@ test('checking a task off completes it', async () => {
   expect(log.completes[0]).toEqual({ id: 't2', body: { completed: true } })
 })
 
-test('an empty list says so', async () => {
+test('an empty list says so, with the add box above the empty state', async () => {
   items = []
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  expect(await screen.findByText('No tasks here')).toBeTruthy()
+  const empty = await screen.findByText('No tasks here')
+  const input = screen.getByLabelText('Add a task')
+  expect(input.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
 test('the Today card shows what is due and quick add defaults to today', async () => {
@@ -160,8 +174,37 @@ test('clearing completed tasks is offered only where it deletes what is listed',
   expect(await screen.findByRole('button', { name: 'Clear completed' })).toBeTruthy()
 })
 
-test('selecting a task opens its details in a sheet', async () => {
+test('clicking a title edits it in place without opening the side panel', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  await userEvent.click(await screen.findByText('Lab report'))
-  expect(await screen.findByRole('dialog', { name: 'Details' })).toBeTruthy()
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  const input = screen.getByRole('textbox', { name: 'Title' })
+  await userEvent.clear(input)
+  await userEvent.type(input, 'Lab report v2{Enter}')
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't2', body: { title: 'Lab report v2' } })
+  expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull()
+})
+
+test('"Edit details" opens the side panel, and saving closes it', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'More actions for Lab report' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Details' })
+  await userEvent.click(within(sheet).getByRole('button', { name: 'High' }))
+  await userEvent.click(within(sheet).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't2', body: { priority: 'high' } })
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull())
+})
+
+test('an urgent task shows as high and stays urgent unless changed', async () => {
+  items = [task({ id: 't1', title: 'Exam prep', priority: 'urgent' })]
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  expect(await screen.findByLabelText('Priority: High')).toBeTruthy()
+})
+
+test('tasks in no list are called Unsorted', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  expect(await screen.findByRole('button', { name: /^Unsorted/ })).toBeTruthy()
+  expect(screen.queryByText('Inbox')).toBeNull()
 })
