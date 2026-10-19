@@ -1,9 +1,7 @@
 name: E2E
 # Playwright smoke test against the all-in-one image, i.e. what a self-hoster runs.
-# Runs on every push to main; start it by hand on a pull request from the Actions tab.
+# Started by hand from the Actions tab (on main or a PR branch) while nothing is deployed.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
