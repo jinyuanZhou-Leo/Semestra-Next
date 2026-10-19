@@ -624,3 +624,17 @@ async def test_check_results_announce_error_changes_within_a_status(
         ("connected", "lms.rate_limited"),
         ("connected", None),
     ]
+
+
+async def test_point_changes_of_an_unweighted_course_are_not_updates(api: Api, fake: FakeProvider):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    items = fake.course_assignments["101"]
+    items[:] = [a.model_copy(update={"group_weight": None}) for a in items]
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    await api.commit(started["session_id"])
+    items[0] = items[0].model_copy(update={"points": 99})
+    assert (await api.call("GET", f"/courses/{course}/lms/updates?refresh=true"))["count"] == 0

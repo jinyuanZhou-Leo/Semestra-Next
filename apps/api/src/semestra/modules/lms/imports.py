@@ -328,7 +328,13 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
             changes["title"] = FieldUpdate(old=then.get("title"), new=now["title"])
         if not _same_time(now["due_at"], then.get("due_at")):
             changes["due_at"] = FieldUpdate(old=then.get("due_at"), new=now["due_at"])
-        if now["points"] != then.get("points") and ref.target_kind == "assessment":
+        # Points only matter here through the weight they give (imports don't copy points), so
+        # an unweighted course's point change is nothing the user could apply.
+        if (
+            now["points"] != then.get("points")
+            and ref.target_kind == "assessment"
+            and ref.external_id in weights
+        ):
             changes["points"] = FieldUpdate(old=then.get("points"), new=now["points"])
         # Snapshots from before weights were recorded have no "weight" key: nothing to compare.
         if (
