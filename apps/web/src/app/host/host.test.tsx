@@ -175,6 +175,7 @@ test('account settings sections render by level and generate their form from the
         scope_id: null,
         values,
         sources: { compact: 'default' },
+        inherited: {},
       }),
     ),
   )

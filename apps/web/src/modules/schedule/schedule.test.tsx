@@ -166,6 +166,7 @@ function scheduleHandlers(log: Log) {
         scope_id: 't2',
         values: {},
         sources: {},
+        inherited: {},
       }),
     ),
     http.get(`${API}/terms/:id/calendar-info`, ({ params }) =>
