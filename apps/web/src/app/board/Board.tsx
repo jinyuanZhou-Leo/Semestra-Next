@@ -163,7 +163,7 @@ function BoardView({
   const [adding, setAdding] = useState(false)
   const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
   const editing = draft !== null
-  // A tab bar on the page hosts the "Edit layout" button (Today has none, so the board does).
+  // A tab bar on the page (every scope page, Today included) hosts the "Edit layout" button; a board rendered without one keeps its own row.
   const navHostsEdit = useHasHostAction('nav.manage')
   const cards = drag?.preview ?? draft ?? saved
   const gridRef = useRef<HTMLDivElement>(null)
