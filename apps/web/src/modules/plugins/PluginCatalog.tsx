@@ -6,6 +6,7 @@ import {
   Blocks,
   Check,
   ChevronDown,
+  Download,
   Info,
   LayoutGrid,
   PanelTop,
@@ -33,11 +34,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Separator } from '@/ui/separator'
+import { Spinner } from '@/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
@@ -130,12 +139,16 @@ type ActionProps = {
   onOpen?: () => void
 }
 
-/** "Install", or "Installed ✓" opening a menu with the details and "Uninstall". */
+/**
+ * "Install", or "Installed ✓" opening a menu with the details and "Uninstall". While a change
+ * runs, a spinner takes the place of the leading icon so the button keeps its width.
+ */
 function InstallButton({ entry, pending, onInstall, onUninstall, onOpen }: ActionProps) {
   if (!entry.plugin.installed) {
     return (
       <Button size="sm" disabled={pending} onClick={onInstall}>
-        {pending ? m.common_loading() : m.plugins_install()}
+        {pending ? <Spinner aria-label={m.common_loading()} /> : <Download aria-hidden />}
+        {m.plugins_install()}
       </Button>
     )
   }
@@ -145,8 +158,8 @@ function InstallButton({ entry, pending, onInstall, onUninstall, onOpen }: Actio
         render={<Button size="sm" variant="secondary" disabled={pending} />}
         aria-label={m.plugins_installed_menu({ name: entry.name })}
       >
-        <Check aria-hidden />
-        {pending ? m.common_loading() : m.plugins_installed()}
+        {pending ? <Spinner aria-label={m.common_loading()} /> : <Check aria-hidden />}
+        {m.plugins_installed()}
         <ChevronDown aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
@@ -192,7 +205,7 @@ function PluginCard(props: ActionProps & { onOpen: () => void }) {
     <Item
       variant="outline"
       render={<li />}
-      className="relative h-full flex-col items-stretch gap-3 p-4 transition-colors hover:bg-muted/50"
+      className="relative h-full min-w-0 flex-col flex-nowrap items-stretch gap-3 p-4 transition-colors hover:bg-muted/50"
     >
       <div className="flex items-start gap-3">
         <PluginIcon icon={entry.icon} />
@@ -201,7 +214,7 @@ function PluginCard(props: ActionProps & { onOpen: () => void }) {
             <button
               type="button"
               onClick={onOpen}
-              className="truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+              className="max-w-full min-w-0 truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
             >
               {entry.name}
             </button>
@@ -324,6 +337,9 @@ export default function PluginCatalog() {
   const core = entries.filter((e) => e.plugin.kind === 'core' && matches(e, query))
   const open = plugins.find((e) => e.plugin.id === openId)
   const filtered = query !== '' || show !== 'all'
+  // "Installed" with nothing installed is a state of the account, not a search without results.
+  const noneInstalled =
+    show === 'installed' && query === '' && !plugins.some((e) => e.plugin.installed)
   const removingPending = removing != null && pending.includes(removing.plugin.id)
 
   const actionsFor = (entry: Entry): ActionProps => ({
@@ -378,6 +394,28 @@ export default function PluginCatalog() {
               />
             ))}
           </ul>
+        ) : plugins.length === 0 ? (
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Blocks aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.plugins_none_available()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : noneInstalled ? (
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Blocks aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.plugins_none_installed()}</EmptyTitle>
+              <EmptyDescription>{m.plugins_none_installed_hint()}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => setShow('all')}>{m.plugins_browse_all()}</Button>
+            </EmptyContent>
+          </Empty>
         ) : filtered ? (
           <Empty className="border-0">
             <EmptyHeader>
@@ -398,9 +436,7 @@ export default function PluginCatalog() {
               </Button>
             </EmptyContent>
           </Empty>
-        ) : (
-          <p className="text-sm text-muted-foreground">{m.plugins_none_available()}</p>
-        )}
+        ) : null}
       </section>
       {core.length > 0 ? (
         <SettingsBlock title={m.plugins_core_title()} description={m.plugins_core_note()}>
