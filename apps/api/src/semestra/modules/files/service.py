@@ -2,7 +2,8 @@
 
 import re
 from collections.abc import AsyncIterable, Iterable, Sequence
-from urllib.parse import urlsplit
+from dataclasses import dataclass
+from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import delete, func, select
 
@@ -12,6 +13,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, enqueue
 from semestra.core.storage import StoredObject, get_storage, remaining_quota, storage_usage_provider
+from semestra.core.storage import usage as core_usage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import indexing
 from semestra.modules.files.models import (
@@ -414,6 +416,100 @@ async def _folder_for(ctx: Ctx, course_id: str, folder_id: str | None) -> None:
         await get_folder(ctx, folder_id, course_id)
 
 
+async def check_upload_target(ctx: Ctx, course_id: str, folder_id: str | None) -> None:
+    await academics.get_course_row(ctx, course_id)
+    await _folder_for(ctx, course_id, folder_id)
+
+
+@dataclass(frozen=True)
+class StagedFile:
+    """Bytes already in storage, not yet in the database (see `stage_file`)."""
+
+    item_id: str
+    name: str
+    stored: StoredObject
+    mime: str
+    supported: bool
+
+
+async def stage_file(
+    ctx: Ctx, *, filename: str | None, stream: AsyncIterable[bytes], budget: int | None
+) -> StagedFile:
+    """Writes one upload to storage, cut off above the per-file limit or `budget` (the quota
+    left, None = unlimited). No database write happens here, so no write lock is held while
+    the bytes arrive; `add_staged_files` makes the rows."""
+    if budget is not None and budget <= 0:
+        raise await _quota_error(ctx)
+    storage = get_storage(ctx)
+    cap = ctx.settings.files_max_upload_bytes
+    limit = cap if budget is None else min(cap, budget)
+    item_id = new_id()
+    key = storage_key(ctx.user_id, item_id)
+    try:
+        stored = await storage.put(key, stream, "application/octet-stream", max_bytes=limit)
+    except AppError as exc:
+        if exc.code != "common.quota_exceeded":
+            raise
+        if budget is None or cap <= budget:
+            raise AppError("files.too_large", 413, max=cap) from None
+        raise await _quota_error(ctx) from None
+    try:
+        name = _safe_name(filename)
+        detected = detect(await _read_all(ctx, key), name)
+    except BaseException:
+        await storage.delete(key)
+        raise
+    return StagedFile(item_id, name, stored, detected.mime, detected.kind in PARSEABLE)
+
+
+async def add_staged_files(
+    ctx: Ctx,
+    course_id: str,
+    folder_id: str | None,
+    staged: Sequence[StagedFile],
+    source_kind: SourceKind = "upload",
+    source_ref: str | None = None,
+) -> list[FilesItem]:
+    """Creates the rows for staged files and checks the quota again with them counted. The
+    first insert takes SQLite's write lock, so two uploads racing for the last free bytes are
+    decided one after the other. Nothing is committed here; on error the caller deletes the
+    staged bytes."""
+    rows = [
+        FilesItem(
+            id=file.item_id,
+            user_id=ctx.user_id,
+            course_id=course_id,
+            folder_id=folder_id,
+            kind="file",
+            display_name=file.name,
+            original_name=file.name,
+            mime_type=file.mime,
+            size_bytes=file.stored.size,
+            sha256=file.stored.sha256,
+            storage_key=file.stored.key,
+            source_kind=source_kind,
+            source_ref=source_ref,
+            doc_status="pending" if file.supported else "unsupported",
+            doc_error_code=None if file.supported else "files.unsupported_type",
+            created_at=ctx.now,
+            updated_at=ctx.now,
+        )
+        for file in staged
+    ]
+    ctx.db.add_all(rows)
+    await ctx.db.flush()
+    current = await core_usage(ctx)
+    if current.quota_bytes > 0 and current.used_bytes > current.quota_bytes:
+        raise AppError(
+            "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
+        )
+    for row in rows:
+        if row.doc_status == "pending":
+            await enqueue_processing(ctx, row)
+        await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
+    return rows
+
+
 async def store_file(
     ctx: Ctx,
     *,
@@ -424,42 +520,23 @@ async def store_file(
     source_kind: SourceKind = "upload",
     source_ref: str | None = None,
 ) -> FilesItem:
-    """Saves one uploaded file into a course and queues its processing.
-
-    The bytes are counted while they are written: a file above the per-file limit or the user's
-    remaining quota is cut off, and nothing is left behind. Nothing is committed here.
-    """
-    await academics.get_course_row(ctx, course_id)
-    await _folder_for(ctx, course_id, folder_id)
-    storage = get_storage(ctx)
-    cap = ctx.settings.files_max_upload_bytes
-    remaining = await remaining_quota(ctx)
-    if remaining is not None and remaining <= 0:
-        raise await _quota_error(ctx)
-    limit = cap if remaining is None else min(cap, remaining)
-    item_id = new_id()
-    key = storage_key(ctx.user_id, item_id)
+    """Saves one file into a course and queues its processing. A file above the per-file limit
+    or the user's remaining quota is refused, and nothing is left behind. Nothing is committed
+    here."""
+    await check_upload_target(ctx, course_id, folder_id)
+    staged = await stage_file(
+        ctx, filename=filename, stream=stream, budget=await remaining_quota(ctx)
+    )
     try:
-        stored = await storage.put(key, stream, "application/octet-stream", max_bytes=limit)
-    except AppError as exc:
-        if exc.code != "common.quota_exceeded":
-            raise
-        if remaining is None or cap <= remaining:
-            raise AppError("files.too_large", 413, max=cap) from None
-        raise await _quota_error(ctx) from None
-    try:
-        return await _create_file_row(
-            ctx, item_id, course_id, folder_id, filename, stored, source_kind, source_ref
-        )
+        [row] = await add_staged_files(ctx, course_id, folder_id, [staged], source_kind, source_ref)
     except BaseException:
-        await storage.delete(key)
+        await get_storage(ctx).delete(staged.stored.key)
         raise
+    return row
 
 
 async def _quota_error(ctx: Ctx) -> AppError:
-    from semestra.core.storage import usage
-
-    current = await usage(ctx)
+    current = await core_usage(ctx)
     return AppError(
         "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
     )
@@ -467,46 +544,6 @@ async def _quota_error(ctx: Ctx) -> AppError:
 
 async def _read_all(ctx: Ctx, key: str) -> bytes:
     return b"".join([chunk async for chunk in get_storage(ctx).open(key)])
-
-
-async def _create_file_row(
-    ctx: Ctx,
-    item_id: str,
-    course_id: str,
-    folder_id: str | None,
-    filename: str | None,
-    stored: StoredObject,
-    source_kind: SourceKind,
-    source_ref: str | None,
-) -> FilesItem:
-    name = _safe_name(filename)
-    detected = detect(await _read_all(ctx, stored.key), name)
-    supported = detected.kind in PARSEABLE
-    row = FilesItem(
-        id=item_id,
-        user_id=ctx.user_id,
-        course_id=course_id,
-        folder_id=folder_id,
-        kind="file",
-        display_name=name,
-        original_name=name,
-        mime_type=detected.mime,
-        size_bytes=stored.size,
-        sha256=stored.sha256,
-        storage_key=stored.key,
-        source_kind=source_kind,
-        source_ref=source_ref,
-        doc_status="pending" if supported else "unsupported",
-        doc_error_code=None if supported else "files.unsupported_type",
-        created_at=ctx.now,
-        updated_at=ctx.now,
-    )
-    ctx.db.add(row)
-    await ctx.db.flush()
-    if supported:
-        await enqueue_processing(ctx, row)
-    await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
-    return row
 
 
 async def enqueue_processing(ctx: Ctx, row: FilesItem) -> None:
@@ -541,12 +578,14 @@ async def save_bytes_as_file(
 
 def normalize_url(url: str) -> str:
     candidate = url.strip()
+    if re.search(r"[\s\\]", candidate):  # browsers rewrite these, so what is shown != opened
+        raise AppError("files.invalid_url", 422)
     if "://" not in candidate and not re.match(r"^[a-z][a-z0-9+.-]*:(?!\d)", candidate, re.I):
         candidate = f"https://{candidate}"
     parts = urlsplit(candidate)
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise AppError("files.invalid_url", 422)
-    return candidate
+    return urlunsplit(parts)
 
 
 async def create_link(
@@ -674,7 +713,6 @@ async def files_usage_bytes(ctx: Ctx) -> int:
 
 
 async def usage(ctx: Ctx) -> FilesUsage:
-    from semestra.core.storage import usage as core_usage
 
     total = await core_usage(ctx)
     return FilesUsage(

@@ -19,10 +19,10 @@ import {
   MoreHorizontal,
   Pencil,
   RotateCw,
-  Star,
+  Pin,
   Trash2,
 } from 'lucide-react'
-import { createContext, use } from 'react'
+import { createContext, use, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -32,13 +32,17 @@ import { Button } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { typeLabel } from '../kinds'
+import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
@@ -124,7 +128,7 @@ export function PinButton({ item }: { item: ItemOut }) {
           />
         }
       >
-        <Star aria-hidden className={cn(item.pinned && 'fill-current text-primary')} />
+        <Pin aria-hidden className={cn(item.pinned && 'fill-current text-primary')} />
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
@@ -313,6 +317,50 @@ export function useFileSort() {
   return useUiPref<SortingState>('files.sort', DEFAULT_SORT)
 }
 
+const SORT_FIELDS = [
+  ['name', () => m.files_name()],
+  ['size', () => m.files_size()],
+  ['updated', () => m.files_modified()],
+] as const
+
+/** The grid has no column headers, so its sort is picked from this menu. */
+export function SortMenu() {
+  const [sorting, setSorting] = useFileSort()
+  const current = sorting[0] ?? DEFAULT_SORT[0]
+  const label = SORT_FIELDS.find(([id]) => id === current?.id)?.[1]() ?? m.files_name()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline" />}>
+        {current?.desc ? <ArrowDown aria-hidden /> : <ArrowUp aria-hidden />}
+        {label}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{m.files_sort_by()}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={current?.id}
+            onValueChange={(id) => setSorting([{ id, desc: current?.desc ?? false }])}
+          >
+            {SORT_FIELDS.map(([id, text]) => (
+              <DropdownMenuRadioItem key={id} value={id}>
+                {text()}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={current?.desc ? 'desc' : 'asc'}
+          onValueChange={(dir) => setSorting([{ id: current?.id ?? 'name', desc: dir === 'desc' }])}
+        >
+          <DropdownMenuRadioItem value="asc">{m.files_sort_ascending()}</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="desc">{m.files_sort_descending()}</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function FolderTile({ folder }: { folder: FolderOut }) {
   const { openFolder, readOnly } = useHandlers()
   return (
@@ -336,8 +384,14 @@ function FolderTile({ folder }: { folder: FolderOut }) {
 
 function ItemTile({ item }: { item: ItemOut }) {
   const { open, readOnly } = useHandlers()
+  const [broken, setBroken] = useState(false)
+  // Page images are only made for PDFs and images; anything else gets its icon.
+  const kind = previewKind(item)
   const thumbnail =
-    item.kind === 'file' && item.doc_status === 'ready' && (item.page_count ?? 0) > 0
+    !broken &&
+    (kind === 'pdf' || kind === 'image') &&
+    item.doc_status === 'ready' &&
+    (item.page_count ?? 0) > 0
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-card">
       <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted/50">
@@ -346,6 +400,7 @@ function ItemTile({ item }: { item: ItemOut }) {
             src={pageImageUrl(item.id, 1)}
             alt=""
             loading="lazy"
+            onError={() => setBroken(true)}
             className="size-full object-cover object-top"
           />
         ) : (
@@ -434,7 +489,7 @@ export function FileBrowser({
   return (
     <BrowserContext value={handlers}>
       <div className="overflow-x-auto rounded-2xl border border-border">
-        <Table className="table-fixed">
+        <Table className="min-w-2xl table-fixed">
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id} className="hover:bg-transparent">

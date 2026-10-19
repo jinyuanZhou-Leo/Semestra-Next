@@ -166,7 +166,11 @@ export function PreviewDialog({
   target: PreviewTarget | null
   onClose: () => void
 }) {
-  const item = useFileItem(target?.itemId)
+  // Keep showing the last file while the dialog animates closed, so it does not go blank.
+  const [last, setLast] = useState(target)
+  if (target !== null && target !== last) setLast(target)
+  const shown = target ?? last
+  const item = useFileItem(shown?.itemId)
   const data = item.data
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
@@ -225,14 +229,10 @@ export function PreviewDialog({
           ) : null}
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-auto">
-          {target ? (
+          {shown ? (
             <AsyncBoundary query={item}>
               {(loaded) => (
-                <PreviewBody
-                  key={`${loaded.id}:${target.page ?? 1}`}
-                  item={loaded}
-                  target={target}
-                />
+                <PreviewBody key={`${loaded.id}:${shown.page ?? 1}`} item={loaded} target={shown} />
               )}
             </AsyncBoundary>
           ) : null}

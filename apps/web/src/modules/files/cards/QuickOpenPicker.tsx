@@ -1,16 +1,21 @@
 import type { Course, ItemOut } from '@semestra/api-client'
-import { filesListOptions } from '@semestra/api-client/react-query'
-import { useQueries } from '@tanstack/react-query'
+import {
+  academicsCourseGetOptions,
+  academicsCourseListOptions,
+  filesListQueryKey,
+} from '@semestra/api-client/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import { useId } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { coursesOfTerm, useCourse, useCourses } from '@/modules/academics/queries'
+import { coursesOfTerm } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Skeleton } from '@/ui/skeleton'
 import type { QuickOpenSettings } from './quick-open'
 import { FileIcon } from '../components/FileIcon'
+import { fetchCourseFiles } from '../queries'
 
 /**
  * The card's settings: tick files from the course, or from every course of the term. The host
@@ -28,19 +33,32 @@ export function QuickOpenPicker({
     termId?: string
     courseId?: string
   }
-  const termCourses = useCourses(params.programId ?? '', params.termId).data?.items
-  const thisCourse = useCourse(params.courseId ?? '').data
-  const courses: Course[] = params.courseId
+  // On a course page only that course is needed; on a term page, the term's courses.
+  const onCourse = Boolean(params.courseId)
+  const onTerm = !onCourse && Boolean(params.programId) && Boolean(params.termId)
+  const termList = useQuery({
+    ...academicsCourseListOptions({
+      path: { program_id: params.programId ?? '' },
+      query: { limit: 500, term_id: params.termId },
+    }),
+    enabled: onTerm,
+    staleTime: 30_000,
+  })
+  const courseGet = useQuery({
+    ...academicsCourseGetOptions({ path: { course_id: params.courseId ?? '' } }),
+    enabled: onCourse,
+    staleTime: 30_000,
+  })
+  const thisCourse = courseGet.data
+  const courses: Course[] = onCourse
     ? thisCourse
       ? [thisCourse]
       : []
-    : coursesOfTerm(termCourses ?? [], params.termId ?? '')
+    : coursesOfTerm(termList.data?.items ?? [], params.termId ?? '')
   const lists = useQueries({
     queries: courses.map((course) => ({
-      ...filesListOptions({
-        path: { course_id: course.id },
-        query: { recursive: true, limit: 500, sort: 'name' },
-      }),
+      queryKey: filesListQueryKey({ path: { course_id: course.id }, query: { recursive: true } }),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
       staleTime: 30_000,
     })),
   })

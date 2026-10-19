@@ -1,12 +1,14 @@
 """`files.search` (M07 §3.2): keywords (FTS5), meaning (vectors) or both, fused with RRF."""
 
+import functools
+import operator
 import re
 import string
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import structlog
-from sqlalchemy import and_, bindparam, select, text
+from sqlalchemy import and_, bindparam, func, select, text
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -36,6 +38,7 @@ LIKE_LIMIT = 200
 SNIPPET_CHARS = 240
 MAX_FTS_TERMS = 40
 
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯]")
 _PUNCT = string.punctuation + "，。！？、；：“”‘’（）《》【】…—·"  # noqa: RUF001
 
@@ -58,7 +61,7 @@ def query_terms(query: str) -> Terms:
     """
     fts: list[str] = []
     short: list[str] = []
-    for raw in query.split():
+    for raw in _CONTROL.sub(" ", query).split():
         token = raw.strip(_PUNCT)
         if not token:
             continue
@@ -103,13 +106,31 @@ async def _keyword(
             stmt_binds.append(bindparam("items", expanding=True))
         sql += " ORDER BY bm25(files_chunks_fts) LIMIT :limit"
         rows = await ctx.db.execute(text(sql).bindparams(*stmt_binds), params)
-        return [r[0] for r in rows.all()]
-    if not terms.short:
-        return []
-    # Only very short terms (one or two characters): scan the chunks of the scope.
-    conditions = [FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms.short]
+        found = [r[0] for r in rows.all()]
+    else:
+        found = []
+    # One- and two-character terms are too short for the trigram index: a substring scan of
+    # the scope finds them, ranked after the index's matches.
+    if terms.short:
+        seen = set(found)
+        found += [
+            c for c in await _substring(ctx, terms.short, course_ids, item_ids) if c not in seen
+        ]
+    return found
+
+
+async def _substring(
+    ctx: Ctx, terms: Sequence[str], course_ids: Sequence[str], item_ids: Sequence[str] | None
+) -> list[str]:
+    """Chunk ids containing all of `terms`, the most occurrences first."""
+    lowered = [t.lower() for t in terms]
+    body = func.lower(FilesChunk.text)
+    counts = [
+        (func.length(body) - func.length(func.replace(body, t, ""))) / len(t) for t in lowered
+    ]
+    occurrences = functools.reduce(operator.add, counts)
     stmt = (
-        select(FilesChunk.id, FilesChunk.text)
+        select(FilesChunk.id)
         .join(
             FilesItem,
             and_(
@@ -120,16 +141,14 @@ async def _keyword(
         .where(
             FilesChunk.user_id == ctx.user_id,
             FilesChunk.course_id.in_(course_ids),
-            *conditions,
+            *[FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms],
         )
+        .order_by(occurrences.desc(), FilesChunk.id)
         .limit(LIKE_LIMIT)
     )
     if item_ids is not None:
         stmt = stmt.where(FilesChunk.item_id.in_(item_ids))
-    found = list((await ctx.db.execute(stmt)).all())
-    lowered = [t.lower() for t in terms.short]
-    found.sort(key=lambda r: -sum(r[1].lower().count(t) for t in lowered))
-    return [r[0] for r in found]
+    return list((await ctx.db.scalars(stmt)).all())
 
 
 async def _semantic(

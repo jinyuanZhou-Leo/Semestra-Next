@@ -1,14 +1,41 @@
-import ReactMarkdown from 'react-markdown'
+import type { ComponentProps } from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
+import { useExternalLink } from './ExternalLink'
 
 const REMARK_PLUGINS = [remarkGfm]
 
+/** Remote images are not fetched (they would tell a third party the file was opened). */
+function NoImage({ alt }: ComponentProps<'img'>) {
+  return alt ? <span className="text-muted-foreground">[{alt}]</span> : null
+}
+
 /**
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
- * rendered (react-markdown's default), so file content cannot inject markup.
+ * rendered (react-markdown's default), so file content cannot inject markup. Web links open in a
+ * new tab after the leaving-Semestra check; other links are shown as text.
  */
 export function Markdown({ children, className }: { children: string; className?: string }) {
+  const link = useExternalLink()
+  const components: Components = {
+    img: NoImage,
+    a: ({ href, children: text }) =>
+      href && /^https?:\/\//i.test(href) ? (
+        <a
+          href={href}
+          rel="noopener noreferrer"
+          onClick={(event) => {
+            event.preventDefault()
+            link.open(href)
+          }}
+        >
+          {text}
+        </a>
+      ) : (
+        <span>{text}</span>
+      ),
+  }
   return (
     <div
       className={cn(
@@ -25,7 +52,10 @@ export function Markdown({ children, className }: { children: string; className?
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+        {children}
+      </ReactMarkdown>
+      {link.dialog}
     </div>
   )
 }

@@ -32,7 +32,7 @@ import { Input } from '@/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
-import { FileBrowser } from '../components/FileBrowser'
+import { FileBrowser, SortMenu } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
@@ -122,6 +122,7 @@ function CourseFiles({
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {view === 'grid' ? <SortMenu /> : null}
           <ToggleGroup
             aria-label={m.files_view()}
             variant="outline"

@@ -23,7 +23,9 @@ async def _active_document(ctx: Ctx, item_id: str) -> tuple[FilesItem, FilesDocu
     item = await service.get_item(ctx, item_id)
     if item.kind != "file":
         raise AppError("files.unsupported_type", 422)
-    if item.doc_status != "ready" or item.active_document_id is None:
+    # While a file is processed again, or after that failed, the previous version is still the
+    # active one: search returns it, so it must stay readable too.
+    if item.active_document_id is None:
         raise AppError("files.not_ready", 409, doc_status=item.doc_status)
     document = await ctx.db.get(FilesDocument, item.active_document_id)
     if document is None:

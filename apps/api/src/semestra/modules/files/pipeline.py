@@ -30,7 +30,8 @@ from semestra.modules.files.models import (
     FilesIndexState,
     FilesItem,
 )
-from semestra.modules.files.parse import PageRenderer, ParsedDocument, ParseError, detect, parse
+from semestra.modules.files.parse import PageRenderer, ParsedDocument, ParseError, detect
+from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
 
@@ -155,35 +156,39 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
         raise ParseError("files.unsupported_type")
     await ctx.check_cancelled()
 
-    # --- parsing, with a preview image per page ------------------------------------------
+    # --- parsing, with a preview image per page (in a child process) ---------------------
     await ctx.stage("parsing", current=0, total=1)
-    parsed: ParsedDocument = await anyio.to_thread.run_sync(
-        lambda: parse(data, detected, max_pages=MAX_PAGES)
-    )
-    pdf = detected.kind == "pdf"
-    renderable = pdf or detected.kind == "image"
+    parsed: ParsedDocument | None = None
+    images: list[str | None] = []
+    async for message in parse_isolated(
+        data,
+        detected,
+        max_pages=MAX_PAGES,
+        thumbnail_pages=THUMBNAIL_PAGES,
+        time_limit=ctx.settings.files_parse_timeout_seconds,
+        memory_limit=ctx.settings.files_parse_memory_bytes,
+    ):
+        if isinstance(message, Parsed):
+            parsed = message.document
+            continue
+        await ctx.stage("parsing", current=message.index + 1, total=message.total)
+        if message.index % 10 == 0:
+            await ctx.check_cancelled()
+        key = service.page_image_key(
+            work.user_id, work.item_id, work.document_id, message.index + 1
+        )
+        await storage.put(key, _once(message.png), "image/png")
+        work.thumbnail_keys.append(key)
+        images.append(key)
+    assert parsed is not None
+    images += [None] * (len(parsed.pages) - len(images))
+
+    # --- OCR, page by page; each page image is bounded in size ---------------------------
     renderer: PageRenderer | None = None
     try:
-        if renderable:
+        if detected.kind in ("pdf", "image") and any(p.needs_ocr for p in parsed.pages):
+            pdf = detected.kind == "pdf"
             renderer = await anyio.to_thread.run_sync(lambda: PageRenderer(data, pdf=pdf))
-            images: list[str | None] = []
-            total = min(len(parsed.pages), THUMBNAIL_PAGES)
-            for index in range(total):
-                await ctx.stage("parsing", current=index + 1, total=total)
-                if index % 10 == 0:
-                    await ctx.check_cancelled()
-                png = await anyio.to_thread.run_sync(lambda i=index: renderer.thumbnail(i))  # pyright: ignore[reportOptionalMemberAccess]
-                key = service.page_image_key(
-                    work.user_id, work.item_id, work.document_id, index + 1
-                )
-                await storage.put(key, _once(png), "image/png")
-                work.thumbnail_keys.append(key)
-                images.append(key)
-            images += [None] * (len(parsed.pages) - len(images))
-        else:
-            images = [None] * len(parsed.pages)
-
-        # --- OCR ---------------------------------------------------------------------------
         ocr_model, ocr_skipped = await _ocr(ctx, work, parsed, renderer)
     finally:
         if renderer is not None:
@@ -385,9 +390,17 @@ async def _activate(
 # --- rebuilding vectors after the embedding model changed -----------------------------------
 
 
+class _SpaceChanged(Exception):
+    """The embedding model changed while a reindex was running."""
+
+
+REINDEX_RESTARTS = 3
+
+
 async def reindex_vectors(ctx: JobCtx) -> int:
     """Embeds every ready document of the user in the current embedding space; returns how many
-    items were rebuilt. Old spaces are dropped once nothing is left in them."""
+    items were rebuilt. Documents already in that space cost nothing. If the model changes
+    while this runs, it starts over in the new space. Old spaces are dropped once empty."""
     store = get_vector_store()
     if not await ai.available(ctx, "embedding"):
         await ctx.skip_stage("embedding")
@@ -395,23 +408,53 @@ async def reindex_vectors(ctx: JobCtx) -> int:
     async with ctx.state.session_factory() as db:
         if not await store.available(db):
             return 0
+    done = 0
+    for _ in range(REINDEX_RESTARTS):
+        # One short text tells which space the current model writes to.
+        space, _, _ = await embed_texts(ctx, ["semestra"])
+        try:
+            done += await _reindex_into(ctx, store, space)
+            break
+        except _SpaceChanged:
+            continue
+    async with ctx.state.session_factory() as db:
+        for old in await store.spaces(db):
+            if await store.count(db, old) == 0:
+                await store.drop(db, old)
+        await db.commit()
+    return done
+
+
+async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
+    async with ctx.state.session_factory() as db:
         candidates = list(
             (
                 await db.execute(
-                    select(FilesItem.id, FilesItem.course_id, FilesItem.active_document_id)
+                    select(
+                        FilesItem.id,
+                        FilesItem.course_id,
+                        FilesItem.active_document_id,
+                        FilesIndexState.vector_fingerprint,
+                        FilesIndexState.vector_document_id,
+                    )
+                    .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
                     .where(
                         FilesItem.user_id == ctx.user_id,
-                        FilesItem.doc_status == "ready",
                         FilesItem.active_document_id.is_not(None),
                     )
                     .order_by(FilesItem.id)
                 )
             ).all()
         )
-    done, touched_spaces = 0, set[str]()
-    for number, (item_id, course_id, document_id) in enumerate(candidates):
+    stale = [
+        (item_id, course_id, document_id)
+        for item_id, course_id, document_id, old_space, old_document in candidates
+        if not (old_space == space and old_document == document_id)
+    ]
+    done = 0
+    for number, (item_id, course_id, document_id) in enumerate(stale):
         await ctx.check_cancelled()
-        await ctx.stage("embedding", current=number + 1, total=len(candidates))
+        await ctx.stage("embedding", current=number + 1, total=len(stale))
         async with ctx.state.session_factory() as db:
             chunks = (
                 await db.execute(
@@ -420,43 +463,38 @@ async def reindex_vectors(ctx: JobCtx) -> int:
                     .order_by(FilesChunk.chunk_no)
                 )
             ).all()
-            state = await db.get(FilesIndexState, item_id)
-            old_space = state.vector_fingerprint if state else None
-            old_document = state.vector_document_id if state else None
         if not chunks:
             continue
         refs = [(c[0], list(c[1]), c[2]) for c in chunks]
-        space: str | None = None
-        for start in range(0, len(refs), BATCH_SIZE):
-            batch = refs[start : start + BATCH_SIZE]
-            batch_space, dim, vectors = await embed_texts(
-                ctx, [embedding_text(h, t) for _, h, t in batch]
-            )
-            if space is None and old_space == batch_space and old_document == document_id:
-                break  # already in the current space
-            space = batch_space
-            work = _Work(item_id, ctx.user_id, course_id, "", None)
-            await _store_vectors(ctx, store, work, space, dim, batch, vectors)
-        if space is None:
-            continue
+        work = _Work(item_id, ctx.user_id, course_id, "", None)
+        try:
+            for start in range(0, len(refs), BATCH_SIZE):
+                batch = refs[start : start + BATCH_SIZE]
+                batch_space, dim, vectors = await embed_texts(
+                    ctx, [embedding_text(h, t) for _, h, t in batch]
+                )
+                if batch_space != space:
+                    raise _SpaceChanged
+                await _store_vectors(ctx, store, work, space, dim, batch, vectors)
+        except _SpaceChanged:
+            async with ctx.state.session_factory() as db:
+                await store.delete(db, [r[0] for r in refs], space)
+                await db.commit()
+            raise
         async with ctx.state.session_factory() as db:
             state = await db.get(FilesIndexState, item_id)
             item = await db.get(FilesItem, item_id)
-            if state is None or item is None or item.active_document_id != document_id:
+            if item is None or item.active_document_id != document_id:
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
                 continue
-            if old_space and old_space != space:
-                await store.delete(db, [r[0] for r in refs], old_space)
-                touched_spaces.add(old_space)
+            if state is None:
+                state = FilesIndexState(item_id=item_id, user_id=ctx.user_id)
+                db.add(state)
+            if state.vector_fingerprint and state.vector_fingerprint != space:
+                await store.delete(db, [r[0] for r in refs], state.vector_fingerprint)
             state.vector_document_id, state.vector_fingerprint = document_id, space
             state.updated_at = ctx.state.now()
             await db.commit()
         done += 1
-    if touched_spaces:
-        async with ctx.state.session_factory() as db:
-            for old in touched_spaces:
-                if await store.count(db, old) == 0:
-                    await store.drop(db, old)
-            await db.commit()
     return done

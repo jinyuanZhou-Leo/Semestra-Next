@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,8 +22,18 @@ from semestra.core.db import Base, OwnedMixin, TimestampMixin, UTCDateTime, new_
 
 class FilesFolder(Base, OwnedMixin, TimestampMixin):
     __tablename__ = "files_folders"
-    # SQLite treats NULLs as distinct, so root-level names are checked by the service as well.
-    __table_args__ = (UniqueConstraint("course_id", "parent_id", "name"),)
+    # SQLite treats NULLs as distinct, so root-level names get their own partial index. The
+    # service also compares names case-insensitively before writing.
+    __table_args__ = (
+        UniqueConstraint("course_id", "parent_id", "name"),
+        Index(
+            "uq_files_folders_root_name",
+            "course_id",
+            "name",
+            unique=True,
+            sqlite_where=text("parent_id IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     course_id: Mapped[str] = mapped_column(

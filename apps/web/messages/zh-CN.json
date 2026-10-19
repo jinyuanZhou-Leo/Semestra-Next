@@ -1221,6 +1221,7 @@
   "error_files_too_large": "文件超过了上传大小上限。",
   "error_files_unsupported_type": "这种文件不能预览或搜索。",
   "error_files_parse_failed": "无法读取这个文件。",
+  "error_files_too_complex": "文件太大或太复杂，无法处理。",
   "error_files_encrypted_pdf": "这个 PDF 设置了密码。",
   "error_files_too_many_pages": "文件超过 {max} 页。",
   "error_files_folder_not_empty": "文件夹不是空的。",
@@ -1240,7 +1241,7 @@
   "files_delete_folder_with_files_description": "文件夹及其中的 {count} 个文件将被删除，无法撤销。",
   "files_download": "下载",
   "files_drop_here": "松开即可上传到 {folder}",
-  "files_duplicate_title": "{count} 个文件已存在",
+  "files_duplicate_title": "部分文件已存在",
   "files_duplicate_description": "{names} 已在这门课程中。仍然上传吗？",
   "files_duplicate_skip": "跳过这些",
   "files_duplicate_upload_anyway": "仍然上传",
@@ -1251,7 +1252,7 @@
   "files_folder": "文件夹",
   "files_link_leave_title": "打开外部网站？",
   "files_link_leave_description": "将在新标签页打开 {url}。",
-  "files_link_trust_domain": "{host} 不再提示",
+  "files_link_trust_domain": "以后打开 {host} 不再提示",
   "files_link_open": "打开",
   "files_link_name": "名称",
   "files_link_url": "网址",
@@ -1316,5 +1317,10 @@
   "files_usage_unlimited": "已用 {used}",
   "files_view": "视图",
   "files_view_list": "列表",
-  "files_view_grid": "网格"
+  "files_view_grid": "网格",
+  "files_sort_by": "排序方式",
+  "files_sort_ascending": "升序",
+  "files_sort_descending": "降序",
+  "files_quick_open_gone": "选择的文件已被删除",
+  "files_delete_link_description": "链接将被删除，无法撤销。"
 }

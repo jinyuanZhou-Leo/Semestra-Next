@@ -16,10 +16,13 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-// Copied next to the app by vite.config.ts; CJK PDFs need the character maps.
+// Copied next to the app by vite.config.ts: CJK PDFs need the character maps, scanned PDFs the
+// JBIG2 and JPEG 2000 decoders (wasm) and colour profiles.
 const OPTIONS = {
   cMapUrl: `${import.meta.env.BASE_URL}pdfjs/cmaps/`,
   standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs/standard_fonts/`,
+  wasmUrl: `${import.meta.env.BASE_URL}pdfjs/wasm/`,
+  iccUrl: `${import.meta.env.BASE_URL}pdfjs/iccs/`,
   withCredentials: true,
   // The app's CSP has no 'unsafe-eval'; pdf.js has a slower path without it.
   isEvalSupported: false,
@@ -40,6 +43,8 @@ export function PdfViewer({
   const [draft, setDraft] = useState(String(initialPage))
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [width, setWidth] = useState<number>()
+  // The last page's height holds the space while the next page renders, so nothing jumps.
+  const [pageHeight, setPageHeight] = useState<number>()
 
   useEffect(() => {
     if (!container) return
@@ -116,6 +121,8 @@ export function PdfViewer({
         <Document
           file={url}
           options={OPTIONS}
+          externalLinkTarget="_blank"
+          externalLinkRel="noopener noreferrer"
           suspense={false}
           onLoadSuccess={({ numPages }) => {
             setPageCount(numPages)
@@ -137,6 +144,20 @@ export function PdfViewer({
             pageNumber={page}
             width={width ? Math.min(width - 32, 960) : undefined}
             customTextRenderer={({ str }) => highlightHtml(str, terms)}
+            onLoadSuccess={(loaded) => setPageHeight(loaded.height)}
+            loading={
+              <div
+                className="flex h-64 items-center justify-center"
+                style={pageHeight ? { height: pageHeight } : undefined}
+              >
+                <Spinner />
+              </div>
+            }
+            error={
+              <Alert variant="destructive" className="w-auto">
+                <AlertDescription>{m.files_preview_failed()}</AlertDescription>
+              </Alert>
+            }
             className="shadow-sm"
           />
         </Document>

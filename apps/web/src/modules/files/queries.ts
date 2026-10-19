@@ -1,25 +1,44 @@
-import { client } from '@semestra/api-client'
-import type { ItemOut } from '@semestra/api-client'
+import { client, filesList } from '@semestra/api-client'
+import type { FilesList } from '@semestra/api-client'
 import {
   filesItemGetOptions,
-  filesListOptions,
-  filesPinnedOptions,
+  filesListQueryKey,
   filesUsageOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 
 const STALE = 30_000
+const PAGE_SIZE = 500
+
+/** Every file and folder of a course, following the list's pages. */
+export async function fetchCourseFiles(courseId: string, signal?: AbortSignal): Promise<FilesList> {
+  const items: FilesList['items'] = []
+  let folders: FilesList['folders'] = []
+  let cursor: string | null = null
+  do {
+    // oxlint-disable-next-line no-await-in-loop -- each page needs the previous page's cursor
+    const { data }: { data: FilesList } = await filesList({
+      path: { course_id: courseId },
+      query: { recursive: true, limit: PAGE_SIZE, sort: 'name', cursor },
+      signal,
+      throwOnError: true,
+    })
+    folders = data.folders
+    items.push(...data.items)
+    cursor = data.next_cursor ?? null
+  } while (cursor)
+  return { folders, items, next_cursor: null }
+}
 
 /**
- * Everything in a course (all folders), in one request: folders are browsed on the client, which
- * also gives the name filter and the duplicate check the whole course without more requests.
+ * Everything in a course (all folders): folders are browsed on the client, which also gives the
+ * name filter and the duplicate check the whole course without more requests.
  */
 export function useCourseFiles(courseId: string) {
   return useQuery({
-    ...filesListOptions({
-      path: { course_id: courseId },
-      query: { recursive: true, limit: 500, sort: 'name' },
-    }),
+    queryKey: filesListQueryKey({ path: { course_id: courseId }, query: { recursive: true } }),
+    queryFn: ({ signal }) => fetchCourseFiles(courseId, signal),
+    enabled: Boolean(courseId),
     staleTime: STALE,
   })
 }
@@ -34,10 +53,6 @@ export function useFileItem(itemId: string | null | undefined) {
 
 export function useFilesUsage() {
   return useQuery({ ...filesUsageOptions(), staleTime: STALE })
-}
-
-export function usePinnedFiles(programId: string) {
-  return useQuery({ ...filesPinnedOptions({ path: { program_id: programId } }), staleTime: STALE })
 }
 
 function operationId(queryKey: readonly unknown[]): string {
@@ -67,8 +82,4 @@ export function pageImageUrl(itemId: string, page: number) {
     url: '/files/{item_id}/pages/{page}.png',
     path: { item_id: itemId, page },
   })
-}
-
-export function isProcessing(item: Pick<ItemOut, 'doc_status'>) {
-  return item.doc_status === 'pending' || item.doc_status === 'processing'
 }

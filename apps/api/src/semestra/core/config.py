@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     user_storage_quota_bytes: int = 52_428_800
     # Largest single file a user may upload (M07 §4).
     files_max_upload_bytes: int = 26_214_400
+    # Parsing runs in a child process with these limits, so a hostile file cannot stall a
+    # worker or exhaust the API's memory (M07 §3.1).
+    files_parse_timeout_seconds: float = 300
+    files_parse_memory_bytes: int = 2_147_483_648
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"

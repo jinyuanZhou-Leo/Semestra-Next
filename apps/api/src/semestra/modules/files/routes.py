@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
-from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.core.storage import CHUNK_SIZE, get_storage, remaining_quota
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
@@ -44,26 +44,29 @@ async def upload(
     """All or nothing: if one file is refused (too large, over quota) none is kept."""
     if not files or len(files) > MAX_FILES_PER_REQUEST:
         raise AppError("common.validation", 422, errors=[{"loc": ["files"], "code": "count"}])
+    folder = folder_id or None
+    await service.check_upload_target(ctx, course_id, folder)
     storage = get_storage(ctx)
-    rows: list[service.FilesItem] = []
+    staged: list[service.StagedFile] = []
     try:
+        # Every file is in storage before the first row is written, so the database's write
+        # lock is held only for the inserts, not while the bytes arrive.
+        budget = await remaining_quota(ctx)
         for file in files:
-            rows.append(
-                await service.store_file(
-                    ctx,
-                    course_id=course_id,
-                    filename=file.filename,
-                    stream=_read(file),
-                    folder_id=folder_id or None,
+            staged.append(
+                await service.stage_file(
+                    ctx, filename=file.filename, stream=_read(file), budget=budget
                 )
             )
+            if budget is not None:
+                budget -= staged[-1].stored.size
+        rows = await service.add_staged_files(ctx, course_id, folder, staged)
         result = UploadResult(items=await service.item_outs(ctx, rows))
         await ctx.db.commit()
     except BaseException:
         await ctx.db.rollback()
-        for row in rows:
-            if row.storage_key:
-                await storage.delete(row.storage_key)
+        for file in staged:
+            await storage.delete(file.stored.key)
         raise
     await run_after_commit(ctx)
     return result
@@ -83,6 +86,8 @@ def _byte_range(header: str | None, size: int) -> tuple[int, int] | None:
         return None
     if not match[1]:  # the last N bytes
         length = int(match[2])
+        if length == 0 or size == 0:
+            raise AppError("common.validation", 416, errors=[{"loc": ["range"], "code": "range"}])
         return max(0, size - length), size - 1
     start = int(match[1])
     end = min(int(match[2]), size - 1) if match[2] else size - 1
@@ -120,9 +125,16 @@ async def content(
         "ETag": f'"{item.sha256}"',
         "Cache-Control": "private, no-cache",
         "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "sandbox; default-src 'none'",
         "Cross-Origin-Resource-Policy": "same-site",
     }
+    # Text is shown sandboxed. Browsers refuse to run their PDF viewer in a sandboxed document,
+    # and a PDF or image cannot run script of its own, so those only lose the sandbox.
+    if mime == "application/pdf":
+        pass
+    elif mime.startswith("image/"):
+        headers["Content-Security-Policy"] = "default-src 'none'"
+    else:
+        headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
     start, end = span if span else (0, max(item.size_bytes - 1, 0))
     length = end - start + 1 if item.size_bytes else 0
     headers["Content-Length"] = str(length)

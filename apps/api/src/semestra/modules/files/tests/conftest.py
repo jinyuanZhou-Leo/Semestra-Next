@@ -184,6 +184,8 @@ class FakeAi:
         self.ocr_calls = 0
         self.embed_calls: list[list[str]] = []
         self.fail_embedding = False
+        # Called after each embedding request, e.g. to change the model halfway through a job.
+        self.after_embed: Callable[[FakeAi], None] | None = None
 
 
 @pytest.fixture
@@ -206,9 +208,12 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
 
             raise AppError("ai.timeout", 504)
         fake.embed_calls.append(list(texts))
-        return ai.EmbeddingResult(
+        result = ai.EmbeddingResult(
             model=fake.model, dim=DIM, vectors=[fake_vector(t) for t in texts]
         )
+        if fake.after_embed is not None:
+            fake.after_embed(fake)
+        return result
 
     monkeypatch.setattr(ai, "available", available)
     monkeypatch.setattr(ai, "resolve_provider", resolve_provider)

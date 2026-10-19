@@ -150,3 +150,111 @@ def test_language_guess():
     assert guess_language("这门课程的期中考试在十月") == "zh"
     assert guess_language("The midterm exam is in October this year") == "en"
     assert guess_language("123") is None
+
+
+def test_office_files_that_unpack_too_large_are_refused(monkeypatch: pytest.MonkeyPatch):
+    from semestra.modules.files.parse import readers
+
+    data = make_docx([("Normal", "fine")])
+    monkeypatch.setattr(readers, "MAX_OFFICE_UNPACKED_BYTES", 1000)
+    with pytest.raises(ParseError) as exc:
+        parse(data, detect(data))
+    assert exc.value.code == "files.too_complex"
+
+
+def test_page_images_are_bounded_whatever_the_page_shape():
+    import pymupdf
+    from PIL import Image
+
+    from semestra.modules.files.parse.render import (
+        OCR_MAX_PIXELS,
+        THUMB_MAX_HEIGHT,
+        THUMB_WIDTH,
+        PageRenderer,
+    )
+
+    doc = pymupdf.open()
+    doc.new_page(width=40, height=14400)
+    doc.new_page(width=14400, height=14400)
+    renderer = PageRenderer(doc.tobytes(), pdf=True)
+    for index in (0, 1):
+        thumb = Image.open(io.BytesIO(renderer.thumbnail(index)))
+        assert thumb.width <= THUMB_WIDTH
+        assert thumb.height <= THUMB_MAX_HEIGHT
+        ocr = Image.open(io.BytesIO(renderer.ocr_image(index)))
+        assert ocr.width * ocr.height <= OCR_MAX_PIXELS * 1.01
+    renderer.close()
+
+    tall = Image.new("RGB", (100, 50_000), "white")
+    out = io.BytesIO()
+    tall.save(out, "PNG")
+    image = PageRenderer(out.getvalue(), pdf=False)
+    thumb = Image.open(io.BytesIO(image.thumbnail(0)))
+    assert thumb.height <= THUMB_MAX_HEIGHT
+
+
+# Stand-ins for the parsing child process; module-level so the child process can import them.
+
+
+def hang(*_args: object) -> None:
+    import time
+
+    time.sleep(60)
+
+
+def die(*_args: object) -> None:
+    import os
+    import signal
+
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def run_out_of_memory(conn: object, *_args: object) -> None:
+    from semestra.modules.files.parse import isolated
+
+    def explode(*_a: object, **_k: object) -> None:
+        raise MemoryError
+
+    isolated.parse = explode  # pyright: ignore[reportAttributeAccessIssue]
+    isolated._child(conn, *_args)  # pyright: ignore[reportPrivateUsage, reportArgumentType]
+
+
+@pytest.mark.parametrize("target", [hang, die, run_out_of_memory])
+async def test_parsing_that_hangs_crashes_or_exhausts_memory_is_too_complex(
+    target: object, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.files.parse import isolated
+
+    monkeypatch.setattr(isolated, "_child", target)
+    data = make_pdf(["hello"])
+    with pytest.raises(ParseError) as exc:
+        async for _ in isolated.parse_isolated(
+            data,
+            detect(data),
+            max_pages=10,
+            thumbnail_pages=10,
+            time_limit=1,
+            memory_limit=2**31,
+        ):
+            pass
+    assert exc.value.code == "files.too_complex"
+
+
+async def test_parsing_in_a_child_process_yields_the_document_and_previews():
+    from semestra.modules.files.parse.isolated import Parsed, Thumbnail, parse_isolated
+
+    data = make_pdf(SYLLABUS)
+    messages = [
+        m
+        async for m in parse_isolated(
+            data,
+            detect(data),
+            max_pages=10,
+            thumbnail_pages=2,
+            time_limit=60,
+            memory_limit=2**31,
+        )
+    ]
+    assert isinstance(messages[0], Parsed)
+    assert len(messages[0].document.pages) == 3
+    assert [m.index for m in messages[1:] if isinstance(m, Thumbnail)] == [0, 1]

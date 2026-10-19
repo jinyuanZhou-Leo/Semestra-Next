@@ -36,7 +36,7 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
     viteStaticCopy({
-      targets: ['cmaps', 'standard_fonts'].map((dir) => ({
+      targets: ['cmaps', 'standard_fonts', 'wasm', 'iccs'].map((dir) => ({
         src: `${normalizePath(path.join(pdfjsDir, dir))}/*`,
         dest: `pdfjs/${dir}`,
         rename: { stripBase: true },

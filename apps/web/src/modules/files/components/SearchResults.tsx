@@ -27,7 +27,10 @@ export function useContentSearch(
 ) {
   const q = query.trim()
   return useQuery({
-    queryKey: ['files.search', programId, q, scope.courseIds ?? null, scope.termId ?? null],
+    // Shaped like a generated key so realtime events and invalidateFiles refresh it too.
+    queryKey: [
+      { _id: 'filesSearch', programId, q, courseIds: scope.courseIds, termId: scope.termId },
+    ],
     queryFn: async ({ signal }) => {
       const { data } = await filesSearch({
         path: { program_id: programId },

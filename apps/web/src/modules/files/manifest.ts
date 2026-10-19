@@ -10,7 +10,7 @@ const FILES_QUERIES = [
   'filesList',
   'filesItemGet',
   'filesUsage',
-  'filesPinned',
+  'filesSearch',
   'filesDocumentRead',
   'filesDocumentOutline',
 ] as const

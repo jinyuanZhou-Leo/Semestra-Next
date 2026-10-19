@@ -60,7 +60,8 @@ export function useUploads({
     const queued = files.map((file) => ({
       file,
       row: {
-        key: crypto.randomUUID(),
+        // crypto.randomUUID needs a secure context, which a LAN address over http is not.
+        key: `${Date.now()}-${Math.random()}`,
         name: file.name,
         size: file.size,
         status: 'queued' as const,
@@ -172,13 +173,17 @@ export function useUploads({
       </section>
     ) : null
 
+  // Closing the question any way but "Upload anyway" skips the duplicates and keeps the rest.
+  const skipDuplicates = () => {
+    const rest = duplicates ? duplicates.all.filter((f) => !duplicates.dupes.includes(f)) : []
+    setDuplicates(null)
+    if (rest.length) void send(rest)
+  }
   const dialog = (
-    <AlertDialog open={duplicates !== null} onOpenChange={(open) => !open && setDuplicates(null)}>
+    <AlertDialog open={duplicates !== null} onOpenChange={(open) => !open && skipDuplicates()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {m.files_duplicate_title({ count: duplicates?.dupes.length ?? 0 })}
-          </AlertDialogTitle>
+          <AlertDialogTitle>{m.files_duplicate_title()}</AlertDialogTitle>
           <AlertDialogDescription>
             {m.files_duplicate_description({
               names: (duplicates?.dupes ?? []).map((f) => f.name).join(', '),
@@ -186,17 +191,7 @@ export function useUploads({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel
-            onClick={() => {
-              const rest = duplicates
-                ? duplicates.all.filter((f) => !duplicates.dupes.includes(f))
-                : []
-              setDuplicates(null)
-              if (rest.length) void send(rest)
-            }}
-          >
-            {m.files_duplicate_skip()}
-          </AlertDialogCancel>
+          <AlertDialogCancel>{m.files_duplicate_skip()}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
               const all = duplicates?.all ?? []

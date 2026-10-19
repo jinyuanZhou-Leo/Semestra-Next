@@ -62,7 +62,7 @@ class OwnedMixin:
     )
 
 
-def _load_sqlite_vec(dbapi_connection: Any) -> None:
+def load_sqlite_vec(dbapi_connection: Any) -> None:
     """Makes `vec0` virtual tables available (M07 vector index). A platform without
     loadable-extension support just has no semantic search: M07 checks `vec_version()`."""
     try:
@@ -81,7 +81,7 @@ def _load_sqlite_vec(dbapi_connection: Any) -> None:
 
 
 def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
-    _load_sqlite_vec(dbapi_connection)
+    load_sqlite_vec(dbapi_connection)
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")

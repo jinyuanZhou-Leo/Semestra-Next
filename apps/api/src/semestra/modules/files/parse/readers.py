@@ -3,6 +3,7 @@
 import csv
 import io
 import re
+import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -18,6 +19,9 @@ OCR_MIN_CHARS = 50
 LOGICAL_PAGE_CHARS = 3000
 TABLE_ROWS_PER_PAGE = 100
 MAX_TABLE_ROWS = 20_000
+# Office files are zip archives; the readers inflate whole XML parts, so a small file that
+# unpacks to hundreds of megabytes is refused before it is opened.
+MAX_OFFICE_UNPACKED_BYTES = 100_000_000
 PARSER_VERSION = "1"
 
 
@@ -314,7 +318,15 @@ def parse(data: bytes, detected: Detected, *, max_pages: int = MAX_PAGES) -> Par
     return result
 
 
+def _check_unpacked_size(data: bytes) -> None:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        if sum(info.file_size for info in archive.infolist()) > MAX_OFFICE_UNPACKED_BYTES:
+            raise ParseError("files.too_complex")
+
+
 def _dispatch(data: bytes, detected: Detected, max_pages: int) -> ParsedDocument:
+    if detected.kind in ("docx", "pptx", "xlsx"):
+        _check_unpacked_size(data)
     match detected.kind:
         case "pdf":
             return _pdf(data, max_pages)

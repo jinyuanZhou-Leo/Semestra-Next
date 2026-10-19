@@ -224,7 +224,9 @@ function DeleteDialog({
   const name = target.type === 'item' ? target.item.display_name : target.folder.name
   const description =
     target.type === 'item'
-      ? m.files_delete_item_description()
+      ? target.item.kind === 'link'
+        ? m.files_delete_link_description()
+        : m.files_delete_item_description()
       : fileCount > 0
         ? m.files_delete_folder_with_files_description({ count: fileCount })
         : m.files_delete_folder_description()

@@ -246,3 +246,25 @@ test('a citation names the file and pages and opens the preview there', async ()
   await userEvent.click(chip)
   expect(await screen.findByText('PDF page 4')).toBeInTheDocument()
 })
+
+test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {
+  items.push(
+    item({
+      id: 'd1',
+      display_name: 'notes.docx',
+      original_name: 'notes.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      page_count: 3,
+    }),
+  )
+  const { container } = mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Grid' }))
+  await screen.findAllByRole('button', { name: /notes\.docx/ })
+  const images = () => [...container.querySelectorAll('img')].map((img) => img.src)
+  expect(images()).toEqual([expect.stringContaining('/files/i1/pages/1.png')])
+  // The grid has no column headers, so it gets a sort menu.
+  expect(screen.getByRole('button', { name: 'Name' })).toBeInTheDocument()
+
+  fireEvent.error(container.querySelector('img') as HTMLImageElement)
+  expect(images()).toEqual([])
+})

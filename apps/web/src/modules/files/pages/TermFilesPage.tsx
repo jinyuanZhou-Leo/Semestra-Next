@@ -1,7 +1,7 @@
 import type { Course, ItemOut } from '@semestra/api-client'
-import { filesListOptions } from '@semestra/api-client/react-query'
+import { filesListQueryKey } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
-import { ArrowRight, BookOpen, FolderOpen, Search } from 'lucide-react'
+import { ArrowRight, BookOpen, CircleAlert, FolderOpen, Search } from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -10,17 +10,20 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { coursesOfTerm, useCourses } from '@/modules/academics/queries'
+import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertDescription } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Skeleton } from '@/ui/skeleton'
 import { useExternalLink } from '../components/ExternalLink'
-import { FileBrowser } from '../components/FileBrowser'
+import { FileBrowser, SortMenu } from '../components/FileBrowser'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '../hooks'
+import { fetchCourseFiles } from '../queries'
 
 const NOOP = () => {}
 
@@ -58,10 +61,8 @@ function TermFiles({
   const contentSearch = useContentSearch(programId, query, { termId })
   const lists = useQueries({
     queries: courses.map((course) => ({
-      ...filesListOptions({
-        path: { course_id: course.id },
-        query: { recursive: true, limit: 500, sort: 'name' },
-      }),
+      queryKey: filesListQueryKey({ path: { course_id: course.id }, query: { recursive: true } }),
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
       staleTime: 30_000,
     })),
   })
@@ -107,6 +108,11 @@ function TermFiles({
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
+        {view === 'grid' && !searching ? (
+          <div className="ml-auto">
+            <SortMenu />
+          </div>
+        ) : null}
       </div>
 
       {searching ? (
@@ -138,7 +144,8 @@ function TermFiles({
       ) : (
         <div className="space-y-6">
           {courses.map((course, index) => {
-            const items = lists[index]?.data?.items
+            const list = lists[index]
+            const items = list?.data?.items
             if (items?.length === 0) return null
             return (
               <section key={course.id} className="space-y-2">
@@ -166,6 +173,11 @@ function TermFiles({
                     view={view}
                     handlers={{ open, openFolder: NOOP, act: NOOP, readOnly: true }}
                   />
+                ) : list?.isError ? (
+                  <Alert variant="destructive">
+                    <CircleAlert aria-hidden />
+                    <AlertDescription>{errorMessage(list.error)}</AlertDescription>
+                  </Alert>
                 ) : (
                   <Skeleton className="h-24 w-full rounded-2xl" />
                 )}

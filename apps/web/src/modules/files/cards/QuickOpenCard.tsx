@@ -1,7 +1,7 @@
 import type { ItemOut } from '@semestra/api-client'
 import { filesItemGetOptions } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
-import { Star } from 'lucide-react'
+import { FileX, Star } from 'lucide-react'
 import { useState } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -40,6 +40,20 @@ export default function QuickOpenCard({ size, settings }: CardProps<QuickOpenSet
     )
   }
 
+  // A deleted file disappears; the settings are cleaned up the next time they are saved.
+  if (items.every((query) => query.isError)) {
+    return (
+      <Empty className="border-0 p-0">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileX aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.files_quick_open_gone()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
     else setPreview({ itemId: item.id })
@@ -50,7 +64,6 @@ export default function QuickOpenCard({ size, settings }: CardProps<QuickOpenSet
       <ul className="space-y-1 text-sm">
         {items.map((query, index) => {
           const item = query.data
-          // A deleted file disappears; the settings are cleaned up the next time they are saved.
           if (query.isError) return null
           return (
             <li key={ids[index]}>
