@@ -6,6 +6,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
+import { Palette } from 'lucide-react'
 import { useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
@@ -21,6 +22,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { ColorPicker } from '../components/ColorPicker'
 import { TimezoneSelect } from '../components/TimezoneSelect'
 import { invalidateAcademics, useCourses, useProgram } from '../queries'
@@ -166,7 +168,16 @@ export function SubjectColorsSection({ scope }: SettingsSectionProps) {
           ]),
         ].toSorted()
         if (subjects.length === 0) {
-          return <p className="text-sm text-muted-foreground">{m.academics_subjects_empty()}</p>
+          return (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Palette aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_subjects_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          )
         }
         return (
           <SettingsGroup>
