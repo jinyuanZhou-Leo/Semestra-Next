@@ -6,7 +6,7 @@ from semestra.modules.auth import capabilities, models  # noqa: F401  (registers
 from semestra.modules.auth.google import HttpGoogleVerifier
 from semestra.modules.auth.identity import authenticate
 from semestra.modules.auth.mailer import build_mailer
-from semestra.modules.auth.routes import router
+from semestra.modules.auth.routes import account_router, router
 from semestra.modules.auth.service import AuthRuntime
 
 
@@ -17,3 +17,4 @@ def register(app: FastAPI) -> None:
         mailer=build_mailer(settings), google=HttpGoogleVerifier(settings)
     )
     app.include_router(router)
+    app.include_router(account_router)

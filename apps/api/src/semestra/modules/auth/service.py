@@ -15,7 +15,7 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.i18n import render_email
-from semestra.modules.auth import crypto, ratelimit
+from semestra.modules.auth import avatar, crypto, ratelimit
 from semestra.modules.auth.google import GoogleClaims, GoogleVerifier
 from semestra.modules.auth.mailer import Mailer, OutgoingEmail
 from semestra.modules.auth.models import (
@@ -602,13 +602,23 @@ async def logout(ctx: Ctx) -> None:
 # --- account management (capabilities) ------------------------------------------------------
 
 
+async def upload_avatar(ctx: Ctx, raw: bytes) -> UserOut:
+    user = _require_user(ctx)
+    new_url = await avatar.store(ctx, user.id, raw)
+    avatar.discard_after_commit(ctx, user.avatar_url)
+    user.avatar_url = new_url
+    await ctx.db.flush()
+    return await user_out(ctx.db, user)
+
+
 async def update_profile(
     ctx: Ctx, display_name: str | None, avatar_url: str | None, *, set_avatar: bool
 ) -> UserOut:
     user = _require_user(ctx)
     if display_name is not None:
         user.display_name = display_name
-    if set_avatar:
+    if set_avatar and avatar_url != user.avatar_url:
+        avatar.discard_after_commit(ctx, user.avatar_url)
         user.avatar_url = avatar_url
     await ctx.db.flush()
     return await user_out(ctx.db, user)
