@@ -36,9 +36,9 @@ test('sign up with an email code, manage tokens, sign out, sign back in with a p
   await page.reload()
   await expect(page.getByTestId('signed-in-as')).toContainText('Eve')
 
-  // A new account has no Program yet: it lands on onboarding; settings are one URL away.
+  // A new account has no Program yet: it lands on onboarding; the settings dialog is one URL away.
   await expect(page).toHaveURL(/\/onboarding/)
-  await page.goto('/settings/account')
+  await page.goto('/onboarding?settings=account/account')
   await page.getByRole('button', { name: 'Set password' }).click()
   await page.getByLabel('New password').fill('a long enough passphrase')
   await page.getByRole('button', { name: 'Save', exact: true }).last().click()
@@ -46,12 +46,16 @@ test('sign up with an email code, manage tokens, sign out, sign back in with a p
 
   await page.getByRole('button', { name: 'Create token' }).first().click()
   await page.getByLabel('Name').last().fill('Playwright')
-  await page.getByRole('dialog').getByRole('button', { name: 'Create token' }).click()
+  await page
+    .getByRole('dialog', { name: 'Create token' })
+    .getByRole('button', { name: 'Create token' })
+    .click()
   await expect(page.getByTestId('new-token')).toContainText('spat_')
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByText('Playwright')).toBeVisible()
 
   await page.getByRole('button', { name: 'Sign out', exact: true }).first().click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Sign out', exact: true }).click()
   await expect(page).toHaveURL(/\/login/)
 
   await page.getByRole('button', { name: 'Sign in with a password' }).click()

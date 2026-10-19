@@ -56,9 +56,10 @@ test('signed-in users reach the protected page', async () => {
 })
 
 test('visiting /login while signed in goes straight to the redirect target', async () => {
-  server.use(signedIn, healthy, noGoogle)
-  const router = mount('/login?redirect=%2Fsettings%2Faccount')
-  await waitFor(() => expect(router.state.location.pathname).toBe('/settings/account'))
+  server.use(signedIn, healthy, noGoogle, ...noPrograms())
+  const router = mount('/login?redirect=%2Fonboarding%3Fsettings%3Daccount')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
+  expect(router.state.location.search).toEqual({ settings: 'account' })
 })
 
 test('an off-site redirect target is ignored', async () => {
@@ -87,13 +88,14 @@ test('signing out navigates to /login once the server has cleared the session', 
     ),
     healthy,
     noGoogle,
+    ...noPrograms(),
     ...settingsData,
     http.post(`${API}/auth/logout`, () => {
       loggedOut = true
       return HttpResponse.json({ ok: true })
     }),
   )
-  const router = mount('/settings/account')
+  const router = mount('/onboarding?settings=account/account')
   await confirmSignOut()
   await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
 })
@@ -110,13 +112,14 @@ test('a failed logout keeps the user on the page instead of pretending to sign o
     signedIn,
     healthy,
     noGoogle,
+    ...noPrograms(),
     ...settingsData,
     http.post(`${API}/auth/logout`, () => HttpResponse.error()),
   )
-  const router = mount('/settings/account')
+  const router = mount('/onboarding?settings=account/account')
   const dialog = await confirmSignOut()
   await waitFor(() =>
     expect(within(dialog).getByRole('button', { name: 'Sign out' })).toBeEnabled(),
   )
-  expect(router.state.location.pathname).toBe('/settings/account')
+  expect(router.state.location.pathname).toBe('/onboarding')
 })

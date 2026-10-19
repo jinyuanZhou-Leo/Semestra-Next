@@ -5,6 +5,7 @@ import { CommandCenter } from '@/app/commands'
 import { PreferencesSync } from '@/app/preferences'
 import { useRealtime } from '@/app/realtime'
 import { InstalledPluginsProvider } from '@/app/registry'
+import { SettingsDialog } from '@/app/settings'
 import { prefetchUiPrefs } from '@/app/ui-pref'
 
 /** Everything below requires a signed-in user; others are sent to /login?redirect=… */
@@ -36,6 +37,7 @@ function AuthedLayout() {
       <PreferencesSync />
       <Outlet />
       <CommandCenter />
+      <SettingsDialog />
     </InstalledPluginsProvider>
   )
 }

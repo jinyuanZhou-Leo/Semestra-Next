@@ -1,27 +1,11 @@
-import { academicsTermGetOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { scopePath, scopeSettingsPath } from '@/app/extensions'
-import { SettingsPage } from '@/app/settings'
-import { m } from '@/paraglide/messages'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authed/p/$programId/t/$termId/settings/$group')({
-  component: TermSettings,
+  // Settings are a dialog now (M11 §5.2): old links open it over the scope's page.
+  beforeLoad: ({ params, location }) => {
+    throw redirect({
+      href: `/p/${params.programId}/t/${params.termId}?settings=term/${params.group}${location.hash ? `#${location.hash}` : ''}`,
+      replace: true,
+    })
+  },
 })
-
-function TermSettings() {
-  const { programId, termId, group } = Route.useParams()
-  const scope = { kind: 'term', programId, termId } as const
-  const name = useQuery(academicsTermGetOptions({ path: { term_id: termId } })).data?.name
-  return (
-    <SettingsPage
-      key={termId}
-      level="term"
-      scope={scope}
-      groupId={group}
-      title={name ?? m.settings_title()}
-      hrefFor={(id) => scopeSettingsPath(scope, id)}
-      fallbackHref={scopePath(scope)}
-    />
-  )
-}

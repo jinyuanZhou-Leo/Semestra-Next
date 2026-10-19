@@ -156,7 +156,7 @@ beforeEach(() => {
 
 test('AiRequired greys out the entry and points to the settings until AI is connected', async () => {
   const user = userEvent.setup()
-  const { queryClient } = renderWithRouter(
+  const { queryClient, router } = renderWithRouter(
     <AiRequired purpose="extraction">
       <Button>Import from syllabus</Button>
     </AiRequired>,
@@ -167,10 +167,10 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   // Opens on hover in a browser; jsdom has no hover intent, so press the wrapper (as keyboard users do).
   await user.click(hint)
   expect(await screen.findByText('Available once AI is connected in Settings.')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Open settings' })).toHaveAttribute(
-    'href',
-    '/settings/features#ai-providers',
-  )
+  // The link opens the AI section of the account settings dialog over the current page.
+  await user.click(screen.getByRole('button', { name: 'Open settings' }))
+  expect(router.state.location.search).toEqual({ settings: 'account/features' })
+  expect(router.state.location.hash).toBe('ai-providers')
 
   world.providers.push(provider())
   await act(() => queryClient.invalidateQueries())

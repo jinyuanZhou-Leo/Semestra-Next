@@ -1,8 +1,9 @@
 import type { Course, Program, Term } from '@semestra/api-client'
 import { ChevronDown, Pin, PinOff, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { type Scope, scopeSettingsPath } from '@/app/extensions'
+import type { Scope } from '@/app/extensions'
 import { ScopeNav } from '@/app/host/ScopeNav'
+import { useSettingsDialog } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -115,6 +116,7 @@ export function ScopeHeader({
   /** Extra header content under the breadcrumbs (e.g. the Program's counts). */
   children?: ReactNode
 }) {
+  const settings = useSettingsDialog()
   const programs = usePrograms().data?.items ?? [program]
   const { isPinned, toggle } = usePins(program.id)
   const pin =
@@ -203,8 +205,7 @@ export function ScopeHeader({
             size="icon-sm"
             aria-label={m.academics_scope_settings()}
             title={m.academics_scope_settings()}
-            nativeButton={false}
-            render={<HistoryLink href={scopeSettingsPath(scope)} />}
+            onClick={() => settings.open({ level: scope.kind })}
           >
             <Settings aria-hidden />
           </Button>

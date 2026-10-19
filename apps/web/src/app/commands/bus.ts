@@ -5,9 +5,16 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
  * bar, the shortcut help. The component that can do it registers a handler while mounted; the
  * most recently mounted one wins. `board.shown` only says that a board is on screen outside
  * edit mode, so the tab bar can offer its "Edit layout" button even while editing is not yet
- * possible. A command is offered only while its action has a handler.
+ * possible. `settings.plugins` opens the plugin group of the settings dialog. A command is
+ * offered only while its action has a handler.
  */
-export type HostAction = 'board.edit' | 'board.add' | 'board.shown' | 'nav.manage' | 'hotkeys.help'
+export type HostAction =
+  | 'board.edit'
+  | 'board.add'
+  | 'board.shown'
+  | 'nav.manage'
+  | 'hotkeys.help'
+  | 'settings.plugins'
 
 const handlers = new Map<HostAction, (() => void)[]>()
 const handlerListeners = new Set<() => void>()
