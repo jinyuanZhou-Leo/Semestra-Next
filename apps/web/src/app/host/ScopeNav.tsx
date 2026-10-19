@@ -1,5 +1,5 @@
 import { useRouter } from '@tanstack/react-router'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -12,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { type Scope, scopePath } from '../extensions'
-import { useHostAction } from '../commands/bus'
+import { runHostAction, useHasHostAction, useHostAction } from '../commands/bus'
+import { formatHotkey } from '../hotkeys'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
 
@@ -24,6 +25,9 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
   const { pages } = useScopePages(scope)
   const router = useRouter()
   const [managing, setManaging] = useState(false)
+  const hasBoard = useHasHostAction('board.shown')
+  const canEditBoard = useHasHostAction('board.edit')
+  const editLabel = `${m.board_edit()} (${formatHotkey('e')})`
   useHostAction('nav.manage', () => setManaging(true))
 
   const follow = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -59,6 +63,20 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
           )
         })}
       </nav>
+      {hasBoard ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="mb-1 shrink-0"
+          aria-label={m.board_edit()}
+          title={editLabel}
+          disabled={!canEditBoard}
+          onClick={() => runHostAction('board.edit')}
+          data-tour="board-edit"
+        >
+          <Pencil aria-hidden />
+        </Button>
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

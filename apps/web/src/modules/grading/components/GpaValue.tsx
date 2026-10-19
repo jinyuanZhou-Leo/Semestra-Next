@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatedNumber } from '@/components/AnimatedNumber'
 import { formatGpa } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -9,10 +10,13 @@ import { GPA_MASK } from '../display'
 export function GpaValue({
   value,
   hidden,
+  animated = false,
   className,
 }: {
   value: number | null | undefined
   hidden: boolean
+  /** Roll the digits (headline figures on overview cards, not tables). */
+  animated?: boolean
   className?: string
 }) {
   const [revealed, setRevealed] = useState(false)
@@ -38,5 +42,6 @@ export function GpaValue({
       </Button>
     )
   }
+  if (animated) return <AnimatedNumber value={value} format={formatGpa} className={className} />
   return <span className={className}>{formatGpa(value)}</span>
 }

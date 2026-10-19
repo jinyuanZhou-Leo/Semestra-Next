@@ -51,6 +51,7 @@ docs/                设计稿与模块规格
 
 ## 已知坑（别再踩）
 
+- **拉了新提交后 `pnpm dev` 报 `no such table: core_jobs` 等**：本地 SQLite 没迁移到最新 head（新模块带来新迁移）。`semestra dev` 现在启动前会自动 `alembic upgrade head`（`--no-migrate` 可跳过）；单独起服务或用 `serve` 时需手动 `pnpm --filter @semestra/api migrate`。
 - **Python 版本**：见上，a7 不能用；`apps/api/.python-version` 是 `3.15`，uv 会选已安装的最新 3.15.x。装不上时先 `uv self update`。
 - **uvicorn**：不要写 `uvicorn[standard]`（会拉 PyYAML，没有 3.15 wheel，会退回源码编译并失败）。
 - **OpenAPI 生成器与 TS 7**：`@hey-api/openapi-ts` 在 TS 7 下直接崩（`Cannot read properties of undefined (reading 'AnyKeyword')`）。生成器依赖的 `typescript@6.0.3` 只放在 `packages/api-client`，不要升级或删除；也不要把它引入 `apps/web`。

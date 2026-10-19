@@ -1,5 +1,5 @@
 import { useLocale } from '@/app/locale'
-import { offsetMinutes, zoneLabel } from '@/lib/zones'
+import { offsetMinutes, zoneLabel, zoneSearchNames } from '@/lib/zones'
 import { m } from '@/paraglide/messages'
 import {
   Combobox,
@@ -50,8 +50,7 @@ function toZone(tz: string, locale: string, now: Date): Zone {
     label,
     offset: formatOffset(offsetMinutes(now, tz)),
     // Both languages and the id are searchable, whichever language the interface is in.
-    search:
-      `${tz} ${tz.replaceAll('_', ' ')} ${zoneLabel(tz, 'en')} ${zoneLabel(tz, 'zh')}`.toLowerCase(),
+    search: `${tz.toLowerCase()} ${tz.replaceAll('_', ' ').toLowerCase()} ${zoneSearchNames(tz)}`,
   }
 }
 
