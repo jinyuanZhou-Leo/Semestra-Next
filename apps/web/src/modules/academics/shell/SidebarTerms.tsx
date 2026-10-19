@@ -434,7 +434,8 @@ function AddTermPicker({
             {terms.map((term) => (
               <CommandItem
                 key={term.id}
-                value={term.name}
+                value={term.id}
+                keywords={[term.name]}
                 onSelect={() => {
                   onPick(term)
                   setOpen(false)
