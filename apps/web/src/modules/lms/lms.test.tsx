@@ -190,7 +190,8 @@ test('deleting a connection in use says what it unlinks and detaches everything'
     }),
   )
   renderWithRouter(<ConnectionsSection />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Delete U of T Quercus' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Actions for U of T Quercus' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
   const confirm = await screen.findByRole('alertdialog')
   expect(within(confirm).getByText(/also removes 3 course links/)).toBeInTheDocument()
   await userEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
@@ -396,7 +397,8 @@ test('editing the address asks for the token again', async () => {
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
   )
   renderWithRouter(<ConnectionsSection />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+  await userEvent.click(await screen.findByRole('button', { name: /^Actions for / }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }))
   const dialog = await screen.findByRole('dialog')
   const save = within(dialog).getByRole('button', { name: 'Check and save' })
   expect(save).toBeEnabled()

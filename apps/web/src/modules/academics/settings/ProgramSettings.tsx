@@ -7,23 +7,28 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { Palette } from 'lucide-react'
-import { useState } from 'react'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
+import { createContext, use, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
   DangerZone,
   NumberRow,
   SettingRow,
   SettingsGroup,
+  SettingsTable,
+  settingsTableFeatures,
   TextRow,
   useAutosave,
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
+import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { ColorPicker } from '../components/ColorPicker'
+import { ColorDotPicker } from '../components/ColorDotPicker'
+import type { ColorRef } from '../components/ColorPicker'
 import { TimezoneSelect } from '../components/TimezoneSelect'
 import { invalidateAcademics, useCourses, useProgram } from '../queries'
 
@@ -147,6 +152,63 @@ function ProgramDanger({ program }: { program: Program }) {
   )
 }
 
+type SubjectRow = {
+  subject: string
+  value: ColorRef | null
+  /** The color its courses show: the subject's own, or the default the server picked. */
+  color: string | null
+  courses: string[]
+}
+
+const SetSubjectColorContext = createContext<(subject: string, color: ColorRef) => void>(() => {})
+
+type SubjectCellProps = CellContext<typeof settingsTableFeatures, SubjectRow>
+
+function SubjectColorCell({ row }: SubjectCellProps) {
+  const setColor = use(SetSubjectColorContext)
+  const { subject, value, color } = row.original
+  return (
+    <ColorDotPicker
+      label={m.academics_subject_color_of({ subject })}
+      color={color}
+      value={value}
+      onChange={(next) => next && setColor(subject, next)}
+    />
+  )
+}
+
+function SubjectCell({ row }: SubjectCellProps) {
+  const { subject, courses } = row.original
+  return (
+    <div className="min-w-0">
+      <div className="truncate font-medium">{subject}</div>
+      <div className="truncate text-xs text-muted-foreground">
+        {courses.length > 0 ? courses.join(' · ') : m.academics_subject_no_courses()}
+      </div>
+    </div>
+  )
+}
+
+const subjectColumn = createColumnHelper<typeof settingsTableFeatures, SubjectRow>()
+const subjectColumns = subjectColumn.columns([
+  subjectColumn.display({
+    id: 'color',
+    header: () => m.common_color(),
+    cell: SubjectColorCell,
+  }),
+  subjectColumn.accessor((r) => r.subject, {
+    id: 'subject',
+    header: () => m.academics_subject(),
+    cell: SubjectCell,
+  }),
+])
+
+const SUBJECT_COLUMN_CLASS: Record<string, string> = { color: 'w-12', subject: 'w-full max-w-0' }
+
+function refColor(ref: ColorRef): string {
+  return 'palette' in ref ? subjectColor(`subject-${ref.palette}`) : ref.hex
+}
+
 /** One color per subject code; every course of the subject follows unless it has its own. */
 export function SubjectColorsSection({ scope }: SettingsSectionProps) {
   const programId = scope?.programId ?? ''
@@ -179,24 +241,35 @@ export function SubjectColorsSection({ scope }: SettingsSectionProps) {
             </Empty>
           )
         }
+        const rows = subjects.map((subject): SubjectRow => {
+          const own = p.subject_colors[subject] ?? null
+          const members = courses.filter((c) => c.subject_code === subject)
+          // A course without its own color shows the subject's color as resolved by the server.
+          const follower = members.find((c) => c.color === null)
+          return {
+            subject,
+            value: own,
+            color: own ? refColor(own) : follower ? subjectColor(follower.resolved_color) : null,
+            courses: members.map((c) => c.code ?? c.title),
+          }
+        })
         return (
-          <SettingsGroup>
-            {subjects.map((subject) => (
-              <SettingRow key={subject} label={subject}>
-                <ColorPicker
-                  label={m.academics_subject_color_of({ subject })}
-                  value={p.subject_colors[subject] ?? null}
-                  onChange={(color) =>
-                    color &&
-                    setColor.mutate({
-                      path: { program_id: p.id, subject_code: subject },
-                      body: { color },
-                    })
-                  }
-                />
-              </SettingRow>
-            ))}
-          </SettingsGroup>
+          <SetSubjectColorContext
+            value={(subject, color) =>
+              setColor.mutate({
+                path: { program_id: p.id, subject_code: subject },
+                body: { color },
+              })
+            }
+          >
+            <SettingsTable
+              label={m.academics_settings_subject_colors()}
+              data={rows}
+              columns={subjectColumns}
+              getRowId={(r) => r.subject}
+              columnClassName={SUBJECT_COLUMN_CLASS}
+            />
+          </SetSubjectColorContext>
         )
       }}
     </AsyncBoundary>

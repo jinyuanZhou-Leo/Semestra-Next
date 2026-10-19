@@ -6,16 +6,23 @@ import type {
 } from '@semestra/api-client'
 import { gradingScaleUpdateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { createContext, use, useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
+  ActionRow,
   ChoiceControl,
+  MoveMenuItems,
+  RowMenu,
   SettingRow,
   SettingsBlock,
   SettingsGroup,
+  SettingsTable,
+  settingsTableFeatures,
   useAutosave,
 } from '@/app/settings'
+import { focusOnMount } from '@/lib/focus'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -23,7 +30,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item } from '@/ui/item'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
@@ -332,6 +339,78 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   )
 }
 
+type TemplateHandlers = {
+  edit: (key: string, patch: Partial<CategoryTemplate>) => void
+  onRemove: (template: CategoryTemplate) => void
+}
+
+const TemplateContext = createContext<TemplateHandlers | null>(null)
+
+function useTemplateHandlers(): TemplateHandlers {
+  const handlers = use(TemplateContext)
+  if (!handlers) throw new Error('Template cells render inside the default categories table')
+  return handlers
+}
+
+type TemplateCellProps = CellContext<typeof settingsTableFeatures, CategoryTemplate>
+
+const templateColumn = createColumnHelper<typeof settingsTableFeatures, CategoryTemplate>()
+const templateColumns = templateColumn.columns([
+  templateColumn.display({
+    id: 'color',
+    header: () => m.common_color(),
+    cell: function TemplateColorCell({ row }: TemplateCellProps) {
+      const { edit } = useTemplateHandlers()
+      return (
+        <CategoryColorSelect
+          label={`${m.grading_category_color()}: ${row.original.name}`}
+          value={row.original.color}
+          onChange={(color) => edit(row.original.key, { color })}
+        />
+      )
+    },
+  }),
+  templateColumn.display({
+    id: 'name',
+    header: () => m.common_name(),
+    cell: function TemplateNameCell({ row }: TemplateCellProps) {
+      const { edit } = useTemplateHandlers()
+      return (
+        <Input
+          aria-label={m.grading_category_name()}
+          value={row.original.name}
+          maxLength={60}
+          onChange={(event) => edit(row.original.key, { name: event.target.value })}
+          className="h-8 w-full"
+        />
+      )
+    },
+  }),
+  templateColumn.display({
+    id: 'actions',
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
+    cell: function TemplateActionsCell({ row }: TemplateCellProps) {
+      const { onRemove } = useTemplateHandlers()
+      return (
+        <RowMenu label={m.grading_category_actions({ name: row.original.name })}>
+          <MoveMenuItems id={row.original.key} />
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => onRemove(row.original)}>
+            <Trash2 aria-hidden />
+            {m.grading_category_remove()}
+          </DropdownMenuItem>
+        </RowMenu>
+      )
+    },
+  }),
+])
+
+const TEMPLATE_COLUMN_CLASS: Record<string, string> = {
+  color: 'w-16',
+  name: 'w-full max-w-0',
+  actions: 'w-10',
+}
+
 /** Categories every new course of the Program starts with. */
 function DefaultCategories({
   initial,
@@ -341,8 +420,9 @@ function DefaultCategories({
   onChange: (templates: CategoryTemplate[]) => void
 }) {
   const [items, setItems] = useState<CategoryTemplate[]>([...initial])
+  const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
-  const [removing, setRemoving] = useState<number | null>(null)
+  const [removing, setRemoving] = useState<CategoryTemplate | null>(null)
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
     if (next.every((t) => t.name.trim() !== '')) onChange(next)
@@ -360,76 +440,69 @@ function DefaultCategories({
     for (let n = 2; taken.has(key); n += 1) key = `${base.slice(0, 26)}-${n}`
     apply([...items, { key, name, color: 'slate' }])
     setDraft('')
+    setAdding(false)
+  }
+  const handlers: TemplateHandlers = {
+    edit: (key, patch) => apply(items.map((t) => (t.key === key ? { ...t, ...patch } : t))),
+    onRemove: setRemoving,
   }
   return (
     <SettingsBlock
       title={m.grading_default_categories()}
       description={m.grading_default_categories_hint()}
     >
-      <SettingsGroup>
-        {items.map((item, i) => (
-          <Item key={item.key} size="sm">
-            <Input
-              aria-label={m.grading_category_name()}
-              value={item.name}
-              onChange={(event) =>
-                apply(
-                  items.map((t, index) => (index === i ? { ...t, name: event.target.value } : t)),
-                )
-              }
-              className="h-8 max-w-60 flex-1"
-            />
-            <CategoryColorSelect
-              label={m.grading_category_color()}
-              value={item.color}
-              onChange={(color) =>
-                apply(items.map((t, index) => (index === i ? { ...t, color } : t)))
-              }
-            />
-            <Button
-              variant="destructive"
-              size="icon-sm"
-              aria-label={`${m.grading_category_remove()}: ${item.name}`}
-              onClick={() => setRemoving(i)}
-            >
-              <Trash2 aria-hidden />
-            </Button>
-          </Item>
-        ))}
-        <Item
-          size="sm"
-          render={
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                add()
-              }}
-            />
+      <TemplateContext value={handlers}>
+        <SettingsTable
+          label={m.grading_default_categories()}
+          data={items}
+          columns={templateColumns}
+          getRowId={(t) => t.key}
+          columnClassName={TEMPLATE_COLUMN_CLASS}
+          onReorder={async (keys) =>
+            apply(keys.flatMap((key) => items.filter((t) => t.key === key)))
           }
-        >
-          <Input
-            aria-label={m.grading_category_new()}
-            placeholder={m.grading_category_new()}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            className="h-8 max-w-60 flex-1"
-          />
-          <Button type="submit" variant="outline" size="sm" disabled={draft.trim() === ''}>
-            <Plus aria-hidden />
-            {m.grading_category_add()}
-          </Button>
-        </Item>
-      </SettingsGroup>
+          rowName={(t) => t.name}
+          footer={
+            adding ? (
+              <form
+                className="flex items-center gap-2 px-4 py-3"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  add()
+                }}
+              >
+                <Input
+                  aria-label={m.grading_category_new()}
+                  placeholder={m.grading_category_new()}
+                  value={draft}
+                  maxLength={60}
+                  ref={focusOnMount}
+                  onChange={(event) => setDraft(event.target.value)}
+                  className="h-8 flex-1"
+                />
+                <Button type="submit" size="sm" disabled={draft.trim() === ''}>
+                  {m.grading_category_add()}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
+                  {m.common_cancel()}
+                </Button>
+              </form>
+            ) : (
+              <ActionRow icon={Plus} onClick={() => setAdding(true)}>
+                {m.grading_category_add()}
+              </ActionRow>
+            )
+          }
+        />
+      </TemplateContext>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}
         title={m.grading_category_remove()}
-        description={m.grading_default_category_remove_confirm({
-          name: removing === null ? '' : (items[removing]?.name ?? ''),
-        })}
+        description={m.grading_default_category_remove_confirm({ name: removing?.name ?? '' })}
         confirmLabel={m.grading_category_remove()}
         onConfirm={() => {
-          apply(items.filter((_, index) => index !== removing))
+          apply(items.filter((t) => t.key !== removing?.key))
           setRemoving(null)
         }}
       />

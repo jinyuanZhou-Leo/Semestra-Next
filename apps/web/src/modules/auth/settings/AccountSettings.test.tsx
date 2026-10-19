@@ -63,7 +63,8 @@ test('signing out the current device goes through the normal sign-out flow', asy
   )
   mount(signOut)
 
-  await userEvent.click(await screen.findByRole('button', { name: /Sign out of Chrome · macOS/ }))
+  await userEvent.click(await screen.findByRole('button', { name: /Actions for Chrome · macOS/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
   expect(signOut).toHaveBeenCalledTimes(1)
@@ -85,16 +86,17 @@ test('lists devices and signs one out after confirmation', async () => {
   mount()
 
   expect(await screen.findByText('This device')).toBeInTheDocument()
-  const buttons = await screen.findAllByRole('button', { name: /Sign out of Chrome · macOS/ })
+  const buttons = await screen.findAllByRole('button', { name: /Actions for Chrome · macOS/ })
   expect(buttons).toHaveLength(2)
 
   await userEvent.click(buttons[1]!)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
 
   await waitFor(() => expect(revoked).toHaveBeenCalledWith('s2'))
   await waitFor(() =>
-    expect(screen.getAllByRole('button', { name: /Sign out of Chrome/ })).toHaveLength(1),
+    expect(screen.getAllByRole('button', { name: /Actions for Chrome/ })).toHaveLength(1),
   )
 })
 
@@ -144,9 +146,8 @@ test('revoking a token asks for confirmation first', async () => {
     }),
   )
   mount()
-  await userEvent.click(
-    await screen.findByRole('button', { name: 'Revoke API token Claude Desktop' }),
-  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Actions for Claude Desktop' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }))
   expect(revoked).not.toHaveBeenCalled()
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }))

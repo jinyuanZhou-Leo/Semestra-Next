@@ -13,5 +13,6 @@ export {
   SettingsNote,
   TextRow,
 } from './rows'
+export { MoveMenuItems, RowMenu, SettingsTable, settingsTableFeatures } from './SettingsTable'
 export { SaveIndicator, useReportSectionStatus } from './status'
 export { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
