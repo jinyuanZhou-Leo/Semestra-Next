@@ -232,6 +232,47 @@ test('choosing the same value as the level above sets it here instead of followi
   expect(screen.getByRole('button', { name: 'Casual' })).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('following drops a value that failed to save, so it is not sent again later', async () => {
+  const store = backend(scoped())
+  let failures = 1
+  server.use(
+    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+      const body = (await request.json()) as { values: Record<string, unknown> }
+      store.patches.push(body.values)
+      if (failures-- > 0) {
+        return HttpResponse.json(
+          { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+          { status: 500 },
+        )
+      }
+      return HttpResponse.json({
+        namespace: NAMESPACE,
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: { ...store.values, ...body.values },
+        sources: store.sources,
+        inherited: store.inherited,
+      })
+    }),
+  )
+  renderWithQuery(
+    <NamespaceForm
+      namespace={NAMESPACE}
+      level="program"
+      scope={{ kind: 'program', programId: 'p1' }}
+    />,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Off' }))
+  await waitFor(() => expect(store.patches).toEqual([{ compact: false }]), { timeout: 3000 })
+
+  await userEvent.click(screen.getAllByRole('button', { name: 'Follow' })[0]!)
+  await waitFor(() => expect(store.resets).toEqual(['compact']))
+  // A later change of another field goes out alone.
+  await userEvent.click(screen.getByRole('button', { name: 'Formal' }))
+  await waitFor(() => expect(store.patches).toHaveLength(2), { timeout: 3000 })
+  expect(store.patches[1]).toEqual({ greeting: 'formal' })
+})
+
 test('a page without the scope the level needs renders nothing and asks for nothing', async () => {
   const store = backend(defaults())
   const { container } = renderWithQuery(<NamespaceForm namespace={NAMESPACE} level="term" />)

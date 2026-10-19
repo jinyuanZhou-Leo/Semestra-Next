@@ -132,7 +132,7 @@ function Form({
       return next
     })
 
-  const { queue, flush } = useAutosave<Record<string, unknown>>({
+  const { queue, flush, discard } = useAutosave<Record<string, unknown>>({
     save: async (patch) => {
       try {
         const result = await update.mutateAsync({
@@ -156,8 +156,18 @@ function Form({
   }
 
   const follow = async (key: string) => {
+    const unsaved = key in draft
+    const previous = draft[key]
+    const undo = () =>
+      setDraft((current) => (unsaved ? { ...current, [key]: previous } : omitKey(current, key)))
     setDraft((current) => ({ ...current, [key]: FOLLOWING }))
-    await flush()
+    // An unsent value of this field must not be sent after the reset and undo "follow".
+    discard([key])
+    // A save that failed stays pending behind "Retry"; resetting now could be overwritten by it.
+    if (!(await flush())) {
+      undo()
+      return
+    }
     try {
       const result = await reset.mutateAsync({ path: { namespace, key }, query: params })
       queryClient.setQueryData(valuesKey, result)

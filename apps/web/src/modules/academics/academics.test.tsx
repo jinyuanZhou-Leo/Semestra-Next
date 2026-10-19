@@ -84,7 +84,7 @@ function mount(path: string) {
       </QueryClientProvider>
     </ModuleRegistry>,
   )
-  return { router, ...view }
+  return { router, queryClient, ...view }
 }
 
 test('/ opens the remembered Program, else the first one', async () => {
@@ -437,6 +437,20 @@ test('the level path switches levels and courses in the same dialog, with the sc
     expect(router.state.location.search).toEqual({ settings: 'course/general', scope: 'c2' }),
   )
   expect(await screen.findByRole('dialog', { name: /MAT188H1/ })).toBeInTheDocument()
+})
+
+test('a course deleted while the dialog shows it falls back to its term and leaves the URL', async () => {
+  const { router, queryClient } = mount('/p/p1/c/c1?settings=course/general&scope=c2')
+  expect(await screen.findByRole('dialog', { name: /MAT188H1/ })).toBeInTheDocument()
+
+  // As the course's danger zone does: delete it, then refresh the academic queries.
+  world.courses = world.courses.filter((c) => c.id !== 'c2')
+  await act(() => queryClient.invalidateQueries())
+  expect(await screen.findByRole('dialog', { name: 'Winter 2026' })).toBeInTheDocument()
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'term/general', scope: 't2' }),
+  )
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1')
 })
 
 test('a link with a scope opens that course from any page', async () => {

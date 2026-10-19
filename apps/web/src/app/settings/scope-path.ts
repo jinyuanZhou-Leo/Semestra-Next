@@ -5,7 +5,13 @@ import {
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrentTerm } from '@/modules/academics/current-term'
-import { courseTermId, pickProgram, usePrograms, useTerms } from '@/modules/academics/queries'
+import {
+  courseTermId,
+  pickProgram,
+  useCourses,
+  usePrograms,
+  useTerms,
+} from '@/modules/academics/queries'
 import { usePreferences } from '../preferences'
 import type { Scope, SettingsLevel } from '../extensions'
 import type { SettingsTarget } from './use-settings-dialog'
@@ -26,6 +32,8 @@ export type SettingsPath = {
   programs: readonly Program[]
   /** The terms of the Program on the path. */
   terms?: readonly Term[]
+  /** The courses of the term on the path. */
+  courses?: readonly Course[]
   /** The term the sidebar treats as current, marked in the term picker. */
   currentTermId?: string
   /** Still loading the Program, term or course the URL names. */
@@ -58,35 +66,46 @@ export function useSettingsPath(target: SettingsTarget, base: PathIds): Settings
     staleTime: STALE,
   })
 
+  // A course or term deleted while the dialog shows it answers 404; its old data must not linger.
+  const courseData = course.isError ? undefined : course.data
+  const urlTermData = urlTerm.isError ? undefined : urlTerm.data
+
   const urlProgramId =
     level === 'program'
       ? scope
       : level === 'term'
-        ? urlTerm.data?.program_id
+        ? urlTermData?.program_id
         : level === 'course' && scope
-          ? course.data?.program_id
+          ? courseData?.program_id
           : undefined
   const programList = programs.data?.items ?? []
   const programId =
-    urlProgramId ??
-    base.programId ??
-    course.data?.program_id ??
-    pickProgram(programList, active)?.id
+    urlProgramId ?? base.programId ?? courseData?.program_id ?? pickProgram(programList, active)?.id
   const program = programList.find((p) => p.id === programId)
 
   const termsQuery = useTerms(programId ?? '')
   const terms = termsQuery.data?.items
   const current = useCurrentTerm(programId ?? '')
-  const courseInProgram = course.data?.program_id === programId ? course.data : undefined
+  const courseInProgram = courseData?.program_id === programId ? courseData : undefined
   const termId =
     urlTermId ??
     (base.programId === programId ? base.termId : undefined) ??
     (courseInProgram ? courseTermId(courseInProgram, terms, undefined) : undefined) ??
     current.term?.id
-  const term =
-    terms?.find((t) => t.id === termId) ?? (urlTerm.data?.id === termId ? urlTerm.data : undefined)
+  // Once the term list is in, it decides: a term missing from it was deleted.
+  const term = terms
+    ? terms.find((t) => t.id === termId)
+    : urlTermData?.id === termId
+      ? urlTermData
+      : undefined
+  const coursesQuery = useCourses(programId ?? '', term ? term.id : undefined)
+  const courses = coursesQuery.data ? coursesQuery.data.items : undefined
+  // The term's course list decides too: right after a delete it no longer has the course.
   const pathCourse =
-    courseInProgram && termId && courseInProgram.term_ids.includes(termId)
+    courseInProgram &&
+    term &&
+    courseInProgram.term_ids.includes(term.id) &&
+    (!courses || courses.some((c) => c.id === courseInProgram.id))
       ? courseInProgram
       : undefined
 
@@ -105,6 +124,7 @@ export function useSettingsPath(target: SettingsTarget, base: PathIds): Settings
     course: pathCourse,
     programs: programList,
     terms,
+    courses,
     currentTermId: current.term?.id,
     pending,
   }

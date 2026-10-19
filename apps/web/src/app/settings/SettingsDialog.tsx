@@ -105,6 +105,13 @@ export function SettingsDialog() {
     <Dialog open={target !== undefined} onOpenChange={(next) => !next && close()}>
       {target ? (
         <DialogContent
+          // Focus the level being edited, not the first node of the path; while the path is still
+          // loading, the dialog itself (no focus ring on a level that is not the current one).
+          initialFocus={() =>
+            document.querySelector<HTMLElement>('[data-settings-level-current]') ??
+            document.querySelector<HTMLElement>('[data-slot="dialog-content"]') ??
+            true
+          }
           className="gap-0 overflow-hidden p-0 h-[min(46rem,calc(100svh-2rem))] md:w-[72rem] md:max-w-[calc(100%-2rem)]"
           showCloseButton
         >
@@ -124,7 +131,8 @@ function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }
   const groupId = target.group
   const name = scopeName(path)
   const sections = useSettingsSections(level)
-  const groups = buildNavigation(sections, level)
+  // Until the path is known the level is not either: show no groups rather than the wrong ones.
+  const groups = path.pending ? [] : buildNavigation(sections, level)
   const runs = clusterNavigation(groups, level)
   const hash = useLocation({ select: (location) => location.hash })
   // Old links name a group that was split (`account/ai`): they open the page that replaced it.
@@ -151,6 +159,16 @@ function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }
   const levels = (['account', 'program', 'term', 'course'] as const).filter(
     (l) => l === 'account' || scopeIdAt(l, path) !== undefined,
   )
+
+  // The course, term or Program the URL names is gone (deleted from this dialog, say): show the
+  // nearest level above it and drop the stale id from the URL.
+  const stale =
+    target.scope !== undefined && !path.pending && scopeIdAt(target.level, path) !== target.scope
+  const shownScope = scopeIdAt(level, path)
+  const shownGroup = current?.id
+  useEffect(() => {
+    if (stale) switchTo({ level, group: shownGroup, scope: shownScope })
+  }, [stale, level, shownGroup, shownScope, switchTo])
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   useEffect(() => {

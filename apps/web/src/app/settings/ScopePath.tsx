@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { useCourses } from '@/modules/academics/queries'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -55,8 +54,7 @@ export function ScopePath({ path, onSelect }: Props) {
     termId: term ? term.id : undefined,
     courseId: course ? course.id : null,
   }
-  const coursesQuery = useCourses(program ? program.id : '', term ? term.id : undefined)
-  const courses = coursesQuery.data ? coursesQuery.data.items : []
+  const courses = path.courses ?? []
   const [coursePickerOpen, setCoursePickerOpen] = useState(false)
 
   return (
@@ -70,14 +68,14 @@ export function ScopePath({ path, onSelect }: Props) {
           />
           <PathNode
             level="account"
-            active={path.level === 'account'}
+            active={!path.pending && path.level === 'account'}
             name={user ? user.display_name : ''}
             onClick={() => onSelect('account', ids)}
           />
           {program ? (
             <PathNode
               level="program"
-              active={path.level === 'program'}
+              active={!path.pending && path.level === 'program'}
               name={program.name}
               onClick={() => onSelect('program', ids)}
             >
@@ -95,7 +93,7 @@ export function ScopePath({ path, onSelect }: Props) {
           {program ? (
             <PathNode
               level="term"
-              active={path.level === 'term'}
+              active={!path.pending && path.level === 'term'}
               name={term?.name}
               placeholder={m.settings_path_choose_term()}
               onClick={() => (term ? onSelect('term', ids) : undefined)}
@@ -118,7 +116,7 @@ export function ScopePath({ path, onSelect }: Props) {
           {program && term ? (
             <PathNode
               level="course"
-              active={path.level === 'course'}
+              active={!path.pending && path.level === 'course'}
               name={course ? courseLabel(course) : undefined}
               color={course ? courseColor(course) : undefined}
               placeholder={m.settings_path_choose_course()}
@@ -170,32 +168,28 @@ function PathNode({
       <SidebarMenuButton
         isActive={active}
         aria-current={active ? 'true' : undefined}
+        data-settings-level-current={active ? '' : undefined}
         className="h-auto gap-3 py-1.5"
         onClick={onClick}
       >
+        {/* A course's dot takes its subject color, so its name lines up with the levels above. */}
         <span
           aria-hidden
           className={cn(
             'relative z-10 size-2.5 shrink-0 rounded-full border-2 bg-sidebar',
-            active ? 'border-primary bg-primary' : 'border-sidebar-border',
+            color
+              ? 'border-transparent'
+              : active
+                ? 'border-primary bg-primary'
+                : 'border-sidebar-border',
+            color && active && 'ring-2 ring-primary ring-offset-1 ring-offset-sidebar',
           )}
+          style={color ? { backgroundColor: color } : undefined}
         />
         <span className="grid min-w-0 leading-tight">
           <span className="text-xs text-muted-foreground">{PATH_LEVEL_NAMES[level]()}</span>
-          <span
-            className={cn(
-              'flex min-w-0 items-center gap-1.5',
-              name ? 'font-medium' : 'text-muted-foreground',
-            )}
-          >
-            {color ? (
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-            ) : null}
-            <span className="truncate">{name ?? placeholder}</span>
+          <span className={cn('truncate', name ? 'font-medium' : 'text-muted-foreground')}>
+            {name ?? placeholder}
           </span>
         </span>
       </SidebarMenuButton>
