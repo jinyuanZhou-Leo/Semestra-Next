@@ -116,7 +116,7 @@ export function SettingsDialog() {
     <Dialog open={available} onOpenChange={(next) => !next && close()}>
       {available ? (
         <DialogContent
-          className="gap-0 overflow-hidden p-0 md:h-[36rem] md:max-h-[calc(100svh-2rem)] md:w-[56rem] md:max-w-[calc(100%-2rem)]"
+          className="gap-0 overflow-hidden p-0 h-[min(36rem,calc(100svh-2rem))] md:w-[56rem] md:max-w-[calc(100%-2rem)]"
           showCloseButton
         >
           <SettingsBody level={target.level} scope={scope} groupId={target.group} />
@@ -214,7 +214,8 @@ function SettingsBody({
               </NativeSelect>
             ) : null}
           </header>
-          <div className="flex-1 overflow-y-auto px-4 pb-6 md:px-6">
+          {/* Keyed by group so a new group opens at its top instead of the old scroll position. */}
+          <div key={current?.id} className="flex-1 overflow-y-auto px-4 pb-6 md:px-6">
             {current ? (
               <SettingsSections level={level} scope={scope} group={current.id} />
             ) : (
