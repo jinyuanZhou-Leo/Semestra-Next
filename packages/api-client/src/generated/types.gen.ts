@@ -675,6 +675,16 @@ export type BodyAccountAvatarUpload = {
 };
 
 /**
+ * Body_importsUploadCreate
+ */
+export type BodyImportsUploadCreate = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -738,6 +748,47 @@ export type BreakRef = {
      * Name
      */
     name: string;
+};
+
+/**
+ * BulkDecideInputBody
+ */
+export type BulkDecideInputBody = {
+    /**
+     * Decision
+     *
+     * Decision to apply
+     */
+    decision: 'accept' | 'reject';
+    /**
+     * Types
+     *
+     * Only items of these types
+     */
+    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
+    /**
+     * Issue Codes
+     *
+     * Only items with one of these issues
+     */
+    issue_codes?: Array<string> | null;
+    /**
+     * Item Ids
+     *
+     * Only these items
+     */
+    item_ids?: Array<string> | null;
+};
+
+/**
+ * BulkDecideResult
+ */
+export type BulkDecideResult = {
+    /**
+     * Changed
+     */
+    changed: number;
+    session: ImportSessionDetail;
 };
 
 /**
@@ -1021,6 +1072,43 @@ export type CheckinToggleResult = {
      */
     checked: boolean;
     stats: HabitStats;
+};
+
+/**
+ * CommitInputBody
+ */
+export type CommitInputBody = {
+    /**
+     * Wizard Courses
+     *
+     * Term wizard: the courses it created from the session's course items
+     */
+    wizard_courses?: Array<WizardCourse> | null;
+    /**
+     * Item Ids
+     *
+     * Retry only these items (failed ones); default: all accepted
+     */
+    item_ids?: Array<string> | null;
+};
+
+/**
+ * CommitResult
+ */
+export type CommitResult = {
+    session: ImportSessionDetail;
+    /**
+     * Created
+     */
+    created: number;
+    /**
+     * Updated
+     */
+    updated: number;
+    /**
+     * Failed
+     */
+    failed: number;
 };
 
 /**
@@ -2117,6 +2205,30 @@ export type EventUpdateInputBody = {
 };
 
 /**
+ * Evidence
+ */
+export type Evidence = {
+    /**
+     * Upload Id
+     */
+    upload_id?: string | null;
+    /**
+     * File Item Id
+     *
+     * M07 file the quote is from
+     */
+    file_item_id?: string | null;
+    /**
+     * Page
+     */
+    page?: number | null;
+    /**
+     * Quote
+     */
+    quote?: string | null;
+};
+
+/**
  * ExceptionUpsertInputBody
  */
 export type ExceptionUpsertInputBody = {
@@ -2611,6 +2723,187 @@ export type IdentityOut = {
 };
 
 /**
+ * ImportItem
+ */
+export type ImportItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Type
+     */
+    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch';
+    /**
+     * Data
+     *
+     * The type's draft fields (see the M08 spec §2)
+     */
+    data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Evidence
+     */
+    evidence: {
+        [key: string]: Evidence;
+    };
+    /**
+     * Confidence
+     */
+    confidence: {
+        [key: string]: 'high' | 'medium' | 'low';
+    };
+    /**
+     * Decision
+     */
+    decision: 'accept' | 'reject' | 'pending';
+    /**
+     * Issues
+     */
+    issues: Array<Issue>;
+    /**
+     * Depends On
+     */
+    depends_on: Array<string>;
+    result: ItemResult | null;
+    /**
+     * Position
+     */
+    position: number;
+};
+
+/**
+ * ImportSession
+ */
+export type ImportSession = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Source Kind
+     */
+    source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
+    target: SessionTarget;
+    /**
+     * Status
+     */
+    status: 'extracting' | 'ready' | 'committing' | 'committed' | 'failed' | 'discarded';
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Source Refs
+     */
+    source_refs: Array<SourceRef>;
+    /**
+     * Source Meta
+     */
+    source_meta: {
+        [key: string]: unknown;
+    };
+    summary: SessionSummary;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Committed At
+     */
+    committed_at: string | null;
+};
+
+/**
+ * ImportSessionDetail
+ */
+export type ImportSessionDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Source Kind
+     */
+    source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
+    target: SessionTarget;
+    /**
+     * Status
+     */
+    status: 'extracting' | 'ready' | 'committing' | 'committed' | 'failed' | 'discarded';
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Source Refs
+     */
+    source_refs: Array<SourceRef>;
+    /**
+     * Source Meta
+     */
+    source_meta: {
+        [key: string]: unknown;
+    };
+    summary: SessionSummary;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Committed At
+     */
+    committed_at: string | null;
+    /**
+     * Items
+     */
+    items: Array<ImportItem>;
+};
+
+/**
+ * ImportSessionPage
+ */
+export type ImportSessionPage = {
+    /**
+     * Items
+     */
+    items: Array<ImportSession>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
  * Instructor
  */
 export type Instructor = {
@@ -2632,6 +2925,72 @@ export type Instructor = {
      * E.g. 'Lecturer', 'TA'
      */
     role?: string | null;
+};
+
+/**
+ * Issue
+ */
+export type Issue = {
+    /**
+     * Code
+     *
+     * Error code, e.g. import.date_unresolved
+     */
+    code: string;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ItemResult
+ */
+export type ItemResult = {
+    /**
+     * Created Id
+     */
+    created_id?: string | null;
+    /**
+     * Updated Id
+     */
+    updated_id?: string | null;
+    /**
+     * Reused
+     */
+    reused?: boolean;
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
+    /**
+     * Error Params
+     */
+    error_params?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ItemUpdateInputBody
+ */
+export type ItemUpdateInputBody = {
+    /**
+     * Data
+     *
+     * Fields to change; merged into the item's data
+     */
+    data?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Decision
+     *
+     * accept, reject or pending
+     */
+    decision?: 'accept' | 'reject' | 'pending' | null;
 };
 
 /**
@@ -4600,6 +4959,48 @@ export type ScoreSuggestion = {
 };
 
 /**
+ * SessionCreateInputBody
+ */
+export type SessionCreateInputBody = {
+    /**
+     * Source Kind
+     *
+     * ics, syllabus, timetable_image or text
+     */
+    source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
+    /**
+     * Wizard, a term or a course
+     */
+    target: SessionTarget;
+    /**
+     * Upload Ids
+     *
+     * Files from POST /imports/uploads
+     */
+    upload_ids?: Array<string>;
+    /**
+     * File Item Ids
+     *
+     * Existing course files (M07)
+     */
+    file_item_ids?: Array<string>;
+    /**
+     * Text
+     *
+     * Pasted text (source `text`)
+     */
+    text?: string | null;
+    /**
+     * Source Meta
+     *
+     * Extra source info, e.g. {provider, connection_id}
+     */
+    source_meta?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * SessionList
  */
 export type SessionList = {
@@ -4706,6 +5107,84 @@ export type SessionRecorded = {
 };
 
 /**
+ * SessionSummary
+ */
+export type SessionSummary = {
+    /**
+     * Counts
+     *
+     * Items per type
+     */
+    counts?: {
+        [key: string]: number;
+    };
+    /**
+     * Accepted
+     *
+     * Accepted items per type
+     */
+    accepted?: {
+        [key: string]: number;
+    };
+    /**
+     * Issues
+     *
+     * Open issues per code
+     */
+    issues?: {
+        [key: string]: number;
+    };
+    /**
+     * Created
+     */
+    created?: number;
+    /**
+     * Updated
+     */
+    updated?: number;
+    /**
+     * Failed
+     */
+    failed?: number;
+};
+
+/**
+ * SessionTarget
+ */
+export type SessionTarget = {
+    /**
+     * Kind
+     *
+     * Where the import goes
+     */
+    kind: 'term_wizard' | 'term' | 'course';
+    /**
+     * Term Id
+     *
+     * Term (kind term, or course's term)
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course (kind course)
+     */
+    course_id?: string | null;
+    /**
+     * Start Date
+     *
+     * Wizard: first day of the term being created
+     */
+    start_date?: string | null;
+    /**
+     * End Date
+     *
+     * Wizard: last day of that term
+     */
+    end_date?: string | null;
+};
+
+/**
  * SettingsSchemaList
  */
 export type SettingsSchemaList = {
@@ -4779,6 +5258,36 @@ export type SkippedAssessment = {
      * The existing assessment with this source
      */
     assessment_id: string;
+};
+
+/**
+ * SourceRef
+ */
+export type SourceRef = {
+    /**
+     * Upload Id
+     */
+    upload_id?: string | null;
+    /**
+     * File Item Id
+     */
+    file_item_id?: string | null;
+    /**
+     * Filename
+     */
+    filename?: string | null;
+    /**
+     * Lms Course Id
+     */
+    lms_course_id?: string | null;
+    /**
+     * Status
+     */
+    status?: 'pending' | 'extracting' | 'done' | 'failed';
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
 };
 
 /**
@@ -5528,6 +6037,28 @@ export type UiStateSetInputBody = {
 };
 
 /**
+ * Upload
+ */
+export type Upload = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
  * UsageDay
  */
 export type UsageDay = {
@@ -5730,6 +6261,24 @@ export type ValuesUpdateInputBody = {
     values: {
         [key: string]: JsonValue;
     };
+};
+
+/**
+ * WizardCourse
+ */
+export type WizardCourse = {
+    /**
+     * Item Id
+     *
+     * Course item of the session
+     */
+    item_id: string;
+    /**
+     * Course Id
+     *
+     * Course the wizard created from it
+     */
+    course_id: string;
 };
 
 /**
@@ -6143,6 +6692,61 @@ export type AccountAvatarGetResponses = {
      */
     200: unknown;
 };
+
+export type ImportsUploadCreateData = {
+    body: BodyImportsUploadCreate;
+    path?: never;
+    query?: never;
+    url: '/imports/uploads';
+};
+
+export type ImportsUploadCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsUploadCreateError = ImportsUploadCreateErrors[keyof ImportsUploadCreateErrors];
+
+export type ImportsUploadCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Upload;
+};
+
+export type ImportsUploadCreateResponse = ImportsUploadCreateResponses[keyof ImportsUploadCreateResponses];
+
+export type ImportsUploadContentData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/imports/uploads/{upload_id}/content';
+};
+
+export type ImportsUploadContentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportsUploadContentError = ImportsUploadContentErrors[keyof ImportsUploadContentErrors];
+
+export type ImportsUploadContentResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+};
+
+export type ImportsUploadContentResponse = ImportsUploadContentResponses[keyof ImportsUploadContentResponses];
 
 export type AcademicsCourseListData = {
     body?: never;
@@ -8528,6 +9132,249 @@ export type HabitStatsResponses = {
 };
 
 export type HabitStatsResponse = HabitStatsResponses[keyof HabitStatsResponses];
+
+export type ImportsItemUpdateData = {
+    body: ItemUpdateInputBody;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+        /**
+         * Item Id
+         *
+         * Item id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}/items/{item_id}';
+};
+
+export type ImportsItemUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsItemUpdateError = ImportsItemUpdateErrors[keyof ImportsItemUpdateErrors];
+
+export type ImportsItemUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportSessionDetail;
+};
+
+export type ImportsItemUpdateResponse = ImportsItemUpdateResponses[keyof ImportsItemUpdateResponses];
+
+export type ImportsItemsBulkDecideData = {
+    body: BulkDecideInputBody;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}/items:decide';
+};
+
+export type ImportsItemsBulkDecideErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsItemsBulkDecideError = ImportsItemsBulkDecideErrors[keyof ImportsItemsBulkDecideErrors];
+
+export type ImportsItemsBulkDecideResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkDecideResult;
+};
+
+export type ImportsItemsBulkDecideResponse = ImportsItemsBulkDecideResponses[keyof ImportsItemsBulkDecideResponses];
+
+export type ImportsSessionCommitData = {
+    body: CommitInputBody;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}:commit';
+};
+
+export type ImportsSessionCommitErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsSessionCommitError = ImportsSessionCommitErrors[keyof ImportsSessionCommitErrors];
+
+export type ImportsSessionCommitResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommitResult;
+};
+
+export type ImportsSessionCommitResponse = ImportsSessionCommitResponses[keyof ImportsSessionCommitResponses];
+
+export type ImportsSessionListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/imports';
+};
+
+export type ImportsSessionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsSessionListError = ImportsSessionListErrors[keyof ImportsSessionListErrors];
+
+export type ImportsSessionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportSessionPage;
+};
+
+export type ImportsSessionListResponse = ImportsSessionListResponses[keyof ImportsSessionListResponses];
+
+export type ImportsSessionCreateData = {
+    body: SessionCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/imports';
+};
+
+export type ImportsSessionCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsSessionCreateError = ImportsSessionCreateErrors[keyof ImportsSessionCreateErrors];
+
+export type ImportsSessionCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportSessionDetail;
+};
+
+export type ImportsSessionCreateResponse = ImportsSessionCreateResponses[keyof ImportsSessionCreateResponses];
+
+export type ImportsSessionDiscardData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}:discard';
+};
+
+export type ImportsSessionDiscardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsSessionDiscardError = ImportsSessionDiscardErrors[keyof ImportsSessionDiscardErrors];
+
+export type ImportsSessionDiscardResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportSession;
+};
+
+export type ImportsSessionDiscardResponse = ImportsSessionDiscardResponses[keyof ImportsSessionDiscardResponses];
+
+export type ImportsSessionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}';
+};
+
+export type ImportsSessionGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsSessionGetError = ImportsSessionGetErrors[keyof ImportsSessionGetErrors];
+
+export type ImportsSessionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportSessionDetail;
+};
+
+export type ImportsSessionGetResponse = ImportsSessionGetResponses[keyof ImportsSessionGetResponses];
 
 export type LayoutsBoardGetData = {
     body?: never;

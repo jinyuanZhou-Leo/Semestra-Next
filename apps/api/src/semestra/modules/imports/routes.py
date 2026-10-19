@@ -1,0 +1,89 @@
+"""File routes of imports: upload before a course exists, and read it back for "show source"."""
+
+import mimetypes
+from collections.abc import AsyncIterator
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, UploadFile
+from fastapi.responses import StreamingResponse
+
+from semestra.core.context import Ctx, get_ctx, run_after_commit
+from semestra.core.errors import AppError, ErrorResponse
+from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.modules.imports import service
+from semestra.modules.imports.schemas import Upload
+
+router = APIRouter(tags=["imports"])
+
+ALLOWED = (
+    "text/calendar",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/markdown",
+    "text/html",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+)
+
+
+def _mime(file: UploadFile) -> str:
+    guessed, _ = mimetypes.guess_type(file.filename or "")
+    if (file.filename or "").lower().endswith(".ics"):
+        return "text/calendar"
+    if (file.filename or "").lower().endswith(".md"):
+        return "text/markdown"
+    declared = (file.content_type or "").split(";")[0].strip().lower()
+    return guessed or declared or "application/octet-stream"
+
+
+async def _chunks(file: UploadFile) -> AsyncIterator[bytes]:
+    while chunk := await file.read(CHUNK_SIZE):
+        yield chunk
+
+
+@router.post(
+    "/imports/uploads",
+    operation_id="importsUploadCreate",
+    response_model=Upload,
+    responses={"default": {"model": ErrorResponse}},
+    summary="Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.",
+)
+async def upload_create(file: UploadFile, ctx: Annotated[Ctx, Depends(get_ctx)]) -> Upload:
+    mime = _mime(file)
+    if mime not in ALLOWED:
+        raise AppError("import.file_unsupported", 415, filename=file.filename or "")
+    upload = await service.store_upload(
+        ctx, filename=file.filename or "file", mime=mime, chunks=_chunks(file)
+    )
+    await ctx.db.commit()
+    await run_after_commit(ctx)
+    return upload
+
+
+@router.get(
+    "/imports/uploads/{upload_id}/content",
+    operation_id="importsUploadContent",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/octet-stream": {}}}},
+    summary="The uploaded file, shown inline (evidence preview).",
+)
+async def upload_content(
+    upload_id: Annotated[str, Path(min_length=1, max_length=64)],
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+) -> StreamingResponse:
+    upload = await service.get_upload(ctx, upload_id)
+    return StreamingResponse(
+        get_storage(ctx).open(upload.storage_key),
+        media_type=upload.mime_type,
+        headers={
+            "Content-Disposition": "inline",
+            "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+        },
+    )
