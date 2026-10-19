@@ -87,6 +87,10 @@ class SessionIdInput(BaseModel):
     id: str = Field(description="Session id.")
 
 
+class AttachmentIdInput(BaseModel):
+    id: str = Field(description="Attachment id.")
+
+
 class AgentSessionCreateInput(BaseModel):
     scope: AgentScope | None = Field(default=None, description="Page scope to start from.")
 

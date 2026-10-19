@@ -1410,6 +1410,7 @@
   "error_agent_proposal_expired": "This confirmation expired. Ask again.",
   "error_agent_proposal_not_pending": "This was already decided.",
   "error_agent_attachment_too_large": "File is larger than 10 MB",
+  "error_agent_attachment_in_use": "This attachment is already part of a message",
   "error_agent_attachment_unsupported": "This file type is not supported",
   "error_agent_cannot_regenerate": "This answer already changed data and cannot be regenerated."
 }

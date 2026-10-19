@@ -286,6 +286,27 @@ async def attachments(ctx: Ctx, session_id: str) -> list[AgentAttachment]:
     return list((await ctx.db.scalars(stmt)).all())
 
 
+async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
+    row = await ctx.db.get(AgentAttachment, attachment_id)
+    if row is None or row.user_id != ctx.user_id:
+        raise not_found()
+    sent = any(
+        block.get("attachment_id") == row.id
+        for msg in await messages(ctx, row.session_id)
+        for block in msg.content
+    )
+    if sent:
+        raise AppError("agent.attachment_in_use", 409)
+    key = row.storage_key
+    storage = get_storage(ctx)
+    await ctx.db.delete(row)
+
+    async def _remove_file() -> None:
+        await storage.delete(key)
+
+    ctx.after_commit.append(_remove_file)
+
+
 async def read_attachment(ctx: Ctx, row: AgentAttachment) -> bytes:
     chunks = [chunk async for chunk in get_storage(ctx).open(row.storage_key)]
     return b"".join(chunks)

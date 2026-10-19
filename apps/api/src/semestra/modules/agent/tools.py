@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from semestra.core.capability import Capability
 from semestra.modules.ai import Tool
@@ -31,6 +31,31 @@ def tool_name(capability: str) -> str:
 
 def capability_name(tool: str) -> str:
     return tool.replace("__", ".")
+
+
+class ToolsSearchArgs(BaseModel):
+    query: str
+    limit: int = Field(8, ge=1, le=20)
+
+
+class ToolsLoadArgs(BaseModel):
+    names: list[str] = Field(max_length=LOADED_LIMIT)
+
+
+class SkillsSearchArgs(BaseModel):
+    query: str
+
+
+class SkillsReadArgs(BaseModel):
+    name: str
+
+
+META_ARGS: dict[str, type[BaseModel]] = {
+    TOOLS_SEARCH: ToolsSearchArgs,
+    TOOLS_LOAD: ToolsLoadArgs,
+    SKILLS_SEARCH: SkillsSearchArgs,
+    SKILLS_READ: SkillsReadArgs,
+}
 
 
 def _schema(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:

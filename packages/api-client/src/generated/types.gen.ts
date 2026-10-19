@@ -7653,6 +7653,38 @@ export type AccountTokensRevokeResponses = {
 
 export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
 
+export type AgentAttachmentDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Attachment id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/attachments/{id}';
+};
+
+export type AgentAttachmentDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentAttachmentDeleteError = AgentAttachmentDeleteErrors[keyof AgentAttachmentDeleteErrors];
+
+export type AgentAttachmentDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesAgentCapabilitiesDeleted;
+};
+
+export type AgentAttachmentDeleteResponse = AgentAttachmentDeleteResponses[keyof AgentAttachmentDeleteResponses];
+
 export type AgentPreferencesGetData = {
     body?: never;
     path?: never;

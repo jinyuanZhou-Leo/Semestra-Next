@@ -256,6 +256,20 @@ async def test_tools_search_and_load(agent: Agent, model: FakeModel):
     assert {"tools_search", "tools_load", "skills_search", "skills_read"} <= bound
 
 
+async def test_bad_meta_arguments_are_a_tool_error(agent: Agent, model: FakeModel):
+    session = await agent.session()
+    model.then(
+        call("tools_search", {"query": "meetings", "limit": "many"}),
+        call("tools_load", {"names": "schedule.meeting.list"}),
+        say("Sorry."),
+    )
+    events = await agent.send(session["id"], "show my meetings")
+    results = events_named(events, "tool_result")
+    assert [r["ok"] for r in results] == [False, False]
+    assert "common.validation" in result_of(model.requests[1][0][-1].content[0])
+    assert "".join(d["text"] for d in events_named(events, "text_delta")) == "Sorry."
+
+
 def test_loaded_tools_are_lru_bounded():
     loaded: list[str] = []
     for i in range(tools.LOADED_LIMIT + 3):

@@ -20,6 +20,7 @@ from semestra.modules.agent.schemas import (
     AgentStopResult,
     AgentToolCatalog,
     AgentToolInfo,
+    AttachmentIdInput,
     SessionIdInput,
 )
 
@@ -96,6 +97,20 @@ async def session_update(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSession
 )
 async def session_delete(ctx: Ctx, inp: SessionIdInput) -> Deleted:
     await service.delete_session(ctx, inp.id)
+    return Deleted(deleted=True)
+
+
+@capability(
+    name="agent.attachment.delete",
+    summary="Remove an uploaded attachment that has not been sent.",
+    description="Attachments already part of a message stay until the conversation is deleted.",
+    effect="destructive",
+    http=Http("DELETE", "/agent/attachments/{id}"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def attachment_delete(ctx: Ctx, inp: AttachmentIdInput) -> Deleted:
+    await service.delete_attachment(ctx, inp.id)
     return Deleted(deleted=True)
 
 

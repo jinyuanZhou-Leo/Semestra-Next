@@ -101,6 +101,28 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     assert usage["by_module"]["agent"] == 0
 
 
+async def test_unsent_attachments_can_be_deleted(agent: Agent, model: FakeModel):
+    session = await agent.session()
+
+    async def upload(name: str) -> dict:
+        return await agent.call(
+            "POST",
+            "/agent/attachments",
+            data={"session_id": session["id"]},
+            files={"file": (name, b"hello", "text/plain")},
+        )
+
+    unsent, sent = await upload("a.txt"), await upload("b.txt")
+    model.then(say("ok"))
+    await agent.send(session["id"], "read this", attachment_ids=[sent["id"]])
+
+    await agent.call("DELETE", f"/agent/attachments/{unsent['id']}")
+    err = await agent.call("DELETE", f"/agent/attachments/{sent['id']}", 409)
+    assert err["error"]["code"] == "agent.attachment_in_use"
+    assert [a["id"] for a in (await agent.detail(session["id"]))["attachments"]] == [sent["id"]]
+    assert (await agent.call("GET", "/storage/usage"))["by_module"]["agent"] == 5
+
+
 async def test_attachment_size_limit(agent: Agent, monkeypatch):
     from semestra.modules.agent import routes
 

@@ -2241,6 +2241,51 @@
         }
       }
     },
+    "/agent/attachments/{id}": {
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Remove an uploaded attachment that has not been sent.",
+        "description": "Attachments already part of a message stay until the conversation is deleted.",
+        "operationId": "agentAttachmentDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Attachment id.",
+              "title": "Id"
+            },
+            "description": "Attachment id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__agent__capabilities__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/agent/preferences": {
       "get": {
         "tags": [

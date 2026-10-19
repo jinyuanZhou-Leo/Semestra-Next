@@ -1410,6 +1410,7 @@
   "error_agent_proposal_expired": "这个确认已过期，请重新发起。",
   "error_agent_proposal_not_pending": "这个操作已经处理过了。",
   "error_agent_attachment_too_large": "文件超过 10 MB",
+  "error_agent_attachment_in_use": "这个附件已经在消息里，不能单独删除",
   "error_agent_attachment_unsupported": "不支持这种文件类型",
   "error_agent_cannot_regenerate": "这条回答已经修改了数据，不能重新生成。"
 }

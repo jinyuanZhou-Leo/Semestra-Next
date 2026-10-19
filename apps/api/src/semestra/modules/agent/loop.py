@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from starlette.datastructures import State
 
 from semestra.core.capability import Capability, Surface, registry
@@ -110,18 +110,18 @@ def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _validation_error(exc: ValidationError) -> AppError:
+    errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
+    return AppError("common.validation", 422, errors=errors)
+
+
 async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
     """The capability's own `preview` (changes with before → after, a link), else the
     arguments as a list. Raises `common.validation` for arguments the model got wrong."""
     try:
         inp = cap.input_model.model_validate(args)
-    except Exception as exc:
-        from pydantic import ValidationError
-
-        if isinstance(exc, ValidationError):
-            errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
-            raise AppError("common.validation", 422, errors=errors) from exc
-        raise
+    except ValidationError as exc:
+        raise _validation_error(exc) from exc
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)
         if isinstance(preview, BaseModel):
@@ -135,35 +135,37 @@ async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[
 
 
 def _meta(
-    name: str, args: dict[str, Any], session: AgentSession, available: list[Capability]
+    name: str, raw: dict[str, Any], session: AgentSession, available: list[Capability]
 ) -> Outcome:
+    try:
+        args = tools.META_ARGS[name].model_validate(raw)
+    except ValidationError as exc:
+        err = _validation_error(exc)
+        return Outcome(False, _error_payload(err), err.code)
     st = dict(session.state or {})
     loaded: list[str] = list(st.get("loaded_tools", []))
     by_name = {c.name: c for c in available}
-    if name == tools.TOOLS_SEARCH:
+    if isinstance(args, tools.ToolsSearchArgs):
         bound = {c.name for c in tools.core_capabilities(available)} | set(loaded)
-        found = tools.search(
-            [c for c in available if c.name not in bound],
-            str(args.get("query", "")),
-            int(args.get("limit") or 8),
-        )
+        found = tools.search([c for c in available if c.name not in bound], args.query, args.limit)
         return Outcome(
             True,
             {"tools": [{"name": c.name, "summary": c.summary, "effect": c.effect} for c in found]},
         )
-    if name == tools.TOOLS_LOAD:
-        names = [tools.capability_name(str(n)) for n in args.get("names") or []]
+    if isinstance(args, tools.ToolsLoadArgs):
+        names = [tools.capability_name(n) for n in args.names]
         known = [n for n in names if n in by_name]
         st["loaded_tools"] = tools.load(loaded, known)
         session.state = st
         return Outcome(True, {"loaded": known, "unknown": [n for n in names if n not in by_name]})
     visible = skills.visible_skills(available)
-    if name == tools.SKILLS_SEARCH:
-        found_skills = skills.search_skills(visible, str(args.get("query", "")))
+    if isinstance(args, tools.SkillsSearchArgs):
+        found_skills = skills.search_skills(visible, args.query)
         return Outcome(
             True, {"skills": [{"name": s.name, "description": s.description} for s in found_skills]}
         )
-    skill = next((s for s in visible if s.name == args.get("name")), None)
+    assert isinstance(args, tools.SkillsReadArgs)
+    skill = next((s for s in visible if s.name == args.name), None)
     if skill is None:
         return Outcome(
             False, {"error": {"code": "common.not_found", "params": {}}}, "common.not_found"

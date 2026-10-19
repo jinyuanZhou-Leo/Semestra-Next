@@ -2,6 +2,7 @@ import {
   type AgentAttachmentOut,
   type AgentScope,
   type AgentSessionDetail,
+  agentAttachmentDelete,
   agentAttachmentUpload,
   agentSessionUpdate,
 } from '@semestra/api-client'
@@ -322,11 +323,21 @@ export function Conversation({
   }
 
   function removeAttachment(key: string) {
-    setAttachments((current) => {
-      const gone = current.find((a) => a.key === key)
-      if (gone?.preview) URL.revokeObjectURL(gone.preview)
-      return current.filter((a) => a.key !== key)
-    })
+    const gone = attachments.find((a) => a.key === key)
+    if (gone?.preview) URL.revokeObjectURL(gone.preview)
+    setAttachments((current) => current.filter((a) => a.key !== key))
+    const id = gone?.id
+    const session = detail?.session.id
+    if (!id || !session) return
+    // Unsent uploads count against storage until they are deleted (M12 §4).
+    void agentAttachmentDelete({ path: { id } })
+    queryClient.setQueryData<AgentSessionDetail>(
+      agentSessionGetQueryKey({ path: { id: session } }),
+      (current) =>
+        current
+          ? { ...current, attachments: current.attachments.filter((a) => a.id !== id) }
+          : current,
+    )
   }
 
   async function submit(input: ComposerSubmit): Promise<boolean> {
