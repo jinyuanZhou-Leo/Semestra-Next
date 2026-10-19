@@ -242,7 +242,7 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
         by_key[key] = {
             "external_id": external_id,
             "link_id": link.id,
-            "snapshot": snapshot(a),
+            "snapshot": snapshot(a, weights.get(external_id)),
             "updated_at": a.get("updated_at"),
         }
         refs.append(
@@ -251,9 +251,15 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
     return await _fill(ctx, row, new, refs[:50], by_key)
 
 
-def snapshot(a: dict[str, Any]) -> dict[str, Any]:
-    """What update detection compares (M09 §4)."""
-    return {"title": a.get("name"), "due_at": a.get("due_at"), "points": a.get("points")}
+def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
+    """What update detection compares (M09 §4). The weight is the effective one from the
+    assignment's group, so a group weight or sibling change shows up as an update too."""
+    return {
+        "title": a.get("name"),
+        "due_at": a.get("due_at"),
+        "points": a.get("points"),
+        "weight": weight,
+    }
 
 
 # --- syllabus -------------------------------------------------------------------------------
@@ -309,12 +315,13 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
         return UpdatesOutput(course_id=course_id, count=0, items=[])
     data, _ = await reads.raw_assignments(ctx, course_id, refresh)
     by_id = {a["external_id"]: a for a in data}
+    weights = _weights(data)
     items: list[AssignmentUpdate] = []
     for ref in refs:
         a = by_id.get(ref.external_id)
         if a is None:
             continue
-        now, then = snapshot(a), ref.snapshot
+        now, then = snapshot(a, weights.get(ref.external_id)), ref.snapshot
         changes: dict[str, FieldUpdate] = {}
         if now["title"] != then.get("title"):
             changes["title"] = FieldUpdate(old=then.get("title"), new=now["title"])
@@ -322,6 +329,14 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
             changes["due_at"] = FieldUpdate(old=then.get("due_at"), new=now["due_at"])
         if now["points"] != then.get("points") and ref.target_kind == "assessment":
             changes["points"] = FieldUpdate(old=then.get("points"), new=now["points"])
+        # Snapshots from before weights were recorded have no "weight" key: nothing to compare.
+        if (
+            ref.target_kind == "assessment"
+            and "weight" in then
+            and now["weight"] is not None
+            and now["weight"] != then["weight"]
+        ):
+            changes["weight"] = FieldUpdate(old=then["weight"], new=now["weight"])
         if changes:
             items.append(
                 AssignmentUpdate(
@@ -376,7 +391,9 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
             new_date, new_time = _local(a.get("due_at"), tz)
             changes["due_date"] = {"old": old_date, "new": new_date}
             changes["due_time"] = {"old": old_time, "new": new_time}
-        if "points" in update.changes and update.external_id in weights:
+        if (
+            "points" in update.changes or "weight" in update.changes
+        ) and update.external_id in weights:
             old = await _current_weight(ctx, update.target)
             if old != weights[update.external_id]:
                 changes["weight"] = {"old": old, "new": weights[update.external_id]}
@@ -386,10 +403,10 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
         by_key[key] = {
             "external_id": update.external_id,
             "link_id": link.id,
-            "snapshot": snapshot(a),
+            "snapshot": snapshot(a, weights.get(update.external_id)),
             "updated_at": a.get("updated_at"),
         }
-        if not changes:  # only the points changed and no weight follows from them
+        if not changes:  # points or weight moved but the assessment already has that weight
             by_key[key]["dismiss_only"] = True
         new.append(
             NewItem(
@@ -467,7 +484,9 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                     LmsImportedRef.target_id == target_id,
                 )
             )
-            if ref is not None and item.decision != "pending":
+            # A failed patch keeps the old snapshot, so the change is offered again.
+            failed = bool(item.result and item.result.get("error_code"))
+            if ref is not None and item.decision != "pending" and not failed:
                 ref.snapshot = info["snapshot"]
                 ref.external_updated_at = _parse_time(info.get("updated_at"))
             continue

@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
+from semestra.modules.imports import service as imports_service
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
 from semestra.modules.lms.models import LmsConnection, LmsImportedRef
@@ -315,11 +316,14 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
                 "due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)}
     )  # fmt: skip
     updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    assert updates["count"] == 1
-    assert set(updates["items"][0]["changes"]) == {"title", "due_at", "points"}
+    # Lab 2 changed nothing itself, but its share of the Labs' points fell: 15% -> 12%.
+    assert updates["count"] == 2
+    assert set(updates["items"][0]["changes"]) == {"title", "due_at", "points", "weight"}
+    assert updates["items"][1]["changes"] == {"weight": {"old": 15, "new": 12}}
     review = await api.call("POST", f"/courses/{course}/lms/updates:review")
     patch = await api.call("GET", f"/imports/{review['session_id']}")
-    [item] = patch["items"]
+    item, lab2_item = patch["items"]
+    assert lab2_item["data"]["changes"]["weight"] == {"old": 15, "new": 12, "apply": True}
     assert item["type"] == "assessment_patch"
     assert item["data"]["changes"]["due_date"] == {
         "old": "2026-02-06",
@@ -335,6 +339,22 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
     assert lab["title"] == "Lab 1 (revised)"
     assert lab["due_date"] == "2026-02-12"
     assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
+
+    # A patch that fails to apply keeps the change on offer.
+    fake.course_assignments["101"][2] = fake.course_assignments["101"][2].model_copy(
+        update={"name": "Midterm (moved)"}
+    )
+    review = await api.call("POST", f"/courses/{course}/lms/updates:review")
+
+    async def broken(*_: Any) -> dict[str, Any]:
+        raise AppError("grading.assessment_not_found", 404)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(imports_service, "_write", broken)
+        done = await api.commit(review["session_id"])
+    assert done["failed"] == 1
+    updates = await api.call("GET", f"/courses/{course}/lms/updates")
+    assert [set(u["changes"]) for u in updates["items"]] == [{"title"}]
 
     # Deleting the assessment lets the assignment be imported again.
     await api.call("DELETE", f"/assessments/{lab['id']}")
