@@ -2051,6 +2051,8 @@
   "portability_entity_plugins_builtin_habit_checkins": "习惯打卡",
   "portability_entity_plugins_builtin_pomodoro_sessions": "专注记录",
   "portability_entity_ai_providers": "AI 服务商",
+  "portability_entity_tasks_items": "待办",
+  "portability_entity_files_items": "课程文件",
   "portability_delete_title": "删除账户",
   "portability_delete_desc": "永久删除你的账户及其全部数据。",
   "portability_delete_dialog_title": "删除你的账户？",

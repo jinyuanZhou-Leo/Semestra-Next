@@ -2051,6 +2051,8 @@
   "portability_entity_plugins_builtin_habit_checkins": "Habit check-ins",
   "portability_entity_plugins_builtin_pomodoro_sessions": "Focus sessions",
   "portability_entity_ai_providers": "AI service providers",
+  "portability_entity_tasks_items": "Tasks",
+  "portability_entity_files_items": "Course files",
   "portability_delete_title": "Delete account",
   "portability_delete_desc": "Permanently delete your account and all of its data.",
   "portability_delete_dialog_title": "Delete your account?",

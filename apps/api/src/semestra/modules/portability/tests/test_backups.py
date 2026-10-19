@@ -15,12 +15,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Table, func, select
 
 from semestra.core.context import Ctx, system_ctx
-from semestra.core.db import Base
+from semestra.core.db import Base, new_id
 from semestra.core.jobs import CoreJob
 from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai.models import AiProvider
 from semestra.modules.auth.mailer import MemoryMailer
 from semestra.modules.auth.models import AuthUser
+from semestra.modules.files import service as files_service
+from semestra.modules.files.models import FilesItem
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.portability import registry
 from semestra.modules.portability.registry import Adapter, ImportReport
@@ -427,6 +429,65 @@ async def test_files_travel_in_the_archive_only_when_asked(
     assert [n for n in without.namelist() if n.startswith("files/")] == []
     assert with_files.read("files/note-1") == b"file body"
     assert json.loads(with_files.read("manifest.json"))["include_files"] is True
+
+
+async def test_course_files_travel_with_their_contents(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    alice = await make_user(email="alice@example.com")
+    ids = await _seed(app, alice)
+    item_id = new_id()
+    key = files_service.storage_key(alice.id, item_id)
+    await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
+    async with app.state.session_factory() as db:
+        db.add(
+            FilesItem(
+                id=item_id,
+                user_id=alice.id,
+                course_id=ids["course"],
+                kind="file",
+                display_name="notes.txt",
+                original_name="notes.txt",
+                mime_type="text/plain",
+                size_bytes=12,
+                storage_key=key,
+                doc_status="ready",
+            )
+        )
+        await db.commit()
+    await login_as(client, alice)
+    with_files = await _export(client, run_jobs, include_files=True)
+    without = await _export(client, run_jobs)
+
+    async def restore(email: str, archive: bytes) -> tuple[UserHandle, dict[str, Any]]:
+        user = await make_user(email=email)
+        async with _client(app) as other:
+            await login_as(other, user)
+            upload_id = (await _upload(other, archive)).json()["id"]
+            started = await other.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})
+            assert started.status_code == 200, started.text
+            await run_jobs()
+            return user, (await other.get(f"/me/imports/{upload_id}")).json()
+
+    bob, done = await restore("bob@example.com", with_files)
+    assert done["status"] == "imported", done
+    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 2}
+    async with app.state.session_factory() as db:
+        copy = await db.scalar(
+            select(FilesItem).where(FilesItem.user_id == bob.id, FilesItem.kind == "file")
+        )
+    assert copy is not None
+    assert copy.storage_key == files_service.storage_key(bob.id, copy.id)
+    assert copy.size_bytes == 12
+    stored = b"".join([c async for c in app.state.storage.open(copy.storage_key)])
+    assert stored == b"week 1 notes"
+    # The copy was processed again (the parsed document is not in the backup).
+    assert copy.doc_status != "none"
+
+    # Without the contents, the file is left out and reported; the link still comes.
+    _, done = await restore("carol@example.com", without)
+    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 1}
+    assert done["report"]["skipped"] == {"files": {"items": 1}}
 
 
 async def test_rejects_old_and_broken_backups(

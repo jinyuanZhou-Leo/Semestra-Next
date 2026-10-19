@@ -14,6 +14,14 @@ from semestra.modules.academics.models import (
     AcademicsTermCourseOrder,
 )
 from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEvent
+from semestra.modules.files.models import (
+    FilesChunk,
+    FilesDocument,
+    FilesDocumentPage,
+    FilesFolder,
+    FilesIndexState,
+    FilesItem,
+)
 from semestra.modules.grading.models import (
     GradingAssessment,
     GradingCategory,
@@ -95,7 +103,42 @@ async def populate(
         capabilities=["chat"],
     )
     task_list = TasksList(**u, program_id=program.id, name="Errands")
-    db.add_all([category, meeting, card, provider, task_list])
+    folder = FilesFolder(**u, course_id=course.id, name="Lectures")
+    db.add_all([category, meeting, card, provider, task_list, folder])
+    await db.flush()
+    # A link: a stored file needs storage, see `test_course_files_travel_with_their_contents`.
+    link = FilesItem(
+        **u,
+        course_id=course.id,
+        folder_id=folder.id,
+        kind="link",
+        display_name="Syllabus",
+        url="https://example.com/syllabus",
+    )
+    db.add(link)
+    await db.flush()
+    # Derived rows: purged with the account, never exported.
+    document = FilesDocument(**u, item_id=link.id, parser_fingerprint="html-1", created_at=NOW)
+    db.add(document)
+    await db.flush()
+    db.add_all(
+        [
+            FilesDocumentPage(**u, document_id=document.id, page_no=1, markdown="# Syllabus"),
+            FilesChunk(
+                **u,
+                document_id=document.id,
+                item_id=link.id,
+                course_id=course.id,
+                chunk_no=0,
+                page_from=1,
+                page_to=1,
+                text="Syllabus",
+                token_count=1,
+                content_hash="h",
+            ),
+            FilesIndexState(**u, item_id=link.id, fts_document_id=document.id, updated_at=NOW),
+        ]
+    )
     await db.flush()
     assessment_id = new_id()
     pomodoro_card = LayoutsCardSetting(
