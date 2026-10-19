@@ -21,6 +21,8 @@ const OPTIONS = {
   cMapUrl: `${import.meta.env.BASE_URL}pdfjs/cmaps/`,
   standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs/standard_fonts/`,
   withCredentials: true,
+  // The app's CSP has no 'unsafe-eval'; pdf.js has a slower path without it.
+  isEvalSupported: false,
 }
 
 /** One page at a time, fitted to the width, with search terms highlighted (M07 §6.1). */

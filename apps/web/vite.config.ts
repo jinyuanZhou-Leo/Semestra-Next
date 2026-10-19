@@ -37,8 +37,9 @@ export default defineConfig({
     tailwindcss(),
     viteStaticCopy({
       targets: ['cmaps', 'standard_fonts'].map((dir) => ({
-        src: normalizePath(path.join(pdfjsDir, dir)),
-        dest: 'pdfjs',
+        src: `${normalizePath(path.join(pdfjsDir, dir))}/*`,
+        dest: `pdfjs/${dir}`,
+        rename: { stripBase: true },
       })),
     }),
   ],
