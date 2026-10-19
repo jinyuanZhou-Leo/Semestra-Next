@@ -76,7 +76,7 @@ export function ProgramView({
   )
 }
 
-function TermWeekLine({ termId }: { termId: string }) {
+export function TermWeekLine({ termId }: { termId: string }) {
   const info = useQuery(academicsTermCalendarInfoOptions({ path: { term_id: termId } })).data
   if (!info) return null
   // `today_week` is already limited to the term's own dates (its first and last weeks reach past them).

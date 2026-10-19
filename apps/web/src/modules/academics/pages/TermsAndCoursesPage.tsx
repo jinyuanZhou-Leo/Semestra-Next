@@ -49,6 +49,7 @@ import { useCurrentTerm } from '../current-term'
 import { newTermPath, termPath } from '../paths'
 import { usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
+import { TermWeekLine } from '../shell/ScopeView'
 
 type Tab = 'terms' | 'courses'
 
@@ -275,27 +276,17 @@ function termDates(term: Term): string {
 
 function IconAction({
   label,
-  pressed,
   onClick,
   children,
 }: {
   label: string
-  pressed?: boolean
   onClick: () => void
   children: ReactNode
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={label}
-            aria-pressed={pressed}
-            onClick={onClick}
-          />
-        }
+        render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}
       >
         {children}
       </TooltipTrigger>
@@ -349,7 +340,6 @@ function TermRow({
         )}
         <IconAction
           label={pinned ? m.terms_courses_unpin() : m.terms_courses_pin()}
-          pressed={pinned}
           onClick={onTogglePin}
         >
           {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
@@ -392,7 +382,9 @@ function TermPane({
             {isCurrent ? <Badge>{m.academics_term_current_badge()}</Badge> : null}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {termDates(term)} · {m.academics_course_count({ count: term.course_count })}
+            {termDates(term)}
+            {term.is_current ? <TermWeekLine termId={term.id} /> : null} ·{' '}
+            {m.academics_course_count({ count: term.course_count })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -417,7 +409,6 @@ function TermPane({
           </Button>
           <IconAction
             label={pinned ? m.terms_courses_unpin() : m.terms_courses_pin()}
-            pressed={pinned}
             onClick={onTogglePin}
           >
             {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
