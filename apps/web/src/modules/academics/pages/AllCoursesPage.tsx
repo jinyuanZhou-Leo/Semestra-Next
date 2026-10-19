@@ -19,6 +19,7 @@ import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { PageHeader } from '@/app/host/PageHeader'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
@@ -45,8 +46,8 @@ import {
 } from '@/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
-import { coursePath, programPath } from '../paths'
-import { invalidateAcademics, useColumnData, useCourses, useProgram, useTerms } from '../queries'
+import { coursePath } from '../paths'
+import { invalidateAcademics, useColumnData, useCourses, useTerms } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
@@ -73,35 +74,32 @@ const ALL = '__all__'
 export function AllCoursesPage({ programId }: { programId: string }) {
   const courses = useCourses(programId)
   return (
-    <div className="space-y-4 p-6">
-      <header className="space-y-1">
-        <HistoryLink
-          href={programPath(programId)}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          {useProgram(programId).data?.name}
-        </HistoryLink>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          {m.academics_nav_all_courses()}
-        </h1>
-      </header>
-      <AsyncBoundary
-        query={courses}
-        isEmpty={(page) => page.items.length === 0}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <BookOpen aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
-            </EmptyHeader>
-          </Empty>
+    <>
+      <PageHeader
+        title={m.academics_nav_all_courses()}
+        subtitle={
+          courses.data ? m.academics_course_count({ count: courses.data.items.length }) : undefined
         }
-      >
-        {(page) => <CoursesTable programId={programId} courses={page.items} />}
-      </AsyncBoundary>
-    </div>
+      />
+      <div className="space-y-4 p-6">
+        <AsyncBoundary
+          query={courses}
+          isEmpty={(page) => page.items.length === 0}
+          empty={
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <BookOpen aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          }
+        >
+          {(page) => <CoursesTable programId={programId} courses={page.items} />}
+        </AsyncBoundary>
+      </div>
+    </>
   )
 }
 

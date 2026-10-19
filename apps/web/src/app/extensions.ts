@@ -35,6 +35,8 @@ export type PageContribution = {
   title: Message
   icon: LucideIcon
   component: Lazy<PageProps>
+  /** A line for the page header under the title (Program pages; term and course pages keep their own). */
+  headerSubtitle?: ComponentType<PageProps>
   order: number
   isAvailable?: (scope: Scope) => boolean
 }

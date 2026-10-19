@@ -11,6 +11,7 @@ import { CommandCenter } from './commands/CommandCenter'
 import type { ModuleManifest, Scope } from './extensions'
 import { CardGrid } from './host/CardGrid'
 import { orderPages, useSaveNav } from './host/nav'
+import { PageHeader } from './host/PageHeader'
 import { ScopeNav } from './host/ScopeNav'
 import { mergeJobs, StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
@@ -156,7 +157,7 @@ test('a board cannot be edited while it is refetched', async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Edit layout' })).toBeDisabled())
 })
 
-test('with a tab bar on the page, "Edit layout" is an icon button there and not a row of its own', async () => {
+test('with a page header, "Edit layout" is an icon button there and the edit controls take the place of its buttons and subtitle', async () => {
   server.use(
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
@@ -167,17 +168,23 @@ test('with a tab bar on the page, "Edit layout" is an icon button there and not 
   )
   renderWithRouter(
     <ModuleRegistry value={[template]}>
-      <ScopeNav scope={scope} />
+      <PageHeader title="Fall 2026" subtitle="Sep 2 – Dec 4" />
       <CardGrid scope={scope} />
     </ModuleRegistry>,
   )
   const user = userEvent.setup()
   const edit = await screen.findByRole('button', { name: 'Edit layout' })
   expect(screen.getAllByRole('button', { name: 'Edit layout' })).toHaveLength(1)
+  expect(screen.getByText('Sep 2 – Dec 4')).toBeInTheDocument()
   await waitFor(() => expect(edit).toBeEnabled())
   await user.click(edit)
   expect(await screen.findByRole('button', { name: 'Done' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add card' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Edit layout' })).not.toBeInTheDocument()
+  expect(screen.queryByText('Sep 2 – Dec 4')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 1, name: 'Fall 2026' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Done' }))
+  expect(await screen.findByText('Sep 2 – Dec 4')).toBeInTheDocument()
 })
 
 test('tabs follow the saved order and leave hidden pages out', async () => {

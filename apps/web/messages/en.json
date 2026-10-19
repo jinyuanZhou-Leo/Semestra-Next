@@ -1180,5 +1180,8 @@
   "status_job_failed": "{name} failed",
   "status_job_done": "{name} done",
   "status_job_cancel": "Stop {name}",
-  "board_editing_hint_narrow": "Change sizes, add or remove cards. Cards can be moved in a wider window. Changes are saved when you're done."
+  "board_editing_hint_narrow": "Change sizes, add or remove cards. Cards can be moved in a wider window. Changes are saved when you're done.",
+  "board_card_options": "Options for {card}",
+  "board_card_size_label": "Size",
+  "board_card_settings_button": "Card settings"
 }

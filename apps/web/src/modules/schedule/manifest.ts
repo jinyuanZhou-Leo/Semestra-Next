@@ -13,6 +13,7 @@ import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
+import { TodaySubtitle } from './pages/TodaySubtitle'
 
 const CALENDAR_QUERIES = ['calendarOccurrences', 'calendarToday'] as const
 const SCHEDULE_QUERIES = [
@@ -65,6 +66,7 @@ export default defineModule({
       title: m.schedule_today,
       icon: Sun,
       component: lazy(() => import('./pages/TodayPage')),
+      headerSubtitle: TodaySubtitle,
       order: 5,
     },
     {

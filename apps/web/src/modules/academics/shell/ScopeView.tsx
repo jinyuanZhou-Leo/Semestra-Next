@@ -2,6 +2,7 @@ import { academicsTermCalendarInfoOptions } from '@semestra/api-client/react-que
 import { useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
 import { ScopePage } from '@/app/host/ScopePage'
+import { usePages } from '@/app/registry'
 import { SearchX } from 'lucide-react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatDate } from '@/lib/format'
@@ -37,6 +38,8 @@ export function ProgramView({
   const program = useProgram(programId)
   const terms = useTerms(programId)
   const scope: Scope = { kind: 'program', programId }
+  const page = usePages(scope).find((candidate) => candidate.id === pageId)
+  const Subtitle = page?.headerSubtitle
   return (
     <AsyncBoundary query={program}>
       {(p) => (
@@ -46,17 +49,21 @@ export function ProgramView({
             activePageId={pageId}
             program={p}
             terms={terms.data?.items ?? []}
-          >
-            <p className="px-1.5 text-xs text-muted-foreground">
-              {[
-                p.institution,
-                m.academics_term_count({ count: p.term_count }),
-                m.academics_course_count({ count: p.course_count }),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          </ScopeHeader>
+            title={page?.title()}
+            subtitle={
+              Subtitle ? (
+                <Subtitle scope={scope} />
+              ) : (
+                [
+                  p.institution,
+                  m.academics_term_count({ count: p.term_count }),
+                  m.academics_course_count({ count: p.course_count }),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              )
+            }
+          />
           <div className="p-6">
             <ScopePage scope={scope} pageId={pageId} />
           </div>
@@ -103,13 +110,14 @@ export function TermView({
                   program={p}
                   terms={list.items}
                   term={term}
-                >
-                  <p className="px-1.5 text-xs text-muted-foreground">
-                    {formatDate(`${term.start_date}T00:00`)} –{' '}
-                    {formatDate(`${term.end_date}T00:00`)}
-                    {term.is_current ? <TermWeekLine termId={term.id} /> : null}
-                  </p>
-                </ScopeHeader>
+                  subtitle={
+                    <>
+                      {formatDate(`${term.start_date}T00:00`)} –{' '}
+                      {formatDate(`${term.end_date}T00:00`)}
+                      {term.is_current ? <TermWeekLine termId={term.id} /> : null}
+                    </>
+                  }
+                />
                 <div className="p-6">
                   <ScopePage scope={scope} pageId={pageId} />
                 </div>
@@ -163,11 +171,8 @@ export function CourseView({
                   term={list.find((t) => t.id === termId)}
                   course={c}
                   termCourses={termCourses}
-                >
-                  {c.code && c.title !== c.code ? (
-                    <p className="px-1.5 text-xs text-muted-foreground">{c.title}</p>
-                  ) : null}
-                </ScopeHeader>
+                  subtitle={c.code && c.title !== c.code ? c.title : undefined}
+                />
                 <div className="p-6">
                   <ScopePage scope={scope} pageId={pageId} />
                 </div>

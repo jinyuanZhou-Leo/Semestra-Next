@@ -1180,5 +1180,8 @@
   "status_job_failed": "“{name}”失败",
   "status_job_done": "“{name}”已完成",
   "status_job_cancel": "终止“{name}”",
-  "board_editing_hint_narrow": "可以切换尺寸、添加或删除卡片；在更宽的窗口里可以拖动卡片调整位置。点“完成”后一起保存。"
+  "board_editing_hint_narrow": "可以切换尺寸、添加或删除卡片；在更宽的窗口里可以拖动卡片调整位置。点“完成”后一起保存。",
+  "board_card_options": "{card}的选项",
+  "board_card_size_label": "大小",
+  "board_card_settings_button": "卡片设置"
 }
