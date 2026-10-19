@@ -148,7 +148,7 @@ function EffectPanel({
 type Bulk = { tools: readonly AgentToolInfo[]; module?: string }
 
 /**
- * What the assistant (小森 / Sem) may do (M12 §6.2), by effect: reading never asks; changes can
+ * What the assistant (Sem) may do (M12 §6.2), by effect: reading never asks; changes can
  * be auto-approved all at once, per module or per tool; deleting always asks. Turning on several
  * changes at once asks first, since content Sem reads could then trigger all of them.
  */

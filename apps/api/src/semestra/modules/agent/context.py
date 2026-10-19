@@ -3,8 +3,9 @@
 1. `STATIC_PROMPT` (`prompts/system.md`): fixed instructions, no variables at all.
 2. Tool definitions (sent by the adapter; core and meta tools in a fixed order, tools loaded on
    demand only appended, see `tools.bound_tools`).
-3. `work_context`: where the assistant works (Program or term), today's date and current term,
-   the reply language. Stable for a whole day unless the user switches the scope.
+3. `work_context`: the user's name, where the assistant works (Program or term), today's date
+   and current term, the reply language. Stable for a whole day unless the user renames themselves
+   or switches the scope.
 4. The history. Each user message carries a `[Sent …]` note made from its own stored time, so
    earlier messages never change (nothing is persisted; see `history.build`).
 
@@ -12,6 +13,7 @@ The time of day never appears in 1-3: a minute-precise "now" there would invalid
 cached prefix every minute.
 """
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, tzinfo
 from pathlib import Path
@@ -31,6 +33,12 @@ STATIC_PROMPT = Template(
     (Path(__file__).parent / "prompts" / "system.md").read_text(encoding="utf-8")
 ).substitute(untrusted=UNTRUSTED_NOTICE)
 _LANGUAGES = {"en": "English", "zh-CN": "Simplified Chinese"}
+
+
+def _quoted(name: str) -> str:
+    """A user-set name as one quoted line: whitespace collapsed, capped, quotes escaped, so it
+    cannot start a new section of the prompt."""
+    return json.dumps(" ".join(name.split())[:120], ensure_ascii=False)
 
 
 @dataclass(frozen=True)
@@ -56,11 +64,11 @@ async def _program(ctx: Ctx, scope: ScopeRef | None) -> AcademicsProgram | None:
 async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRef | None) -> str:
     if program is None:
         return "no particular Program (ask or list programs when it matters)."
-    parts = [f'Program "{program.name}" (program_id {program.id})']
+    parts = [f"Program {_quoted(program.name)} (program_id {program.id})"]
     if scope is not None and scope.term_id:
         try:
             term = await academics.get_term_row(ctx, scope.term_id)
-            parts.append(f'term "{term.name}" (term_id {term.id})')
+            parts.append(f"term {_quoted(term.name)} (term_id {term.id})")
         except AppError:
             pass
     # Conversations started before scopes stopped at the term may still name a course.
@@ -68,7 +76,7 @@ async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRe
         try:
             course = await academics.get_course_row(ctx, scope.course_id)
             label = f"{course.code} {course.title}" if course.code else course.title
-            parts.append(f'course "{label}" (course_id {course.id})')
+            parts.append(f"course {_quoted(label)} (course_id {course.id})")
         except AppError:
             pass
     if scope is None:
@@ -91,19 +99,22 @@ async def _term_line(ctx: Ctx, program: AcademicsProgram | None) -> str:
     else:
         when = f"teaching week {week}"
     return (
-        f'Current term: "{term.name}" (term_id {term.id}, {term.start_date} to '
+        f"Current term: {_quoted(term.name)} (term_id {term.id}, {term.start_date} to "
         f"{term.end_date}), today is {when}."
     )
 
 
 async def work_context(ctx: Ctx, scope: ScopeRef | None) -> WorkContext:
-    """Part 3 of the prompt: changes only with the scope, the day or the interface language."""
+    """Part 3 of the prompt: changes only with the name, the scope, the day or the interface
+    language."""
     program = await _program(ctx, scope)
     tz = ZoneInfo(program.timezone) if program is not None else ZoneInfo("UTC")
     today = ctx.now.astimezone(tz)
+    name = ctx.user.display_name.strip() if ctx.user is not None else ""
     text = "\n".join(
         [
             "# Context",
+            *([f"- The user's name: {_quoted(name)}."] if name else []),
             f"- You work in: {await _scope_line(ctx, program, scope)}",
             f"- Today: {today.strftime('%A %Y-%m-%d')} ({tz}).",
             f"- {await _term_line(ctx, program)}",

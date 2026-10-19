@@ -125,8 +125,8 @@ agent_preferences
 ### 6.2 设置分区（账户设置「AI」小标题下的两页，M11 §5.2）
 - **助手权限**（分组 `ai-permissions`，分区 `assistant-approvals`）：按 effect 分三行，每行说明这一类的规则，展开后按模块列出具体工具（默认折叠）。
   - 读取：徽标「无需确认」，只列工具。
-  - 修改：总开关「自动批准所有修改」+「已自动批准 n/总数」；部分开启时开关为关，旁边徽标「部分开启 · n/总数」。从关闭或部分开启到全部开启要先确认（ConfirmDialog「自动批准全部 N 个修改？」，提醒小森读到的内容也可能触发），关闭不用确认。展开后每个模块一个开关（同样的规则与确认）和每个工具一个开关；工具行用 `Item size="sm"`。没有前端模块的后端模块（account、agent、calendar、core、layouts）用 `assistant_module_<id>` 文案命名。
-  - 分区标题「小森可以做什么」，说明「按效果决定哪些操作需要你确认」。
+  - 修改：总开关「自动批准所有修改」+「已自动批准 n/总数」；部分开启时开关为关，旁边徽标「部分开启 · n/总数」。从关闭或部分开启到全部开启要先确认（ConfirmDialog「自动批准全部 N 个修改？」，提醒 Sem 读到的内容也可能触发），关闭不用确认。展开后每个模块一个开关（同样的规则与确认）和每个工具一个开关；工具行用 `Item size="sm"`。没有前端模块的后端模块（account、agent、calendar、core、layouts）用 `assistant_module_<id>` 文案命名。
+  - 分区标题「Sem 可以做什么」，说明「按效果决定哪些操作需要你确认」。
   - 删除：徽标「始终询问」（destructive 不能自动批准），附「设置 MCP 客户端能否删除」链接跳到 MCP 页。
 - **MCP 与工具**（分组 `ai-mcp`）：`assistant-mcp`（允许删除类操作开关、端点地址、配置示例）与 `assistant-tools`（可用工具目录，只读；每个模块一行可展开，行内显示"读取 n · 修改 n · 删除 n"，展开后是本地化名称、说明与 effect 徽标）。
 
@@ -172,7 +172,7 @@ agent_preferences
 - 附件：图片（png/jpeg/webp/gif）直接给模型；PDF 作为文档块交给支持的模型（Ollama、OpenAI 兼容服务商读不了 PDF，这时换成一行说明；M07 目前没有把页面渲染成图片的函数，有了之后可作为 `rasterize` 传入）；文本类（text/*、json、xml）用 `wrap_untrusted` 包装后内联。引用课程文件原文的工具结果（`files.search`、`files.document.read`、`files.document.outline`）与学习平台内容（公告、作业、页面、大纲），见 `tools.UNTRUSTED_RESULTS`，同样包装后再交给模型。**暂未交给 M07 解析与入库**（M07 还在开发中）。上限 10 MB，计入存储配额（模块名 `agent`）。新增错误码 `agent.attachment_unsupported`（415）。
 - 重新生成：只允许最后一个回答，且该回答没有已执行的写操作，否则 `agent.cannot_regenerate`（409）。
 - 编辑消息（UI/UX 第三轮）：`POST /agent/sessions/{id}/messages/{mid}:edit`（SSE，`{text}`）替换一条用户消息的文字（保留 skill 与附件块），删除其后的所有消息和提案（待确认的卡片一起作废），再从这条消息重新回答；不保留分支。已经执行的修改不回滚，所以不像重新生成那样拒绝：被删部分里已执行的写操作（已执行的提案、结果标记 `changed` 的自动批准调用）以一个 `note` 块追加在被编辑的消息上（"Already done earlier…: capability(args)"），模型据此不会重复去做；输入框提示也写明"已经生效的修改不会撤销"。只被删除消息引用的附件连同文件一起删除，不再占存储配额（未发送的上传不动）。与发送、决定、重新生成一样是流式路由而不是 capability（capability 不能流式返回），编辑与回答在同一个会话槽位里完成，中间不会插进别的回合。被编辑消息的时间改为编辑时间；若压缩摘要覆盖到被删除或被改的消息，摘要清空。
-- **提示词与缓存复用**（第三轮）：按"越稳定越靠前"排列（`context.py`）：① `prompts/system.md` 固定指令，不含任何变量（`$untrusted` 是常量），并写明助手名叫 Sem / 小森；② 工具定义：核心工具 → 元工具 → 按需加载的工具，加载只追加在末尾（`tools.load` 不再按最近使用重排，超过 25 个丢最早加载的）；③ 第二条 system 消息 `work_context`：工作范围（Program 或学期，id）、今天的日期与时区、当前学期与周次、回答语言，只在换范围、跨天或换界面语言时变化；④ 历史。具体时刻不进前三段：每条用户消息前加一条 `[Sent 周几 YYYY-MM-DD HH:MM]` 注记，取自该消息自己的保存时间、不入库，因此早先的消息在之后每一轮都逐字不变（计划里写的"只附在最新一条"会让上一条在下一轮变化，从那里起缓存失效，所以改为每条都附）。各适配器把多条 system 消息拼成一个 system 文本，顺序不变；显式的缓存标记（如 Anthropic `cache_control`）属于 `ai/adapters`，本轮没有改。注意实际发送顺序是"工具 → system → 消息"（Anthropic、OpenAI 都是），所以 `tools_load` 加载新工具时，只追加保住的是工具列表本身的前缀，其后的 system 和整段历史仍会重新计费一次；跨天或换范围时只有工作范围之后的部分失效。适配器换成 Pydantic AI（#39）后要补一条测试，确认两条 system 仍按顺序进入 `instructions`/`system`，届时再加显式缓存断点。
+- **提示词与缓存复用**（第三轮）：按"越稳定越靠前"排列（`context.py`）：① `prompts/system.md` 固定指令，不含任何变量（`$untrusted` 是常量），并写明助手名叫 Sem（各语言都不翻译）；② 工具定义：核心工具 → 元工具 → 按需加载的工具，加载只追加在末尾（`tools.load` 不再按最近使用重排，超过 25 个丢最早加载的）；③ 第二条 system 消息 `work_context`：用户的显示名（`display_name`，为空时省略）、工作范围（Program 或学期，id）、今天的日期与时区、当前学期与周次、回答语言，只在改名、换范围、跨天或换界面语言时变化；④ 历史。具体时刻不进前三段：每条用户消息前加一条 `[Sent 周几 YYYY-MM-DD HH:MM]` 注记，取自该消息自己的保存时间、不入库，因此早先的消息在之后每一轮都逐字不变（计划里写的"只附在最新一条"会让上一条在下一轮变化，从那里起缓存失效，所以改为每条都附）。各适配器把多条 system 消息拼成一个 system 文本，顺序不变；显式的缓存标记（如 Anthropic `cache_control`）属于 `ai/adapters`，本轮没有改。注意实际发送顺序是"工具 → system → 消息"（Anthropic、OpenAI 都是），所以 `tools_load` 加载新工具时，只追加保住的是工具列表本身的前缀，其后的 system 和整段历史仍会重新计费一次；跨天或换范围时只有工作范围之后的部分失效。适配器换成 Pydantic AI（#39）后要补一条测试，确认两条 system 仍按顺序进入 `instructions`/`system`，届时再加显式缓存断点。
 - 工作范围只到学期：新会话的 `scope` 只含 `program_id` 与可选 `term_id`；后端仍接受并展示旧会话里的 `course_id`。
 - 新增接口：`POST /agent/sessions/{id}/proposals:decide`（"全部批准"，一次决定多个）、`agent.skills.list`（`GET /agent/skills`，斜杠命令用）。SSE 路由不进 OpenAPI，前端用 `fetch` 读流（`modules/assistant/stream.ts`）。SSE 事件 `title` 在自动命名后发出。
 - Skill frontmatter 新增 `title: { en, zh-CN }`（必填，界面显示）与可选 `command`（如 `/grade`，全局唯一，测试会检查）。
@@ -182,8 +182,8 @@ agent_preferences
 **前端**（`apps/web/src/modules/assistant/`）
 - 聊天界面按 shadcn/ui 的 AI Elements 写法组合（组件已由 CLI 装在 `src/ui`）：对话是 `MessageScroller` 里的 `Message`，用户消息用 `Bubble`，附件用 `Attachment`；工具调用是 `Trace` 里的一行（进行中只显示一行，结束后可展开看参数、改动或错误，参数与错误用 `CodeBlock`）；待确认的写操作是 Confirmation 写法的 `Item`（批准、修改、拒绝在 `ItemActions`），确认后变回一行步骤，展开可看 before → after 和跳转链接；引用角标是 `HoverCard`；建议问题是输入框上方一排 `Button`；输入框是 `InputGroup`。
 - 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。面板组件挂载时只读一次记忆宽度作 `defaultSize`：`defaultSize` 变化会让库重新注册面板，之前每次 `onResize` 写回宽度都会打断拖动（只能拖动一步），这是"拖不动"的原因。
-- **名字与入口**（第三轮）：界面上叫「小森 / Sem」（取自 Semestra，拟人化，不突出 AI；模块 id 仍是 `assistant`），图标 `MessageCircle`。侧边栏"搜索"下方一行：点击进入全屏页 `/p/$programId/assistant`（在该页时高亮）；行尾 `SidebarMenuAction`（`PanelRight`，tooltip「在侧边栏打开 ⌘J」）开关右侧面板（在全屏页上不显示，那里没有面板）；`Cmd/Ctrl+J` 仍开关面板。界面导览仍指向这一行（`data-tour="assistant"`）。
-- **工作范围**（取代"上下文"标签）：输入框上方 `FolderOpen` + 范围名（"Fall 2026" 或 Program 名），菜单标题「小森在这里工作」，单选：整个学业项目 + 各学期（当前学期排第一并带「当前」标记，其余按开始日期倒序）。不能移除范围，也不再细到课程：在课程页打开时默认用课程所属学期（`usePageScope`，按 `courseTermId` 取当前学期），`@` 选课程时切换到该课程的学期。全屏页默认整个学业项目。
+- **名字与入口**（第三轮）：界面上叫「Sem」（取自 Semestra，拟人化，不突出 AI；名字不翻译，中文界面也叫 Sem；模块 id 仍是 `assistant`），图标 `MessageCircle`。侧边栏"搜索"下方一行：点击进入全屏页 `/p/$programId/assistant`（在该页时高亮）；行尾 `SidebarMenuAction`（`PanelRight`，tooltip「在侧边栏打开 ⌘J」）开关右侧面板（在全屏页上不显示，那里没有面板）；`Cmd/Ctrl+J` 仍开关面板。界面导览仍指向这一行（`data-tour="assistant"`）。
+- **工作范围**（取代"上下文"标签）：输入框上方 `FolderOpen` + 范围名（"Fall 2026" 或 Program 名），菜单标题「Sem 在这里工作」，单选：整个学业项目 + 各学期（当前学期排第一并带「当前」标记，其余按开始日期倒序）。不能移除范围，也不再细到课程：在课程页打开时默认用课程所属学期（`usePageScope`，按 `courseTermId` 取当前学期），`@` 选课程时切换到该课程的学期。全屏页默认整个学业项目。
 - 回答的复制 / 重新生成在回答底部（`MessageFooter` 放进 `MessageContent`）；最后一条回答常显，其余悬停或键盘聚焦时显示；生成中保留占位（`invisible`），不跳动。用户消息悬停出现复制与「编辑」：原位变成输入框（Enter 发送、Esc 取消，提示"发送后，这条消息之后的对话会被删除"）。
 - 全屏页路由为 `/p/$programId/assistant/{-$sessionId}`（放在 Program 外壳内，保留侧边栏），而不是 `/assistant/$sessionId?`；新会话创建后替换 URL，不打断正在进行的回答。
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
