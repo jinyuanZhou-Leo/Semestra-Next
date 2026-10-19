@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, BookOpen, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Search, SearchX } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
@@ -33,7 +33,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
@@ -92,6 +99,7 @@ export function AllCoursesPage({ programId }: { programId: string }) {
                   <BookOpen aria-hidden />
                 </EmptyMedia>
                 <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
+                <EmptyDescription>{m.academics_courses_empty_description()}</EmptyDescription>
               </EmptyHeader>
             </Empty>
           }
@@ -426,9 +434,27 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
           </TableBody>
         </Table>
         {visible.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {m.academics_courses_no_match()}
-          </p>
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.academics_courses_no_match()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTermFilter(ALL)
+                  setSubjectFilter(ALL)
+                  setSearch('')
+                  setQuick([])
+                }}
+              >
+                {m.common_clear_filters()}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : null}
       </div>
 

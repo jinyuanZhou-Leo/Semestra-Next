@@ -5,6 +5,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { courseColor, courseLabel } from '../color'
 import { coursePath, termPath } from '../paths'
 import { type Pin as PinRef, usePins } from '../pins'
@@ -50,10 +51,14 @@ export default function PinnedCard({ scope }: CardProps) {
 
   if (items.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
-        <Pin aria-hidden className="size-5" />
-        {m.academics_pinned_empty()}
-      </div>
+      <Empty className="border-0 p-0">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Pin aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.academics_pinned_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
