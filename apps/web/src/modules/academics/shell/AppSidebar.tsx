@@ -2,16 +2,14 @@ import type { Program, Term } from '@semestra/api-client'
 import { useLocation } from '@tanstack/react-router'
 import {
   BookOpen,
+  CalendarDays,
   CalendarPlus,
   ChevronRight,
   ChevronsUpDown,
   GraduationCap,
-  LayoutDashboard,
   Library,
   LogOut,
   MoreHorizontal,
-  Pin,
-  PinOff,
   Plus,
   Repeat,
   Search,
@@ -21,12 +19,13 @@ import {
 } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
 import { openCommandPalette } from '@/app/commands'
-import { scopePath, scopeSettingsPath } from '@/app/extensions'
+import { scopePath } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
 import { usePages } from '@/app/registry'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
+import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
 import { m } from '@/paraglide/messages'
@@ -58,13 +57,13 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from '@/ui/sidebar'
 import { courseColor, courseLabel } from '../color'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { allCoursesPath, coursePath, newTermPath, programPath, termPath } from '../paths'
-import { usePins } from '../pins'
 import { useCourses, usePrograms, useTerms } from '../queries'
 
 /** One link of the main navigation; on the icon rail it shows its label as a tooltip. */
@@ -101,7 +100,7 @@ function NavItem({
   )
 }
 
-/** The Program at the top: a switcher with several Programs, a link to its overview with one. */
+/** The Program at the top: the Programs to switch between, and where a new one is created. */
 function ProgramHeader({ programs, current }: { programs: Program[]; current: Program }) {
   const { isMobile } = useSidebar()
   const [creating, setCreating] = useState(false)
@@ -118,21 +117,6 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
       </div>
     </>
   )
-  if (programs.length < 2) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            tooltip={current.name}
-            render={<HistoryLink href={programPath(current.id)} />}
-          >
-            {face}
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    )
-  }
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -141,6 +125,7 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
             render={
               <SidebarMenuButton
                 size="lg"
+                tooltip={current.name}
                 className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 aria-label={m.academics_switch_program()}
               />
@@ -174,16 +159,6 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
             <DropdownMenuItem onClick={() => setCreating(true)}>
               <Plus aria-hidden />
               {m.academics_program_new()}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              render={
-                <HistoryLink
-                  href={scopeSettingsPath({ kind: 'program', programId: current.id }, 'general')}
-                />
-              }
-            >
-              <Settings aria-hidden />
-              {m.academics_program_manage()}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -235,7 +210,7 @@ function TermCourses({
                 className="size-2 shrink-0 rounded-full"
                 style={{ backgroundColor: courseColor(course) }}
               />
-              <span>{courseLabel(course)}</span>
+              <span className="truncate">{courseLabel(course)}</span>
               {course.term_ids.length > 1 ? (
                 <Repeat
                   aria-label={m.academics_course_year_long()}
@@ -266,12 +241,10 @@ function TermItem({
   onNavigate: () => void
 }) {
   const { isMobile } = useSidebar()
-  const { isPinned, toggle } = usePins(programId)
   const [deleting, setDeleting] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const href = termPath(programId, term.id)
   const active = pathname === href || pathname.startsWith(`${href}/`)
-  const pin = { kind: 'term', id: term.id } as const
   return (
     <Collapsible
       open={expanded}
@@ -288,6 +261,7 @@ function TermItem({
     >
       <SidebarMenuButton
         isActive={active}
+        tooltip={term.name}
         className="group-has-data-[sidebar=menu-action]/menu-item:pr-14"
         render={
           <HistoryLink
@@ -297,7 +271,8 @@ function TermItem({
           />
         }
       >
-        <span>{term.name}</span>
+        <CalendarDays aria-hidden />
+        <span className="truncate">{term.name}</span>
         {term.is_current ? (
           <span className="shrink-0 rounded-4xl bg-primary/10 px-1.5 text-[0.625rem] font-medium text-primary">
             {m.academics_term_current_badge()}
@@ -332,21 +307,6 @@ function TermItem({
           side={isMobile ? 'bottom' : 'right'}
           align={isMobile ? 'end' : 'start'}
         >
-          <DropdownMenuItem
-            render={
-              <HistoryLink
-                href={scopeSettingsPath({ kind: 'term', programId, termId: term.id }, 'general')}
-              />
-            }
-          >
-            <Settings aria-hidden />
-            {m.academics_term_settings()}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toggle(pin)}>
-            {isPinned(pin) ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-            {isPinned(pin) ? m.academics_unpin() : m.academics_pin()}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
             <Trash2 aria-hidden />
             {m.academics_term_delete()}
@@ -368,8 +328,8 @@ function TermItem({
 
 function AccountMenu() {
   const { isMobile } = useSidebar()
-  const { user, signOut } = useAuth()
-  const [creating, setCreating] = useState(false)
+  const { user } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
   if (!user) return null
   return (
     <SidebarMenuItem>
@@ -378,6 +338,7 @@ function AccountMenu() {
           render={
             <SidebarMenuButton
               size="lg"
+              tooltip={user.display_name}
               className="aria-expanded:bg-muted"
               aria-label={m.academics_account_menu()}
             />
@@ -396,22 +357,20 @@ function AccountMenu() {
           align="end"
           sideOffset={4}
         >
-          <DropdownMenuItem render={<HistoryLink href="/settings/account" />}>
-            <Settings aria-hidden />
-            {m.academics_account_settings()}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setCreating(true)}>
-            <Plus aria-hidden />
-            {m.academics_program_new()}
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="grid text-sm leading-tight font-normal">
+              <span className="truncate font-medium text-foreground">{user.display_name}</span>
+              <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => void signOut()}>
+          <DropdownMenuItem variant="destructive" onClick={() => setSigningOut(true)}>
             <LogOut aria-hidden />
             {m.home_sign_out()}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <CreateProgramDialog open={creating} onOpenChange={setCreating} />
+      <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
     </SidebarMenuItem>
   )
 }
@@ -421,7 +380,7 @@ function AccountMenu() {
  * icon rail on desktop and becomes a drawer on phones (only Today and the terms and courses).
  */
 export function AppSidebar({ programId }: { programId: string }) {
-  const { isMobile, state, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const pathname = useLocation({ select: (l) => l.pathname })
   const programs = usePrograms().data?.items ?? []
   const program = programs.find((p) => p.id === programId)
@@ -444,7 +403,6 @@ export function AppSidebar({ programId }: { programId: string }) {
   // Following a link closes the drawer on phones.
   const onNavigate = () => setOpenMobile(false)
 
-  const overviewHref = programPath(programId)
   const todayHref = scopePath(programScope, 'today')
   const allCoursesHref = allCoursesPath(programId)
 
@@ -468,21 +426,12 @@ export function AppSidebar({ programId }: { programId: string }) {
                     onClick={() => openCommandPalette()}
                   >
                     <Search aria-hidden />
-                    <span>{m.commands_open()}</span>
+                    <span className="truncate">{m.commands_open()}</span>
                     <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
                       {formatHotkey('mod+k')}
                     </Kbd>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
-              {isMobile ? null : (
-                <NavItem
-                  href={overviewHref}
-                  icon={LayoutDashboard}
-                  label={m.academics_nav_overview()}
-                  active={pathname === overviewHref || pathname === `${overviewHref}/overview`}
-                  onNavigate={onNavigate}
-                />
               )}
               {todayPage ? (
                 <NavItem
@@ -493,10 +442,19 @@ export function AppSidebar({ programId }: { programId: string }) {
                   onNavigate={onNavigate}
                 />
               ) : null}
+              {isMobile ? null : (
+                <NavItem
+                  href={allCoursesHref}
+                  icon={BookOpen}
+                  label={m.academics_nav_all_courses()}
+                  active={pathname === allCoursesHref}
+                  onNavigate={onNavigate}
+                />
+              )}
             </SidebarMenu>
           </SidebarGroup>
 
-          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroup>
             <SidebarGroupLabel>{m.academics_terms()}</SidebarGroupLabel>
             {isMobile ? null : (
               <SidebarGroupAction
@@ -522,43 +480,34 @@ export function AppSidebar({ programId }: { programId: string }) {
                 ))}
                 {terms && terms.length === 0 ? (
                   <SidebarMenuItem>
-                    <SidebarMenuButton render={<HistoryLink href={newTermPath(programId)} />}>
-                      <CalendarPlus aria-hidden />
-                      <span>{m.academics_term_new()}</span>
-                    </SidebarMenuButton>
+                    <span className="block px-3 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                      {m.academics_terms_empty()}
+                    </span>
                   </SidebarMenuItem>
                 ) : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-
-          {isMobile ? null : (
-            <SidebarGroup>
-              <SidebarMenu>
-                <NavItem
-                  href={allCoursesHref}
-                  icon={BookOpen}
-                  label={m.academics_nav_all_courses()}
-                  active={pathname === allCoursesHref}
-                  onNavigate={onNavigate}
-                />
-              </SidebarMenu>
-            </SidebarGroup>
-          )}
         </nav>
       </SidebarContent>
       <SidebarFooter>
-        <StatusBar collapsed={state === 'collapsed' && !isMobile} />
-        <SidebarMenu>
+        <SidebarSeparator className="mx-0" />
+        <SidebarGroup className="p-0">
+          {isMobile ? null : <SidebarGroupLabel>{m.academics_sidebar_system()}</SidebarGroupLabel>}
+          <StatusBar />
           {isMobile ? null : (
-            <NavItem
-              href="/settings/account"
-              icon={Settings}
-              label={m.settings_title()}
-              active={pathname.startsWith('/settings')}
-              onNavigate={onNavigate}
-            />
+            <SidebarMenu>
+              <NavItem
+                href="/settings/account"
+                icon={Settings}
+                label={m.settings_title()}
+                active={pathname.startsWith('/settings')}
+                onNavigate={onNavigate}
+              />
+            </SidebarMenu>
           )}
+        </SidebarGroup>
+        <SidebarMenu>
           <AccountMenu />
         </SidebarMenu>
       </SidebarFooter>

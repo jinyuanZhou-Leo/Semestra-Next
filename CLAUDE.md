@@ -73,6 +73,7 @@ docs/                设计稿与模块规格
 - **颜色用令牌，不要写死**：强调色通过 `data-accent` 切换 `--accent-hue`，所以组件只用 `bg-primary` 之类的令牌；手写 `oklch(...)`、`sky-500` 会在换强调色后不跟随。
 - **语言与时间格式变化会重挂载应用子树**：消息是普通函数，不是响应式的；不要在模块级缓存 `m.xxx()` 的结果，在渲染时调用。
 - **React Compiler 已开启，写法要让它能编译**：`pnpm --filter @semestra/web lint` 会跑 `scripts/check-react-compiler.mjs`，任何组件/hook 被编译器跳过都算失败（vite 用的是 `panicThreshold: 'none'`，违规只会悄悄退回未编译代码，所以必须单独检查）。渲染中不读写 `ref.current`、不 `setState`、不修改 props/state 对象；新代码不手写 `useMemo`/`useCallback`（对外暴露的 hook 契约、被外部订阅的稳定引用除外）。编译器 1.0.0 不支持的写法：`try … finally`（把收尾放到 try/catch 之后；catch 里要重新抛出就在抛出前也收尾）、try 里出现 `||`/`??`/`?:`/`?.`/`for…of`（把参数提到 try 之前，或把逻辑放进 `await fn().catch(...)` 的内部函数）、计算属性解构 `{ [k]: _, ...rest }`（用 `lib/omit.ts` 的 `omitKey`）。确实要保留的例外写进脚本顶部的 `allowed` 并写明原因。
+- **侧边栏里的东西都走 `SidebarMenu`/`SidebarMenuButton`**：折叠成图标栏的规则（`group-data-[collapsible=icon]:`）只作用于它们，自己写的行折叠时会被压扁；按钮里的文字要 `truncate`（单行裁切），不然过渡那 200ms 里会换行。图标栏里每个入口都要有图标和 `tooltip`；同一入口不要同时放在侧边栏和页面标签里（M02 §5.1）。
 - **`@babel/core` 钉在 7.x**：`babel-plugin-react-compiler@1.0.0` 在 Babel 8 的 AST 下会跳过所有带默认值解构参数的组件（`{ a = 1 }`）；`@rolldown/plugin-babel` 同时支持 7 和 8，升级到 8 前先跑 `compiler:check`。
 - **effect 里不要同步 `setState`**（oxlint 的 `react/set-state-in-effect` 是错误）：派生值直接在渲染中算，或用“记录上次值，渲染时比较”的写法；订阅外部系统（IntersectionObserver 等）的回调里设置状态没问题。
 - **structlog 的 `event` 是保留参数**：`log.info("x", event=...)` 会抛 TypeError，换个字段名。

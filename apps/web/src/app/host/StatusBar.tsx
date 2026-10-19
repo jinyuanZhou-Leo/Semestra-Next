@@ -4,7 +4,7 @@ import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, CircleCheck, LoaderCircle, X } from 'lucide-react'
-import { Fragment, type ReactNode, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { JobProgress } from '@/components/JobProgress'
 import { jobStageLabel } from '@/hooks/use-job'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
@@ -23,6 +23,7 @@ import {
 } from '@/ui/item'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Progress } from '@/ui/progress'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/ui/sidebar'
 import { Spinner } from '@/ui/spinner'
 import type { JobKindContribution, StatusItem, StatusItemContribution } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
@@ -76,19 +77,9 @@ function jobTitle(job: JobOut, kinds: readonly JobKindContribution[]): string {
   return kinds.find((k) => k.kind === job.kind)?.title() ?? jobStageLabel(job)
 }
 
-const LINE_CLASS =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-
-function LineBody({
-  icon: Icon,
-  label,
-  tone,
-  progress,
-  collapsed,
-  spin,
-}: StatusItem & { collapsed?: boolean; spin?: boolean }) {
+/** The icon and text of a line; the text is clipped (never wrapped) while the rail narrows. */
+function LineFace({ icon: Icon, label, tone, spin }: StatusItem & { spin?: boolean }) {
   const iconClass = cn(
-    'size-3.5 shrink-0',
     tone === 'error'
       ? 'text-destructive'
       : tone === 'success'
@@ -97,61 +88,61 @@ function LineBody({
   )
   return (
     <>
-      <span className={cn('flex min-w-0 flex-1 items-center gap-2', collapsed && 'justify-center')}>
-        {spin ? (
-          <Spinner aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
-        ) : (
-          <Icon aria-hidden="true" className={iconClass} />
-        )}
-        {collapsed ? (
-          <span className="sr-only">{label}</span>
-        ) : (
-          <span className="truncate">{label}</span>
-        )}
-      </span>
-      {progress != null && !collapsed ? (
-        <Progress
-          value={progress}
-          aria-label={label}
-          className={cn(
-            'mt-1 [&_[data-slot=progress-track]]:h-0.5',
-            tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
-            tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
-          )}
-        />
-      ) : null}
+      {spin ? (
+        <Spinner aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
+      ) : (
+        <Icon aria-hidden="true" className={iconClass} />
+      )}
+      <span>{label}</span>
     </>
   )
 }
 
-function StatusLine({ item, collapsed }: { item: StatusItem; collapsed?: boolean }) {
-  const body = <LineBody {...item} collapsed={collapsed} />
+/** The thin progress bar under a line; hidden on the icon rail. */
+function LineProgress({ label, tone, progress }: StatusItem) {
+  if (progress == null) return null
   return (
-    <li>
-      {item.to ? (
-        <Link to={item.to} title={item.label} className={cn(LINE_CLASS, 'flex-col items-stretch')}>
-          {body}
-        </Link>
-      ) : (
-        <div title={item.label} className="flex flex-col px-2 py-1 text-xs">
-          {body}
-        </div>
-      )}
-    </li>
+    <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
+      <Progress
+        value={progress}
+        aria-label={label}
+        className={cn(
+          '[&_[data-slot=progress-track]]:h-0.5',
+          tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+          tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+        )}
+      />
+    </div>
   )
 }
 
-function Contribution({
-  contribution,
-  collapsed,
-}: {
-  contribution: StatusItemContribution
-  collapsed?: boolean
-}) {
+function StatusLine({ item }: { item: StatusItem }) {
+  return (
+    <SidebarMenuItem>
+      {item.to ? (
+        <SidebarMenuButton tooltip={item.label} size="sm" render={<Link to={item.to} />}>
+          <LineFace {...item} />
+        </SidebarMenuButton>
+      ) : (
+        <SidebarMenuButton
+          tooltip={item.label}
+          size="sm"
+          className="cursor-default"
+          render={<div />}
+        >
+          <LineFace {...item} />
+        </SidebarMenuButton>
+      )}
+      <LineProgress {...item} />
+    </SidebarMenuItem>
+  )
+}
+
+function Contribution({ contribution }: { contribution: StatusItemContribution }) {
   // Keyed by id, so each instance always calls the same contribution's hook.
   // oxlint-disable-next-line react/rules-of-hooks
   const item = contribution.useStatus()
-  return item ? <StatusLine item={item} collapsed={collapsed} /> : null
+  return item ? <StatusLine item={item} /> : null
 }
 
 function JobRow({
@@ -212,7 +203,8 @@ function JobRow({
  * progress, several a count; clicking opens the list with progress, cancel and a link to where
  * each job belongs. Finished jobs stay ~3 s; failures stay until the list has been opened.
  */
-function JobsLine({ collapsed }: { collapsed?: boolean }) {
+function JobsLine() {
+  const { state, isMobile } = useSidebar()
   // Every active job (however many finished after it), plus the newest finished ones.
   const recent = useQuery(coreJobListOptions({ query: { limit: 20 } })).data?.items
   const running = useQuery(coreJobListOptions({ query: { status: 'running', limit: 50 } })).data
@@ -276,21 +268,17 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
     item = { icon: CircleAlert, tone: 'error', label: m.status_jobs_failed({ count: jobs.length }) }
   }
 
-  const trigger: ReactNode = (
-    <PopoverTrigger
-      title={item.label}
-      aria-label={collapsed ? item.label : undefined}
-      className={cn(LINE_CLASS, 'flex-col items-stretch')}
-    >
-      <LineBody {...item} collapsed={collapsed} />
-    </PopoverTrigger>
-  )
-
   return (
-    <li>
+    <SidebarMenuItem>
       <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
-        {trigger}
-        <PopoverContent side={collapsed ? 'right' : 'top'} align="start" className="w-80">
+        <PopoverTrigger render={<SidebarMenuButton tooltip={item.label} size="sm" />}>
+          <LineFace {...item} />
+        </PopoverTrigger>
+        <PopoverContent
+          side={state === 'collapsed' && !isMobile ? 'right' : 'top'}
+          align="start"
+          className="w-80"
+        >
           <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
           <ItemGroup className="gap-0">
             {jobs.map((job, index) => (
@@ -302,26 +290,24 @@ function JobsLine({ collapsed }: { collapsed?: boolean }) {
           </ItemGroup>
         </PopoverContent>
       </Popover>
-    </li>
+      <LineProgress {...item} />
+    </SidebarMenuItem>
   )
 }
 
 /**
  * Bottom of the sidebar, above settings and the account menu (M10 §5.6): background jobs, then
- * the modules' `statusItems` by `order`. `collapsed` shows icons only, with the text on hover.
- * Takes no space while every line is empty.
+ * the modules' `statusItems` by `order`. It is a sidebar menu, so the icon rail shows icons only,
+ * with the text as a tooltip. Takes no space while every line is empty.
  */
-export function StatusBar({ className, collapsed }: { className?: string; collapsed?: boolean }) {
+export function StatusBar({ className }: { className?: string }) {
   const items = useStatusItems()
   return (
-    <ul
-      aria-label={m.status_bar_label()}
-      className={cn('w-full space-y-0.5 empty:hidden', className)}
-    >
-      <JobsLine collapsed={collapsed} />
+    <SidebarMenu aria-label={m.status_bar_label()} className={cn('empty:hidden', className)}>
+      <JobsLine />
       {items.map((contribution) => (
-        <Contribution key={contribution.id} contribution={contribution} collapsed={collapsed} />
+        <Contribution key={contribution.id} contribution={contribution} />
       ))}
-    </ul>
+    </SidebarMenu>
   )
 }

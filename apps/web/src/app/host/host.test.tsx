@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import template from '@/modules/_template/manifest'
 import { FakeEventSource } from '@/test-event-source'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { SidebarProvider } from '@/ui/sidebar'
 import type { Scope } from '../extensions'
 import { useRealtime } from '../realtime'
 import { ModuleRegistry, useExtensions } from '../registry'
@@ -208,7 +209,9 @@ test('the status bar shows running jobs and module items, and hides empty lines'
   }
   renderWithRouter(
     <ModuleRegistry value={[timer]}>
-      <StatusBar />
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
     </ModuleRegistry>,
   )
   const bar = await screen.findByRole('list', { name: 'In progress' })
