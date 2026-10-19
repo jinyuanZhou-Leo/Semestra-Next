@@ -145,7 +145,7 @@ test('a course can be pinned from the table', async () => {
   await screen.findAllByRole('button', { name: 'Pin to sidebar' })
   await settle()
   await userEvent.click(screen.getAllByRole('button', { name: 'Pin to sidebar' })[0]!)
-  expect((await screen.findAllByRole('button', { name: 'Unpin from sidebar' })).length).toBe(1)
+  expect((await screen.findAllByRole('button', { name: 'Unpin' })).length).toBe(1)
 })
 
 test('pinning or selecting a row keeps the button, so keyboard focus stays on it', async () => {
@@ -154,7 +154,7 @@ test('pinning or selecting a row keeps the button, so keyboard focus stays on it
   await settle()
   const pin = screen.getAllByRole('button', { name: 'Pin to sidebar' })[0]!
   await userEvent.click(pin)
-  await screen.findByRole('button', { name: 'Unpin from sidebar' })
+  await screen.findByRole('button', { name: 'Unpin' })
   expect(pin.isConnected).toBe(true)
 
   const checkbox = screen.getByRole('checkbox', { name: 'Select MAT188H1' })

@@ -185,7 +185,7 @@ export function ScopeHeader({
           <nav aria-label={m.academics_breadcrumbs()}>
             <ol className="-ml-1.5 flex min-w-0 flex-wrap items-center text-sm">
               <Crumb
-                label={m.academics_nav_all_courses()}
+                label={m.academics_nav_terms_and_courses()}
                 href={termsAndCoursesPath(program.id, { term: term.id })}
               />
               {course ? (

@@ -86,7 +86,7 @@ export function TermsAndCoursesPage({
   return (
     <Tabs value={tab} onValueChange={(next) => onTabChange(next as Tab)} className="gap-0">
       <PageHeader
-        title={m.academics_nav_all_courses()}
+        title={m.academics_nav_terms_and_courses()}
         subtitle={
           terms.data && courses.data
             ? [
@@ -338,10 +338,7 @@ function TermRow({
             <CalendarCheck aria-hidden />
           </IconAction>
         )}
-        <IconAction
-          label={pinned ? m.terms_courses_unpin() : m.terms_courses_pin()}
-          onClick={onTogglePin}
-        >
+        <IconAction label={pinned ? m.academics_unpin() : m.academics_pin()} onClick={onTogglePin}>
           {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
         </IconAction>
       </div>
@@ -408,7 +405,7 @@ function TermPane({
             {m.terms_courses_open_term()}
           </Button>
           <IconAction
-            label={pinned ? m.terms_courses_unpin() : m.terms_courses_pin()}
+            label={pinned ? m.academics_unpin() : m.academics_pin()}
             onClick={onTogglePin}
           >
             {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}

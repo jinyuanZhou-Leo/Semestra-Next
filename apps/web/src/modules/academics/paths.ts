@@ -28,7 +28,4 @@ export function termsAndCoursesPath(
   return `/p/${programId}/academics${search ? `?${search}` : ''}`
 }
 
-/** @deprecated The old name of the page; use `termsAndCoursesPath`. */
-export const allCoursesPath = (programId: string) => termsAndCoursesPath(programId)
-
 export const newTermPath = (programId: string) => `/p/${programId}/terms/new`

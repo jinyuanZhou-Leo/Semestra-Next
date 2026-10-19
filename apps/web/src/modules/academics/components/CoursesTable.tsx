@@ -180,7 +180,7 @@ const PinHeader = () => <span className="sr-only">{m.terms_courses_pin_column()}
 function PinCell({ row }: CellProps) {
   const { isPinned, togglePin } = useTableState()
   const pin: PinRef = { kind: 'course', id: row.original.id }
-  const label = isPinned(pin) ? m.terms_courses_unpin() : m.terms_courses_pin()
+  const label = isPinned(pin) ? m.academics_unpin() : m.academics_pin()
   return (
     <Tooltip>
       <TooltipTrigger

@@ -489,7 +489,6 @@
   "academics_instructor_email": "Email",
   "academics_instructor_name": "Name",
   "academics_instructor_remove": "Remove {name}",
-  "academics_nav_all_courses": "Terms & courses",
   "academics_nav_overview": "Overview",
   "academics_no": "No",
   "academics_yes": "Yes",
@@ -1201,8 +1200,6 @@
   "terms_courses_follow_calendar": "Follow the calendar",
   "terms_courses_open_term": "Open term",
   "terms_courses_more": "More actions",
-  "terms_courses_pin": "Pin to sidebar",
-  "terms_courses_unpin": "Unpin from sidebar",
   "terms_courses_pin_column": "Pin",
   "academics_clear_selection": "Clear selection"
 }

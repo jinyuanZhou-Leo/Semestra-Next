@@ -52,7 +52,7 @@ import {
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
-import { allCoursesPath, programPath } from '../paths'
+import { programPath, termsAndCoursesPath } from '../paths'
 import { usePrograms } from '../queries'
 import { SidebarTerms } from './SidebarTerms'
 
@@ -225,7 +225,7 @@ export function AppSidebar({ programId }: { programId: string }) {
   // Following a link closes the drawer on phones.
   const onNavigate = () => setOpenMobile(false)
 
-  const termsAndCoursesHref = allCoursesPath(programId)
+  const termsAndCoursesHref = termsAndCoursesPath(programId)
 
   return (
     <Sidebar collapsible="icon" data-tour="sidebar">

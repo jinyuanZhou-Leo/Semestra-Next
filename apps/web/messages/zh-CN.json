@@ -489,7 +489,6 @@
   "academics_instructor_email": "邮箱",
   "academics_instructor_name": "姓名",
   "academics_instructor_remove": "删除 {name}",
-  "academics_nav_all_courses": "学期与课程",
   "academics_nav_overview": "概览",
   "academics_no": "否",
   "academics_yes": "是",
@@ -1201,8 +1200,6 @@
   "terms_courses_follow_calendar": "恢复自动",
   "terms_courses_open_term": "打开学期页",
   "terms_courses_more": "更多操作",
-  "terms_courses_pin": "置顶到侧边栏",
-  "terms_courses_unpin": "从侧边栏取消置顶",
   "terms_courses_pin_column": "置顶",
   "academics_clear_selection": "取消选择"
 }
