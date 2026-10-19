@@ -50,7 +50,7 @@ function ModuleTools({ group }: { group: ToolGroup }) {
 }
 
 /**
- * Everything 小森 / Sem and MCP clients can do (M12 §6.2), one folded row per module. Read-only;
+ * Everything Sem and MCP clients can do (M12 §6.2), one folded row per module. Read-only;
  * what runs without asking is set under Assistant permissions.
  */
 export function ToolsSection() {

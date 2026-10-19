@@ -64,6 +64,7 @@ async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeMo
     assert f"term_id {term_id}" in work
     assert "Fall 2026" in work
     assert "Today: " in work
+    assert '- The user\'s name: "Test Student".' in work
 
 
 async def test_old_course_scopes_still_work(agent: Agent, model: FakeModel):

@@ -8,7 +8,7 @@ import { panel } from './store'
 const settings = () => import('./settings/sections')
 
 /**
- * M12 AI 助手 (shown as 小森 / Sem): the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
+ * M12 AI 助手 (shown as Sem): the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
  * the settings for auto-approval, MCP and the tool catalog. The app shell docks the panel through
  * `assistant.Dock`.
  */
