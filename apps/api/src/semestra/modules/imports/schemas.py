@@ -145,6 +145,8 @@ class AssessmentData(BaseModel):
     due_text: Text200 | None = None
     note: Annotated[str, Field(max_length=2000)] | None = None
     source_ref: Annotated[str, Field(max_length=200)] | None = None
+    # Fields of the other kind, kept while the user has switched the item (M09).
+    held: dict[str, Any] | None = None
 
 
 class TaskData(BaseModel):
@@ -156,6 +158,8 @@ class TaskData(BaseModel):
     priority: Literal["none", "low", "medium", "high"] = "none"
     notes: Annotated[str, Field(max_length=2000)] | None = None
     source_ref: Annotated[str, Field(max_length=500)] | None = None
+    # Fields of the other kind, kept while the user has switched the item (M09).
+    held: dict[str, Any] | None = None
 
 
 DATA_MODELS: dict[str, type[BaseModel]] = {

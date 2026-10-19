@@ -183,8 +183,14 @@ async def list_connections(ctx: Ctx) -> list[Connection]:
 async def _check(
     ctx: Ctx, provider: LmsProvider, cfg: BaseModel, creds: BaseModel
 ) -> ConnectionSummary:
-    async with io(ctx) as i:
-        return await provider.validate(i, cfg, creds)
+    try:
+        async with io(ctx) as i:
+            return await provider.validate(i, cfg, creds)
+    except AppError as exc:
+        # A reachable host without the platform's API answers the profile read with 404.
+        if exc.code == "common.not_found":
+            raise lms_error("lms.invalid_config", field="base_url", reason="not_canvas") from exc
+        raise
 
 
 async def create_connection(ctx: Ctx, inp: ConnectionCreateInput) -> Connection:
@@ -302,8 +308,6 @@ async def validate(ctx: Ctx, inp: ConnectionValidateInput) -> ConnectionCheck:
             raise lms_error("lms.credentials_missing")
         summary = await _check(ctx, provider, cfg, creds)
     except AppError as exc:
-        if exc.code == "common.not_found" and row is None:
-            exc = lms_error("lms.invalid_config", field="base_url", reason="not_canvas")
         if row is not None and inp.config is None and inp.credentials is None:
             await _record(ctx, row, exc.code)
         return ConnectionCheck(
@@ -647,7 +651,7 @@ async def create_link(
     external: dict[str, Any],
     sync_enabled: bool = True,
 ) -> LmsCourseLink:
-    """Links a course (the caller checked the Program's binding); used by imports too."""
+    """Links a course through the Program's current connection; used by imports too."""
     course = await academics.get_course_row(ctx, course_id)
     taken = await ctx.db.scalar(
         select(LmsCourseLink).where(
@@ -682,6 +686,16 @@ async def create_link(
     link.last_error_code = None
     link.updated_at = ctx.now
     await ctx.db.flush()
+    # The link is written first, so this transaction holds the write lock: a binding change
+    # that slipped in while the platform was being asked has committed and shows up here, and
+    # none can commit after. Re-read rather than trust the session's copy.
+    binding = await ctx.db.scalar(
+        select(LmsProgramBinding)
+        .where(LmsProgramBinding.program_id == course.program_id)
+        .execution_options(populate_existing=True)
+    )
+    if binding is None or binding.connection_id != connection.id:
+        raise lms_error("lms.program_not_configured")
     data = {"course_id": course_id, "program_id": course.program_id, "link_id": link.id}
     await events.publish(ctx, "lms.course.linked", data)
     await events.publish(ctx, "calendar.changed", {"program_id": course.program_id})

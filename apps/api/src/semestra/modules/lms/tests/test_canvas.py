@@ -254,6 +254,21 @@ async def test_file_redirect_to_private_address_is_refused(
     assert exc.value.code == "lms.blocked_address"
 
 
+async def test_file_redirect_with_a_bad_port_is_refused(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    canvas_api(mock)
+    mock.get(f"{CANVAS}/files/77/download").mock(
+        return_value=Response(
+            302, headers={"location": "https://instructure-uploads.s3.amazonaws.com:99999/f"}
+        )
+    )
+    p, cfg, creds = _cfg(settings)
+    with pytest.raises(AppError) as exc:
+        _ = [c async for c in p.open_file(io, cfg, creds, "101", "77")]
+    assert exc.value.code == "lms.blocked_address"
+
+
 async def test_file_redirect_elsewhere_is_refused(
     settings: Settings, io: Io, mock: respx.MockRouter
 ):
@@ -281,6 +296,27 @@ async def test_calendar_batches_context_codes(settings: Settings, io: Io, mock: 
     assert {c.request.url.params["type"] for c in route.calls} == {"event", "assignment"}
 
 
+@pytest.mark.parametrize(
+    ("url", "kept"),
+    [
+        ("https://canvas.example.edu/courses/1", True),
+        (" HTTP://canvas.example.edu/x", True),
+        ("javascript:alert(1)", False),
+        ("data:text/html,x", False),
+        ("canvas-student://open", False),
+    ],
+)
+def test_platform_links_must_be_web_links(url: str, kept: bool):
+    from semestra.modules.lms.schemas.dto import LmsCalendarEvent, RichText
+
+    event = LmsCalendarEvent.model_validate(
+        {"external_id": "e1", "external_course_id": "1", "kind": "event", "title": "T",
+         "start_at": datetime(2026, 1, 1, tzinfo=UTC), "web_url": url}
+    )  # fmt: skip
+    assert (event.web_url is not None) is kept
+    assert (RichText(web_url=url).web_url is not None) is kept
+
+
 def test_internal_links_are_rewritten(settings: Settings):
     p, cfg, _ = _cfg(settings)
     page = p.rewrite_internal_link(cfg, f"{CANVAS}/courses/101/pages/week-1")
@@ -290,6 +326,25 @@ def test_internal_links_are_rewritten(settings: Settings):
     assert rel is not None
     assert (rel.kind, rel.ref) == ("assignment", "11")
     assert p.rewrite_internal_link(cfg, "https://other.example/courses/1/pages/x") is None
+
+
+async def test_default_ports_are_the_same_origin(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    p, cfg, creds = _cfg(settings)
+    mock.get(f"{API}/courses/3/pages").mock(
+        side_effect=lambda request: Response(200, json=[{"url": "b", "title": "B"}])
+        if request.url.params.get("page") == "2"
+        else Response(200, json=[{"url": "a", "title": "A"}],
+                      headers={"link": f'<{CANVAS}:443/api/v1/courses/3/pages?page=2>; rel="next"'})
+    )  # fmt: skip
+    assert [page.ref for page in await p.pages(io, cfg, creds, "3")] == ["a", "b"]
+
+
+def test_links_with_bad_ports_are_not_internal(settings: Settings):
+    p, cfg, _ = _cfg(settings)
+    assert p.rewrite_internal_link(cfg, "https://example.edu:notaport/courses/1/pages/a") is None
+    assert p.rewrite_internal_link(cfg, f"{CANVAS}:99999/courses/1/pages/a") is None
 
 
 def test_file_cdn_hosts_match_whole_labels():

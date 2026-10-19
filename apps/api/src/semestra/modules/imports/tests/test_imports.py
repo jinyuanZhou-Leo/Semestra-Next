@@ -261,7 +261,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
         "PATCH", f"/imports/{session['id']}/items/{final['id']}", json={"data": {"weight": 50}}
     )
     assert session["summary"]["issues"] == {}
-    # Tasks need M05; leave them out here.
+    # Tasks are covered by test_pdf_syllabus_with_a_task.
     decided = await api.call(
         "POST", f"/imports/{session['id']}/items:decide", json={"decision": "reject",
                                                                   "types": ["task"]},
@@ -714,3 +714,34 @@ async def test_discard_while_reading_stays_discarded(
     after = await api.call("GET", f"/imports/{session['id']}")
     assert after["status"] == "discarded"
     assert after["items"] == []
+
+
+async def test_pdf_syllabus_with_a_task(api: Api, fake_ai: list[dict[str, Any]], run_jobs):
+    """With M05 and M07 present: a PDF is read by M07's parser and a deadline becomes a task."""
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    pdf = make_pdf(["APS105 Computer Fundamentals", "Drop deadline: March 9"])
+    upload = await api.upload("syllabus.pdf", pdf, "application/pdf")
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert session["source_refs"][0]["status"] == "done"
+    (task,) = by_type(session, "task")
+    await api.call(
+        "POST", f"/imports/{session['id']}/items:decide",
+        json={"decision": "reject", "types": ["assessment", "category", "meeting", "event"]},
+    )  # fmt: skip
+    done = await api.commit(session["id"])
+    assert (done["created"], done["failed"]) == (1, 0)
+    created = next(i for i in done["session"]["items"] if i["id"] == task["id"])
+    got = await api.call("GET", f"/tasks/{created['result']['created_id']}")
+    assert (got["title"], got["due_date"], got["course_id"]) == (
+        "Drop deadline", "2026-03-09", course["id"]
+    )  # fmt: skip

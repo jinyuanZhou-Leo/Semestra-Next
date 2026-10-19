@@ -88,7 +88,8 @@ export default defineModule({
       defaultVisible: true,
       onOpen: (occurrence) => {
         const url = occurrence.meta?.url
-        if (url) window.open(url, '_blank', 'noopener,noreferrer')
+        // Platform data: only web links are opened (the API drops the rest too).
+        if (url && /^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener,noreferrer')
       },
     },
   ],

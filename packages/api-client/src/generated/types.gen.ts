@@ -855,6 +855,24 @@ export type BodyAccountAvatarUpload = {
 };
 
 /**
+ * Body_filesUpload
+ */
+export type BodyFilesUpload = {
+    /**
+     * Files
+     *
+     * The files to upload
+     */
+    files: Array<Blob | File>;
+    /**
+     * Folder Id
+     *
+     * Folder to put them in
+     */
+    folder_id?: string | null;
+};
+
+/**
  * Body_importsUploadCreate
  */
 export type BodyImportsUploadCreate = {
@@ -2398,13 +2416,71 @@ export type DayFocus = {
 };
 
 /**
- * Deleted
+ * DocumentOutline
  */
-export type Deleted = {
+export type DocumentOutline = {
     /**
-     * Deleted
+     * Item Id
      */
-    deleted?: true;
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Entries
+     */
+    entries: Array<OutlineEntry>;
+};
+
+/**
+ * DocumentPage
+ */
+export type DocumentPage = {
+    /**
+     * Page No
+     */
+    page_no: number;
+    /**
+     * Markdown
+     */
+    markdown: string;
+    /**
+     * Ocr Used
+     */
+    ocr_used: boolean;
+};
+
+/**
+ * DocumentRead
+ */
+export type DocumentRead = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Pages
+     */
+    pages: Array<DocumentPage>;
+    /**
+     * Next Page
+     *
+     * Call again from this page for the rest
+     */
+    next_page: number | null;
 };
 
 /**
@@ -3059,6 +3135,136 @@ export type FileSaveInputBody = {
      * Course folder (M07), default root
      */
     folder_id?: string | null;
+};
+
+/**
+ * FilesList
+ */
+export type FilesList = {
+    /**
+     * Folders
+     *
+     * Every folder of the course
+     */
+    folders: Array<FolderOut>;
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * FilesUsage
+ */
+export type FilesUsage = {
+    /**
+     * Used Bytes
+     *
+     * All the user's stored files, every module
+     */
+    used_bytes: number;
+    /**
+     * Files Bytes
+     *
+     * Of which course files
+     */
+    files_bytes: number;
+    /**
+     * Quota Bytes
+     *
+     * 0 means unlimited
+     */
+    quota_bytes: number;
+    /**
+     * Max Upload Bytes
+     */
+    max_upload_bytes: number;
+};
+
+/**
+ * FolderCreateInputBody
+ */
+export type FolderCreateInputBody = {
+    /**
+     * Name
+     *
+     * Folder name
+     */
+    name: string;
+    /**
+     * Parent Id
+     *
+     * Parent folder; null = course root
+     */
+    parent_id?: string | null;
+};
+
+/**
+ * FolderOut
+ */
+export type FolderOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Parent Id
+     */
+    parent_id: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Item Count
+     *
+     * Files and links directly inside the folder
+     */
+    item_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * FolderUpdateInputBody
+ */
+export type FolderUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Parent Id
+     *
+     * Move under this folder; null moves it to the course root
+     */
+    parent_id?: string | null;
+    /**
+     * Position
+     *
+     * Order among its siblings
+     */
+    position?: number | null;
 };
 
 /**
@@ -3770,6 +3976,92 @@ export type Issue = {
 };
 
 /**
+ * ItemOut
+ */
+export type ItemOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Kind
+     */
+    kind: 'file' | 'link';
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Original Name
+     */
+    original_name: string | null;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Sha256
+     */
+    sha256: string | null;
+    /**
+     * Url
+     */
+    url: string | null;
+    /**
+     * Pinned
+     */
+    pinned: boolean;
+    /**
+     * Source Kind
+     */
+    source_kind: 'upload' | 'lms' | 'agent' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Doc Status
+     */
+    doc_status: 'none' | 'pending' | 'processing' | 'ready' | 'failed' | 'unsupported';
+    /**
+     * Doc Error Code
+     */
+    doc_error_code: string | null;
+    /**
+     * Page Count
+     */
+    page_count: number | null;
+    /**
+     * Ocr Skipped Pages
+     */
+    ocr_skipped_pages: number;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * ItemResult
  */
 export type ItemResult = {
@@ -3795,32 +4087,6 @@ export type ItemResult = {
     error_params?: {
         [key: string]: unknown;
     };
-};
-
-/**
- * ItemUpdateInputBody
- */
-export type ItemUpdateInputBody = {
-    /**
-     * Data
-     *
-     * Fields to change; merged into the item's data
-     */
-    data?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Decision
-     *
-     * accept, reject or pending
-     */
-    decision?: 'accept' | 'reject' | 'pending' | null;
-    /**
-     * Type
-     *
-     * Turn an assessment item into a task or back
-     */
-    type?: 'assessment' | 'task' | null;
 };
 
 /**
@@ -3912,6 +4178,30 @@ export type JobPage = {
 };
 
 export type JsonValue = unknown;
+
+/**
+ * LinkCreateInputBody
+ */
+export type LinkCreateInputBody = {
+    /**
+     * Url
+     *
+     * http(s) address
+     */
+    url: string;
+    /**
+     * Display Name
+     *
+     * Name to show; defaults to the address' host
+     */
+    display_name?: string | null;
+    /**
+     * Folder Id
+     *
+     * Folder to put it in
+     */
+    folder_id?: string | null;
+};
 
 /**
  * LinkSetInputBody
@@ -5056,6 +5346,24 @@ export type OneOffEventList = {
 };
 
 /**
+ * OutlineEntry
+ */
+export type OutlineEntry = {
+    /**
+     * Level
+     */
+    level: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Page
+     */
+    page: number;
+};
+
+/**
  * PageDetail
  */
 export type PageDetail = {
@@ -5217,6 +5525,34 @@ export type PasswordResetIn = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * PendingItem
+ */
+export type PendingItem = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+};
+
+/**
+ * PinnedFiles
+ */
+export type PinnedFiles = {
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
 };
 
 /**
@@ -6264,6 +6600,114 @@ export type ScoreSuggestion = {
 };
 
 /**
+ * SearchHit
+ */
+export type SearchHit = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Page From
+     */
+    page_from: number;
+    /**
+     * Page To
+     */
+    page_to: number;
+    /**
+     * Heading Path
+     */
+    heading_path: Array<string>;
+    /**
+     * Snippet
+     *
+     * Matching text; matches are wrapped in <mark></mark>
+     */
+    snippet: string;
+    /**
+     * Score
+     */
+    score: number;
+    /**
+     * Citation Id
+     *
+     * `<item_id>:p<page_from>-<page_to>`
+     */
+    citation_id: string;
+};
+
+/**
+ * SearchInputBody
+ */
+export type SearchInputBody = {
+    /**
+     * Query
+     *
+     * What to look for: words from the document or a question
+     */
+    query: string;
+    /**
+     * Term Id
+     *
+     * Only the courses of this term
+     */
+    term_id?: string | null;
+    /**
+     * Course Ids
+     *
+     * Only these courses
+     */
+    course_ids?: Array<string> | null;
+    /**
+     * Item Ids
+     *
+     * Only these files
+     */
+    item_ids?: Array<string> | null;
+    /**
+     * Top K
+     *
+     * Results to return
+     */
+    top_k?: number;
+    /**
+     * Mode
+     *
+     * hybrid = keywords and meaning together; keyword; semantic (needs an embedding model, else falls back to keyword)
+     */
+    mode?: 'hybrid' | 'keyword' | 'semantic';
+};
+
+/**
+ * SearchResult
+ */
+export type SearchResult = {
+    /**
+     * Results
+     */
+    results: Array<SearchHit>;
+    /**
+     * Pending Items
+     *
+     * Files in scope that are still being processed and are not searchable yet
+     */
+    pending_items: Array<PendingItem>;
+    /**
+     * Mode Used
+     */
+    mode_used: 'hybrid' | 'keyword' | 'semantic';
+};
+
+/**
  * SessionCreateInputBody
  */
 export type SessionCreateInputBody = {
@@ -6687,6 +7131,610 @@ export type SuggestedScore = {
      * Score
      */
     score: number;
+};
+
+/**
+ * Task
+ */
+export type Task = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * List Id
+     *
+     * Null for the Program's inbox
+     */
+    list_id: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Notes
+     */
+    notes: string;
+    /**
+     * Due Date
+     */
+    due_date: string | null;
+    /**
+     * Due Time
+     *
+     * Wall-clock time in the Program's time zone
+     */
+    due_time: string | null;
+    /**
+     * Priority
+     */
+    priority: 'none' | 'low' | 'medium' | 'high' | 'urgent';
+    /**
+     * Flagged
+     */
+    flagged: boolean;
+    /**
+     * Completed At
+     */
+    completed_at: string | null;
+    /**
+     * Overdue
+     *
+     * Unfinished and past its due moment (Program time zone)
+     */
+    overdue: boolean;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Source Kind
+     */
+    source_kind: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TaskClearInputBody
+ */
+export type TaskClearInputBody = {
+    /**
+     * List Id
+     *
+     * Only completed tasks of this list
+     */
+    list_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Only completed tasks of this term
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Only completed tasks of this course
+     */
+    course_id?: string | null;
+};
+
+/**
+ * TaskClearResult
+ */
+export type TaskClearResult = {
+    /**
+     * Deleted
+     */
+    deleted: number;
+};
+
+/**
+ * TaskCompleteInputBody
+ */
+export type TaskCompleteInputBody = {
+    /**
+     * Completed
+     *
+     * False reopens the task
+     */
+    completed?: boolean;
+};
+
+/**
+ * TaskCounts
+ */
+export type TaskCounts = {
+    /**
+     * Today
+     *
+     * Unfinished tasks due today or overdue
+     */
+    today: number;
+    /**
+     * Overdue
+     */
+    overdue: number;
+    /**
+     * Scheduled
+     */
+    scheduled: number;
+    /**
+     * All
+     */
+    all: number;
+    /**
+     * Inbox
+     */
+    inbox: number;
+    /**
+     * Flagged
+     */
+    flagged: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Lists
+     *
+     * Unfinished tasks per list id
+     */
+    lists: {
+        [key: string]: number;
+    };
+    /**
+     * Courses
+     *
+     * Unfinished tasks per course id
+     */
+    courses: {
+        [key: string]: number;
+    };
+};
+
+/**
+ * TaskCreateInputBody
+ */
+export type TaskCreateInputBody = {
+    /**
+     * Title
+     *
+     * What to do
+     */
+    title: string;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Due Date
+     *
+     * Due date (Program time zone)
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time of day; needs a due date. Seconds are dropped.
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority; omit for the Program's default
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag the task
+     */
+    flagged?: boolean;
+    /**
+     * Term Id
+     *
+     * Term; inferred from the course and due date when omitted
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course the task is for
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; omit for the inbox
+     */
+    list_id?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where the task came from
+     */
+    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    /**
+     * Source Ref
+     *
+     * Id of the source item; makes batch imports idempotent
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * TaskCreateManyInputBody
+ */
+export type TaskCreateManyInputBody = {
+    /**
+     * Items
+     *
+     * Tasks to create
+     */
+    items: Array<TaskFields>;
+};
+
+/**
+ * TaskCreateManyResult
+ */
+export type TaskCreateManyResult = {
+    /**
+     * Created
+     */
+    created: Array<Task>;
+    /**
+     * Skipped
+     */
+    skipped: Array<TaskSkipped>;
+};
+
+/**
+ * TaskDeleted
+ */
+export type TaskDeleted = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
+ * TaskFields
+ */
+export type TaskFields = {
+    /**
+     * Title
+     *
+     * What to do
+     */
+    title: string;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Due Date
+     *
+     * Due date (Program time zone)
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time of day; needs a due date. Seconds are dropped.
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority; omit for the Program's default
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag the task
+     */
+    flagged?: boolean;
+    /**
+     * Term Id
+     *
+     * Term; inferred from the course and due date when omitted
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course the task is for
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; omit for the inbox
+     */
+    list_id?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where the task came from
+     */
+    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    /**
+     * Source Ref
+     *
+     * Id of the source item; makes batch imports idempotent
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * TaskList
+ */
+export type TaskList = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     *
+     * Null for a list shared by every term of the Program
+     */
+    term_id: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string | null;
+    /**
+     * Icon
+     */
+    icon: string | null;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TaskListCreateInputBody
+ */
+export type TaskListCreateInputBody = {
+    /**
+     * Name
+     *
+     * List name, unique within its term (or Program-wide)
+     */
+    name: string;
+    /**
+     * Term Id
+     *
+     * Term the list belongs to; omit for a Program-wide list
+     */
+    term_id?: string | null;
+    /**
+     * Color
+     *
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon
+     */
+    icon?: string | null;
+};
+
+/**
+ * TaskListDeleteResult
+ */
+export type TaskListDeleteResult = {
+    /**
+     * Deleted Task Count
+     */
+    deleted_task_count: number;
+    /**
+     * Moved Task Count
+     */
+    moved_task_count: number;
+};
+
+/**
+ * TaskListOrderInputBody
+ */
+export type TaskListOrderInputBody = {
+    /**
+     * List Ids
+     *
+     * List ids in the new display order (lists not named go last)
+     */
+    list_ids: Array<string>;
+};
+
+/**
+ * TaskListOut
+ */
+export type TaskListOut = {
+    /**
+     * Items
+     */
+    items: Array<TaskList>;
+};
+
+/**
+ * TaskListUpdateInputBody
+ */
+export type TaskListUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon
+     */
+    icon?: string | null;
+};
+
+/**
+ * TaskMoveInputBody
+ */
+export type TaskMoveInputBody = {
+    /**
+     * List Id
+     *
+     * Target list (null = inbox); if not sent the list is unchanged
+     */
+    list_id?: string | null;
+    /**
+     * Before Task Id
+     *
+     * Place the task before this one (same target list); else last
+     */
+    before_task_id?: string | null;
+};
+
+/**
+ * TaskPage
+ */
+export type TaskPage = {
+    /**
+     * Items
+     */
+    items: Array<Task>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * TaskSkipped
+ */
+export type TaskSkipped = {
+    /**
+     * Index
+     */
+    index: number;
+    /**
+     * Task Id
+     *
+     * The existing task with the same source
+     */
+    task_id: string;
+};
+
+/**
+ * TaskUpdateInputBody
+ */
+export type TaskUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string | null;
+    /**
+     * Due Date
+     *
+     * Due date; null clears date and time
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time; null clears it
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag
+     */
+    flagged?: boolean | null;
+    /**
+     * Term Id
+     *
+     * Term; null clears it
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course; null clears it
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; null moves to the inbox
+     */
+    list_id?: string | null;
 };
 
 /**
@@ -7418,6 +8466,16 @@ export type Upload = {
 };
 
 /**
+ * UploadResult
+ */
+export type UploadResult = {
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
+};
+
+/**
  * UsageDay
  */
 export type UsageDay = {
@@ -7641,6 +8699,66 @@ export type WizardCourse = {
 };
 
 /**
+ * ItemUpdateInputBody
+ */
+export type SemestraCoreCapabilityItemUpdateInputBody1 = {
+    /**
+     * Display Name
+     *
+     * New name
+     */
+    display_name?: string | null;
+    /**
+     * Folder Id
+     *
+     * Move into this folder; null moves it to the course root
+     */
+    folder_id?: string | null;
+    /**
+     * Pinned
+     *
+     * Pin it to the quick-open cards
+     */
+    pinned?: boolean | null;
+};
+
+/**
+ * ItemUpdateInputBody
+ */
+export type SemestraCoreCapabilityItemUpdateInputBody2 = {
+    /**
+     * Data
+     *
+     * Fields to change; merged into the item's data
+     */
+    data?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Decision
+     *
+     * accept, reject or pending
+     */
+    decision?: 'accept' | 'reject' | 'pending' | null;
+    /**
+     * Type
+     *
+     * Turn an assessment item into a task or back
+     */
+    type?: 'assessment' | 'task' | null;
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesAcademicsSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
+};
+
+/**
  * AssignmentList
  */
 export type SemestraModulesAiSchemasAssignmentList = {
@@ -7658,6 +8776,16 @@ export type SemestraModulesAiSchemasProviderList = {
      * Items
      */
     items: Array<Provider>;
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesFilesSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
 };
 
 /**
@@ -7682,6 +8810,16 @@ export type SemestraModulesLmsSchemasIoProviderList = {
      * Items
      */
     items: Array<ProviderInfo>;
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesScheduleSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
 };
 
 /**
@@ -8192,6 +9330,198 @@ export type AccountAvatarGetResponses = {
     200: unknown;
 };
 
+export type FilesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Folder Id
+         *
+         * Only items directly in this folder; omit for the course root
+         */
+        folder_id?: string | null;
+        /**
+         * Recursive
+         *
+         * List the items of every folder of the course, not just one
+         */
+        recursive?: boolean;
+        /**
+         * Search
+         *
+         * Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead.
+         */
+        search?: string | null;
+        /**
+         * Sort
+         *
+         * Sort key
+         */
+        sort?: 'name' | 'size' | 'updated' | 'created' | 'type';
+        /**
+         * Descending
+         *
+         * Reverse the sort order
+         */
+        descending?: boolean;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its id)
+         */
+        fields?: Array<string> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/courses/{course_id}/files';
+};
+
+export type FilesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesListError = FilesListErrors[keyof FilesListErrors];
+
+export type FilesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilesList;
+};
+
+export type FilesListResponse = FilesListResponses[keyof FilesListResponses];
+
+export type FilesUploadData = {
+    body: BodyFilesUpload;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files';
+};
+
+export type FilesUploadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesUploadError = FilesUploadErrors[keyof FilesUploadErrors];
+
+export type FilesUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UploadResult;
+};
+
+export type FilesUploadResponse = FilesUploadResponses[keyof FilesUploadResponses];
+
+export type FilesContentData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+    };
+    query?: {
+        /**
+         * Disposition
+         *
+         * inline previews, attachment downloads
+         */
+        disposition?: string;
+    };
+    url: '/files/{item_id}/content';
+};
+
+export type FilesContentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FilesContentError = FilesContentErrors[keyof FilesContentErrors];
+
+export type FilesContentResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+    /**
+     * Partial Content
+     */
+    206: unknown;
+};
+
+export type FilesContentResponse = FilesContentResponses[keyof FilesContentResponses];
+
+export type FilesPageImageData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+        /**
+         * Page
+         *
+         * Page number, starting at 1
+         */
+        page: number;
+    };
+    query?: never;
+    url: '/files/{item_id}/pages/{page}.png';
+};
+
+export type FilesPageImageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FilesPageImageError = FilesPageImageErrors[keyof FilesPageImageErrors];
+
+export type FilesPageImageResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ImportsUploadCreateData = {
     body: BodyImportsUploadCreate;
     path?: never;
@@ -8446,7 +9776,7 @@ export type AcademicsCourseDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type AcademicsCourseDeleteResponse = AcademicsCourseDeleteResponses[keyof AcademicsCourseDeleteResponses];
@@ -8656,7 +9986,7 @@ export type AcademicsProgramDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type AcademicsProgramDeleteResponse = AcademicsProgramDeleteResponses[keyof AcademicsProgramDeleteResponses];
@@ -9851,6 +11181,435 @@ export type CoreStorageUsageResponses = {
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
 
+export type FilesDocumentOutlineData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}/outline';
+};
+
+export type FilesDocumentOutlineErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDocumentOutlineError = FilesDocumentOutlineErrors[keyof FilesDocumentOutlineErrors];
+
+export type FilesDocumentOutlineResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentOutline;
+};
+
+export type FilesDocumentOutlineResponse = FilesDocumentOutlineResponses[keyof FilesDocumentOutlineResponses];
+
+export type FilesDocumentReadData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+    };
+    query?: {
+        /**
+         * Page From
+         *
+         * First page (1-based)
+         */
+        page_from?: number;
+        /**
+         * Page To
+         *
+         * Last page; at most 30 pages are returned per call
+         */
+        page_to?: number | null;
+    };
+    url: '/files/{item_id}/document';
+};
+
+export type FilesDocumentReadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDocumentReadError = FilesDocumentReadErrors[keyof FilesDocumentReadErrors];
+
+export type FilesDocumentReadResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type FilesDocumentReadResponse = FilesDocumentReadResponses[keyof FilesDocumentReadResponses];
+
+export type FilesFolderCreateData = {
+    body: FolderCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/folders';
+};
+
+export type FilesFolderCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderCreateError = FilesFolderCreateErrors[keyof FilesFolderCreateErrors];
+
+export type FilesFolderCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderOut;
+};
+
+export type FilesFolderCreateResponse = FilesFolderCreateResponses[keyof FilesFolderCreateResponses];
+
+export type FilesFolderDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Folder Id
+         *
+         * Folder id
+         */
+        folder_id: string;
+    };
+    query?: {
+        /**
+         * Recursive
+         *
+         * Also delete everything inside; required for a non-empty folder
+         */
+        recursive?: boolean;
+    };
+    url: '/folders/{folder_id}';
+};
+
+export type FilesFolderDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderDeleteError = FilesFolderDeleteErrors[keyof FilesFolderDeleteErrors];
+
+export type FilesFolderDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesFolderDeleteResponse = FilesFolderDeleteResponses[keyof FilesFolderDeleteResponses];
+
+export type FilesFolderUpdateData = {
+    body: FolderUpdateInputBody;
+    path: {
+        /**
+         * Folder Id
+         *
+         * Folder id
+         */
+        folder_id: string;
+    };
+    query?: never;
+    url: '/folders/{folder_id}';
+};
+
+export type FilesFolderUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderUpdateError = FilesFolderUpdateErrors[keyof FilesFolderUpdateErrors];
+
+export type FilesFolderUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderOut;
+};
+
+export type FilesFolderUpdateResponse = FilesFolderUpdateResponses[keyof FilesFolderUpdateResponses];
+
+export type FilesItemDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemDeleteError = FilesItemDeleteErrors[keyof FilesItemDeleteErrors];
+
+export type FilesItemDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesItemDeleteResponse = FilesItemDeleteResponses[keyof FilesItemDeleteResponses];
+
+export type FilesItemGetData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemGetError = FilesItemGetErrors[keyof FilesItemGetErrors];
+
+export type FilesItemGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemGetResponse = FilesItemGetResponses[keyof FilesItemGetResponses];
+
+export type FilesItemUpdateData = {
+    body: SemestraCoreCapabilityItemUpdateInputBody1;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemUpdateError = FilesItemUpdateErrors[keyof FilesItemUpdateErrors];
+
+export type FilesItemUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
+
+export type FilesLinkCreateData = {
+    body: LinkCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/file-links';
+};
+
+export type FilesLinkCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesLinkCreateError = FilesLinkCreateErrors[keyof FilesLinkCreateErrors];
+
+export type FilesLinkCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
+
+export type FilesPinnedData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/pinned-files';
+};
+
+export type FilesPinnedErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesPinnedError = FilesPinnedErrors[keyof FilesPinnedErrors];
+
+export type FilesPinnedResponses = {
+    /**
+     * Successful Response
+     */
+    200: PinnedFiles;
+};
+
+export type FilesPinnedResponse = FilesPinnedResponses[keyof FilesPinnedResponses];
+
+export type FilesReprocessData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:reprocess';
+};
+
+export type FilesReprocessErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesReprocessError = FilesReprocessErrors[keyof FilesReprocessErrors];
+
+export type FilesReprocessResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesReprocessResponse = FilesReprocessResponses[keyof FilesReprocessResponses];
+
+export type FilesSearchData = {
+    body: SearchInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id; the search never leaves this Program
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/files:search';
+};
+
+export type FilesSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesSearchError = FilesSearchErrors[keyof FilesSearchErrors];
+
+export type FilesSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SearchResult;
+};
+
+export type FilesSearchResponse = FilesSearchResponses[keyof FilesSearchResponses];
+
+export type FilesUsageData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/files-usage';
+};
+
+export type FilesUsageErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesUsageError = FilesUsageErrors[keyof FilesUsageErrors];
+
+export type FilesUsageResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilesUsage;
+};
+
+export type FilesUsageResponse = FilesUsageResponses[keyof FilesUsageResponses];
+
 export type GradingAssessmentListData = {
     body?: never;
     path: {
@@ -9999,7 +11758,7 @@ export type GradingAssessmentDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type GradingAssessmentDeleteResponse = GradingAssessmentDeleteResponses[keyof GradingAssessmentDeleteResponses];
@@ -10127,7 +11886,7 @@ export type GradingCategoryDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type GradingCategoryDeleteResponse = GradingCategoryDeleteResponses[keyof GradingCategoryDeleteResponses];
@@ -10672,7 +12431,7 @@ export type HabitStatsResponses = {
 export type HabitStatsResponse = HabitStatsResponses[keyof HabitStatsResponses];
 
 export type ImportsItemUpdateData = {
-    body: ItemUpdateInputBody;
+    body: SemestraCoreCapabilityItemUpdateInputBody2;
     path: {
         /**
          * Session Id
@@ -12721,7 +14480,7 @@ export type ScheduleEventDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
@@ -12849,7 +14608,7 @@ export type ScheduleEventTypeDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleEventTypeDeleteResponse = ScheduleEventTypeDeleteResponses[keyof ScheduleEventTypeDeleteResponses];
@@ -13220,7 +14979,7 @@ export type ScheduleMeetingDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleMeetingDeleteResponse = ScheduleMeetingDeleteResponses[keyof ScheduleMeetingDeleteResponses];
@@ -13618,3 +15377,582 @@ export type StickyNoteUpdateResponses = {
 };
 
 export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];
+
+export type TasksCountsData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's tasks and those that belong to no term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course's tasks
+         */
+        course_id?: string | null;
+    };
+    url: '/programs/{program_id}/task-counts';
+};
+
+export type TasksCountsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksCountsError = TasksCountsErrors[keyof TasksCountsErrors];
+
+export type TasksCountsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCounts;
+};
+
+export type TasksCountsResponse = TasksCountsResponses[keyof TasksCountsResponses];
+
+export type TasksItemClearCompletedData = {
+    body: TaskClearInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks:clear-completed';
+};
+
+export type TasksItemClearCompletedErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemClearCompletedError = TasksItemClearCompletedErrors[keyof TasksItemClearCompletedErrors];
+
+export type TasksItemClearCompletedResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskClearResult;
+};
+
+export type TasksItemClearCompletedResponse = TasksItemClearCompletedResponses[keyof TasksItemClearCompletedResponses];
+
+export type TasksItemCompleteData = {
+    body: TaskCompleteInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}:complete';
+};
+
+export type TasksItemCompleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCompleteError = TasksItemCompleteErrors[keyof TasksItemCompleteErrors];
+
+export type TasksItemCompleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemCompleteResponse = TasksItemCompleteResponses[keyof TasksItemCompleteResponses];
+
+export type TasksItemQueryData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * View
+         *
+         * today = due today or overdue; scheduled = has a due date; all; completed; inbox = no list; flagged
+         */
+        view?: 'today' | 'scheduled' | 'all' | 'completed' | 'inbox' | 'flagged';
+        /**
+         * List Id
+         *
+         * Only this list
+         */
+        list_id?: string | null;
+        /**
+         * Term Id
+         *
+         * Only this term's tasks and those that belong to no term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course
+         */
+        course_id?: string | null;
+        /**
+         * Search
+         *
+         * Fuzzy match on title and notes
+         */
+        search?: string | null;
+        /**
+         * Due From
+         *
+         * Due on or after this date
+         */
+        due_from?: string | null;
+        /**
+         * Due To
+         *
+         * Due on or before this date
+         */
+        due_to?: string | null;
+        /**
+         * Include Completed
+         *
+         * Also return completed tasks (views other than completed)
+         */
+        include_completed?: boolean;
+        /**
+         * Only Completed
+         *
+         * Return only the completed tasks the view would show (views other than completed); wins over include_completed
+         */
+        only_completed?: boolean;
+        /**
+         * Sort
+         *
+         * Order of the result
+         */
+        sort?: 'manual' | 'due' | 'priority' | 'created' | 'title';
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each task (and its id)
+         */
+        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'created_at' | 'updated_at'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/tasks';
+};
+
+export type TasksItemQueryErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemQueryError = TasksItemQueryErrors[keyof TasksItemQueryErrors];
+
+export type TasksItemQueryResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskPage;
+};
+
+export type TasksItemQueryResponse = TasksItemQueryResponses[keyof TasksItemQueryResponses];
+
+export type TasksItemCreateData = {
+    body: TaskCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks';
+};
+
+export type TasksItemCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCreateError = TasksItemCreateErrors[keyof TasksItemCreateErrors];
+
+export type TasksItemCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemCreateResponse = TasksItemCreateResponses[keyof TasksItemCreateResponses];
+
+export type TasksItemCreateManyData = {
+    body: TaskCreateManyInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks:batch';
+};
+
+export type TasksItemCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCreateManyError = TasksItemCreateManyErrors[keyof TasksItemCreateManyErrors];
+
+export type TasksItemCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCreateManyResult;
+};
+
+export type TasksItemCreateManyResponse = TasksItemCreateManyResponses[keyof TasksItemCreateManyResponses];
+
+export type TasksItemDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemDeleteError = TasksItemDeleteErrors[keyof TasksItemDeleteErrors];
+
+export type TasksItemDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskDeleted;
+};
+
+export type TasksItemDeleteResponse = TasksItemDeleteResponses[keyof TasksItemDeleteResponses];
+
+export type TasksItemGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemGetError = TasksItemGetErrors[keyof TasksItemGetErrors];
+
+export type TasksItemGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemGetResponse = TasksItemGetResponses[keyof TasksItemGetResponses];
+
+export type TasksItemUpdateData = {
+    body: TaskUpdateInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemUpdateError = TasksItemUpdateErrors[keyof TasksItemUpdateErrors];
+
+export type TasksItemUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemUpdateResponse = TasksItemUpdateResponses[keyof TasksItemUpdateResponses];
+
+export type TasksItemMoveData = {
+    body: TaskMoveInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}:move';
+};
+
+export type TasksItemMoveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemMoveError = TasksItemMoveErrors[keyof TasksItemMoveErrors];
+
+export type TasksItemMoveResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemMoveResponse = TasksItemMoveResponses[keyof TasksItemMoveResponses];
+
+export type TasksListListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-lists';
+};
+
+export type TasksListListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListListError = TasksListListErrors[keyof TasksListListErrors];
+
+export type TasksListListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type TasksListListResponse = TasksListListResponses[keyof TasksListListResponses];
+
+export type TasksListCreateData = {
+    body: TaskListCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-lists';
+};
+
+export type TasksListCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListCreateError = TasksListCreateErrors[keyof TasksListCreateErrors];
+
+export type TasksListCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type TasksListCreateResponse = TasksListCreateResponses[keyof TasksListCreateResponses];
+
+export type TasksListDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * List Id
+         *
+         * List id
+         */
+        list_id: string;
+    };
+    query?: {
+        /**
+         * Delete Tasks
+         *
+         * Delete the list's tasks too; by default they move to the inbox
+         */
+        delete_tasks?: boolean;
+    };
+    url: '/task-lists/{list_id}';
+};
+
+export type TasksListDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListDeleteError = TasksListDeleteErrors[keyof TasksListDeleteErrors];
+
+export type TasksListDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListDeleteResult;
+};
+
+export type TasksListDeleteResponse = TasksListDeleteResponses[keyof TasksListDeleteResponses];
+
+export type TasksListUpdateData = {
+    body: TaskListUpdateInputBody;
+    path: {
+        /**
+         * List Id
+         *
+         * List id
+         */
+        list_id: string;
+    };
+    query?: never;
+    url: '/task-lists/{list_id}';
+};
+
+export type TasksListUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListUpdateError = TasksListUpdateErrors[keyof TasksListUpdateErrors];
+
+export type TasksListUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type TasksListUpdateResponse = TasksListUpdateResponses[keyof TasksListUpdateResponses];
+
+export type TasksListReorderData = {
+    body: TaskListOrderInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-list-order';
+};
+
+export type TasksListReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListReorderError = TasksListReorderErrors[keyof TasksListReorderErrors];
+
+export type TasksListReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type TasksListReorderResponse = TasksListReorderResponses[keyof TasksListReorderResponses];

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from sqlalchemy import select
 
 from semestra.core.context import system_ctx
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, not_found
 from semestra.modules.imports import service as imports_service
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
@@ -258,6 +258,44 @@ async def test_import_courses_rolls_back_with_its_links(api: Api, monkeypatch: p
     assert courses["items"] == []  # the course went with the failed link
 
 
+async def test_a_stale_course_import_rolls_back_instead_of_duplicating(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    body = {"external_course_ids": ["101"], "term_id": term_id}
+    first = await api.call("POST", f"/programs/{program_id}/lms/imports:courses", json=body)
+    second = await api.call("POST", f"/programs/{program_id}/lms/imports:courses", json=body)
+    assert (await api.commit(first["session_id"]))["failed"] == 0
+    err = await api.commit(second["session_id"], 409)
+    assert err["error"]["code"] == "lms.course_already_linked"
+    courses = await api.call("GET", f"/programs/{program_id}/courses")
+    assert len(courses["items"]) == 1
+
+
+async def test_a_link_is_refused_when_the_binding_moved_during_the_lookup(
+    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    other = await api.connection(display_name="Other")
+    original = type(fake).get_course
+
+    async def moving(self: FakeProvider, *args: Any) -> Any:
+        # Another request rebinds the Program while the platform is being asked.
+        async with system_ctx(app.state) as ctx:
+            from semestra.modules.lms.models import LmsProgramBinding
+
+            row = await ctx.db.get(LmsProgramBinding, program_id)
+            assert row is not None
+            row.connection_id = other["id"]
+            await ctx.db.commit()
+        return await original(self, *args)
+
+    monkeypatch.setattr(type(fake), "get_course", moving)
+    err = await api.link(course, "101", 409)
+    assert err["error"]["code"] == "lms.program_not_configured"
+    state = await api.call("GET", f"/courses/{course}/lms-link")
+    assert state["link"] is None
+
+
 async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider):
     program_id, term_id, conn = await setup_program(api)
     course = await api.course(program_id, term_id)
@@ -294,7 +332,13 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
     back = await api.call(
         "PATCH", f"/imports/{session['id']}/items/{item_id}", json={"type": "assessment"}
     )
-    assert next(i for i in back["items"] if i["id"] == item_id)["type"] == "assessment"
+    restored = next(i for i in back["items"] if i["id"] == item_id)
+    assert restored["type"] == "assessment"
+    # The weight and category come back with it.
+    original = assessments[2]["data"]
+    assert (restored["data"]["weight"], restored["data"]["category_ref"]) == (
+        original["weight"], original["category_ref"]
+    )  # fmt: skip
 
     done = await api.commit(started["session_id"])
     assert done["failed"] == 0
@@ -576,6 +620,23 @@ async def test_refresh_survives_a_broken_connection(
     assert rows[second["id"]].last_error_code == "lms.invalid_credentials"
 
 
+async def test_a_saved_address_that_stops_being_the_api_breaks_the_connection(
+    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    conn = await api.connection()
+
+    async def moved(*_: Any) -> Any:
+        raise lms_error("lms.invalid_config", field="base_url", reason="redirect")
+
+    monkeypatch.setattr(fake, "validate", moved)
+    async with system_ctx(app.state) as ctx:
+        await service.refresh_all(ctx)
+        await ctx.db.commit()
+        row = await ctx.db.get(LmsConnection, conn["id"])
+        assert row is not None
+        assert (row.status, row.last_error_code) == ("error", "lms.invalid_config")
+
+
 async def test_course_import_links_only_through_the_current_binding(api: Api):
     program_id, term_id, _ = await setup_program(api)
     started = await api.call(
@@ -602,6 +663,43 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     err = await api.commit(started["session_id"], 409)
     assert err["error"]["code"] == "lms.course_not_linked"
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
+
+
+async def test_an_assignment_imported_as_the_other_kind_meanwhile_rolls_back(
+    api: Api, app: FastAPI
+):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    link = (await api.link(course, "101"))["link"]
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    # Another session committed it as a task after this one was opened.
+    async with system_ctx(app.state) as ctx:
+        owner = await ctx.db.get(LmsConnection, link["connection_id"])
+        assert owner is not None
+        ctx.db.add(
+            LmsImportedRef(user_id=owner.user_id, link_id=link["id"], external_kind="assignment",
+                           external_id="a1", target_kind="task", target_id="t1",
+                           snapshot={}, imported_at=datetime(2026, 1, 15, tzinfo=UTC))
+        )  # fmt: skip
+        await ctx.db.commit()
+    err = await api.commit(started["session_id"], 409)
+    assert err["error"]["code"] == "lms.assignment_already_imported"
+    assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
+
+
+async def test_a_host_without_the_api_is_a_config_error_on_save(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    async def missing(*_: Any) -> Any:
+        raise not_found()
+
+    monkeypatch.setattr(fake, "validate", missing)
+    payload = {"provider": "fake", "config": {"base_url": "https://fake.example.edu"},
+               "credentials": {"token": "good-token-1"}}  # fmt: skip
+    err = await api.call("POST", "/lms/connections", 422, json=payload)
+    assert err["error"]["code"] == "lms.invalid_config"
 
 
 async def test_check_results_announce_error_changes_within_a_status(
@@ -656,3 +754,24 @@ async def test_a_refused_resource_leaves_the_connection_alone(
     assert err["error"]["code"] == "lms.forbidden"
     [row] = (await api.call("GET", "/lms/connections"))["items"]
     assert (row["id"], row["status"], row["last_error_code"]) == (conn, "connected", None)
+
+
+async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: FakeProvider):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    items = fake.course_assignments["101"]
+    items[2] = items[2].model_copy(update={"group_name": "Labs"})  # g2, also called "Labs"
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments",
+        json={"external_ids": ["a1", "a2", "a3"]},
+    )  # fmt: skip
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    categories = by_type(session, "category")
+    assert [(c["data"]["name"], c["data"]["weight_total"]) for c in categories] == [
+        ("Labs", 20),
+        ("Labs", 80),
+    ]
+    assert len({c["data"]["key"] for c in categories}) == 2
+    refs = [a["data"]["category_ref"] for a in by_type(session, "assessment")]
+    assert refs[0] == refs[1] != refs[2]

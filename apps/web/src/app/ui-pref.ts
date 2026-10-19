@@ -22,6 +22,7 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'onboarding.',
   'commands.',
   'canvas-tab.',
+  'files.',
 ] as const
 
 type Entry = { found: boolean; value: unknown }

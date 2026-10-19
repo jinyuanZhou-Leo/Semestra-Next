@@ -191,7 +191,8 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
     new: list[NewItem] = []
     refs: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
-    groups: dict[str, str] = {}
+    groups: dict[str, str] = {}  # Canvas group id -> category item key
+    slugs: set[str] = set()
     for external_id in dict.fromkeys(inp.external_ids):
         a = by_id.get(external_id)
         if a is None or external_id in done:
@@ -204,16 +205,22 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
             item: dict[str, Any] = {"course_ref": course_ref, "title": a["name"][:200]}
             group = a.get("group_name")
             if group:
-                if group not in groups:
-                    groups[group] = f"g{len(groups)}"
+                # Canvas groups are told apart by id: two groups may share a name or a slug.
+                group_key = str(a.get("group_id") or group)
+                if group_key not in groups:
+                    groups[group_key] = f"g{len(groups)}"
+                    slug = _slug(group)
+                    if slug in slugs:
+                        slug = f"{slug[:20].strip('-')}-{_slug(group_key)}"[:32].strip("-")
+                    slugs.add(slug)
                     new.append(
                         NewItem(
-                            key=groups[group],
+                            key=groups[group_key],
                             type="category",
                             data={
                                 "course_ref": course_ref,
                                 "name": group[:200],
-                                "key": _slug(group),
+                                "key": slug,
                                 **(
                                     {"weight_total": a["group_weight"]}
                                     if a.get("group_weight") is not None
@@ -222,7 +229,7 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
                             },
                         )
                     )
-                item["category_ref"] = f"item:{groups[group]}"
+                item["category_ref"] = f"item:{groups[group_key]}"
             confidence: dict[str, Confidence] = {}
             if external_id in weights:
                 item["weight"] = weights[external_id]
@@ -459,8 +466,12 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                     LmsCourseLink.external_course_id == external["external_id"],
                 )
             )
+            if taken is not None and taken.course_id != course_id:
+                # Another session linked this platform course meanwhile: the course just
+                # created would be a duplicate, so roll the commit back.
+                raise lms_error("lms.course_already_linked")
             if taken is not None or await service.link_row(ctx, course_id) is not None:
-                continue  # linked meanwhile: keep that link
+                continue  # an existing course that is linked already: keep that link
             await service.create_link(
                 ctx, course_id=course_id, connection=connection, external=external
             )
@@ -507,14 +518,17 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         target_id = created.get(item_id)
         if target_id is None or item.type not in ("assessment", "task"):
             continue
+        # Looked up across kinds: an assignment is imported once, as an assessment or a task.
         exists = await ctx.db.scalar(
             select(LmsImportedRef).where(
                 LmsImportedRef.link_id == link.id,
                 LmsImportedRef.external_kind == "assignment",
                 LmsImportedRef.external_id == info["external_id"],
-                LmsImportedRef.target_kind == item.type,
             )
         )
+        if exists is not None and exists.target_kind != item.type:
+            # Another session imported it as the other kind meanwhile: roll this commit back.
+            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
         if exists is not None:
             exists.target_id = target_id
             continue

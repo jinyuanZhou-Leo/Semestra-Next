@@ -126,8 +126,8 @@ async def render_pages(data: bytes, mime: str, filename: str) -> list[ai.Image]:
     def _run() -> list[ai.Image]:
         renderer = parse.PageRenderer(data, pdf=True)
         try:
-            pages = renderer._pdf.page_count if renderer._pdf is not None else 1  # pyright: ignore[reportPrivateUsage]
-            return [ai.Image(renderer.ocr_image(i), "image/png") for i in range(min(pages, 4))]
+            count = min(renderer.page_count, 4)
+            return [ai.Image(renderer.ocr_image(i), "image/png") for i in range(count)]
         finally:
             renderer.close()
 
