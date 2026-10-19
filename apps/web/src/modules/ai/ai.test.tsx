@@ -479,7 +479,7 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
       .getAllByRole('row')
       .slice(1)
       .map((r) => r.textContent)
-  expect(rows()).toEqual(['Sem (assistant)10 (1 failed)34,000$0.20', 'Reading documents211,000—'])
+  expect(rows()).toEqual(['Sem10 (1 failed)34,000$0.20', 'Reading documents211,000—'])
   await user.click(within(screen.getByRole('table')).getByRole('button', { name: 'Tokens' }))
   expect(rows()[0]).toContain('Reading documents')
 

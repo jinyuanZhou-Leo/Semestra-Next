@@ -51,7 +51,7 @@ function ModuleTools({ group }: { group: ToolGroup }) {
 
 /**
  * Everything Sem and MCP clients can do (M12 §6.2), one folded row per module. Read-only;
- * what runs without asking is set under Assistant permissions.
+ * what runs without asking is set under Permissions.
  */
 export function ToolsSection() {
   const catalog = useQuery(agentToolsCatalogOptions())
