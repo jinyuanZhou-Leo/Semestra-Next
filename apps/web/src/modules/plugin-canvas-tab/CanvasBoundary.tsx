@@ -5,14 +5,7 @@ import { useSettingsDialog } from '@/app/settings'
 import { errorCode, errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/ui/empty'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Skeleton } from '@/ui/skeleton'
 
 /** Errors that only new credentials fix: the way out is the connection settings. */
@@ -57,39 +50,35 @@ export function CanvasBoundary<T>({
   if (query.isPending) return skeleton ?? <ListSkeleton />
   if (query.isError) {
     const code = errorCode(query.error)
-    if (CREDENTIAL_ERRORS.has(code)) {
-      return (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <KeyRound aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{errorMessage(query.error)}</EmptyTitle>
-            <EmptyDescription>{m.canvas_tab_credentials_hint()}</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => settings.open({ level: 'account', group: 'integrations' })}>
+    const credentials = CREDENTIAL_ERRORS.has(code)
+    return (
+      <Alert variant={credentials ? 'default' : 'destructive'}>
+        {credentials ? (
+          <KeyRound aria-hidden />
+        ) : code === 'lms.rate_limited' ? (
+          <Clock aria-hidden />
+        ) : (
+          <CircleAlert aria-hidden />
+        )}
+        <AlertTitle>{credentials ? errorMessage(query.error) : m.common_load_failed()}</AlertTitle>
+        <AlertDescription>
+          {credentials ? m.canvas_tab_credentials_hint() : errorMessage(query.error)}
+        </AlertDescription>
+        <AlertAction>
+          {credentials ? (
+            <Button
+              size="sm"
+              onClick={() => settings.open({ level: 'account', group: 'integrations' })}
+            >
               {m.canvas_tab_open_connections()}
             </Button>
-          </EmptyContent>
-        </Empty>
-      )
-    }
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            {code === 'lms.rate_limited' ? <Clock aria-hidden /> : <CircleAlert aria-hidden />}
-          </EmptyMedia>
-          <EmptyTitle>{m.common_load_failed()}</EmptyTitle>
-          <EmptyDescription>{errorMessage(query.error)}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            {m.common_retry()}
-          </Button>
-        </EmptyContent>
-      </Empty>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => void query.refetch()}>
+              {m.common_retry()}
+            </Button>
+          )}
+        </AlertAction>
+      </Alert>
     )
   }
   if (isEmpty?.(query.data) && empty) return empty

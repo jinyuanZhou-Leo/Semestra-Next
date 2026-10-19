@@ -95,4 +95,5 @@ defineModule({
 - 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
 - **文件预览**：M07 的预览组件还没合并，插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 合并后改用其预览组件。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
 - Syllabus 的"智能导入"用 `<AiAction>` 包在 `<AiRequired purpose="extraction">` 里，调用 `lms.import.syllabus` 后打开 M08 审核。
-- 读接口出错：`lms.invalid_credentials`、`lms.credentials_missing`、`lms.forbidden` 显示"打开连接设置"（账户设置 → 集成）；其它错误（包括 `lms.rate_limited`，文案带秒数）显示原因与"重试"。加载用骨架。
+- 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing`、`lms.forbidden` 带"打开连接设置"（账户设置 → 集成）；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
+- 同一页签内打开或关闭条目（展开作业、打开公告）用 replace 更新 URL，切换页签才新增历史记录，所以"返回"直接离开当前页签。

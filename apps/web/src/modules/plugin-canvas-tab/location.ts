@@ -59,7 +59,8 @@ export function useCanvasLocation(
   const go = (next: CanvasLocation) => {
     if (same(next, location)) return
     save(next)
-    void navigate({ to: '.', search: withLocation(next) })
+    // Opening or closing an item of the same tab replaces the entry, so Back leaves the tab.
+    void navigate({ to: '.', search: withLocation(next), replace: next.tab === location.tab })
   }
   return [location, go]
 }
