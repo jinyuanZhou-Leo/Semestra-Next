@@ -5,6 +5,7 @@ import { createContext, createElement, type ReactNode, useContext, useMemo } fro
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
+import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
@@ -39,6 +40,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   ai,
   plugins,
   schedule,
+  files,
   habitStreak,
   pomodoro,
   stickyNote,

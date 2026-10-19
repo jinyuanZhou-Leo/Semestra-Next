@@ -274,6 +274,62 @@
       }
     },
     {
+      "id": "files",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "files",
+          "scopes": [
+            "course",
+            "term"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "files.quickOpen",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "s",
+            "m",
+            "l"
+          ],
+          "default_size": "s",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "item_ids": {
+                "default": [],
+                "maxItems": 24,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "files.recent",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "m"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {}
+    },
+    {
       "id": "habit-streak",
       "kind": "plugin",
       "pages": [],
