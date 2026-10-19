@@ -226,7 +226,7 @@ export default function TasksPage({ scope }: PageProps) {
               ))}
             </ToggleGroup>
           ) : (
-            <h2 className="font-heading text-lg font-medium">{title}</h2>
+            <h2 className="font-heading text-2xl font-semibold tracking-tight">{title}</h2>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger

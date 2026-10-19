@@ -61,16 +61,21 @@ export function QuickAdd({
     await onAdd(task).catch(() => setText(text))
   }
   return (
-    <div className="space-y-1.5 px-2">
-      <div className="flex items-center gap-2">
-        <Plus aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+    <div className="space-y-1.5 rounded-2xl px-3 py-2.5 hover:bg-muted/40">
+      <div className="flex items-center gap-3">
+        <span
+          aria-hidden
+          className="flex size-5 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/60"
+        >
+          <Plus className="size-3 text-muted-foreground" />
+        </span>
         <Input
           ref={inputRef}
           value={text}
           maxLength={400}
           placeholder={m.tasks_quick_add_placeholder()}
           aria-label={m.tasks_quick_add_label()}
-          className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+          className="h-6 border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
           onChange={(event) => {
             setNow(new Date())
             setText(event.target.value)
@@ -85,7 +90,7 @@ export function QuickAdd({
         />
       </div>
       {parsed.dateText || parsed.priorityText ? (
-        <div className="flex flex-wrap items-center gap-1.5 pl-6">
+        <div className="flex flex-wrap items-center gap-1.5 pl-8">
           {parsed.dateText ? (
             <Chip
               undone={ignoreDate}

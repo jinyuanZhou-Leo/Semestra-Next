@@ -72,7 +72,7 @@ function InlineTitle({
       <Input
         ref={(el) => el?.focus()}
         aria-label={m.tasks_title_label()}
-        className="h-7 flex-1"
+        className="h-7 flex-1 text-base font-medium"
         value={draft}
         maxLength={300}
         onChange={(event) => setDraft(event.target.value)}
@@ -90,7 +90,7 @@ function InlineTitle({
     <button
       type="button"
       className={cn(
-        'min-w-0 flex-1 truncate text-left text-sm outline-none',
+        'min-w-0 truncate text-left text-base font-medium outline-none',
         done && 'text-muted-foreground line-through',
       )}
       onDoubleClick={(event) => {
@@ -114,7 +114,7 @@ function CourseTag({
   actions: TaskActions
 }) {
   const course = courses.find((c) => c.id === task.course_id)
-  if (!course && courses.length === 0) return null
+  if (!course) return null
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -123,10 +123,7 @@ function CourseTag({
             variant="outline"
             render={<button type="button" aria-label={m.tasks_course_label()} />}
             onClick={(event) => event.stopPropagation()}
-            className={cn(
-              'max-w-32 shrink-0 cursor-pointer',
-              !course && 'opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100',
-            )}
+            className={cn('max-w-40 shrink-0 cursor-pointer border-0 bg-muted/70')}
           />
         }
       >
@@ -197,6 +194,9 @@ export function TaskRow({
   hideCourse,
 }: Props) {
   const done = task.completed_at !== null
+  const course = courses.find((c) => c.id === task.course_id)
+  const note = task.notes.split('\n')[0]?.trim()
+  const hasMeta = Boolean(note) || task.due_date !== null || (course !== undefined && !hideCourse)
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- the row selects; every control in it is a real button
     <li
@@ -206,52 +206,61 @@ export function TaskRow({
       data-task-id={task.id}
       onClick={onSelect}
       className={cn(
-        'group/row flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60 data-selected:bg-muted',
+        'group/row flex items-start gap-3 rounded-2xl px-3 py-2.5 hover:bg-muted/40 data-selected:bg-muted/70',
         sortable?.dragging && 'relative z-10 bg-card shadow-md ring-1 ring-foreground/10',
       )}
     >
-      {sortable?.handle}
       <Checkbox
         checked={done}
         aria-label={m.tasks_complete({ title: task.title })}
-        className="size-4.5 rounded-full"
+        className="mt-0.5 size-5 rounded-full"
         onClick={(event) => event.stopPropagation()}
         onCheckedChange={(checked) => void actions.complete(task.id, checked)}
       />
-      <PriorityMark priority={task.priority} />
-      <InlineTitle
-        title={task.title}
-        done={done}
-        onSave={(title) => void actions.update(task.id, { title })}
-      />
-      {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
-      {task.due_date ? (
-        <span
-          className={cn(
-            'shrink-0 text-xs tabular-nums',
-            task.overdue ? 'text-destructive' : 'text-muted-foreground',
-          )}
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <PriorityMark priority={task.priority} />
+          <InlineTitle
+            title={task.title}
+            done={done}
+            onSave={(title) => void actions.update(task.id, { title })}
+          />
+          {task.flagged ? (
+            <Flag
+              aria-label={m.tasks_unflag()}
+              className="size-3.5 shrink-0 fill-current text-primary"
+            />
+          ) : null}
+        </div>
+        {hasMeta ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+            {note ? <span className="max-w-full truncate">{note}</span> : null}
+            {task.due_date ? (
+              <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
+                {dueLabel(task)}
+              </span>
+            ) : null}
+            {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
+          aria-pressed={task.flagged}
+          className="text-muted-foreground"
+          onClick={(event) => {
+            event.stopPropagation()
+            void actions.update(task.id, { flagged: !task.flagged })
+          }}
         >
-          {dueLabel(task)}
-        </span>
-      ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
-        aria-pressed={task.flagged}
-        className={cn(
-          task.flagged ? 'text-primary' : 'text-muted-foreground opacity-0',
-          'group-hover/row:opacity-100 focus-visible:opacity-100',
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          void actions.update(task.id, { flagged: !task.flagged })
-        }}
-      >
-        <Flag aria-hidden className={cn(task.flagged && 'fill-current')} />
-      </Button>
+          <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
+        </Button>
+        {sortable?.handle}
+      </div>
     </li>
   )
 }
@@ -281,7 +290,7 @@ export function SortableTaskRow(props: Omit<Props, 'sortable'>) {
             variant="ghost"
             size="icon-xs"
             aria-label={m.tasks_move({ title: props.task.title })}
-            className="-ml-1 cursor-grab touch-none text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+            className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
             onClick={(event) => event.stopPropagation()}
             {...attributes}
             {...listeners}
