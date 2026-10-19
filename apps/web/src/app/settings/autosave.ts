@@ -23,7 +23,7 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     fade: undefined as ReturnType<typeof setTimeout> | undefined,
     /** The run that is sending patches now; it keeps going until nothing is pending. */
-    active: null as Promise<void> | null,
+    active: null as Promise<boolean> | null,
     save,
     report,
   })
@@ -38,7 +38,7 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
     state.current.report({ status: next, retry: next === 'error' ? () => void run() : undefined })
   }
 
-  async function drain(): Promise<void> {
+  async function drain(): Promise<boolean> {
     const s = state.current
     clearTimeout(s.fade)
     while (Object.keys(s.pending).length > 0) {
@@ -51,26 +51,38 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
         // Newer edits of the same field win over the failed value.
         s.pending = { ...patch, ...s.pending }
         setStatus('error')
-        return
+        return false
       }
     }
     setStatus('saved')
     s.fade = setTimeout(() => setStatus('idle'), SAVED_VISIBLE_MS)
+    return true
   }
 
-  /** Sends what is pending, one request at a time; resolves when nothing is left or it failed. */
-  function run(): Promise<void> {
+  /**
+   * Sends what is pending, one request at a time; resolves when nothing is left (true) or a save
+   * failed and its changes wait for "Retry" (false).
+   */
+  function run(): Promise<boolean> {
     const s = state.current
     clearTimeout(s.timer)
     s.timer = undefined
     // A run that is already sending also sends whatever was queued since.
     if (s.active) return s.active
-    if (Object.keys(s.pending).length === 0) return Promise.resolve()
+    if (Object.keys(s.pending).length === 0) return Promise.resolve(true)
     const active = drain().finally(() => {
       s.active = null
     })
     s.active = active
     return active
+  }
+
+  /** Drops changes to these keys that have not been sent, e.g. a value replaced by a reset. */
+  function discard(keys: readonly string[]) {
+    const s = state.current
+    s.pending = Object.fromEntries(
+      Object.entries(s.pending).filter(([key]) => !keys.includes(key)),
+    ) as Partial<P>
   }
 
   function queue(patch: Partial<P>) {
@@ -91,5 +103,5 @@ export function useAutosave<P extends Record<string, unknown>>({ save, delay = 6
     }
   }, [])
 
-  return { queue, flush: run, status }
+  return { queue, flush: run, discard, status }
 }

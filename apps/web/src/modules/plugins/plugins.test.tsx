@@ -159,6 +159,7 @@ function templateSettings() {
         scope_id: null,
         values: { compact: false },
         sources: { compact: 'default' },
+        inherited: {},
       }),
     ),
   )

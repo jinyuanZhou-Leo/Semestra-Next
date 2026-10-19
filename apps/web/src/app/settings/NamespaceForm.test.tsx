@@ -37,6 +37,7 @@ const schemas = {
 type Resolved = {
   values: Record<string, unknown>
   sources: Record<string, string>
+  inherited?: Record<string, { value: unknown; source: string }>
 }
 
 /** An in-memory backend for one namespace; `patches` and `resets` record what was sent. */
@@ -53,6 +54,7 @@ function backend(initial: Resolved) {
     scope_id: scopeType === 'account' ? null : 'p1',
     values: state.values,
     sources: state.sources,
+    inherited: state.inherited ?? {},
   })
   server.use(
     http.get(`${API}/settings/schemas`, () => HttpResponse.json(schemas)),
@@ -160,6 +162,7 @@ test('a server error shows a retry that sends the same change again', async () =
         scope_id: null,
         values: { ...store.values, ...body.values },
         sources: { ...store.sources, compact: 'account' },
+        inherited: {},
       })
     }),
   )
@@ -175,11 +178,18 @@ test('a server error shows a retry that sends the same change again', async () =
   expect(store.patches).toEqual([{ compact: true }])
 })
 
-test('scoped levels show where a value comes from and can restore it', async () => {
-  const store = backend({
-    values: { compact: true, greeting: 'casual', countdown_steps: 3 },
-    sources: { compact: 'program', greeting: 'account', countdown_steps: 'default' },
-  })
+const scoped = (): Resolved => ({
+  values: { compact: true, greeting: 'casual', countdown_steps: 3 },
+  sources: { compact: 'program', greeting: 'account', countdown_steps: 'default' },
+  inherited: {
+    compact: { value: false, source: 'account' },
+    greeting: { value: 'casual', source: 'account' },
+    countdown_steps: { value: 3, source: 'default' },
+  },
+})
+
+test('scoped fields start with "follow" and following removes the value set here', async () => {
+  const store = backend(scoped())
   renderWithQuery(
     <NamespaceForm
       namespace={NAMESPACE}
@@ -188,15 +198,79 @@ test('scoped levels show where a value comes from and can restore it', async () 
     />,
   )
 
-  expect(await screen.findByText('Inherited from your account')).toBeInTheDocument()
-  // A default value says nothing about its origin.
-  expect(screen.queryByText('Default')).not.toBeInTheDocument()
+  // The switch becomes Follow / On / Off; set here, so On is chosen.
+  expect(await screen.findByRole('button', { name: 'On' })).toHaveAttribute('aria-pressed', 'true')
+  const [followCompact, followGreeting] = screen.getAllByRole('button', { name: 'Follow' })
+  expect(followCompact).toHaveAttribute('aria-pressed', 'false')
+  expect(followGreeting).toHaveAttribute('aria-pressed', 'true')
+  // A typed field names the level it follows; a default comes from the nearest level above.
+  expect(screen.getByText('Follow your account (3)')).toBeInTheDocument()
+  expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(store.scopes).toEqual(['program'])
 
-  await userEvent.click(screen.getByRole('button', { name: 'Restore' }))
+  await userEvent.click(followCompact!)
   await waitFor(() => expect(store.resets).toEqual(['compact']))
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull())
-  expect(screen.getByRole('switch', { name: 'Compact task list' })).not.toBeChecked()
+  await waitFor(() =>
+    expect(screen.getAllByRole('button', { name: 'Follow' })[0]).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    ),
+  )
+})
+
+test('choosing the same value as the level above sets it here instead of following', async () => {
+  const store = backend(scoped())
+  renderWithQuery(
+    <NamespaceForm
+      namespace={NAMESPACE}
+      level="program"
+      scope={{ kind: 'program', programId: 'p1' }}
+    />,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Casual' }))
+  await waitFor(() => expect(store.patches).toEqual([{ greeting: 'casual' }]), { timeout: 3000 })
+  expect(screen.getByRole('button', { name: 'Casual' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('following drops a value that failed to save, so it is not sent again later', async () => {
+  const store = backend(scoped())
+  let failures = 1
+  server.use(
+    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+      const body = (await request.json()) as { values: Record<string, unknown> }
+      store.patches.push(body.values)
+      if (failures-- > 0) {
+        return HttpResponse.json(
+          { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+          { status: 500 },
+        )
+      }
+      return HttpResponse.json({
+        namespace: NAMESPACE,
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: { ...store.values, ...body.values },
+        sources: store.sources,
+        inherited: store.inherited,
+      })
+    }),
+  )
+  renderWithQuery(
+    <NamespaceForm
+      namespace={NAMESPACE}
+      level="program"
+      scope={{ kind: 'program', programId: 'p1' }}
+    />,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Off' }))
+  await waitFor(() => expect(store.patches).toEqual([{ compact: false }]), { timeout: 3000 })
+
+  await userEvent.click(screen.getAllByRole('button', { name: 'Follow' })[0]!)
+  await waitFor(() => expect(store.resets).toEqual(['compact']))
+  // A later change of another field goes out alone.
+  await userEvent.click(screen.getByRole('button', { name: 'Formal' }))
+  await waitFor(() => expect(store.patches).toHaveLength(2), { timeout: 3000 })
+  expect(store.patches[1]).toEqual({ greeting: 'formal' })
 })
 
 test('a page without the scope the level needs renders nothing and asks for nothing', async () => {
@@ -207,11 +281,8 @@ test('a page without the scope the level needs renders nothing and asks for noth
   expect(store.scopes).toEqual([])
 })
 
-test('Restore waits for a save that is still running, so the reset is applied last', async () => {
-  const store = backend({
-    values: { compact: true, greeting: 'casual', countdown_steps: 3 },
-    sources: { compact: 'program', greeting: 'default', countdown_steps: 'default' },
-  })
+test('Follow waits for a save that is still running, so the reset is applied last', async () => {
+  const store = backend(scoped())
   const order: string[] = []
   let release: () => void = () => {}
   const gate = new Promise<void>((resolve) => (release = resolve))
@@ -230,6 +301,7 @@ test('Restore waits for a save that is still running, so the reset is applied la
           ...store.sources,
           ...Object.fromEntries(Object.keys(body.values).map((k) => [k, 'program'])),
         },
+        inherited: store.inherited,
       })
     }),
     http.delete(`${API}/settings/${NAMESPACE}/keys/:key`, () => {
@@ -240,6 +312,7 @@ test('Restore waits for a save that is still running, so the reset is applied la
         scope_id: 'p1',
         values: { compact: false, greeting: 'casual', countdown_steps: 3 },
         sources: { compact: 'account', greeting: 'default', countdown_steps: 'default' },
+        inherited: store.inherited,
       })
     }),
   )
@@ -253,7 +326,7 @@ test('Restore waits for a save that is still running, so the reset is applied la
 
   await userEvent.click(await screen.findByRole('button', { name: 'Formal' }))
   await waitFor(() => expect(order).toHaveLength(1), { timeout: 3000 }) // the save is in flight
-  await userEvent.click(screen.getAllByRole('button', { name: 'Restore' })[0]!)
+  await userEvent.click(screen.getAllByRole('button', { name: 'Follow' })[0]!)
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(order).toEqual(['patch {"greeting":"formal"}']) // the reset has not raced ahead
   release()

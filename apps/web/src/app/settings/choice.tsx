@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 
 export type ChoiceOption<T extends string> = {
   value: T
@@ -16,6 +17,21 @@ export type ChoiceOption<T extends string> = {
   /** One line on what picking it does; any option with one turns the control into a select. */
   hint?: string
 }
+
+/**
+ * A first choice that stands for "follow the level above" (M11 §5.2). It is a state of its own,
+ * not one of the values, so it does not count towards the four segments.
+ */
+export type FollowChoice = {
+  selected: boolean
+  /** The segment's text, e.g. "Follow". */
+  short: string
+  /** Where the value comes from and what it is: the segment's tooltip and the select item. */
+  full: string
+  onSelect: () => void
+}
+
+const FOLLOW = '__follow__'
 
 /**
  * The control for a one-of-several setting (round-4 rule): up to four short options with no
@@ -30,6 +46,7 @@ export function ChoiceControl<T extends string>({
   label,
   id,
   className,
+  follow,
 }: {
   options: readonly ChoiceOption<T>[]
   value: T
@@ -40,8 +57,14 @@ export function ChoiceControl<T extends string>({
   id?: string
   /** Width of the select trigger. */
   className?: string
+  follow?: FollowChoice
 }) {
+  const shown = follow?.selected ? FOLLOW : value
   const pick = (next: unknown) => {
+    if (next === FOLLOW) {
+      if (follow) follow.onSelect()
+      return
+    }
     const option = options.find((o) => o.value === next)
     if (option) onChange(option.value)
   }
@@ -51,11 +74,19 @@ export function ChoiceControl<T extends string>({
         id={id}
         aria-labelledby={labelId}
         aria-label={label}
-        value={[value]}
+        value={[shown]}
         onValueChange={(next) => pick(next[0])}
         size="sm"
         className={SEGMENTED}
       >
+        {follow ? (
+          <Tooltip>
+            <TooltipTrigger render={<ToggleGroupItem value={FOLLOW} className={SEGMENT} />}>
+              {follow.short}
+            </TooltipTrigger>
+            <TooltipContent>{follow.full}</TooltipContent>
+          </Tooltip>
+        ) : null}
         {options.map((o) => (
           <ToggleGroupItem key={o.value} value={o.value} className={SEGMENT}>
             {o.label}
@@ -66,8 +97,11 @@ export function ChoiceControl<T extends string>({
   }
   return (
     <Select
-      value={value}
-      items={options.map((o) => ({ value: o.value, label: o.label }))}
+      value={shown}
+      items={[
+        ...(follow ? [{ value: FOLLOW, label: follow.full }] : []),
+        ...options.map((o) => ({ value: o.value, label: o.label })),
+      ]}
       onValueChange={pick}
     >
       <SelectTrigger
@@ -80,6 +114,7 @@ export function ChoiceControl<T extends string>({
       </SelectTrigger>
       <SelectContent className="w-72">
         <SelectGroup>
+          {follow ? <SelectItem value={FOLLOW}>{follow.full}</SelectItem> : null}
           {options.map((o) => (
             <SelectItem key={o.value} value={o.value}>
               {o.hint ? (

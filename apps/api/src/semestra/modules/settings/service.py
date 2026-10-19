@@ -22,6 +22,7 @@ from semestra.modules.settings.registry import (
 )
 from semestra.modules.settings.schemas import (
     UI_STATE_VALUE_MAX_BYTES,
+    InheritedValue,
     Preferences,
     PreferencesUpdateInput,
     ResolvedSettings,
@@ -169,13 +170,21 @@ async def _resolved(
     scope_type: ScopeType,
     scope_id: str | None,
 ) -> ResolvedSettings:
-    values, sources = _effective(definition, await _layer_rows(ctx, definition, chain))
+    layers = await _layer_rows(ctx, definition, chain)
+    values, sources = _effective(definition, layers)
+    above, above_sources = _effective(
+        definition, [layer for layer in layers if layer[0] != scope_type]
+    )
     return ResolvedSettings(
         namespace=definition.namespace,
         scope_type=scope_type,
         scope_id=None if scope_type == "account" else scope_id,
         values=values,
         sources=cast("dict[str, Any]", sources),
+        inherited={
+            key: InheritedValue(value=value, source=cast("Any", above_sources[key]))
+            for key, value in above.items()
+        },
     )
 
 

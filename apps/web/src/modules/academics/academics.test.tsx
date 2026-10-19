@@ -84,7 +84,7 @@ function mount(path: string) {
       </QueryClientProvider>
     </ModuleRegistry>,
   )
-  return { router, ...view }
+  return { router, queryClient, ...view }
 }
 
 test('/ opens the remembered Program, else the first one', async () => {
@@ -409,8 +409,51 @@ test('old settings links open the dialog over the scope page', async () => {
   expect(router.state.location.search).toEqual({ settings: 'course/general' })
 })
 
-test('a settings level that does not exist on the page opens nothing', async () => {
+test('a level the page does not have opens on the current term, with the course still to pick', async () => {
   mount('/p/p1?settings=term/general')
-  await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  const dialog = await screen.findByRole('dialog', { name: 'Winter 2026' })
+  const path = within(dialog).getByRole('list', { name: 'Settings level' })
+  expect(within(path).getByRole('button', { name: /Term\s*Winter 2026/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  expect(within(path).getByRole('button', { name: /Course\s*Choose a course/ })).toBeInTheDocument()
+})
+
+test('the level path switches levels and courses in the same dialog, with the scope in the URL', async () => {
+  const { router } = mount('/p/p1/c/c1?settings=course/general')
+  const dialog = await screen.findByRole('dialog', { name: /APS105H1/ })
+  const path = within(dialog).getByRole('list', { name: 'Settings level' })
+
+  await userEvent.click(within(path).getByRole('button', { name: /Program/ }))
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'program/general', scope: 'p1' }),
+  )
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1')
+
+  await userEvent.click(within(path).getByLabelText('Switch course'))
+  await userEvent.click(await screen.findByRole('option', { name: /MAT188H1/ }))
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'course/general', scope: 'c2' }),
+  )
+  expect(await screen.findByRole('dialog', { name: /MAT188H1/ })).toBeInTheDocument()
+})
+
+test('a course deleted while the dialog shows it falls back to its term and leaves the URL', async () => {
+  const { router, queryClient } = mount('/p/p1/c/c1?settings=course/general&scope=c2')
+  expect(await screen.findByRole('dialog', { name: /MAT188H1/ })).toBeInTheDocument()
+
+  // As the course's danger zone does: delete it, then refresh the academic queries.
+  world.courses = world.courses.filter((c) => c.id !== 'c2')
+  await act(() => queryClient.invalidateQueries())
+  expect(await screen.findByRole('dialog', { name: 'Winter 2026' })).toBeInTheDocument()
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'term/general', scope: 't2' }),
+  )
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1')
+})
+
+test('a link with a scope opens that course from any page', async () => {
+  mount('/p/p1?settings=course/general&scope=c3')
+  expect(await screen.findByRole('dialog', { name: /ESC180Y1/ })).toBeInTheDocument()
 })

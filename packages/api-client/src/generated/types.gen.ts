@@ -4584,6 +4584,24 @@ export type ImportTarget = {
 };
 
 /**
+ * InheritedValue
+ */
+export type InheritedValue = {
+    /**
+     * Value
+     *
+     * The value the field would have without this level's own one
+     */
+    value: unknown;
+    /**
+     * Source
+     *
+     * Where that value comes from
+     */
+    source: 'default' | 'account' | 'program' | 'term' | 'course';
+};
+
+/**
  * Instructor
  */
 export type Instructor = {
@@ -7124,6 +7142,14 @@ export type ResolvedSettings = {
      */
     sources: {
         [key: string]: 'default' | 'account' | 'program' | 'term' | 'course';
+    };
+    /**
+     * Inherited
+     *
+     * What every field resolves to from the levels above, ignoring this level's own values: what 'follow' shows and what a reset brings back
+     */
+    inherited: {
+        [key: string]: InheritedValue;
     };
 };
 

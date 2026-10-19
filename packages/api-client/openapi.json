@@ -20194,6 +20194,32 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "ImportTarget"
       },
+      "InheritedValue": {
+        "properties": {
+          "value": {
+            "title": "Value",
+            "description": "The value the field would have without this level's own one"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "account",
+              "program",
+              "term",
+              "course"
+            ],
+            "title": "Source",
+            "description": "Where that value comes from"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "source"
+        ],
+        "title": "InheritedValue"
+      },
       "Instructor": {
         "properties": {
           "name": {
@@ -24803,6 +24829,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "object",
             "title": "Sources",
             "description": "Where each effective value comes from"
+          },
+          "inherited": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InheritedValue"
+            },
+            "type": "object",
+            "title": "Inherited",
+            "description": "What every field resolves to from the levels above, ignoring this level's own values: what 'follow' shows and what a reset brings back"
           }
         },
         "type": "object",
@@ -24811,7 +24845,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "scope_type",
           "scope_id",
           "values",
-          "sources"
+          "sources",
+          "inherited"
         ],
         "title": "ResolvedSettings"
       },

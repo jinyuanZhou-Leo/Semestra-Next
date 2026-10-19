@@ -106,6 +106,21 @@ async def test_reset_restores_the_inherited_value(
     assert r.status_code == 200
 
 
+async def test_inherited_ignores_the_level_s_own_value(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+):
+    await signed_in(client, make_user, login_as)
+    await patch(client, ("account", None), {"default_view": "month"})
+    # The same value as above, set here: still this level's own, still reported as inherited.
+    await patch(client, ("term", "T1"), {"default_view": "month", "start_hour": 6})
+    body = await get(client, ("term", "T1"))
+    assert body["sources"]["default_view"] == "term"
+    assert body["inherited"]["default_view"] == {"value": "month", "source": "account"}
+    assert body["inherited"]["start_hour"]["source"] == "default"
+    account = await get(client)
+    assert account["inherited"]["default_view"]["source"] == "default"
+
+
 async def test_reset_only_removes_the_given_key(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs, app: FastAPI
 ):

@@ -26,6 +26,7 @@ export function useTerms(programId: string) {
   return useQuery({
     ...academicsTermListOptions({ path: { program_id: programId } }),
     staleTime: STALE,
+    enabled: programId !== '',
   })
 }
 
@@ -37,6 +38,7 @@ export function useCourses(programId: string, termId?: string) {
       query: { limit: 500, ...(termId ? { term_id: termId } : {}) },
     }),
     staleTime: STALE,
+    enabled: programId !== '',
   })
 }
 

@@ -47,13 +47,23 @@ class PreferencesUpdateInput(BaseModel):
     )
 
 
+Source = Literal["default", "account", "program", "term", "course"]
+
+
+class InheritedValue(BaseModel):
+    value: Any = Field(description="The value the field would have without this level's own one")
+    source: Source = Field(description="Where that value comes from")
+
+
 class ResolvedSettings(BaseModel):
     namespace: str
     scope_type: Level
     scope_id: str | None
     values: dict[str, Any] = Field(description="Effective value of every field")
-    sources: dict[str, Literal["default", "account", "program", "term", "course"]] = Field(
-        description="Where each effective value comes from"
+    sources: dict[str, Source] = Field(description="Where each effective value comes from")
+    inherited: dict[str, InheritedValue] = Field(
+        description="What every field resolves to from the levels above, ignoring this level's "
+        "own values: what 'follow' shows and what a reset brings back"
     )
 
 
