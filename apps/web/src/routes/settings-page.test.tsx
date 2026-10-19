@@ -154,3 +154,25 @@ test('a link to a section that moved to another group still opens that section',
   expect(await screen.findByRole('heading', { name: 'Devices' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Profile' })).not.toBeInTheDocument()
 })
+
+test('old links to the single AI page open the AI page that now holds the section', async () => {
+  mount('/?settings=account/ai')
+  const nav = await screen.findByRole('navigation', { name: 'Settings' })
+  expect(within(nav).getByRole('button', { name: 'Providers' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(within(nav).getByRole('button', { name: 'Assistant permissions' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'AI providers' })).toBeInTheDocument()
+})
+
+test('an old AI link with a section lands on the page holding it', async () => {
+  mount('/?settings=account/ai#assistant-mcp')
+  const nav = await screen.findByRole('navigation', { name: 'Settings' })
+  expect(within(nav).getByRole('button', { name: 'MCP and tools' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(await screen.findByRole('heading', { name: 'MCP' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'AI providers' })).not.toBeInTheDocument()
+})

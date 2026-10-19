@@ -629,7 +629,7 @@ test('MCP setups carry the address and the token', () => {
   expect(mcpConfig('claude-desktop', url, 'spat_x')).toContain('mcp-remote')
 })
 
-test('auto-approve lists write tools by module and saves the choice', async () => {
+test('assistant permissions group tools by effect, with a master switch for changes', async () => {
   const patches: unknown[] = []
   server.use(
     http.get(`${API}/agent/tools`, () =>
@@ -678,10 +678,26 @@ test('auto-approve lists write tools by module and saves the choice', async () =
     }),
   )
   renderWithRouter(<ApprovalsSection />)
-  const update = await screen.findByRole('checkbox', { name: 'Update an assessment' })
-  expect(screen.queryByRole('checkbox', { name: 'Delete an assessment' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('checkbox', { name: /List/ })).not.toBeInTheDocument()
+  // Tools are grouped by effect; only changes have switches, and the lists start folded.
+  const all = await screen.findByRole('switch', { name: 'Auto-approve all changes' })
+  expect(all).not.toBeChecked()
+  expect(screen.getByText('0/1 auto-approved')).toBeInTheDocument()
+  expect(screen.getByText('No confirmation')).toBeInTheDocument()
+  expect(screen.getByText('Always asks')).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'Update an assessment' })).not.toBeInTheDocument()
+
+  const [, changeTools, deleteTools] = screen.getAllByRole('button', { name: /^1 tools/ })
+  await userEvent.click(deleteTools!)
+  expect(await screen.findByText('Delete an assessment')).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'Delete an assessment' })).not.toBeInTheDocument()
+
+  await userEvent.click(changeTools!)
+  const update = await screen.findByRole('switch', { name: 'Update an assessment' })
   await userEvent.click(update)
   await waitFor(() => expect(patches).toEqual([{ auto_approve: ['grading.assessment.update'] }]))
   expect(update).toBeChecked()
+  // Every change of the group is on, so the master switch is too.
+  await waitFor(() => expect(all).toBeChecked())
+  await userEvent.click(all)
+  await waitFor(() => expect(patches.at(-1)).toEqual({ auto_approve: [] }))
 })

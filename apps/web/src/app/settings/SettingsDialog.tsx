@@ -5,17 +5,21 @@ import {
 } from '@semestra/api-client/react-query'
 import { useLocation, useRouterState } from '@tanstack/react-router'
 import {
+  BarChart3,
+  Boxes,
   CalendarDays,
+  Cable,
   Database,
   GraduationCap,
   Info,
+  KeyRound,
+  ListChecks,
   type LucideIcon,
   Palette,
   Plug,
   Puzzle,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   UserRound,
   Wrench,
 } from 'lucide-react'
@@ -32,7 +36,7 @@ import {
 } from '@/ui/breadcrumb'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/ui/dialog'
 import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@/ui/native-select'
 import {
   Sidebar,
   SidebarContent,
@@ -47,7 +51,13 @@ import {
 import { useHostAction } from '../commands'
 import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
 import { useSettingsSections } from '../registry'
-import { CLUSTER_TITLES, GROUP_TITLES, buildNavigation, clusterNavigation } from './groups'
+import {
+  CLUSTER_TITLES,
+  GROUP_ALIASES,
+  GROUP_TITLES,
+  buildNavigation,
+  clusterNavigation,
+} from './groups'
 import { SettingsSections } from './SettingsSections'
 import { useSettingsDialog } from './use-settings-dialog'
 
@@ -57,7 +67,11 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   account: UserRound,
   security: ShieldCheck,
   preferences: Palette,
-  ai: Sparkles,
+  'ai-providers': KeyRound,
+  'ai-models': Boxes,
+  'ai-usage': BarChart3,
+  'ai-permissions': ListChecks,
+  'ai-mcp': Cable,
   calendar: CalendarDays,
   features: Wrench,
   integrations: Plug,
@@ -150,11 +164,13 @@ function SettingsBody({
   const groups = buildNavigation(sections, level)
   const runs = clusterNavigation(groups, level)
   const hash = useLocation({ select: (location) => location.hash })
+  // Old links name a group that was split (`account/ai`): they open the page that replaced it.
+  const wanted = groupId ? (GROUP_ALIASES[groupId] ?? groupId) : undefined
   // A link to a section that has since moved to another group still lands on that section.
   const current =
-    groups.find((g) => g.id === groupId && g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.id === wanted && g.sections.some((s) => s.id === hash)) ??
     groups.find((g) => g.sections.some((s) => s.id === hash)) ??
-    groups.find((g) => g.id === groupId) ??
+    groups.find((g) => g.id === wanted) ??
     groups[0]
   const title = name ?? m.settings_title()
 
@@ -226,11 +242,20 @@ function SettingsBody({
                 value={current.id}
                 onChange={(event) => select(event.target.value)}
               >
-                {groups.map((group) => (
-                  <NativeSelectOption key={group.id} value={group.id}>
-                    {GROUP_TITLES[group.id]()}
-                  </NativeSelectOption>
-                ))}
+                {runs.map((run) => {
+                  const options = run.groups.map((group) => (
+                    <NativeSelectOption key={group.id} value={group.id}>
+                      {GROUP_TITLES[group.id]()}
+                    </NativeSelectOption>
+                  ))
+                  return run.cluster ? (
+                    <NativeSelectOptGroup key={run.cluster} label={CLUSTER_TITLES[run.cluster]()}>
+                      {options}
+                    </NativeSelectOptGroup>
+                  ) : (
+                    options
+                  )
+                })}
               </NativeSelect>
             ) : null}
           </header>
