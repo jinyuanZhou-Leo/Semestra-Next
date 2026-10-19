@@ -22,6 +22,7 @@ import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
 import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
+import tasks from '@/modules/tasks/manifest'
 import type {
   BoardKind,
   CalendarSourceContribution,
@@ -48,6 +49,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   plugins,
   schedule,
   imports,
+  tasks,
   habitStreak,
   pomodoro,
   stickyNote,
