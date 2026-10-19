@@ -1,7 +1,7 @@
 """portability archives
 
-Revision ID: 0013
-Revises: 0012
+Revision ID: 0014
+Revises: 0013
 Create Date: 2026-10-19 08:36:47.093861
 
 """
@@ -13,8 +13,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = '0013'
-down_revision: str | Sequence[str] | None = '0012'
+revision: str = '0014'
+down_revision: str | Sequence[str] | None = '0013'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

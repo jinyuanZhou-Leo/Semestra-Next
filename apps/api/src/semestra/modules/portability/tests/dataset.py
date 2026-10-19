@@ -35,6 +35,13 @@ from semestra.modules.layouts.models import (
     LayoutsNav,
     LayoutsTemplate,
 )
+from semestra.modules.lms.models import (
+    LmsCache,
+    LmsConnection,
+    LmsCourseLink,
+    LmsImportedRef,
+    LmsProgramBinding,
+)
 from semestra.modules.plugins.models import PluginsDefaultOffer, PluginsInstallation
 from semestra.modules.plugins_builtin.habit_streak.models import HabitCheckin
 from semestra.modules.plugins_builtin.pomodoro.models import PomodoroSession
@@ -50,6 +57,7 @@ from semestra.modules.tasks.models import TasksItem, TasksList
 
 SECRET_KEY = "sk-very-secret-key-123"
 FEED_TOKEN_HASH = "feed-token-hash-xyz"
+LMS_CREDENTIALS = "v1:sealed-canvas-token-xyz"
 NOW = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
 
 
@@ -112,7 +120,16 @@ async def populate(
         target={"program_id": program.id},
         status="review",
     )
-    db.add_all([category, meeting, card, provider, task_list, folder, import_session])
+    connection = LmsConnection(
+        **u,
+        provider="canvas",
+        display_name="Quercus",
+        config_json={"base_url": "https://q.example.edu"},
+        credentials_encrypted=LMS_CREDENTIALS,
+        credentials_hint_json={"token": "…xyz"},
+        account_name="Alice",
+    )
+    db.add_all([category, meeting, card, provider, task_list, folder, import_session, connection])
     await db.flush()
     # A link: a stored file needs storage, see `test_course_files_travel_with_their_contents`.
     link = FilesItem(
@@ -123,7 +140,21 @@ async def populate(
         display_name="Syllabus",
         url="https://example.com/syllabus",
     )
-    db.add(link)
+    course_link = LmsCourseLink(
+        **u,
+        course_id=course.id,
+        program_id=program.id,
+        connection_id=connection.id,
+        external_course_id="101",
+        external_code="APS100",
+    )
+    db.add_all(
+        [
+            link,
+            course_link,
+            LmsProgramBinding(**u, program_id=program.id, connection_id=connection.id),
+        ]
+    )
     await db.flush()
     # Derived rows: purged with the account, never exported.
     document = FilesDocument(**u, item_id=link.id, parser_fingerprint="html-1", created_at=NOW)
@@ -230,6 +261,23 @@ async def populate(
                 size_bytes=10,
                 sha256="0" * 64,
                 created_at=NOW,
+            ),
+            LmsImportedRef(
+                **u,
+                link_id=course_link.id,
+                external_kind="assignment",
+                external_id="9001",
+                target_kind="assessment",
+                target_id=assessment_id,
+                snapshot={"title": "Midterm"},
+                imported_at=NOW,
+            ),
+            LmsCache(
+                **u,
+                key=f"{connection.id}:courses",
+                connection_id=connection.id,
+                payload=[],
+                expires_at=NOW,
             ),
             TasksItem(
                 **u,

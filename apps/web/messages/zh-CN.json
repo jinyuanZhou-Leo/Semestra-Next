@@ -2053,6 +2053,7 @@
   "portability_entity_ai_providers": "AI 服务商",
   "portability_entity_tasks_items": "待办",
   "portability_entity_files_items": "课程文件",
+  "portability_entity_lms_connections": "LMS 连接",
   "portability_delete_title": "删除账户",
   "portability_delete_desc": "永久删除你的账户及其全部数据。",
   "portability_delete_dialog_title": "删除你的账户？",

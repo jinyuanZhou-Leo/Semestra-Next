@@ -2053,6 +2053,7 @@
   "portability_entity_ai_providers": "AI service providers",
   "portability_entity_tasks_items": "Tasks",
   "portability_entity_files_items": "Course files",
+  "portability_entity_lms_connections": "LMS connections",
   "portability_delete_title": "Delete account",
   "portability_delete_desc": "Permanently delete your account and all of its data.",
   "portability_delete_dialog_title": "Delete your account?",

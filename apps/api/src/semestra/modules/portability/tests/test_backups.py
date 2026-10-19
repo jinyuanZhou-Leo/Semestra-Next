@@ -24,9 +24,15 @@ from semestra.modules.auth.models import AuthUser
 from semestra.modules.files import service as files_service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.grading.models import GradingAssessment
+from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsImportedRef
 from semestra.modules.portability import registry
 from semestra.modules.portability.registry import Adapter, ImportReport
-from semestra.modules.portability.tests.dataset import FEED_TOKEN_HASH, SECRET_KEY, populate
+from semestra.modules.portability.tests.dataset import (
+    FEED_TOKEN_HASH,
+    LMS_CREDENTIALS,
+    SECRET_KEY,
+    populate,
+)
 from semestra.modules.settings.models import SettingsPreferences
 from semestra.modules.tasks.models import TasksItem
 from semestra.testing import TEST_ORIGIN, Clock, MakeUser, UserHandle
@@ -147,7 +153,7 @@ async def test_round_trip_into_another_account(
     assert manifest["counts"]["academics.programs"] == 1
     assert {"academics", "grading", "schedule", "plugins_builtin"} <= set(manifest["modules"])
     # No secrets in the backup.
-    for secret in (SECRET_KEY, FEED_TOKEN_HASH, "key_hint", "token_hash"):
+    for secret in (SECRET_KEY, FEED_TOKEN_HASH, LMS_CREDENTIALS, "key_hint", "token_hash", "…xyz"):
         assert secret.encode() not in blob
 
     bob = await make_user(email="bob@example.com")
@@ -204,6 +210,18 @@ async def test_round_trip_into_another_account(
         )
         task_ref = await db.scalar(select(TasksItem.source_ref).where(TasksItem.user_id == bob.id))
         assert task_ref == assessment
+        # The LMS connection comes without its token; the link and import record follow the ids.
+        lms = await db.scalar(select(LmsConnection).where(LmsConnection.user_id == bob.id))
+        assert lms is not None
+        assert lms.credentials_encrypted is None
+        assert lms.last_error_code == "lms.credentials_missing"
+        course_link = await db.scalar(select(LmsCourseLink).where(LmsCourseLink.user_id == bob.id))
+        assert course_link is not None
+        assert course_link.program_id == program.id
+        ref = await db.scalar(
+            select(LmsImportedRef.target_id).where(LmsImportedRef.user_id == bob.id)
+        )
+        assert ref == assessment
 
 
 async def test_merge_into_the_same_account_renames_and_selects_programs(

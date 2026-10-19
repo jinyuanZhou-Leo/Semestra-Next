@@ -441,6 +441,13 @@
       "default_board": {}
     },
     {
+      "id": "portability",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
       "id": "habit-streak",
       "kind": "plugin",
       "pages": [],
