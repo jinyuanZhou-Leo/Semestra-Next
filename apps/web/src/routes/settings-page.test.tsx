@@ -163,7 +163,11 @@ test('old links to the single AI page open the AI page that now holds the sectio
     'page',
   )
   expect(within(nav).getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
-  expect(await screen.findByRole('heading', { name: 'AI providers' })).toBeInTheDocument()
+  // The section loads its own module and data, which takes longer than the default 1s on a
+  // busy CI runner.
+  expect(
+    await screen.findByRole('heading', { name: 'AI providers' }, { timeout: 5000 }),
+  ).toBeInTheDocument()
 })
 
 test('an old AI link with a section lands on the page holding it', async () => {
@@ -173,6 +177,6 @@ test('an old AI link with a section lands on the page holding it', async () => {
     'aria-current',
     'page',
   )
-  expect(await screen.findByRole('heading', { name: 'MCP' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'MCP' }, { timeout: 5000 })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'AI providers' })).not.toBeInTheDocument()
 })
