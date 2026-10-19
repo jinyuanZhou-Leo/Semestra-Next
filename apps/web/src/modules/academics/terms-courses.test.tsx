@@ -1,9 +1,12 @@
+import type { Course } from '@semestra/api-client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Percent } from 'lucide-react'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { defineModule } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
@@ -11,6 +14,7 @@ import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, server, user } from '@/test-utils'
 import academics from './manifest'
 import { type World, academicsHandlers, defaultWorld } from './test-data'
+import { COURSE_COLUMNS, type CourseColumn } from './types'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -44,7 +48,7 @@ beforeEach(() => {
   )
 })
 
-function mount(path: string) {
+function mount(path: string, extra: ReturnType<typeof defineModule>[] = []) {
   const queryClient = newQueryClient()
   const router = createRouter({
     routeTree,
@@ -52,7 +56,7 @@ function mount(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   render(
-    <ModuleRegistry value={[auth, settings, academics]}>
+    <ModuleRegistry value={[auth, settings, academics, ...extra]}>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
@@ -119,25 +123,91 @@ test('a term can be made the current one, and follows the calendar again', async
   expect(within(pane).queryByText('Now')).not.toBeInTheDocument()
 })
 
-test('selecting rows swaps the filters for the batch actions in the same place', async () => {
+test('selecting rows puts the batch actions in place of the filters, keeping the search box', async () => {
   mount('/p/p1/academics?tab=courses')
   await screen.findByRole('searchbox', { name: 'Search courses' })
   await settle()
   const searchBox = screen.getByRole('searchbox', { name: 'Search courses' })
-  const filters = searchBox.closest('[class*="row-start-1"]')!
+  const filters = screen.getByRole('combobox', { name: 'Subject' }).parentElement!
   const toolbar = screen.getByRole('toolbar', { hidden: true })
-  // Both live in one grid cell, so the table below never moves.
+  // Both live in one grid cell, so the row keeps its height and the table never moves.
   expect(filters.parentElement).toBe(toolbar.parentElement)
+  expect(within(filters).getByRole('combobox', { name: 'Term' })).toBeInTheDocument()
   expect(toolbar).toHaveAttribute('inert')
 
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select APS105H1' }))
   await waitFor(() => expect(toolbar).not.toHaveAttribute('inert'))
   expect(filters).toHaveAttribute('inert')
   expect(within(toolbar).getByText('1 selected')).toBeInTheDocument()
+  expect(within(toolbar).getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  // The search box is not part of the swap.
+  expect(searchBox.closest('[inert]')).toBeNull()
 
   await userEvent.click(within(toolbar).getByRole('button', { name: 'Clear selection' }))
   await waitFor(() => expect(toolbar).toHaveAttribute('inert'))
   expect(filters).not.toHaveAttribute('inert')
+
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select MAT188H1' }))
+  await waitFor(() => expect(toolbar).not.toHaveAttribute('inert'))
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(toolbar).toHaveAttribute('inert'))
+  expect(screen.getByRole('checkbox', { name: 'Select MAT188H1' })).not.toBeChecked()
+})
+
+test('batch delete asks first, then deletes the selected courses', async () => {
+  const deleted: string[] = []
+  server.use(
+    http.delete(`${API}/courses/:id`, ({ params }) => {
+      deleted.push(String(params.id))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  mount('/p/p1/academics?tab=courses')
+  await screen.findByRole('searchbox', { name: 'Search courses' })
+  await settle()
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select APS105H1' }))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select MAT188H1' }))
+  const toolbar = screen.getByRole('toolbar')
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Delete' }))
+  const dialog = await screen.findByRole('alertdialog', { name: 'Delete 2 courses?' })
+  expect(deleted).toEqual([])
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+  await waitFor(() => expect(deleted.toSorted()).toEqual(['c1', 'c2']))
+})
+
+test('each column that contributes filters gets its own dropdown', async () => {
+  const gpa = defineModule({
+    id: 'fake-gpa',
+    kind: 'core',
+    name: () => 'Fake GPA',
+    description: () => '',
+    icon: Percent,
+    extensions: {
+      [COURSE_COLUMNS]: [
+        {
+          id: 'fake.gpa',
+          header: () => 'GPA',
+          cell: () => null,
+          filter: [
+            { id: 'fake.high', label: () => 'GPA ≥ 3.5', test: (c: Course) => c.id === 'c1' },
+            { id: 'fake.hidden', label: () => 'Hidden', test: () => true, available: () => false },
+          ],
+        },
+      ] satisfies CourseColumn[],
+    },
+  })
+  mount('/p/p1/academics?tab=courses', [gpa])
+  await screen.findByRole('link', { name: 'Linear Algebra' })
+  await settle()
+  const dropdown = screen.getByRole('combobox', { name: 'GPA' })
+  expect(dropdown).toHaveTextContent('Any GPA')
+  await userEvent.click(dropdown)
+  expect(screen.queryByRole('option', { name: 'Hidden' })).not.toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('option', { name: 'GPA ≥ 3.5' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('link', { name: 'Linear Algebra' })).not.toBeInTheDocument(),
+  )
+  expect(screen.getByRole('link', { name: 'Computer Fundamentals' })).toBeInTheDocument()
 })
 
 test('a course can be pinned from the table', async () => {

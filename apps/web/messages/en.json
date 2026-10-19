@@ -483,6 +483,7 @@
   "academics_desktop_only_description": "This page needs a larger screen. On a phone, Today and the course list are available from the menu.",
   "academics_filter_all_subjects": "All subjects",
   "academics_filter_all_terms": "All terms",
+  "academics_filter_any_column": "Any {column}",
   "academics_filter_subject": "Subject",
   "academics_filter_term": "Term",
   "academics_instructor_add": "Add instructor",

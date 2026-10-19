@@ -14,7 +14,17 @@ import {
 } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, BookOpen, Pin, PinOff, Search, SearchX, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  ChevronDown,
+  Pin,
+  PinOff,
+  Search,
+  SearchX,
+  X,
+} from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
@@ -42,6 +52,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Input } from '@/ui/input'
+import { Kbd } from '@/ui/kbd'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
@@ -202,6 +213,16 @@ function PinCell({ row }: CellProps) {
 
 const ALL = '__all__'
 
+/**
+ * The pin column sticks to the right edge, so it needs an opaque background that matches what
+ * it covers: the header's and a hovered row's `bg-muted/50` over the page background (blended
+ * in sRGB, like the browser composites). Written out in full so Tailwind sees the class names.
+ */
+const STICKY_END_HEAD =
+  'sticky right-0 bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))]'
+const STICKY_END_CELL =
+  'sticky right-0 bg-background [tr:hover>&]:bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))]'
+
 /** One after the other, stopping at the first failure. */
 async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
   for (const id of ids) await action(id)
@@ -238,7 +259,8 @@ export function CoursesTable({
   const { isPinned, toggle: togglePin } = usePins(programId)
   const [subjectFilter, setSubjectFilter] = useState(ALL)
   const [search, setSearch] = useState('')
-  const [quick, setQuick] = useState<string[]>([])
+  /** The chosen option of each column's filter dropdown, by column id. */
+  const [columnFilters, setColumnFilters] = useState<Readonly<Record<string, string>>>({})
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -251,9 +273,15 @@ export function CoursesTable({
     return course.term_ids.length > 1 ? `${first} – ${last}` : first
   }
   const subjects = [...new Set(inScope.map((c) => c.subject_code).filter(Boolean))].toSorted()
-  const quickFilters = extensions
-    .flatMap((col) => (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })))
-    .filter((f) => f.available?.(f.data) ?? true)
+  // One dropdown per column that contributes filters; options that say they are unavailable
+  // (e.g. GPA thresholds while GPA is hidden) are neither offered nor applied.
+  const filterGroups = extensions
+    .map((col) => {
+      const data = columnData.get(col.id)
+      const options = (col.filter ?? []).filter((f) => f.available?.(data) ?? true)
+      return { id: col.id, label: col.header(), data, options }
+    })
+    .filter((group) => group.options.length > 0)
   const needle = search.trim().toLowerCase().replaceAll(/\s+/g, '')
 
   const visible = inScope.filter((course) => {
@@ -265,11 +293,15 @@ export function CoursesTable({
         .join('\n')
       if (!haystack.includes(needle)) return false
     }
-    return quickFilters.every((f) => !quick.includes(f.id) || f.test(course, f.data))
+    return filterGroups.every((group) => {
+      const option = group.options.find((f) => f.id === columnFilters[group.id])
+      return !option || option.test(course, group.data)
+    })
   })
   const visibleIds = visible.map((c) => c.id)
   const selectedVisible = visibleIds.filter((id) => selected.has(id))
   const allSelected = visible.length > 0 && selectedVisible.length === visible.length
+  const selecting = selectedVisible.length > 0
 
   const toggleRow = (id: string, on: boolean) => {
     const next = new Set(selected)
@@ -281,7 +313,7 @@ export function CoursesTable({
     programId,
     selected,
     allSelected,
-    someSelected: selectedVisible.length > 0,
+    someSelected: selecting,
     selectAll: (on) => setSelected(on ? new Set(visibleIds) : new Set()),
     toggleRow,
     isPinned,
@@ -376,7 +408,7 @@ export function CoursesTable({
     )
 
   const clearSelection = () => setSelected(new Set())
-  useHotkey('escape', clearSelection, { enabled: selectedVisible.length > 0 && !deleting })
+  useHotkey('escape', clearSelection, { enabled: selecting && !deleting })
 
   if (lockTerm && inScope.length === 0) {
     return (
@@ -400,121 +432,133 @@ export function CoursesTable({
   return (
     <TableContext value={tableState}>
       <div className="space-y-3">
-        {/* The filters and the batch actions share one cell, so selecting rows never moves the table. */}
-        <div className="grid">
-          <div
-            inert={selectedVisible.length > 0}
-            className={cn(
-              'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center gap-2',
-              selectedVisible.length > 0 && 'invisible',
-            )}
-          >
-            <div className="relative">
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                type="search"
-                aria-label={m.academics_courses_search()}
-                placeholder={m.academics_courses_search()}
-                className="w-64 pl-9"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-            {lockTerm ? null : (
-              <FilterSelect
-                label={m.academics_filter_term()}
-                value={termFilter}
-                onChange={(next) => onTermChange?.(next === ALL ? undefined : next)}
-                options={terms.map((t) => ({ value: t.id, label: t.name }))}
-                allLabel={m.academics_filter_all_terms()}
-              />
-            )}
-            <FilterSelect
-              label={m.academics_filter_subject()}
-              value={subjectFilter}
-              onChange={setSubjectFilter}
-              options={subjects.map((s) => ({ value: s, label: s }))}
-              allLabel={m.academics_filter_all_subjects()}
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="relative">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
             />
-            {quickFilters.map((filter) => {
-              const on = quick.includes(filter.id)
-              return (
-                <Button
-                  key={filter.id}
-                  size="sm"
-                  variant={on ? 'default' : 'outline'}
-                  aria-pressed={on}
-                  onClick={() =>
-                    setQuick(on ? quick.filter((id) => id !== filter.id) : [...quick, filter.id])
+            <Input
+              type="search"
+              aria-label={m.academics_courses_search()}
+              placeholder={m.academics_courses_search()}
+              className="w-64 pl-9"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          {/*
+            While rows are selected the batch actions take the filters' place on the right. Both
+            sit in one grid cell, so the row keeps its height and the table never moves; the
+            hidden one is `inert`. The search box stays as it is.
+          */}
+          <div className="ml-auto grid min-w-0">
+            <div
+              inert={selecting}
+              className={cn(
+                'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center justify-end gap-2',
+                selecting && 'invisible',
+              )}
+            >
+              {lockTerm ? null : (
+                <FilterSelect
+                  label={m.academics_filter_term()}
+                  value={termFilter}
+                  onChange={(next) => onTermChange?.(next === ALL ? undefined : next)}
+                  options={terms.map((t) => ({ value: t.id, label: t.name }))}
+                  allLabel={m.academics_filter_all_terms()}
+                />
+              )}
+              <FilterSelect
+                label={m.academics_filter_subject()}
+                value={subjectFilter}
+                onChange={setSubjectFilter}
+                options={subjects.map((s) => ({ value: s, label: s }))}
+                allLabel={m.academics_filter_all_subjects()}
+              />
+              {filterGroups.map((group) => (
+                <FilterSelect
+                  key={group.id}
+                  label={group.label}
+                  value={columnFilters[group.id] ?? ALL}
+                  onChange={(next) => setColumnFilters({ ...columnFilters, [group.id]: next })}
+                  options={group.options.map((f) => ({ value: f.id, label: f.label() }))}
+                  allLabel={m.academics_filter_any_column({ column: group.label })}
+                />
+              ))}
+            </div>
+            <div
+              role="toolbar"
+              aria-label={m.academics_batch_actions()}
+              inert={!selecting}
+              className={cn(
+                'col-start-1 row-start-1 flex min-h-9 items-center justify-end gap-2 self-start text-sm whitespace-nowrap',
+                !selecting && 'invisible',
+              )}
+            >
+              <span className="mr-1 tabular-nums">
+                {m.academics_selected_count({ count: selectedVisible.length })}
+              </span>
+              <CreditsPopover
+                disabled={busy}
+                onApply={(credits) =>
+                  runBatch((id) =>
+                    update.mutateAsync({ path: { course_id: id }, body: { credits } }),
+                  )
+                }
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button size="sm" variant="outline" disabled={busy} />}
+                >
+                  {m.academics_course_in_gpa()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => void setGpa(true)}>
+                    {m.academics_batch_include_gpa()}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void setGpa(false)}>
+                    {m.academics_batch_exclude_gpa()}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => setDeleting(true)}
+              >
+                {m.academics_batch_delete()}
+              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={m.academics_clear_selection()}
+                      onClick={clearSelection}
+                    />
                   }
                 >
-                  {filter.label()}
-                </Button>
-              )
-            })}
-          </div>
-
-          <div
-            role="toolbar"
-            aria-label={m.academics_batch_actions()}
-            inert={selectedVisible.length === 0}
-            className={cn(
-              'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center gap-2 text-sm',
-              selectedVisible.length === 0 && 'invisible',
-            )}
-          >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={m.academics_clear_selection()}
-                    onClick={clearSelection}
-                  />
-                }
-              >
-                <X aria-hidden />
-              </TooltipTrigger>
-              <TooltipContent>{m.academics_clear_selection()}</TooltipContent>
-            </Tooltip>
-            <span className="mr-2">
-              {m.academics_selected_count({ count: selectedVisible.length })}
-            </span>
-            <CreditsPopover
-              disabled={busy}
-              onApply={(credits) =>
-                runBatch((id) => update.mutateAsync({ path: { course_id: id }, body: { credits } }))
-              }
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button size="sm" variant="outline" disabled={busy} />}>
-                {m.academics_course_in_gpa()}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => void setGpa(true)}>
-                  {m.academics_batch_include_gpa()}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void setGpa(false)}>
-                  {m.academics_batch_exclude_gpa()}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={busy}
-              onClick={() => setDeleting(true)}
-            >
-              {m.academics_batch_delete()}
-            </Button>
+                  <X aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {m.academics_clear_selection()}
+                  <Kbd>Esc</Kbd>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-border">
+        {/*
+          The rounded box only clips; the table scrolls inside it (the `Table` container). When
+          the columns do not fit, the pin column stays at the right edge so a row still visibly
+          ends at the border instead of being cut off mid-cell.
+        */}
+        <div className="overflow-hidden rounded-2xl border border-border">
           <Table>
             <TableHeader className="bg-muted/50">
               {table.getHeaderGroups().map((group) => (
@@ -536,6 +580,7 @@ export function CoursesTable({
                         className={cn(
                           'h-auto py-2 text-muted-foreground',
                           h.column.id === 'select' && 'w-10',
+                          h.column.id === 'pin' && STICKY_END_HEAD,
                         )}
                       >
                         {canSort ? (
@@ -576,7 +621,13 @@ export function CoursesTable({
                   {row.getAllCells().map((cell) => (
                     // The row's click is a mouse shortcut; the title link is the accessible way in.
                     // oxlint-disable-next-line jsx-a11y/control-has-associated-label
-                    <TableCell key={cell.id} className="py-2 whitespace-normal">
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        'py-2 whitespace-normal',
+                        cell.column.id === 'pin' && STICKY_END_CELL,
+                      )}
+                    >
                       <table.FlexRender cell={cell} />
                     </TableCell>
                   ))}
@@ -599,7 +650,7 @@ export function CoursesTable({
                     if (!lockTerm) onTermChange?.(undefined)
                     setSubjectFilter(ALL)
                     setSearch('')
-                    setQuick([])
+                    setColumnFilters({})
                   }}
                 >
                   {m.common_clear_filters()}
@@ -676,7 +727,7 @@ function CreditsPopover({
       <PopoverTrigger render={<Button size="sm" variant="outline" disabled={disabled} />}>
         {m.academics_batch_set_credits()}
       </PopoverTrigger>
-      <PopoverContent className="w-56">
+      <PopoverContent align="end" className="w-56">
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {

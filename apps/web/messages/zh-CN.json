@@ -483,6 +483,7 @@
   "academics_desktop_only_description": "这个页面需要更大的屏幕。手机上可以从菜单使用“今天”和课程导航。",
   "academics_filter_all_subjects": "全部学科",
   "academics_filter_all_terms": "全部学期",
+  "academics_filter_any_column": "全部 {column}",
   "academics_filter_subject": "学科",
   "academics_filter_term": "学期",
   "academics_instructor_add": "添加教师",
