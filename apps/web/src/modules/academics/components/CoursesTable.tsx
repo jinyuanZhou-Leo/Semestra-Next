@@ -13,13 +13,12 @@ import {
 } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, BookOpen, Search, SearchX } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Pin, PinOff, Search, SearchX, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
-import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PageHeader } from '@/app/host/PageHeader'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
@@ -52,9 +51,11 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor } from '../color'
 import { coursePath } from '../paths'
-import { invalidateAcademics, useColumnData, useCourses, useTerms } from '../queries'
+import { usePins } from '../pins'
+import { invalidateAcademics, useColumnData, useTerms } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
@@ -77,53 +78,40 @@ function sortBy(value: (course: Course) => SortValue) {
 
 const ALL = '__all__'
 
-/** Every course of the Program (M02 §5.3): filters, search, sorting and batch changes. */
-export function AllCoursesPage({ programId }: { programId: string }) {
-  const courses = useCourses(programId)
-  return (
-    <>
-      <PageHeader
-        title={m.academics_nav_all_courses()}
-        subtitle={
-          courses.data ? m.academics_course_count({ count: courses.data.items.length }) : undefined
-        }
-      />
-      <div className="space-y-4 p-6">
-        <AsyncBoundary
-          query={courses}
-          isEmpty={(page) => page.items.length === 0}
-          empty={
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <BookOpen aria-hidden />
-                </EmptyMedia>
-                <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
-                <EmptyDescription>{m.academics_courses_empty_description()}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          }
-        >
-          {(page) => <CoursesTable programId={programId} courses={page.items} />}
-        </AsyncBoundary>
-      </div>
-    </>
-  )
-}
-
 /** One after the other, stopping at the first failure. */
 async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
   for (const id of ids) await action(id)
 }
 
-function CoursesTable({ programId, courses }: { programId: string; courses: Course[] }) {
+/**
+ * The Program's courses as a table (M02 §5.3): search, filters, sorting, pinning and batch changes.
+ * `termId` is the term filter, shared with the page's terms tab through the URL; with `lockTerm`
+ * the table shows that term only, without the term column and filter.
+ */
+export function CoursesTable({
+  programId,
+  courses,
+  termId,
+  onTermChange,
+  lockTerm = false,
+  onAddCourse,
+}: {
+  programId: string
+  courses: Course[]
+  termId?: string
+  onTermChange?: (termId: string | undefined) => void
+  lockTerm?: boolean
+  /** Offered by the empty state of a term without courses. */
+  onAddCourse?: () => void
+}) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const terms = useTerms(programId).data?.items ?? []
   const extensions = useExtensions<CourseColumn>(COURSE_COLUMNS)
   const columnData = useColumnData(extensions, programId)
   const [sorting, setSorting] = useUiPref<SortingState>('academics.courses_sort', [])
-  const [termFilter, setTermFilter] = useState(ALL)
+  const termFilter = termId ?? ALL
+  const { isPinned, toggle: togglePin } = usePins(programId)
   const [subjectFilter, setSubjectFilter] = useState(ALL)
   const [search, setSearch] = useState('')
   const [quick, setQuick] = useState<string[]>([])
@@ -131,20 +119,21 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  const inScope = lockTerm ? courses.filter((c) => termId && c.term_ids.includes(termId)) : courses
   const termName = (id: string) => terms.find((t) => t.id === id)?.name ?? ''
   const termSpan = (course: Course) => {
     const first = termName(course.term_ids[0] ?? '')
     const last = termName(course.end_term_id)
     return course.term_ids.length > 1 ? `${first} – ${last}` : first
   }
-  const subjects = [...new Set(courses.map((c) => c.subject_code).filter(Boolean))].toSorted()
+  const subjects = [...new Set(inScope.map((c) => c.subject_code).filter(Boolean))].toSorted()
   const quickFilters = extensions
     .flatMap((col) => (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })))
     .filter((f) => f.available?.(f.data) ?? true)
   const needle = search.trim().toLowerCase().replaceAll(/\s+/g, '')
 
-  const visible = courses.filter((course) => {
-    if (termFilter !== ALL && !course.term_ids.includes(termFilter)) return false
+  const visible = inScope.filter((course) => {
+    if (!lockTerm && termFilter !== ALL && !course.term_ids.includes(termFilter)) return false
     if (subjectFilter !== ALL && course.subject_code !== subjectFilter) return false
     if (needle) {
       const haystack = [course.code, course.alias, course.title]
@@ -232,12 +221,16 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
         <span className="tabular-nums">{formatCredits(row.original.credits)}</span>
       ),
     }),
-    column.accessor((c) => termSpan(c), {
-      id: 'terms',
-      header: header(m.academics_course_terms()),
-      sortFn: sortBy((c) => terms.findIndex((t) => t.id === c.term_ids[0])),
-      cell: ({ row }) => <span className="whitespace-nowrap">{termSpan(row.original)}</span>,
-    }),
+    ...(lockTerm
+      ? []
+      : [
+          column.accessor((c) => termSpan(c), {
+            id: 'terms',
+            header: header(m.academics_course_terms()),
+            sortFn: sortBy((c) => terms.findIndex((t) => t.id === c.term_ids[0])),
+            cell: ({ row }) => <span className="whitespace-nowrap">{termSpan(row.original)}</span>,
+          }),
+        ]),
     column.accessor((c) => c.include_in_gpa, {
       id: 'gpa',
       header: header(m.academics_course_in_gpa()),
@@ -255,6 +248,34 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
           : undefined,
       }),
     ),
+    column.display({
+      id: 'pin',
+      header: () => <span className="sr-only">{m.terms_courses_pin_column()}</span>,
+      cell: ({ row }) => {
+        const pin = { kind: 'course', id: row.original.id } as const
+        const pinned = isPinned(pin)
+        const label = pinned ? m.terms_courses_unpin() : m.terms_courses_pin()
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-pressed={pinned}
+                  aria-label={label}
+                  onClick={() => togglePin(pin)}
+                />
+              }
+            >
+              {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
+        )
+      },
+      enableSorting: false,
+    }),
   ])
 
   const table = useTable({
@@ -280,61 +301,111 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
       update.mutateAsync({ path: { course_id: id }, body: { include_in_gpa: include } }),
     )
 
+  const clearSelection = () => setSelected(new Set())
+  useHotkey('escape', clearSelection, { enabled: selectedVisible.length > 0 && !deleting })
+
+  if (lockTerm && inScope.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <BookOpen aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.terms_courses_term_empty()}</EmptyTitle>
+          <EmptyDescription>{m.terms_courses_term_empty_description()}</EmptyDescription>
+        </EmptyHeader>
+        {onAddCourse ? (
+          <EmptyContent>
+            <Button onClick={onAddCourse}>{m.academics_course_add()}</Button>
+          </EmptyContent>
+        ) : null}
+      </Empty>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+      {/* The filters and the batch actions share one cell, so selecting rows never moves the table. */}
+      <div className="grid">
+        <div
+          inert={selectedVisible.length > 0}
+          className={cn(
+            'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center gap-2',
+            selectedVisible.length > 0 && 'invisible',
+          )}
+        >
+          <div className="relative">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              aria-label={m.academics_courses_search()}
+              placeholder={m.academics_courses_search()}
+              className="w-64 pl-9"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          {lockTerm ? null : (
+            <FilterSelect
+              label={m.academics_filter_term()}
+              value={termFilter}
+              onChange={(next) => onTermChange?.(next === ALL ? undefined : next)}
+              options={terms.map((t) => ({ value: t.id, label: t.name }))}
+              allLabel={m.academics_filter_all_terms()}
+            />
+          )}
+          <FilterSelect
+            label={m.academics_filter_subject()}
+            value={subjectFilter}
+            onChange={setSubjectFilter}
+            options={subjects.map((s) => ({ value: s, label: s }))}
+            allLabel={m.academics_filter_all_subjects()}
           />
-          <Input
-            type="search"
-            aria-label={m.academics_courses_search()}
-            placeholder={m.academics_courses_search()}
-            className="w-64 pl-9"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          {quickFilters.map((filter) => {
+            const on = quick.includes(filter.id)
+            return (
+              <Button
+                key={filter.id}
+                size="sm"
+                variant={on ? 'default' : 'outline'}
+                aria-pressed={on}
+                onClick={() =>
+                  setQuick(on ? quick.filter((id) => id !== filter.id) : [...quick, filter.id])
+                }
+              >
+                {filter.label()}
+              </Button>
+            )
+          })}
         </div>
-        <FilterSelect
-          label={m.academics_filter_term()}
-          value={termFilter}
-          onChange={setTermFilter}
-          options={terms.map((t) => ({ value: t.id, label: t.name }))}
-          allLabel={m.academics_filter_all_terms()}
-        />
-        <FilterSelect
-          label={m.academics_filter_subject()}
-          value={subjectFilter}
-          onChange={setSubjectFilter}
-          options={subjects.map((s) => ({ value: s, label: s }))}
-          allLabel={m.academics_filter_all_subjects()}
-        />
-        {quickFilters.map((filter) => {
-          const on = quick.includes(filter.id)
-          return (
-            <Button
-              key={filter.id}
-              size="sm"
-              variant={on ? 'default' : 'outline'}
-              aria-pressed={on}
-              onClick={() =>
-                setQuick(on ? quick.filter((id) => id !== filter.id) : [...quick, filter.id])
-              }
-            >
-              {filter.label()}
-            </Button>
-          )
-        })}
-      </div>
 
-      {selectedVisible.length > 0 ? (
         <div
           role="toolbar"
           aria-label={m.academics_batch_actions()}
-          className="flex flex-wrap items-center gap-2 rounded-2xl bg-muted px-3 py-2 text-sm"
+          inert={selectedVisible.length === 0}
+          className={cn(
+            'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center gap-2 text-sm',
+            selectedVisible.length === 0 && 'invisible',
+          )}
         >
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={m.academics_clear_selection()}
+                  onClick={clearSelection}
+                />
+              }
+            >
+              <X aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.academics_clear_selection()}</TooltipContent>
+          </Tooltip>
           <span className="mr-2">
             {m.academics_selected_count({ count: selectedVisible.length })}
           </span>
@@ -361,7 +432,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
             {m.academics_batch_delete()}
           </Button>
         </div>
-      ) : null}
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border">
         <Table>
@@ -445,7 +516,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
               <Button
                 variant="outline"
                 onClick={() => {
-                  setTermFilter(ALL)
+                  if (!lockTerm) onTermChange?.(undefined)
                   setSubjectFilter(ALL)
                   setSearch('')
                   setQuick([])

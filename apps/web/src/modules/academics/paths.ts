@@ -16,6 +16,19 @@ export function coursePath(
   return fromTerm ? `${base}?fromTerm=${encodeURIComponent(fromTerm)}` : base
 }
 
-export const allCoursesPath = (programId: string) => `/p/${programId}/courses`
+/** The "Terms & courses" page; `term` pre-selects a term (and filters the course table). */
+export function termsAndCoursesPath(
+  programId: string,
+  opts: { tab?: 'terms' | 'courses'; term?: string } = {},
+) {
+  const query = new URLSearchParams()
+  if (opts.tab) query.set('tab', opts.tab)
+  if (opts.term) query.set('term', opts.term)
+  const search = query.toString()
+  return `/p/${programId}/academics${search ? `?${search}` : ''}`
+}
+
+/** @deprecated The old name of the page; use `termsAndCoursesPath`. */
+export const allCoursesPath = (programId: string) => termsAndCoursesPath(programId)
 
 export const newTermPath = (programId: string) => `/p/${programId}/terms/new`
