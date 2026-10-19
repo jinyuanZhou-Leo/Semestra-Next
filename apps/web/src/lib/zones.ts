@@ -1,4 +1,10 @@
 import { getFormatPreferences } from '@/lib/format'
+import enZoneNames from './zone-names.en.json'
+import zhZoneNames from './zone-names.zh.json'
+
+// Unicode CLDR exemplar cities (cldr-dates-full, timeZoneNames.json), see zone-names.*.json.
+const enNames: Record<string, string> = enZoneNames
+const zhNames: Record<string, string> = zhZoneNames
 
 /**
  * Time zone choices for the world clock (M14 §5). Zones are IANA ids; people search by city, in
@@ -82,17 +88,24 @@ function cityOfId(tz: string): string {
   return (tz.split('/').pop() ?? tz).replaceAll('_', ' ')
 }
 
-/** The city name to show for a zone, in the interface language. */
+/**
+ * The city name to show for a zone, in the interface language. CLDR's exemplar city names cover
+ * every IANA zone in Chinese and fix the English spelling where it differs from the id
+ * ("Kyiv", "Chișinău"); the curated list is only a fallback.
+ */
 export function zoneLabel(tz: string, locale: string): string {
+  const chinese = isChinese(locale)
+  const cldr = (chinese ? zhNames : enNames)[tz]
+  if (cldr) return cldr
   const city = CITIES.find((c) => c.tz === tz)
-  if (city) return isChinese(locale) ? city.zh : city.en
+  if (city) return chinese ? city.zh : city.en
   return cityOfId(tz)
 }
 
-/** Every curated city name (both languages) of `tz`, lower-cased: one zone can have several. */
+/** Every name a zone is searched by, lower-cased: id, both languages, curated aliases. */
 export function zoneSearchNames(tz: string): string {
   const names = CITIES.filter((c) => c.tz === tz).flatMap((c) => [c.en, c.zh])
-  return [cityOfId(tz), ...names].join(' ').toLowerCase()
+  return [cityOfId(tz), enNames[tz], zhNames[tz], ...names].filter(Boolean).join(' ').toLowerCase()
 }
 
 export function isValidZone(tz: string): boolean {
@@ -133,7 +146,8 @@ export function searchZones(query: string, locale: string, limit = 8): ZoneOptio
   ).sort((a, b) => score(normalize(a.en)) - score(normalize(b.en)))
   for (const city of curated) add(city.tz, isChinese(locale) ? city.zh : city.en)
   for (const tz of allZones()) {
-    if (normalize(tz).includes(needle)) add(tz, zoneLabel(tz, locale))
+    if (normalize(`${tz} ${enNames[tz] ?? ''} ${zhNames[tz] ?? ''}`).includes(needle))
+      add(tz, zoneLabel(tz, locale))
   }
   return out
 }
