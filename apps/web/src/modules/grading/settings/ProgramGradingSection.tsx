@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { useAutosave } from '@/app/settings'
+import { SettingRow, SettingsBlock, SettingsGroup, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -17,7 +17,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemGroup } from '@/ui/item'
+import { Item } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -32,7 +32,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { PresetSelect } from '../components/PresetSelect'
 import { invalidateGrading, useGradingScale, useScalePresets } from '../queries'
-import { SettingRow } from './rows'
 
 /** Program "GPA and grades" settings (M03 §5.4): conversion table, year courses, defaults, privacy. */
 export function ProgramGradingSection({ scope }: SettingsSectionProps) {
@@ -71,7 +70,7 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
   return (
     <div className="space-y-6">
       <BandEditor key={JSON.stringify([scale.bands, scale.max_points])} scale={scale} />
-      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
+      <SettingsGroup>
         <SettingRow
           label={m.grading_year_rule()}
           labelId={attributionId}
@@ -135,7 +134,7 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
             }}
           />
         </SettingRow>
-      </ItemGroup>
+      </SettingsGroup>
       <DefaultCategories
         initial={scale.default_categories}
         onChange={(templates) => queue({ default_categories: templates })}
@@ -193,11 +192,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const preset = presets?.find((p) => p.id === presetId)
 
   return (
-    <section className="space-y-3" aria-label={m.grading_scale()}>
-      <div>
-        <h3 className="font-heading text-sm font-medium">{m.grading_scale()}</h3>
-        <p className="text-xs text-muted-foreground">{m.grading_scale_hint()}</p>
-      </div>
+    <SettingsBlock title={m.grading_scale()} description={m.grading_scale_hint()}>
       <div className="flex h-8 overflow-hidden rounded-xl border border-border" aria-hidden>
         {valid
           ? bands
@@ -339,7 +334,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           })
         }
       />
-    </section>
+    </SettingsBlock>
   )
 }
 
@@ -373,12 +368,11 @@ function DefaultCategories({
     setDraft('')
   }
   return (
-    <section className="space-y-3" aria-label={m.grading_default_categories()}>
-      <div>
-        <h3 className="font-heading text-sm font-medium">{m.grading_default_categories()}</h3>
-        <p className="text-xs text-muted-foreground">{m.grading_default_categories_hint()}</p>
-      </div>
-      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
+    <SettingsBlock
+      title={m.grading_default_categories()}
+      description={m.grading_default_categories_hint()}
+    >
+      <SettingsGroup>
         {items.map((item, i) => (
           <Item key={item.key} size="sm">
             <Input
@@ -431,7 +425,7 @@ function DefaultCategories({
             {m.grading_category_add()}
           </Button>
         </Item>
-      </ItemGroup>
+      </SettingsGroup>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}
@@ -445,6 +439,6 @@ function DefaultCategories({
           setRemoving(null)
         }}
       />
-    </section>
+    </SettingsBlock>
   )
 }

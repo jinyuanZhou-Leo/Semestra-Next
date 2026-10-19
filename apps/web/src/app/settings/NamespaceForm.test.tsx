@@ -189,7 +189,8 @@ test('scoped levels show where a value comes from and can restore it', async () 
   )
 
   expect(await screen.findByText('Inherited from your account')).toBeInTheDocument()
-  expect(screen.getByText('Default')).toBeInTheDocument()
+  // A default value says nothing about its origin.
+  expect(screen.queryByText('Default')).not.toBeInTheDocument()
   expect(store.scopes).toEqual(['program'])
 
   await userEvent.click(screen.getByRole('button', { name: 'Restore' }))

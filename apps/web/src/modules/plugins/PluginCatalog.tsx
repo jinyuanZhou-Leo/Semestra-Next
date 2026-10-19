@@ -3,12 +3,12 @@ import { pluginsInstall, pluginsUninstall } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { Blocks, Check, LayoutGrid, PanelTop, type LucideIcon } from 'lucide-react'
-import { Fragment, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import type { ModuleManifest } from '@/app/extensions'
 import { useAllModules } from '@/app/registry'
-import { PluginSettingsSections } from '@/app/settings'
+import { PluginSettingsSections, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -16,15 +16,7 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
@@ -258,8 +250,7 @@ export default function PluginCatalog() {
 
   return (
     <div className="space-y-8">
-      <section className="space-y-3">
-        <h3 className="font-heading text-sm font-medium">{m.plugins_available()}</h3>
+      <SettingsBlock title={m.plugins_available()}>
         {plugins.length === 0 ? (
           <p className="text-sm text-muted-foreground">{m.plugins_none_available()}</p>
         ) : (
@@ -273,29 +264,22 @@ export default function PluginCatalog() {
             ))}
           </ul>
         )}
-      </section>
-      <section className="space-y-3">
-        <div>
-          <h3 className="font-heading text-sm font-medium">{m.plugins_core_title()}</h3>
-          <p className="text-sm text-muted-foreground">{m.plugins_core_note()}</p>
-        </div>
-        <ItemGroup className="gap-0 rounded-xl ring-1 ring-foreground/10">
-          {core.map(({ plugin, name, description, icon: Icon }, index) => (
-            <Fragment key={plugin.id}>
-              {index > 0 ? <ItemSeparator className="my-0" /> : null}
-              <Item render={<li />} size="sm">
-                <ItemMedia variant="icon" className="text-muted-foreground">
-                  <Icon aria-hidden />
-                </ItemMedia>
-                <ItemContent className="min-w-0 gap-0.5">
-                  <ItemTitle>{name}</ItemTitle>
-                  <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
-                </ItemContent>
-              </Item>
-            </Fragment>
+      </SettingsBlock>
+      <SettingsBlock title={m.plugins_core_title()} description={m.plugins_core_note()}>
+        <SettingsGroup>
+          {core.map(({ plugin, name, description, icon: Icon }) => (
+            <Item key={plugin.id} render={<li />} size="sm">
+              <ItemMedia variant="icon" className="text-muted-foreground">
+                <Icon aria-hidden />
+              </ItemMedia>
+              <ItemContent className="min-w-0 gap-0.5">
+                <ItemTitle>{name}</ItemTitle>
+                <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
+              </ItemContent>
+            </Item>
           ))}
-        </ItemGroup>
-      </section>
+        </SettingsGroup>
+      </SettingsBlock>
       <Sheet open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           {open ? <PluginDetails entry={open} /> : null}

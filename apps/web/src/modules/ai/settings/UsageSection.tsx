@@ -10,15 +10,15 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, BarChart3 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { useModules } from '@/app/registry'
+import { SettingsBlock, SettingsNote } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
 import { formatCount, formatDate, formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Card, CardContent } from '@/ui/card'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
@@ -65,7 +65,6 @@ function UsageChart({ summary }: { summary: UsageSummary }) {
 
   return (
     <figure className="space-y-3">
-      <figcaption className="text-sm font-medium">{m.ai_usage_chart_title()}</figcaption>
       <ul className="flex h-36 items-end gap-0.5" aria-label={m.ai_usage_chart_title()}>
         {days.map((date) => {
           const entries = AI_PURPOSES.flatMap((p) =>
@@ -239,92 +238,92 @@ function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }
 
 /** Account settings → AI → usage over the last 30 days (M06 §7). Costs are estimates. */
 export function UsageSection() {
-  const groupId = useId()
   const [grouping, setGrouping] = useState<Grouping>('purpose')
   const usage = useQuery(
     aiUsageSummaryOptions({ query: { days: USAGE_DAYS, tz: browserTimeZone() } }),
   )
 
   return (
-    <Card>
-      <CardContent className="space-y-5">
-        <AsyncBoundary query={usage}>
-          {(summary) => (
+    <AsyncBoundary query={usage}>
+      {(summary) => (
+        <div className="space-y-6">
+          <dl className="grid grid-cols-2 gap-4 rounded-2xl border p-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted-foreground">{m.ai_usage_calls()}</dt>
+              <dd className="text-lg font-semibold tabular-nums">
+                {formatCount(summary.totals.calls)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{m.ai_usage_tokens()}</dt>
+              <dd className="text-lg font-semibold tabular-nums">
+                {formatCount(summary.totals.input_tokens + summary.totals.output_tokens, {
+                  compact: true,
+                })}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{m.ai_usage_cost_estimate()}</dt>
+              <dd className="text-lg font-semibold tabular-nums">
+                {cost(summary.totals.cost_usd, summary.cost_complete)}
+              </dd>
+            </div>
+          </dl>
+          {summary.totals.calls === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <BarChart3 aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.ai_usage_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          ) : (
             <>
-              <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs text-muted-foreground">{m.ai_usage_calls()}</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatCount(summary.totals.calls)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">{m.ai_usage_tokens()}</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatCount(summary.totals.input_tokens + summary.totals.output_tokens, {
-                      compact: true,
-                    })}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">{m.ai_usage_cost_estimate()}</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {cost(summary.totals.cost_usd, summary.cost_complete)}
-                  </dd>
-                </div>
-              </dl>
-              {summary.totals.calls === 0 ? (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <BarChart3 aria-hidden />
-                    </EmptyMedia>
-                    <EmptyTitle>{m.ai_usage_empty()}</EmptyTitle>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <>
+              <SettingsBlock title={m.ai_usage_chart_title()}>
+                <div className="rounded-2xl border p-4">
                   <UsageChart summary={summary} />
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span id={groupId} className="text-sm font-medium">
-                        {m.ai_usage_details()}
-                      </span>
-                      <ToggleGroup
-                        aria-labelledby={groupId}
-                        value={[grouping]}
-                        onValueChange={(next) => {
-                          if (next[0]) setGrouping(next[0] as Grouping)
-                        }}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {GROUPINGS.map((value) => (
-                          <ToggleGroupItem key={value} value={value}>
-                            {GROUP_TITLES[value]()}
-                          </ToggleGroupItem>
-                        ))}
-                      </ToggleGroup>
-                    </div>
-                    <UsageTable
-                      key={grouping}
-                      grouping={grouping}
-                      rows={
-                        grouping === 'purpose'
-                          ? summary.by_purpose
-                          : grouping === 'module'
-                            ? summary.by_module
-                            : summary.by_model
-                      }
-                    />
-                  </div>
-                </>
-              )}
-              <p className="text-xs text-muted-foreground">{m.ai_usage_note()}</p>
+                </div>
+              </SettingsBlock>
+              <SettingsBlock
+                title={m.ai_usage_details()}
+                action={
+                  <ToggleGroup
+                    aria-label={m.ai_usage_details()}
+                    value={[grouping]}
+                    onValueChange={(next) => {
+                      if (next[0]) setGrouping(next[0] as Grouping)
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {GROUPINGS.map((value) => (
+                      <ToggleGroupItem key={value} value={value}>
+                        {GROUP_TITLES[value]()}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                }
+              >
+                <div className="overflow-hidden rounded-2xl border">
+                  <UsageTable
+                    key={grouping}
+                    grouping={grouping}
+                    rows={
+                      grouping === 'purpose'
+                        ? summary.by_purpose
+                        : grouping === 'module'
+                          ? summary.by_module
+                          : summary.by_model
+                    }
+                  />
+                </div>
+              </SettingsBlock>
             </>
           )}
-        </AsyncBoundary>
-      </CardContent>
-    </Card>
+          <SettingsNote>{m.ai_usage_note()}</SettingsNote>
+        </div>
+      )}
+    </AsyncBoundary>
   )
 }

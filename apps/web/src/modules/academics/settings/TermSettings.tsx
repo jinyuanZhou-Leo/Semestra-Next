@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDownIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { DangerZone, useAutosave } from '@/app/settings'
+import { DangerZone, SettingRow, SettingsGroup, TextRow, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
@@ -16,14 +16,12 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
 import { FieldError } from '@/ui/field'
-import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
-import { Label } from '@/ui/label'
+import { Item, ItemContent, ItemTitle } from '@/ui/item'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Switch } from '@/ui/switch'
 import { BreaksEditor, completeBreaks } from '../components/BreaksEditor'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { invalidateAcademics } from '../queries'
-import { ControlRow, TextRow } from './rows'
 
 /** Term "basics" (M02 §5.4): name, dates, breaks, week numbering; delete with a preview. */
 export function TermBasicsSection({ scope }: SettingsSectionProps) {
@@ -50,65 +48,47 @@ function TermBasics({ term }: { term: Term }) {
   const [end, setEnd] = useState(term.end_date)
   const [breaks, setBreaks] = useState<BreakIn[]>(term.breaks)
   const [countBreakWeeks, setCountBreakWeeks] = useState(term.count_break_weeks)
-  const [deleting, setDeleting] = useState(false)
   const id = useId()
   const rangeInvalid = Boolean(start && end && end < start)
   return (
     <>
-      <ItemGroup className="gap-0 rounded-2xl border">
+      <SettingsGroup>
         <TextRow
           label={m.academics_term_name()}
           value={term.name}
           required
           onChange={(name) => queue({ name })}
         />
-        <ItemSeparator className="my-0" />
-        <Item>
-          <ItemContent className="min-w-0 basis-64">
-            <ItemTitle>
-              <Label htmlFor={`${id}-start`}>{m.academics_term_start()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
+        <SettingRow label={m.academics_term_start()} htmlFor={`${id}-start`}>
+          <IsoDateField
+            id={`${id}-start`}
+            className="w-44"
+            value={start}
+            onChange={(value) => {
+              setStart(value)
+              if (!(end && end < value)) queue({ start_date: value, end_date: end })
+            }}
+          />
+        </SettingRow>
+        <SettingRow label={m.academics_term_end()} htmlFor={`${id}-end`}>
+          <div className="flex flex-col items-end gap-1">
             <IsoDateField
-              id={`${id}-start`}
+              id={`${id}-end`}
               className="w-44"
-              value={start}
+              value={end}
+              invalid={rangeInvalid}
+              describedBy={rangeInvalid ? `${id}-end-error` : undefined}
               onChange={(value) => {
-                setStart(value)
-                if (!(end && end < value)) queue({ start_date: value, end_date: end })
+                setEnd(value)
+                if (!(start && value < start)) queue({ start_date: start, end_date: value })
               }}
             />
-          </ItemActions>
-        </Item>
-        <ItemSeparator className="my-0" />
-        <Item>
-          <ItemContent className="min-w-0 basis-64">
-            <ItemTitle>
-              <Label htmlFor={`${id}-end`}>{m.academics_term_end()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
-            <div className="flex flex-col items-end gap-1">
-              <IsoDateField
-                id={`${id}-end`}
-                className="w-44"
-                value={end}
-                invalid={rangeInvalid}
-                describedBy={rangeInvalid ? `${id}-end-error` : undefined}
-                onChange={(value) => {
-                  setEnd(value)
-                  if (!(start && value < start)) queue({ start_date: start, end_date: value })
-                }}
-              />
-              <FieldError id={`${id}-end-error`} className="text-xs">
-                {rangeInvalid ? m.error_academics_term_date_range_invalid() : null}
-              </FieldError>
-            </div>
-          </ItemActions>
-        </Item>
-        <ItemSeparator className="my-0" />
-        <ControlRow
+            <FieldError id={`${id}-end-error`} className="text-xs">
+              {rangeInvalid ? m.error_academics_term_date_range_invalid() : null}
+            </FieldError>
+          </div>
+        </SettingRow>
+        <SettingRow
           label={m.academics_term_count_break_weeks()}
           description={m.academics_term_count_break_weeks_hint()}
         >
@@ -122,8 +102,7 @@ function TermBasics({ term }: { term: Term }) {
               }}
             />
           )}
-        </ControlRow>
-        <ItemSeparator className="my-0" />
+        </SettingRow>
         <Item>
           <ItemContent className="gap-2">
             <ItemTitle>{m.academics_term_breaks()}</ItemTitle>
@@ -139,14 +118,31 @@ function TermBasics({ term }: { term: Term }) {
             />
           </ItemContent>
         </Item>
-      </ItemGroup>
+      </SettingsGroup>
+    </>
+  )
+}
+
+/** Delete the term, at the end of its general settings. */
+export function TermDangerSection({ scope }: SettingsSectionProps) {
+  const termId = scope?.kind === 'term' ? scope.termId : ''
+  const term = useQuery(academicsTermGetOptions({ path: { term_id: termId } }))
+  return <AsyncBoundary query={term}>{(t) => <TermDanger key={t.id} term={t} />}</AsyncBoundary>
+}
+
+function TermDanger({ term }: { term: Term }) {
+  const [deleting, setDeleting] = useState(false)
+  return (
+    <>
       <DangerZone>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">{m.academics_term_delete_description()}</p>
+        <SettingRow
+          label={m.academics_term_delete()}
+          description={m.academics_term_delete_description()}
+        >
           <Button variant="destructive" onClick={() => setDeleting(true)}>
-            {m.academics_term_delete()}
+            {m.common_delete()}
           </Button>
-        </div>
+        </SettingRow>
       </DangerZone>
       <DeleteTermDialog term={term} open={deleting} onOpenChange={setDeleting} />
     </>

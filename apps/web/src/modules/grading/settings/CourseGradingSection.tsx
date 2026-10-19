@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
+import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -17,7 +18,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemGroup } from '@/ui/item'
+import { Item } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -31,7 +32,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { categoryName } from '../display'
 import { invalidateGrading, useGradebook } from '../queries'
-import { SettingRow } from './rows'
 
 /** Course "Grades" settings (M03 §5.1): how it is graded, the forecast model, categories. */
 export function CourseGradingSection({ scope }: SettingsSectionProps) {
@@ -62,7 +62,7 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
   ]
   return (
     <div className="space-y-6">
-      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
+      <SettingsGroup>
         <SettingRow
           label={m.grading_basis()}
           labelId={basisId}
@@ -81,48 +81,51 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
             <ToggleGroupItem value="pass_fail">{m.grading_basis_pass_fail()}</ToggleGroupItem>
           </ToggleGroup>
         </SettingRow>
-        {result.basis === 'percentage' ? (
-          <>
-            <SettingRow
-              label={m.grading_gradebook_enabled()}
-              labelId={enabledId}
-              description={m.grading_gradebook_enabled_hint()}
-            >
-              <Switch
-                aria-labelledby={enabledId}
-                checked={result.gradebook_enabled}
-                onCheckedChange={(on) => patch({ gradebook_enabled: on })}
-              />
-            </SettingRow>
-            <SettingRow
-              label={m.grading_forecast_model()}
-              labelId={forecastId}
-              description={m.grading_forecast_model_hint()}
-            >
-              <Select
-                value={result.forecast_model}
-                items={forecastItems}
-                onValueChange={(next) =>
-                  patch({ forecast_model: next === 'simple_minimum_needed' ? next : 'auto' })
-                }
+        {result.basis === 'percentage'
+          ? // An array, not a fragment, so the group still puts a hairline between the rows.
+            [
+              <SettingRow
+                key="enabled"
+                label={m.grading_gradebook_enabled()}
+                labelId={enabledId}
+                description={m.grading_gradebook_enabled_hint()}
               >
-                <SelectTrigger aria-labelledby={forecastId} className="w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {forecastItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </SettingRow>
-          </>
-        ) : null}
-      </ItemGroup>
+                <Switch
+                  aria-labelledby={enabledId}
+                  checked={result.gradebook_enabled}
+                  onCheckedChange={(on) => patch({ gradebook_enabled: on })}
+                />
+              </SettingRow>,
+              <SettingRow
+                key="forecast"
+                label={m.grading_forecast_model()}
+                labelId={forecastId}
+                description={m.grading_forecast_model_hint()}
+              >
+                <Select
+                  value={result.forecast_model}
+                  items={forecastItems}
+                  onValueChange={(next) =>
+                    patch({ forecast_model: next === 'simple_minimum_needed' ? next : 'auto' })
+                  }
+                >
+                  <SelectTrigger aria-labelledby={forecastId} className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {forecastItems.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </SettingRow>,
+            ]
+          : null}
+      </SettingsGroup>
       <Categories gradebook={gradebook} />
     </div>
   )
@@ -168,12 +171,8 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
     reorder.mutate({ path: { course_id: gradebook.course_id }, body: { category_ids: ids } })
   }
   return (
-    <section className="space-y-3" aria-label={m.grading_categories()}>
-      <div>
-        <h3 className="font-heading text-sm font-medium">{m.grading_categories()}</h3>
-        <p className="text-xs text-muted-foreground">{m.grading_categories_hint()}</p>
-      </div>
-      <ItemGroup className="gap-0 divide-y divide-border rounded-2xl border">
+    <SettingsBlock title={m.grading_categories()} description={m.grading_categories_hint()}>
+      <SettingsGroup>
         {categories.map((category, i) => (
           <Item key={category.id} size="sm">
             <Input
@@ -267,7 +266,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
             {m.grading_category_add()}
           </Button>
         </Item>
-      </ItemGroup>
+      </SettingsGroup>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}
@@ -279,6 +278,6 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
         pending={remove.isPending}
         onConfirm={() => removing && remove.mutate({ path: { category_id: removing.id } })}
       />
-    </section>
+    </SettingsBlock>
   )
 }

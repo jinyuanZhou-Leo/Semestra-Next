@@ -235,9 +235,11 @@ function SettingsBody({
             ) : null}
           </header>
           {/* Keyed by group so a new group opens at its top instead of the old scroll position. */}
-          <div key={current?.id} className="flex-1 overflow-y-auto px-4 pb-6 md:px-6">
+          <div key={current?.id} className="flex-1 overflow-y-auto px-4 pb-8 md:px-6">
             {current ? (
-              <SettingsSections level={level} scope={scope} group={current.id} />
+              <div className="mx-auto max-w-3xl">
+                <SettingsSections level={level} scope={scope} group={current.id} />
+              </div>
             ) : (
               <Empty>
                 <EmptyHeader>

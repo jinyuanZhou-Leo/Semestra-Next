@@ -254,8 +254,8 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-border">
+    <>
+      <div className="overflow-hidden rounded-2xl border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
@@ -280,39 +280,39 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
             ))}
           </TableBody>
         </Table>
+        <form onSubmit={submit} className="flex flex-wrap items-center gap-2 border-t p-3">
+          <Input
+            aria-label={m.schedule_type_code()}
+            placeholder="SEM"
+            className="w-24"
+            value={code}
+            onChange={(e) =>
+              setCode(
+                e.target.value
+                  .toUpperCase()
+                  .replaceAll(/[^A-Z0-9]/g, '')
+                  .slice(0, 8),
+              )
+            }
+          />
+          <Input
+            aria-label={m.schedule_type_name()}
+            placeholder={m.schedule_type_name_placeholder()}
+            className="w-48"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            disabled={!codeValid || !name.trim() || create.isPending}
+          >
+            <Plus aria-hidden />
+            {m.schedule_type_add()}
+          </Button>
+        </form>
       </div>
-      <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
-        <Input
-          aria-label={m.schedule_type_code()}
-          placeholder="SEM"
-          className="w-24"
-          value={code}
-          onChange={(e) =>
-            setCode(
-              e.target.value
-                .toUpperCase()
-                .replaceAll(/[^A-Z0-9]/g, '')
-                .slice(0, 8),
-            )
-          }
-        />
-        <Input
-          aria-label={m.schedule_type_name()}
-          placeholder={m.schedule_type_name_placeholder()}
-          className="w-48"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button
-          type="submit"
-          size="sm"
-          variant="outline"
-          disabled={!codeValid || !name.trim() || create.isPending}
-        >
-          <Plus aria-hidden />
-          {m.schedule_type_add()}
-        </Button>
-      </form>
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -322,6 +322,6 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate({ path: { event_type_id: deleting.id } })}
       />
-    </div>
+    </>
   )
 }

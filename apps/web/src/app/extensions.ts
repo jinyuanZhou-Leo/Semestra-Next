@@ -123,6 +123,8 @@ type SettingsSectionBase = {
   description?: Message
   icon?: LucideIcon
   order: number
+  /** Irreversible actions of the group (delete…): the title turns red. Give it the highest `order`. */
+  danger?: boolean
   /** Marks a plugin's section: shown on its plugin page (M10), not in the settings navigation. */
   pluginId?: string
 }

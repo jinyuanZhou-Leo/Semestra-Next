@@ -7,23 +7,15 @@ import {
   aiStatusOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useId, useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
+import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Card, CardContent } from '@/ui/card'
 import { Input } from '@/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
+import { ItemDescription } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -186,13 +178,13 @@ function PurposeRow({
   }
 
   return (
-    <Item>
-      <ItemContent className="min-w-0 basis-64">
-        <ItemTitle id={labelId}>{PURPOSE_TITLES[purpose]()}</ItemTitle>
-        <ItemDescription>{PURPOSE_HINTS[purpose]()}</ItemDescription>
-        <ItemDescription>{statusLine(status)}</ItemDescription>
-      </ItemContent>
-      <ItemActions className="w-full flex-col items-stretch sm:w-auto sm:items-end">
+    <SettingRow
+      label={PURPOSE_TITLES[purpose]()}
+      labelId={labelId}
+      description={PURPOSE_HINTS[purpose]()}
+      note={<ItemDescription>{statusLine(status)}</ItemDescription>}
+    >
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
         <Select
           value={providerId ?? RECOMMENDED}
           items={providerItems}
@@ -225,8 +217,8 @@ function PurposeRow({
             onPick={(model) => update.mutate({ body: { purpose, provider_id: providerId, model } })}
           />
         ) : null}
-      </ItemActions>
-    </Item>
+      </div>
+    </SettingRow>
   )
 }
 
@@ -237,26 +229,22 @@ export function ModelsSection() {
   const status = useQuery(aiStatusOptions())
 
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">{m.ai_models_intro()}</p>
-        <AsyncBoundary query={assignments}>
-          {(data) => (
-            <ItemGroup className="gap-0 rounded-2xl border">
-              {data.items.map((assignment, index) => (
-                <Fragment key={assignment.purpose}>
-                  {index > 0 ? <ItemSeparator className="my-0" /> : null}
-                  <PurposeRow
-                    assignment={assignment}
-                    providers={providers.data?.items ?? []}
-                    status={status.data?.items.find((s) => s.purpose === assignment.purpose)}
-                  />
-                </Fragment>
-              ))}
-            </ItemGroup>
-          )}
-        </AsyncBoundary>
-      </CardContent>
-    </Card>
+    <AsyncBoundary query={assignments}>
+      {(data) => (
+        <div className="space-y-3">
+          <SettingsGroup>
+            {data.items.map((assignment) => (
+              <PurposeRow
+                key={assignment.purpose}
+                assignment={assignment}
+                providers={providers.data?.items ?? []}
+                status={status.data?.items.find((s) => s.purpose === assignment.purpose)}
+              />
+            ))}
+          </SettingsGroup>
+          <SettingsNote>{m.ai_models_intro()}</SettingsNote>
+        </div>
+      )}
+    </AsyncBoundary>
   )
 }
