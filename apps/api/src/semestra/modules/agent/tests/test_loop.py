@@ -1,6 +1,7 @@
 """The turn loop with a scripted model (M12 §10): reads run, writes wait for a decision."""
 
 import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
@@ -9,7 +10,7 @@ from fastapi import FastAPI
 from semestra.core.errors import AppError
 from semestra.modules.agent import loop, tools
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, calls, events_named, say
-from semestra.modules.ai import Text, ToolResult
+from semestra.modules.ai import Chunk, Text, ToolResult
 from semestra.testing import Clock
 
 
@@ -198,6 +199,12 @@ async def test_remember_auto_approves_later_calls(agent: Agent, model: FakeModel
     )
     events = await agent.send(session["id"], "make it 70")
     assert events_named(events, "proposal") == []
+    # The write already ran, so answering again could repeat it.
+    last = (await agent.detail(session["id"]))["messages"][-1]["id"]
+    out = await agent.stream(
+        f"/agent/sessions/{session['id']}/messages/{last}:regenerate", {}, status=409
+    )
+    assert out[0][1]["error"]["code"] == "agent.cannot_regenerate"
     items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
     assert items[0]["score_percentage"] == 70
 
@@ -364,6 +371,44 @@ async def test_stop_keeps_the_partial_answer(app: FastAPI, agent: Agent, model: 
     }
     detail = await agent.detail(session["id"])
     assert detail["messages"][-1]["content"] == [{"type": "text", "text": "A long answer"}]
+
+
+async def test_stop_while_the_model_is_silent(app: FastAPI, agent: Agent):
+    """A provider stalled before its next chunk must not keep the turn running after a stop."""
+    session = await agent.session()
+    user = (await agent.call("GET", "/account/me"))["id"]
+    cancel = asyncio.Event()
+    closed = asyncio.Event()
+
+    async def stalled(messages: object, tools: object = None) -> AsyncIterator[Chunk]:
+        try:
+            yield Chunk(text="Thinking")
+            await asyncio.Event().wait()  # never answers
+            yield Chunk(text="never")
+        finally:
+            closed.set()
+
+    agent.model.stream = stalled  # type: ignore[method-assign]
+    from semestra.modules.agent import service
+    from semestra.modules.agent.runtime import agent_ctx
+
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        service.add_message(ctx, row, "user", [{"type": "text", "text": "hi"}])
+        await ctx.db.commit()
+    events: list[dict[str, Any]] = []
+
+    async def run() -> None:
+        async for item in loop.generate(app.state, user, session["id"], cancel):
+            events.append(item)
+            if item["event"] == "text_delta":
+                cancel.set()
+
+    await asyncio.wait_for(run(), timeout=5)
+    assert events[-1]["data"]["stopped"] is True
+    assert closed.is_set()
+    detail = await agent.detail(session["id"])
+    assert detail["messages"][-1]["content"] == [{"type": "text", "text": "Thinking"}]
 
 
 async def test_one_generation_per_session_and_two_per_user(app: FastAPI):

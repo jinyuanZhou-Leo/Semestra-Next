@@ -304,20 +304,39 @@ async def _stream(
     prepared: Prepared, cancel: asyncio.Event, message_id: str
 ) -> AsyncIterator[Event | Completion | str]:
     """Model chunks → text_delta events; yields the final Completion (or the partial text as a
-    str when stopped)."""
+    str when stopped). A stop is noticed while waiting for the next chunk, not only after it."""
     text = ""
-    async for chunk in prepared.model.stream(
-        [Message.system(prepared.system), *prepared.messages], prepared.tools
-    ):
-        if cancel.is_set():
-            yield text
-            return
-        if chunk.text:
-            text += chunk.text
-            yield event("text_delta", message_id=message_id, text=chunk.text)
-        if chunk.done is not None:
-            yield chunk.done
-            return
+    chunks = aiter(
+        prepared.model.stream([Message.system(prepared.system), *prepared.messages], prepared.tools)
+    )
+    stopped = asyncio.ensure_future(cancel.wait())
+    try:
+        while True:
+            nxt = asyncio.ensure_future(anext(chunks))
+            await asyncio.wait({nxt, stopped}, return_when=asyncio.FIRST_COMPLETED)
+            if not nxt.done():
+                nxt.cancel()
+                await asyncio.gather(nxt, return_exceptions=True)
+                yield text
+                return
+            try:
+                chunk = nxt.result()
+            except StopAsyncIteration:
+                break
+            if chunk.text:
+                text += chunk.text
+                yield event("text_delta", message_id=message_id, text=chunk.text)
+            if chunk.done is not None:
+                yield chunk.done
+                return
+            if cancel.is_set():
+                yield text
+                return
+    finally:
+        stopped.cancel()
+        aclose = getattr(chunks, "aclose", None)
+        if aclose is not None:
+            await aclose()
     yield text
 
 
@@ -338,7 +357,14 @@ def _result_block(call: ToolCall, outcome: Outcome) -> dict[str, Any]:
         "content": outcome.content,
         "is_error": not outcome.ok,
         "error_code": outcome.error_code,
+        # Something changed in the user's data: the turn can no longer be regenerated.
+        "changed": outcome.ok and _changes_data(call.name),
     }
+
+
+def _changes_data(tool: str) -> bool:
+    cap = service.capability(tools.capability_name(tool))
+    return cap is not None and cap.effect != "read"
 
 
 def _tool_result_event(message_id: str, call: ToolCall, outcome: Outcome) -> Event:
@@ -349,6 +375,7 @@ def _tool_result_event(message_id: str, call: ToolCall, outcome: Outcome) -> Eve
         name=tools.capability_name(call.name),
         ok=outcome.ok,
         error_code=outcome.error_code,
+        changed=outcome.ok and _changes_data(call.name),
     )
 
 

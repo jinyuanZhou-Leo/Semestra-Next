@@ -204,7 +204,7 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
 # --- proposals -----------------------------------------------------------------------------
 
 
-def _capability(name: str) -> Capability | None:
+def capability(name: str) -> Capability | None:
     try:
         return registry.get(name)
     except AppError:
@@ -212,7 +212,7 @@ def _capability(name: str) -> Capability | None:
 
 
 def proposal_out(row: AgentProposal) -> AgentProposalOut:
-    cap = _capability(row.capability)
+    cap = capability(row.capability)
     return AgentProposalOut(
         id=row.id,
         session_id=row.session_id,
@@ -355,7 +355,7 @@ async def get_preferences(ctx: Ctx) -> AgentPreferencesOut:
 def _check_auto_approve(names: Sequence[str]) -> list[str]:
     """Only write capabilities offered to the agent can skip the confirmation card."""
     for name in names:
-        cap = _capability(name)
+        cap = capability(name)
         if cap is None or "agent" not in cap.expose or cap.effect != "write":
             raise AppError(
                 "common.validation",

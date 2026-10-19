@@ -33,6 +33,7 @@ export type AgentEvent =
         name: string
         ok: boolean
         error_code: string | null
+        changed?: boolean
       }
     }
   | { event: 'citation'; data: Citation }

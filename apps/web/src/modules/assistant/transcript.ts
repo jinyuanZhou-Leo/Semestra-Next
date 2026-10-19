@@ -186,6 +186,7 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
               name: event.data.name,
               is_error: !event.data.ok,
               error_code: event.data.error_code,
+              changed: event.data.changed ?? false,
             },
           ]),
         ],
@@ -215,8 +216,13 @@ export function canRegenerate(detail: AgentSessionDetail, items: ViewItem[]): st
   if (last?.kind !== 'assistant') return null
   const lastUser = items.findLastIndex((item) => item.kind === 'user')
   const turn = items.slice(lastUser + 1).map((item) => item.id)
-  const changed = detail.proposals.some(
+  const decided = detail.proposals.some(
     (p) => turn.includes(p.message_id) && (p.status === 'executed' || p.status === 'failed'),
   )
-  return changed ? null : last.id
+  // Auto-approved writes run without a proposal; their result says the data changed.
+  const lastUserRow = detail.messages.findLastIndex((m) => m.role === 'user')
+  const ran = detail.messages
+    .slice(lastUserRow + 1)
+    .some((m) => m.content.some((b) => b.type === 'tool_result' && b.changed === true))
+  return decided || ran ? null : last.id
 }

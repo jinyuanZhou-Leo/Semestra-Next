@@ -229,7 +229,8 @@ async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) ->
         raise not_found()
     ids = [r.id for r in after]
     props = [p for p in await service.proposals(ctx, session.id) if p.message_id in ids]
-    if any(p.status in ("executed", "failed") for p in props):
+    ran = any(b.get("changed") for r in after for b in r.content if b.get("type") == "tool_result")
+    if ran or any(p.status in ("executed", "failed") for p in props):
         raise AppError("agent.cannot_regenerate", 409)
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(ids)))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(ids)))

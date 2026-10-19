@@ -17,7 +17,7 @@ import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
 import { mcpConfig } from './settings/McpSection'
 import { parseSse } from './stream'
-import { applyEvent, buildItems } from './transcript'
+import { applyEvent, buildItems, canRegenerate } from './transcript'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -243,6 +243,34 @@ test('streamed events build the answer, its steps and the confirmation card', ()
   ])
   expect(answer?.kind === 'assistant' && answer.proposals).toHaveLength(1)
   expect(detail.session.title).toBe('Lab 3 score')
+})
+
+test('an answer whose tools changed data cannot be regenerated', () => {
+  const turn = (changed: boolean): AgentSessionDetail => {
+    let detail: AgentSessionDetail = {
+      session: session(),
+      messages: [msg('u1', 'user', [{ type: 'text', text: 'make it 70' }])],
+      proposals: [],
+      attachments: [],
+      generating: false,
+    }
+    for (const event of [
+      { event: 'message_start', data: { message_id: 'a1' } },
+      {
+        event: 'tool_result',
+        data: { message_id: 'a1', call_id: 'c1', name: 'x', ok: true, error_code: null, changed },
+      },
+      { event: 'message_start', data: { message_id: 'a2' } },
+      { event: 'text_delta', data: { message_id: 'a2', text: 'Done.' } },
+    ] as const) {
+      detail = applyEvent(detail, event)
+    }
+    return detail
+  }
+  const read = turn(false)
+  expect(canRegenerate(read, buildItems(read))).toBe('a2')
+  const wrote = turn(true)
+  expect(canRegenerate(wrote, buildItems(wrote))).toBeNull()
 })
 
 test('a question streams in as Markdown', async () => {
