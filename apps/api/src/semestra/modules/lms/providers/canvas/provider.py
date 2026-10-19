@@ -131,8 +131,13 @@ def _int(value: Any, default: int = 0) -> int:
 
 
 def _origin(url: str) -> str:
+    """scheme://host[:port]; "" for a URL that doesn't parse (a bad port in course HTML), so it
+    never matches the Canvas origin."""
     parts = urlsplit(url)
-    port = f":{parts.port}" if parts.port else ""
+    try:
+        port = f":{parts.port}" if parts.port else ""
+    except ValueError:
+        return ""
     return f"{parts.scheme}://{(parts.hostname or '').lower()}{port}"
 
 

@@ -291,6 +291,12 @@ def test_internal_links_are_rewritten(settings: Settings):
     assert p.rewrite_internal_link(cfg, "https://other.example/courses/1/pages/x") is None
 
 
+def test_links_with_bad_ports_are_not_internal(settings: Settings):
+    p, cfg, _ = _cfg(settings)
+    assert p.rewrite_internal_link(cfg, "https://example.edu:notaport/courses/1/pages/a") is None
+    assert p.rewrite_internal_link(cfg, f"{CANVAS}:99999/courses/1/pages/a") is None
+
+
 def test_file_cdn_hosts_match_whole_labels():
     p = CanvasProvider()
     base = "https://canvas.example.edu"
