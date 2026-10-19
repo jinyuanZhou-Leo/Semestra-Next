@@ -205,6 +205,38 @@ async def test_deadline_preview_is_local(agent: Agent, model: FakeModel):
     assert changes["due_time"]["before"] == "23:59:00"
 
 
+async def test_a_write_cut_off_before_its_result_blocks_regenerate(app: FastAPI, agent: Agent):
+    """An auto-approved write may have run when the stream was cut before its result was saved."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    user = (await agent.call("GET", "/account/me"))["id"]
+    from semestra.modules.agent import service
+    from semestra.modules.agent.runtime import agent_ctx
+
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        service.add_message(ctx, row, "user", [{"type": "text", "text": "make it 70"}])
+        answer = service.add_message(
+            ctx,
+            row,
+            "assistant",
+            [
+                {
+                    "type": "tool_call",
+                    "id": "c1",
+                    "name": "grading__assessment__update",
+                    "args": {"assessment_id": lab["id"], "score_percentage": 70},
+                }
+            ],
+        )
+        await ctx.db.commit()
+        answer_id = answer.id
+    out = await agent.stream(
+        f"/agent/sessions/{session['id']}/messages/{answer_id}:regenerate", {}, status=409
+    )
+    assert out[0][1]["error"]["code"] == "agent.cannot_regenerate"
+
+
 async def test_a_batch_cannot_decide_one_proposal_twice(agent: Agent, model: FakeModel):
     _, _, lab = await agent.course_with_lab()
     session = await agent.session()
@@ -320,6 +352,24 @@ async def test_bad_meta_arguments_are_a_tool_error(agent: Agent, model: FakeMode
     assert [r["ok"] for r in results] == [False, False]
     assert "common.validation" in result_of(model.requests[1][0][-1].content[0])
     assert "".join(d["text"] for d in events_named(events, "text_delta")) == "Sorry."
+
+
+def test_attachment_only_turns_count_for_compaction():
+    from semestra.modules.agent import history
+    from semestra.modules.agent.models import AgentMessage
+
+    rows = [
+        AgentMessage(role=role, content=content)
+        for role, content in [
+            ("user", [{"type": "image_ref", "attachment_id": "a1", "name": "1.png"}]),
+            ("assistant", [{"type": "text", "text": "a picture"}]),
+            ("user", [{"type": "file_ref", "attachment_id": "a2", "name": "2.pdf"}]),
+            ("assistant", [{"type": "text", "text": "a pdf"}]),
+            ("user", [{"type": "note", "text": "scope changed"}]),
+            ("user", [{"type": "skill", "name": "record-grades"}]),
+        ]
+    ]
+    assert history.compaction_cut(rows) == 2
 
 
 def test_loaded_tools_are_lru_bounded():

@@ -2,6 +2,7 @@
 with server-sent events, plus attachment upload. The SSE routes are left out of the OpenAPI
 schema; the web client reads them with `fetch` (see web `modules/assistant/stream.ts`)."""
 
+import asyncio
 from collections.abc import AsyncIterator, Sequence
 from typing import Annotated, Any
 
@@ -16,7 +17,7 @@ from semestra.core.context import Ctx, get_ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
-from semestra.modules.agent import loop, service, skills
+from semestra.modules.agent import loop, service, skills, tools
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -33,6 +34,7 @@ from semestra.modules.agent.schemas import (
 )
 
 router = APIRouter(tags=["agent"])
+_upload_locks: dict[str, asyncio.Lock] = {}
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
@@ -212,6 +214,24 @@ async def regenerate(
     return _respond(_events(state, claim), claim)
 
 
+def _wrote(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> bool:
+    """Whether a write in these rows ran without a card (auto-approved). A write call with
+    neither a proposal nor a result may have run before the stream was cut: count it too."""
+    results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
+    proposed = {p.call_id for p in props}
+    for r in rows:
+        for b in r.content:
+            if b.get("type") != "tool_call" or b["id"] in proposed:
+                continue
+            cap = service.capability(tools.capability_name(b["name"]))
+            if cap is None or cap.effect == "read":
+                continue
+            result = results.get(b["id"])
+            if result is None or result.get("changed"):
+                return True
+    return False
+
+
 async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) -> None:
     rows = await service.messages(ctx, session.id)
     last_user = max(
@@ -229,8 +249,7 @@ async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) ->
         raise not_found()
     ids = [r.id for r in after]
     props = [p for p in await service.proposals(ctx, session.id) if p.message_id in ids]
-    ran = any(b.get("changed") for r in after for b in r.content if b.get("type") == "tool_result")
-    if ran or any(p.status in ("executed", "failed") for p in props):
+    if _wrote(after, props) or any(p.status in ("executed", "failed") for p in props):
         raise AppError("agent.cannot_regenerate", 409)
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(ids)))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(ids)))
@@ -259,25 +278,27 @@ async def upload_attachment(
     data = await file.read(MAX_ATTACHMENT_BYTES + 1)
     if len(data) > MAX_ATTACHMENT_BYTES:
         raise AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
-    left = await remaining_quota(ctx)
-    if left is not None and len(data) > left:
-        raise AppError("common.quota_exceeded", 413, limit_bytes=left)
+    # One upload at a time per user, so parallel uploads cannot each pass the quota check.
+    async with _upload_locks.setdefault(ctx.user_id, asyncio.Lock()):
+        left = await remaining_quota(ctx)
+        if left is not None and len(data) > left:
+            raise AppError("common.quota_exceeded", 413, limit_bytes=left)
 
-    async def chunks() -> AsyncIterator[bytes]:
-        yield data
+        async def chunks() -> AsyncIterator[bytes]:
+            yield data
 
-    key = user_key(ctx.user_id, "agent")
-    stored = await get_storage(ctx).put(key, chunks(), mime)
-    row = AgentAttachment(
-        user_id=ctx.user_id,
-        session_id=session.id,
-        kind=kind,
-        name=(file.filename or "file")[:200],
-        storage_key=stored.key,
-        mime=mime,
-        size=stored.size,
-        created_at=ctx.now,
-    )
-    ctx.db.add(row)
-    await ctx.db.commit()
+        key = user_key(ctx.user_id, "agent")
+        stored = await get_storage(ctx).put(key, chunks(), mime)
+        row = AgentAttachment(
+            user_id=ctx.user_id,
+            session_id=session.id,
+            kind=kind,
+            name=(file.filename or "file")[:200],
+            storage_key=stored.key,
+            mime=mime,
+            size=stored.size,
+            created_at=ctx.now,
+        )
+        ctx.db.add(row)
+        await ctx.db.commit()
     return service.attachment_out(row)

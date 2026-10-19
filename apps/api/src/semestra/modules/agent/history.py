@@ -151,7 +151,7 @@ def compaction_cut(rows: Sequence[AgentMessage], keep_user_turns: int = 2) -> in
     starts = [
         i
         for i, r in enumerate(rows)
-        if r.role == "user" and any(b.get("type") == "text" for b in r.content)
+        if r.role == "user" and any(b.get("type") != "note" for b in r.content)
     ]
     if len(starts) <= keep_user_turns:
         return None
