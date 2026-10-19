@@ -27,7 +27,7 @@ from semestra.modules.agent import history, service, skills, tools
 from semestra.modules.agent.context import system_prompt
 from semestra.modules.agent.models import AgentProposal, AgentSession
 from semestra.modules.agent.runtime import agent_ctx
-from semestra.modules.ai import Completion, Message, ToolCall
+from semestra.modules.ai import Completion, Message, ToolCall, wrap_untrusted
 from semestra.modules.ai import catalog as ai_catalog
 
 log = structlog.get_logger()
@@ -365,12 +365,19 @@ def _result_block(call: ToolCall, outcome: Outcome) -> dict[str, Any]:
         "call_id": call.id,
         "name": call.name,
         "capability": tools.capability_name(call.name),
-        "content": outcome.content,
+        "content": _content(call, outcome),
         "is_error": not outcome.ok,
         "error_code": outcome.error_code,
         # Something changed in the user's data: the turn can no longer be regenerated.
         "changed": _changed(call, outcome),
     }
+
+
+def _content(call: ToolCall, outcome: Outcome) -> str:
+    name = tools.capability_name(call.name)
+    if outcome.ok and name in tools.UNTRUSTED_RESULTS:
+        return wrap_untrusted(outcome.content, name)
+    return outcome.content
 
 
 def _changed(call: ToolCall, outcome: Outcome) -> bool:

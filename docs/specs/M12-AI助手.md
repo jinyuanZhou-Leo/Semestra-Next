@@ -166,7 +166,7 @@ agent_preferences
 - 并发：每用户同时最多 2 个生成、每会话 1 个，超出 `agent.busy`（429）。`POST /agent/sessions/{id}:stop` 是 capability `agent.session.stop`。
 - 提案预览契约：capability 可以提供 `preview(ctx, input)`，返回 `{target?, changes: [{field, before?, after}], link?: {to, page?}}`；没有时用参数生成 `changes`。M03 的 `grading.assessment.update` 已实现（考核与课程名、before → after、成绩页链接）。只有 `write` 能加入自动批准，destructive 永远不能（`common.validation`）。
 - 引用契约：工具结果里带 `citations: [{id, title?, snippet?, url?}]` 时，作为 `citation` 事件发出并保存，回答里的 `[[cite:<id>]]` 在前端渲染为角标。M07 接入时按此返回即可。
-- 附件：图片（png/jpeg/webp/gif）直接给模型；PDF 作为文档块交给支持的模型（Ollama、OpenAI 兼容服务商读不了 PDF，这时换成一行说明，等 M07 合并后传它的渲染器 `rasterize`）；文本类（text/*、json、xml）用 `wrap_untrusted` 包装后内联。**暂未交给 M07 解析与入库**（M07 还在开发中）。上限 10 MB，计入存储配额（模块名 `agent`）。新增错误码 `agent.attachment_unsupported`（415）。
+- 附件：图片（png/jpeg/webp/gif）直接给模型；PDF 作为文档块交给支持的模型（Ollama、OpenAI 兼容服务商读不了 PDF，这时换成一行说明；M07 目前没有把页面渲染成图片的函数，有了之后可作为 `rasterize` 传入）；文本类（text/*、json、xml）用 `wrap_untrusted` 包装后内联。引用课程文件原文的工具结果（`files.search`、`files.document.read`、`files.document.outline`，见 `tools.UNTRUSTED_RESULTS`）同样包装后再交给模型。**暂未交给 M07 解析与入库**（M07 还在开发中）。上限 10 MB，计入存储配额（模块名 `agent`）。新增错误码 `agent.attachment_unsupported`（415）。
 - 重新生成：只允许最后一个回答，且该回答没有已执行的写操作，否则 `agent.cannot_regenerate`（409）。
 - 新增接口：`POST /agent/sessions/{id}/proposals:decide`（"全部批准"，一次决定多个）、`agent.skills.list`（`GET /agent/skills`，斜杠命令用）。SSE 路由不进 OpenAPI，前端用 `fetch` 读流（`modules/assistant/stream.ts`）。SSE 事件 `title` 在自动命名后发出。
 - Skill frontmatter 新增 `title: { en, zh-CN }`（必填，界面显示）与可选 `command`（如 `/grade`，全局唯一，测试会检查）。

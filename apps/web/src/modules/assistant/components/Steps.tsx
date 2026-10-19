@@ -1,4 +1,4 @@
-import { useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { AlertCircle, ArrowRight, Check, CircleDashed, Loader2, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
@@ -51,7 +51,6 @@ function argsText(args: Record<string, unknown>): string {
  * it was given, what it changed and why it failed once it has finished.
  */
 function StepRow({ step, status }: { step: Step; status: Shown }) {
-  const router = useRouter()
   const line = (
     <TraceLine status={traceStatus(status)}>
       <TraceIcon>{ICON[status]}</TraceIcon>
@@ -86,7 +85,8 @@ function StepRow({ step, status }: { step: Step; status: Shown }) {
             variant="link"
             size="sm"
             className="h-auto p-0"
-            onClick={() => router.history.push(link)}
+            nativeButton={false}
+            render={<Link to={link} />}
           >
             {m.assistant_proposal_open()}
             <ArrowRight aria-hidden />

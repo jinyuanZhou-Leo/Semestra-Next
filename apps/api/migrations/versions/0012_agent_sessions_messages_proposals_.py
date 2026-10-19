@@ -1,7 +1,7 @@
 """agent: sessions, messages, proposals, attachments, preferences
 
-Revision ID: 0010
-Revises: 0009
+Revision ID: 0012
+Revises: 0011
 Create Date: 2026-10-19 07:24:57.216670
 
 """
@@ -13,8 +13,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = '0010'
-down_revision: str | Sequence[str] | None = '0009'
+revision: str = '0012'
+down_revision: str | Sequence[str] | None = '0011'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

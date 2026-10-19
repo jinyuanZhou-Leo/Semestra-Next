@@ -1,3 +1,4 @@
+Consider using the pymupdf_layout package for a greatly improved page layout analysis.
 {
   "openapi": "3.1.0",
   "info": {
@@ -546,6 +547,345 @@
             "description": "Successful Response",
             "content": {
               "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/files": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Upload one or more files into a course.",
+        "description": "All or nothing: if one file is refused (too large, over quota) none is kept.",
+        "operationId": "filesUpload",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_filesUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List the files, links and folders of a course.",
+        "description": "Use to see what a course has: its files and saved links in one folder (or every\nfolder with recursive=true), with their processing status. Do not use to look for what the files\nsay; use files.search for that.",
+        "operationId": "filesList",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only items directly in this folder; omit for the course root",
+              "title": "Folder Id"
+            },
+            "description": "Only items directly in this folder; omit for the course root"
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "List the items of every folder of the course, not just one",
+              "default": false,
+              "title": "Recursive"
+            },
+            "description": "List the items of every folder of the course, not just one"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead.",
+              "title": "Search"
+            },
+            "description": "Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "size",
+                "updated",
+                "created",
+                "type"
+              ],
+              "type": "string",
+              "description": "Sort key",
+              "default": "name",
+              "title": "Sort"
+            },
+            "description": "Sort key"
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Reverse the sort order",
+              "default": false,
+              "title": "Descending"
+            },
+            "description": "Reverse the sort order"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its id)",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its id)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Page size",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}/content": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Download or preview a file; supports Range requests.",
+        "operationId": "filesContent",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "disposition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(inline|attachment)$",
+              "description": "inline previews, attachment downloads",
+              "default": "attachment",
+              "title": "Disposition"
+            },
+            "description": "inline previews, attachment downloads"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{item_id}/pages/{page}.png": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "A small image of one page of a processed file.",
+        "operationId": "filesPageImage",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting at 1",
+              "title": "Page"
+            },
+            "description": "Page number, starting at 1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/png": {}
             }
           },
           "422": {
@@ -3538,6 +3878,665 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StorageUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{item_id}/outline": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get the headings of a processed file with their page numbers.",
+        "description": "Use to see the structure of a long document before reading parts of it.",
+        "operationId": "filesDocumentOutline",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOutline"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}/document": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read the text of a processed file, page by page.",
+        "description": "Returns the markdown of up to 30 pages starting at page_from. When next_page is\nset, call again from there to continue. Use it to summarise or extract from a whole document; to\nfind something specific use files.search first.",
+        "operationId": "filesDocumentRead",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "page_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "First page (1-based)",
+              "default": 1,
+              "title": "Page From"
+            },
+            "description": "First page (1-based)"
+          },
+          {
+            "name": "page_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last page; at most 30 pages are returned per call",
+              "title": "Page To"
+            },
+            "description": "Last page; at most 30 pages are returned per call"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRead"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/folders": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Create a folder in a course's files.",
+        "description": "Use to organise a course's files. Folders can be nested up to three levels.",
+        "operationId": "filesFolderCreate",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a folder, optionally with everything in it.",
+        "description": "Use only when the user clearly asks. A folder that is not empty is refused\nunless recursive=true, which permanently deletes all its files, links and subfolders.",
+        "operationId": "filesFolderDelete",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Folder id",
+              "title": "Folder Id"
+            },
+            "description": "Folder id"
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also delete everything inside; required for a non-empty folder",
+              "default": false,
+              "title": "Recursive"
+            },
+            "description": "Also delete everything inside; required for a non-empty folder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Rename or move a folder, or change its order.",
+        "description": "Rename a folder, move it under another folder (parent_id null = course root) or\nset its position among its siblings. Only send the fields to change.",
+        "operationId": "filesFolderUpdate",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Folder id",
+              "title": "Folder Id"
+            },
+            "description": "Folder id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a file or link permanently.",
+        "description": "Use only when the user clearly asks to delete a file or link. The stored file\nand everything derived from it (text, search index) is removed and cannot be restored.",
+        "operationId": "filesItemDelete",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get one file or link.",
+        "description": "Use to check a file's name, type, size and whether its text is ready to read\n(doc_status = ready). Use files.document.read to read the text.",
+        "operationId": "filesItemGet",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Rename, move or pin a file or link.",
+        "description": "Use when the user wants to rename a file, put it in another folder of the same\ncourse (folder_id null = course root), or pin it for quick access. Only send the fields to\nchange.",
+        "operationId": "filesItemUpdate",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/file-links": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Save a web link in a course's files.",
+        "description": "Use when the user wants to keep a web page (an http or https address) next to\nthe course files. Do not use to save a file; uploads are done by the user in the app.",
+        "operationId": "filesLinkCreate",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/pinned-files": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List the pinned files of a Program.",
+        "description": "Files and links the user pinned for quick access, across the Program's\ncourses.",
+        "operationId": "filesPinned",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFiles"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}:reprocess": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read a file's text again.",
+        "description": "Starts the document pipeline again for a file, for example after a failure or\nafter an AI model for reading scanned pages was set up.",
+        "operationId": "filesReprocess",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/files:search": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Search what the course files say.",
+        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; tell the user the answer may be incomplete. Do not use to find a\nfile by its name; use files.list.",
+        "operationId": "filesSearch",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id; the search never leaves this Program",
+              "title": "Program Id"
+            },
+            "description": "Program id; the search never leaves this Program"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files-usage": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get how much file storage is used.",
+        "description": "Used and available storage, and the largest file that can be uploaded.",
+        "operationId": "filesUsage",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUsage"
                 }
               }
             }
@@ -7462,6 +8461,1063 @@
           }
         }
       }
+    },
+    "/programs/{program_id}/task-counts": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Counts of unfinished tasks per smart list, list and course (sidebar badges).",
+        "description": "Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.",
+        "operationId": "tasksCounts",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this term's tasks and those that belong to no term",
+              "title": "Term Id"
+            },
+            "description": "Only this term's tasks and those that belong to no term"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this course's tasks",
+              "title": "Course Id"
+            },
+            "description": "Only this course's tasks"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCounts"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/tasks:clear-completed": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Delete the completed tasks of a Program, optionally of one list, term or course.",
+        "description": "Irreversible; returns how many were deleted. Use only when the user asks to clear\nor clean up completed tasks.",
+        "operationId": "tasksItemClearCompleted",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskClearInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskClearResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}:complete": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Mark a task done, or reopen it with completed=false.",
+        "description": "Completing a task never changes grades, even if it came from an assessment.",
+        "operationId": "tasksItemComplete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Task id",
+              "title": "Task Id"
+            },
+            "description": "Task id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCompleteInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/tasks": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Create a task, optionally with a due date, course, list and priority.",
+        "description": "Always pass the course and due date when the user's words or the current scope\ngive them. Dates are in the Program's time zone; a time needs a date. The term is inferred from\nthe course and due date. Omit list_id to put the task in the inbox. Use tasks.item.create_many\nfor several tasks.",
+        "operationId": "tasksItemCreate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
+        "description": "Use for 'what do I have to do'. `today` includes overdue tasks. For questions\nabout what is due this week prefer calendar.occurrences, which merges tasks with assessment\ndeadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;\ncompleted tasks are hidden unless the view is `completed` or include_completed is set.",
+        "operationId": "tasksItemQuery",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "today",
+                "scheduled",
+                "all",
+                "completed",
+                "inbox",
+                "flagged"
+              ],
+              "type": "string",
+              "description": "today = due today or overdue; scheduled = has a due date; all; completed; inbox = no list; flagged",
+              "default": "all",
+              "title": "View"
+            },
+            "description": "today = due today or overdue; scheduled = has a due date; all; completed; inbox = no list; flagged"
+          },
+          {
+            "name": "list_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this list",
+              "title": "List Id"
+            },
+            "description": "Only this list"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this term's tasks and those that belong to no term",
+              "title": "Term Id"
+            },
+            "description": "Only this term's tasks and those that belong to no term"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this course",
+              "title": "Course Id"
+            },
+            "description": "Only this course"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fuzzy match on title and notes",
+              "title": "Search"
+            },
+            "description": "Fuzzy match on title and notes"
+          },
+          {
+            "name": "due_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Due on or after this date",
+              "title": "Due From"
+            },
+            "description": "Due on or after this date"
+          },
+          {
+            "name": "due_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Due on or before this date",
+              "title": "Due To"
+            },
+            "description": "Due on or before this date"
+          },
+          {
+            "name": "include_completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also return completed tasks (views other than completed)",
+              "default": false,
+              "title": "Include Completed"
+            },
+            "description": "Also return completed tasks (views other than completed)"
+          },
+          {
+            "name": "only_completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Return only the completed tasks the view would show (views other than completed); wins over include_completed",
+              "default": false,
+              "title": "Only Completed"
+            },
+            "description": "Return only the completed tasks the view would show (views other than completed); wins over include_completed"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "manual",
+                "due",
+                "priority",
+                "created",
+                "title"
+              ],
+              "type": "string",
+              "description": "Order of the result",
+              "default": "manual",
+              "title": "Sort"
+            },
+            "description": "Order of the result"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "program_id",
+                      "term_id",
+                      "course_id",
+                      "list_id",
+                      "title",
+                      "notes",
+                      "due_date",
+                      "due_time",
+                      "priority",
+                      "flagged",
+                      "completed_at",
+                      "overdue",
+                      "position",
+                      "source_kind",
+                      "source_ref",
+                      "created_at",
+                      "updated_at"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each task (and its id)",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each task (and its id)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Page size",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/tasks:batch": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Create several tasks at once; items with an already known source are skipped.",
+        "description": "Use for imports and for lists the user dictates. Set source_kind and source_ref\non imported items so that running the import again does not duplicate them; skipped items are\nreturned with the id of the task that already exists.",
+        "operationId": "tasksItemCreateMany",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCreateManyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Delete a task for good.",
+        "description": "Irreversible. To finish a task use tasks.item.complete instead; delete only when\nthe user asks to remove it.",
+        "operationId": "tasksItemDelete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Task id",
+              "title": "Task Id"
+            },
+            "description": "Task id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDeleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Get one task with its notes, due date, priority and source.",
+        "description": "Use when you need the full details of a task you already know the id of.",
+        "operationId": "tasksItemGet",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Task id",
+              "title": "Task Id"
+            },
+            "description": "Task id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Change a task's title, notes, due date and time, priority, flag, list or course.",
+        "description": "Partial update: only the fields that are sent change; null clears the nullable\nones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task\nand tasks.item.move to reorder it.",
+        "operationId": "tasksItemUpdate",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Task id",
+              "title": "Task Id"
+            },
+            "description": "Task id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/tasks/{task_id}:move": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Move a task to another list (or the inbox) and/or to a place within the list.",
+        "description": "Send list_id (null = inbox) to change list; leave it out to reorder inside the\ncurrent one. before_task_id places the task right before that task, otherwise it goes last.",
+        "operationId": "tasksItemMove",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Task id",
+              "title": "Task Id"
+            },
+            "description": "Task id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskMoveInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/task-lists": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Create a task list, for one term or for the whole Program.",
+        "description": "Use when the user wants a named list such as 'Errands'. Names are unique within\na term (or within the Program-wide lists). Do not create a list just to file one task: leave\ntasks in the inbox unless the user names a list.",
+        "operationId": "tasksListCreate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskListCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "List the task lists of a Program (term lists and Program-wide lists).",
+        "description": "Use to find a list id before creating or moving tasks. Tasks without a list are\nin the inbox, which is not a list row.",
+        "operationId": "tasksListList",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/task-lists/{list_id}": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Delete a task list; its tasks move to the inbox unless told otherwise.",
+        "description": "With `delete_tasks` true the list's tasks are deleted for good, so only use\nit when the user asked for that. By default the tasks are kept in the inbox.",
+        "operationId": "tasksListDelete",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "List id",
+              "title": "List Id"
+            },
+            "description": "List id"
+          },
+          {
+            "name": "delete_tasks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Delete the list's tasks too; by default they move to the inbox",
+              "default": false,
+              "title": "Delete Tasks"
+            },
+            "description": "Delete the list's tasks too; by default they move to the inbox"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListDeleteResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Rename a task list or change its color or icon.",
+        "description": "Partial update: only the fields that are sent change.",
+        "operationId": "tasksListUpdate",
+        "parameters": [
+          {
+            "name": "list_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "List id",
+              "title": "List Id"
+            },
+            "description": "List id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskListUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/task-list-order": {
+      "put": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Set the display order of a Program's task lists.",
+        "description": "Lists not named keep their relative order after the named ones.",
+        "operationId": "tasksListReorder",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskListOrderInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9446,6 +11502,36 @@
         ],
         "title": "Body_agentAttachmentUpload"
       },
+      "Body_filesUpload": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "The files to upload"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Folder to put them in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_filesUpload"
+      },
       "Break": {
         "properties": {
           "id": {
@@ -11324,6 +13410,104 @@
         ],
         "title": "DayFocus"
       },
+      "DocumentOutline": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "page_count",
+          "entries"
+        ],
+        "title": "DocumentOutline"
+      },
+      "DocumentPage": {
+        "properties": {
+          "page_no": {
+            "type": "integer",
+            "title": "Page No"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          },
+          "ocr_used": {
+            "type": "boolean",
+            "title": "Ocr Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_no",
+          "markdown",
+          "ocr_used"
+        ],
+        "title": "DocumentPage"
+      },
+      "DocumentRead": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentPage"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "next_page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Page",
+            "description": "Call again from this page for the rest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "page_count",
+          "pages",
+          "next_page"
+        ],
+        "title": "DocumentRead"
+      },
       "Done": {
         "properties": {
           "ok": {
@@ -12139,6 +14323,209 @@
         ],
         "title": "FeedList"
       },
+      "FilesList": {
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/FolderOut"
+            },
+            "type": "array",
+            "title": "Folders",
+            "description": "Every folder of the course"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folders",
+          "items",
+          "next_cursor"
+        ],
+        "title": "FilesList"
+      },
+      "FilesUsage": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes",
+            "description": "All the user's stored files, every module"
+          },
+          "files_bytes": {
+            "type": "integer",
+            "title": "Files Bytes",
+            "description": "Of which course files"
+          },
+          "quota_bytes": {
+            "type": "integer",
+            "title": "Quota Bytes",
+            "description": "0 means unlimited"
+          },
+          "max_upload_bytes": {
+            "type": "integer",
+            "title": "Max Upload Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "files_bytes",
+          "quota_bytes",
+          "max_upload_bytes"
+        ],
+        "title": "FilesUsage"
+      },
+      "FolderCreateInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Folder name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Parent folder; null = course root"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FolderCreateInputBody"
+      },
+      "FolderOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "description": "Files and links directly inside the folder"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "parent_id",
+          "name",
+          "position",
+          "item_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FolderOut"
+      },
+      "FolderUpdateInputBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Move under this folder; null moves it to the course root"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position",
+            "description": "Order among its siblings"
+          }
+        },
+        "type": "object",
+        "title": "FolderUpdateInputBody"
+      },
       "GoogleLinkInputBody": {
         "properties": {
           "id_token": {
@@ -12780,6 +15167,249 @@
         ],
         "title": "Instructor"
       },
+      "ItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "link"
+            ],
+            "title": "Kind"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "original_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Name"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "upload",
+                  "lms",
+                  "agent"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "doc_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "processing",
+              "ready",
+              "failed",
+              "unsupported"
+            ],
+            "title": "Doc Status"
+          },
+          "doc_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Error Code"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "ocr_skipped_pages": {
+            "type": "integer",
+            "title": "Ocr Skipped Pages"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "folder_id",
+          "kind",
+          "display_name",
+          "original_name",
+          "mime_type",
+          "size_bytes",
+          "sha256",
+          "url",
+          "pinned",
+          "source_kind",
+          "source_ref",
+          "doc_status",
+          "doc_error_code",
+          "page_count",
+          "ocr_skipped_pages",
+          "job_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ItemOut"
+      },
+      "ItemUpdateInputBody": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "New name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Move into this folder; null moves it to the course root"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned",
+            "description": "Pin it to the quick-open cards"
+          }
+        },
+        "type": "object",
+        "title": "ItemUpdateInputBody"
+      },
       "JobOut": {
         "properties": {
           "id": {
@@ -12965,6 +15595,50 @@
         "title": "JobPage"
       },
       "JsonValue": {},
+      "LinkCreateInputBody": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Url",
+            "description": "http(s) address"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "Name to show; defaults to the address' host"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Folder to put it in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "LinkCreateInputBody"
+      },
       "Meeting": {
         "properties": {
           "id": {
@@ -14590,6 +17264,29 @@
         ],
         "title": "OneOffEventList"
       },
+      "OutlineEntry": {
+        "properties": {
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "title",
+          "page"
+        ],
+        "title": "OutlineEntry"
+      },
       "PaletteColor": {
         "properties": {
           "palette": {
@@ -14681,6 +17378,45 @@
           "new_password"
         ],
         "title": "PasswordResetIn"
+      },
+      "PendingItem": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "course_id"
+        ],
+        "title": "PendingItem"
+      },
+      "PinnedFiles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PinnedFiles"
       },
       "PluginCatalog": {
         "properties": {
@@ -16361,6 +19097,182 @@
         ],
         "title": "ScoreSuggestion"
       },
+      "SearchHit": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "page_from": {
+            "type": "integer",
+            "title": "Page From"
+          },
+          "page_to": {
+            "type": "integer",
+            "title": "Page To"
+          },
+          "heading_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Heading Path"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "Matching text; matches are wrapped in <mark></mark>"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "citation_id": {
+            "type": "string",
+            "title": "Citation Id",
+            "description": "`<item_id>:p<page_from>-<page_to>`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "course_id",
+          "page_from",
+          "page_to",
+          "heading_path",
+          "snippet",
+          "score",
+          "citation_id"
+        ],
+        "title": "SearchHit"
+      },
+      "SearchInputBody": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "description": "What to look for: words from the document or a question"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Only the courses of this term"
+          },
+          "course_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Ids",
+            "description": "Only these courses"
+          },
+          "item_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Ids",
+            "description": "Only these files"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "description": "Results to return",
+            "default": 8
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hybrid",
+              "keyword",
+              "semantic"
+            ],
+            "title": "Mode",
+            "description": "hybrid = keywords and meaning together; keyword; semantic (needs an embedding model, else falls back to keyword)",
+            "default": "hybrid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchInputBody"
+      },
+      "SearchResult": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "pending_items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingItem"
+            },
+            "type": "array",
+            "title": "Pending Items",
+            "description": "Files in scope that are still being processed and are not searchable yet"
+          },
+          "mode_used": {
+            "type": "string",
+            "enum": [
+              "hybrid",
+              "keyword",
+              "semantic"
+            ],
+            "title": "Mode Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results",
+          "pending_items",
+          "mode_used"
+        ],
+        "title": "SearchResult"
+      },
       "SessionList": {
         "properties": {
           "items": {
@@ -16728,6 +19640,1101 @@
           "score"
         ],
         "title": "SuggestedScore"
+      },
+      "Task": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id"
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "Null for the Program's inbox"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "due_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Time",
+            "description": "Wall-clock time in the Program's time zone"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "urgent"
+            ],
+            "title": "Priority"
+          },
+          "flagged": {
+            "type": "boolean",
+            "title": "Flagged"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue",
+            "description": "Unfinished and past its due moment (Program time zone)"
+          },
+          "position": {
+            "type": "number",
+            "title": "Position"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "assessment",
+                  "lms",
+                  "syllabus",
+                  "agent",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "term_id",
+          "course_id",
+          "list_id",
+          "title",
+          "notes",
+          "due_date",
+          "due_time",
+          "priority",
+          "flagged",
+          "completed_at",
+          "overdue",
+          "position",
+          "source_kind",
+          "source_ref",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Task"
+      },
+      "TaskClearInputBody": {
+        "properties": {
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "Only completed tasks of this list"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Only completed tasks of this term"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Only completed tasks of this course"
+          }
+        },
+        "type": "object",
+        "title": "TaskClearInputBody"
+      },
+      "TaskClearResult": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "TaskClearResult"
+      },
+      "TaskCompleteInputBody": {
+        "properties": {
+          "completed": {
+            "type": "boolean",
+            "title": "Completed",
+            "description": "False reopens the task",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "TaskCompleteInputBody"
+      },
+      "TaskCounts": {
+        "properties": {
+          "today": {
+            "type": "integer",
+            "title": "Today",
+            "description": "Unfinished tasks due today or overdue"
+          },
+          "overdue": {
+            "type": "integer",
+            "title": "Overdue"
+          },
+          "scheduled": {
+            "type": "integer",
+            "title": "Scheduled"
+          },
+          "all": {
+            "type": "integer",
+            "title": "All"
+          },
+          "inbox": {
+            "type": "integer",
+            "title": "Inbox"
+          },
+          "flagged": {
+            "type": "integer",
+            "title": "Flagged"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "lists": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Lists",
+            "description": "Unfinished tasks per list id"
+          },
+          "courses": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Courses",
+            "description": "Unfinished tasks per course id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "today",
+          "overdue",
+          "scheduled",
+          "all",
+          "inbox",
+          "flagged",
+          "completed",
+          "lists",
+          "courses"
+        ],
+        "title": "TaskCounts"
+      },
+      "TaskCreateInputBody": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "description": "What to do"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Notes",
+            "description": "Notes",
+            "default": ""
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date",
+            "description": "Due date (Program time zone)"
+          },
+          "due_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Time",
+            "description": "Due time of day; needs a due date. Seconds are dropped."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high",
+                  "urgent"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority",
+            "description": "Priority; omit for the Program's default"
+          },
+          "flagged": {
+            "type": "boolean",
+            "title": "Flagged",
+            "description": "Flag the task",
+            "default": false
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term; inferred from the course and due date when omitted"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course the task is for"
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "List; omit for the inbox"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "assessment",
+              "lms",
+              "syllabus",
+              "agent",
+              "manual"
+            ],
+            "title": "Source Kind",
+            "description": "Where the task came from",
+            "default": "manual"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref",
+            "description": "Id of the source item; makes batch imports idempotent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "TaskCreateInputBody"
+      },
+      "TaskCreateManyInputBody": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskFields"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items",
+            "description": "Tasks to create"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TaskCreateManyInputBody"
+      },
+      "TaskCreateManyResult": {
+        "properties": {
+          "created": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "type": "array",
+            "title": "Created"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/TaskSkipped"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "skipped"
+        ],
+        "title": "TaskCreateManyResult"
+      },
+      "TaskDeleted": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "TaskDeleted"
+      },
+      "TaskFields": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "description": "What to do"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Notes",
+            "description": "Notes",
+            "default": ""
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date",
+            "description": "Due date (Program time zone)"
+          },
+          "due_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Time",
+            "description": "Due time of day; needs a due date. Seconds are dropped."
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high",
+                  "urgent"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority",
+            "description": "Priority; omit for the Program's default"
+          },
+          "flagged": {
+            "type": "boolean",
+            "title": "Flagged",
+            "description": "Flag the task",
+            "default": false
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term; inferred from the course and due date when omitted"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course the task is for"
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "List; omit for the inbox"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "assessment",
+              "lms",
+              "syllabus",
+              "agent",
+              "manual"
+            ],
+            "title": "Source Kind",
+            "description": "Where the task came from",
+            "default": "manual"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref",
+            "description": "Id of the source item; makes batch imports idempotent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "TaskFields"
+      },
+      "TaskList": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Null for a list shared by every term of the Program"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "term_id",
+          "name",
+          "color",
+          "icon",
+          "position",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TaskList"
+      },
+      "TaskListCreateInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "List name, unique within its term (or Program-wide)"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term the list belongs to; omit for a Program-wide list"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Color"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon",
+            "description": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TaskListCreateInputBody"
+      },
+      "TaskListDeleteResult": {
+        "properties": {
+          "deleted_task_count": {
+            "type": "integer",
+            "title": "Deleted Task Count"
+          },
+          "moved_task_count": {
+            "type": "integer",
+            "title": "Moved Task Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_task_count",
+          "moved_task_count"
+        ],
+        "title": "TaskListDeleteResult"
+      },
+      "TaskListOrderInputBody": {
+        "properties": {
+          "list_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "List Ids",
+            "description": "List ids in the new display order (lists not named go last)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "list_ids"
+        ],
+        "title": "TaskListOrderInputBody"
+      },
+      "TaskListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskList"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TaskListOut"
+      },
+      "TaskListUpdateInputBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New name"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color",
+            "description": "Color"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon",
+            "description": "Icon"
+          }
+        },
+        "type": "object",
+        "title": "TaskListUpdateInputBody"
+      },
+      "TaskMoveInputBody": {
+        "properties": {
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "Target list (null = inbox); if not sent the list is unchanged"
+          },
+          "before_task_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Task Id",
+            "description": "Place the task before this one (same target list); else last"
+          }
+        },
+        "type": "object",
+        "title": "TaskMoveInputBody"
+      },
+      "TaskPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "TaskPage"
+      },
+      "TaskSkipped": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id",
+            "description": "The existing task with the same source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "task_id"
+        ],
+        "title": "TaskSkipped"
+      },
+      "TaskUpdateInputBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Title"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Notes"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date",
+            "description": "Due date; null clears date and time"
+          },
+          "due_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Time",
+            "description": "Due time; null clears it"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "low",
+                  "medium",
+                  "high",
+                  "urgent"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority",
+            "description": "Priority"
+          },
+          "flagged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flagged",
+            "description": "Flag"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term; null clears it"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course; null clears it"
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id",
+            "description": "List; null moves to the inbox"
+          }
+        },
+        "type": "object",
+        "title": "TaskUpdateInputBody"
       },
       "Template": {
         "properties": {
@@ -17851,6 +21858,22 @@
         ],
         "title": "UiStateSetInputBody"
       },
+      "UploadResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UploadResult"
+      },
       "UsageDay": {
         "properties": {
           "date": {
@@ -18210,6 +22233,17 @@
         "required": [
           "deleted"
         ],
+        "title": "Deleted"
+      },
+      "semestra__modules__files__schemas__Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
         "title": "Deleted"
       },
       "semestra__modules__schedule__schemas__Deleted": {

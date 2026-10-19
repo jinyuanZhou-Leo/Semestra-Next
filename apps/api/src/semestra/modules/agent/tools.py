@@ -155,6 +155,11 @@ class Catalog:
         return next((c for c in self.available if c.name == name), None)
 
 
+# Results that quote the text of the user's files (M07): wrapped as untrusted content, like
+# attachments, so instructions inside a document are not taken as the user's.
+UNTRUSTED_RESULTS = frozenset({"files.search", "files.document.read", "files.document.outline"})
+
+
 def serialize(result: Any) -> str:
     if isinstance(result, BaseModel):
         result = result.model_dump(mode="json")
