@@ -44,7 +44,10 @@ def _late_note(block: dict[str, Any]) -> Text:
 
 
 async def _user_parts(
-    row: AgentMessage, attachments: dict[str, AgentAttachment], load: LoadAttachment
+    row: AgentMessage,
+    attachments: dict[str, AgentAttachment],
+    load: LoadAttachment,
+    reads_pdf: bool,
 ) -> list[Any]:
     parts: list[Any] = []
     for block in row.content:
@@ -61,6 +64,11 @@ async def _user_parts(
             att = attachments.get(block.get("attachment_id", ""))
             if att is None:
                 parts.append(Text(f"[Attachment {block.get('name', '')} is no longer available]"))
+                continue
+            if att.mime == "application/pdf" and not reads_pdf:
+                # No renderer yet for providers without PDF input: say so instead of failing
+                # the whole turn, so the model can ask for text or a screenshot.
+                parts.append(Text(f"[PDF {att.name} cannot be read by the current model]"))
                 continue
             data = await load(att)
             if att.kind == "image":
@@ -79,6 +87,7 @@ async def build(
     proposal_status: dict[str, str],
     attachments: dict[str, AgentAttachment],
     load: LoadAttachment,
+    reads_pdf: bool = True,
     summary: str | None = None,
 ) -> list[Message]:
     out: list[Message] = []
@@ -88,7 +97,7 @@ async def build(
     while i < len(rows):
         row = rows[i]
         if row.role == "user":
-            parts = await _user_parts(row, attachments, load)
+            parts = await _user_parts(row, attachments, load, reads_pdf)
             if parts:
                 out.append(Message("user", parts))
             i += 1

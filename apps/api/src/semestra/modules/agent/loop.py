@@ -210,7 +210,12 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
 
     current = kept(rows)
     msgs = await history.build(
-        current, proposal_status=status, attachments=atts, load=load, summary=st.get("summary")
+        current,
+        proposal_status=status,
+        attachments=atts,
+        load=load,
+        reads_pdf=model.reads_pdf,
+        summary=st.get("summary"),
     )
     window = ai_catalog.context_window(model.model)
     cut = history.compaction_cut(current)
@@ -238,7 +243,12 @@ async def _prepare(ctx: Ctx, session: AgentSession) -> Prepared:
             session.state = st
             current = current[cut:]
             msgs = await history.build(
-                current, proposal_status=status, attachments=atts, load=load, summary=st["summary"]
+                current,
+                proposal_status=status,
+                attachments=atts,
+                load=load,
+                reads_pdf=model.reads_pdf,
+                summary=st["summary"],
             )
     available = await registry.available(ctx, "agent")
     bound = (

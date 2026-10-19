@@ -414,6 +414,22 @@ test('/ picks a skill and @ refers to a course', async () => {
   })
 })
 
+test('a suggestion in an empty existing conversation keeps its scope', async () => {
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: null, course_id: 'c2' } })
+  renderWithRouter(
+    <Conversation
+      sessionId="s1"
+      pageScope={{ program_id: 'p1', term_id: 't2', course_id: 'c1' }}
+      onCreated={() => {}}
+    />,
+  )
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'What do I need on the final to get an A?' }),
+  )
+  await waitFor(() => expect(srv.sent).toHaveLength(1))
+  expect(srv.sent[0]?.body.scope ?? null).toBeNull()
+})
+
 test('stop asks the server to end the answer', async () => {
   let stopped = false
   server.use(

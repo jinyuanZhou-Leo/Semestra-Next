@@ -41,6 +41,7 @@ class FakeModel:
 
     model = "fake-model"
     supports_tools = True
+    reads_pdf = True
 
     def __init__(self) -> None:
         self.script: list[Step] = []

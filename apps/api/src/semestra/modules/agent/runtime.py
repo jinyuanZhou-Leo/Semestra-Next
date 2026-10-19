@@ -29,6 +29,9 @@ class ChatLike(Protocol):
     @property
     def supports_tools(self) -> bool: ...
 
+    @property
+    def reads_pdf(self) -> bool: ...
+
     def stream(
         self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
     ) -> AsyncIterator[Chunk]: ...

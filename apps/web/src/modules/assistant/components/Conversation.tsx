@@ -274,7 +274,7 @@ export function Conversation({
   useEffect(() => {
     if (!question || !ai.available) return
     onQuestionTaken?.()
-    void chat.send({ text: question.text, scope: newScope })
+    void chat.send({ text: question.text, scope: sessionId ? null : newScope })
     // Only a new question is sent; the rest of the state is read as it is now.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [questionKey, ai.available])
@@ -505,7 +505,9 @@ export function Conversation({
                 size="sm"
                 className="shrink-0"
                 disabled={chat.generating || !ai.available}
-                onClick={() => void chat.send({ text: suggest(), scope: newScope })}
+                onClick={() =>
+                  void chat.send({ text: suggest(), scope: sessionId ? null : newScope })
+                }
               >
                 {suggest()}
               </Button>

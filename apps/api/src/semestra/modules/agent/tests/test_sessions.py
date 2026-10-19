@@ -4,6 +4,7 @@ import inspect
 import json
 from pathlib import Path
 
+import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 
@@ -99,6 +100,25 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     await agent.call("DELETE", f"/agent/sessions/{session['id']}")
     usage = await agent.call("GET", "/storage/usage")
     assert usage["by_module"]["agent"] == 0
+
+
+async def test_pdfs_become_a_note_for_models_without_pdf_input(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """Ollama and OpenAI-compatible providers cannot read PDFs: the turn still goes through."""
+    session = await agent.session()
+    pdf = await agent.call(
+        "POST",
+        "/agent/attachments",
+        data={"session_id": session["id"]},
+        files={"file": ("syllabus.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+    monkeypatch.setattr(model, "reads_pdf", False, raising=False)
+    model.then(say("Please paste the text."))
+    await agent.send(session["id"], "summarize", attachment_ids=[pdf["id"]])
+    parts = model.requests[0][0][1].content
+    assert not any(isinstance(p, Document) for p in parts)
+    assert any(isinstance(p, Text) and "syllabus.pdf" in p.text for p in parts)
 
 
 async def test_unsent_attachments_can_be_deleted(agent: Agent, model: FakeModel):
