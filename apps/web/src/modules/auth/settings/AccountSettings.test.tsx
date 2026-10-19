@@ -114,14 +114,14 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
   )
   mount()
 
-  await userEvent.click(await screen.findByRole('button', { name: 'Create token' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
   const form = await screen.findByRole('dialog')
   await userEvent.type(within(form).getByLabelText('Name'), 'Claude Desktop')
   await userEvent.click(within(form).getByRole('combobox', { name: 'Access' }))
   await userEvent.click(await screen.findByRole('option', { name: 'Read and write' }))
   await userEvent.click(within(form).getByRole('combobox', { name: 'Expires' }))
   await userEvent.click(await screen.findByRole('option', { name: /90/ }))
-  await userEvent.click(within(form).getByRole('button', { name: 'Create token' }))
+  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
 
   expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
   expect(screen.getByRole('button', { name: 'Copy MCP config' })).toBeInTheDocument()
@@ -143,7 +143,7 @@ test('revoking a token asks for confirmation first', async () => {
     }),
   )
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'Revoke token Claude Desktop' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Revoke API token Claude Desktop' }))
   expect(revoked).not.toHaveBeenCalled()
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }))
