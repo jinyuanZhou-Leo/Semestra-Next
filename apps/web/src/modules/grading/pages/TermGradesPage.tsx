@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -298,11 +299,12 @@ function TermGradesView({
             <TableBody>
               {term.courses.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={courseColumns.length}
-                    className="py-8 text-center whitespace-normal text-muted-foreground"
-                  >
-                    {m.grading_term_empty()}
+                  <TableCell colSpan={courseColumns.length} className="whitespace-normal">
+                    <Empty className="border-0 p-6">
+                      <EmptyHeader>
+                        <EmptyTitle>{m.grading_term_empty()}</EmptyTitle>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell>
                 </TableRow>
               ) : null}

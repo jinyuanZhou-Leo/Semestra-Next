@@ -32,7 +32,7 @@ export default function WeekCard({ scope }: CardProps) {
   const items = weekGridItems(occurrences.items, tz)
   if (items.length === 0) {
     return (
-      <Empty>
+      <Empty className="border-0 p-0">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <CalendarDays aria-hidden />

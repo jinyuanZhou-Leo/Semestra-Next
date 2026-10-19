@@ -1,4 +1,4 @@
-import { CalendarPlus } from 'lucide-react'
+import { CalendarPlus, CalendarRange } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { newTermPath, termPath } from '../paths'
 import { useTerms } from '../queries'
 
@@ -19,8 +20,15 @@ export default function TermsCard({ scope }: CardProps) {
     <div className="flex h-full flex-col gap-2">
       <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {terms && terms.length === 0 ? (
-          <li className="py-4 text-center text-sm text-muted-foreground">
-            {m.academics_terms_empty()}
+          <li className="h-full">
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarRange aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_terms_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           </li>
         ) : null}
         {(terms ?? []).toReversed().map((term) => (

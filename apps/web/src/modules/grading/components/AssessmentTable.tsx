@@ -14,6 +14,7 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Toggle } from '@/ui/toggle'
@@ -234,11 +235,15 @@ export function AssessmentTable({
             <TableBody>
               {assessments.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={columnCount}
-                    className="py-8 text-center whitespace-normal text-muted-foreground"
-                  >
-                    {m.grading_assessments_empty()}
+                  <TableCell colSpan={columnCount} className="whitespace-normal">
+                    <Empty className="border-0 p-6">
+                      <EmptyHeader>
+                        <EmptyTitle>{m.grading_assessments_empty()}</EmptyTitle>
+                        <EmptyDescription>
+                          {m.grading_assessments_empty_description()}
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell>
                 </TableRow>
               ) : null}
