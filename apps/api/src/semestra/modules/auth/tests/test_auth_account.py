@@ -1,7 +1,7 @@
 """CSRF, native tokens, PATs, sessions and account management (M01 §3, §5, §10)."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -560,3 +560,95 @@ async def test_agents_only_see_name_email_and_locale(
 async def test_capability_routes_have_camel_case_operation_ids(app: FastAPI) -> None:
     ops = {op["operationId"] for path in app.openapi()["paths"].values() for op in path.values()}
     assert {"accountMeGet", "accountTokensCreate", "accountSessionsRevoke", "authEmailStart"} <= ops
+
+
+# --- uploaded avatars -------------------------------------------------------------------------
+
+
+def _png(size: tuple[int, int], fmt: str = "PNG") -> bytes:
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", size, (200, 30, 30)).save(out, fmt)
+    return out.getvalue()
+
+
+async def test_avatar_upload_resizes_serves_and_replaces(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    import io
+
+    from PIL import Image
+
+    await login_as(client, await make_user())
+    r = await client.post("/account/avatar", files={"file": ("a.png", _png((900, 400)))})
+    assert r.status_code == 200, r.text
+    first = r.json()["avatar_url"]
+    assert first.startswith("/account/avatars/")
+
+    served = await client.get(first)
+    assert served.headers["content-type"] == "image/webp"
+    image = Image.open(io.BytesIO(served.content))
+    assert image.format == "WEBP"
+    assert image.size == (256, 256)
+
+    r = await client.post("/account/avatar", files={"file": ("b.jpg", _png((50, 50), "JPEG"))})
+    assert r.json()["avatar_url"] != first
+    assert (await client.get(first)).status_code == 404  # previous file removed
+
+    current = r.json()["avatar_url"]
+    r = await client.patch("/account/profile", json={"avatar_url": None})
+    assert r.json()["avatar_url"] is None
+    assert (await client.get(current)).status_code == 404
+    assert (await client.get("/account/avatars/é/x")).status_code == 422
+
+
+async def test_avatar_upload_rejects_bad_files(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    gif = await client.post("/account/avatar", files={"file": ("a.gif", _png((8, 8), "GIF"))})
+    assert (gif.status_code, gif.json()["error"]["code"]) == (415, "auth.avatar_invalid")
+    junk = await client.post("/account/avatar", files={"file": ("a.png", b"not an image")})
+    assert junk.status_code == 415
+    big = await client.post(
+        "/account/avatar", files={"file": ("a.png", b"0" * (5 * 1024 * 1024 + 1))}
+    )
+    assert (big.status_code, big.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+
+
+async def test_avatar_upload_body_limit_applies_before_parsing(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    huge = await client.post("/account/avatar", files={"file": ("a.png", b"0" * (6 * 1024 * 1024))})
+    assert (huge.status_code, huge.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+
+
+async def test_avatar_upload_body_limit_applies_to_chunked_uploads(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    boundary = "x"
+    head = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.png"\r\n\r\n'
+
+    async def body() -> AsyncIterator[bytes]:
+        yield head.encode()
+        for _ in range(7):
+            yield b"0" * (1024 * 1024)
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    r = await client.post(
+        "/account/avatar",
+        content=body(),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+    assert r.json()["error"]["request_id"] == r.headers["x-request-id"]
+
+
+async def test_avatar_upload_requires_login(client: AsyncClient) -> None:
+    r = await client.post("/account/avatar", files={"file": ("a.png", _png((8, 8)))})
+    assert r.status_code == 401

@@ -47,6 +47,25 @@ beforeEach(() => {
   world = defaultWorld()
   server.use(
     http.get(`${API}/account/me`, () => HttpResponse.json(user)),
+    http.get(`${API}/plugins/catalog`, () =>
+      HttpResponse.json(
+        { error: { code: 'common.internal', params: {}, request_id: 'r' } },
+        { status: 500 },
+      ),
+    ),
+    http.get(`${API}/layouts/nav/:kind`, () =>
+      HttpResponse.json({ scope_type: 'program', order: [], hidden: [] }),
+    ),
+    http.get(`${API}/layouts/boards/:kind/:id`, () =>
+      HttpResponse.json({
+        scope_type: 'program',
+        scope_id: 'p1',
+        customized: false,
+        updated_at: null,
+        cards: [],
+      }),
+    ),
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     ...academicsHandlers(world),
   )
 })
@@ -95,8 +114,52 @@ test('the sidebar lists terms, the current one expanded, year-long courses in bo
   await waitFor(() =>
     expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(2),
   )
-  // A single Program: no switcher anywhere.
-  expect(screen.queryByRole('button', { name: 'Switch Program' })).not.toBeInTheDocument()
+})
+
+test('with a single Program the Program menu still offers a new one', async () => {
+  mount('/p/p1')
+  await userEvent.click(await screen.findByRole('button', { name: 'Switch program' }))
+  expect(await screen.findByRole('menuitem', { name: 'New program' })).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: /Computer Engineering/ })).toHaveAttribute(
+    'href',
+    '/p/p1',
+  )
+})
+
+test('the sidebar offers each entry once and leaves page tabs to the page', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await within(nav).findByRole('link', { name: /APS105H1/ })
+  // Overview is the first tab of the page; the Program header and the breadcrumbs lead back to it.
+  expect(within(nav).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument()
+  // Settings, pin and delete of a term live on the page header; the term menu keeps only delete.
+  await userEvent.click(within(nav).getAllByRole('button', { name: /^More for / })[0]!)
+  expect(await screen.findByRole('menuitem', { name: 'Delete term' })).toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: /settings|pin/i })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
+})
+
+test('a Program without terms says so once in the sidebar, with a single way to add one', async () => {
+  world.terms = []
+  world.courses = []
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await within(nav).findByText('No terms yet')).toBeInTheDocument()
+  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
+})
+
+test('signing out from the account menu asks first', async () => {
+  mount('/p/p1')
+  await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }))
+  const signOut = await screen.findByRole('menuitem', { name: 'Sign out' })
+  // Settings sits in the sidebar and New program in the Program switcher; the menu repeats neither.
+  expect(screen.queryByRole('menuitem', { name: /settings|new program/i })).not.toBeInTheDocument()
+  await userEvent.click(signOut)
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).getByRole('heading', { name: 'Sign out?' })).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
 })
 
 test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async () => {
@@ -121,10 +184,59 @@ test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async 
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
 })
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+function dayButtonName(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number) as [number, number, number]
+  const date = new Date(year, month - 1, day)
+  const mod100 = day % 100
+  const suffix =
+    mod100 >= 11 && mod100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[day % 10] ?? 'th')
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' })
+  return `${weekday}, ${MONTHS[month - 1]} ${day}${suffix}, ${year}`
+}
+
+/** Opens the date picker labeled `name` and chooses `iso` (`yyyy-MM-dd`). */
+async function pickDate(name: string, iso: string) {
+  await userEvent.click(screen.getByRole('button', { name }))
+  const [year, month] = iso.split('-').map(Number) as [number, number]
+  const target = year * 12 + (month - 1)
+  for (let i = 0; i < 36; i++) {
+    const day = screen.queryByRole('button', { name: dayButtonName(iso) })
+    if (day) {
+      await userEvent.click(day)
+      return
+    }
+    const caption = screen.getByText(new RegExp(`^(${MONTHS.join('|')}) \\d{4}$`))
+    const [monthName, yearText] = caption.textContent!.split(' ')
+    const shown = Number(yearText) * 12 + MONTHS.indexOf(monthName!)
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: shown < target ? 'Go to the Next Month' : 'Go to the Previous Month',
+      }),
+    )
+  }
+  throw new Error(`could not find ${iso} in the date picker`)
+}
+
 test('the term wizard survives a reload and creates the term in one request', async () => {
   const first = mount('/p/p1/terms/new')
-  fireEvent.change(await screen.findByLabelText('First day'), { target: { value: '2026-09-08' } })
-  fireEvent.change(screen.getByLabelText('Last day'), { target: { value: '2026-12-20' } })
+  await screen.findByRole('button', { name: 'First day' })
+  await pickDate('First day', '2026-09-08')
+  await pickDate('Last day', '2026-12-20')
   expect(screen.getByLabelText('Name')).toHaveValue('Fall 2026')
   await userEvent.click(screen.getByRole('button', { name: 'Next' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Add course' }))
@@ -152,12 +264,7 @@ test('the term wizard survives a reload and creates the term in one request', as
 })
 
 test('on a phone the sidebar is a drawer and other pages ask for a desktop', async () => {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query.includes('max-width'),
-    media: query,
-    addEventListener() {},
-    removeEventListener() {},
-  }))
+  vi.stubGlobal('innerWidth', 500)
   mount('/p/p1')
   expect(await screen.findByText('Open this on a computer')).toBeInTheDocument()
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
@@ -170,4 +277,58 @@ test('on a phone the sidebar is a drawer and other pages ask for a desktop', asy
     await userEvent.click(within(drawer).getByRole('link', { name: /APS105H1/ }))
   })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+/** The "Settings" buttons on screen: the sidebar entry and the gear of the page header. */
+async function settingsButtons() {
+  const inSidebar = (button: HTMLElement) => button.closest('[data-slot="sidebar"]') !== null
+  // The page header loads after the sidebar.
+  const buttons = await waitFor(() => {
+    const found = screen.getAllByRole('button', { name: 'Settings' })
+    expect(found.some((b) => !inSidebar(b))).toBe(true)
+    return found
+  })
+  return { sidebar: buttons.find(inSidebar)!, gear: buttons.find((b) => !inSidebar(b))! }
+}
+
+test("the gear of a page header opens that scope's settings as a dialog, and Back closes it", async () => {
+  const { router } = mount('/p/p1/t/t2')
+  await userEvent.click((await settingsButtons()).gear)
+  const dialog = await screen.findByRole('dialog', { name: 'Winter 2026' })
+  expect(router.state.location.pathname).toBe('/p/p1/t/t2')
+  expect(router.state.location.search).toEqual({ settings: 'term' })
+  expect(await within(dialog).findByRole('heading', { name: 'Basics' })).toBeInTheDocument()
+
+  // Back goes to the page without the dialog.
+  act(() => router.history.back())
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.search).toEqual({})
+})
+
+test('the sidebar Settings entry opens the account settings and closing leaves the page', async () => {
+  const { router } = mount('/p/p1')
+  await userEvent.click((await settingsButtons()).sidebar)
+  const dialog = await screen.findByRole('dialog', { name: 'Settings' })
+  expect(router.state.location.search).toEqual({ settings: 'account' })
+
+  // Switching groups replaces the entry instead of stacking history.
+  await userEvent.click(within(dialog).getByRole('button', { name: 'About' }))
+  expect(router.state.location.search).toEqual({ settings: 'account/about' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.pathname).toBe('/p/p1')
+  expect(router.state.location.search).toEqual({})
+})
+
+test('old settings links open the dialog over the scope page', async () => {
+  const { router } = mount('/p/p1/c/c1/settings/general')
+  expect(await screen.findByRole('dialog', { name: /APS105H1/ })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1')
+  expect(router.state.location.search).toEqual({ settings: 'course/general' })
+})
+
+test('a settings level that does not exist on the page opens nothing', async () => {
+  mount('/p/p1?settings=term/general')
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })

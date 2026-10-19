@@ -18,6 +18,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Switch } from '@/ui/switch'
 import type { PageContribution, Scope } from '../extensions'
@@ -58,16 +59,18 @@ function PageRow({
         isDragging && 'relative z-10 shadow-md ring-1 ring-foreground/10',
       )}
     >
-      <button
+      <Button
         ref={setActivatorNodeRef}
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={m.host_nav_move_page({ page: title })}
-        className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
+        className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
         {...attributes}
         {...listeners}
       >
-        <GripVertical aria-hidden className="size-4" />
-      </button>
+        <GripVertical aria-hidden />
+      </Button>
       <page.icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className={cn('min-w-0 flex-1 truncate text-sm', !visible && 'text-muted-foreground')}>
         {title}

@@ -5,6 +5,7 @@ import type {
   SettingsLevel,
   SettingsSectionContribution,
 } from '../extensions'
+import { cn } from '@/lib/utils'
 import { useModules, useSettingsSections } from '../registry'
 import { groupOf, isNavigable } from './groups'
 import { NamespaceForm } from './NamespaceForm'
@@ -22,10 +23,16 @@ export function SectionFrame({
   const headingId = `settings-${section.id}-title`
   const Custom = section.component
   return (
-    <section id={section.id} aria-labelledby={headingId} className="scroll-mt-6 space-y-3">
+    <section id={section.id} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 id={headingId} className="font-heading text-lg font-medium">
+          <h2
+            id={headingId}
+            className={cn(
+              'font-heading text-base font-medium',
+              section.danger && 'text-destructive',
+            )}
+          >
             {section.title()}
           </h2>
           {section.description ? (
@@ -35,18 +42,20 @@ export function SectionFrame({
         <SaveIndicator {...status} />
       </header>
       <SectionStatusContext value={setStatus}>
-        {section.namespace !== undefined ? (
-          <NamespaceForm
-            namespace={section.namespace}
-            level={section.level}
-            scope={scope}
-            fields={section.fields}
-          />
-        ) : Custom ? (
-          <Suspense fallback={null}>
-            <Custom scope={scope} />
-          </Suspense>
-        ) : null}
+        <div className="space-y-6">
+          {section.namespace !== undefined ? (
+            <NamespaceForm
+              namespace={section.namespace}
+              level={section.level}
+              scope={scope}
+              fields={section.fields}
+            />
+          ) : Custom ? (
+            <Suspense fallback={null}>
+              <Custom scope={scope} />
+            </Suspense>
+          ) : null}
+        </div>
       </SectionStatusContext>
     </section>
   )
@@ -69,7 +78,7 @@ export function SettingsSections({
     (section) => isNavigable(section) && (group === undefined || groupOf(section) === group),
   )
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {sections.map((section) => (
         <SectionFrame key={section.id} section={section} scope={scope} />
       ))}
@@ -84,7 +93,7 @@ export function PluginSettingsSections({ pluginId }: { pluginId: string }) {
     .filter((section) => section.level === 'account' && section.pluginId === pluginId)
     .sort((a, b) => a.order - b.order)
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {sections.map((section) => (
         <SectionFrame key={section.id} section={section} />
       ))}

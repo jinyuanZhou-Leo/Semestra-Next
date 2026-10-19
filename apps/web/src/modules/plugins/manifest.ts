@@ -57,7 +57,8 @@ export default defineModule({
       title: m.plugins_manage,
       keywords: ['plugins', 'install', '插件'],
       icon: LayoutGrid,
-      to: '/settings/plugins',
+      isAvailable: () => hasHostAction('settings.plugins'),
+      run: () => void runHostAction('settings.plugins'),
     },
     {
       id: 'hotkeys.help',

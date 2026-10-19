@@ -1,19 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { SettingsPage } from '@/app/settings'
-import { m } from '@/paraglide/messages'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/_authed/settings/$group')({ component: AccountSettings })
-
-/** Account settings (M11 §5.2): `/settings/<group>`, with `#<section>` for a section. */
-function AccountSettings() {
-  const { group } = Route.useParams()
-  return (
-    <SettingsPage
-      level="account"
-      groupId={group}
-      title={m.settings_title()}
-      hrefFor={(id) => `/settings/${id}`}
-      fallbackHref="/"
-    />
-  )
-}
+export const Route = createFileRoute('/_authed/settings/$group')({
+  // Settings are a dialog now (M11 §5.2): old links open it over the scope's page.
+  beforeLoad: ({ params, location }) => {
+    throw redirect({
+      href: `/?settings=account/${params.group}${location.hash ? `#${location.hash}` : ''}`,
+      replace: true,
+    })
+  },
+})

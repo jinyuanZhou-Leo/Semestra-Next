@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { m } from '@/paraglide/messages'
+import { FieldLegend, FieldSet } from '@/ui/field'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { colorTint } from '../plugin-kit/colors'
 import { NOTE_COLORS, type StickySettings } from './schema'
@@ -19,10 +20,10 @@ const NAMES: Record<(typeof NOTE_COLORS)[number], () => string> = {
 export default function StickySettingsForm({ value, onChange }: Props) {
   const id = useId()
   return (
-    <div>
-      <p id={id} className="mb-2 text-sm font-medium">
+    <FieldSet className="gap-2">
+      <FieldLegend variant="label" id={id}>
         {m.sticky_settings_color_label()}
-      </p>
+      </FieldLegend>
       <RadioGroup
         aria-labelledby={id}
         value={value.color}
@@ -40,6 +41,6 @@ export default function StickySettingsForm({ value, onChange }: Props) {
           />
         ))}
       </RadioGroup>
-    </div>
+    </FieldSet>
   )
 }

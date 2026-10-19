@@ -1,12 +1,14 @@
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Settings2, Trash2 } from 'lucide-react'
+import { GripVertical, MoreHorizontal, Settings2, Trash2 } from 'lucide-react'
 import { type CSSProperties, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
 import type { DraftCard } from './Board'
@@ -91,79 +93,135 @@ export function CardFrame({
       )}
       style={{ ...style, transform: CSS.Translate.toString(transform) }}
     >
-      <header className="flex items-center gap-1.5 px-4 pt-3 pb-1">
+      <header className="flex h-9 shrink-0 items-center gap-1.5 px-4 pt-3 pb-1">
         {editing && movable ? (
-          <button
-            ref={setActivatorNodeRef}
-            type="button"
-            aria-label={m.board_card_move({ card: title })}
-            className="-ml-1.5 flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical aria-hidden className="size-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  ref={setActivatorNodeRef}
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={m.board_card_move({ card: title })}
+                  className="-ml-1.5 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                  {...attributes}
+                  {...listeners}
+                />
+              }
+            >
+              <GripVertical aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.board_card_move({ card: title })}</TooltipContent>
+          </Tooltip>
         ) : null}
         <contribution.icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-        <h3 className="min-w-0 truncate font-heading text-sm font-medium">{title}</h3>
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <h3 className="min-w-0 flex-1 truncate font-heading text-sm font-medium">{title}</h3>
+        <div className="flex shrink-0 items-center gap-0.5">
           {!editing && Actions ? (
             <PluginBoundary compact>
               <Actions {...props} />
             </PluginBoundary>
           ) : null}
-          {editing && contribution.sizes.length > 1 ? (
-            <ToggleGroup
-              aria-label={m.board_card_size({ card: title })}
-              size="sm"
-              value={[card.size]}
-              onValueChange={(value) => {
-                const size = contribution.sizes.find((s) => s === value[0])
-                if (size) onResize(size)
-              }}
-            >
-              {contribution.sizes.map((size) => (
-                <ToggleGroupItem
-                  key={size}
-                  value={size}
-                  aria-label={SIZE_LABEL[size]()}
-                  title={SIZE_LABEL[size]()}
-                  className="h-6 min-w-6 px-1.5 text-[0.625rem] uppercase"
-                >
-                  {size}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+          {!editing && contribution.settings ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={m.board_card_settings({ card: title })}
+                    className="opacity-0 group-hover/board-card:opacity-100 focus-visible:opacity-100"
+                    onClick={() => setSettingsOpen(true)}
+                  />
+                }
+              >
+                <Settings2 aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent>{m.board_card_settings({ card: title })}</TooltipContent>
+            </Tooltip>
           ) : null}
-          {contribution.settings ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={m.board_card_settings({ card: title })}
-              title={m.board_card_settings({ card: title })}
-              className={cn(
-                !editing &&
-                  'opacity-0 group-hover/board-card:opacity-100 focus-visible:opacity-100',
-              )}
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings2 aria-hidden />
-            </Button>
+          {editing && (contribution.sizes.length > 1 || contribution.settings) ? (
+            // Size and settings share one button so the title keeps its room on small cards.
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={m.board_card_options({ card: title })}
+                        />
+                      }
+                    />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent>{m.board_card_options({ card: title })}</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="end" className="w-56 gap-3">
+                {contribution.sizes.length > 1 ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {m.board_card_size_label()}
+                    </span>
+                    <ToggleGroup
+                      aria-label={m.board_card_size({ card: title })}
+                      size="sm"
+                      value={[card.size]}
+                      onValueChange={(value) => {
+                        const size = contribution.sizes.find((s) => s === value[0])
+                        if (size) onResize(size)
+                      }}
+                    >
+                      {contribution.sizes.map((size) => (
+                        <ToggleGroupItem
+                          key={size}
+                          value={size}
+                          aria-label={SIZE_LABEL[size]()}
+                          className="h-6 min-w-6 px-1.5 text-[0.625rem]"
+                        >
+                          {size}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
+                ) : null}
+                {contribution.settings ? (
+                  <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+                    <Settings2 aria-hidden />
+                    {m.board_card_settings_button()}
+                  </Button>
+                ) : null}
+              </PopoverContent>
+            </Popover>
           ) : null}
           {editing ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={m.board_card_remove({ card: title })}
-              title={m.board_card_remove({ card: title })}
-              onClick={onRemove}
-            >
-              <Trash2 aria-hidden />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="destructive"
+                    size="icon-xs"
+                    aria-label={m.board_card_remove({ card: title })}
+                    onClick={onRemove}
+                  />
+                }
+              >
+                <Trash2 aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent>{m.board_card_remove({ card: title })}</TooltipContent>
+            </Tooltip>
           ) : null}
         </div>
       </header>
-      <div className="min-h-0 flex-1 overflow-hidden px-4 pb-3" inert={editing || undefined}>
+      <div
+        className={cn('min-h-0 flex-1 overflow-hidden px-4 pb-3', editing && 'opacity-60')}
+        inert={editing || undefined}
+      >
         {card.isNew ? (
           // Not created yet: its content (and any data it loads) appears once the layout is saved.
           <p className="flex h-full items-center justify-center text-xs text-muted-foreground">

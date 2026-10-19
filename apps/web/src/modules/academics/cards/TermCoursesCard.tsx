@@ -1,4 +1,4 @@
-import { Plus, Repeat } from 'lucide-react'
+import { BookOpen, Plus, Repeat } from 'lucide-react'
 import { useState } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
@@ -6,11 +6,12 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
 import { AddCourseDialog } from '../components/AddCourseDialog'
 import { coursePath } from '../paths'
-import { useCourses } from '../queries'
+import { useColumnData, useCourses } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 /** The term's courses with their credits and any extra columns marked `showInTermCard` (M02 §5.4). */
@@ -19,15 +20,21 @@ export default function TermCoursesCard({ scope }: CardProps) {
   const programId = scope.programId
   const courses = useCourses(programId, termId).data?.items
   const extra = useExtensions<CourseColumn>(COURSE_COLUMNS).filter((c) => c.showInTermCard)
+  const columnData = useColumnData(extra, programId)
   const [adding, setAdding] = useState(false)
   if (!termId) return null
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {courses && courses.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            {m.academics_term_no_courses()}
-          </p>
+          <Empty className="border-0 p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <BookOpen aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.academics_term_no_courses()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <Table>
             <TableHeader className="sr-only">
@@ -66,8 +73,8 @@ export default function TermCoursesCard({ scope }: CardProps) {
                     {course.code ? course.title : null}
                   </TableCell>
                   {extra.map((column) => (
-                    <TableCell key={column.id} className="py-2 pr-3 pl-0">
-                      {column.cell(course)}
+                    <TableCell key={column.id} className="py-2 pr-3 pl-0 whitespace-nowrap">
+                      {column.cell(course, columnData.get(column.id))}
                     </TableCell>
                   ))}
                   <TableCell className="px-0 py-2 text-right text-muted-foreground tabular-nums">

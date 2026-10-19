@@ -12,7 +12,7 @@ import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { EmailField } from './EmailField'
@@ -64,7 +64,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
   }
 
   const back = (
-    <Button variant="link" size="sm" render={<Link to="/login" />}>
+    <Button variant="link" size="sm" nativeButton={false} render={<Link to="/login" />}>
       {m.auth_back_to_login()}
     </Button>
   )
@@ -78,7 +78,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
           </h1>
           <p className="text-sm text-muted-foreground">{m.auth_reset_subtitle()}</p>
         </div>
-        <fieldset disabled={start.isPending} className="space-y-4">
+        <FieldSet disabled={start.isPending} className="gap-4">
           <EmailField
             value={email}
             onValueChange={setEmail}
@@ -89,7 +89,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
           <Button type="submit" className="w-full" size="lg">
             {start.isPending ? m.auth_sending() : m.auth_reset_send()}
           </Button>
-        </fieldset>
+        </FieldSet>
         <div className="mt-4 flex justify-center">{back}</div>
       </form>
     )
@@ -106,7 +106,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
           {m.auth_reset_code_subtitle({ email: trimmed })}
         </p>
       </div>
-      <fieldset disabled={reset.isPending} className="space-y-4">
+      <FieldSet disabled={reset.isPending} className="gap-4">
         <InputOTP
           maxLength={6}
           pattern={REGEXP_ONLY_DIGITS}
@@ -143,7 +143,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
         >
           {reset.isPending ? m.auth_reset_working() : m.auth_reset_submit()}
         </Button>
-      </fieldset>
+      </FieldSet>
       <div className="mt-4 flex flex-col items-center gap-1">
         <Button
           type="button"

@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, habitCheckinsList, habitCheckinToggle, habitStats, healthz, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, pomodoroSessionRecord, pomodoroStats, readyz, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate, stickyNoteList, stickyNoteUpdate } from '../sdk.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, HabitCheckinsListData, HabitCheckinsListError, HabitCheckinsListResponse, HabitCheckinToggleData, HabitCheckinToggleError, HabitCheckinToggleResponse, HabitStatsData, HabitStatsError, HabitStatsResponse, HealthzData, HealthzResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, PomodoroSessionRecordData, PomodoroSessionRecordError, PomodoroSessionRecordResponse, PomodoroStatsData, PomodoroStatsError, PomodoroStatsResponse, ReadyzData, ReadyzError, ReadyzResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse, StickyNoteListData, StickyNoteListError, StickyNoteListResponse, StickyNoteUpdateData, StickyNoteUpdateError, StickyNoteUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountAvatarGet, accountAvatarUpload, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, calendarOccurrences, calendarToday, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, gradingAssessmentCreate, gradingAssessmentCreateMany, gradingAssessmentDelete, gradingAssessmentList, gradingAssessmentReorder, gradingAssessmentUpdate, gradingCategoryCreate, gradingCategoryDelete, gradingCategoryReorder, gradingCategoryUpdate, gradingCourseResultUpdate, gradingCourseSummaries, gradingGradebookGet, gradingScaleGet, gradingScalePresets, gradingScaleUpdate, gradingSimulateCourse, gradingSimulateTerm, gradingSuggestScores, gradingSummaryProgram, gradingSummaryTerm, habitCheckinsList, habitCheckinToggle, habitStats, healthz, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, pomodoroSessionRecord, pomodoroStats, readyz, scheduleConflicts, scheduleEventCreate, scheduleEventDelete, scheduleEventList, scheduleEventTypeCreate, scheduleEventTypeDelete, scheduleEventTypeList, scheduleEventTypeReorder, scheduleEventTypeUpdate, scheduleEventUpdate, scheduleExceptionDelete, scheduleExceptionUpsert, scheduleFeedCreate, scheduleFeedList, scheduleFeedRevoke, scheduleMeetingCreate, scheduleMeetingCreateMany, scheduleMeetingDelete, scheduleMeetingList, scheduleMeetingSetEnabled, scheduleMeetingUpdate, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate, stickyNoteList, stickyNoteUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountAvatarGetData, AccountAvatarGetError, AccountAvatarUploadData, AccountAvatarUploadError, AccountAvatarUploadResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CalendarOccurrencesData, CalendarOccurrencesError, CalendarOccurrencesResponse, CalendarTodayData, CalendarTodayError, CalendarTodayResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, GradingAssessmentCreateData, GradingAssessmentCreateError, GradingAssessmentCreateManyData, GradingAssessmentCreateManyError, GradingAssessmentCreateManyResponse, GradingAssessmentCreateResponse, GradingAssessmentDeleteData, GradingAssessmentDeleteError, GradingAssessmentDeleteResponse, GradingAssessmentListData, GradingAssessmentListError, GradingAssessmentListResponse, GradingAssessmentReorderData, GradingAssessmentReorderError, GradingAssessmentReorderResponse, GradingAssessmentUpdateData, GradingAssessmentUpdateError, GradingAssessmentUpdateResponse, GradingCategoryCreateData, GradingCategoryCreateError, GradingCategoryCreateResponse, GradingCategoryDeleteData, GradingCategoryDeleteError, GradingCategoryDeleteResponse, GradingCategoryReorderData, GradingCategoryReorderError, GradingCategoryReorderResponse, GradingCategoryUpdateData, GradingCategoryUpdateError, GradingCategoryUpdateResponse, GradingCourseResultUpdateData, GradingCourseResultUpdateError, GradingCourseResultUpdateResponse, GradingCourseSummariesData, GradingCourseSummariesError, GradingCourseSummariesResponse, GradingGradebookGetData, GradingGradebookGetError, GradingGradebookGetResponse, GradingScaleGetData, GradingScaleGetError, GradingScaleGetResponse, GradingScalePresetsData, GradingScalePresetsError, GradingScalePresetsResponse, GradingScaleUpdateData, GradingScaleUpdateError, GradingScaleUpdateResponse, GradingSimulateCourseData, GradingSimulateCourseError, GradingSimulateCourseResponse, GradingSimulateTermData, GradingSimulateTermError, GradingSimulateTermResponse, GradingSuggestScoresData, GradingSuggestScoresError, GradingSuggestScoresResponse, GradingSummaryProgramData, GradingSummaryProgramError, GradingSummaryProgramResponse, GradingSummaryTermData, GradingSummaryTermError, GradingSummaryTermResponse, HabitCheckinsListData, HabitCheckinsListError, HabitCheckinsListResponse, HabitCheckinToggleData, HabitCheckinToggleError, HabitCheckinToggleResponse, HabitStatsData, HabitStatsError, HabitStatsResponse, HealthzData, HealthzResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, PomodoroSessionRecordData, PomodoroSessionRecordError, PomodoroSessionRecordResponse, PomodoroStatsData, PomodoroStatsError, PomodoroStatsResponse, ReadyzData, ReadyzError, ReadyzResponse, ScheduleConflictsData, ScheduleConflictsError, ScheduleConflictsResponse, ScheduleEventCreateData, ScheduleEventCreateError, ScheduleEventCreateResponse, ScheduleEventDeleteData, ScheduleEventDeleteError, ScheduleEventDeleteResponse, ScheduleEventListData, ScheduleEventListError, ScheduleEventListResponse, ScheduleEventTypeCreateData, ScheduleEventTypeCreateError, ScheduleEventTypeCreateResponse, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteError, ScheduleEventTypeDeleteResponse, ScheduleEventTypeListData, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ScheduleEventTypeReorderData, ScheduleEventTypeReorderError, ScheduleEventTypeReorderResponse, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateError, ScheduleEventTypeUpdateResponse, ScheduleEventUpdateData, ScheduleEventUpdateError, ScheduleEventUpdateResponse, ScheduleExceptionDeleteData, ScheduleExceptionDeleteError, ScheduleExceptionDeleteResponse, ScheduleExceptionUpsertData, ScheduleExceptionUpsertError, ScheduleExceptionUpsertResponse, ScheduleFeedCreateData, ScheduleFeedCreateError, ScheduleFeedCreateResponse, ScheduleFeedListData, ScheduleFeedListError, ScheduleFeedListResponse, ScheduleFeedRevokeData, ScheduleFeedRevokeError, ScheduleFeedRevokeResponse, ScheduleMeetingCreateData, ScheduleMeetingCreateError, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyError, ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateResponse, ScheduleMeetingDeleteData, ScheduleMeetingDeleteError, ScheduleMeetingDeleteResponse, ScheduleMeetingListData, ScheduleMeetingListError, ScheduleMeetingListResponse, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledError, ScheduleMeetingSetEnabledResponse, ScheduleMeetingUpdateData, ScheduleMeetingUpdateError, ScheduleMeetingUpdateResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse, StickyNoteListData, StickyNoteListError, StickyNoteListResponse, StickyNoteUpdateData, StickyNoteUpdateError, StickyNoteUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -228,6 +228,43 @@ export const authLogoutMutation = (options?: Partial<Options<AuthLogoutData>>): 
     };
     return mutationOptions;
 };
+
+/**
+ * Upload a profile picture (PNG, JPEG or WebP, up to 5 MB).
+ */
+export const accountAvatarUploadMutation = (options?: Partial<Options<AccountAvatarUploadData>>): UseMutationOptions<AccountAvatarUploadResponse, AccountAvatarUploadError, Options<AccountAvatarUploadData>> => {
+    const mutationOptions: UseMutationOptions<AccountAvatarUploadResponse, AccountAvatarUploadError, Options<AccountAvatarUploadData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await accountAvatarUpload({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const accountAvatarGetQueryKey = (options: Options<AccountAvatarGetData>) => createQueryKey('accountAvatarGet', options);
+
+/**
+ * Avatar Get
+ *
+ * Public: the URL embeds a random version, so it is unguessable and cacheable forever.
+ */
+export const accountAvatarGetOptions = (options: Options<AccountAvatarGetData>) => queryOptions<unknown, AccountAvatarGetError, unknown, ReturnType<typeof accountAvatarGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await accountAvatarGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: accountAvatarGetQueryKey(options)
+});
 
 export const academicsCourseListQueryKey = (options: Options<AcademicsCourseListData>) => createQueryKey('academicsCourseList', options);
 
@@ -1162,6 +1199,86 @@ export const aiUsageSummaryOptions = (options?: Options<AiUsageSummaryData>) => 
     queryKey: aiUsageSummaryQueryKey(options)
 });
 
+export const calendarOccurrencesQueryKey = (options: Options<CalendarOccurrencesData>) => createQueryKey('calendarOccurrences', options);
+
+/**
+ * Everything on the calendar in a date range: classes, events, deadlines, tasks.
+ *
+ * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
+ * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
+ * and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+ * For today alone prefer calendar.today. Each class carries its term week in meta.week_number.
+ */
+export const calendarOccurrencesOptions = (options: Options<CalendarOccurrencesData>) => queryOptions<CalendarOccurrencesResponse, CalendarOccurrencesError, CalendarOccurrencesResponse, ReturnType<typeof calendarOccurrencesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await calendarOccurrences({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: calendarOccurrencesQueryKey(options)
+});
+
+export const calendarOccurrencesInfiniteQueryKey = (options: Options<CalendarOccurrencesData>): QueryKey<Options<CalendarOccurrencesData>> => createQueryKey('calendarOccurrences', options, true);
+
+/**
+ * Everything on the calendar in a date range: classes, events, deadlines, tasks.
+ *
+ * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
+ * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
+ * and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+ * For today alone prefer calendar.today. Each class carries its term week in meta.week_number.
+ */
+export const calendarOccurrencesInfiniteOptions = (options: Options<CalendarOccurrencesData>) => {
+    const opts = infiniteQueryOptions<CalendarOccurrencesResponse, CalendarOccurrencesError, InfiniteData<CalendarOccurrencesResponse>, QueryKey<Options<CalendarOccurrencesData>>, string | Pick<QueryKey<Options<CalendarOccurrencesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<CalendarOccurrencesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await calendarOccurrences({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: calendarOccurrencesInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const calendarTodayQueryKey = (options: Options<CalendarTodayData>) => createQueryKey('calendarToday', options);
+
+/**
+ * Today in a Program: classes and events, deadlines of the next 7 days, due tasks.
+ *
+ * Prefer this for questions about today ("what do I have today?", "what's due this
+ * week?"). It also says which term week it is. For other days or longer ranges use
+ * calendar.occurrences. Times are UTC; read them in the returned `timezone`.
+ */
+export const calendarTodayOptions = (options: Options<CalendarTodayData>) => queryOptions<CalendarTodayResponse, CalendarTodayError, CalendarTodayResponse, ReturnType<typeof calendarTodayQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await calendarToday({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: calendarTodayQueryKey(options)
+});
+
 /**
  * Cancel a pending or running background job.
  *
@@ -1276,6 +1393,469 @@ export const coreStorageUsageOptions = (options?: Options<CoreStorageUsageData>)
         return data;
     },
     queryKey: coreStorageUsageQueryKey(options)
+});
+
+export const gradingAssessmentListQueryKey = (options: Options<GradingAssessmentListData>) => createQueryKey('gradingAssessmentList', options);
+
+/**
+ * List a course's assessments with deadline, weight and score.
+ *
+ * Use to see what is graded, still pending or overdue in a course. To locate one
+ * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
+ */
+export const gradingAssessmentListOptions = (options: Options<GradingAssessmentListData>) => queryOptions<GradingAssessmentListResponse, GradingAssessmentListError, GradingAssessmentListResponse, ReturnType<typeof gradingAssessmentListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingAssessmentList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingAssessmentListQueryKey(options)
+});
+
+export const gradingAssessmentListInfiniteQueryKey = (options: Options<GradingAssessmentListData>): QueryKey<Options<GradingAssessmentListData>> => createQueryKey('gradingAssessmentList', options, true);
+
+/**
+ * List a course's assessments with deadline, weight and score.
+ *
+ * Use to see what is graded, still pending or overdue in a course. To locate one
+ * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
+ */
+export const gradingAssessmentListInfiniteOptions = (options: Options<GradingAssessmentListData>) => {
+    const opts = infiniteQueryOptions<GradingAssessmentListResponse, GradingAssessmentListError, InfiniteData<GradingAssessmentListResponse>, QueryKey<Options<GradingAssessmentListData>>, string | null | Pick<QueryKey<Options<GradingAssessmentListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<GradingAssessmentListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await gradingAssessmentList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: gradingAssessmentListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Add an assessment (quiz, exam, assignment...) to a course gradebook.
+ *
+ * Use when the user adds a graded item. Give the deadline as `due_date` (and
+ * `due_time` if known) in the Program's time zone. Do not use to record a score on an existing
+ * assessment; use grading.assessment.update.
+ */
+export const gradingAssessmentCreateMutation = (options?: Partial<Options<GradingAssessmentCreateData>>): UseMutationOptions<GradingAssessmentCreateResponse, GradingAssessmentCreateError, Options<GradingAssessmentCreateData>> => {
+    const mutationOptions: UseMutationOptions<GradingAssessmentCreateResponse, GradingAssessmentCreateError, Options<GradingAssessmentCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingAssessmentCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Add several assessments at once (imports from a syllabus or an LMS).
+ *
+ * Items that carry `source_kind` and `source_ref` are skipped when the course
+ * already has an assessment from the same source, so repeating an import creates no duplicates.
+ */
+export const gradingAssessmentCreateManyMutation = (options?: Partial<Options<GradingAssessmentCreateManyData>>): UseMutationOptions<GradingAssessmentCreateManyResponse, GradingAssessmentCreateManyError, Options<GradingAssessmentCreateManyData>> => {
+    const mutationOptions: UseMutationOptions<GradingAssessmentCreateManyResponse, GradingAssessmentCreateManyError, Options<GradingAssessmentCreateManyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingAssessmentCreateMany({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete an assessment from a gradebook.
+ *
+ * Irreversible. To ignore an assessment in the grade, set `dropped` instead.
+ */
+export const gradingAssessmentDeleteMutation = (options?: Partial<Options<GradingAssessmentDeleteData>>): UseMutationOptions<GradingAssessmentDeleteResponse, GradingAssessmentDeleteError, Options<GradingAssessmentDeleteData>> => {
+    const mutationOptions: UseMutationOptions<GradingAssessmentDeleteResponse, GradingAssessmentDeleteError, Options<GradingAssessmentDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingAssessmentDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change an assessment, mainly to record its score.
+ *
+ * Record a score with `score_percentage` (82), or `points_earned` with
+ * `points_possible` (18 of 20). Send null to clear the score again. Also changes title, category,
+ * deadline, weight, `dropped` (ignore it in every calculation) and note. Only the fields that are sent
+ * change.
+ */
+export const gradingAssessmentUpdateMutation = (options?: Partial<Options<GradingAssessmentUpdateData>>): UseMutationOptions<GradingAssessmentUpdateResponse, GradingAssessmentUpdateError, Options<GradingAssessmentUpdateData>> => {
+    const mutationOptions: UseMutationOptions<GradingAssessmentUpdateResponse, GradingAssessmentUpdateError, Options<GradingAssessmentUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingAssessmentUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the order of a course's assessments.
+ *
+ * Assessments not listed keep their order after the listed ones.
+ */
+export const gradingAssessmentReorderMutation = (options?: Partial<Options<GradingAssessmentReorderData>>): UseMutationOptions<GradingAssessmentReorderResponse, GradingAssessmentReorderError, Options<GradingAssessmentReorderData>> => {
+    const mutationOptions: UseMutationOptions<GradingAssessmentReorderResponse, GradingAssessmentReorderError, Options<GradingAssessmentReorderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingAssessmentReorder({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Add an assessment category (e.g. 'Midterm') to a course's gradebook.
+ *
+ * Use when the syllabus has a kind of assessment the built-in categories lack.
+ */
+export const gradingCategoryCreateMutation = (options?: Partial<Options<GradingCategoryCreateData>>): UseMutationOptions<GradingCategoryCreateResponse, GradingCategoryCreateError, Options<GradingCategoryCreateData>> => {
+    const mutationOptions: UseMutationOptions<GradingCategoryCreateResponse, GradingCategoryCreateError, Options<GradingCategoryCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingCategoryCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete an assessment category; its assessments become uncategorised.
+ *
+ * Irreversible, but no assessment is deleted. Prefer archiving.
+ */
+export const gradingCategoryDeleteMutation = (options?: Partial<Options<GradingCategoryDeleteData>>): UseMutationOptions<GradingCategoryDeleteResponse, GradingCategoryDeleteError, Options<GradingCategoryDeleteData>> => {
+    const mutationOptions: UseMutationOptions<GradingCategoryDeleteResponse, GradingCategoryDeleteError, Options<GradingCategoryDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingCategoryDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Rename, recolor or archive an assessment category.
+ *
+ * Partial update. Archived categories keep their assessments but leave the pickers.
+ */
+export const gradingCategoryUpdateMutation = (options?: Partial<Options<GradingCategoryUpdateData>>): UseMutationOptions<GradingCategoryUpdateResponse, GradingCategoryUpdateError, Options<GradingCategoryUpdateData>> => {
+    const mutationOptions: UseMutationOptions<GradingCategoryUpdateResponse, GradingCategoryUpdateError, Options<GradingCategoryUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingCategoryUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the display order of a course's assessment categories.
+ *
+ * Categories not listed keep their order after the listed ones.
+ */
+export const gradingCategoryReorderMutation = (options?: Partial<Options<GradingCategoryReorderData>>): UseMutationOptions<GradingCategoryReorderResponse, GradingCategoryReorderError, Options<GradingCategoryReorderData>> => {
+    const mutationOptions: UseMutationOptions<GradingCategoryReorderResponse, GradingCategoryReorderError, Options<GradingCategoryReorderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingCategoryReorder({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change how a course is graded: official final grade, target, pass/fail, forecast.
+ *
+ * Use to enter the official final grade (`final_override_percentage`, which wins
+ * over the calculated one; null clears it), set the target in grade points, switch a course to
+ * pass/fail, or enter a final grade for a course without a gradebook (`manual_percentage` with
+ * `gradebook_enabled: false`). To record the score of one assessment use
+ * grading.assessment.update.
+ */
+export const gradingCourseResultUpdateMutation = (options?: Partial<Options<GradingCourseResultUpdateData>>): UseMutationOptions<GradingCourseResultUpdateResponse, GradingCourseResultUpdateError, Options<GradingCourseResultUpdateData>> => {
+    const mutationOptions: UseMutationOptions<GradingCourseResultUpdateResponse, GradingCourseResultUpdateError, Options<GradingCourseResultUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingCourseResultUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const gradingCourseSummariesQueryKey = (options: Options<GradingCourseSummariesData>) => createQueryKey('gradingCourseSummaries', options);
+
+/**
+ * The grade, grade points and status of every course in a Program.
+ *
+ * Use to compare courses or list which are finished, in progress or pass/fail.
+ */
+export const gradingCourseSummariesOptions = (options: Options<GradingCourseSummariesData>) => queryOptions<GradingCourseSummariesResponse, GradingCourseSummariesError, GradingCourseSummariesResponse, ReturnType<typeof gradingCourseSummariesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingCourseSummaries({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingCourseSummariesQueryKey(options)
+});
+
+export const gradingGradebookGetQueryKey = (options: Options<GradingGradebookGetData>) => createQueryKey('gradingGradebookGet', options);
+
+/**
+ * A course's gradebook: categories, assessments, and every calculated figure.
+ *
+ * Use to answer questions about a course's grade: the current average, the final
+ * grade, the forecast, or what the remaining assessments must average to reach a target grade
+ * (`summary.required_average`). The summary figures are null while the weights do not add up to
+ * 100 (`summary.weight_gap` says how much is missing). Never calculate grades yourself.
+ */
+export const gradingGradebookGetOptions = (options: Options<GradingGradebookGetData>) => queryOptions<GradingGradebookGetResponse, GradingGradebookGetError, GradingGradebookGetResponse, ReturnType<typeof gradingGradebookGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingGradebookGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingGradebookGetQueryKey(options)
+});
+
+export const gradingScaleGetQueryKey = (options: Options<GradingScaleGetData>) => createQueryKey('gradingScaleGet', options);
+
+/**
+ * Get a Program's grading scale: percentage ranges → grade points and letters.
+ *
+ * Use to convert a percentage to grade points or a letter, or to read the Program's
+ * grading defaults (how year-long courses count, default categories, hidden GPA).
+ */
+export const gradingScaleGetOptions = (options: Options<GradingScaleGetData>) => queryOptions<GradingScaleGetResponse, GradingScaleGetError, GradingScaleGetResponse, ReturnType<typeof gradingScaleGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingScaleGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingScaleGetQueryKey(options)
+});
+
+/**
+ * Change a Program's grading scale or grading defaults.
+ *
+ * Partial update: only the fields that are sent change. `bands` replaces the whole
+ * table; the ranges must not overlap and must reach from 0 to 100, with points of at most
+ * `max_points`. Every GPA of the Program is recalculated from the new scale.
+ */
+export const gradingScaleUpdateMutation = (options?: Partial<Options<GradingScaleUpdateData>>): UseMutationOptions<GradingScaleUpdateResponse, GradingScaleUpdateError, Options<GradingScaleUpdateData>> => {
+    const mutationOptions: UseMutationOptions<GradingScaleUpdateResponse, GradingScaleUpdateError, Options<GradingScaleUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingScaleUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const gradingScalePresetsQueryKey = (options?: Options<GradingScalePresetsData>) => createQueryKey('gradingScalePresets', options);
+
+/**
+ * List the built-in grading scales (UofT 4.0, US 4.0, China 100-point, custom).
+ *
+ * Use to offer ready-made scales; apply one with grading.scale.update.
+ */
+export const gradingScalePresetsOptions = (options?: Options<GradingScalePresetsData>) => queryOptions<GradingScalePresetsResponse, GradingScalePresetsError, GradingScalePresetsResponse, ReturnType<typeof gradingScalePresetsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingScalePresets({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingScalePresetsQueryKey(options)
+});
+
+/**
+ * What-if: the course figures if ungraded assessments scored the given marks.
+ *
+ * Use to answer "what if I get 80 on the final". Nothing is saved: never change
+ * real scores to simulate. Fails with grading.weights_not_100 while the weights do not add up.
+ */
+export const gradingSimulateCourseMutation = (options?: Partial<Options<GradingSimulateCourseData>>): UseMutationOptions<GradingSimulateCourseResponse, GradingSimulateCourseError, Options<GradingSimulateCourseData>> => {
+    const mutationOptions: UseMutationOptions<GradingSimulateCourseResponse, GradingSimulateCourseError, Options<GradingSimulateCourseData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingSimulateCourse({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * What-if for a term: the term GPA if unfinished courses ended with given marks.
+ *
+ * Pass assumed final percentages per unfinished course in `scores`; with
+ * `target_gpa` the result says whether it is reachable and what average the other unfinished courses
+ * need. Nothing is saved.
+ */
+export const gradingSimulateTermMutation = (options?: Partial<Options<GradingSimulateTermData>>): UseMutationOptions<GradingSimulateTermResponse, GradingSimulateTermError, Options<GradingSimulateTermData>> => {
+    const mutationOptions: UseMutationOptions<GradingSimulateTermResponse, GradingSimulateTermError, Options<GradingSimulateTermData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingSimulateTerm({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Suggest a score for every ungraded assessment that reaches the target grade.
+ *
+ * Scores follow the student's results so far in each category and land exactly on
+ * the target. Used to auto-fill a what-if plan. Fails with grading.weights_not_100 while the
+ * weights do not add up.
+ */
+export const gradingSuggestScoresMutation = (options?: Partial<Options<GradingSuggestScoresData>>): UseMutationOptions<GradingSuggestScoresResponse, GradingSuggestScoresError, Options<GradingSuggestScoresData>> => {
+    const mutationOptions: UseMutationOptions<GradingSuggestScoresResponse, GradingSuggestScoresError, Options<GradingSuggestScoresData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await gradingSuggestScores({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const gradingSummaryProgramQueryKey = (options: Options<GradingSummaryProgramData>) => createQueryKey('gradingSummaryProgram', options);
+
+/**
+ * Cumulative GPA, earned credits, progress to graduation and GPA per term.
+ *
+ * Use for "what is my overall GPA" or "how many credits do I have left". Every
+ * course counts once, a year-long one in the term the Program's setting names.
+ */
+export const gradingSummaryProgramOptions = (options: Options<GradingSummaryProgramData>) => queryOptions<GradingSummaryProgramResponse, GradingSummaryProgramError, GradingSummaryProgramResponse, ReturnType<typeof gradingSummaryProgramQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingSummaryProgram({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingSummaryProgramQueryKey(options)
+});
+
+export const gradingSummaryTermQueryKey = (options: Options<GradingSummaryTermData>) => createQueryKey('gradingSummaryTerm', options);
+
+/**
+ * A term's GPA, average, credits and every course's grade.
+ *
+ * Use for "what is my GPA this term". Unfinished courses are left out unless
+ * `include_in_progress` counts their current average.
+ */
+export const gradingSummaryTermOptions = (options: Options<GradingSummaryTermData>) => queryOptions<GradingSummaryTermResponse, GradingSummaryTermError, GradingSummaryTermResponse, ReturnType<typeof gradingSummaryTermQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await gradingSummaryTerm({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: gradingSummaryTermQueryKey(options)
 });
 
 /**
@@ -1662,6 +2242,422 @@ export const pomodoroStatsOptions = (options?: Options<PomodoroStatsData>) => qu
     },
     queryKey: pomodoroStatsQueryKey(options)
 });
+
+export const scheduleConflictsQueryKey = (options: Options<ScheduleConflictsData>) => createQueryKey('scheduleConflicts', options);
+
+/**
+ * Class sections of a term that overlap each other.
+ *
+ * Use before or after adding meetings to warn about clashes. Only enabled sections
+ * that share at least one date count.
+ */
+export const scheduleConflictsOptions = (options: Options<ScheduleConflictsData>) => queryOptions<ScheduleConflictsResponse, ScheduleConflictsError, ScheduleConflictsResponse, ReturnType<typeof scheduleConflictsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await scheduleConflicts({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: scheduleConflictsQueryKey(options)
+});
+
+export const scheduleEventListQueryKey = (options: Options<ScheduleEventListData>) => createQueryKey('scheduleEventList', options);
+
+/**
+ * List one-off events (exams, office hours, make-up classes) of a Program.
+ *
+ * Optionally only one course's or one term's. For a date range use
+ * calendar.occurrences.
+ */
+export const scheduleEventListOptions = (options: Options<ScheduleEventListData>) => queryOptions<ScheduleEventListResponse, ScheduleEventListError, ScheduleEventListResponse, ReturnType<typeof scheduleEventListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await scheduleEventList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: scheduleEventListQueryKey(options)
+});
+
+/**
+ * Add a one-off event: an exam, office hour, make-up class or appointment.
+ *
+ * Times without an offset are read in the Program's time zone. For something
+ * that repeats weekly use schedule.meeting.create.
+ */
+export const scheduleEventCreateMutation = (options?: Partial<Options<ScheduleEventCreateData>>): UseMutationOptions<ScheduleEventCreateResponse, ScheduleEventCreateError, Options<ScheduleEventCreateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventCreateResponse, ScheduleEventCreateError, Options<ScheduleEventCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a one-off event.
+ *
+ * Irreversible.
+ */
+export const scheduleEventDeleteMutation = (options?: Partial<Options<ScheduleEventDeleteData>>): UseMutationOptions<ScheduleEventDeleteResponse, ScheduleEventDeleteError, Options<ScheduleEventDeleteData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventDeleteResponse, ScheduleEventDeleteError, Options<ScheduleEventDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change a one-off event.
+ *
+ * Moving only `start_at` keeps the event's duration.
+ */
+export const scheduleEventUpdateMutation = (options?: Partial<Options<ScheduleEventUpdateData>>): UseMutationOptions<ScheduleEventUpdateResponse, ScheduleEventUpdateError, Options<ScheduleEventUpdateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventUpdateResponse, ScheduleEventUpdateError, Options<ScheduleEventUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const scheduleEventTypeListQueryKey = (options: Options<ScheduleEventTypeListData>) => createQueryKey('scheduleEventTypeList', options);
+
+/**
+ * List the class and event types of a Program (LEC, PRA, TUT, ...).
+ *
+ * Use to find valid type codes before creating meetings or events.
+ */
+export const scheduleEventTypeListOptions = (options: Options<ScheduleEventTypeListData>) => queryOptions<ScheduleEventTypeListResponse, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ReturnType<typeof scheduleEventTypeListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await scheduleEventTypeList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: scheduleEventTypeListQueryKey(options)
+});
+
+/**
+ * Add a class or event type to a Program, e.g. LAB for laboratories.
+ *
+ * Use when a schedule needs a type the Program does not have yet.
+ */
+export const scheduleEventTypeCreateMutation = (options?: Partial<Options<ScheduleEventTypeCreateData>>): UseMutationOptions<ScheduleEventTypeCreateResponse, ScheduleEventTypeCreateError, Options<ScheduleEventTypeCreateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventTypeCreateResponse, ScheduleEventTypeCreateError, Options<ScheduleEventTypeCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventTypeCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a custom type that no meeting or event uses.
+ *
+ * Fails with schedule.event_type_in_use while anything uses the type.
+ */
+export const scheduleEventTypeDeleteMutation = (options?: Partial<Options<ScheduleEventTypeDeleteData>>): UseMutationOptions<ScheduleEventTypeDeleteResponse, ScheduleEventTypeDeleteError, Options<ScheduleEventTypeDeleteData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventTypeDeleteResponse, ScheduleEventTypeDeleteError, Options<ScheduleEventTypeDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventTypeDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Rename a custom type, or change the color or icon of any type.
+ *
+ * Built-in types (LEC, PRA, TUT) keep their name; their color and icon can change.
+ */
+export const scheduleEventTypeUpdateMutation = (options?: Partial<Options<ScheduleEventTypeUpdateData>>): UseMutationOptions<ScheduleEventTypeUpdateResponse, ScheduleEventTypeUpdateError, Options<ScheduleEventTypeUpdateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventTypeUpdateResponse, ScheduleEventTypeUpdateError, Options<ScheduleEventTypeUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventTypeUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the display order of a Program's types.
+ *
+ * Types not listed keep their relative order after the listed ones.
+ */
+export const scheduleEventTypeReorderMutation = (options?: Partial<Options<ScheduleEventTypeReorderData>>): UseMutationOptions<ScheduleEventTypeReorderResponse, ScheduleEventTypeReorderError, Options<ScheduleEventTypeReorderData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleEventTypeReorderResponse, ScheduleEventTypeReorderError, Options<ScheduleEventTypeReorderData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleEventTypeReorder({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Undo the cancellation or move of one class.
+ *
+ * The class happens again as regularly scheduled.
+ */
+export const scheduleExceptionDeleteMutation = (options?: Partial<Options<ScheduleExceptionDeleteData>>): UseMutationOptions<ScheduleExceptionDeleteResponse, ScheduleExceptionDeleteError, Options<ScheduleExceptionDeleteData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleExceptionDeleteResponse, ScheduleExceptionDeleteError, Options<ScheduleExceptionDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleExceptionDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Cancel or move one class of a section (one date only).
+ *
+ * Use for "class is cancelled on Friday" or "Tuesday's lecture moves to room X".
+ * `original_date` must be a date the section normally meets. Prefer this over deleting the
+ * meeting.
+ */
+export const scheduleExceptionUpsertMutation = (options?: Partial<Options<ScheduleExceptionUpsertData>>): UseMutationOptions<ScheduleExceptionUpsertResponse, ScheduleExceptionUpsertError, Options<ScheduleExceptionUpsertData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleExceptionUpsertResponse, ScheduleExceptionUpsertError, Options<ScheduleExceptionUpsertData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleExceptionUpsert({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const scheduleFeedListQueryKey = (options: Options<ScheduleFeedListData>) => createQueryKey('scheduleFeedList', options);
+
+/**
+ * List the calendar subscription links of a Program.
+ *
+ * The links themselves are only shown when created.
+ */
+export const scheduleFeedListOptions = (options: Options<ScheduleFeedListData>) => queryOptions<ScheduleFeedListResponse, ScheduleFeedListError, ScheduleFeedListResponse, ReturnType<typeof scheduleFeedListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await scheduleFeedList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: scheduleFeedListQueryKey(options)
+});
+
+/**
+ * Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.
+ *
+ * Anyone with the link can read the calendar; it is returned only once.
+ */
+export const scheduleFeedCreateMutation = (options?: Partial<Options<ScheduleFeedCreateData>>): UseMutationOptions<ScheduleFeedCreateResponse, ScheduleFeedCreateError, Options<ScheduleFeedCreateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleFeedCreateResponse, ScheduleFeedCreateError, Options<ScheduleFeedCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleFeedCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Turn off a calendar subscription link.
+ *
+ * Calendars subscribed to it stop updating.
+ */
+export const scheduleFeedRevokeMutation = (options?: Partial<Options<ScheduleFeedRevokeData>>): UseMutationOptions<ScheduleFeedRevokeResponse, ScheduleFeedRevokeError, Options<ScheduleFeedRevokeData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleFeedRevokeResponse, ScheduleFeedRevokeError, Options<ScheduleFeedRevokeData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleFeedRevoke({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const scheduleMeetingListQueryKey = (options: Options<ScheduleMeetingListData>) => createQueryKey('scheduleMeetingList', options);
+
+/**
+ * List a course's weekly class sections, with their cancelled or moved dates.
+ *
+ * Use to see when a course meets each week, or to find the meeting id before
+ * changing or cancelling one class. Optionally only one term of a year-long course.
+ */
+export const scheduleMeetingListOptions = (options: Options<ScheduleMeetingListData>) => queryOptions<ScheduleMeetingListResponse, ScheduleMeetingListError, ScheduleMeetingListResponse, ReturnType<typeof scheduleMeetingListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await scheduleMeetingList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: scheduleMeetingListQueryKey(options)
+});
+
+/**
+ * Add a weekly (or biweekly) class section to a course in one of its terms.
+ *
+ * Times are wall-clock times in the Program's time zone. Check
+ * schedule.conflicts afterwards and mention any overlap. For a single extra session (exam, make-up
+ * class) use schedule.event.create instead.
+ */
+export const scheduleMeetingCreateMutation = (options?: Partial<Options<ScheduleMeetingCreateData>>): UseMutationOptions<ScheduleMeetingCreateResponse, ScheduleMeetingCreateError, Options<ScheduleMeetingCreateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleMeetingCreateResponse, ScheduleMeetingCreateError, Options<ScheduleMeetingCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleMeetingCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Add several class sections to a course at once (imports).
+ *
+ * Used by importers. An item with the same source_kind and source_ref as an
+ * existing meeting of the course updates it instead of adding a duplicate.
+ */
+export const scheduleMeetingCreateManyMutation = (options?: Partial<Options<ScheduleMeetingCreateManyData>>): UseMutationOptions<ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateManyError, Options<ScheduleMeetingCreateManyData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateManyError, Options<ScheduleMeetingCreateManyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleMeetingCreateMany({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a class section with all its dates.
+ *
+ * Removes the section entirely. To cancel one class use
+ * schedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use
+ * schedule.meeting.set_enabled.
+ */
+export const scheduleMeetingDeleteMutation = (options?: Partial<Options<ScheduleMeetingDeleteData>>): UseMutationOptions<ScheduleMeetingDeleteResponse, ScheduleMeetingDeleteError, Options<ScheduleMeetingDeleteData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleMeetingDeleteResponse, ScheduleMeetingDeleteError, Options<ScheduleMeetingDeleteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleMeetingDelete({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change a class section for the whole term (time, room, weeks, ...).
+ *
+ * Changes every week. To change or cancel a single date use
+ * schedule.exception.upsert instead.
+ */
+export const scheduleMeetingUpdateMutation = (options?: Partial<Options<ScheduleMeetingUpdateData>>): UseMutationOptions<ScheduleMeetingUpdateResponse, ScheduleMeetingUpdateError, Options<ScheduleMeetingUpdateData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleMeetingUpdateResponse, ScheduleMeetingUpdateError, Options<ScheduleMeetingUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleMeetingUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Show or hide class sections of a course, e.g. keep only the user's tutorial.
+ *
+ * Disabled sections stay in the course but are left out of the calendar.
+ */
+export const scheduleMeetingSetEnabledMutation = (options?: Partial<Options<ScheduleMeetingSetEnabledData>>): UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> => {
+    const mutationOptions: UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await scheduleMeetingSetEnabled({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const settingsPreferencesGetQueryKey = (options?: Options<SettingsPreferencesGetData>) => createQueryKey('settingsPreferencesGet', options);
 

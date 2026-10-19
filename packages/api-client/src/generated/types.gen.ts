@@ -15,6 +15,444 @@ export type AiStatus = {
 };
 
 /**
+ * Assessment
+ */
+export type Assessment = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Category Id
+     */
+    category_id: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Due At
+     *
+     * Deadline (UTC)
+     */
+    due_at: string | null;
+    /**
+     * Due Has Time
+     *
+     * False when only the date is known
+     */
+    due_has_time: boolean;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone
+     */
+    due_time: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+    /**
+     * Score Percentage
+     */
+    score_percentage: number | null;
+    /**
+     * Points Earned
+     */
+    points_earned: number | null;
+    /**
+     * Points Possible
+     */
+    points_possible: number | null;
+    /**
+     * Dropped
+     */
+    dropped: boolean;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source Kind
+     */
+    source_kind: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Status
+     */
+    status: 'graded' | 'pending' | 'overdue';
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AssessmentCategory
+ */
+export type AssessmentCategory = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Archived
+     */
+    archived: boolean;
+};
+
+/**
+ * AssessmentCreateInputBody
+ */
+export type AssessmentCreateInputBody = {
+    /**
+     * Title
+     *
+     * Assessment title, e.g. 'Midterm 1'
+     */
+    title: string;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, from the gradebook
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline with time zone; wins over due_date/due_time
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone; without it the deadline is the end of due_date and only the date is shown
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course grade in percent
+     */
+    weight?: number;
+    /**
+     * Score Percentage
+     *
+     * Score in percent; leave empty until it is graded
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, e.g. 18 of 20; sets the percentage
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation (e.g. lowest quiz dropped)
+     */
+    dropped?: boolean;
+    /**
+     * Note
+     *
+     * Free-form note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where an imported item came from; used to skip duplicates
+     */
+    source_kind?: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in its source, used with source_kind
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * AssessmentCreateManyInputBody
+ */
+export type AssessmentCreateManyInputBody = {
+    /**
+     * Assessments
+     *
+     * Assessments to add
+     */
+    assessments: Array<AssessmentFields>;
+};
+
+/**
+ * AssessmentCreateManyResult
+ */
+export type AssessmentCreateManyResult = {
+    /**
+     * Created
+     */
+    created: Array<Assessment>;
+    /**
+     * Skipped
+     *
+     * Items left out because the course already has one from the same source
+     */
+    skipped: Array<SkippedAssessment>;
+};
+
+/**
+ * AssessmentFields
+ *
+ * Fields shared by the creation inputs.
+ */
+export type AssessmentFields = {
+    /**
+     * Title
+     *
+     * Assessment title, e.g. 'Midterm 1'
+     */
+    title: string;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, from the gradebook
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline with time zone; wins over due_date/due_time
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date in the Program's time zone
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time in the Program's time zone; without it the deadline is the end of due_date and only the date is shown
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course grade in percent
+     */
+    weight?: number;
+    /**
+     * Score Percentage
+     *
+     * Score in percent; leave empty until it is graded
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, e.g. 18 of 20; sets the percentage
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation (e.g. lowest quiz dropped)
+     */
+    dropped?: boolean;
+    /**
+     * Note
+     *
+     * Free-form note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where an imported item came from; used to skip duplicates
+     */
+    source_kind?: 'lms' | 'syllabus' | 'manual' | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in its source, used with source_kind
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * AssessmentOrder
+ */
+export type AssessmentOrder = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Assessment Ids
+     */
+    assessment_ids: Array<string>;
+};
+
+/**
+ * AssessmentOrderInputBody
+ */
+export type AssessmentOrderInputBody = {
+    /**
+     * Assessment Ids
+     *
+     * Assessment ids in order
+     */
+    assessment_ids: Array<string>;
+};
+
+/**
+ * AssessmentPage
+ */
+export type AssessmentPage = {
+    /**
+     * Items
+     */
+    items: Array<Assessment>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * AssessmentUpdateInputBody
+ */
+export type AssessmentUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Category Id
+     *
+     * AssessmentCategory id, or null for none
+     */
+    category_id?: string | null;
+    /**
+     * Due At
+     *
+     * Exact deadline, or null to clear
+     */
+    due_at?: string | null;
+    /**
+     * Due Date
+     *
+     * Deadline date, or null to clear
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Deadline time, or null for date only
+     */
+    due_time?: string | null;
+    /**
+     * Weight
+     *
+     * Share of the course in percent
+     */
+    weight?: number | null;
+    /**
+     * Score Percentage
+     *
+     * Score in percent, or null
+     */
+    score_percentage?: number | null;
+    /**
+     * Points Earned
+     *
+     * Points earned, or null
+     */
+    points_earned?: number | null;
+    /**
+     * Points Possible
+     *
+     * Points possible, or null
+     */
+    points_possible?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation
+     */
+    dropped?: boolean | null;
+    /**
+     * Note
+     *
+     * Note, or null to clear
+     */
+    note?: string | null;
+};
+
+/**
  * Assignment
  */
 export type Assignment = {
@@ -227,6 +665,16 @@ export type BoardUpdateInputBody = {
 };
 
 /**
+ * Body_accountAvatarUpload
+ */
+export type BodyAccountAvatarUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -293,6 +741,28 @@ export type BreakRef = {
 };
 
 /**
+ * CalendarBreak
+ */
+export type CalendarBreak = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+};
+
+/**
  * CalendarInfo
  */
 export type CalendarInfo = {
@@ -326,6 +796,36 @@ export type CalendarInfo = {
      * Index into `weeks` of today's week, if in term
      */
     today_week: number | null;
+};
+
+/**
+ * CalendarWeek
+ */
+export type CalendarWeek = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Number
+     *
+     * Term week number; null for an uncounted break week
+     */
+    number: number | null;
+    /**
+     * Break Name
+     *
+     * Break of a break week
+     */
+    break_name: string | null;
 };
 
 /**
@@ -389,6 +889,100 @@ export type CardSettingsUpdateInputBody = {
 };
 
 /**
+ * CategoryCreateInputBody
+ */
+export type CategoryCreateInputBody = {
+    /**
+     * Name
+     *
+     * AssessmentCategory name, e.g. 'Midterm'
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * Color name or #rrggbb
+     */
+    color?: string;
+    /**
+     * Key
+     *
+     * Stable key; derived from the name when omitted
+     */
+    key?: string | null;
+};
+
+/**
+ * CategoryList
+ */
+export type CategoryList = {
+    /**
+     * Items
+     */
+    items: Array<AssessmentCategory>;
+};
+
+/**
+ * CategoryOrderInputBody
+ */
+export type CategoryOrderInputBody = {
+    /**
+     * Category Ids
+     *
+     * AssessmentCategory ids in display order
+     */
+    category_ids: Array<string>;
+};
+
+/**
+ * CategoryTemplate
+ */
+export type CategoryTemplate = {
+    /**
+     * Key
+     *
+     * Stable key such as 'quiz'; unique in the list
+     */
+    key: string;
+    /**
+     * Name
+     *
+     * Display name
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * Color name or #rrggbb
+     */
+    color: string;
+};
+
+/**
+ * CategoryUpdateInputBody
+ */
+export type CategoryUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * New color
+     */
+    color?: string | null;
+    /**
+     * Archived
+     *
+     * Archived categories are hidden from pickers
+     */
+    archived?: boolean | null;
+};
+
+/**
  * CheckinList
  */
 export type CheckinList = {
@@ -427,6 +1021,40 @@ export type CheckinToggleResult = {
      */
     checked: boolean;
     stats: HabitStats;
+};
+
+/**
+ * ConflictList
+ */
+export type ConflictList = {
+    /**
+     * Items
+     */
+    items: Array<ConflictPair>;
+};
+
+/**
+ * ConflictPair
+ */
+export type ConflictPair = {
+    /**
+     * Meeting Id
+     */
+    meeting_id: string;
+    /**
+     * Other Meeting Id
+     */
+    other_meeting_id: string;
+    /**
+     * Weekday
+     */
+    weekday: number;
+    /**
+     * Dates
+     *
+     * Dates on which both happen
+     */
+    dates: Array<string>;
 };
 
 /**
@@ -782,6 +1410,98 @@ export type CourseFocus = {
 };
 
 /**
+ * CourseGrade
+ *
+ * A course's effective grade as the summaries count it.
+ */
+export type CourseGrade = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Alias
+     */
+    alias: string | null;
+    /**
+     * Credits
+     */
+    credits: number;
+    /**
+     * Include In Gpa
+     */
+    include_in_gpa: boolean;
+    /**
+     * Basis
+     */
+    basis: 'percentage' | 'pass_fail';
+    /**
+     * Status
+     */
+    status: 'completed' | 'in_progress' | 'passed' | 'failed';
+    /**
+     * Percentage
+     */
+    percentage: number | null;
+    /**
+     * Current Percentage
+     */
+    current_percentage: number | null;
+    /**
+     * Points
+     */
+    points: number | null;
+    /**
+     * Letter
+     */
+    letter: string | null;
+    /**
+     * Counts In Gpa
+     */
+    counts_in_gpa: boolean;
+    /**
+     * Year Long
+     */
+    year_long: boolean;
+    /**
+     * Attributed Credits
+     *
+     * Credits that land in the requested term (term summaries only)
+     */
+    attributed_credits: number | null;
+};
+
+/**
+ * CourseGrades
+ */
+export type CourseGrades = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Items
+     */
+    items: Array<CourseGrade>;
+};
+
+/**
  * CourseList
  */
 export type CourseList = {
@@ -829,6 +1549,98 @@ export type CoursePage = {
      * Next Cursor
      */
     next_cursor: string | null;
+};
+
+/**
+ * CourseResult
+ */
+export type CourseResult = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Basis
+     */
+    basis: 'percentage' | 'pass_fail';
+    /**
+     * Manual Percentage
+     */
+    manual_percentage: number | null;
+    /**
+     * Final Override Percentage
+     */
+    final_override_percentage: number | null;
+    /**
+     * Pass Fail Result
+     */
+    pass_fail_result: 'pass' | 'fail' | null;
+    /**
+     * Target Points
+     *
+     * Chosen goal; the scale's top points if null
+     */
+    target_points: number | null;
+    /**
+     * Forecast Model
+     */
+    forecast_model: 'auto' | 'simple_minimum_needed';
+    /**
+     * Gradebook Enabled
+     */
+    gradebook_enabled: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * CourseResultUpdateInputBody
+ */
+export type CourseResultUpdateInputBody = {
+    /**
+     * Basis
+     *
+     * 'pass_fail' courses have no GPA
+     */
+    basis?: 'percentage' | 'pass_fail' | null;
+    /**
+     * Manual Percentage
+     *
+     * Final grade of a course without a gradebook, or null
+     */
+    manual_percentage?: number | null;
+    /**
+     * Final Override Percentage
+     *
+     * Official final grade; wins over the calculated one. Null clears
+     */
+    final_override_percentage?: number | null;
+    /**
+     * Pass Fail Result
+     *
+     * Result of a pass/fail course, or null while unknown
+     */
+    pass_fail_result?: 'pass' | 'fail' | null;
+    /**
+     * Target Points
+     *
+     * Goal in grade points, or null for the scale's maximum
+     */
+    target_points?: number | null;
+    /**
+     * Forecast Model
+     *
+     * Forecast model
+     */
+    forecast_model?: 'auto' | 'simple_minimum_needed' | null;
+    /**
+     * Gradebook Enabled
+     *
+     * False when only a final grade is entered for the course
+     */
+    gradebook_enabled?: boolean | null;
 };
 
 /**
@@ -1053,6 +1865,381 @@ export type ErrorResponse = {
 };
 
 /**
+ * EventCreateInputBody
+ */
+export type EventCreateInputBody = {
+    /**
+     * Title
+     *
+     * E.g. 'Midterm'
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * Start; without an offset it is read in the Program's time zone
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * End (not before the start)
+     */
+    end_at: string;
+    /**
+     * All Day
+     *
+     * Whole days; times are ignored
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     *
+     * Course it belongs to
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term it belongs to
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, e.g. 'TUT'
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Importer that created it
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id in the import source
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * EventType
+ */
+export type EventType = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Code
+     *
+     * Upper-case abbreviation, e.g. 'LEC'
+     */
+    code: string;
+    /**
+     * Name
+     *
+     * Display name; built-in types are translated by the app
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string | null;
+    /**
+     * Icon
+     */
+    icon: string | null;
+    /**
+     * Builtin
+     */
+    builtin: boolean;
+    /**
+     * Position
+     */
+    position: number;
+};
+
+/**
+ * EventTypeCreateInputBody
+ */
+export type EventTypeCreateInputBody = {
+    /**
+     * Code
+     *
+     * Abbreviation, letters and digits, e.g. 'LAB'
+     */
+    code: string;
+    /**
+     * Name
+     *
+     * Display name, e.g. 'Laboratory'
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * 'subject-<1..12>' or '#rrggbb'
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * lucide icon name, e.g. 'flask-conical'
+     */
+    icon?: string | null;
+};
+
+/**
+ * EventTypeList
+ */
+export type EventTypeList = {
+    /**
+     * Items
+     *
+     * In display order
+     */
+    items: Array<EventType>;
+};
+
+/**
+ * EventTypeOrderInputBody
+ */
+export type EventTypeOrderInputBody = {
+    /**
+     * Event Type Ids
+     *
+     * Types in display order
+     */
+    event_type_ids: Array<string>;
+};
+
+/**
+ * EventTypeUpdateInputBody
+ */
+export type EventTypeUpdateInputBody = {
+    /**
+     * Name
+     *
+     * Display name (not for built-in types)
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * Color, or null for none
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon name, or null for none
+     */
+    icon?: string | null;
+};
+
+/**
+ * EventUpdateInputBody
+ */
+export type EventUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Start At
+     *
+     * Start
+     */
+    start_at?: string | null;
+    /**
+     * End At
+     *
+     * End
+     */
+    end_at?: string | null;
+    /**
+     * All Day
+     *
+     * Whole days
+     */
+    all_day?: boolean | null;
+    /**
+     * Course Id
+     *
+     * Course, or null
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term, or null
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, or null
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location, or null
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note, or null
+     */
+    note?: string | null;
+};
+
+/**
+ * ExceptionUpsertInputBody
+ */
+export type ExceptionUpsertInputBody = {
+    /**
+     * Kind
+     *
+     * Cancel it, or move it
+     */
+    kind: 'cancelled' | 'moved';
+    /**
+     * New Date
+     *
+     * Moved: new date (default: same day)
+     */
+    new_date?: string | null;
+    /**
+     * New Start Time
+     *
+     * Moved: new start time
+     */
+    new_start_time?: string | null;
+    /**
+     * New End Time
+     *
+     * Moved: new end time
+     */
+    new_end_time?: string | null;
+    /**
+     * New Location
+     *
+     * Moved: new location; null keeps the meeting's, "" means none
+     */
+    new_location?: string | null;
+    /**
+     * Note
+     *
+     * Note shown with the class
+     */
+    note?: string | null;
+};
+
+/**
+ * Feed
+ */
+export type Feed = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     *
+     * First characters of the token, to tell links apart
+     */
+    prefix: string;
+    /**
+     * Sources
+     */
+    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Fetched At
+     */
+    last_fetched_at: string | null;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+};
+
+/**
+ * FeedCreateInputBody
+ */
+export type FeedCreateInputBody = {
+    /**
+     * Name
+     *
+     * Label for the link, e.g. 'iPhone'
+     */
+    name: string;
+    /**
+     * Sources
+     *
+     * What the feed contains
+     */
+    sources?: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+};
+
+/**
+ * FeedCreated
+ */
+export type FeedCreated = {
+    feed: Feed;
+    /**
+     * Url
+     *
+     * Subscription URL; shown once, anyone with it can read the feed
+     */
+    url: string;
+};
+
+/**
+ * FeedList
+ */
+export type FeedList = {
+    /**
+     * Items
+     */
+    items: Array<Feed>;
+};
+
+/**
  * GoogleLinkInputBody
  */
 export type GoogleLinkInputBody = {
@@ -1072,6 +2259,245 @@ export type GoogleLoginIn = {
      * Id Token
      */
     id_token: string;
+};
+
+/**
+ * GradeTarget
+ */
+export type GradeTarget = {
+    /**
+     * Kind
+     *
+     * What `value` is measured in
+     */
+    kind: 'points' | 'percentage';
+    /**
+     * Value
+     *
+     * Target value
+     */
+    value: number;
+};
+
+/**
+ * Gradebook
+ */
+export type Gradebook = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    scale: GradingScaleInfo;
+    result: CourseResult;
+    /**
+     * Categories
+     */
+    categories: Array<AssessmentCategory>;
+    /**
+     * Assessments
+     */
+    assessments: Array<Assessment>;
+    summary: GradebookSummary;
+};
+
+/**
+ * GradebookSummary
+ *
+ * Every figure of M03 §3 for one course; null where it cannot be calculated.
+ */
+export type GradebookSummary = {
+    /**
+     * Status
+     */
+    status: 'completed' | 'in_progress' | 'passed' | 'failed';
+    /**
+     * Weight Total
+     */
+    weight_total: number;
+    /**
+     * Weight Gap
+     *
+     * 100 - weight_total; positive means weight is missing
+     */
+    weight_gap: number;
+    /**
+     * Weights Ok
+     *
+     * False: the weights do not add up to 100, so no figures
+     */
+    weights_ok: boolean;
+    /**
+     * Graded Count
+     */
+    graded_count: number;
+    /**
+     * Remaining Count
+     */
+    remaining_count: number;
+    /**
+     * Graded Weight
+     */
+    graded_weight: number;
+    /**
+     * Remaining Weight
+     */
+    remaining_weight: number;
+    /**
+     * Locked Contribution
+     *
+     * The final grade if everything still to come scored 0
+     */
+    locked_contribution: number | null;
+    /**
+     * Current Percentage
+     *
+     * Weighted average of the graded items
+     */
+    current_percentage: number | null;
+    /**
+     * Current Points
+     */
+    current_points: number | null;
+    /**
+     * Current Letter
+     */
+    current_letter: string | null;
+    /**
+     * Final Percentage
+     *
+     * Official or fully calculated final grade, null while the course is running
+     */
+    final_percentage: number | null;
+    /**
+     * Final Points
+     */
+    final_points: number | null;
+    /**
+     * Final Letter
+     */
+    final_letter: string | null;
+    /**
+     * Final Source
+     */
+    final_source: 'override' | 'computed' | 'manual' | null;
+    /**
+     * Overridden
+     */
+    overridden: boolean;
+    /**
+     * Forecast Percentage
+     *
+     * Predicted final grade ('auto' model)
+     */
+    forecast_percentage: number | null;
+    /**
+     * Forecast Points
+     */
+    forecast_points: number | null;
+    /**
+     * Forecast Letter
+     */
+    forecast_letter: string | null;
+    /**
+     * Predictions
+     *
+     * Predicted score per ungraded assessment id
+     */
+    predictions: {
+        [key: string]: number;
+    };
+    /**
+     * Missing History Category Ids
+     *
+     * Categories of ungraded items without any graded item to predict from
+     */
+    missing_history_category_ids: Array<string | null>;
+    /**
+     * Target Points
+     */
+    target_points: number;
+    /**
+     * Target Percentage
+     *
+     * Lowest percentage reaching the target
+     */
+    target_percentage: number | null;
+    /**
+     * Required Average
+     *
+     * Average the remaining items need to reach the target
+     */
+    required_average: number | null;
+    /**
+     * Reachable
+     *
+     * False when the target needs more than 100%
+     */
+    reachable: boolean | null;
+};
+
+/**
+ * GradingScale
+ */
+export type GradingScale = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Bands
+     *
+     * Highest percentage first
+     */
+    bands: Array<ScaleBand>;
+    /**
+     * Max Points
+     *
+     * Points of a perfect grade, e.g. 4.0
+     */
+    max_points: number;
+    /**
+     * Year Course Attribution
+     *
+     * Which term a year-long course's grade counts in
+     */
+    year_course_attribution: 'end_term' | 'split_evenly';
+    /**
+     * Default Forecast Model
+     */
+    default_forecast_model: 'auto' | 'simple_minimum_needed';
+    /**
+     * Default Categories
+     *
+     * Categories every new course of the Program starts with
+     */
+    default_categories: Array<CategoryTemplate>;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * GradingScaleInfo
+ */
+export type GradingScaleInfo = {
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
 };
 
 /**
@@ -1299,6 +2725,524 @@ export type JobPage = {
 export type JsonValue = unknown;
 
 /**
+ * Meeting
+ */
+export type Meeting = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Section Code
+     */
+    section_code: string;
+    /**
+     * Type Code
+     */
+    type_code: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Instructor
+     */
+    instructor: string | null;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     */
+    recurrence: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: the term week it starts alternating from
+     */
+    anchor_week: number;
+    /**
+     * Start Week
+     */
+    start_week: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week: number | null;
+    /**
+     * Skip Breaks
+     */
+    skip_breaks: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Source Kind
+     */
+    source_kind: string | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Exceptions
+     *
+     * Cancelled or moved dates
+     */
+    exceptions: Array<MeetingException>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * MeetingCreateInputBody
+ */
+export type MeetingCreateInputBody = {
+    /**
+     * Term Id
+     *
+     * Term of the course the meeting runs in
+     */
+    term_id: string;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Title
+     *
+     * Optional title
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     *
+     * Every week or every other week
+     */
+    recurrence?: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: first week it happens; defaults to start_week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * No class in break weeks and on breaks
+     */
+    skip_breaks?: boolean;
+    /**
+     * Enabled
+     *
+     * Disabled sections are not shown
+     */
+    enabled?: boolean;
+    /**
+     * Source Kind
+     *
+     * Importer that created it, e.g. 'ics'
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in the import source, for de-duplication
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * MeetingCreateManyInputBody
+ */
+export type MeetingCreateManyInputBody = {
+    /**
+     * Meetings
+     *
+     * Meetings; same source_kind+source_ref updates
+     */
+    meetings: Array<MeetingFields>;
+};
+
+/**
+ * MeetingCreateManyResult
+ */
+export type MeetingCreateManyResult = {
+    /**
+     * Items
+     */
+    items: Array<Meeting>;
+    /**
+     * Created Ids
+     */
+    created_ids: Array<string>;
+    /**
+     * Updated Ids
+     */
+    updated_ids: Array<string>;
+};
+
+/**
+ * MeetingException
+ */
+export type MeetingException = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Meeting Id
+     */
+    meeting_id: string;
+    /**
+     * Original Date
+     */
+    original_date: string;
+    /**
+     * Kind
+     */
+    kind: 'cancelled' | 'moved';
+    /**
+     * New Date
+     */
+    new_date: string | null;
+    /**
+     * New Start Time
+     */
+    new_start_time: string | null;
+    /**
+     * New End Time
+     */
+    new_end_time: string | null;
+    /**
+     * New Location
+     */
+    new_location: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
+ * MeetingFields
+ */
+export type MeetingFields = {
+    /**
+     * Term Id
+     *
+     * Term of the course the meeting runs in
+     */
+    term_id: string;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Title
+     *
+     * Optional title
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Recurrence
+     *
+     * Every week or every other week
+     */
+    recurrence?: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: first week it happens; defaults to start_week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * No class in break weeks and on breaks
+     */
+    skip_breaks?: boolean;
+    /**
+     * Enabled
+     *
+     * Disabled sections are not shown
+     */
+    enabled?: boolean;
+    /**
+     * Source Kind
+     *
+     * Importer that created it, e.g. 'ics'
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id of the item in the import source, for de-duplication
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * MeetingList
+ */
+export type MeetingList = {
+    /**
+     * Items
+     *
+     * By term, weekday and start time
+     */
+    items: Array<Meeting>;
+};
+
+/**
+ * MeetingSetEnabledInputBody
+ */
+export type MeetingSetEnabledInputBody = {
+    /**
+     * Meeting Ids
+     *
+     * Meetings to change
+     */
+    meeting_ids: Array<string>;
+    /**
+     * Enabled
+     *
+     * True to show them, false to hide them
+     */
+    enabled: boolean;
+};
+
+/**
+ * MeetingUpdateInputBody
+ */
+export type MeetingUpdateInputBody = {
+    /**
+     * Term Id
+     *
+     * Another term of the course
+     */
+    term_id?: string | null;
+    /**
+     * Section Code
+     *
+     * Section
+     */
+    section_code?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code
+     */
+    type_code?: string | null;
+    /**
+     * Title
+     *
+     * Title, or null
+     */
+    title?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor, or null
+     */
+    instructor?: string | null;
+    /**
+     * Location
+     *
+     * Location, or null
+     */
+    location?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday?: number | null;
+    /**
+     * Start Time
+     *
+     * Start time
+     */
+    start_time?: string | null;
+    /**
+     * End Time
+     *
+     * End time
+     */
+    end_time?: string | null;
+    /**
+     * Recurrence
+     *
+     * weekly or biweekly
+     */
+    recurrence?: 'weekly' | 'biweekly' | null;
+    /**
+     * Anchor Week
+     *
+     * Biweekly anchor week; null = the first week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number | null;
+    /**
+     * End Week
+     *
+     * Last term week, or null
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * Skip breaks
+     */
+    skip_breaks?: boolean | null;
+    /**
+     * Enabled
+     *
+     * Shown in the calendar
+     */
+    enabled?: boolean | null;
+};
+
+/**
  * ModelList
  */
 export type ModelList = {
@@ -1428,6 +3372,262 @@ export type NoteUpdateInputBody = {
      * The new Markdown text of the note; replaces the old text
      */
     content: string;
+};
+
+/**
+ * Occurrence
+ */
+export type Occurrence = {
+    /**
+     * Id
+     *
+     * Stable: '<source>:<ref>[:<date>]'
+     */
+    id: string;
+    /**
+     * Source
+     *
+     * Registered source, e.g. 'schedule.meetings'
+     */
+    source: string;
+    /**
+     * Kind
+     */
+    kind: 'class' | 'event' | 'deadline' | 'task';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * UTC; local midnight of the day when all_day
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * UTC, exclusive; null for a point in time
+     */
+    end_at: string | null;
+    /**
+     * All Day
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     */
+    course_id?: string | null;
+    /**
+     * Type Code
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Color Ref
+     *
+     * 'subject-<1..12>' or '#rrggbb', usually the course color
+     */
+    color_ref?: string | null;
+    /**
+     * Status
+     */
+    status?: 'cancelled' | 'moved' | 'done' | 'overdue' | null;
+    ref: OccurrenceRef;
+    meta?: OccurrenceMeta;
+};
+
+/**
+ * OccurrenceMeta
+ *
+ * Optional details; sources fill in what applies to them.
+ */
+export type OccurrenceMeta = {
+    /**
+     * Conflicts With
+     *
+     * Ids of overlapping classes or events
+     */
+    conflicts_with?: Array<string>;
+    /**
+     * Term Id
+     */
+    term_id?: string | null;
+    /**
+     * Meeting Id
+     */
+    meeting_id?: string | null;
+    /**
+     * Original Date
+     *
+     * For a class: its regular date (also when moved)
+     */
+    original_date?: string | null;
+    /**
+     * Original Start At
+     *
+     * For a moved class: when it would have been
+     */
+    original_start_at?: string | null;
+    /**
+     * Week Number
+     *
+     * Term week of a class
+     */
+    week_number?: number | null;
+    /**
+     * Section Code
+     */
+    section_code?: string | null;
+    /**
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Url
+     *
+     * Link to the item elsewhere (e.g. the LMS)
+     */
+    url?: string | null;
+};
+
+/**
+ * OccurrenceRef
+ */
+export type OccurrenceRef = {
+    /**
+     * Entity
+     *
+     * What the occurrence comes from, e.g. 'schedule.meeting'
+     */
+    entity: string;
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
+ * Occurrences
+ */
+export type Occurrences = {
+    /**
+     * Timezone
+     *
+     * The Program's time zone, for reading the local times
+     */
+    timezone: string;
+    /**
+     * Start
+     */
+    start: string;
+    /**
+     * End
+     */
+    end: string;
+    /**
+     * Items
+     *
+     * Sorted by start
+     */
+    items: Array<Occurrence>;
+    /**
+     * Weeks
+     *
+     * Term weeks touching the range
+     */
+    weeks: Array<CalendarWeek>;
+    /**
+     * Breaks
+     *
+     * Breaks touching the range
+     */
+    breaks: Array<CalendarBreak>;
+};
+
+/**
+ * OneOffEvent
+ */
+export type OneOffEvent = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * Type Code
+     */
+    type_code: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Start At
+     */
+    start_at: string;
+    /**
+     * End At
+     */
+    end_at: string;
+    /**
+     * All Day
+     */
+    all_day: boolean;
+    /**
+     * Location
+     */
+    location: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Source Kind
+     */
+    source_kind: string | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * OneOffEventList
+ */
+export type OneOffEventList = {
+    /**
+     * Items
+     *
+     * By start time
+     */
+    items: Array<OneOffEvent>;
 };
 
 /**
@@ -1850,6 +4050,64 @@ export type ProgramCreateInputBody = {
 };
 
 /**
+ * ProgramGrades
+ */
+export type ProgramGrades = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Credits Earned
+     */
+    credits_earned: number;
+    /**
+     * Credits Required
+     */
+    credits_required: number | null;
+    /**
+     * Progress
+     *
+     * credits_earned / credits_required, 0-1
+     */
+    progress: number | null;
+    /**
+     * Graded Course Count
+     */
+    graded_course_count: number;
+    /**
+     * Term Count
+     */
+    term_count: number;
+    /**
+     * Terms
+     *
+     * Chronological, for charts
+     */
+    terms: Array<TermGradePoint>;
+};
+
+/**
  * ProgramList
  */
 export type ProgramList = {
@@ -2218,6 +4476,130 @@ export type Revoked = {
 };
 
 /**
+ * ScaleBand
+ */
+export type ScaleBand = {
+    /**
+     * Min
+     *
+     * Lowest percentage in the band
+     */
+    min: number;
+    /**
+     * Max
+     *
+     * Highest percentage in the band
+     */
+    max: number;
+    /**
+     * Points
+     *
+     * Grade points of the band
+     */
+    points: number;
+    /**
+     * Letter
+     *
+     * Letter grade shown for the band, e.g. 'A-'
+     */
+    letter?: string | null;
+};
+
+/**
+ * ScalePreset
+ */
+export type ScalePreset = {
+    /**
+     * Id
+     *
+     * Preset id: uoft_4_0, us_4_0, cn_100 or custom
+     */
+    id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Bands
+     */
+    bands: Array<ScaleBand>;
+};
+
+/**
+ * ScalePresets
+ */
+export type ScalePresets = {
+    /**
+     * Items
+     */
+    items: Array<ScalePreset>;
+};
+
+/**
+ * ScaleUpdateInputBody
+ */
+export type ScaleUpdateInputBody = {
+    /**
+     * Bands
+     *
+     * The percentage → points table; must cover 0-100 without overlapping
+     */
+    bands?: Array<ScaleBand> | null;
+    /**
+     * Max Points
+     *
+     * Points of a perfect grade
+     */
+    max_points?: number | null;
+    /**
+     * Year Course Attribution
+     *
+     * 'end_term' counts a year-long course once in its last term
+     */
+    year_course_attribution?: 'end_term' | 'split_evenly' | null;
+    /**
+     * Default Forecast Model
+     *
+     * Forecast model new courses start with
+     */
+    default_forecast_model?: 'auto' | 'simple_minimum_needed' | null;
+    /**
+     * Default Categories
+     *
+     * AssessmentCategory template for new courses
+     */
+    default_categories?: Array<CategoryTemplate> | null;
+    /**
+     * Hide Gpa
+     *
+     * Mask GPA figures in the interface
+     */
+    hide_gpa?: boolean | null;
+};
+
+/**
+ * ScoreSuggestion
+ */
+export type ScoreSuggestion = {
+    /**
+     * Items
+     */
+    items: Array<SuggestedScore>;
+    /**
+     * Target Percentage
+     */
+    target_percentage: number | null;
+    /**
+     * Resulting Percentage
+     */
+    resulting_percentage: number;
+    /**
+     * Reachable
+     */
+    reachable: boolean;
+};
+
+/**
  * SessionList
  */
 export type SessionList = {
@@ -2362,6 +4744,44 @@ export type SettingsSchemaOut = {
 };
 
 /**
+ * SimulateCourseInputBody
+ */
+export type SimulateCourseInputBody = {
+    /**
+     * Scores
+     *
+     * Assumed score in percent per ungraded assessment id; nothing is saved
+     */
+    scores?: {
+        [key: string]: number;
+    };
+    /**
+     * Goal; the course's own target when omitted
+     */
+    target?: GradeTarget | null;
+};
+
+/**
+ * SkippedAssessment
+ */
+export type SkippedAssessment = {
+    /**
+     * Source Kind
+     */
+    source_kind: 'lms' | 'syllabus' | 'manual';
+    /**
+     * Source Ref
+     */
+    source_ref: string;
+    /**
+     * Assessment Id
+     *
+     * The existing assessment with this source
+     */
+    assessment_id: string;
+};
+
+/**
  * StorageUsage
  */
 export type StorageUsage = {
@@ -2393,6 +4813,30 @@ export type SubjectColorInputBody = {
      * Palette slot or custom hex color
      */
     color: PaletteColor | HexColor;
+};
+
+/**
+ * SuggestInputBody
+ */
+export type SuggestInputBody = {
+    /**
+     * Goal; the course's own target when omitted
+     */
+    target?: GradeTarget | null;
+};
+
+/**
+ * SuggestedScore
+ */
+export type SuggestedScore = {
+    /**
+     * Assessment Id
+     */
+    assessment_id: string;
+    /**
+     * Score
+     */
+    score: number;
 };
 
 /**
@@ -2607,6 +5051,138 @@ export type TermDeleteResult = {
 };
 
 /**
+ * TermGradePoint
+ */
+export type TermGradePoint = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Cumulative Gpa
+     */
+    cumulative_gpa: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Cumulative Credits
+     */
+    cumulative_credits: number;
+};
+
+/**
+ * TermGradeSimulation
+ */
+export type TermGradeSimulation = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     */
+    credits_counted: number;
+    /**
+     * Target Gpa
+     */
+    target_gpa: number | null;
+    /**
+     * Gap
+     *
+     * target - simulated GPA; positive means short
+     */
+    gap: number | null;
+    /**
+     * Max Possible Gpa
+     */
+    max_possible_gpa: number | null;
+    /**
+     * Reachable
+     */
+    reachable: boolean | null;
+    /**
+     * Required Percentage
+     *
+     * One average for the courses left blank that reaches the target
+     */
+    required_percentage: number | null;
+};
+
+/**
+ * TermGrades
+ */
+export type TermGrades = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Max Points
+     */
+    max_points: number;
+    /**
+     * Hide Gpa
+     */
+    hide_gpa: boolean;
+    /**
+     * Gpa
+     */
+    gpa: number | null;
+    /**
+     * Average Percentage
+     */
+    average_percentage: number | null;
+    /**
+     * Credits Counted
+     *
+     * Credits behind the GPA
+     */
+    credits_counted: number;
+    /**
+     * Credits Total
+     *
+     * Credits of all courses landing in the term
+     */
+    credits_total: number;
+    /**
+     * Credits Earned
+     */
+    credits_earned: number;
+    /**
+     * Excluded Count
+     *
+     * Courses not counted towards the GPA
+     */
+    excluded_count: number;
+    /**
+     * Courses
+     */
+    courses: Array<CourseGrade>;
+};
+
+/**
  * TermList
  */
 export type TermList = {
@@ -2616,6 +5192,32 @@ export type TermList = {
      * Sorted by start date
      */
     items: Array<Term>;
+};
+
+/**
+ * TermSimulateInputBody
+ */
+export type TermSimulateInputBody = {
+    /**
+     * Scores
+     *
+     * Assumed final percentage per unfinished course id; nothing is saved
+     */
+    scores?: {
+        [key: string]: number;
+    };
+    /**
+     * Target Gpa
+     *
+     * Term GPA to aim for
+     */
+    target_gpa?: number | null;
+    /**
+     * Include In Progress
+     *
+     * Count the current average of unfinished courses
+     */
+    include_in_progress?: boolean;
 };
 
 /**
@@ -2678,6 +5280,66 @@ export type TermWeek = {
      * The break, for a break week
      */
     break_info: BreakRef | null;
+};
+
+/**
+ * Today
+ */
+export type Today = {
+    /**
+     * Day
+     *
+     * Today in the Program's time zone
+     */
+    day: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * The current term's week, if in a term
+     */
+    week: TodayWeek | null;
+    /**
+     * Items
+     *
+     * Today's classes and events
+     */
+    items: Array<Occurrence>;
+    /**
+     * Upcoming
+     *
+     * Deadlines and due tasks in the next 7 days
+     */
+    upcoming: Array<Occurrence>;
+    /**
+     * Tasks
+     *
+     * Tasks due today and overdue ones
+     */
+    tasks: Array<Occurrence>;
+};
+
+/**
+ * TodayWeek
+ */
+export type TodayWeek = {
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Term Name
+     */
+    term_name: string;
+    /**
+     * Number
+     */
+    number: number | null;
+    /**
+     * Break Name
+     */
+    break_name: string | null;
 };
 
 /**
@@ -3424,6 +6086,63 @@ export type AuthLogoutResponses = {
 };
 
 export type AuthLogoutResponse = AuthLogoutResponses[keyof AuthLogoutResponses];
+
+export type AccountAvatarUploadData = {
+    body: BodyAccountAvatarUpload;
+    path?: never;
+    query?: never;
+    url: '/account/avatar';
+};
+
+export type AccountAvatarUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AccountAvatarUploadError = AccountAvatarUploadErrors[keyof AccountAvatarUploadErrors];
+
+export type AccountAvatarUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountAvatarUploadResponse = AccountAvatarUploadResponses[keyof AccountAvatarUploadResponses];
+
+export type AccountAvatarGetData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+        /**
+         * Version
+         */
+        version: string;
+    };
+    query?: never;
+    url: '/account/avatars/{user_id}/{version}';
+};
+
+export type AccountAvatarGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AccountAvatarGetError = AccountAvatarGetErrors[keyof AccountAvatarGetErrors];
+
+export type AccountAvatarGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type AcademicsCourseListData = {
     body?: never;
@@ -4756,6 +7475,101 @@ export type AiUsageSummaryResponses = {
 
 export type AiUsageSummaryResponse = AiUsageSummaryResponses[keyof AiUsageSummaryResponses];
 
+export type CalendarOccurrencesData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query: {
+        /**
+         * Start
+         *
+         * First day, in the Program's time zone
+         */
+        start: string;
+        /**
+         * End
+         *
+         * Day after the last day (exclusive); at most 120 days later
+         */
+        end: string;
+        /**
+         * Sources
+         *
+         * Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; all by default
+         */
+        sources?: Array<string> | null;
+        /**
+         * Term Id
+         *
+         * Only this term
+         */
+        term_id?: string | null;
+        /**
+         * Course Ids
+         *
+         * Only these courses
+         */
+        course_ids?: Array<string> | null;
+    };
+    url: '/programs/{program_id}/calendar';
+};
+
+export type CalendarOccurrencesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CalendarOccurrencesError = CalendarOccurrencesErrors[keyof CalendarOccurrencesErrors];
+
+export type CalendarOccurrencesResponses = {
+    /**
+     * Successful Response
+     */
+    200: Occurrences;
+};
+
+export type CalendarOccurrencesResponse = CalendarOccurrencesResponses[keyof CalendarOccurrencesResponses];
+
+export type CalendarTodayData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/today';
+};
+
+export type CalendarTodayErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CalendarTodayError = CalendarTodayErrors[keyof CalendarTodayErrors];
+
+export type CalendarTodayResponses = {
+    /**
+     * Successful Response
+     */
+    200: Today;
+};
+
+export type CalendarTodayResponse = CalendarTodayResponses[keyof CalendarTodayResponses];
+
 export type CoreJobCancelData = {
     body?: never;
     path: {
@@ -4894,6 +7708,717 @@ export type CoreStorageUsageResponses = {
 };
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+
+export type GradingAssessmentListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Status
+         *
+         * graded, pending (no score yet) or overdue (pending, past due)
+         */
+        status?: 'graded' | 'pending' | 'overdue' | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each assessment (and its id)
+         */
+        fields?: Array<'course_id' | 'category_id' | 'title' | 'due_at' | 'due_has_time' | 'due_date' | 'due_time' | 'weight' | 'score_percentage' | 'points_earned' | 'points_possible' | 'dropped' | 'note' | 'source_kind' | 'source_ref' | 'position' | 'status' | 'created_at' | 'updated_at'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/courses/{course_id}/assessments';
+};
+
+export type GradingAssessmentListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentListError = GradingAssessmentListErrors[keyof GradingAssessmentListErrors];
+
+export type GradingAssessmentListResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentPage;
+};
+
+export type GradingAssessmentListResponse = GradingAssessmentListResponses[keyof GradingAssessmentListResponses];
+
+export type GradingAssessmentCreateData = {
+    body: AssessmentCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments';
+};
+
+export type GradingAssessmentCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentCreateError = GradingAssessmentCreateErrors[keyof GradingAssessmentCreateErrors];
+
+export type GradingAssessmentCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Assessment;
+};
+
+export type GradingAssessmentCreateResponse = GradingAssessmentCreateResponses[keyof GradingAssessmentCreateResponses];
+
+export type GradingAssessmentCreateManyData = {
+    body: AssessmentCreateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments:batch';
+};
+
+export type GradingAssessmentCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentCreateManyError = GradingAssessmentCreateManyErrors[keyof GradingAssessmentCreateManyErrors];
+
+export type GradingAssessmentCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCreateManyResult;
+};
+
+export type GradingAssessmentCreateManyResponse = GradingAssessmentCreateManyResponses[keyof GradingAssessmentCreateManyResponses];
+
+export type GradingAssessmentDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}';
+};
+
+export type GradingAssessmentDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentDeleteError = GradingAssessmentDeleteErrors[keyof GradingAssessmentDeleteErrors];
+
+export type GradingAssessmentDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type GradingAssessmentDeleteResponse = GradingAssessmentDeleteResponses[keyof GradingAssessmentDeleteResponses];
+
+export type GradingAssessmentUpdateData = {
+    body: AssessmentUpdateInputBody;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}';
+};
+
+export type GradingAssessmentUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentUpdateError = GradingAssessmentUpdateErrors[keyof GradingAssessmentUpdateErrors];
+
+export type GradingAssessmentUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Assessment;
+};
+
+export type GradingAssessmentUpdateResponse = GradingAssessmentUpdateResponses[keyof GradingAssessmentUpdateResponses];
+
+export type GradingAssessmentReorderData = {
+    body: AssessmentOrderInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessment-order';
+};
+
+export type GradingAssessmentReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentReorderError = GradingAssessmentReorderErrors[keyof GradingAssessmentReorderErrors];
+
+export type GradingAssessmentReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentOrder;
+};
+
+export type GradingAssessmentReorderResponse = GradingAssessmentReorderResponses[keyof GradingAssessmentReorderResponses];
+
+export type GradingCategoryCreateData = {
+    body: CategoryCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grading-categories';
+};
+
+export type GradingCategoryCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryCreateError = GradingCategoryCreateErrors[keyof GradingCategoryCreateErrors];
+
+export type GradingCategoryCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCategory;
+};
+
+export type GradingCategoryCreateResponse = GradingCategoryCreateResponses[keyof GradingCategoryCreateResponses];
+
+export type GradingCategoryDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Category Id
+         *
+         * AssessmentCategory id
+         */
+        category_id: string;
+    };
+    query?: never;
+    url: '/grading-categories/{category_id}';
+};
+
+export type GradingCategoryDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryDeleteError = GradingCategoryDeleteErrors[keyof GradingCategoryDeleteErrors];
+
+export type GradingCategoryDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type GradingCategoryDeleteResponse = GradingCategoryDeleteResponses[keyof GradingCategoryDeleteResponses];
+
+export type GradingCategoryUpdateData = {
+    body: CategoryUpdateInputBody;
+    path: {
+        /**
+         * Category Id
+         *
+         * AssessmentCategory id
+         */
+        category_id: string;
+    };
+    query?: never;
+    url: '/grading-categories/{category_id}';
+};
+
+export type GradingCategoryUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryUpdateError = GradingCategoryUpdateErrors[keyof GradingCategoryUpdateErrors];
+
+export type GradingCategoryUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentCategory;
+};
+
+export type GradingCategoryUpdateResponse = GradingCategoryUpdateResponses[keyof GradingCategoryUpdateResponses];
+
+export type GradingCategoryReorderData = {
+    body: CategoryOrderInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grading-category-order';
+};
+
+export type GradingCategoryReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCategoryReorderError = GradingCategoryReorderErrors[keyof GradingCategoryReorderErrors];
+
+export type GradingCategoryReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: CategoryList;
+};
+
+export type GradingCategoryReorderResponse = GradingCategoryReorderResponses[keyof GradingCategoryReorderResponses];
+
+export type GradingCourseResultUpdateData = {
+    body: CourseResultUpdateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/grade';
+};
+
+export type GradingCourseResultUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCourseResultUpdateError = GradingCourseResultUpdateErrors[keyof GradingCourseResultUpdateErrors];
+
+export type GradingCourseResultUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseResult;
+};
+
+export type GradingCourseResultUpdateResponse = GradingCourseResultUpdateResponses[keyof GradingCourseResultUpdateResponses];
+
+export type GradingCourseSummariesData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/programs/{program_id}/course-grades';
+};
+
+export type GradingCourseSummariesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingCourseSummariesError = GradingCourseSummariesErrors[keyof GradingCourseSummariesErrors];
+
+export type GradingCourseSummariesResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseGrades;
+};
+
+export type GradingCourseSummariesResponse = GradingCourseSummariesResponses[keyof GradingCourseSummariesResponses];
+
+export type GradingGradebookGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook';
+};
+
+export type GradingGradebookGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingGradebookGetError = GradingGradebookGetErrors[keyof GradingGradebookGetErrors];
+
+export type GradingGradebookGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Gradebook;
+};
+
+export type GradingGradebookGetResponse = GradingGradebookGetResponses[keyof GradingGradebookGetResponses];
+
+export type GradingScaleGetData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/grading-scale';
+};
+
+export type GradingScaleGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScaleGetError = GradingScaleGetErrors[keyof GradingScaleGetErrors];
+
+export type GradingScaleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradingScale;
+};
+
+export type GradingScaleGetResponse = GradingScaleGetResponses[keyof GradingScaleGetResponses];
+
+export type GradingScaleUpdateData = {
+    body: ScaleUpdateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/grading-scale';
+};
+
+export type GradingScaleUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScaleUpdateError = GradingScaleUpdateErrors[keyof GradingScaleUpdateErrors];
+
+export type GradingScaleUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradingScale;
+};
+
+export type GradingScaleUpdateResponse = GradingScaleUpdateResponses[keyof GradingScaleUpdateResponses];
+
+export type GradingScalePresetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/grading/scale-presets';
+};
+
+export type GradingScalePresetsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScalePresetsError = GradingScalePresetsErrors[keyof GradingScalePresetsErrors];
+
+export type GradingScalePresetsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScalePresets;
+};
+
+export type GradingScalePresetsResponse = GradingScalePresetsResponses[keyof GradingScalePresetsResponses];
+
+export type GradingSimulateCourseData = {
+    body: SimulateCourseInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook:simulate';
+};
+
+export type GradingSimulateCourseErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSimulateCourseError = GradingSimulateCourseErrors[keyof GradingSimulateCourseErrors];
+
+export type GradingSimulateCourseResponses = {
+    /**
+     * Successful Response
+     */
+    200: GradebookSummary;
+};
+
+export type GradingSimulateCourseResponse = GradingSimulateCourseResponses[keyof GradingSimulateCourseResponses];
+
+export type GradingSimulateTermData = {
+    body: TermSimulateInputBody;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/grade-summary:simulate';
+};
+
+export type GradingSimulateTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSimulateTermError = GradingSimulateTermErrors[keyof GradingSimulateTermErrors];
+
+export type GradingSimulateTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermGradeSimulation;
+};
+
+export type GradingSimulateTermResponse = GradingSimulateTermResponses[keyof GradingSimulateTermResponses];
+
+export type GradingSuggestScoresData = {
+    body: SuggestInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook:suggest';
+};
+
+export type GradingSuggestScoresErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSuggestScoresError = GradingSuggestScoresErrors[keyof GradingSuggestScoresErrors];
+
+export type GradingSuggestScoresResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScoreSuggestion;
+};
+
+export type GradingSuggestScoresResponse = GradingSuggestScoresResponses[keyof GradingSuggestScoresResponses];
+
+export type GradingSummaryProgramData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/programs/{program_id}/grade-summary';
+};
+
+export type GradingSummaryProgramErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSummaryProgramError = GradingSummaryProgramErrors[keyof GradingSummaryProgramErrors];
+
+export type GradingSummaryProgramResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramGrades;
+};
+
+export type GradingSummaryProgramResponse = GradingSummaryProgramResponses[keyof GradingSummaryProgramResponses];
+
+export type GradingSummaryTermData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: {
+        /**
+         * Include In Progress
+         *
+         * Count the current average of unfinished courses
+         */
+        include_in_progress?: boolean;
+    };
+    url: '/terms/{term_id}/grade-summary';
+};
+
+export type GradingSummaryTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingSummaryTermError = GradingSummaryTermErrors[keyof GradingSummaryTermErrors];
+
+export type GradingSummaryTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermGrades;
+};
+
+export type GradingSummaryTermResponse = GradingSummaryTermResponses[keyof GradingSummaryTermResponses];
 
 export type HabitCheckinToggleData = {
     body: CheckinToggleInputBody;
@@ -5544,6 +9069,710 @@ export type PomodoroStatsResponses = {
 };
 
 export type PomodoroStatsResponse = PomodoroStatsResponses[keyof PomodoroStatsResponses];
+
+export type ScheduleConflictsData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/schedule-conflicts';
+};
+
+export type ScheduleConflictsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleConflictsError = ScheduleConflictsErrors[keyof ScheduleConflictsErrors];
+
+export type ScheduleConflictsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConflictList;
+};
+
+export type ScheduleConflictsResponse = ScheduleConflictsResponses[keyof ScheduleConflictsResponses];
+
+export type ScheduleEventListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Course Id
+         *
+         * Only this course's events
+         */
+        course_id?: string | null;
+        /**
+         * Term Id
+         *
+         * Only this term's events
+         */
+        term_id?: string | null;
+    };
+    url: '/programs/{program_id}/events';
+};
+
+export type ScheduleEventListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventListError = ScheduleEventListErrors[keyof ScheduleEventListErrors];
+
+export type ScheduleEventListResponses = {
+    /**
+     * Successful Response
+     */
+    200: OneOffEventList;
+};
+
+export type ScheduleEventListResponse = ScheduleEventListResponses[keyof ScheduleEventListResponses];
+
+export type ScheduleEventCreateData = {
+    body: EventCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/events';
+};
+
+export type ScheduleEventCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventCreateError = ScheduleEventCreateErrors[keyof ScheduleEventCreateErrors];
+
+export type ScheduleEventCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: OneOffEvent;
+};
+
+export type ScheduleEventCreateResponse = ScheduleEventCreateResponses[keyof ScheduleEventCreateResponses];
+
+export type ScheduleEventDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventDeleteError = ScheduleEventDeleteErrors[keyof ScheduleEventDeleteErrors];
+
+export type ScheduleEventDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
+
+export type ScheduleEventUpdateData = {
+    body: EventUpdateInputBody;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventUpdateError = ScheduleEventUpdateErrors[keyof ScheduleEventUpdateErrors];
+
+export type ScheduleEventUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: OneOffEvent;
+};
+
+export type ScheduleEventUpdateResponse = ScheduleEventUpdateResponses[keyof ScheduleEventUpdateResponses];
+
+export type ScheduleEventTypeListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types';
+};
+
+export type ScheduleEventTypeListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeListError = ScheduleEventTypeListErrors[keyof ScheduleEventTypeListErrors];
+
+export type ScheduleEventTypeListResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventTypeList;
+};
+
+export type ScheduleEventTypeListResponse = ScheduleEventTypeListResponses[keyof ScheduleEventTypeListResponses];
+
+export type ScheduleEventTypeCreateData = {
+    body: EventTypeCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types';
+};
+
+export type ScheduleEventTypeCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeCreateError = ScheduleEventTypeCreateErrors[keyof ScheduleEventTypeCreateErrors];
+
+export type ScheduleEventTypeCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventType;
+};
+
+export type ScheduleEventTypeCreateResponse = ScheduleEventTypeCreateResponses[keyof ScheduleEventTypeCreateResponses];
+
+export type ScheduleEventTypeDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Event Type Id
+         *
+         * Event type id
+         */
+        event_type_id: string;
+    };
+    query?: never;
+    url: '/event-types/{event_type_id}';
+};
+
+export type ScheduleEventTypeDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeDeleteError = ScheduleEventTypeDeleteErrors[keyof ScheduleEventTypeDeleteErrors];
+
+export type ScheduleEventTypeDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleEventTypeDeleteResponse = ScheduleEventTypeDeleteResponses[keyof ScheduleEventTypeDeleteResponses];
+
+export type ScheduleEventTypeUpdateData = {
+    body: EventTypeUpdateInputBody;
+    path: {
+        /**
+         * Event Type Id
+         *
+         * Event type id
+         */
+        event_type_id: string;
+    };
+    query?: never;
+    url: '/event-types/{event_type_id}';
+};
+
+export type ScheduleEventTypeUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeUpdateError = ScheduleEventTypeUpdateErrors[keyof ScheduleEventTypeUpdateErrors];
+
+export type ScheduleEventTypeUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventType;
+};
+
+export type ScheduleEventTypeUpdateResponse = ScheduleEventTypeUpdateResponses[keyof ScheduleEventTypeUpdateResponses];
+
+export type ScheduleEventTypeReorderData = {
+    body: EventTypeOrderInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/event-types:order';
+};
+
+export type ScheduleEventTypeReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventTypeReorderError = ScheduleEventTypeReorderErrors[keyof ScheduleEventTypeReorderErrors];
+
+export type ScheduleEventTypeReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventTypeList;
+};
+
+export type ScheduleEventTypeReorderResponse = ScheduleEventTypeReorderResponses[keyof ScheduleEventTypeReorderResponses];
+
+export type ScheduleExceptionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+        /**
+         * Original Date
+         *
+         * Regular date of the changed class
+         */
+        original_date: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}/exceptions/{original_date}';
+};
+
+export type ScheduleExceptionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleExceptionDeleteError = ScheduleExceptionDeleteErrors[keyof ScheduleExceptionDeleteErrors];
+
+export type ScheduleExceptionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleExceptionDeleteResponse = ScheduleExceptionDeleteResponses[keyof ScheduleExceptionDeleteResponses];
+
+export type ScheduleExceptionUpsertData = {
+    body: ExceptionUpsertInputBody;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+        /**
+         * Original Date
+         *
+         * The regular date of the class to change
+         */
+        original_date: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}/exceptions/{original_date}';
+};
+
+export type ScheduleExceptionUpsertErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleExceptionUpsertError = ScheduleExceptionUpsertErrors[keyof ScheduleExceptionUpsertErrors];
+
+export type ScheduleExceptionUpsertResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleExceptionUpsertResponse = ScheduleExceptionUpsertResponses[keyof ScheduleExceptionUpsertResponses];
+
+export type ScheduleFeedListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/calendar-feeds';
+};
+
+export type ScheduleFeedListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedListError = ScheduleFeedListErrors[keyof ScheduleFeedListErrors];
+
+export type ScheduleFeedListResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedList;
+};
+
+export type ScheduleFeedListResponse = ScheduleFeedListResponses[keyof ScheduleFeedListResponses];
+
+export type ScheduleFeedCreateData = {
+    body: FeedCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/calendar-feeds';
+};
+
+export type ScheduleFeedCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedCreateError = ScheduleFeedCreateErrors[keyof ScheduleFeedCreateErrors];
+
+export type ScheduleFeedCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedCreated;
+};
+
+export type ScheduleFeedCreateResponse = ScheduleFeedCreateResponses[keyof ScheduleFeedCreateResponses];
+
+export type ScheduleFeedRevokeData = {
+    body?: never;
+    path: {
+        /**
+         * Feed Id
+         *
+         * Feed id
+         */
+        feed_id: string;
+    };
+    query?: never;
+    url: '/calendar-feeds/{feed_id}';
+};
+
+export type ScheduleFeedRevokeErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedRevokeError = ScheduleFeedRevokeErrors[keyof ScheduleFeedRevokeErrors];
+
+export type ScheduleFeedRevokeResponses = {
+    /**
+     * Successful Response
+     */
+    200: Feed;
+};
+
+export type ScheduleFeedRevokeResponse = ScheduleFeedRevokeResponses[keyof ScheduleFeedRevokeResponses];
+
+export type ScheduleMeetingListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's meetings
+         */
+        term_id?: string | null;
+    };
+    url: '/courses/{course_id}/meetings';
+};
+
+export type ScheduleMeetingListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingListError = ScheduleMeetingListErrors[keyof ScheduleMeetingListErrors];
+
+export type ScheduleMeetingListResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingListResponse = ScheduleMeetingListResponses[keyof ScheduleMeetingListResponses];
+
+export type ScheduleMeetingCreateData = {
+    body: MeetingCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings';
+};
+
+export type ScheduleMeetingCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingCreateError = ScheduleMeetingCreateErrors[keyof ScheduleMeetingCreateErrors];
+
+export type ScheduleMeetingCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleMeetingCreateResponse = ScheduleMeetingCreateResponses[keyof ScheduleMeetingCreateResponses];
+
+export type ScheduleMeetingCreateManyData = {
+    body: MeetingCreateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings:batch';
+};
+
+export type ScheduleMeetingCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingCreateManyError = ScheduleMeetingCreateManyErrors[keyof ScheduleMeetingCreateManyErrors];
+
+export type ScheduleMeetingCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingCreateManyResult;
+};
+
+export type ScheduleMeetingCreateManyResponse = ScheduleMeetingCreateManyResponses[keyof ScheduleMeetingCreateManyResponses];
+
+export type ScheduleMeetingDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}';
+};
+
+export type ScheduleMeetingDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingDeleteError = ScheduleMeetingDeleteErrors[keyof ScheduleMeetingDeleteErrors];
+
+export type ScheduleMeetingDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Deleted;
+};
+
+export type ScheduleMeetingDeleteResponse = ScheduleMeetingDeleteResponses[keyof ScheduleMeetingDeleteResponses];
+
+export type ScheduleMeetingUpdateData = {
+    body: MeetingUpdateInputBody;
+    path: {
+        /**
+         * Meeting Id
+         *
+         * Meeting id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/meetings/{meeting_id}';
+};
+
+export type ScheduleMeetingUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingUpdateError = ScheduleMeetingUpdateErrors[keyof ScheduleMeetingUpdateErrors];
+
+export type ScheduleMeetingUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Meeting;
+};
+
+export type ScheduleMeetingUpdateResponse = ScheduleMeetingUpdateResponses[keyof ScheduleMeetingUpdateResponses];
+
+export type ScheduleMeetingSetEnabledData = {
+    body: MeetingSetEnabledInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/meetings:enabled';
+};
+
+export type ScheduleMeetingSetEnabledErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingSetEnabledError = ScheduleMeetingSetEnabledErrors[keyof ScheduleMeetingSetEnabledErrors];
+
+export type ScheduleMeetingSetEnabledResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingSetEnabledResponse = ScheduleMeetingSetEnabledResponses[keyof ScheduleMeetingSetEnabledResponses];
 
 export type SettingsPreferencesGetData = {
     body?: never;

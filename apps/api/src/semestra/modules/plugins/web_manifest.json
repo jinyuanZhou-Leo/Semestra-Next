@@ -108,6 +108,87 @@
       }
     },
     {
+      "id": "grading",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "grades",
+          "scopes": [
+            "course",
+            "term"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "grading.courseSummary",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.termSummary",
+          "scopes": [
+            "term"
+          ],
+          "sizes": [
+            "s",
+            "m"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.programKpis",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "xl"
+          ],
+          "default_size": "xl",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.programCharts",
+          "scopes": [
+            "program"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "grading.upcoming",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {}
+    },
+    {
       "id": "ai",
       "kind": "core",
       "pages": [],
@@ -120,6 +201,100 @@
       "pages": [],
       "cards": [],
       "default_board": {}
+    },
+    {
+      "id": "schedule",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "today",
+          "scopes": [
+            "program"
+          ]
+        },
+        {
+          "id": "calendar",
+          "scopes": [
+            "term"
+          ]
+        },
+        {
+          "id": "schedule",
+          "scopes": [
+            "course"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "schedule.today",
+          "scopes": [
+            "today",
+            "program",
+            "term"
+          ],
+          "sizes": [
+            "m",
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.upcoming",
+          "scopes": [
+            "today",
+            "program"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.week",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "l",
+            "xl"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "schedule.next",
+          "scopes": [
+            "course"
+          ],
+          "sizes": [
+            "s"
+          ],
+          "default_size": "s",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {
+        "today": [
+          {
+            "card": "schedule.today",
+            "size": "xl"
+          },
+          {
+            "card": "schedule.upcoming",
+            "size": "l"
+          }
+        ]
+      }
     },
     {
       "id": "habit-streak",

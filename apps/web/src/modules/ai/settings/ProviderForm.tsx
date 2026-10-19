@@ -22,7 +22,14 @@ import {
   FieldSet,
 } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import {
   CAPABILITIES,
   CAPABILITY_TITLES,
@@ -109,16 +116,15 @@ export function ProviderForm({
     e.preventDefault()
     if (missing || pending) return
     let provider: Provider
+    const body = {
+      kind,
+      display_name: name.trim() || null,
+      base_url: info.needsBaseUrl ? baseUrl.trim() : null,
+      api_key: apiKey.trim() || null,
+      capabilities: info.chooseCapabilities ? capabilities : null,
+    }
     try {
-      provider = await create.mutateAsync({
-        body: {
-          kind,
-          display_name: name.trim() || null,
-          base_url: info.needsBaseUrl ? baseUrl.trim() : null,
-          api_key: apiKey.trim() || null,
-          capabilities: info.chooseCapabilities ? capabilities : null,
-        },
-      })
+      provider = await create.mutateAsync({ body })
     } catch {
       return // shown below the form
     }
@@ -159,11 +165,13 @@ export function ProviderForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {kindItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {kindItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             <FieldDescription>{info.hint()}</FieldDescription>

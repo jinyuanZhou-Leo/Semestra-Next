@@ -6,9 +6,10 @@ import {
   aiProviderUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
-import { Fragment, useId, useState, type FormEvent } from 'react'
+import { KeyRound, Plus } from 'lucide-react'
+import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { ActionRow, SettingsGroup } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -16,7 +17,7 @@ import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Card, CardContent } from '@/ui/card'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import {
   Dialog,
   DialogContent,
@@ -27,16 +28,7 @@ import {
 } from '@/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { CAPABILITY_TITLES, KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
@@ -230,7 +222,7 @@ function ProviderRow({
           {m.common_edit()}
         </Button>
         <Button
-          variant="outline"
+          variant="destructive"
           size="sm"
           aria-label={m.ai_provider_delete_aria({ name: provider.display_name })}
           onClick={onDelete}
@@ -259,34 +251,43 @@ export function ProvidersSection() {
   })
 
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">{m.ai_providers_intro()}</p>
-        <AsyncBoundary
-          query={providers}
-          isEmpty={(data) => data.items.length === 0}
-          empty={<p className="text-sm text-muted-foreground">{m.ai_providers_empty()}</p>}
-        >
-          {(data) => (
-            <ItemGroup className="gap-0 rounded-2xl border">
-              {data.items.map((provider, index) => (
-                <Fragment key={provider.id}>
-                  {index > 0 ? <ItemSeparator className="my-0" /> : null}
-                  <ProviderRow
-                    provider={provider}
-                    onEdit={() => setEditing(provider)}
-                    onDelete={() => setDeleting(provider)}
-                  />
-                </Fragment>
-              ))}
-            </ItemGroup>
-          )}
-        </AsyncBoundary>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          <Plus aria-hidden />
-          {m.ai_provider_add()}
-        </Button>
-      </CardContent>
+    <>
+      <AsyncBoundary
+        query={providers}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <KeyRound aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.ai_providers_empty()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" onClick={() => setAdding(true)}>
+                <Plus aria-hidden />
+                {m.ai_provider_add()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        }
+      >
+        {(data) => (
+          <SettingsGroup>
+            {data.items.map((provider) => (
+              <ProviderRow
+                key={provider.id}
+                provider={provider}
+                onEdit={() => setEditing(provider)}
+                onDelete={() => setDeleting(provider)}
+              />
+            ))}
+            <ActionRow icon={Plus} onClick={() => setAdding(true)}>
+              {m.ai_provider_add()}
+            </ActionRow>
+          </SettingsGroup>
+        )}
+      </AsyncBoundary>
       <Dialog open={adding} onOpenChange={setAdding}>
         <DialogContent>
           <DialogHeader>
@@ -306,6 +307,6 @@ export function ProvidersSection() {
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
       />
-    </Card>
+    </>
   )
 }

@@ -2,6 +2,7 @@ import { Check } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { cn } from '@/lib/utils'
+import { Toggle } from '@/ui/toggle'
 import { colorVar } from '../plugin-kit/colors'
 import { Ring } from '../plugin-kit/Ring'
 import { HabitIcon } from './icons'
@@ -27,13 +28,12 @@ export default function HabitRingCard({ instanceId, size, settings }: CardProps<
     : ''
 
   const ring = (
-    <button
-      type="button"
+    <Toggle
+      pressed={checkedToday}
       disabled={!stats || pending}
-      aria-pressed={checkedToday}
       aria-label={`${name}: ${checkedToday ? m.habit_checked_today() : m.habit_check_in()}`}
-      onClick={() => stats && press(stats.today, checkedToday)}
-      className="rounded-full focus-visible:ring-2 focus-visible:ring-ring"
+      onPressedChange={() => stats && press(stats.today, checkedToday)}
+      className="h-auto min-w-0 rounded-full bg-transparent p-0 hover:bg-transparent aria-pressed:bg-transparent"
     >
       <Ring ratio={ratio} color={color} className={size === 's' ? 'size-20' : 'size-24'}>
         {checkedToday ? (
@@ -42,7 +42,7 @@ export default function HabitRingCard({ instanceId, size, settings }: CardProps<
           <HabitIcon name={settings.icon} aria-hidden className="size-7 text-muted-foreground" />
         )}
       </Ring>
-    </button>
+    </Toggle>
   )
 
   return (

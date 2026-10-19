@@ -1,27 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { scopePath, scopeSettingsPath } from '@/app/extensions'
-import { SettingsPage } from '@/app/settings'
-import { courseLabel } from '@/modules/academics/color'
-import { useCourse } from '@/modules/academics/queries'
-import { m } from '@/paraglide/messages'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authed/p/$programId/c/$courseId/settings/$group')({
-  component: CourseSettings,
+  // Settings are a dialog now (M11 §5.2): old links open it over the scope's page.
+  beforeLoad: ({ params, location }) => {
+    throw redirect({
+      href: `/p/${params.programId}/c/${params.courseId}?settings=course/${params.group}${location.hash ? `#${location.hash}` : ''}`,
+      replace: true,
+    })
+  },
 })
-
-function CourseSettings() {
-  const { programId, courseId, group } = Route.useParams()
-  const scope = { kind: 'course', programId, courseId } as const
-  const course = useCourse(courseId).data
-  return (
-    <SettingsPage
-      key={courseId}
-      level="course"
-      scope={scope}
-      groupId={group}
-      title={course ? courseLabel(course) : m.settings_title()}
-      hrefFor={(id) => scopeSettingsPath(scope, id)}
-      fallbackHref={scopePath(scope)}
-    />
-  )
-}

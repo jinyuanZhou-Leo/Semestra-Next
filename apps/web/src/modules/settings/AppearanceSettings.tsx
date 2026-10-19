@@ -6,16 +6,7 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Field, FieldContent, FieldLabel, FieldTitle } from '@/ui/field'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
-import { Label } from '@/ui/label'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
@@ -92,102 +83,82 @@ function AppearanceForm({
   const applied = useTheme()
 
   return (
-    <ItemGroup className="gap-0 rounded-2xl border">
-      <Item>
-        <ItemContent className="min-w-0 basis-64">
-          <ItemTitle>
-            <Label id={`${id}-theme`}>{m.settings_theme_label()}</Label>
-          </ItemTitle>
-        </ItemContent>
-        <ItemActions>
-          <RadioGroup
-            aria-labelledby={`${id}-theme`}
-            value={theme}
-            onValueChange={(next) => {
-              applied.setTheme(next as Theme)
-              update({ theme: next as Theme })
-            }}
-            className="grid w-full grid-cols-3 gap-3 sm:w-96"
-          >
-            {THEMES.map((option) => (
-              <FieldLabel
-                key={option}
-                htmlFor={`${id}-theme-${option}`}
-                className="*:data-[slot=field]:p-3"
-              >
-                <Field orientation="horizontal">
-                  <FieldContent className="min-w-0">
-                    <span className="block h-14 overflow-hidden rounded-xl border">
-                      <ThemePreview theme={option} />
-                    </span>
-                    <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
-                  </FieldContent>
-                  <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
-                </Field>
-              </FieldLabel>
-            ))}
-          </RadioGroup>
-        </ItemActions>
-      </Item>
-      <ItemSeparator className="my-0" />
-      <Item>
-        <ItemContent className="min-w-0 basis-64">
-          <ItemTitle>
-            <Label id={`${id}-accent`}>{m.settings_accent_label()}</Label>
-          </ItemTitle>
-        </ItemContent>
-        <ItemActions>
-          <RadioGroup
-            aria-labelledby={`${id}-accent`}
-            value={accent}
-            onValueChange={(next) => {
-              applied.setAccent(next as Accent)
-              update({ accent: next as Accent })
-            }}
-            className="flex w-auto flex-wrap gap-2"
-          >
-            {ACCENTS.map((option) => (
-              <RadioGroupItem
-                key={option}
-                value={option}
-                data-accent={option}
-                aria-label={ACCENT_LABELS[option]()}
-                title={ACCENT_LABELS[option]()}
-                className="size-8 bg-primary ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-primary"
-              />
-            ))}
-          </RadioGroup>
-        </ItemActions>
-      </Item>
-      <ItemSeparator className="my-0" />
-      <Item>
-        <ItemContent className="min-w-0 basis-64">
-          <ItemTitle>
-            <Label id={`${id}-motion`}>{m.settings_motion_label()}</Label>
-          </ItemTitle>
-          <ItemDescription>{m.settings_motion_description()}</ItemDescription>
-        </ItemContent>
-        <ItemActions>
-          <ToggleGroup
-            aria-labelledby={`${id}-motion`}
-            value={[motion]}
-            onValueChange={(next) => {
-              const value = next[0] as ReduceMotion | undefined
-              if (!value) return
-              applied.setReduceMotion(value)
-              update({ reduce_motion: value })
-            }}
-            variant="outline"
-            size="sm"
-          >
-            {MOTIONS.map((option) => (
-              <ToggleGroupItem key={option.value} value={option.value}>
-                {option.label()}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </ItemActions>
-      </Item>
-    </ItemGroup>
+    <SettingsGroup>
+      <SettingRow label={m.settings_theme_label()} labelId={`${id}-theme`}>
+        <RadioGroup
+          aria-labelledby={`${id}-theme`}
+          value={theme}
+          onValueChange={(next) => {
+            applied.setTheme(next as Theme)
+            update({ theme: next as Theme })
+          }}
+          className="grid w-full grid-cols-3 gap-3 sm:w-96"
+        >
+          {THEMES.map((option) => (
+            <FieldLabel
+              key={option}
+              htmlFor={`${id}-theme-${option}`}
+              className="*:data-[slot=field]:p-3"
+            >
+              <Field orientation="horizontal">
+                <FieldContent className="min-w-0">
+                  <span className="block h-14 overflow-hidden rounded-xl border">
+                    <ThemePreview theme={option} />
+                  </span>
+                  <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
+                </FieldContent>
+                <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
+              </Field>
+            </FieldLabel>
+          ))}
+        </RadioGroup>
+      </SettingRow>
+      <SettingRow label={m.settings_accent_label()} labelId={`${id}-accent`}>
+        <RadioGroup
+          aria-labelledby={`${id}-accent`}
+          value={accent}
+          onValueChange={(next) => {
+            applied.setAccent(next as Accent)
+            update({ accent: next as Accent })
+          }}
+          className="flex w-auto flex-wrap gap-2"
+        >
+          {ACCENTS.map((option) => (
+            <RadioGroupItem
+              key={option}
+              value={option}
+              data-accent={option}
+              aria-label={ACCENT_LABELS[option]()}
+              title={ACCENT_LABELS[option]()}
+              className="size-8 bg-primary ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-primary"
+            />
+          ))}
+        </RadioGroup>
+      </SettingRow>
+      <SettingRow
+        label={m.settings_motion_label()}
+        labelId={`${id}-motion`}
+        description={m.settings_motion_description()}
+      >
+        <ToggleGroup
+          aria-labelledby={`${id}-motion`}
+          value={[motion]}
+          onValueChange={(next) => {
+            const value = next[0] as ReduceMotion | undefined
+            if (!value) return
+            applied.setReduceMotion(value)
+            update({ reduce_motion: value })
+          }}
+          variant="outline"
+          size="sm"
+        >
+          {MOTIONS.map((option) => (
+            <ToggleGroupItem key={option.value} value={option.value}>
+              {option.label()}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </SettingRow>
+    </SettingsGroup>
   )
 }

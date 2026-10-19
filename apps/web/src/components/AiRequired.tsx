@@ -1,7 +1,8 @@
-import { Link } from '@tanstack/react-router'
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
-import { AI_SETTINGS_LINK, type AiPurpose, useAiStatus } from '@/hooks/use-ai-status'
+import { useSettingsDialog } from '@/app/settings'
+import { type AiPurpose, useAiStatus } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
  */
 export function AiRequired({ purpose, children }: Props) {
   const { available, pending } = useAiStatus(purpose)
+  const settings = useSettingsDialog()
   const content =
     typeof children === 'function'
       ? children({ available })
@@ -46,12 +48,13 @@ export function AiRequired({ purpose, children }: Props) {
       </PopoverTrigger>
       <PopoverContent side="top" className="w-auto max-w-xs px-3 py-2 text-xs">
         <span className="text-muted-foreground">{m.ai_required_hint()}</span>{' '}
-        <Link
-          {...AI_SETTINGS_LINK}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+        <Button
+          variant="link"
+          className="h-auto p-0 text-xs font-medium"
+          onClick={() => settings.open({ level: 'account', group: 'ai', section: 'ai-providers' })}
         >
           {m.ai_required_link()}
-        </Link>
+        </Button>
       </PopoverContent>
     </Popover>
   )

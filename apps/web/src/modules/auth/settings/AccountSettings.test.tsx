@@ -41,6 +41,7 @@ function mount(signOut: () => Promise<void> = async () => {}) {
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <ModuleRegistry value={[manifest]}>
         <SettingsSections level="account" group="account" />
+        <SettingsSections level="account" group="security" />
       </ModuleRegistry>
     </AuthContext.Provider>,
   )
@@ -62,6 +63,8 @@ test('signing out the current device goes through the normal sign-out flow', asy
   mount(signOut)
 
   await userEvent.click(await screen.findByRole('button', { name: /Sign out of Chrome · macOS/ }))
+  const dialog = await screen.findByRole('alertdialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
   expect(signOut).toHaveBeenCalledTimes(1)
   expect(revoked).not.toHaveBeenCalled()
 })
@@ -114,8 +117,10 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
   await userEvent.click(await screen.findByRole('button', { name: 'Create token' }))
   const form = await screen.findByRole('dialog')
   await userEvent.type(within(form).getByLabelText('Name'), 'Claude Desktop')
-  await userEvent.selectOptions(within(form).getByLabelText('Access'), 'write')
-  await userEvent.selectOptions(within(form).getByLabelText('Expires'), '90')
+  await userEvent.click(within(form).getByRole('combobox', { name: 'Access' }))
+  await userEvent.click(await screen.findByRole('option', { name: 'Read and write' }))
+  await userEvent.click(within(form).getByRole('combobox', { name: 'Expires' }))
+  await userEvent.click(await screen.findByRole('option', { name: /90/ }))
   await userEvent.click(within(form).getByRole('button', { name: 'Create token' }))
 
   expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')

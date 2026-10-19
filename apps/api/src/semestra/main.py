@@ -22,6 +22,7 @@ from semestra.core.realtime import Broadcaster
 from semestra.core.realtime import router as realtime_router
 from semestra.core.webapp import install_web
 from semestra.modules import register_all
+from semestra.modules.auth.avatar import UploadBodyLimit
 
 
 class Health(BaseModel):
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.realtime = Broadcaster()
     app.state.storage = storage.LocalStorage(settings.storage_local_root)
 
+    app.add_middleware(UploadBodyLimit)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

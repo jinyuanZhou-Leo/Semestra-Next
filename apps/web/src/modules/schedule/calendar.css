@@ -1,0 +1,34 @@
+/* FullCalendar's own variables, mapped to the theme tokens (M00 §4.6: no hard-coded colors). */
+.semestra-calendar {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--background);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-today-bg-color: color-mix(in oklab, var(--primary) 7%, transparent);
+  --fc-now-indicator-color: var(--destructive);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-highlight-color: color-mix(in oklab, var(--primary) 15%, transparent);
+  --fc-bg-event-color: var(--muted-foreground);
+  --fc-bg-event-opacity: 0.1;
+  --fc-event-text-color: var(--foreground);
+  font-size: 0.8125rem;
+}
+
+.semestra-calendar .fc-timegrid-event.semestra-item,
+.semestra-calendar .fc-daygrid-block-event.semestra-item {
+  border-width: 0 0 0 3px;
+}
+
+.semestra-calendar .fc-bg-event .fc-event-title {
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+
+.semestra-calendar .fc-col-header-cell-cushion,
+.semestra-calendar .fc-daygrid-day-number,
+.semestra-calendar .fc-list-day-text,
+.semestra-calendar .fc-list-day-side-text,
+.semestra-calendar .fc-week-number {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}

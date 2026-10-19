@@ -7,9 +7,11 @@ import { Button } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type Scope, scopePath } from '../extensions'
 import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
@@ -17,7 +19,7 @@ import { useScopePages } from './nav'
 
 /**
  * The tab bar of a scope (M10 §5.1): its available pages in the user's order, without hidden
- * ones, and a "⋯" menu to manage them.
+ * ones, and a "⋯" menu to manage them. ("Edit layout" lives in the page header.)
  */
 export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?: string }) {
   const { pages } = useScopePages(scope)
@@ -59,23 +61,31 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
         })}
       </nav>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="mb-1 shrink-0"
-              aria-label={m.host_nav_more()}
-              title={m.host_nav_more()}
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="mb-1 shrink-0"
+                    aria-label={m.host_nav_more()}
+                  />
+                }
+              />
+            }
+          >
+            <MoreHorizontal aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{m.host_nav_more()}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setManaging(true)}>
-            {m.host_nav_manage_pages()}
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => setManaging(true)}>
+              {m.host_nav_manage_pages()}
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       <ManagePagesDialog scope={scope} open={managing} onOpenChange={setManaging} />

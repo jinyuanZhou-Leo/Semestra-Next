@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { SettingsSectionContribution } from '../extensions'
-import { buildNavigation, groupOf, isNavigable } from './groups'
+import { buildNavigation, clusterNavigation, groupOf, isNavigable } from './groups'
 
 function section(
   id: string,
@@ -43,4 +43,29 @@ test("an account-level plugin section lives on the plugin's page, not in the nav
   expect(isNavigable(plugin)).toBe(false)
   expect(isNavigable(section('p', { pluginId: 'canvas', level: 'program' }))).toBe(true)
   expect(buildNavigation([plugin], 'account')).toEqual([])
+})
+
+test('account groups are clustered under headings; scoped levels stay one run', () => {
+  const account = buildNavigation(
+    [
+      section('p', { group: 'account' }),
+      section('s', { group: 'security' }),
+      section('m', { group: 'ai' }),
+      section('a', { group: 'about' }),
+    ],
+    'account',
+  )
+  expect(
+    clusterNavigation(account, 'account').map((r) => [r.cluster, r.groups.map((g) => g.id)]),
+  ).toEqual([
+    ['personal', ['account', 'security']],
+    ['features', ['ai']],
+    ['system', ['about']],
+  ])
+  const program = buildNavigation(
+    [section('a', { level: 'program' }), section('b', { level: 'program', group: 'grades' })],
+    'program',
+  )
+  expect(clusterNavigation(program, 'program')).toEqual([{ groups: program }])
+  expect(clusterNavigation([], 'program')).toEqual([])
 })

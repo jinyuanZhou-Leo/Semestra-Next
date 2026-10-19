@@ -12,6 +12,7 @@ def main(argv: list[str] | None = None) -> None:
     dev = sub.add_parser("dev", help="run the API with auto-reload")
     dev.add_argument("--host", default="127.0.0.1")
     dev.add_argument("--port", type=int, default=8000)
+    dev.add_argument("--no-migrate", action="store_true", help="skip the startup migration")
 
     serve = sub.add_parser("serve", help="run the API for production")
     serve.add_argument("--host", default="0.0.0.0")  # noqa: S104
@@ -26,6 +27,16 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     match args.command:
         case "dev":
+            if not args.no_migrate:
+                # Pulling new commits adds migrations; an unmigrated dev DB otherwise fails with
+                # "no such table" in the job worker. Run once here, not in the reloading child.
+                from pathlib import Path
+
+                from alembic import command
+                from alembic.config import Config
+
+                ini = Path(__file__).resolve().parents[2] / "alembic.ini"
+                command.upgrade(Config(str(ini), attributes={"configure_logger": False}), "head")
             uvicorn.run(
                 "semestra.main:create_app",
                 factory=True,

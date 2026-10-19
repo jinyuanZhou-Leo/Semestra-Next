@@ -24,3 +24,6 @@ apps/web/src/paraglide/
 .vscode/
 playwright-report/
 test-results/
+
+# local tool state
+.pnpm-store/

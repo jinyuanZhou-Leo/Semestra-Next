@@ -6,8 +6,10 @@ import {
   accountTokensRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useId, useState, type FormEvent } from 'react'
+import { KeyRound, Plus } from 'lucide-react'
+import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { ActionRow, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -23,19 +25,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
-import { SettingsCard } from './SettingsCard'
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 
 /** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
 export function mcpConfig(token: string, apiOrigin: string): string {
@@ -79,9 +80,22 @@ function CreateTokenDialog({
   onCreated: (token: TokenCreated) => void
 }) {
   const nameId = useId()
+  const scopeId = useId()
+  const expiryId = useId()
+  const scopeItems = [
+    { value: 'read', label: m.auth_account_tokens_scope_read() },
+    { value: 'write', label: m.auth_account_tokens_scope_write() },
+  ]
+  const expiryItems = [
+    { value: 'never', label: m.auth_account_tokens_expiry_never() },
+    ...[30, 90, 365].map((d) => ({
+      value: String(d),
+      label: m.auth_account_tokens_expiry_days({ days: d }),
+    })),
+  ]
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
-  const [days, setDays] = useState('')
+  const [days, setDays] = useState('never')
   const create = useMutation(accountTokensCreateMutation())
 
   const submit = (e: FormEvent) => {
@@ -92,14 +106,14 @@ function CreateTokenDialog({
         body: {
           name: name.trim(),
           scopes: scope === 'write' ? ['read', 'write'] : ['read'],
-          expires_in_days: days ? Number(days) : null,
+          expires_in_days: days === 'never' ? null : Number(days),
         },
       },
       {
         onSuccess: (token) => {
           setName('')
           setScope('read')
-          setDays('')
+          setDays('never')
           onCreated(token)
         },
       },
@@ -122,7 +136,7 @@ function CreateTokenDialog({
           <DialogDescription>{m.auth_account_tokens_desc()}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate>
-          <fieldset disabled={create.isPending} className="space-y-4">
+          <FieldSet disabled={create.isPending} className="gap-4">
             <Field>
               <FieldLabel htmlFor={nameId}>{m.auth_account_tokens_name_label()}</FieldLabel>
               <Input
@@ -135,38 +149,46 @@ function CreateTokenDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="token-scope">{m.auth_account_tokens_scope_label()}</FieldLabel>
-              <NativeSelect
-                id="token-scope"
-                className="w-full"
+              <FieldLabel id={scopeId}>{m.auth_account_tokens_scope_label()}</FieldLabel>
+              <Select
                 value={scope}
-                onChange={(e) => setScope(e.target.value === 'write' ? 'write' : 'read')}
+                items={scopeItems}
+                onValueChange={(next) => setScope(next === 'write' ? 'write' : 'read')}
               >
-                <NativeSelectOption value="read">
-                  {m.auth_account_tokens_scope_read()}
-                </NativeSelectOption>
-                <NativeSelectOption value="write">
-                  {m.auth_account_tokens_scope_write()}
-                </NativeSelectOption>
-              </NativeSelect>
+                <SelectTrigger aria-labelledby={scopeId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {scopeItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
             <Field>
-              <FieldLabel htmlFor="token-expiry">{m.auth_account_tokens_expiry_label()}</FieldLabel>
-              <NativeSelect
-                id="token-expiry"
-                className="w-full"
+              <FieldLabel id={expiryId}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
+              <Select
                 value={days}
-                onChange={(e) => setDays(e.target.value)}
+                items={expiryItems}
+                onValueChange={(next) => next && setDays(next)}
               >
-                <NativeSelectOption value="">
-                  {m.auth_account_tokens_expiry_never()}
-                </NativeSelectOption>
-                {[30, 90, 365].map((d) => (
-                  <NativeSelectOption key={d} value={d}>
-                    {m.auth_account_tokens_expiry_days({ days: d })}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger aria-labelledby={expiryId} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {expiryItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
             <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>
@@ -174,7 +196,7 @@ function CreateTokenDialog({
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
               </Button>
             </DialogFooter>
-          </fieldset>
+          </FieldSet>
         </form>
       </DialogContent>
     </Dialog>
@@ -245,7 +267,7 @@ export function TokensSection() {
   const items = tokens.data?.items ?? []
 
   return (
-    <SettingsCard>
+    <>
       {tokens.isPending ? (
         <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
       ) : tokens.isError ? (
@@ -256,54 +278,66 @@ export function TokensSection() {
           </Button>
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{m.auth_account_tokens_empty()}</p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <KeyRound aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>{m.auth_account_tokens_empty()}</EmptyTitle>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus aria-hidden />
+              {m.auth_account_tokens_create()}
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
-        <ItemGroup className="gap-0">
-          {items.map((t, i) => (
-            <Fragment key={t.id}>
-              {i > 0 ? <ItemSeparator /> : null}
-              <Item className="px-0">
-                <ItemContent className="min-w-0">
-                  <ItemTitle>
-                    <span className="truncate">{t.name}</span>
-                    <Badge variant="secondary">
-                      {t.scopes.includes('write')
-                        ? m.auth_account_tokens_scope_write()
-                        : m.auth_account_tokens_scope_read()}
-                    </Badge>
-                  </ItemTitle>
-                  <ItemDescription>
-                    {[
-                      `${t.prefix}…`,
-                      t.last_used_at
-                        ? m.auth_account_tokens_last_used({ time: formatDateTime(t.last_used_at) })
-                        : m.auth_account_tokens_never_used(),
-                      t.expires_at
-                        ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
-                    onClick={() => setRevoking({ id: t.id, name: t.name })}
-                  >
-                    {m.auth_account_tokens_revoke()}
-                  </Button>
-                </ItemActions>
-              </Item>
-            </Fragment>
+        <SettingsGroup>
+          {items.map((t) => (
+            <Item key={t.id}>
+              <ItemContent className="min-w-0">
+                <ItemTitle>
+                  <span className="truncate">{t.name}</span>
+                  <Badge variant="secondary">
+                    {t.scopes.includes('write')
+                      ? m.auth_account_tokens_scope_write()
+                      : m.auth_account_tokens_scope_read()}
+                  </Badge>
+                </ItemTitle>
+                <ItemDescription>
+                  {[
+                    `${t.prefix}…`,
+                    t.last_used_at
+                      ? m.auth_account_tokens_last_used({
+                          time: formatDateTime(t.last_used_at),
+                        })
+                      : m.auth_account_tokens_never_used(),
+                    t.expires_at
+                      ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
+                  onClick={() => setRevoking({ id: t.id, name: t.name })}
+                >
+                  {m.auth_account_tokens_revoke()}
+                </Button>
+              </ItemActions>
+            </Item>
           ))}
-        </ItemGroup>
+          <ActionRow icon={Plus} onClick={() => setCreating(true)}>
+            {m.auth_account_tokens_create()}
+          </ActionRow>
+        </SettingsGroup>
       )}
-      <Button size="sm" onClick={() => setCreating(true)}>
-        {m.auth_account_tokens_create()}
-      </Button>
       <CreateTokenDialog
         open={creating}
         onOpenChange={setCreating}
@@ -323,6 +357,6 @@ export function TokensSection() {
         pending={revoke.isPending}
         onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
       />
-    </SettingsCard>
+    </>
   )
 }

@@ -13,12 +13,13 @@ import {
 } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, BookOpen, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, Search, SearchX } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { PageHeader } from '@/app/host/PageHeader'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
@@ -32,14 +33,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
-import { coursePath, programPath } from '../paths'
-import { invalidateAcademics, useCourses, useProgram, useTerms } from '../queries'
+import { coursePath } from '../paths'
+import { invalidateAcademics, useColumnData, useCourses, useTerms } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
@@ -66,36 +81,39 @@ const ALL = '__all__'
 export function AllCoursesPage({ programId }: { programId: string }) {
   const courses = useCourses(programId)
   return (
-    <div className="space-y-4 p-6">
-      <header className="space-y-1">
-        <HistoryLink
-          href={programPath(programId)}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          {useProgram(programId).data?.name}
-        </HistoryLink>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          {m.academics_nav_all_courses()}
-        </h1>
-      </header>
-      <AsyncBoundary
-        query={courses}
-        isEmpty={(page) => page.items.length === 0}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <BookOpen aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
-            </EmptyHeader>
-          </Empty>
+    <>
+      <PageHeader
+        title={m.academics_nav_all_courses()}
+        subtitle={
+          courses.data ? m.academics_course_count({ count: courses.data.items.length }) : undefined
         }
-      >
-        {(page) => <CoursesTable programId={programId} courses={page.items} />}
-      </AsyncBoundary>
-    </div>
+      />
+      <div className="space-y-4 p-6">
+        <AsyncBoundary
+          query={courses}
+          isEmpty={(page) => page.items.length === 0}
+          empty={
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <BookOpen aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_courses_empty()}</EmptyTitle>
+                <EmptyDescription>{m.academics_courses_empty_description()}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          }
+        >
+          {(page) => <CoursesTable programId={programId} courses={page.items} />}
+        </AsyncBoundary>
+      </div>
+    </>
   )
+}
+
+/** One after the other, stopping at the first failure. */
+async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
+  for (const id of ids) await action(id)
 }
 
 function CoursesTable({ programId, courses }: { programId: string; courses: Course[] }) {
@@ -103,6 +121,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
   const queryClient = useQueryClient()
   const terms = useTerms(programId).data?.items ?? []
   const extensions = useExtensions<CourseColumn>(COURSE_COLUMNS)
+  const columnData = useColumnData(extensions, programId)
   const [sorting, setSorting] = useUiPref<SortingState>('academics.courses_sort', [])
   const [termFilter, setTermFilter] = useState(ALL)
   const [subjectFilter, setSubjectFilter] = useState(ALL)
@@ -119,7 +138,9 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
     return course.term_ids.length > 1 ? `${first} – ${last}` : first
   }
   const subjects = [...new Set(courses.map((c) => c.subject_code).filter(Boolean))].toSorted()
-  const quickFilters = extensions.flatMap((col) => col.filter ?? [])
+  const quickFilters = extensions
+    .flatMap((col) => (col.filter ?? []).map((f) => ({ ...f, data: columnData.get(col.id) })))
+    .filter((f) => f.available?.(f.data) ?? true)
   const needle = search.trim().toLowerCase().replaceAll(/\s+/g, '')
 
   const visible = courses.filter((course) => {
@@ -131,7 +152,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
         .join('\n')
       if (!haystack.includes(needle)) return false
     }
-    return quickFilters.every((f) => !quick.includes(f.id) || f.test(course))
+    return quickFilters.every((f) => !quick.includes(f.id) || f.test(course, f.data))
   })
   const visibleIds = visible.map((c) => c.id)
   const selectedVisible = visibleIds.filter((id) => selected.has(id))
@@ -227,9 +248,11 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
       column.display({
         id: `ext:${ext.id}`,
         header: header(ext.header()),
-        cell: ({ row }) => ext.cell(row.original),
+        cell: ({ row }) => ext.cell(row.original, columnData.get(ext.id)),
         enableSorting: ext.sortValue !== undefined,
-        sortFn: ext.sortValue ? sortBy(ext.sortValue) : undefined,
+        sortFn: ext.sortValue
+          ? sortBy((course) => ext.sortValue?.(course, columnData.get(ext.id)) ?? null)
+          : undefined,
       }),
     ),
   ])
@@ -248,14 +271,9 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
   const remove = useMutation({ ...academicsCourseDeleteMutation() })
   const runBatch = async (action: (id: string) => Promise<unknown>) => {
     setBusy(true)
-    try {
-      for (const id of selectedVisible) await action(id)
-    } catch (error) {
-      toastError(error)
-    } finally {
-      setBusy(false)
-      await invalidateAcademics(queryClient)
-    }
+    await runInOrder(selectedVisible, action).catch(toastError)
+    setBusy(false)
+    await invalidateAcademics(queryClient)
   }
   const setGpa = (include: boolean) =>
     runBatch((id) =>
@@ -370,10 +388,12 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                       )}
                     >
                       {canSort ? (
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={h.column.getToggleSortingHandler()}
-                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
                         >
                           <table.FlexRender header={h} />
                           {sorted === 'asc' ? (
@@ -381,7 +401,7 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
                           ) : sorted === 'desc' ? (
                             <ArrowDown aria-hidden className="size-3" />
                           ) : null}
-                        </button>
+                        </Button>
                       ) : (
                         <table.FlexRender header={h} />
                       )}
@@ -414,9 +434,27 @@ function CoursesTable({ programId, courses }: { programId: string; courses: Cour
           </TableBody>
         </Table>
         {visible.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {m.academics_courses_no_match()}
-          </p>
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.academics_courses_no_match()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTermFilter(ALL)
+                  setSubjectFilter(ALL)
+                  setSearch('')
+                  setQuick([])
+                }}
+              >
+                {m.common_clear_filters()}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : null}
       </div>
 
@@ -458,11 +496,13 @@ function FilterSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {items.map((item) => (
-          <SelectItem key={item.value} value={item.value}>
-            {item.label}
-          </SelectItem>
-        ))}
+        <SelectGroup>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   )

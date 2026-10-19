@@ -12,13 +12,6 @@ export const AI_PURPOSES: readonly AiPurpose[] = [
   'title',
 ]
 
-/** Where the "connect AI" hints link to: the AI section of the account settings. */
-export const AI_SETTINGS_LINK = {
-  to: '/settings/$group',
-  params: { group: 'features' },
-  hash: 'ai-providers',
-} as const
-
 export type AiStatusResult = {
   /** True once the server says a model serves this purpose. */
   available: boolean

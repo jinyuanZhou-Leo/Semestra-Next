@@ -5,7 +5,6 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Label } from '@/ui/label'
 import { PROGRAM_SETUP_FIELDS, type ProgramSetupField } from '../types'
 import { TimezoneSelect, detectTimezone } from './TimezoneSelect'
 
@@ -80,12 +79,10 @@ export function ProgramForm({
             onChange={(event) => setInstitution(event.target.value)}
           />
         </Field>
-        <div>
-          <Label id={`${id}-tz`} className="mb-2">
-            {m.academics_program_timezone()}
-          </Label>
+        <Field>
+          <FieldLabel id={`${id}-tz`}>{m.academics_program_timezone()}</FieldLabel>
           <TimezoneSelect aria-labelledby={`${id}-tz`} value={timezone} onChange={setTimezone} />
-        </div>
+        </Field>
         <Field data-invalid={creditsError || undefined} className="max-w-40">
           <FieldLabel htmlFor={`${id}-credits`}>{m.academics_program_default_credits()}</FieldLabel>
           <Input

@@ -16,7 +16,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, LayoutTemplate, MoreHorizontal, Pencil, Plus } from 'lucide-react'
+import { LayoutDashboard, Pencil } from 'lucide-react'
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -25,18 +25,20 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/empty'
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { BoardKind, CardContribution, CardSize, Scope } from '../extensions'
-import { useHostAction } from '../commands/bus'
+import { useHasHostAction, useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
 import { useCards, useInstalledPluginsReady } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
+import { BoardEditActions, useBoardEditHint } from './BoardToolbar'
 import { CardFrame } from './CardFrame'
 import { compact, firstFree, moveItem, resizeItem, rows, sameLayout, SPANS } from './layout'
 import { boardOptions, boardRef, type BoardRef, useBoard } from './queries'
@@ -162,6 +164,9 @@ function BoardView({
   const [adding, setAdding] = useState(false)
   const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
   const editing = draft !== null
+  // The page header (every scope page, Today included) hosts the edit controls; a board rendered without one keeps its own row.
+  const headerHostsEdit = useHasHostAction('header.shown')
+  const editHint = useBoardEditHint()
   const cards = drag?.preview ?? draft ?? saved
   const gridRef = useRef<HTMLDivElement>(null)
 
@@ -196,10 +201,10 @@ function BoardView({
       if (previous) queryClient.setQueryData(key, previous)
       toast.error(m.board_save_failed())
       toastError(err)
-      throw err
-    } finally {
       setSaving(false)
+      throw err
     }
+    setSaving(false)
   }
 
   useEffect(
@@ -228,6 +233,9 @@ function BoardView({
   })
 
   useHostAction('board.edit', startEditing, !editing && canEdit)
+  useHostAction('board.shown', () => {}, !editing)
+  useHostAction('board.editing', () => {}, editing)
+  useHostAction('board.done', finishEditing, editing)
   useHostAction(
     'board.add',
     () => {
@@ -261,37 +269,36 @@ function BoardView({
   }
 
   async function restoreDefault() {
-    try {
-      const { data: template } = await layoutsTemplateGet({
-        path: { scope_type: ref.scope_type },
-        throwOnError: true,
-      })
-      const reuse = new Map<string, DraftCard[]>()
-      for (const c of draft ?? saved) reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
-      const next: DraftCard[] = []
-      for (const t of template.cards) {
-        const card = known.get(t.card_id)
-        if (!card || !card.sizes.includes(t.size)) continue
-        if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
-        const existing = reuse.get(card.id)?.shift()
-        next.push(
-          existing
-            ? { ...existing, size: t.size, x: t.x, y: t.y }
-            : {
-                id: `new-${crypto.randomUUID()}`,
-                cardId: card.id,
-                size: t.size,
-                x: t.x,
-                y: t.y,
-                settings: {},
-                isNew: true,
-              },
-        )
-      }
-      setDraft(compact(next))
-    } catch (err) {
-      toastError(err)
+    const template = await layoutsTemplateGet({
+      path: { scope_type: ref.scope_type },
+      throwOnError: true,
+    })
+      .then((result) => result.data)
+      .catch(toastError)
+    if (!template) return
+    const reuse = new Map<string, DraftCard[]>()
+    for (const c of draft ?? saved) reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
+    const next: DraftCard[] = []
+    for (const t of template.cards) {
+      const card = known.get(t.card_id)
+      if (!card || !card.sizes.includes(t.size)) continue
+      if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
+      const existing = reuse.get(card.id)?.shift()
+      next.push(
+        existing
+          ? { ...existing, size: t.size, x: t.x, y: t.y }
+          : {
+              id: `new-${crypto.randomUUID()}`,
+              cardId: card.id,
+              size: t.size,
+              x: t.x,
+              y: t.y,
+              settings: {},
+              isNew: true,
+            },
+      )
     }
+    setDraft(compact(next))
   }
 
   async function saveAsDefault() {
@@ -321,6 +328,10 @@ function BoardView({
       toastError(err)
     }
   }
+
+  useHostAction('board.default.save', () => void saveAsDefault(), editing)
+  useHostAction('board.default.restore', () => void restoreDefault(), editing)
+  useHostAction('board.default.reset', () => void resetDefault(), editing)
 
   // --- dragging ------------------------------------------------------------------------------
   const metrics = useRef({ col: 0, row: ROW + GAP })
@@ -382,61 +393,41 @@ function BoardView({
 
   return (
     <div className="space-y-3" data-board={kind}>
-      <div className="flex min-h-8 items-center justify-end gap-2">
-        {editing ? (
-          <>
-            <p className="mr-auto text-sm text-muted-foreground">
-              {wide ? m.board_editing_hint() : m.board_editing_hint_narrow()}
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-              <Plus aria-hidden />
-              {m.board_add_card()}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
+      {!headerHostsEdit ? (
+        <div className="flex min-h-8 items-center justify-end gap-2">
+          {editing ? (
+            <>
+              <p className="mr-auto truncate text-sm text-muted-foreground">{editHint}</p>
+              <BoardEditActions />
+            </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger
                 render={
-                  <Button variant="outline" size="icon-sm" aria-label={m.board_default_menu()} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startEditing}
+                    disabled={!canEdit}
+                    data-tour="board-edit"
+                  />
                 }
               >
-                <MoreHorizontal aria-hidden />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuItem onClick={() => void saveAsDefault()}>
-                  <LayoutTemplate aria-hidden />
-                  {m.board_default_save()}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void restoreDefault()}>
-                  {m.board_default_restore()}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void resetDefault()}>
-                  {m.board_default_reset()}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="sm" onClick={finishEditing}>
-              <Check aria-hidden />
-              {m.board_done()}
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startEditing}
-            disabled={!canEdit}
-            title={`${m.board_edit()} (${formatHotkey('e')})`}
-            data-tour="board-edit"
-          >
-            <Pencil aria-hidden />
-            {m.board_edit()}
-          </Button>
-        )}
-      </div>
+                <Pencil aria-hidden />
+                {m.board_edit()}
+              </TooltipTrigger>
+              <TooltipContent>{formatHotkey('e')}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      ) : null}
 
       {cards.length === 0 && !editing ? (
         <Empty>
           <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <LayoutDashboard aria-hidden />
+            </EmptyMedia>
             <EmptyTitle>{m.board_empty_title()}</EmptyTitle>
             <EmptyDescription>{m.board_empty_description()}</EmptyDescription>
           </EmptyHeader>
@@ -464,9 +455,9 @@ function BoardView({
               'grid auto-rows-[10rem] grid-flow-row-dense grid-cols-1 gap-4 md:grid-cols-2 lg:grid-flow-row lg:grid-cols-4',
               editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
             )}
-            style={
-              editing && wide ? { minHeight: `${(rows(cards) + 1) * (ROW + GAP)}px` } : undefined
-            }
+            // Entering edit mode must not move anything; the grid grows by one row only while a
+            // card is dragged, so it can be dropped below the last one.
+            style={drag && wide ? { minHeight: `${(rows(cards) + 1) * (ROW + GAP)}px` } : undefined}
           >
             {ordered.map((card) => {
               const contribution = known.get(card.cardId)

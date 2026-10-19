@@ -2,7 +2,7 @@ import type { CourseFields, TermCreateResult } from '@semestra/api-client'
 import { academicsTermCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useRouter } from '@tanstack/react-router'
-import { Check, Import, Plus, Repeat, Trash2 } from 'lucide-react'
+import { Check, ChevronDownIcon, Import, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -13,6 +13,8 @@ import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -25,9 +27,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
+import { Calendar } from '@/ui/calendar'
+import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Label } from '@/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseLabel } from '../color'
@@ -195,12 +198,10 @@ export function TermWizard({
 
   const launch = async (source: TermWizardImportSource) => {
     setImporting(source.id)
+    const startDate = draft.start || undefined
+    const endDate = draft.end || undefined
     try {
-      const drafts = await source.launch({
-        programId,
-        startDate: draft.start || undefined,
-        endDate: draft.end || undefined,
-      })
+      const drafts = await source.launch({ programId, startDate, endDate })
       setDraft((current) => ({
         ...current,
         rows: [
@@ -218,9 +219,8 @@ export function TermWizard({
       }))
     } catch (error) {
       toastError(error)
-    } finally {
-      setImporting(null)
     }
+    setImporting(null)
   }
 
   const updateRow = (key: string, change: Partial<DraftRow>) =>
@@ -269,26 +269,24 @@ export function TermWizard({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field data-invalid={startError ? true : undefined}>
               <FieldLabel htmlFor={`${id}-start`}>{m.academics_term_start()}</FieldLabel>
-              <Input
+              <IsoDateField
                 id={`${id}-start`}
-                type="date"
-                aria-invalid={startError ? true : undefined}
-                aria-describedby={startError ? `${id}-start-error` : undefined}
                 value={draft.start}
-                onChange={(event) => setDates(event.target.value, draft.end)}
+                invalid={Boolean(startError)}
+                describedBy={startError ? `${id}-start-error` : undefined}
+                onChange={(start) => setDates(start, draft.end)}
               />
               {startError ? <FieldError id={`${id}-start-error`}>{startError}</FieldError> : null}
             </Field>
             <Field data-invalid={endError ? true : undefined}>
               <FieldLabel htmlFor={`${id}-end`}>{m.academics_term_end()}</FieldLabel>
-              <Input
+              <IsoDateField
                 id={`${id}-end`}
-                type="date"
-                min={draft.start || undefined}
-                aria-invalid={endError ? true : undefined}
-                aria-describedby={endError ? `${id}-end-error` : undefined}
                 value={draft.end}
-                onChange={(event) => setDates(draft.start, event.target.value)}
+                min={draft.start || undefined}
+                invalid={Boolean(endError)}
+                describedBy={endError ? `${id}-end-error` : undefined}
+                onChange={(end) => setDates(draft.start, end)}
               />
               {endError ? <FieldError id={`${id}-end-error`}>{endError}</FieldError> : null}
             </Field>
@@ -313,15 +311,15 @@ export function TermWizard({
               </FieldDescription>
             )}
           </Field>
-          <div className="space-y-2">
-            <Label>{m.academics_term_breaks()}</Label>
+          <Field>
+            <FieldLabel>{m.academics_term_breaks()}</FieldLabel>
             <BreaksEditor
               value={draft.breaks}
               onChange={(breaks) => patch({ breaks })}
               min={draft.start || undefined}
               max={draft.end || undefined}
             />
-          </div>
+          </Field>
           <Field orientation="horizontal">
             <Switch
               id={`${id}-count-break-weeks`}
@@ -369,12 +367,14 @@ export function TermWizard({
           </div>
 
           {candidates.length > 0 ? (
-            <fieldset className="space-y-2 rounded-2xl border border-border p-4">
-              <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+            <FieldSet className="gap-2 rounded-2xl border border-border p-4">
+              <FieldLegend variant="label" className="mb-0 flex items-center gap-2 px-1">
                 <Repeat aria-hidden className="size-4" />
                 {m.academics_wizard_continue_title()}
-              </legend>
-              <p className="text-xs text-muted-foreground">{m.academics_wizard_continue_hint()}</p>
+              </FieldLegend>
+              <FieldDescription className="text-xs">
+                {m.academics_wizard_continue_hint()}
+              </FieldDescription>
               {candidates.map((course) => (
                 <Field key={course.id} orientation="horizontal">
                   <Checkbox
@@ -396,7 +396,7 @@ export function TermWizard({
                   </FieldLabel>
                 </Field>
               ))}
-            </fieldset>
+            </FieldSet>
           ) : null}
 
           <div className="overflow-x-auto rounded-2xl border border-border">
@@ -466,7 +466,7 @@ export function TermWizard({
                       </TableCell>
                       <TableCell className="px-2 py-1.5">
                         <Button
-                          variant="ghost"
+                          variant="destructive"
                           size="icon-sm"
                           aria-label={m.academics_wizard_row_remove({ row: index + 1 })}
                           onClick={() =>
@@ -559,10 +559,8 @@ export function TermWizard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <Button variant="ghost" onClick={() => blocker.reset?.()}>
-              {m.academics_wizard_leave_stay()}
-            </Button>
-            <Button
+            <AlertDialogCancel variant="ghost">{m.academics_wizard_leave_stay()}</AlertDialogCancel>
+            <AlertDialogAction
               variant="outline"
               onClick={() => {
                 done.current = true
@@ -571,11 +569,101 @@ export function TermWizard({
               }}
             >
               {m.academics_wizard_leave_discard()}
-            </Button>
-            <Button onClick={() => blocker.proceed?.()}>{m.academics_wizard_leave_keep()}</Button>
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => blocker.proceed?.()}>
+              {m.academics_wizard_leave_keep()}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+function parseIsoDate(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return undefined
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const datePart = Number(match[3])
+  const date = new Date(year, month - 1, datePart)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== datePart) {
+    return undefined
+  }
+  return date
+}
+
+function toIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const datePart = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${datePart}`
+}
+
+function dayNumber(date: Date): number {
+  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
+}
+
+/** One `yyyy-MM-dd` day, edited with the base-luma date picker. */
+function IsoDateField({
+  id,
+  value,
+  onChange,
+  invalid,
+  describedBy,
+  min,
+  max,
+}: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  invalid?: boolean
+  describedBy?: string
+  min?: string
+  max?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = parseIsoDate(value)
+  const minDate = min ? parseIsoDate(min) : undefined
+  const maxDate = max ? parseIsoDate(max) : undefined
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            id={id}
+            aria-invalid={invalid || undefined}
+            aria-describedby={describedBy}
+            data-empty={!selected}
+            className="w-full justify-between text-left font-normal data-[empty=true]:text-muted-foreground"
+          />
+        }
+      >
+        {value && selected ? formatDate(value) : <span>{m.academics_date_placeholder()}</span>}
+        <ChevronDownIcon data-icon="inline-end" />
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          disabled={
+            minDate || maxDate
+              ? (date) => {
+                  const selectedDay = dayNumber(date)
+                  if (minDate && selectedDay < dayNumber(minDate)) return true
+                  if (maxDate && selectedDay > dayNumber(maxDate)) return true
+                  return false
+                }
+              : undefined
+          }
+          onSelect={(next) => {
+            onChange(next ? toIsoDate(next) : '')
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }

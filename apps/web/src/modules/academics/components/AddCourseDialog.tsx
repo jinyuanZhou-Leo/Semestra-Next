@@ -5,7 +5,7 @@ import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { invalidateAcademics, useProgram } from '../queries'
@@ -126,11 +126,11 @@ export function AddCourseDialog({
                 {m.academics_course_year_long_planned()}
               </FieldLabel>
             </Field>
-            <div className="flex justify-end">
+            <DialogFooter className="w-full">
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? m.common_saving() : m.academics_course_add()}
               </Button>
-            </div>
+            </DialogFooter>
           </FieldGroup>
         </form>
       </DialogContent>

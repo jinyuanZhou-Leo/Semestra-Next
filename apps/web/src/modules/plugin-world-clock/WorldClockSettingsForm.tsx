@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { Fragment, useId, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
+import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Field, FieldDescription, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -17,7 +18,7 @@ import {
 import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { MAX_ZONES, type WorldClockSettings } from './schema'
-import { searchZones, zoneLabel } from './zones'
+import { searchZones, zoneLabel } from '@/lib/zones'
 
 type Props = { value: WorldClockSettings; onChange: (value: WorldClockSettings) => void }
 
@@ -35,19 +36,21 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
         <p className="mb-2 text-sm font-medium">{m.world_clock_settings_zones_label()}</p>
         <ul className="mb-2 flex flex-wrap gap-2">
           {value.zones.map((tz) => (
-            <li
-              key={tz}
-              className="flex items-center gap-1 rounded-4xl bg-muted py-1 pr-1 pl-3 text-sm"
-            >
-              {zoneLabel(tz, locale)}
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={m.world_clock_settings_remove({ city: zoneLabel(tz, locale) })}
-                onClick={() => onChange({ ...value, zones: value.zones.filter((z) => z !== tz) })}
+            <li key={tz}>
+              <Badge
+                variant="secondary"
+                className="h-auto gap-1 overflow-visible py-1 pr-1 pl-3 text-sm"
               >
-                <X aria-hidden />
-              </Button>
+                {zoneLabel(tz, locale)}
+                <Button
+                  variant="destructive"
+                  size="icon-xs"
+                  aria-label={m.world_clock_settings_remove({ city: zoneLabel(tz, locale) })}
+                  onClick={() => onChange({ ...value, zones: value.zones.filter((z) => z !== tz) })}
+                >
+                  <X aria-hidden />
+                </Button>
+              </Badge>
             </li>
           ))}
         </ul>
@@ -78,8 +81,12 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
                 <li>
                   <Item
                     size="xs"
-                    className="rounded-none text-left hover:bg-muted"
-                    render={(props) => <button type="button" {...props} />}
+                    className="w-full rounded-none text-left hover:bg-muted"
+                    render={(props) => (
+                      <button type="button" {...props}>
+                        {props.children}
+                      </button>
+                    )}
                     onClick={() => {
                       onChange({ ...value, zones: [...value.zones, zone.tz] })
                       setQuery('')

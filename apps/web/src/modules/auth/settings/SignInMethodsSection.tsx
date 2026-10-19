@@ -12,17 +12,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
-import { Separator } from '@/ui/separator'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { GoogleSignInButton } from '../components/GoogleSignInButton'
-import { Row, SettingsCard } from './SettingsCard'
 
 function useUserCache() {
   const queryClient = useQueryClient()
@@ -64,21 +64,27 @@ function EmailRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Row
-        label={m.auth_account_email_row()}
-        value={user.email}
-        action={
-          editing ? null : (
+    <div>
+      <Item>
+        <ItemContent className="min-w-0">
+          <ItemTitle>{m.auth_account_email_row()}</ItemTitle>
+          <ItemDescription className="truncate">{user.email}</ItemDescription>
+        </ItemContent>
+        {editing ? null : (
+          <ItemActions>
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               {m.auth_account_email_change()}
             </Button>
-          )
-        }
-      />
+          </ItemActions>
+        )}
+      </Item>
       {editing && !sentTo ? (
-        <form onSubmit={send} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
-          <fieldset disabled={start.isPending} className="space-y-3">
+        <form
+          onSubmit={send}
+          className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
+          noValidate
+        >
+          <FieldSet disabled={start.isPending} className="gap-3">
             <Field>
               <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
               <Input
@@ -99,11 +105,11 @@ function EmailRow({ user }: { user: UserOut }) {
                 {m.common_cancel()}
               </Button>
             </div>
-          </fieldset>
+          </FieldSet>
         </form>
       ) : null}
       {editing && sentTo ? (
-        <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
+        <div className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4">
           <p className="text-sm">{m.auth_account_email_code_sent({ email: sentTo })}</p>
           <InputOTP
             maxLength={6}
@@ -162,25 +168,31 @@ function PasswordRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Row
-        label={m.auth_account_password_row()}
-        value={
-          user.has_password ? m.auth_account_password_set() : m.auth_account_password_not_set()
-        }
-        action={
-          editing ? null : (
+    <div>
+      <Item>
+        <ItemContent className="min-w-0">
+          <ItemTitle>{m.auth_account_password_row()}</ItemTitle>
+          <ItemDescription>
+            {user.has_password ? m.auth_account_password_set() : m.auth_account_password_not_set()}
+          </ItemDescription>
+        </ItemContent>
+        {editing ? null : (
+          <ItemActions>
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               {user.has_password
                 ? m.auth_account_password_change_action()
                 : m.auth_account_password_set_action()}
             </Button>
-          )
-        }
-      />
+          </ItemActions>
+        )}
+      </Item>
       {editing ? (
-        <form onSubmit={submit} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
-          <fieldset disabled={change.isPending} className="space-y-3">
+        <form
+          onSubmit={submit}
+          className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
+          noValidate
+        >
+          <FieldSet disabled={change.isPending} className="gap-3">
             {user.has_password ? (
               <Field>
                 <FieldLabel htmlFor={`${id}-current`}>
@@ -216,16 +228,15 @@ function PasswordRow({ user }: { user: UserOut }) {
                 {m.common_cancel()}
               </Button>
             </div>
-          </fieldset>
+          </FieldSet>
         </form>
       ) : null}
     </div>
   )
 }
 
-function GoogleRow({ user }: { user: UserOut }) {
+function GoogleRow({ user, clientId }: { user: UserOut; clientId: string | null | undefined }) {
   const setUser = useUserCache()
-  const config = useQuery(authConfigOptions())
   const [confirming, setConfirming] = useState(false)
   const link = useMutation({
     ...accountGoogleLinkMutation(),
@@ -247,26 +258,25 @@ function GoogleRow({ user }: { user: UserOut }) {
   })
 
   const identity = user.identities.find((i) => i.provider === 'google')
-  const clientId = config.data?.google_client_id
-  if (!identity && !clientId) return null
-
   return (
-    <div className="space-y-3">
-      <Row
-        label={m.auth_account_google_row()}
-        value={
-          identity
-            ? m.auth_account_google_linked({ email: identity.email })
-            : m.auth_account_google_not_linked()
-        }
-        action={
-          identity ? (
-            <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
+    <div>
+      <Item>
+        <ItemContent className="min-w-0">
+          <ItemTitle>{m.auth_account_google_row()}</ItemTitle>
+          <ItemDescription>
+            {identity
+              ? m.auth_account_google_linked({ email: identity.email })
+              : m.auth_account_google_not_linked()}
+          </ItemDescription>
+        </ItemContent>
+        {identity ? (
+          <ItemActions>
+            <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
               {m.auth_account_google_unlink()}
             </Button>
-          ) : null
-        }
-      />
+          </ItemActions>
+        ) : null}
+      </Item>
       {!identity && clientId ? (
         <>
           <GoogleSignInButton
@@ -290,13 +300,14 @@ function GoogleRow({ user }: { user: UserOut }) {
 }
 
 export function SignInMethodsSection({ user }: { user: UserOut }) {
+  const config = useQuery(authConfigOptions())
+  const clientId = config.data?.google_client_id
+  const hasGoogle = user.identities.some((i) => i.provider === 'google') || Boolean(clientId)
   return (
-    <SettingsCard>
+    <SettingsGroup>
       <EmailRow user={user} />
-      <Separator />
       <PasswordRow user={user} />
-      <Separator />
-      <GoogleRow user={user} />
-    </SettingsCard>
+      {hasGoogle ? <GoogleRow user={user} clientId={clientId} /> : null}
+    </SettingsGroup>
   )
 }
