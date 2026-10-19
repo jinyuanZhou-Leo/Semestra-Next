@@ -1,0 +1,134 @@
+"""Parsing and page previews in a child process (M07 §3.1).
+
+The readers and pdf.js-like renderers run third-party C code over untrusted bytes. In a child
+process they get an address-space limit and a deadline, and a stuck or exploding file is killed
+instead of tying up a job worker or the API's memory.
+"""
+
+import multiprocessing
+import time
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from multiprocessing.connection import Connection
+from multiprocessing.context import ForkServerContext, SpawnContext
+
+import anyio.to_thread
+
+from semestra.modules.files.parse.detect import Detected
+from semestra.modules.files.parse.readers import ParsedDocument, ParseError, parse
+from semestra.modules.files.parse.render import PageRenderer
+
+_POLL_SECONDS = 0.25
+
+
+@dataclass(frozen=True)
+class Parsed:
+    document: ParsedDocument
+
+
+@dataclass(frozen=True)
+class Thumbnail:
+    index: int
+    total: int
+    png: bytes
+
+
+@dataclass(frozen=True)
+class _Failed:  # ParseError itself does not survive pickling with its params
+    code: str
+    params: dict[str, object]
+
+
+def _context() -> ForkServerContext | SpawnContext:
+    # The forkserver forks children from a clean process that has these modules imported, so a
+    # child starts quickly and inherits none of the API's threads or open connections.
+    if "forkserver" in multiprocessing.get_all_start_methods():
+        forkserver = multiprocessing.get_context("forkserver")
+        forkserver.set_forkserver_preload([__name__])
+        return forkserver
+    return multiprocessing.get_context("spawn")
+
+
+def _limit_memory(limit: int) -> None:
+    try:
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    except ImportError, ValueError, OSError:  # not enforceable on this platform
+        pass
+
+
+def _child(
+    conn: Connection,
+    data: bytes,
+    detected: Detected,
+    max_pages: int,
+    thumbnail_pages: int,
+    memory_limit: int,
+) -> None:
+    _limit_memory(memory_limit)
+    try:
+        document = parse(data, detected, max_pages=max_pages)
+        conn.send(Parsed(document))
+        if detected.kind in ("pdf", "image"):
+            renderer = PageRenderer(data, pdf=detected.kind == "pdf")
+            total = min(len(document.pages), thumbnail_pages)
+            for index in range(total):
+                conn.send(Thumbnail(index, total, renderer.thumbnail(index)))
+            renderer.close()
+        conn.send(None)
+    except ParseError as exc:
+        conn.send(_Failed(exc.code, exc.params))
+    except MemoryError:
+        conn.send(_Failed("files.too_complex", {}))
+    except Exception:
+        conn.send(_Failed("files.parse_failed", {}))
+    finally:
+        conn.close()
+
+
+async def parse_isolated(
+    data: bytes,
+    detected: Detected,
+    *,
+    max_pages: int,
+    thumbnail_pages: int,
+    time_limit: float,
+    memory_limit: int,
+) -> AsyncIterator[Parsed | Thumbnail]:
+    """Yields the parsed document, then a preview per page (PDFs and images). Raises
+    `ParseError("files.too_complex")` when the child runs out of time or memory."""
+    receiver, sender = multiprocessing.Pipe(duplex=False)
+    process = _context().Process(
+        target=_child,
+        args=(sender, data, detected, max_pages, thumbnail_pages, memory_limit),
+        daemon=True,
+    )
+    await anyio.to_thread.run_sync(process.start)
+    sender.close()
+    deadline = time.monotonic() + time_limit
+    try:
+        while True:
+            ready = await anyio.to_thread.run_sync(receiver.poll, _POLL_SECONDS)
+            if not ready:
+                if time.monotonic() > deadline:
+                    raise ParseError("files.too_complex")
+                continue
+            try:
+                message = await anyio.to_thread.run_sync(receiver.recv)
+            except EOFError:
+                # Killed without a word: the memory limit, or a crash in C code.
+                await anyio.to_thread.run_sync(process.join, 5)
+                raise ParseError(
+                    "files.too_complex" if (process.exitcode or 0) < 0 else "files.parse_failed"
+                ) from None
+            if message is None:
+                return
+            if isinstance(message, _Failed):
+                raise ParseError(message.code, **message.params)
+            yield message
+    finally:
+        receiver.close()
+        if process.is_alive():
+            process.kill()
+        await anyio.to_thread.run_sync(process.join, 5)

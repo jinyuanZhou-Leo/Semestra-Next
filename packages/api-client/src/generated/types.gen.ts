@@ -675,6 +675,24 @@ export type BodyAccountAvatarUpload = {
 };
 
 /**
+ * Body_filesUpload
+ */
+export type BodyFilesUpload = {
+    /**
+     * Files
+     *
+     * The files to upload
+     */
+    files: Array<Blob | File>;
+    /**
+     * Folder Id
+     *
+     * Folder to put them in
+     */
+    folder_id?: string | null;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -1752,13 +1770,71 @@ export type DayFocus = {
 };
 
 /**
- * Deleted
+ * DocumentOutline
  */
-export type Deleted = {
+export type DocumentOutline = {
     /**
-     * Deleted
+     * Item Id
      */
-    deleted?: true;
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Entries
+     */
+    entries: Array<OutlineEntry>;
+};
+
+/**
+ * DocumentPage
+ */
+export type DocumentPage = {
+    /**
+     * Page No
+     */
+    page_no: number;
+    /**
+     * Markdown
+     */
+    markdown: string;
+    /**
+     * Ocr Used
+     */
+    ocr_used: boolean;
+};
+
+/**
+ * DocumentRead
+ */
+export type DocumentRead = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Pages
+     */
+    pages: Array<DocumentPage>;
+    /**
+     * Next Page
+     *
+     * Call again from this page for the rest
+     */
+    next_page: number | null;
 };
 
 /**
@@ -2240,6 +2316,136 @@ export type FeedList = {
 };
 
 /**
+ * FilesList
+ */
+export type FilesList = {
+    /**
+     * Folders
+     *
+     * Every folder of the course
+     */
+    folders: Array<FolderOut>;
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * FilesUsage
+ */
+export type FilesUsage = {
+    /**
+     * Used Bytes
+     *
+     * All the user's stored files, every module
+     */
+    used_bytes: number;
+    /**
+     * Files Bytes
+     *
+     * Of which course files
+     */
+    files_bytes: number;
+    /**
+     * Quota Bytes
+     *
+     * 0 means unlimited
+     */
+    quota_bytes: number;
+    /**
+     * Max Upload Bytes
+     */
+    max_upload_bytes: number;
+};
+
+/**
+ * FolderCreateInputBody
+ */
+export type FolderCreateInputBody = {
+    /**
+     * Name
+     *
+     * Folder name
+     */
+    name: string;
+    /**
+     * Parent Id
+     *
+     * Parent folder; null = course root
+     */
+    parent_id?: string | null;
+};
+
+/**
+ * FolderOut
+ */
+export type FolderOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Parent Id
+     */
+    parent_id: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Item Count
+     *
+     * Files and links directly inside the folder
+     */
+    item_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * FolderUpdateInputBody
+ */
+export type FolderUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Parent Id
+     *
+     * Move under this folder; null moves it to the course root
+     */
+    parent_id?: string | null;
+    /**
+     * Position
+     *
+     * Order among its siblings
+     */
+    position?: number | null;
+};
+
+/**
  * GoogleLinkInputBody
  */
 export type GoogleLinkInputBody = {
@@ -2635,6 +2841,116 @@ export type Instructor = {
 };
 
 /**
+ * ItemOut
+ */
+export type ItemOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Kind
+     */
+    kind: 'file' | 'link';
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Original Name
+     */
+    original_name: string | null;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Sha256
+     */
+    sha256: string | null;
+    /**
+     * Url
+     */
+    url: string | null;
+    /**
+     * Pinned
+     */
+    pinned: boolean;
+    /**
+     * Source Kind
+     */
+    source_kind: 'upload' | 'lms' | 'agent' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Doc Status
+     */
+    doc_status: 'none' | 'pending' | 'processing' | 'ready' | 'failed' | 'unsupported';
+    /**
+     * Doc Error Code
+     */
+    doc_error_code: string | null;
+    /**
+     * Page Count
+     */
+    page_count: number | null;
+    /**
+     * Ocr Skipped Pages
+     */
+    ocr_skipped_pages: number;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ItemUpdateInputBody
+ */
+export type ItemUpdateInputBody = {
+    /**
+     * Display Name
+     *
+     * New name
+     */
+    display_name?: string | null;
+    /**
+     * Folder Id
+     *
+     * Move into this folder; null moves it to the course root
+     */
+    folder_id?: string | null;
+    /**
+     * Pinned
+     *
+     * Pin it to the quick-open cards
+     */
+    pinned?: boolean | null;
+};
+
+/**
  * JobOut
  */
 export type JobOut = {
@@ -2723,6 +3039,30 @@ export type JobPage = {
 };
 
 export type JsonValue = unknown;
+
+/**
+ * LinkCreateInputBody
+ */
+export type LinkCreateInputBody = {
+    /**
+     * Url
+     *
+     * http(s) address
+     */
+    url: string;
+    /**
+     * Display Name
+     *
+     * Name to show; defaults to the address' host
+     */
+    display_name?: string | null;
+    /**
+     * Folder Id
+     *
+     * Folder to put it in
+     */
+    folder_id?: string | null;
+};
 
 /**
  * Meeting
@@ -3631,6 +3971,24 @@ export type OneOffEventList = {
 };
 
 /**
+ * OutlineEntry
+ */
+export type OutlineEntry = {
+    /**
+     * Level
+     */
+    level: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Page
+     */
+    page: number;
+};
+
+/**
  * PaletteColor
  */
 export type PaletteColor = {
@@ -3690,6 +4048,34 @@ export type PasswordResetIn = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * PendingItem
+ */
+export type PendingItem = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+};
+
+/**
+ * PinnedFiles
+ */
+export type PinnedFiles = {
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
 };
 
 /**
@@ -4597,6 +4983,114 @@ export type ScoreSuggestion = {
      * Reachable
      */
     reachable: boolean;
+};
+
+/**
+ * SearchHit
+ */
+export type SearchHit = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Page From
+     */
+    page_from: number;
+    /**
+     * Page To
+     */
+    page_to: number;
+    /**
+     * Heading Path
+     */
+    heading_path: Array<string>;
+    /**
+     * Snippet
+     *
+     * Matching text; matches are wrapped in <mark></mark>
+     */
+    snippet: string;
+    /**
+     * Score
+     */
+    score: number;
+    /**
+     * Citation Id
+     *
+     * `<item_id>:p<page_from>-<page_to>`
+     */
+    citation_id: string;
+};
+
+/**
+ * SearchInputBody
+ */
+export type SearchInputBody = {
+    /**
+     * Query
+     *
+     * What to look for: words from the document or a question
+     */
+    query: string;
+    /**
+     * Term Id
+     *
+     * Only the courses of this term
+     */
+    term_id?: string | null;
+    /**
+     * Course Ids
+     *
+     * Only these courses
+     */
+    course_ids?: Array<string> | null;
+    /**
+     * Item Ids
+     *
+     * Only these files
+     */
+    item_ids?: Array<string> | null;
+    /**
+     * Top K
+     *
+     * Results to return
+     */
+    top_k?: number;
+    /**
+     * Mode
+     *
+     * hybrid = keywords and meaning together; keyword; semantic (needs an embedding model, else falls back to keyword)
+     */
+    mode?: 'hybrid' | 'keyword' | 'semantic';
+};
+
+/**
+ * SearchResult
+ */
+export type SearchResult = {
+    /**
+     * Results
+     */
+    results: Array<SearchHit>;
+    /**
+     * Pending Items
+     *
+     * Files in scope that are still being processed and are not searchable yet
+     */
+    pending_items: Array<PendingItem>;
+    /**
+     * Mode Used
+     */
+    mode_used: 'hybrid' | 'keyword' | 'semantic';
 };
 
 /**
@@ -6132,6 +6626,16 @@ export type UiStateSetInputBody = {
 };
 
 /**
+ * UploadResult
+ */
+export type UploadResult = {
+    /**
+     * Items
+     */
+    items: Array<ItemOut>;
+};
+
+/**
  * UsageDay
  */
 export type UsageDay = {
@@ -6334,6 +6838,36 @@ export type ValuesUpdateInputBody = {
     values: {
         [key: string]: JsonValue;
     };
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesAcademicsSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesFilesSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
+};
+
+/**
+ * Deleted
+ */
+export type SemestraModulesScheduleSchemasDeleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
 };
 
 /**
@@ -6748,6 +7282,198 @@ export type AccountAvatarGetResponses = {
     200: unknown;
 };
 
+export type FilesListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Folder Id
+         *
+         * Only items directly in this folder; omit for the course root
+         */
+        folder_id?: string | null;
+        /**
+         * Recursive
+         *
+         * List the items of every folder of the course, not just one
+         */
+        recursive?: boolean;
+        /**
+         * Search
+         *
+         * Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead.
+         */
+        search?: string | null;
+        /**
+         * Sort
+         *
+         * Sort key
+         */
+        sort?: 'name' | 'size' | 'updated' | 'created' | 'type';
+        /**
+         * Descending
+         *
+         * Reverse the sort order
+         */
+        descending?: boolean;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its id)
+         */
+        fields?: Array<string> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/courses/{course_id}/files';
+};
+
+export type FilesListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesListError = FilesListErrors[keyof FilesListErrors];
+
+export type FilesListResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilesList;
+};
+
+export type FilesListResponse = FilesListResponses[keyof FilesListResponses];
+
+export type FilesUploadData = {
+    body: BodyFilesUpload;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files';
+};
+
+export type FilesUploadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesUploadError = FilesUploadErrors[keyof FilesUploadErrors];
+
+export type FilesUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UploadResult;
+};
+
+export type FilesUploadResponse = FilesUploadResponses[keyof FilesUploadResponses];
+
+export type FilesContentData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+    };
+    query?: {
+        /**
+         * Disposition
+         *
+         * inline previews, attachment downloads
+         */
+        disposition?: string;
+    };
+    url: '/files/{item_id}/content';
+};
+
+export type FilesContentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FilesContentError = FilesContentErrors[keyof FilesContentErrors];
+
+export type FilesContentResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+    /**
+     * Partial Content
+     */
+    206: unknown;
+};
+
+export type FilesContentResponse = FilesContentResponses[keyof FilesContentResponses];
+
+export type FilesPageImageData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+        /**
+         * Page
+         *
+         * Page number, starting at 1
+         */
+        page: number;
+    };
+    query?: never;
+    url: '/files/{item_id}/pages/{page}.png';
+};
+
+export type FilesPageImageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FilesPageImageError = FilesPageImageErrors[keyof FilesPageImageErrors];
+
+export type FilesPageImageResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type AcademicsCourseListData = {
     body?: never;
     path: {
@@ -6908,7 +7634,7 @@ export type AcademicsCourseDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type AcademicsCourseDeleteResponse = AcademicsCourseDeleteResponses[keyof AcademicsCourseDeleteResponses];
@@ -7118,7 +7844,7 @@ export type AcademicsProgramDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type AcademicsProgramDeleteResponse = AcademicsProgramDeleteResponses[keyof AcademicsProgramDeleteResponses];
@@ -8313,6 +9039,435 @@ export type CoreStorageUsageResponses = {
 
 export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
 
+export type FilesDocumentOutlineData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}/outline';
+};
+
+export type FilesDocumentOutlineErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDocumentOutlineError = FilesDocumentOutlineErrors[keyof FilesDocumentOutlineErrors];
+
+export type FilesDocumentOutlineResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentOutline;
+};
+
+export type FilesDocumentOutlineResponse = FilesDocumentOutlineResponses[keyof FilesDocumentOutlineResponses];
+
+export type FilesDocumentReadData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File id
+         */
+        item_id: string;
+    };
+    query?: {
+        /**
+         * Page From
+         *
+         * First page (1-based)
+         */
+        page_from?: number;
+        /**
+         * Page To
+         *
+         * Last page; at most 30 pages are returned per call
+         */
+        page_to?: number | null;
+    };
+    url: '/files/{item_id}/document';
+};
+
+export type FilesDocumentReadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDocumentReadError = FilesDocumentReadErrors[keyof FilesDocumentReadErrors];
+
+export type FilesDocumentReadResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentRead;
+};
+
+export type FilesDocumentReadResponse = FilesDocumentReadResponses[keyof FilesDocumentReadResponses];
+
+export type FilesFolderCreateData = {
+    body: FolderCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/folders';
+};
+
+export type FilesFolderCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderCreateError = FilesFolderCreateErrors[keyof FilesFolderCreateErrors];
+
+export type FilesFolderCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderOut;
+};
+
+export type FilesFolderCreateResponse = FilesFolderCreateResponses[keyof FilesFolderCreateResponses];
+
+export type FilesFolderDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Folder Id
+         *
+         * Folder id
+         */
+        folder_id: string;
+    };
+    query?: {
+        /**
+         * Recursive
+         *
+         * Also delete everything inside; required for a non-empty folder
+         */
+        recursive?: boolean;
+    };
+    url: '/folders/{folder_id}';
+};
+
+export type FilesFolderDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderDeleteError = FilesFolderDeleteErrors[keyof FilesFolderDeleteErrors];
+
+export type FilesFolderDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesFolderDeleteResponse = FilesFolderDeleteResponses[keyof FilesFolderDeleteResponses];
+
+export type FilesFolderUpdateData = {
+    body: FolderUpdateInputBody;
+    path: {
+        /**
+         * Folder Id
+         *
+         * Folder id
+         */
+        folder_id: string;
+    };
+    query?: never;
+    url: '/folders/{folder_id}';
+};
+
+export type FilesFolderUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesFolderUpdateError = FilesFolderUpdateErrors[keyof FilesFolderUpdateErrors];
+
+export type FilesFolderUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderOut;
+};
+
+export type FilesFolderUpdateResponse = FilesFolderUpdateResponses[keyof FilesFolderUpdateResponses];
+
+export type FilesItemDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemDeleteError = FilesItemDeleteErrors[keyof FilesItemDeleteErrors];
+
+export type FilesItemDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesItemDeleteResponse = FilesItemDeleteResponses[keyof FilesItemDeleteResponses];
+
+export type FilesItemGetData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemGetError = FilesItemGetErrors[keyof FilesItemGetErrors];
+
+export type FilesItemGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemGetResponse = FilesItemGetResponses[keyof FilesItemGetResponses];
+
+export type FilesItemUpdateData = {
+    body: ItemUpdateInputBody;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}';
+};
+
+export type FilesItemUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemUpdateError = FilesItemUpdateErrors[keyof FilesItemUpdateErrors];
+
+export type FilesItemUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
+
+export type FilesLinkCreateData = {
+    body: LinkCreateInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/file-links';
+};
+
+export type FilesLinkCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesLinkCreateError = FilesLinkCreateErrors[keyof FilesLinkCreateErrors];
+
+export type FilesLinkCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
+
+export type FilesPinnedData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/pinned-files';
+};
+
+export type FilesPinnedErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesPinnedError = FilesPinnedErrors[keyof FilesPinnedErrors];
+
+export type FilesPinnedResponses = {
+    /**
+     * Successful Response
+     */
+    200: PinnedFiles;
+};
+
+export type FilesPinnedResponse = FilesPinnedResponses[keyof FilesPinnedResponses];
+
+export type FilesReprocessData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:reprocess';
+};
+
+export type FilesReprocessErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesReprocessError = FilesReprocessErrors[keyof FilesReprocessErrors];
+
+export type FilesReprocessResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesReprocessResponse = FilesReprocessResponses[keyof FilesReprocessResponses];
+
+export type FilesSearchData = {
+    body: SearchInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id; the search never leaves this Program
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/files:search';
+};
+
+export type FilesSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesSearchError = FilesSearchErrors[keyof FilesSearchErrors];
+
+export type FilesSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SearchResult;
+};
+
+export type FilesSearchResponse = FilesSearchResponses[keyof FilesSearchResponses];
+
+export type FilesUsageData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/files-usage';
+};
+
+export type FilesUsageErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesUsageError = FilesUsageErrors[keyof FilesUsageErrors];
+
+export type FilesUsageResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilesUsage;
+};
+
+export type FilesUsageResponse = FilesUsageResponses[keyof FilesUsageResponses];
+
 export type GradingAssessmentListData = {
     body?: never;
     path: {
@@ -8461,7 +9616,7 @@ export type GradingAssessmentDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type GradingAssessmentDeleteResponse = GradingAssessmentDeleteResponses[keyof GradingAssessmentDeleteResponses];
@@ -8589,7 +9744,7 @@ export type GradingCategoryDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesAcademicsSchemasDeleted;
 };
 
 export type GradingCategoryDeleteResponse = GradingCategoryDeleteResponses[keyof GradingCategoryDeleteResponses];
@@ -9810,7 +10965,7 @@ export type ScheduleEventDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
@@ -9938,7 +11093,7 @@ export type ScheduleEventTypeDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleEventTypeDeleteResponse = ScheduleEventTypeDeleteResponses[keyof ScheduleEventTypeDeleteResponses];
@@ -10309,7 +11464,7 @@ export type ScheduleMeetingDeleteResponses = {
     /**
      * Successful Response
      */
-    200: Deleted;
+    200: SemestraModulesScheduleSchemasDeleted;
 };
 
 export type ScheduleMeetingDeleteResponse = ScheduleMeetingDeleteResponses[keyof ScheduleMeetingDeleteResponses];
