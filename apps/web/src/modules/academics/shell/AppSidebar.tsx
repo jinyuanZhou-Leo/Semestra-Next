@@ -22,6 +22,7 @@ import { openCommandPalette } from '@/app/commands'
 import { scopePath } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
 import { usePages } from '@/app/registry'
+import { useSettingsDialog } from '@/app/settings'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -381,6 +382,7 @@ function AccountMenu() {
  */
 export function AppSidebar({ programId }: { programId: string }) {
   const { isMobile, setOpenMobile } = useSidebar()
+  const settings = useSettingsDialog()
   const pathname = useLocation({ select: (l) => l.pathname })
   const programs = usePrograms().data?.items ?? []
   const program = programs.find((p) => p.id === programId)
@@ -497,13 +499,16 @@ export function AppSidebar({ programId }: { programId: string }) {
           <StatusBar />
           {isMobile ? null : (
             <SidebarMenu>
-              <NavItem
-                href="/settings/account"
-                icon={Settings}
-                label={m.settings_title()}
-                active={pathname.startsWith('/settings')}
-                onNavigate={onNavigate}
-              />
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={m.settings_title()}
+                  isActive={settings.target?.level === 'account'}
+                  onClick={() => settings.open({ level: 'account' })}
+                >
+                  <Settings aria-hidden />
+                  <span>{m.settings_title()}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           )}
         </SidebarGroup>

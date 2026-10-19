@@ -278,3 +278,57 @@ test('on a phone the sidebar is a drawer and other pages ask for a desktop', asy
   })
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
+
+/** The "Settings" buttons on screen: the sidebar entry and the gear of the page header. */
+async function settingsButtons() {
+  const inSidebar = (button: HTMLElement) => button.closest('[data-slot="sidebar"]') !== null
+  // The page header loads after the sidebar.
+  const buttons = await waitFor(() => {
+    const found = screen.getAllByRole('button', { name: 'Settings' })
+    expect(found.some((b) => !inSidebar(b))).toBe(true)
+    return found
+  })
+  return { sidebar: buttons.find(inSidebar)!, gear: buttons.find((b) => !inSidebar(b))! }
+}
+
+test("the gear of a page header opens that scope's settings as a dialog, and Back closes it", async () => {
+  const { router } = mount('/p/p1/t/t2')
+  await userEvent.click((await settingsButtons()).gear)
+  const dialog = await screen.findByRole('dialog', { name: 'Winter 2026' })
+  expect(router.state.location.pathname).toBe('/p/p1/t/t2')
+  expect(router.state.location.search).toEqual({ settings: 'term' })
+  expect(await within(dialog).findByRole('heading', { name: 'Basics' })).toBeInTheDocument()
+
+  // Back goes to the page without the dialog.
+  act(() => router.history.back())
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.search).toEqual({})
+})
+
+test('the sidebar Settings entry opens the account settings and closing leaves the page', async () => {
+  const { router } = mount('/p/p1')
+  await userEvent.click((await settingsButtons()).sidebar)
+  const dialog = await screen.findByRole('dialog', { name: 'Settings' })
+  expect(router.state.location.search).toEqual({ settings: 'account' })
+
+  // Switching groups replaces the entry instead of stacking history.
+  await userEvent.click(within(dialog).getByRole('button', { name: 'About' }))
+  expect(router.state.location.search).toEqual({ settings: 'account/about' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.pathname).toBe('/p/p1')
+  expect(router.state.location.search).toEqual({})
+})
+
+test('old settings links open the dialog over the scope page', async () => {
+  const { router } = mount('/p/p1/c/c1/settings/general')
+  expect(await screen.findByRole('dialog', { name: /APS105H1/ })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/p/p1/c/c1')
+  expect(router.state.location.search).toEqual({ settings: 'course/general' })
+})
+
+test('a settings level that does not exist on the page opens nothing', async () => {
+  mount('/p/p1?settings=term/general')
+  await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})

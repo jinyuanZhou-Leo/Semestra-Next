@@ -324,7 +324,7 @@
   "settings_name": "Settings",
   "settings_description": "Preferences, appearance and module settings.",
   "settings_title": "Settings",
-  "settings_back": "Back",
+  "settings_dialog_description": "Preferences, appearance and the settings of each feature.",
   "settings_empty": "Nothing to configure here yet.",
   "settings_group_general": "General",
   "settings_group_account": "Account",

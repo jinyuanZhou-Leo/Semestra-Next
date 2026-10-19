@@ -324,7 +324,7 @@
   "settings_name": "设置",
   "settings_description": "偏好、外观与各模块的设置。",
   "settings_title": "设置",
-  "settings_back": "返回",
+  "settings_dialog_description": "偏好、外观与各项功能的设置。",
   "settings_empty": "这里暂时没有可设置的内容。",
   "settings_group_general": "常规",
   "settings_group_account": "账户",
