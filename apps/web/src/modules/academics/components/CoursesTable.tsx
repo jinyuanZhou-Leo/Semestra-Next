@@ -216,12 +216,14 @@ const ALL = '__all__'
 /**
  * The pin column sticks to the right edge, so it needs an opaque background that matches what
  * it covers: the header's and a hovered row's `bg-muted/50` over the page background (blended
- * in sRGB, like the browser composites). Written out in full so Tailwind sees the class names.
+ * in sRGB, like the browser composites), and a selected row's `bg-muted`, which wins over hover.
+ * A 1px shadow on its left separates it from the columns scrolling under it without changing
+ * its width. Written out in full so Tailwind sees the class names.
  */
 const STICKY_END_HEAD =
-  'sticky right-0 bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))]'
+  'sticky right-0 bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))] shadow-[-1px_0_0_var(--color-border)]'
 const STICKY_END_CELL =
-  'sticky right-0 bg-background [tr:hover>&]:bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))]'
+  'sticky right-0 bg-background shadow-[-1px_0_0_var(--color-border)] [tr:hover:not([data-state=selected])>&]:bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))] [tr[data-state=selected]>&]:bg-muted'
 
 /** One after the other, stopping at the first failure. */
 async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
@@ -611,6 +613,7 @@ export function CoursesTable({
               {table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  data-state={selected.has(row.original.id) ? 'selected' : undefined}
                   onClick={(event) => {
                     if ((event.target as HTMLElement).closest('button,a,input,[role=checkbox]'))
                       return

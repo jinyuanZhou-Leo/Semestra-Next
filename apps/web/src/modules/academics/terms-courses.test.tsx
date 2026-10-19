@@ -140,6 +140,10 @@ test('selecting rows puts the batch actions in place of the filters, keeping the
   expect(filters).toHaveAttribute('inert')
   expect(within(toolbar).getByText('1 selected')).toBeInTheDocument()
   expect(within(toolbar).getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: 'Select APS105H1' }).closest('tr')).toHaveAttribute(
+    'data-state',
+    'selected',
+  )
   // The search box is not part of the swap.
   expect(searchBox.closest('[inert]')).toBeNull()
 
