@@ -1,6 +1,6 @@
 import type { CourseFields, TermCreateResult } from '@semestra/api-client'
 import { academicsTermCreateMutation } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useRouter } from '@tanstack/react-router'
 import { Check, ChevronDownIcon, Import, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -100,6 +100,7 @@ export function TermWizard({
   const terms = useTerms(programId).data?.items ?? []
   const courses = useCourses(programId).data?.items ?? []
   const sources = useExtensions<TermWizardImportSource>(TERM_WIZARD_IMPORT_SOURCES)
+  useQueries({ queries: sources.flatMap((s) => (s.query ? [s.query(programId)] : [])) })
   const [draft, setDraft] = useState<WizardDraft>(() => loadDraft(programId))
   const [touched, setTouched] = useState(false)
   const [importing, setImporting] = useState<string | null>(null)
@@ -352,7 +353,9 @@ export function TermWizard({
                     <DropdownMenuItem key={source.id} onClick={() => void launch(source)}>
                       <source.icon aria-hidden />
                       <span className="min-w-0">
-                        <span className="block">{source.title()}</span>
+                        <span className="block">
+                          {source.Title ? <source.Title programId={programId} /> : source.title()}
+                        </span>
                         {source.description ? (
                           <span className="block text-xs text-muted-foreground">
                             {source.description()}

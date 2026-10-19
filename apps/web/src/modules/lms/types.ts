@@ -8,8 +8,13 @@ import type { Message } from '@/app/extensions'
  */
 export type LmsProviderUi = {
   kind: string
+  /** The platform's name, used in every generic string ("Import courses from {provider}"). */
   label: Message
   logo: LucideIcon
+  /** One line under the name when picking a platform for a new connection. */
+  description?: Message
+  /** What identifies a saved connection besides its name, e.g. Canvas' host. */
+  summary?: (config: Record<string, unknown>) => string | null
   ConfigForm: ComponentType<LmsConfigFormProps>
   /** How to get the credentials, shown folded under the form. */
   credentialHelp?: ComponentType

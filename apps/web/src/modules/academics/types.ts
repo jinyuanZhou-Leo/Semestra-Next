@@ -58,6 +58,11 @@ export type CreatedCourseMapping = { draft: CourseDraft; courseId: string }[]
 export type TermWizardImportSource = {
   id: string
   title: Message
+  /** Shown instead of `title` in the menu when the label depends on the Program (M09's platform). */
+  Title?: ComponentType<{ programId: string }>
+  /** What `Title` reads, loaded with the wizard so the menu label does not change when opened. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (programId: string) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
   description?: Message
   launch: (ctx: TermWizardContext) => Promise<CourseDraft[]>

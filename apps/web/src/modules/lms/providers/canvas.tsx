@@ -65,6 +65,11 @@ export const canvasUi: LmsProviderUi = {
   kind: 'canvas',
   label: m.lms_canvas,
   logo: School,
+  description: m.lms_canvas_description,
+  summary: (config) =>
+    typeof config.base_url === 'string' && config.base_url
+      ? config.base_url.replace(/^https?:\/\//, '')
+      : null,
   ConfigForm: CanvasForm,
   credentialHelp: CanvasHelp,
   isComplete: ({ config, credentials }, saved) => {

@@ -1,4 +1,5 @@
 import { lmsCourseApplyUpdates } from '@semestra/api-client'
+import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
 import type { CommandContribution } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
@@ -6,8 +7,21 @@ import type { AssessmentImportSource } from '@/modules/grading/types'
 import { wizardImportSource } from '@/modules/imports/entries'
 import { openImport } from '@/modules/imports/launcher'
 import { m } from '@/paraglide/messages'
+import { useProgramProviderName } from '../providers'
 import { AssignmentPicker } from './AssignmentPicker'
 import { type CourseImportTarget, CoursePicker } from './CoursePicker'
+
+/** "Import courses from {provider}": the Program's platform, "LMS" while unbound or loading. */
+function CoursesTitle({ programId }: { programId: string }) {
+  const provider = useProgramProviderName(programId)
+  return provider ? m.lms_import_courses_from({ provider }) : m.lms_import_courses()
+}
+
+/** "{provider} assignments" for a course's gradebook menu, from the Program's platform. */
+function AssignmentsTitle({ programId }: { programId: string }) {
+  const provider = useProgramProviderName(programId)
+  return provider ? m.lms_import_assignments_from({ provider }) : m.lms_import_assignments()
+}
 
 /** The M08 import dialog, starting with the course picker (M09 §7.2). */
 function courseRequest(programId: string, target: CourseImportTarget, mode: 'wizard' | 'direct') {
@@ -17,6 +31,7 @@ function courseRequest(programId: string, target: CourseImportTarget, mode: 'wiz
     source: 'picker' as const,
     picker: {
       title: m.lms_import_courses,
+      Title: () => <CoursesTitle programId={programId} />,
       hint: m.lms_import_courses_hint,
       component: ({
         onStarted,
@@ -27,10 +42,12 @@ function courseRequest(programId: string, target: CourseImportTarget, mode: 'wiz
   }
 }
 
-/** "Import courses from LMS" in the term wizard: the wizard creates the courses, then the links. */
+/** "Import courses from {provider}" in the term wizard: the wizard creates the courses, then the links. */
 export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   id: 'lms.courses',
   title: m.lms_import_courses,
+  Title: CoursesTitle,
+  query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
   icon: School,
   request: ({ programId, startDate, endDate }) =>
@@ -50,10 +67,12 @@ export const termCourseCommand: CommandContribution = {
   },
 }
 
-/** The gradebook's "Import from… → LMS assignments": committed in the dialog. */
+/** The gradebook's "Import from… → {provider} assignments": committed in the dialog. */
 export const assignmentSource: AssessmentImportSource = {
   id: 'lms.assignments',
   title: m.lms_import_assignments,
+  Title: AssignmentsTitle,
+  query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   icon: ClipboardList,
   launch: async ({ programId, courseId }) => {
     await openImport({
@@ -62,6 +81,7 @@ export const assignmentSource: AssessmentImportSource = {
       source: 'picker',
       picker: {
         title: m.lms_import_assignments,
+        Title: () => <AssignmentsTitle programId={programId} />,
         hint: m.lms_import_assignments_hint,
         component: ({ onStarted }) => (
           <AssignmentPicker courseId={courseId} onStarted={onStarted} />

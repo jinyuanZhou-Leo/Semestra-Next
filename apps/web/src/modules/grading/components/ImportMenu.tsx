@@ -1,5 +1,5 @@
 import { gradingAssessmentCreateManyMutation } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { useExtensions } from '@/app/registry'
@@ -19,6 +19,9 @@ import { ASSESSMENT_IMPORT_SOURCES, type AssessmentImportSource } from '../types
 export function ImportMenu({ programId, courseId }: { programId: string; courseId: string }) {
   const queryClient = useQueryClient()
   const sources = useExtensions<AssessmentImportSource>(ASSESSMENT_IMPORT_SOURCES)
+  useQueries({
+    queries: sources.flatMap((s) => (s.query ? [s.query({ programId, courseId })] : [])),
+  })
   const add = useMutation({ ...gradingAssessmentCreateManyMutation(), onError: toastError })
 
   if (sources.length === 0) return null
@@ -46,7 +49,11 @@ export function ImportMenu({ programId, courseId }: { programId: string; courseI
         {sources.map((source) => (
           <DropdownMenuItem key={source.id} onClick={() => void run(source)}>
             <source.icon aria-hidden />
-            {source.title()}
+            {source.Title ? (
+              <source.Title programId={programId} courseId={courseId} />
+            ) : (
+              source.title()
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

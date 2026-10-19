@@ -3,9 +3,10 @@ import {
   lmsConnectionDeleteMutation,
   lmsConnectionListOptions,
   lmsConnectionValidateMutation,
+  lmsProvidersListOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link2, Plus } from 'lucide-react'
+import { ChevronRight, Link2, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ActionRow, SettingsGroup } from '@/app/settings'
@@ -25,8 +26,17 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { useProviderUis } from '../providers'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/ui/item'
+import { Skeleton } from '@/ui/skeleton'
+import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 import { ConnectionForm } from './ConnectionForm'
 
@@ -54,6 +64,7 @@ function ConnectionRow({
 }) {
   const queryClient = useQueryClient()
   const ui = useProviderUis().get(connection.provider)
+  const providerName = useProviderName(connection.provider)
   const Logo = ui?.logo ?? Link2
   const check = useMutation({
     ...lmsConnectionValidateMutation(),
@@ -67,10 +78,9 @@ function ConnectionRow({
     },
     onError: toastError,
   })
-  const baseUrl = connection.config.base_url
   const details = [
-    ui?.label() ?? connection.provider,
-    typeof baseUrl === 'string' ? baseUrl.replace(/^https?:\/\//, '') : null,
+    providerName,
+    ui?.summary?.(connection.config) ?? null,
     connection.account_name,
     ...Object.values(connection.credentials_hint),
     connection.last_checked_at
@@ -123,11 +133,90 @@ function ConnectionRow({
   )
 }
 
+/**
+ * The first step of "Add connection": the platforms the server offers and the frontend has a
+ * form for, from `lms.providerUi` (a step even with one platform, so the list grows in place).
+ */
+function ProviderPicker({ onPick }: { onPick: (kind: string) => void }) {
+  const { providers, isPending } = useOfferedProviders()
+  // One row's height while loading, so the dialog does not grow when the list arrives.
+  if (isPending) return <Skeleton className="h-[4.5rem] w-full rounded-2xl" />
+  if (providers.length === 0) {
+    return (
+      <Empty className="border-0 p-0">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Link2 aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.lms_providers_empty()}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+  return (
+    <ItemGroup className="gap-2">
+      {providers.map((ui) => (
+        <Item
+          key={ui.kind}
+          variant="outline"
+          // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Item's children label it
+          render={<button type="button" />}
+          className="text-left"
+          onClick={() => onPick(ui.kind)}
+        >
+          <ItemMedia variant="icon">
+            <ui.logo aria-hidden className="size-5" />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{ui.label()}</ItemTitle>
+            {ui.description ? <ItemDescription>{ui.description()}</ItemDescription> : null}
+          </ItemContent>
+          <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+        </Item>
+      ))}
+    </ItemGroup>
+  )
+}
+
+/** Remounted on every open (see `addKey`), so closing keeps the title through the exit animation. */
+function AddConnectionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [kind, setKind] = useState<string | null>(null)
+  const name = useProviderName(kind)
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {kind && name
+              ? m.lms_connection_add_provider({ provider: name })
+              : m.lms_connection_add()}
+          </DialogTitle>
+          <DialogDescription>
+            {kind ? m.lms_connection_note() : m.lms_connection_pick_provider()}
+          </DialogDescription>
+        </DialogHeader>
+        {!open ? null : kind ? (
+          <ConnectionForm key={kind} kind={kind} onSaved={onClose} onBack={() => setKind(null)} />
+        ) : (
+          <ProviderPicker onPick={setKind} />
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /** Account settings → Integrations → LMS connections (M09 §7.1). Tokens are only shown masked. */
 export function ConnectionsSection() {
   const queryClient = useQueryClient()
   const connections = useQuery(lmsConnectionListOptions())
   const [adding, setAdding] = useState(false)
+  const [addKey, setAddKey] = useState(0)
+  const startAdding = () => {
+    setAddKey((k) => k + 1)
+    setAdding(true)
+  }
+  // Fetched with the list, so the platform step opens with its rows already there.
+  useQuery(lmsProvidersListOptions())
   const [editing, setEditing] = useState<Connection | null>(null)
   const [deleting, setDeleting] = useState<Connection | null>(null)
   const remove = useMutation({
@@ -154,7 +243,7 @@ export function ConnectionsSection() {
               <EmptyDescription>{m.lms_connections_empty_hint()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" onClick={() => setAdding(true)}>
+              <Button size="sm" onClick={startAdding}>
                 <Plus aria-hidden />
                 {m.lms_connection_add()}
               </Button>
@@ -172,21 +261,13 @@ export function ConnectionsSection() {
                 onDelete={() => setDeleting(connection)}
               />
             ))}
-            <ActionRow icon={Plus} onClick={() => setAdding(true)}>
+            <ActionRow icon={Plus} onClick={startAdding}>
               {m.lms_connection_add()}
             </ActionRow>
           </SettingsGroup>
         )}
       </AsyncBoundary>
-      <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{m.lms_connection_add()}</DialogTitle>
-            <DialogDescription>{m.lms_connection_note()}</DialogDescription>
-          </DialogHeader>
-          {adding ? <ConnectionForm onSaved={() => setAdding(false)} /> : null}
-        </DialogContent>
-      </Dialog>
+      <AddConnectionDialog key={addKey} open={adding} onClose={() => setAdding(false)} />
       <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
@@ -196,6 +277,7 @@ export function ConnectionsSection() {
           {editing ? (
             <ConnectionForm
               key={editing.id}
+              kind={editing.provider}
               connection={editing}
               onSaved={() => setEditing(null)}
             />

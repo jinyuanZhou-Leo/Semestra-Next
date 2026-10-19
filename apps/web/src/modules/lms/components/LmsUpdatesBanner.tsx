@@ -9,12 +9,12 @@ import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
-import { useProviderUis } from '../providers'
+import { useProviderName } from '../providers'
 import { reviewUpdates } from '../import/sources'
 
 /**
- * "N imported assignments changed on Canvas" with a button to the review (M09 §7.2). Shared by
- * the gradebook and the Canvas tab (M16); renders nothing for unlinked or paused courses.
+ * "N imported assignments changed on {provider}" with a button to the review (M09 §7.2). Shared
+ * by the gradebook and the Canvas tab (M16); renders nothing for unlinked or paused courses.
  */
 export function LmsUpdatesBanner({ programId, courseId }: { programId: string; courseId: string }) {
   const queryClient = useQueryClient()
@@ -25,12 +25,7 @@ export function LmsUpdatesBanner({ programId, courseId }: { programId: string; c
     enabled: Boolean(link?.sync_enabled),
     retry: false,
   }).data
-  const provider =
-    useProviderUis()
-      .get(link?.provider ?? '')
-      ?.label() ??
-    link?.provider ??
-    ''
+  const provider = useProviderName(link?.provider) ?? ''
   const [opening, setOpening] = useState(false)
   if (!link?.sync_enabled || !updates || updates.count === 0) return null
 

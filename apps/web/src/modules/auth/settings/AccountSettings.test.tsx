@@ -7,6 +7,7 @@ import { SettingsSections } from '@/app/settings'
 import { API, renderWithRouter, server, user } from '@/test-utils'
 import manifest from '../manifest'
 import { AuthContext } from '../useAuth'
+import { SignInMethodsSection } from './SignInMethodsSection'
 import { mcpConfig } from './TokensSection'
 
 beforeAll(() => server.listen())
@@ -177,4 +178,67 @@ test('mcpConfig points Claude Desktop at the API and passes the token via env', 
   expect(server.args).toContain('https://api.example.com/mcp')
   expect(server.env.SEMESTRA_TOKEN).toBe('spat_x')
   expect(JSON.stringify(server.args)).not.toContain('spat_x')
+})
+
+const googleIdentity = {
+  provider: 'google' as const,
+  email: 'ada@gmail.com',
+  created_at: '2026-01-01T00:00:00Z',
+}
+
+test('the official Google button sits on the Google row; its credential links the account', async () => {
+  const linked = vi.fn<(body: unknown) => void>()
+  let onCredential: ((response: { credential: string }) => void) | undefined
+  const renderButton = vi.fn<(parent: HTMLElement) => void>((parent) => {
+    parent.append(Object.assign(document.createElement('button'), { textContent: 'Google' }))
+  })
+  window.google = {
+    accounts: {
+      id: {
+        initialize: (config) => {
+          onCredential = config.callback
+        },
+        renderButton,
+      },
+    },
+  }
+  server.use(
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: 'cid' })),
+    http.post(`${API}/account/google/link`, async ({ request }) => {
+      linked(await request.json())
+      return HttpResponse.json({
+        ...user,
+        identities: [googleIdentity],
+      })
+    }),
+  )
+  renderWithRouter(<SignInMethodsSection user={user} />)
+
+  await waitFor(() => expect(renderButton).toHaveBeenCalled())
+  const [parent, options] = renderButton.mock.calls[0] as unknown as [HTMLElement, object]
+  expect(options).toMatchObject({ size: 'medium', shape: 'pill' })
+  // On the right of the row, like "Change email", not a full-width button under it.
+  const row = parent.closest('[data-slot="item"]') as HTMLElement
+  expect(within(row).getByText('Not linked')).toBeInTheDocument()
+  onCredential?.({ credential: 'id-token' })
+  await waitFor(() => expect(linked).toHaveBeenCalledWith({ id_token: 'id-token' }))
+  delete window.google
+})
+
+test('a linked Google account shows its email and unlinks after confirmation', async () => {
+  const unlinked = vi.fn<() => void>()
+  server.use(
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: 'cid' })),
+    http.post(`${API}/account/google/unlink`, () => {
+      unlinked()
+      return HttpResponse.json(user)
+    }),
+  )
+  renderWithRouter(<SignInMethodsSection user={{ ...user, identities: [googleIdentity] }} />)
+  expect(await screen.findByText('Linked as ada@gmail.com')).toBeInTheDocument()
+  expect(screen.queryByTestId('google-button')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+  const confirm = await screen.findByRole('alertdialog')
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))
+  await waitFor(() => expect(unlinked).toHaveBeenCalled())
 })

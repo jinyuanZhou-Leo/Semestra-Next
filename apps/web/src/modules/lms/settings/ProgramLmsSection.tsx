@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
+import { useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 import { ConnectionStatus } from './ConnectionsSection'
 
@@ -48,6 +49,7 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
   const programId = scope?.programId ?? ''
   const queryClient = useQueryClient()
   const openConnections = useOpenConnections()
+  const uis = useProviderUis()
   const connections = useQuery(lmsConnectionListOptions())
   const binding = useQuery(lmsProgramBindingGetOptions({ path: { program_id: programId } }))
   const done = { onSuccess: () => invalidateLms(queryClient), onError: toastError }
@@ -79,8 +81,12 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
         const current = binding.data
         const linked = current?.link_count ?? 0
         const items = [
-          { value: NONE, label: m.lms_binding_none() },
-          ...data.items.map((c) => ({ value: c.id, label: c.display_name })),
+          { value: NONE, label: m.lms_binding_none(), Logo: null },
+          ...data.items.map((c) => ({
+            value: c.id,
+            label: c.display_name,
+            Logo: uis.get(c.provider)?.logo ?? Link2,
+          })),
         ]
         const bound = data.items.find((c) => c.id === current?.connection_id)
         return (
@@ -113,6 +119,7 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
                       <SelectGroup>
                         {items.map((item) => (
                           <SelectItem key={item.value} value={item.value}>
+                            {item.Logo ? <item.Logo aria-hidden /> : null}
                             {item.label}
                           </SelectItem>
                         ))}

@@ -5,14 +5,14 @@ import type { CourseInfoRowProps } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { externalLabel } from '../external'
-import { useProviderUis } from '../providers'
+import { useProviderName } from '../providers'
 
 /** On the course info card of a linked course: the platform, its course and a link to it. */
 export function CourseInfoLms({ courseId, Row }: CourseInfoRowProps) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link
-  const ui = useProviderUis().get(link?.provider ?? '')
+  const providerName = useProviderName(link?.provider)
   if (!link) return null
-  const provider = ui?.label() ?? link.provider
+  const provider = providerName ?? link.provider
   return (
     <Row label={m.lms_course_info_label()}>
       <span className="flex min-w-0 flex-wrap items-center gap-1.5">

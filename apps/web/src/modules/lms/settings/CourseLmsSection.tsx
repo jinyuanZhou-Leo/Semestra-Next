@@ -40,7 +40,7 @@ import {
 } from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { externalLabel, groupByTerm } from '../external'
-import { useProviderUis } from '../providers'
+import { useProviderName, useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 
 /**
@@ -108,6 +108,7 @@ function LinkedCourse({
   const queryClient = useQueryClient()
   const syncId = useId()
   const ui = useProviderUis().get(link.provider)
+  const provider = useProviderName(link.provider) ?? link.provider
   const Logo = ui?.logo ?? Link2
   const [unlinking, setUnlinking] = useState(false)
   const refresh = () => invalidateLms(queryClient)
@@ -154,7 +155,7 @@ function LinkedCourse({
               </span>
             </ItemTitle>
             <ItemDescription className="truncate">
-              {[ui?.label() ?? link.provider, link.external_term].filter(Boolean).join(' · ')}
+              {[provider, link.external_term].filter(Boolean).join(' · ')}
             </ItemDescription>
             <ItemDescription className={link.last_error_code ? 'text-destructive' : undefined}>
               {status}
@@ -172,7 +173,7 @@ function LinkedCourse({
                 nativeButton={false}
               >
                 <ExternalLink aria-hidden />
-                {m.lms_open_in({ provider: ui?.label() ?? link.provider })}
+                {m.lms_open_in({ provider })}
               </Button>
             ) : null}
           </ItemActions>
@@ -240,6 +241,7 @@ function CoursePicker({
     ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
     placeholderData: keepPreviousData,
   })
+  const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
   const link = useMutation({
     ...lmsCourseLinkSetMutation(),
     onSuccess: async () => {
@@ -260,10 +262,15 @@ function CoursePicker({
         return (
           <>
             <SettingsGroup>
-              <SettingRow label={m.lms_course_pick()} description={m.lms_course_pick_description()}>
+              <SettingRow
+                label={m.lms_course_pick({ provider })}
+                description={m.lms_course_pick_description({ provider })}
+              >
                 {(labelId) =>
                   data.items.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">{m.lms_courses_empty()}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {m.lms_courses_empty({ provider })}
+                    </span>
                   ) : (
                     <Select
                       value={chosen || null}

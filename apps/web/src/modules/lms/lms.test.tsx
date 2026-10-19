@@ -107,6 +107,9 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
   const dialog = await screen.findByRole('dialog')
+  // The platform comes first, even with only one (M09 §7.1).
+  await userEvent.click(await within(dialog).findByRole('button', { name: /^Canvas/ }))
+  expect(within(dialog).getByText('Add Canvas connection')).toBeInTheDocument()
   const save = within(dialog).getByRole('button', { name: 'Check and save' })
   expect(save).toBeDisabled()
   await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
@@ -127,6 +130,39 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   expect(await screen.findByText('U of T Quercus')).toBeInTheDocument()
   expect(screen.getByText(/7~ab…xy/)).toBeInTheDocument()
   expect(screen.queryByText(/abcdefgh/)).toBeNull()
+})
+
+test('the platform list shows what the server offers and the frontend has a form for', async () => {
+  server.use(
+    http.get(`${API}/lms/providers`, () =>
+      HttpResponse.json({
+        items: [
+          ...PROVIDERS.items,
+          { ...PROVIDERS.items[0], kind: 'moodle', display_name: 'Moodle' },
+        ],
+      }),
+    ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+  const dialog = await screen.findByRole('dialog')
+  const canvas = await within(dialog).findByRole('button', { name: /^Canvas/ })
+  expect(within(dialog).queryByRole('button', { name: /Moodle/ })).toBeNull()
+  await userEvent.click(canvas)
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Back' }))
+  expect(within(dialog).getByRole('button', { name: /^Canvas/ })).toBeInTheDocument()
+})
+
+test('without an offered platform the first step says so instead of staying blank', async () => {
+  server.use(
+    http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('No providers available')).toBeInTheDocument()
 })
 
 test('a failed check that keeps the connection usable still shows on its row', async () => {
