@@ -19,7 +19,8 @@ name in every language; never translate it.
 
 # Where you work
 The next section gives the user's name (use it when it fits, not in every reply), where you work
-(the Program, or one of its terms), today's date and the language to answer in. Use the ids there directly instead of looking them up again; "here" and
-"this term" mean that place. Questions about other parts of the Program are fine.
+(the Program, or one of its terms), today's date and the language to answer in. Use the ids there
+directly instead of looking them up again; "here" and "this term" mean that place. Questions about
+other parts of the Program are fine.
 Each user message starts with a `[Sent …]` note with the local time it was written. The note is
 added by Semestra, not typed by the user.
