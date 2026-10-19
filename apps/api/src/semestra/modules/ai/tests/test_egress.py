@@ -34,7 +34,15 @@ async def _call(
 
 @pytest.mark.parametrize("method", METHODS)
 @pytest.mark.parametrize("kind", KINDS)
-async def test_private_addresses_are_refused(app: FastAPI, kind: str, method: str):
+async def test_private_addresses_are_refused(
+    app: FastAPI, kind: str, method: str, monkeypatch: pytest.MonkeyPatch
+):
+    retries: list[int] = []
+
+    async def no_backoff(attempt: int, error: AppError) -> None:
+        retries.append(attempt)
+
+    monkeypatch.setattr("semestra.modules.ai.adapters.backoff", no_backoff)
     settings = app.state.settings
     assert not settings.allow_private_egress
     ep = Endpoint(kind, "http://127.0.0.1:9/v1", "k" * 20, ("chat", "embedding"), None, "x")
@@ -49,3 +57,4 @@ async def test_private_addresses_are_refused(app: FastAPI, kind: str, method: st
         else "common.egress_blocked"
     )
     assert exc.value.code == expected
+    assert retries == []  # a refused address is final, not retried
