@@ -1,15 +1,21 @@
 import type { Course } from '@semestra/api-client'
 import { academicsCourseGetOptions } from '@semestra/api-client/react-query'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
-import type { Scope } from '@/app/extensions'
+import type { PageContribution, Scope } from '@/app/extensions'
 import { useListedHotkey } from '@/app/hotkeys'
 import { useModules } from '@/app/registry'
 import { m } from '@/paraglide/messages'
 import { coursePath } from '../paths'
 
 const THROTTLE_MS = 150
+
+/** What a page's `availabilityQuery` has cached for `scope`; not loaded yet counts as unavailable. */
+function availabilityData(queryClient: QueryClient, page: PageContribution, scope: Scope) {
+  const query = page.availabilityQuery?.(scope)
+  return query ? queryClient.getQueryData(query.queryKey) : undefined
+}
 
 /** ⌘ on Apple keyboards, Ctrl elsewhere: the modifier of the course-switch shortcut. */
 export function modifierKey(): string {
@@ -84,7 +90,7 @@ export function useCourseSwitchHotkey({
           (page) =>
             page.id === s.pageId &&
             page.scopes.includes('course') &&
-            (page.isAvailable?.(scope) ?? true),
+            (page.isAvailable?.(scope, availabilityData(queryClient, page, scope)) ?? true),
         )
       const page = hasPage && s.pageId !== 'overview' ? s.pageId : undefined
       void queryClient.prefetchQuery(academicsCourseGetOptions({ path: { course_id: target.id } }))

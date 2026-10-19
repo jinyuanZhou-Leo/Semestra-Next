@@ -1,4 +1,5 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
+import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, LazyExoticComponent } from 'react'
 import type { ZodType } from 'zod'
@@ -38,7 +39,15 @@ export type PageContribution = {
   /** A line for the page header under the title (Program pages; term and course pages keep their own). */
   headerSubtitle?: ComponentType<PageProps>
   order: number
-  isAvailable?: (scope: Scope) => boolean
+  /** `data` is what `availabilityQuery` loaded (undefined without one). */
+  isAvailable?: (scope: Scope, data: unknown) => boolean
+  /**
+   * Data `isAvailable` needs beyond the scope, e.g. a course's LMS link (M16). It goes through
+   * the query cache, so a page that loads the same data anyway shares the request; the page is
+   * left out until it has loaded. null: nothing to load for this scope.
+   */
+  // oxlint-disable-next-line no-explicit-any
+  availabilityQuery?: (scope: Scope) => UseQueryOptions<any, any, any, any> | null
 }
 
 /** s = 1×1, m = 2×1, l = 2×2, xl = 4×2 on a 4-column grid. */

@@ -21,6 +21,7 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'academics.',
   'onboarding.',
   'commands.',
+  'canvas-tab.',
 ] as const
 
 type Entry = { found: boolean; value: unknown }

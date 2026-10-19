@@ -714,6 +714,20 @@
         }
       ],
       "default_board": {}
+    },
+    {
+      "id": "canvas-tab",
+      "kind": "plugin",
+      "pages": [
+        {
+          "id": "canvas",
+          "scopes": [
+            "course"
+          ]
+        }
+      ],
+      "cards": [],
+      "default_board": {}
     }
   ]
 }

@@ -72,3 +72,27 @@ defineModule({
 ## 7. 验收
 - 安装插件并关联课程后，在课程中能浏览公告、单元文件和 syllabus，体验与旧版 Canvas Tab 一致。
 - 卸载插件后，M09 的连接、关联、导入和日历叠加不受影响。
+
+## 实现说明（M16 落地时补充）
+以下是实现时做出的取舍与对上文的细化，以代码为准。
+
+**注册与可用性**
+- 前端 `apps/web/src/modules/plugin-canvas-tab/`，Page id 为 `canvas`（课程地址 `/p/:id/c/:courseId/canvas`），`order: 1000` 排在最后；后端只在 `plugins_builtin/__init__.py` 里登记 `PluginInfo(id="canvas-tab", default_installed=False)`，没有表和 capability。
+- **对 M10 的改动**：`PageContribution` 新增 `availabilityQuery(scope)`，`isAvailable(scope, data)` 多了第二个参数（该查询的数据）。查询走 TanStack Query 缓存，与课程信息卡片、成绩页提示条共用 `lms.course.link.get`，不会多发请求。新 hook `usePageStatuses(scope)` 给出每个 Page 的 `available / pending / unavailable`；`usePages` 只返回可用的；`ScopePage` 在 `pending` 时显示加载中，而不是"页面不可用"。课程切换快捷键用缓存里的数据判断，没有缓存时回到概览。
+- 插件详情页的"使用前提"用 manifest 的 `requirements`。命令面板命令 `canvas-tab.open-in-canvas` 先读关联再打开 Canvas。
+
+**位置与刷新**
+- 课程 Page 路由（`_authed.p.$programId.c.$courseId.$page`）现在保留所有字符串 search 参数，属于 Page 自己；插件用 `?tab=&ref=`。`tab` 是原生视图名（`announcements` 等），外部工具和未知页签是 `tab:<external_id>`；原生视图即使在 Canvas 里隐藏了也能打开（单元条目可能指向它），找不到的页签回到首页。
+- 位置同时存 `useUiPref('canvas-tab.location.<courseId>')`；URL 里有位置时以 URL 为准并记下来，没有时把记住的位置写回 URL（replace）。`canvas-tab.` 加入了 UI 状态预取前缀，避免先闪一下首页。
+- "刷新"第一次点击把所有读接口切换为带 `refresh=true` 的查询（键变化即重新请求，期间保留旧数据），之后再点击就重新请求当前页面上的这些查询；同时刷新 M09 的关联、变更检测等查询。
+- `default_view` 为空或未知时首页显示单元；`wiki` 但课程没有首页 page 时也显示单元。
+
+**视图**
+- 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。
+- 公告没有"未读点"：M09 的公告数据不含阅读状态。
+- 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.import.assignments`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。
+- 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
+- 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
+- **文件预览**：M07 的预览组件还没合并，插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 合并后改用其预览组件。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
+- Syllabus 的"智能导入"用 `<AiAction>` 包在 `<AiRequired purpose="extraction">` 里，调用 `lms.import.syllabus` 后打开 M08 审核。
+- 读接口出错：`lms.invalid_credentials`、`lms.credentials_missing`、`lms.forbidden` 显示"打开连接设置"（账户设置 → 集成）；其它错误（包括 `lms.rate_limited`，文案带秒数）显示原因与"重试"。加载用骨架。
