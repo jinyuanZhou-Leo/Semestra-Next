@@ -1,3 +1,4 @@
+Consider using the pymupdf_layout package for a greatly improved page layout analysis.
 {
   "openapi": "3.1.0",
   "info": {
@@ -561,6 +562,345 @@
         }
       }
     },
+    "/courses/{course_id}/files": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Upload one or more files into a course.",
+        "description": "All or nothing: if one file is refused (too large, over quota) none is kept.",
+        "operationId": "filesUpload",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_filesUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List the files, links and folders of a course.",
+        "description": "Use to see what a course has: its files and saved links in one folder (or every\nfolder with recursive=true), with their processing status. Do not use to look for what the files\nsay; use files.search for that.",
+        "operationId": "filesList",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only items directly in this folder; omit for the course root",
+              "title": "Folder Id"
+            },
+            "description": "Only items directly in this folder; omit for the course root"
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "List the items of every folder of the course, not just one",
+              "default": false,
+              "title": "Recursive"
+            },
+            "description": "List the items of every folder of the course, not just one"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead.",
+              "title": "Search"
+            },
+            "description": "Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "name",
+                "size",
+                "updated",
+                "created",
+                "type"
+              ],
+              "type": "string",
+              "description": "Sort key",
+              "default": "name",
+              "title": "Sort"
+            },
+            "description": "Sort key"
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Reverse the sort order",
+              "default": false,
+              "title": "Descending"
+            },
+            "description": "Reverse the sort order"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its id)",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its id)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Page size",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}/content": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Download or preview a file; supports Range requests.",
+        "operationId": "filesContent",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "disposition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(inline|attachment)$",
+              "description": "inline previews, attachment downloads",
+              "default": "attachment",
+              "title": "Disposition"
+            },
+            "description": "inline previews, attachment downloads"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{item_id}/pages/{page}.png": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "A small image of one page of a processed file.",
+        "operationId": "filesPageImage",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting at 1",
+              "title": "Page"
+            },
+            "description": "Page number, starting at 1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/imports/uploads": {
       "post": {
         "tags": [
@@ -949,7 +1289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__academics__schemas__Deleted"
                 }
               }
             }
@@ -1272,7 +1612,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__academics__schemas__Deleted"
                 }
               }
             }
@@ -3112,6 +3452,665 @@
         }
       }
     },
+    "/files/{item_id}/outline": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get the headings of a processed file with their page numbers.",
+        "description": "Use to see the structure of a long document before reading parts of it.",
+        "operationId": "filesDocumentOutline",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOutline"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}/document": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read the text of a processed file, page by page.",
+        "description": "Returns the markdown of up to 30 pages starting at page_from. When next_page is\nset, call again from there to continue. Use it to summarise or extract from a whole document; to\nfind something specific use files.search first.",
+        "operationId": "filesDocumentRead",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File id",
+              "title": "Item Id"
+            },
+            "description": "File id"
+          },
+          {
+            "name": "page_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "First page (1-based)",
+              "default": 1,
+              "title": "Page From"
+            },
+            "description": "First page (1-based)"
+          },
+          {
+            "name": "page_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last page; at most 30 pages are returned per call",
+              "title": "Page To"
+            },
+            "description": "Last page; at most 30 pages are returned per call"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRead"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/folders": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Create a folder in a course's files.",
+        "description": "Use to organise a course's files. Folders can be nested up to three levels.",
+        "operationId": "filesFolderCreate",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/folders/{folder_id}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a folder, optionally with everything in it.",
+        "description": "Use only when the user clearly asks. A folder that is not empty is refused\nunless recursive=true, which permanently deletes all its files, links and subfolders.",
+        "operationId": "filesFolderDelete",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Folder id",
+              "title": "Folder Id"
+            },
+            "description": "Folder id"
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also delete everything inside; required for a non-empty folder",
+              "default": false,
+              "title": "Recursive"
+            },
+            "description": "Also delete everything inside; required for a non-empty folder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Rename or move a folder, or change its order.",
+        "description": "Rename a folder, move it under another folder (parent_id null = course root) or\nset its position among its siblings. Only send the fields to change.",
+        "operationId": "filesFolderUpdate",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Folder id",
+              "title": "Folder Id"
+            },
+            "description": "Folder id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a file or link permanently.",
+        "description": "Use only when the user clearly asks to delete a file or link. The stored file\nand everything derived from it (text, search index) is removed and cannot be restored.",
+        "operationId": "filesItemDelete",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get one file or link.",
+        "description": "Use to check a file's name, type, size and whether its text is ready to read\n(doc_status = ready). Use files.document.read to read the text.",
+        "operationId": "filesItemGet",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Rename, move or pin a file or link.",
+        "description": "Use when the user wants to rename a file, put it in another folder of the same\ncourse (folder_id null = course root), or pin it for quick access. Only send the fields to\nchange.",
+        "operationId": "filesItemUpdate",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/semestra__core__capability__ItemUpdateInputBody__1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/file-links": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Save a web link in a course's files.",
+        "description": "Use when the user wants to keep a web page (an http or https address) next to\nthe course files. Do not use to save a file; uploads are done by the user in the app.",
+        "operationId": "filesLinkCreate",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/pinned-files": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List the pinned files of a Program.",
+        "description": "Files and links the user pinned for quick access, across the Program's\ncourses.",
+        "operationId": "filesPinned",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PinnedFiles"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files/{item_id}:reprocess": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Read a file's text again.",
+        "description": "Starts the document pipeline again for a file, for example after a failure or\nafter an AI model for reading scanned pages was set up.",
+        "operationId": "filesReprocess",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id",
+              "title": "Item Id"
+            },
+            "description": "File or link id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/files:search": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Search what the course files say.",
+        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; tell the user the answer may be incomplete. Do not use to find a\nfile by its name; use files.list.",
+        "operationId": "filesSearch",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id; the search never leaves this Program",
+              "title": "Program Id"
+            },
+            "description": "Program id; the search never leaves this Program"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/files-usage": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get how much file storage is used.",
+        "description": "Used and available storage, and the largest file that can be uploaded.",
+        "operationId": "filesUsage",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/courses/{course_id}/assessments": {
       "post": {
         "tags": [
@@ -3387,7 +4386,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__academics__schemas__Deleted"
                 }
               }
             }
@@ -3595,7 +4594,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__academics__schemas__Deleted"
                 }
               }
             }
@@ -4493,7 +5492,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ItemUpdateInputBody"
+                "$ref": "#/components/schemas/semestra__core__capability__ItemUpdateInputBody__2"
               }
             }
           }
@@ -5958,7 +6957,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
                 }
               }
             }
@@ -6154,7 +7153,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
                 }
               }
             }
@@ -6745,7 +7744,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Deleted"
+                  "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
                 }
               }
             }
@@ -9736,6 +10735,36 @@
         ],
         "title": "Body_accountAvatarUpload"
       },
+      "Body_filesUpload": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "The files to upload"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Folder to put them in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_filesUpload"
+      },
       "Body_importsUploadCreate": {
         "properties": {
           "file": {
@@ -11784,17 +12813,103 @@
         ],
         "title": "DayFocus"
       },
-      "Deleted": {
+      "DocumentOutline": {
         "properties": {
-          "deleted": {
-            "type": "boolean",
-            "const": true,
-            "title": "Deleted",
-            "default": true
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineEntry"
+            },
+            "type": "array",
+            "title": "Entries"
           }
         },
         "type": "object",
-        "title": "Deleted"
+        "required": [
+          "item_id",
+          "display_name",
+          "page_count",
+          "entries"
+        ],
+        "title": "DocumentOutline"
+      },
+      "DocumentPage": {
+        "properties": {
+          "page_no": {
+            "type": "integer",
+            "title": "Page No"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          },
+          "ocr_used": {
+            "type": "boolean",
+            "title": "Ocr Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_no",
+          "markdown",
+          "ocr_used"
+        ],
+        "title": "DocumentPage"
+      },
+      "DocumentRead": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentPage"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "next_page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Page",
+            "description": "Call again from this page for the rest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "page_count",
+          "pages",
+          "next_page"
+        ],
+        "title": "DocumentRead"
       },
       "Done": {
         "properties": {
@@ -12662,6 +13777,209 @@
           "items"
         ],
         "title": "FeedList"
+      },
+      "FilesList": {
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/FolderOut"
+            },
+            "type": "array",
+            "title": "Folders",
+            "description": "Every folder of the course"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folders",
+          "items",
+          "next_cursor"
+        ],
+        "title": "FilesList"
+      },
+      "FilesUsage": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes",
+            "description": "All the user's stored files, every module"
+          },
+          "files_bytes": {
+            "type": "integer",
+            "title": "Files Bytes",
+            "description": "Of which course files"
+          },
+          "quota_bytes": {
+            "type": "integer",
+            "title": "Quota Bytes",
+            "description": "0 means unlimited"
+          },
+          "max_upload_bytes": {
+            "type": "integer",
+            "title": "Max Upload Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "files_bytes",
+          "quota_bytes",
+          "max_upload_bytes"
+        ],
+        "title": "FilesUsage"
+      },
+      "FolderCreateInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Folder name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Parent folder; null = course root"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FolderCreateInputBody"
+      },
+      "FolderOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "description": "Files and links directly inside the folder"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "parent_id",
+          "name",
+          "position",
+          "item_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FolderOut"
+      },
+      "FolderUpdateInputBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "New name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "Move under this folder; null moves it to the course root"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position",
+            "description": "Order among its siblings"
+          }
+        },
+        "type": "object",
+        "title": "FolderUpdateInputBody"
       },
       "GoogleLinkInputBody": {
         "properties": {
@@ -13691,6 +15009,203 @@
         ],
         "title": "Issue"
       },
+      "ItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "link"
+            ],
+            "title": "Kind"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "original_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Name"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "upload",
+                  "lms",
+                  "agent"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "doc_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "processing",
+              "ready",
+              "failed",
+              "unsupported"
+            ],
+            "title": "Doc Status"
+          },
+          "doc_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Error Code"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "ocr_skipped_pages": {
+            "type": "integer",
+            "title": "Ocr Skipped Pages"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "folder_id",
+          "kind",
+          "display_name",
+          "original_name",
+          "mime_type",
+          "size_bytes",
+          "sha256",
+          "url",
+          "pinned",
+          "source_kind",
+          "source_ref",
+          "doc_status",
+          "doc_error_code",
+          "page_count",
+          "ocr_skipped_pages",
+          "job_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ItemOut"
+      },
       "ItemResult": {
         "properties": {
           "created_id": {
@@ -13739,42 +15254,6 @@
         },
         "type": "object",
         "title": "ItemResult"
-      },
-      "ItemUpdateInputBody": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data",
-            "description": "Fields to change; merged into the item's data"
-          },
-          "decision": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "accept",
-                  "reject",
-                  "pending"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Decision",
-            "description": "accept, reject or pending"
-          }
-        },
-        "type": "object",
-        "title": "ItemUpdateInputBody"
       },
       "JobOut": {
         "properties": {
@@ -13961,6 +15440,50 @@
         "title": "JobPage"
       },
       "JsonValue": {},
+      "LinkCreateInputBody": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Url",
+            "description": "http(s) address"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "Name to show; defaults to the address' host"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Folder to put it in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "LinkCreateInputBody"
+      },
       "Meeting": {
         "properties": {
           "id": {
@@ -15586,6 +17109,29 @@
         ],
         "title": "OneOffEventList"
       },
+      "OutlineEntry": {
+        "properties": {
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "title",
+          "page"
+        ],
+        "title": "OutlineEntry"
+      },
       "PaletteColor": {
         "properties": {
           "palette": {
@@ -15677,6 +17223,45 @@
           "new_password"
         ],
         "title": "PasswordResetIn"
+      },
+      "PendingItem": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "course_id"
+        ],
+        "title": "PendingItem"
+      },
+      "PinnedFiles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PinnedFiles"
       },
       "PluginCatalog": {
         "properties": {
@@ -17356,6 +18941,182 @@
           "reachable"
         ],
         "title": "ScoreSuggestion"
+      },
+      "SearchHit": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "page_from": {
+            "type": "integer",
+            "title": "Page From"
+          },
+          "page_to": {
+            "type": "integer",
+            "title": "Page To"
+          },
+          "heading_path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Heading Path"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "Matching text; matches are wrapped in <mark></mark>"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "citation_id": {
+            "type": "string",
+            "title": "Citation Id",
+            "description": "`<item_id>:p<page_from>-<page_to>`"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "course_id",
+          "page_from",
+          "page_to",
+          "heading_path",
+          "snippet",
+          "score",
+          "citation_id"
+        ],
+        "title": "SearchHit"
+      },
+      "SearchInputBody": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "description": "What to look for: words from the document or a question"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Only the courses of this term"
+          },
+          "course_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Ids",
+            "description": "Only these courses"
+          },
+          "item_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Ids",
+            "description": "Only these files"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "description": "Results to return",
+            "default": 8
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hybrid",
+              "keyword",
+              "semantic"
+            ],
+            "title": "Mode",
+            "description": "hybrid = keywords and meaning together; keyword; semantic (needs an embedding model, else falls back to keyword)",
+            "default": "hybrid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchInputBody"
+      },
+      "SearchResult": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "pending_items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingItem"
+            },
+            "type": "array",
+            "title": "Pending Items",
+            "description": "Files in scope that are still being processed and are not searchable yet"
+          },
+          "mode_used": {
+            "type": "string",
+            "enum": [
+              "hybrid",
+              "keyword",
+              "semantic"
+            ],
+            "title": "Mode Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results",
+          "pending_items",
+          "mode_used"
+        ],
+        "title": "SearchResult"
       },
       "SessionCreateInputBody": {
         "properties": {
@@ -20228,6 +21989,22 @@
         ],
         "title": "Upload"
       },
+      "UploadResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UploadResult"
+      },
       "UsageDay": {
         "properties": {
           "date": {
@@ -20587,6 +22364,123 @@
           "course_id"
         ],
         "title": "WizardCourse"
+      },
+      "semestra__core__capability__ItemUpdateInputBody__1": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "New name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Move into this folder; null moves it to the course root"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned",
+            "description": "Pin it to the quick-open cards"
+          }
+        },
+        "type": "object",
+        "title": "ItemUpdateInputBody"
+      },
+      "semestra__core__capability__ItemUpdateInputBody__2": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "Fields to change; merged into the item's data"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject",
+                  "pending"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision",
+            "description": "accept, reject or pending"
+          }
+        },
+        "type": "object",
+        "title": "ItemUpdateInputBody"
+      },
+      "semestra__modules__academics__schemas__Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Deleted"
+      },
+      "semestra__modules__files__schemas__Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Deleted"
+      },
+      "semestra__modules__schedule__schemas__Deleted": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Deleted"
       }
     }
   }

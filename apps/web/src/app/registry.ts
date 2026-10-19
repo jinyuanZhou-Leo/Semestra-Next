@@ -12,6 +12,7 @@ import {
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
+import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import imports from '@/modules/imports/manifest'
 import counter from '@/modules/plugin-counter/manifest'
@@ -48,6 +49,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   ai,
   plugins,
   schedule,
+  files,
   imports,
   tasks,
   habitStreak,

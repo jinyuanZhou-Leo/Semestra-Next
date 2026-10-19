@@ -2,6 +2,7 @@ import type { ImportSession } from '@semestra/api-client'
 import { Link } from '@tanstack/react-router'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { History } from 'lucide-react'
+import { createContext, useContext } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatDateTime } from '@/lib/format'
@@ -49,88 +50,105 @@ export function ImportHistorySection({ scope }: SettingsSectionProps) {
   )
 }
 
+// Columns live outside the component so cells keep their identity between renders (M03 note).
+const ProgramIdContext = createContext('')
+
+function OpenButton({ sessionId }: { sessionId: string }) {
+  const programId = useContext(ProgramIdContext)
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      nativeButton={false}
+      render={<Link to="/p/$programId/imports/$sessionId" params={{ programId, sessionId }} />}
+    >
+      {m.imports_history_open()}
+    </Button>
+  )
+}
+
+function SourceCell({ session }: { session: ImportSession }) {
+  const names = session.source_refs.map((r) => r.filename).filter(Boolean)
+  return (
+    <span className="block max-w-56 truncate">
+      {SOURCE_KIND_LABELS[session.source_kind]()}
+      {names.length > 0 ? (
+        <span className="text-muted-foreground"> · {names.join(', ')}</span>
+      ) : null}
+    </span>
+  )
+}
+
+const columns = column.columns([
+  column.accessor((s) => s.created_at, {
+    id: 'created_at',
+    header: () => m.imports_history_time(),
+    cell: ({ getValue }) => formatDateTime(getValue()),
+  }),
+  column.accessor((s) => s.source_kind, {
+    id: 'source',
+    header: () => m.imports_history_source(),
+    cell: ({ row }) => <SourceCell session={row.original} />,
+  }),
+  column.accessor((s) => s.status, {
+    id: 'status',
+    header: () => m.imports_history_status(),
+    cell: ({ getValue }) => STATUS_LABELS[getValue()](),
+  }),
+  column.display({
+    id: 'result',
+    header: () => m.imports_history_result(),
+    cell: ({ row }) => resultText(row.original),
+  }),
+  column.display({
+    id: 'open',
+    header: () => m.imports_history_open(),
+    cell: ({ row }) =>
+      row.original.status === 'discarded' ? null : <OpenButton sessionId={row.original.id} />,
+  }),
+])
+
+const CELL_CLASS: Record<string, string> = {
+  created_at: 'whitespace-nowrap tabular-nums',
+  result: 'text-muted-foreground',
+}
+
 function HistoryTable({ programId, sessions }: { programId: string; sessions: ImportSession[] }) {
-  const columns = column.columns([
-    column.accessor((s) => s.created_at, {
-      id: 'created_at',
-      header: () => m.imports_history_time(),
-      cell: ({ getValue }) => (
-        <span className="whitespace-nowrap tabular-nums">{formatDateTime(getValue())}</span>
-      ),
-    }),
-    column.accessor((s) => s.source_kind, {
-      id: 'source',
-      header: () => m.imports_history_source(),
-      cell: ({ row }) => {
-        const names = row.original.source_refs.map((r) => r.filename).filter(Boolean)
-        return (
-          <span className="block max-w-56 truncate">
-            {SOURCE_KIND_LABELS[row.original.source_kind]()}
-            {names.length > 0 ? (
-              <span className="text-muted-foreground"> · {names.join(', ')}</span>
-            ) : null}
-          </span>
-        )
-      },
-    }),
-    column.accessor((s) => s.status, {
-      id: 'status',
-      header: () => m.imports_history_status(),
-      cell: ({ getValue }) => STATUS_LABELS[getValue()](),
-    }),
-    column.display({
-      id: 'result',
-      header: () => m.imports_history_result(),
-      cell: ({ row }) => <span className="text-muted-foreground">{resultText(row.original)}</span>,
-    }),
-    column.display({
-      id: 'open',
-      header: () => <span className="sr-only">{m.imports_history_open()}</span>,
-      cell: ({ row }) =>
-        row.original.status === 'discarded' ? null : (
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={
-              <Link
-                to="/p/$programId/imports/$sessionId"
-                params={{ programId, sessionId: row.original.id }}
-              />
-            }
-          >
-            {m.imports_history_open()}
-          </Button>
-        ),
-    }),
-  ])
   const table = useTable({ features, columns, data: sessions, getRowId: (s) => s.id })
   return (
-    <div className="overflow-hidden rounded-2xl border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id}>
-              {group.headers.map((h) => (
-                <TableHead key={h.id} scope="col">
-                  <table.FlexRender header={h} />
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  <table.FlexRender cell={cell} />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <ProgramIdContext value={programId}>
+      <div className="overflow-hidden rounded-2xl border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((h) => (
+                  <TableHead key={h.id} scope="col">
+                    {h.column.id === 'open' ? (
+                      <span className="sr-only">
+                        <table.FlexRender header={h} />
+                      </span>
+                    ) : (
+                      <table.FlexRender header={h} />
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getAllCells().map((cell) => (
+                  <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
+                    <table.FlexRender cell={cell} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </ProgramIdContext>
   )
 }
