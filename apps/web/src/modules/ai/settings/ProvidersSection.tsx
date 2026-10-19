@@ -68,11 +68,7 @@ import { CapabilityChecks, ProviderForm } from './ProviderForm'
 function StatusBadge({ provider }: { provider: Provider }) {
   if (!provider.enabled) return <Badge variant="outline">{m.ai_provider_status_off()}</Badge>
   if (provider.last_error_code) {
-    return (
-      <Badge variant="destructive">
-        {errorMessage({ error: { code: provider.last_error_code, params: {} } })}
-      </Badge>
-    )
+    return <Badge variant="destructive">{m.ai_provider_status_error()}</Badge>
   }
   return <Badge variant="secondary">{m.ai_provider_status_ok()}</Badge>
 }
@@ -206,7 +202,8 @@ function NameCell({ row }: CellProps) {
   const Icon = KIND_INFO[provider.kind].icon
   const details = [provider.key_hint, provider.base_url].filter(Boolean)
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    // A switched-off provider is dimmed so the ones in use stand out.
+    <div className={cn('flex min-w-0 items-center gap-3', !provider.enabled && 'opacity-60')}>
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
         <Icon aria-hidden className="size-4 text-muted-foreground" />
       </span>
@@ -223,18 +220,29 @@ function NameCell({ row }: CellProps) {
 function StatusCell({ row }: CellProps) {
   const { testingId } = useRowHandlers()
   const provider = row.original
-  if (testingId === provider.id) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Spinner aria-hidden className="size-3.5" />
-        {m.ai_provider_checking()}
-      </span>
-    )
-  }
+  const error =
+    provider.enabled && provider.last_error_code
+      ? errorMessage({ error: { code: provider.last_error_code, params: {} } })
+      : null
+  // Two lines in every state (the badge, or a spinner while testing, over the error or the last
+  // check), so testing a connection never changes the row's height.
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <StatusBadge provider={provider} />
-      {provider.last_checked_at ? (
+      <div className="flex h-5 items-center">
+        {testingId === provider.id ? (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Spinner aria-hidden className="size-3.5" />
+            {m.ai_provider_checking()}
+          </span>
+        ) : (
+          <StatusBadge provider={provider} />
+        )}
+      </div>
+      {error ? (
+        <span className="line-clamp-2 max-w-64 text-xs whitespace-normal text-destructive">
+          {error}
+        </span>
+      ) : provider.last_checked_at ? (
         <span className="text-xs text-muted-foreground">
           {m.ai_provider_checked_at({ time: formatDateTime(provider.last_checked_at) })}
         </span>
@@ -303,7 +311,9 @@ const columns = column.columns([
     id: 'kind',
     header: () => m.ai_provider_type(),
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{KIND_INFO[row.original.kind].name()}</span>
+      <span className={cn('text-muted-foreground', !row.original.enabled && 'opacity-60')}>
+        {KIND_INFO[row.original.kind].name()}
+      </span>
     ),
   }),
   column.display({ id: 'status', header: () => m.ai_provider_status(), cell: StatusCell }),
@@ -375,14 +385,19 @@ export function ProvidersSection() {
   const providers = useQuery(aiProviderListOptions())
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Provider | null>(null)
+  // The last provider asked about stays set so the dialog keeps its text while it closes.
   const [deleting, setDeleting] = useState<Provider | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const remove = useMutation({
     ...aiProviderDeleteMutation(),
     onSuccess: async () => {
-      setDeleting(null)
+      setConfirmingDelete(false)
       await invalidateAi(queryClient)
     },
-    onError: (err) => (setDeleting(null), toastError(err)),
+    onError: (err) => {
+      setConfirmingDelete(false)
+      toastError(err)
+    },
   })
   const test = useMutation({
     ...aiProviderTestMutation(),
@@ -405,7 +420,10 @@ export function ProvidersSection() {
     onTest: (provider) => test.mutate({ path: { id: provider.id } }),
     onToggle: (provider) =>
       toggle.mutate({ path: { id: provider.id }, body: { enabled: !provider.enabled } }),
-    onDelete: setDeleting,
+    onDelete: (provider) => {
+      setDeleting(provider)
+      setConfirmingDelete(true)
+    },
   }
 
   return (
@@ -448,8 +466,8 @@ export function ProvidersSection() {
       </Dialog>
       <EditProviderDialog provider={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
         title={m.ai_provider_delete_title()}
         description={m.ai_provider_delete_desc({ name: deleting?.display_name ?? '' })}
         confirmLabel={m.common_delete()}

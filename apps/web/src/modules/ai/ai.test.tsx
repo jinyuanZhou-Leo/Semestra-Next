@@ -344,6 +344,16 @@ test('a provider row shows name, type and state; its menu tests, switches off an
   expect(requests.at(-1)).toMatchObject({ method: 'DELETE', path: '/ai/providers/pv1' })
 })
 
+test('a failing provider says "Error" in its badge and the reason underneath', async () => {
+  world.providers.push(provider({ last_error_code: 'ai.invalid_key' }))
+  renderWithQuery(<ProvidersSection />)
+  const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
+  expect(within(row).getByText('Error')).toBeInTheDocument()
+  expect(
+    within(row).getByText('The API key was rejected. Check that it is correct and active.'),
+  ).toBeInTheDocument()
+})
+
 test('each purpose shows the model in use and can be switched to another model', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
