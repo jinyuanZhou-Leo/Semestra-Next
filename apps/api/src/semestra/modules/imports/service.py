@@ -48,6 +48,8 @@ CLOSED = ("committed", "discarded")
 TYPE_ORDER = {
     "course": 0,
     "course_patch": 0,
+    "assessment_patch": 2,
+    "task_patch": 2,
     "category": 1,
     "assessment": 2,
     "meeting": 2,
@@ -516,9 +518,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     failed = bool(item.result and item.result.get("error_code"))
     if not (row.status == "committed" and failed):
         _require_open(row)
+    if inp.type is not None and inp.type != item.type:
+        item.type, item.data = inp.type, _switched(item, inp.type)
+        item.confidence = {}
     if inp.data is not None:
         merged = {**item.data, **inp.data}
-        if item.type == "course_patch" and "changes" in inp.data:
+        if item.type.endswith("_patch") and "changes" in inp.data:
             merged["changes"] = {**item.data.get("changes", {}), **inp.data["changes"]}
         for name in ("course_ref", "category_ref"):
             ref = merged.get(name)
@@ -538,6 +543,25 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         item.decision = inp.decision
     await revalidate(ctx, row, items)
     return await detail(ctx, row)
+
+
+def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
+    """The same draft as the other kind: an assessment of a course ↔ a task (M09 lets the user
+    pick for each LMS assignment). Fields the other kind lacks are dropped."""
+    if item.type not in ("assessment", "task"):
+        raise AppError("common.validation", 422, errors=[{"loc": ["type"], "code": "invalid"}])
+    data = item.data
+    common = {k: data[k] for k in ("course_ref", "title", "due_date", "due_time", "due_text",
+                                    "source_ref") if data.get(k) is not None}  # fmt: skip
+    if to == "task":
+        if data.get("note"):
+            common["notes"] = data["note"]
+        return _validated_data("task", common)
+    if not str(common.get("course_ref", "")).startswith(("course:", "item:")):
+        raise AppError("import.course_ref_missing", 422)
+    if data.get("notes"):
+        common["note"] = str(data["notes"])[:2000]
+    return _validated_data("assessment", common)
 
 
 async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
@@ -811,6 +835,25 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         }
         out = await deps.call(ctx, "schedule.event.create", event)
         return {"created_id": out["id"]}
+    if item.type in ("assessment_patch", "task_patch"):
+        kind = item.type.removesuffix("_patch")
+        target_id = data[f"{kind}_id"]
+        changes = {
+            name: change.get("new")
+            for name, change in data["changes"].items()
+            if change.get("apply", True)
+        }
+        if not changes:
+            return {"updated_id": target_id, "reused": True}
+        if "due_date" in changes or "due_time" in changes:
+            old = {n: c.get("old") for n, c in data["changes"].items()}
+            changes.setdefault("due_date", old.get("due_date"))
+            changes.setdefault("due_time", old.get("due_time"))
+            if not changes["due_date"]:
+                changes["due_time"] = None
+        name = "grading.assessment.update" if kind == "assessment" else "tasks.item.update"
+        out = await deps.call(ctx, name, {f"{kind}_id": target_id, **changes})
+        return {"updated_id": out.get("id", target_id)}
     if item.type == "task":
         task = {
             "title": data["title"],

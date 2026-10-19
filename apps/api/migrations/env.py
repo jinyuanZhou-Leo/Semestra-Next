@@ -25,6 +25,7 @@ from semestra.modules.auth import models as _auth_models  # noqa: E402,F401
 from semestra.modules.grading import models as _grading_models  # noqa: E402,F401
 from semestra.modules.imports import models as _imports_models  # noqa: E402,F401
 from semestra.modules.layouts import models as _layouts_models  # noqa: E402,F401
+from semestra.modules.lms import models as _lms_models  # noqa: E402,F401
 from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.habit_streak import models as _habit_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.pomodoro import models as _pomodoro_models  # noqa: E402,F401
