@@ -1182,6 +1182,5 @@
   "status_job_cancel": "Stop {name}",
   "board_editing_hint_narrow": "Change sizes, add or remove cards. Cards can be moved in a wider window. Changes are saved when you're done.",
   "academics_courses_empty_description": "Add courses from a term.",
-  "common_clear_filters": "Clear filters",
-  "grading_assessments_empty_description": "Add one above to start the gradebook."
+  "common_clear_filters": "Clear filters"
 }

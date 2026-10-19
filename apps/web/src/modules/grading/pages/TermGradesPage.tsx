@@ -12,9 +12,10 @@ import { formatCredits } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { BookOpen } from 'lucide-react'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -300,8 +301,11 @@ function TermGradesView({
               {term.courses.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={courseColumns.length} className="whitespace-normal">
-                    <Empty className="border-0 p-6">
+                    <Empty className="border-0 p-0">
                       <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <BookOpen aria-hidden />
+                        </EmptyMedia>
                         <EmptyTitle>{m.grading_term_empty()}</EmptyTitle>
                       </EmptyHeader>
                     </Empty>
