@@ -4993,7 +4993,7 @@ export type SessionCreateInputBody = {
     /**
      * Source Meta
      *
-     * Extra source info, e.g. {provider, connection_id}
+     * Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course
      */
     source_meta?: {
         [key: string]: unknown;

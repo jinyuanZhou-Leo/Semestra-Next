@@ -16358,7 +16358,7 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Source Meta",
-            "description": "Extra source info, e.g. {provider, connection_id}"
+            "description": "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course"
           }
         },
         "type": "object",

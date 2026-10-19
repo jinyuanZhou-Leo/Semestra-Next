@@ -862,9 +862,14 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
             item.decision = "accept"
             if c.term_id is None and course.term_ids:
                 c.term_id = course.term_ids[-1]
-        # Course items the wizard did not create were removed there.
+        # Course items the wizard did not create were removed there, with what belongs to them.
+        dropped = {
+            f"item:{i.id}"
+            for i in items
+            if i.type == "course" and i.id not in mapped and not i.result
+        }
         for item in items:
-            if item.type == "course" and item.id not in mapped and not item.result:
+            if f"item:{item.id}" in dropped or item.data.get("course_ref") in dropped:
                 item.decision = "reject"
         if c.term_id is not None:
             target = dict(row.target)

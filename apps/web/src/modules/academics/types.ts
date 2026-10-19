@@ -43,6 +43,8 @@ export type CourseDraft = {
   credits?: number
   instructors?: { name: string; email?: string | null; role?: string | null }[]
   description?: string
+  /** 2 or more for a year-long course. */
+  plannedTerms?: number
   source?: { kind: string; ref: string }
   /** Defined by the source module, e.g. meeting times from an ICS file. */
   extras?: Record<string, unknown>
@@ -63,6 +65,14 @@ export type TermWizardImportSource = {
   onCoursesCreated?: (mapping: CreatedCourseMapping) => Promise<void>
 }
 
+/** An action in the menu of the course info card, e.g. "Update from syllabus" (M08). */
+export type CourseInfoAction = {
+  id: string
+  title: Message
+  icon: LucideIcon
+  run: (ctx: { programId: string; courseId: string }) => Promise<void> | void
+}
+
 /** A field on the onboarding Program form; its value goes to `program.create` `setup[id]`. */
 export type ProgramSetupField = {
   id: string
@@ -80,5 +90,6 @@ export type OnboardingStep = {
 
 export const COURSE_COLUMNS = 'academics.courseColumns'
 export const TERM_WIZARD_IMPORT_SOURCES = 'academics.termWizardImportSources'
+export const COURSE_INFO_ACTIONS = 'academics.courseInfoActions'
 export const PROGRAM_SETUP_FIELDS = 'academics.programSetupFields'
 export const ONBOARDING_STEPS = 'academics.onboardingSteps'

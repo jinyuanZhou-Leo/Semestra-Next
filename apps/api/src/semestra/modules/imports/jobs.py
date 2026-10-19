@@ -19,6 +19,7 @@ class ExtractPayload(BaseModel):
 
 class ExtractResult(BaseModel):
     session_id: str
+    program_id: str | None = None
     items: int
     failed_sources: int
 
@@ -89,6 +90,9 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
             failed += 1
     await ctx.stage("checking")
     row.source_refs = refs
+    if row.source_meta.get("only") == "course_info":
+        # "Update course info from syllabus": only the field changes of the target course.
+        builder.items = [i for i in builder.items if i.type == "course_patch"]
     if builder.items:
         await service.add_items(ctx, row, builder.items)
         row.status = "ready"
@@ -100,7 +104,12 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
     row.job_id = None
     row.updated_at = ctx.now
     await events.publish(ctx, f"imports.session.{row.status}", service.event_data(row))
-    return ExtractResult(session_id=row.id, items=len(builder.items), failed_sources=failed)
+    return ExtractResult(
+        session_id=row.id,
+        program_id=row.program_id,
+        items=len(builder.items),
+        failed_sources=failed,
+    )
 
 
 @events.subscribe(JOB_PROGRESS)

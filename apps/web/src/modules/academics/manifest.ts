@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
+import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
 import { academicsNavigation } from './commands'
 
@@ -89,6 +90,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'l',
       component: lazy(() => import('./cards/CourseInfoCard')),
+      headerActions: CourseInfoActions,
       multiple: false,
     },
   ],

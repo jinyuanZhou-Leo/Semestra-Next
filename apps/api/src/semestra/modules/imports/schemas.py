@@ -258,7 +258,11 @@ class SessionCreateInput(BaseModel):
         default=None, description="Pasted text (source `text`)"
     )
     source_meta: dict[str, Any] = Field(
-        default_factory=dict, description="Extra source info, e.g. {provider, connection_id}"
+        default_factory=dict,
+        description=(
+            "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps "
+            "just the field changes of the target course"
+        ),
     )
 
 

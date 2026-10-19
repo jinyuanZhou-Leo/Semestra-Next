@@ -167,7 +167,9 @@ class Builder:
             existing = self.match(code)
         if existing is not None:
             ref = f"course:{existing.id}"
-            if patch_existing:
+            if existing.id == self.ctx.target_course_id and not patch_existing:
+                pass  # the target course itself: nothing to say about it
+            elif patch_existing:
                 changes = {
                     name: {"old": existing.fields.get(name), "new": value, "apply": True}
                     for name, value in data.items()
@@ -236,7 +238,14 @@ def from_ics(
     """ICS courses and events (M08 §4.1): a course whose code the Program already has keeps
     the existing course (its duplicate course item is rejected) and only gets the meetings."""
     builder = Builder(ctx)
-    for course in result.courses:
+    courses = result.courses
+    if ctx.target_kind == "course":
+        # Into one course: only that course's meetings when the file has several courses.
+        target = next((c for c in ctx.courses if c.id == ctx.target_course_id), None)
+        wanted = normalize_code(target.code) if target else None
+        same = [c for c in courses if wanted and normalize_code(c.code) == wanted]
+        courses = same or courses
+    for course in courses:
         ref = builder.course(
             {"code": course.code, "title": course.title[:200], "planned_terms": 1},
             patch_existing=False,
@@ -262,8 +271,9 @@ def from_ics(
             )
         for e in course.events:
             builder.add("event", _ics_event(e, ref, ctx, terms))
-    for e in result.events:
-        builder.add("event", _ics_event(e, None, ctx, terms))
+    if ctx.target_kind != "course":  # events of no course don't belong to one course
+        for e in result.events:
+            builder.add("event", _ics_event(e, None, ctx, terms))
     return builder.items
 
 

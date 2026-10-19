@@ -279,6 +279,11 @@ export type ModuleManifest = {
   searchProviders?: readonly SearchProviderContribution[]
   statusItems?: readonly StatusItemContribution[]
   jobKinds?: readonly JobKindContribution[]
+  /**
+   * Components rendered once for the whole signed-in app, e.g. a dialog other modules open
+   * through a function (the import review that `launch()` of an import source opens, M08).
+   */
+  overlays?: readonly ComponentType[]
   /** Contributions to other modules' extension points, keyed `'<module>.<point>'`. */
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */

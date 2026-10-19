@@ -526,3 +526,58 @@ async def test_timetable_screenshot(api: Api, fake_ai: list[dict[str, Any]], run
     ]
     done = await api.commit(session["id"])
     assert (done["created"], done["failed"]) == (3, 0)
+
+
+async def test_course_info_keeps_only_the_field_changes(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id, title="APS 105")
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "course", "course_id": course["id"]},
+        text="APS105 syllabus ...", source_meta={"only": "course_info"},
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert session["status"] == "ready"
+    assert [i["type"] for i in session["items"]] == ["course_patch"]
+    done = await api.commit(session["id"])
+    assert (done["updated"], done["failed"]) == (1, 0)
+    updated = await api.call("GET", f"/courses/{course['id']}")
+    assert updated["title"] == "Computer Fundamentals"
+
+
+async def test_ics_into_one_course_takes_only_its_meetings(api: Api):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id, code="MAT188H1", title="Linear Algebra")
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    assert by_type(session, "course") == []
+    meetings = by_type(session, "meeting")
+    assert meetings
+    assert {m["data"]["course_ref"] for m in meetings} == {f"course:{course['id']}"}
+    assert all(not m["issues"] for m in meetings)
+    assert all(e["data"].get("course_ref") for e in by_type(session, "event"))
+
+
+async def test_wizard_drops_what_belongs_to_removed_courses(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    session = await api.create(
+        program_id, source_kind="text",
+        target={"kind": "term_wizard", "start_date": "2026-01-05", "end_date": "2026-04-24"},
+        text="APS105 syllabus",
+    )  # fmt: skip
+    await run_jobs()
+    await api.call("POST", f"/programs/{program_id}/terms", json=WINTER)
+    # The user removed the only course row in the wizard: nothing of it is written or failed.
+    done = await api.commit(session["id"], wizard_courses=[])
+    assert (done["created"], done["failed"]) == (0, 0)
+    assert all(i["decision"] == "reject" for i in done["session"]["items"] if i["type"] != "event")
