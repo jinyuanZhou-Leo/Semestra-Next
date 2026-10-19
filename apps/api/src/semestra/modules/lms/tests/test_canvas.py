@@ -253,6 +253,21 @@ async def test_file_redirect_to_private_address_is_refused(
     assert exc.value.code == "lms.blocked_address"
 
 
+async def test_file_redirect_with_a_bad_port_is_refused(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    canvas_api(mock)
+    mock.get(f"{CANVAS}/files/77/download").mock(
+        return_value=Response(
+            302, headers={"location": "https://instructure-uploads.s3.amazonaws.com:99999/f"}
+        )
+    )
+    p, cfg, creds = _cfg(settings)
+    with pytest.raises(AppError) as exc:
+        _ = [c async for c in p.open_file(io, cfg, creds, "101", "77")]
+    assert exc.value.code == "lms.blocked_address"
+
+
 async def test_file_redirect_elsewhere_is_refused(
     settings: Settings, io: Io, mock: respx.MockRouter
 ):

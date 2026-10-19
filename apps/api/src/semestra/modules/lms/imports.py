@@ -466,8 +466,12 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                     LmsCourseLink.external_course_id == external["external_id"],
                 )
             )
+            if taken is not None and taken.course_id != course_id:
+                # Another session linked this platform course meanwhile: the course just
+                # created would be a duplicate, so roll the commit back.
+                raise lms_error("lms.course_already_linked")
             if taken is not None or await service.link_row(ctx, course_id) is not None:
-                continue  # linked meanwhile: keep that link
+                continue  # an existing course that is linked already: keep that link
             await service.create_link(
                 ctx, course_id=course_id, connection=connection, external=external
             )

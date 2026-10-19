@@ -212,7 +212,11 @@ async def _check_host(settings: Settings, url: str) -> None:
         ipaddress.ip_address(host)
         addresses = [host]
     except ValueError:
-        addresses = await _resolve(host, parts.port or 443)
+        try:
+            port = parts.port
+        except ValueError:  # malformed or out of range
+            raise lms_error("lms.blocked_address") from None
+        addresses = await _resolve(host, port or 443)
     if not addresses or not all(is_public_address(a) for a in addresses):
         raise lms_error("lms.blocked_address")
 

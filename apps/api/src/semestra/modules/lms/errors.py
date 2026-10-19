@@ -23,9 +23,17 @@ STATUS = {
     "lms.credentials_missing": 409,
 }
 
-# Errors that say the connection itself is broken (they mark it `error`).
+# Errors that say the connection itself is broken (they mark it `error`). `lms.invalid_config`
+# from a saved connection means the address stopped being a Canvas API (it redirects, or the
+# profile is gone).
 CONNECTION_ERRORS = frozenset(
-    ("lms.invalid_credentials", "lms.forbidden", "lms.blocked_address", "lms.credentials_missing")
+    (
+        "lms.invalid_credentials",
+        "lms.invalid_config",
+        "lms.forbidden",
+        "lms.blocked_address",
+        "lms.credentials_missing",
+    )
 )
 # A read that fails with these marks the connection broken. `lms.forbidden` is left out: on a
 # read it means one resource is off limits (a course without Pages, a locked file), while a
