@@ -6,7 +6,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Plus } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -14,6 +14,7 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Toggle } from '@/ui/toggle'
@@ -234,11 +235,15 @@ export function AssessmentTable({
             <TableBody>
               {assessments.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={columnCount}
-                    className="py-8 text-center whitespace-normal text-muted-foreground"
-                  >
-                    {m.grading_assessments_empty()}
+                  <TableCell colSpan={columnCount} className="whitespace-normal">
+                    <Empty className="border-0 p-0">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <ClipboardList aria-hidden />
+                        </EmptyMedia>
+                        <EmptyTitle>{m.grading_assessments_empty()}</EmptyTitle>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell>
                 </TableRow>
               ) : null}
