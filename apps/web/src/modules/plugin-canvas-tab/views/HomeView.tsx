@@ -1,6 +1,6 @@
-import { lmsPagesListOptions } from '@semestra/api-client/react-query'
+import { lmsPageGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { CanvasBoundary } from '../CanvasBoundary'
+import { errorCode } from '@/lib/errors'
 import { useCanvasPage } from '../context'
 import { homeView } from '../navigation'
 import { AnnouncementsView } from './AnnouncementsView'
@@ -25,16 +25,15 @@ export function HomeView({ defaultView }: { defaultView: string | null | undefin
   }
 }
 
+/** M09's page ref for the course's front page (Canvas `GET /courses/:id/front_page`). */
+export const FRONT_PAGE_REF = '@front'
+
 /** A course whose home is a page (`wiki`); the modules when it has no front page. */
 function FrontPage() {
   const { courseId, query } = useCanvasPage()
-  const pages = useQuery(lmsPagesListOptions({ path: { course_id: courseId }, query }))
-  return (
-    <CanvasBoundary query={pages}>
-      {(data) => {
-        const front = data.items.find((p) => p.front_page)
-        return front ? <PageView pageRef={front.ref} /> : <ModulesView />
-      }}
-    </CanvasBoundary>
+  const front = useQuery(
+    lmsPageGetOptions({ path: { course_id: courseId, ref: FRONT_PAGE_REF }, query }),
   )
+  if (front.isError && errorCode(front.error) === 'common.not_found') return <ModulesView />
+  return <PageView pageRef={FRONT_PAGE_REF} />
 }

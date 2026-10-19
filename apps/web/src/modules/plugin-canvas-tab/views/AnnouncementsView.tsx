@@ -67,7 +67,14 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                 }
               >
                 <ItemContent>
-                  <ItemTitle className="line-clamp-1">{a.title}</ItemTitle>
+                  <ItemTitle className="line-clamp-1">
+                    {a.unread ? (
+                      <span className="size-2 shrink-0 rounded-full bg-primary">
+                        <span className="sr-only">{m.canvas_tab_unread()}</span>
+                      </span>
+                    ) : null}{' '}
+                    {a.title}
+                  </ItemTitle>
                   <ItemDescription>
                     {[a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
                       .filter(Boolean)

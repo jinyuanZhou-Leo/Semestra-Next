@@ -85,15 +85,16 @@ defineModule({
 - 课程 Page 路由（`_authed.p.$programId.c.$courseId.$page`）现在保留所有字符串 search 参数，属于 Page 自己；插件用 `?tab=&ref=`。`tab` 是原生视图名（`announcements` 等），外部工具和未知页签是 `tab:<external_id>`；原生视图即使在 Canvas 里隐藏了也能打开（单元条目可能指向它），找不到的页签回到首页。
 - 位置同时存 `useUiPref('canvas-tab.location.<courseId>')`；URL 里有位置时以 URL 为准并记下来，没有时把记住的位置写回 URL（replace）。`canvas-tab.` 加入了 UI 状态预取前缀，避免先闪一下首页。
 - "刷新"第一次点击把所有读接口切换为带 `refresh=true` 的查询（键变化即重新请求，期间保留旧数据），之后再点击就重新请求当前页面上的这些查询；同时刷新 M09 的关联、变更检测等查询。
-- `default_view` 为空或未知时首页显示单元；`wiki` 但课程没有首页 page 时也显示单元。
+- `default_view` 为空或未知时首页显示单元。`wiki` 首页用 `lms.page.get` 的保留 ref `@front`（M09 映射到 Canvas `GET /courses/:id/front_page`，一次请求，学生不能列出页面时也能用）；课程没有首页 page（`common.not_found`）时显示单元。
+- 外部工具与未知页签的链接：Canvas Tab 对象的 `html_url` 是相对路径，M09 按连接的 `base_url` 补成绝对地址。
 
 **视图**
 - 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。
-- 公告没有"未读点"：M09 的公告数据不含阅读状态。
+- 公告列表的未读点来自 Canvas 公告（DiscussionTopic）的 `read_state`，M09 映射为 `Announcement.unread`；列表有 5 分钟缓存，在 Canvas 里读过后要等缓存过期或点"刷新"才消失。
 - 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.import.assignments`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。
 - 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
 - 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
 - **文件预览**：M07 的预览组件还没合并，插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 合并后改用其预览组件。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
 - Syllabus 的"智能导入"用 `<AiAction>` 包在 `<AiRequired purpose="extraction">` 里，调用 `lms.import.syllabus` 后打开 M08 审核。
-- 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing`、`lms.forbidden` 带"打开连接设置"（账户设置 → 集成）；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
+- 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing` 带"打开连接设置"（账户设置 → 集成）；`lms.forbidden` 在读接口上表示这一项内容对该账户不可见（课程关了 Pages、未解锁的文件等，M09 不会因此把连接标为出错），显示"你没有权限查看这项内容"和"在 Canvas 中打开"；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
 - 同一页签内打开或关闭条目（展开作业、打开公告）用 replace 更新 URL，切换页签才新增历史记录，所以"返回"直接离开当前页签。

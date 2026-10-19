@@ -54,6 +54,10 @@ export type Announcement = {
      * Updated At
      */
     updated_at?: string | null;
+    /**
+     * Unread
+     */
+    unread?: boolean;
 };
 
 /**
@@ -12139,7 +12143,7 @@ export type LmsPageGetData = {
         /**
          * Ref
          *
-         * Page ref from lms.pages.list
+         * Page ref from lms.pages.list, or `@front` for the course's front page
          */
         ref: string;
     };

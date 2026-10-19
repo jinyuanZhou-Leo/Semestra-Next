@@ -33,6 +33,7 @@ from semestra.modules.lms.providers.canvas.config import (
 )
 from semestra.modules.lms.schemas.dto import (
     ALL_FEATURES,
+    FRONT_PAGE_REF,
     Announcement,
     Assignment,
     ConnectionSummary,
@@ -101,6 +102,10 @@ LINK_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"/courses/[^/]+/announcements/(\d+)", "announcement"),
     (r"/courses/[^/]+/discussion_topics/(\d+)", "discussion"),
 )
+
+
+def _absolute(cfg: BaseModel, url: str | None) -> str | None:
+    return urljoin(f"{_cfg(cfg).base_url}/", url) if url else None
 
 
 def _cfg(cfg: BaseModel) -> CanvasConfig:
@@ -370,7 +375,8 @@ class CanvasProvider:
             tabs.append(
                 NavTab(
                     external_id=tab_id,
-                    web_url=_text(r.get("full_url")) or _text(r.get("html_url")),
+                    # `html_url` is relative in the Tab object (`/courses/1/external_tools/4`).
+                    web_url=_absolute(cfg, _text(r.get("full_url")) or _text(r.get("html_url"))),
                     raw_kind=_text(r.get("type")),
                     kind=kind,
                     label=_text(r.get("label")) or tab_id,
@@ -409,6 +415,7 @@ class CanvasProvider:
                 else _text(r.get("user_name")),
                 posted_at=r.get("posted_at") or r.get("created_at"),
                 updated_at=r.get("last_reply_at") or r.get("updated_at"),
+                unread=r.get("read_state") == "unread",
             )
             for r in rows
         ]
@@ -581,12 +588,12 @@ class CanvasProvider:
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
-        r = cast(
-            dict[str, Any],
-            await self._get(
-                io, cfg, creds, f"/courses/{quote(course_id)}/pages/{quote(page_ref, safe='')}"
-            ),
+        path = (
+            f"/courses/{quote(course_id)}/front_page"
+            if page_ref == FRONT_PAGE_REF
+            else f"/courses/{quote(course_id)}/pages/{quote(page_ref, safe='')}"
         )
+        r = cast(dict[str, Any], await self._get(io, cfg, creds, path))
         summary = self._page_summary(r)
         return PageDetail(
             **summary.model_dump(),

@@ -87,6 +87,7 @@ class Announcement(Dto):
     author: str | None = None
     posted_at: datetime | None = None
     updated_at: datetime | None = None
+    unread: bool = False
 
 
 class Submission(BaseModel):
@@ -159,6 +160,10 @@ class ModuleItem(Dto):
     indent: int = 0
     target: InternalRef | None = Field(default=None, description="Where the item opens in-app")
     external_url: str | None = None
+
+
+# The `page_ref` that asks for the course's front page, whatever its slug.
+FRONT_PAGE_REF = "@front"
 
 
 class PageSummary(Dto):

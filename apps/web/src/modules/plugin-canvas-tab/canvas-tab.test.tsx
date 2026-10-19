@@ -104,6 +104,7 @@ const ANNOUNCEMENTS = {
       html: '<p>See the <a href="https://q.utoronto.ca/courses/101/pages/rooms" data-lms-kind="page" data-lms-ref="rooms">rooms page</a>.</p><script>alert(1)</script>',
       author: 'Prof. Lee',
       posted_at: '2026-10-01T15:00:00Z',
+      unread: true,
     },
   ],
   truncated: false,
@@ -262,7 +263,11 @@ test('the home of a feed course lists announcements; HTML is cleaned and Canvas 
   expect(within(nav).queryByRole('button', { name: 'Discussions' })).toBeNull()
   expect(within(nav).getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
 
-  await userEvent.click(await screen.findByRole('button', { name: /Midterm room change/ }))
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: /^Unread Midterm room change/,
+    }),
+  )
   expect(router.state.location.search).toMatchObject({ tab: 'announcements', ref: 'a1' })
   await waitFor(() =>
     expect(puts).toHaveBeenCalledWith('canvas-tab.location.c1', {
@@ -278,28 +283,55 @@ test('the home of a feed course lists announcements; HTML is cleaned and Canvas 
 })
 
 test('a wiki course opens on its front page', async () => {
+  const refs: string[] = []
   server.use(
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview('wiki'))),
-    http.get(`${API}/courses/c1/lms/pages`, () =>
-      HttpResponse.json({
-        items: [
-          { external_id: '1', ref: 'week-1', title: 'Week 1', front_page: false },
-          { external_id: '2', ref: 'welcome', title: 'Welcome', front_page: true },
-        ],
-        truncated: false,
-      }),
-    ),
-    http.get(`${API}/courses/c1/lms/pages/welcome`, () =>
-      HttpResponse.json({
+    http.get(`${API}/courses/c1/lms/pages/:ref`, ({ params }) => {
+      refs.push(String(params.ref))
+      return HttpResponse.json({
         external_id: '2',
         ref: 'welcome',
         title: 'Welcome',
+        front_page: true,
         html: '<p>Hello class</p>',
+      })
+    }),
+  )
+  renderPage()
+  expect(await screen.findByText('Hello class')).toBeInTheDocument()
+  expect(refs).toEqual(['@front'])
+})
+
+test('a wiki course without a front page shows its modules', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview('wiki'))),
+    http.get(`${API}/courses/c1/lms/pages/:ref`, () => {
+      const { status, body } = apiError('common.not_found', 404)
+      return HttpResponse.json(body, { status })
+    }),
+    http.get(`${API}/courses/c1/lms/modules`, () =>
+      HttpResponse.json({
+        items: [{ external_id: 'm1', name: 'Week 1', position: 1, item_count: 0 }],
+        truncated: false,
       }),
     ),
   )
   renderPage()
-  expect(await screen.findByText('Hello class')).toBeInTheDocument()
+  expect(await screen.findByText('Week 1')).toBeInTheDocument()
+})
+
+test('an item this account may not see points to Canvas, not to the API token', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/lms/syllabus`, () => {
+      const { status, body } = apiError('lms.forbidden', 403)
+      return HttpResponse.json(body, { status })
+    }),
+  )
+  renderPage('/?tab=syllabus')
+  const alert = await screen.findByRole('alert')
+  expect(within(alert).getByText("You can't view this")).toBeInTheDocument()
+  expect(within(alert).getByRole('button', { name: 'Open in Canvas' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Open connection settings' })).toBeNull()
 })
 
 test('external tools get a launch card and unknown tabs open in Canvas', async () => {

@@ -1,5 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query'
-import { CircleAlert, Clock, KeyRound } from 'lucide-react'
+import { CircleAlert, Clock, KeyRound, Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useSettingsDialog } from '@/app/settings'
 import { errorCode, errorMessage } from '@/lib/errors'
@@ -7,13 +7,11 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Skeleton } from '@/ui/skeleton'
+import { useCanvasPage } from './context'
+import { openLinkedCourse } from './open-in-canvas'
 
 /** Errors that only new credentials fix: the way out is the connection settings. */
-const CREDENTIAL_ERRORS = new Set([
-  'lms.invalid_credentials',
-  'lms.credentials_missing',
-  'lms.forbidden',
-])
+const CREDENTIAL_ERRORS = new Set(['lms.invalid_credentials', 'lms.credentials_missing'])
 
 /** Rows of grey bars shaped like the list that is loading. */
 export function ListSkeleton({ rows = 5 }: { rows?: number }) {
@@ -31,7 +29,8 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
 
 /**
  * Loading, error and empty states of a Canvas read (M16 §4). An invalid or missing API token
- * leads to the connection settings; "too many requests" asks to try again later.
+ * leads to the connection settings; an item this account may not see (`lms.forbidden`, a locked
+ * page or file) points to Canvas; "too many requests" asks to try again later.
  */
 export function CanvasBoundary<T>({
   query,
@@ -47,9 +46,24 @@ export function CanvasBoundary<T>({
   children: (data: T) => ReactNode
 }) {
   const settings = useSettingsDialog()
+  const { courseId } = useCanvasPage()
   if (query.isPending) return skeleton ?? <ListSkeleton />
   if (query.isError) {
     const code = errorCode(query.error)
+    if (code === 'lms.forbidden') {
+      return (
+        <Alert>
+          <Lock aria-hidden />
+          <AlertTitle>{m.canvas_tab_forbidden_title()}</AlertTitle>
+          <AlertDescription>{m.canvas_tab_forbidden_hint()}</AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={() => void openLinkedCourse(courseId)}>
+              {m.canvas_tab_open_in_canvas()}
+            </Button>
+          </AlertAction>
+        </Alert>
+      )
+    }
     const credentials = CREDENTIAL_ERRORS.has(code)
     return (
       <Alert variant={credentials ? 'default' : 'destructive'}>
