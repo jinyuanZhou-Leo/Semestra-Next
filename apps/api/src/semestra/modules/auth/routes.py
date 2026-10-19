@@ -178,7 +178,7 @@ async def logout(response: Response, ctx: Annotated[Ctx, Depends(get_optional_ct
 
 account_router = APIRouter(prefix="/account", tags=["account"])
 
-AVATAR_ID = r"^[\w-]+$"
+AVATAR_ID = r"^[A-Za-z0-9_-]+$"
 
 
 @account_router.post(
@@ -191,6 +191,7 @@ async def avatar_upload(file: UploadFile, ctx: Annotated[Ctx, Depends(get_ctx)])
     raw = await file.read(avatar.MAX_UPLOAD_BYTES + 1)
     user = await service.upload_avatar(ctx, raw)
     await ctx.db.commit()
+    await run_after_commit(ctx)
     return user
 
 

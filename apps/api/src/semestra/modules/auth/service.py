@@ -605,7 +605,7 @@ async def logout(ctx: Ctx) -> None:
 async def upload_avatar(ctx: Ctx, raw: bytes) -> UserOut:
     user = _require_user(ctx)
     new_url = await avatar.store(ctx, user.id, raw)
-    await avatar.discard(ctx, user.avatar_url)
+    avatar.discard_after_commit(ctx, user.avatar_url)
     user.avatar_url = new_url
     await ctx.db.flush()
     return await user_out(ctx.db, user)
@@ -618,7 +618,7 @@ async def update_profile(
     if display_name is not None:
         user.display_name = display_name
     if set_avatar and avatar_url != user.avatar_url:
-        await avatar.discard(ctx, user.avatar_url)
+        avatar.discard_after_commit(ctx, user.avatar_url)
         user.avatar_url = avatar_url
     await ctx.db.flush()
     return await user_out(ctx.db, user)

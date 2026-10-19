@@ -18,7 +18,7 @@ OUTPUT_QUALITY = 85
 ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
 
 URL_PREFIX = "/account/avatars/"
-_URL = re.compile(rf"{re.escape(URL_PREFIX)}(?P<user>[\w-]+)/(?P<version>[\w-]+)")
+_URL = re.compile(rf"{re.escape(URL_PREFIX)}(?P<user>[A-Za-z0-9_-]+)/(?P<version>[A-Za-z0-9_-]+)")
 
 
 def _encode(raw: bytes) -> bytes:
@@ -50,9 +50,11 @@ def storage_key(avatar_url: str | None) -> str | None:
     return f"users/{match['user']}/avatar/{match['version']}" if match else None
 
 
-async def discard(ctx: Ctx, avatar_url: str | None) -> None:
+def discard_after_commit(ctx: Ctx, avatar_url: str | None) -> None:
+    """Delete a replaced avatar's file only once the row no longer points at it."""
     if key := storage_key(avatar_url):
-        await get_storage(ctx).delete(key)
+        storage = get_storage(ctx)
+        ctx.after_commit.append(lambda: storage.delete(key))
 
 
 async def store(ctx: Ctx, user_id: str, raw: bytes) -> str:

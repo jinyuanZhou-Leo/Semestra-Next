@@ -602,6 +602,7 @@ async def test_avatar_upload_resizes_serves_and_replaces(
     r = await client.patch("/account/profile", json={"avatar_url": None})
     assert r.json()["avatar_url"] is None
     assert (await client.get(current)).status_code == 404
+    assert (await client.get("/account/avatars/é/x")).status_code == 422
 
 
 async def test_avatar_upload_rejects_bad_files(
