@@ -115,7 +115,7 @@ test('the sidebar lists terms, the current one expanded, year-long courses in bo
     expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(2),
   )
   // A single Program: no switcher anywhere.
-  expect(screen.queryByRole('button', { name: 'Switch Program' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Switch program' })).not.toBeInTheDocument()
 })
 
 test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async () => {

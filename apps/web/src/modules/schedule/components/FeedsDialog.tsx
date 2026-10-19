@@ -164,12 +164,7 @@ export function FeedsDialog({
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => setRevoking(feed)}
-                  >
+                  <Button variant="destructive" size="sm" onClick={() => setRevoking(feed)}>
                     {m.schedule_feed_revoke()}
                   </Button>
                 </ItemActions>

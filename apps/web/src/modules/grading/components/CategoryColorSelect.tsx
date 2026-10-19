@@ -33,7 +33,7 @@ function Dot({ color }: { color: string }) {
   return (
     <span
       aria-hidden
-      className="mr-1.5 inline-block size-2.5 rounded-full"
+      className="inline-block size-2.5 shrink-0 self-center rounded-full"
       style={{ backgroundColor: categoryColor(color) }}
     />
   )

@@ -89,6 +89,12 @@ export function zoneLabel(tz: string, locale: string): string {
   return cityOfId(tz)
 }
 
+/** Every curated city name (both languages) of `tz`, lower-cased: one zone can have several. */
+export function zoneSearchNames(tz: string): string {
+  const names = CITIES.filter((c) => c.tz === tz).flatMap((c) => [c.en, c.zh])
+  return [cityOfId(tz), ...names].join(' ').toLowerCase()
+}
+
 export function isValidZone(tz: string): boolean {
   try {
     Intl.DateTimeFormat('en', { timeZone: tz })

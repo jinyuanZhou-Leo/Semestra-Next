@@ -9,6 +9,7 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
+import { omitKey } from '@/lib/omit'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -225,7 +226,7 @@ function TermGradesView({
   const assume = (courseId: string, text: string): boolean => {
     const parsed = parseScore(text)
     if (parsed.kind === 'invalid' || parsed.kind === 'points') return false
-    const { [courseId]: _removed, ...rest } = scores
+    const rest = omitKey(scores, courseId)
     setWhatIf({
       ...whatIf,
       scores: parsed.kind === 'clear' ? rest : { ...rest, [courseId]: parsed.value },

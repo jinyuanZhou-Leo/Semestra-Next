@@ -198,12 +198,10 @@ export function TermWizard({
 
   const launch = async (source: TermWizardImportSource) => {
     setImporting(source.id)
+    const startDate = draft.start || undefined
+    const endDate = draft.end || undefined
     try {
-      const drafts = await source.launch({
-        programId,
-        startDate: draft.start || undefined,
-        endDate: draft.end || undefined,
-      })
+      const drafts = await source.launch({ programId, startDate, endDate })
       setDraft((current) => ({
         ...current,
         rows: [
@@ -221,9 +219,8 @@ export function TermWizard({
       }))
     } catch (error) {
       toastError(error)
-    } finally {
-      setImporting(null)
     }
+    setImporting(null)
   }
 
   const updateRow = (key: string, change: Partial<DraftRow>) =>
@@ -469,7 +466,7 @@ export function TermWizard({
                       </TableCell>
                       <TableCell className="px-2 py-1.5">
                         <Button
-                          variant="ghost"
+                          variant="destructive"
                           size="icon-sm"
                           aria-label={m.academics_wizard_row_remove({ row: index + 1 })}
                           onClick={() =>

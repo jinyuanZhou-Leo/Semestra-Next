@@ -153,42 +153,40 @@ export function ExportDialog({
     })
   }
 
+  const exportFile = async () => {
+    if (format === 'ics') {
+      const start = selectedWeeks[0]?.start_date ?? first
+      const end = plusDays(selectedWeeks.at(-1)?.end_date ?? first, 1)
+      const blob = await downloadFile(`/programs/${programId}/calendar.ics`, {
+        start,
+        end,
+        term_id: termId,
+        sources: wanted,
+        exclude_course_ids: [...hidden],
+      })
+      saveFile(blob, 'semestra.ics')
+    } else {
+      const built = await buildSheets()
+      flushSync(() => setSheets(built))
+      const nodes = built
+        .map((s) => sheetRefs.current.get(s.key))
+        .filter((n): n is HTMLDivElement => n !== undefined)
+      if (format === 'png') {
+        const stack = nodes[0]?.parentElement
+        if (stack) saveFile(await renderPng(stack), 'semestra-schedule.png')
+      } else {
+        const pngs = []
+        for (const node of nodes) pngs.push(await renderPng(node))
+        saveFile(await pngsToPdf(pngs), 'semestra-schedule.pdf')
+      }
+    }
+    onOpenChange(false)
+  }
   const run = async () => {
     setBusy(true)
-    try {
-      if (format === 'ics') {
-        const start = selectedWeeks[0]?.start_date ?? first
-        const end = plusDays(selectedWeeks.at(-1)?.end_date ?? first, 1)
-        const blob = await downloadFile(`/programs/${programId}/calendar.ics`, {
-          start,
-          end,
-          term_id: termId,
-          sources: wanted,
-          exclude_course_ids: [...hidden],
-        })
-        saveFile(blob, 'semestra.ics')
-      } else {
-        const built = await buildSheets()
-        flushSync(() => setSheets(built))
-        const nodes = built
-          .map((s) => sheetRefs.current.get(s.key))
-          .filter((n): n is HTMLDivElement => n !== undefined)
-        if (format === 'png') {
-          const stack = nodes[0]?.parentElement
-          if (stack) saveFile(await renderPng(stack), 'semestra-schedule.png')
-        } else {
-          const pngs = []
-          for (const node of nodes) pngs.push(await renderPng(node))
-          saveFile(await pngsToPdf(pngs), 'semestra-schedule.pdf')
-        }
-      }
-      onOpenChange(false)
-    } catch (error) {
-      toastError(error)
-    } finally {
-      setSheets(null)
-      setBusy(false)
-    }
+    await exportFile().catch(toastError)
+    setSheets(null)
+    setBusy(false)
   }
 
   return (

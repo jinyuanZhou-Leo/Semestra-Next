@@ -196,7 +196,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
                   }
                 />
                 <Button
-                  variant="ghost"
+                  variant="destructive"
                   size="icon-sm"
                   aria-label={m.academics_instructor_remove({
                     name: person.name || m.academics_instructor_name(),

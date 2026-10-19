@@ -167,7 +167,7 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   // Opens on hover in a browser; jsdom has no hover intent, so press the wrapper (as keyboard users do).
   await user.click(hint)
   expect(await screen.findByText('Available once AI is connected in Settings.')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute(
+  expect(screen.getByRole('link', { name: 'Open settings' })).toHaveAttribute(
     'href',
     '/settings/features#ai-providers',
   )

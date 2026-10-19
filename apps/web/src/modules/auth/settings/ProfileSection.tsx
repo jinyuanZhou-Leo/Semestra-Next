@@ -42,7 +42,7 @@ export function ProfileSection({ user }: { user: UserOut }) {
             <p className="text-xs text-muted-foreground">{m.auth_account_avatar_note()}</p>
             {user.avatar_url ? (
               <Button
-                variant="outline"
+                variant="destructive"
                 size="xs"
                 disabled={update.isPending}
                 onClick={() => update.mutate({ body: { avatar_url: null } })}

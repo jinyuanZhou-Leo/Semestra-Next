@@ -59,7 +59,7 @@ export function BreaksEditor({
             onChange={(end_date) => update(index, { end_date })}
           />
           <Button
-            variant="ghost"
+            variant="destructive"
             size="icon-sm"
             aria-label={m.academics_break_remove({ name: b.name || m.academics_break_name() })}
             onClick={() => onChange(value.filter((_, i) => i !== index))}

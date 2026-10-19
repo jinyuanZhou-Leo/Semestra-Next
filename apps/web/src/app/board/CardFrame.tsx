@@ -130,7 +130,7 @@ export function CardFrame({
                   value={size}
                   aria-label={SIZE_LABEL[size]()}
                   title={SIZE_LABEL[size]()}
-                  className="h-6 min-w-6 px-1.5 text-[0.625rem] uppercase"
+                  className="h-6 min-w-6 px-1.5 text-[0.625rem]"
                 >
                   {size}
                 </ToggleGroupItem>
@@ -154,7 +154,7 @@ export function CardFrame({
           ) : null}
           {editing ? (
             <Button
-              variant="ghost"
+              variant="destructive"
               size="icon-xs"
               aria-label={m.board_card_remove({ card: title })}
               title={m.board_card_remove({ card: title })}

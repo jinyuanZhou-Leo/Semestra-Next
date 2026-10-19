@@ -231,7 +231,7 @@ function ProviderRow({
           {m.common_edit()}
         </Button>
         <Button
-          variant="outline"
+          variant="destructive"
           size="sm"
           aria-label={m.ai_provider_delete_aria({ name: provider.display_name })}
           onClick={onDelete}

@@ -3,6 +3,7 @@ import { useId } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
 import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
@@ -42,7 +43,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const planning = whatIf.plan && canPlan
   const state = { ...whatIf, plan: planning }
   const assume = (assessmentId: string, percent: number | null) => {
-    const { [assessmentId]: _dropped, ...rest } = whatIf.scores
+    const rest = omitKey(whatIf.scores, assessmentId)
     setWhatIf({ ...whatIf, scores: percent === null ? rest : { ...rest, [assessmentId]: percent } })
   }
 

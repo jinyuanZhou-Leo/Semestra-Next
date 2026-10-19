@@ -72,6 +72,8 @@ docs/                设计稿与模块规格
 - **UI 尽量直接用 shadcn 官方组件，不要做薄封装**：页面和模块里直接组合 `@/ui/*`（表单字段 `Field` + `Input` + `FieldError`，空状态 `Empty`，列表行 `Item`，2–5 个选项 `ToggleGroup`，单选卡片 `FieldLabel` > `Field` > `RadioGroupItem`，进度 `Progress`，加载 `Spinner`，表格 `Table`），不要手写同类控件，也不要为了"保持旧接口"或读屏文字这类小问题再包一层（教训：曾为把 `Dialog`/`Sheet` 关闭按钮的英文 sr-only "Close" 换成翻译而写了 `AppDialogContent`/`AppSheetContent`，又给 `Field`、`Empty`、`RadioGroup` 套了 `TextField`、`EmptyState`、`RadioCard` 等，后来全部删掉，并且每次重新生成组件都会让依赖旧接口的分支 typecheck 失败）。生成组件里写死的英文读屏文字可以接受。只有带真实行为（状态、数据加载、业务逻辑）的组件才放 `src/components/`，例如 `ConfirmDialog`、`AsyncBoundary`、`AiAction`。
 - **颜色用令牌，不要写死**：强调色通过 `data-accent` 切换 `--accent-hue`，所以组件只用 `bg-primary` 之类的令牌；手写 `oklch(...)`、`sky-500` 会在换强调色后不跟随。
 - **语言与时间格式变化会重挂载应用子树**：消息是普通函数，不是响应式的；不要在模块级缓存 `m.xxx()` 的结果，在渲染时调用。
+- **React Compiler 已开启，写法要让它能编译**：`pnpm --filter @semestra/web lint` 会跑 `scripts/check-react-compiler.mjs`，任何组件/hook 被编译器跳过都算失败（vite 用的是 `panicThreshold: 'none'`，违规只会悄悄退回未编译代码，所以必须单独检查）。渲染中不读写 `ref.current`、不 `setState`、不修改 props/state 对象；新代码不手写 `useMemo`/`useCallback`（对外暴露的 hook 契约、被外部订阅的稳定引用除外）。编译器 1.0.0 不支持的写法：`try … finally`（把收尾放到 try/catch 之后；catch 里要重新抛出就在抛出前也收尾）、try 里出现 `||`/`??`/`?:`/`?.`/`for…of`（把参数提到 try 之前，或把逻辑放进 `await fn().catch(...)` 的内部函数）、计算属性解构 `{ [k]: _, ...rest }`（用 `lib/omit.ts` 的 `omitKey`）。确实要保留的例外写进脚本顶部的 `allowed` 并写明原因。
+- **`@babel/core` 钉在 7.x**：`babel-plugin-react-compiler@1.0.0` 在 Babel 8 的 AST 下会跳过所有带默认值解构参数的组件（`{ a = 1 }`）；`@rolldown/plugin-babel` 同时支持 7 和 8，升级到 8 前先跑 `compiler:check`。
 - **effect 里不要同步 `setState`**（oxlint 的 `react/set-state-in-effect` 是错误）：派生值直接在渲染中算，或用“记录上次值，渲染时比较”的写法；订阅外部系统（IntersectionObserver 等）的回调里设置状态没问题。
 - **structlog 的 `event` 是保留参数**：`log.info("x", event=...)` 会抛 TypeError，换个字段名。
 - **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
@@ -106,6 +108,8 @@ docs/                设计稿与模块规格
 ## UI 相关
  - 使用shadcn/ui组件前先使用context7查对应组件的文档
  - shadcn组件文件夹中的shadcn组件禁止修改 (apps/web/src/ui)
+ - 删除/撤销/移除/退出登录一类按钮和菜单项一律用 shadcn 的 `destructive` variant（`Button`、`DropdownMenuItem` 都有）；删除、撤销、批量操作和退出登录要用 `ConfirmDialog`（退出登录用 `SignOutDialog`）二次确认；表单里尚未保存的行（草稿行、可再添加的条目）的移除按钮只标红，不弹确认。
+ - 英文文案用 sentence case（“New program”），样式上不用 `uppercase`。
  - 已知并接受的官方组件读屏问题（不要再为它们改代码或包一层）：`Dialog`/`Sheet` 关闭按钮读作英文 "Close"；`ItemGroup` 固定是 `role="list"`，但 `Item` 是普通 `div`、`ItemSeparator` 也直接放在列表里，读屏器拿不到列表项数量（PR #13 Codex 评审指出）。
  - `src/ui/` 合并有冲突时，一律用 shadcn CLI 重新生成的官方版本解决（`CI=1 pnpm dlx shadcn@latest add <组件> --overwrite --yes </dev/null`），不要手动合并内容，也不要为了让分支编译通过去改它，改调用方。
  - UI 尽可能直接用 shadcn 官方组件（`@/ui/*`），不要手写同类控件，也不要为了保持旧接口或读屏文字这类小问题做额外的薄封装；生成组件里写死的英文读屏文字（如 Dialog/Sheet 的 "Close"）可以接受。只有带真实行为的组件才放 `src/components/`。教训：曾写过 `AppDialogContent`、`TextField`、`EmptyState`、`RadioCard` 等薄封装，后来全部删除，还导致依赖旧接口的分支 typecheck 失败。

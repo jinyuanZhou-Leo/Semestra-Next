@@ -319,7 +319,7 @@ export function TokensSection() {
                   </ItemContent>
                   <ItemActions>
                     <Button
-                      variant="outline"
+                      variant="destructive"
                       size="sm"
                       aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
                       onClick={() => setRevoking({ id: t.id, name: t.name })}

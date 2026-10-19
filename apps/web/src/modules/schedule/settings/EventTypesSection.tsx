@@ -233,8 +233,7 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
           {row.original.builtin ? null : (
             <Button
               size="icon-xs"
-              variant="ghost"
-              className="text-destructive"
+              variant="destructive"
               aria-label={m.schedule_type_delete({ code: row.original.code })}
               onClick={() => setDeleting(row.original)}
             >
