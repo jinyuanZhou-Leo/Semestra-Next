@@ -43,3 +43,7 @@ test('invalid zones are rejected', () => {
   expect(isValidZone('Asia/Tokyo')).toBe(true)
   expect(isValidZone('Mars/Olympus')).toBe(false)
 })
+
+test('a zone is found by the English CLDR spelling it is shown with', () => {
+  expect(searchZones('kyiv', 'en')[0]?.tz).toBe('Europe/Kiev')
+})

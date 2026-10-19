@@ -146,7 +146,8 @@ export function searchZones(query: string, locale: string, limit = 8): ZoneOptio
   ).sort((a, b) => score(normalize(a.en)) - score(normalize(b.en)))
   for (const city of curated) add(city.tz, isChinese(locale) ? city.zh : city.en)
   for (const tz of allZones()) {
-    if (normalize(`${tz} ${zhNames[tz] ?? ''}`).includes(needle)) add(tz, zoneLabel(tz, locale))
+    if (normalize(`${tz} ${enNames[tz] ?? ''} ${zhNames[tz] ?? ''}`).includes(needle))
+      add(tz, zoneLabel(tz, locale))
   }
   return out
 }
