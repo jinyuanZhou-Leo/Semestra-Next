@@ -162,7 +162,7 @@ test('old links to the single AI page open the AI page that now holds the sectio
     'aria-current',
     'page',
   )
-  expect(within(nav).getByRole('button', { name: 'Assistant permissions' })).toBeInTheDocument()
+  expect(within(nav).getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
   expect(await screen.findByRole('heading', { name: 'AI providers' })).toBeInTheDocument()
 })
 
