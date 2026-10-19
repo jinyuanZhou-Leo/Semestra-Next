@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as AccountDeletedRouteImport } from './routes/account-deleted'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed.onboarding'
@@ -38,6 +39,11 @@ import { Route as AuthedPProgramIdTTermIdSettingsGroupRouteImport } from './rout
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountDeletedRoute = AccountDeletedRouteImport.update({
+  id: '/account-deleted',
+  path: '/account-deleted',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -183,6 +189,7 @@ const AuthedPProgramIdTTermIdSettingsGroupRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
+  '/account-deleted': typeof AccountDeletedRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/p/$programId/t/$termId/settings/': typeof AuthedPProgramIdTTermIdSettingsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/account-deleted': typeof AccountDeletedRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
@@ -236,6 +244,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteWithChildren
+  '/account-deleted': typeof AccountDeletedRoute
   '/login': typeof LoginRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/login_/reset': typeof LoginResetRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account-deleted'
     | '/login'
     | '/onboarding'
     | '/login/reset'
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/p/$programId/t/$termId/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/account-deleted'
     | '/login'
     | '/onboarding'
     | '/login/reset'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authed'
+    | '/account-deleted'
     | '/login'
     | '/_authed/onboarding'
     | '/login_/reset'
@@ -347,6 +359,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
+  AccountDeletedRoute: typeof AccountDeletedRoute
   LoginRoute: typeof LoginRoute
   LoginResetRoute: typeof LoginResetRoute
 }
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account-deleted': {
+      id: '/account-deleted'
+      path: '/account-deleted'
+      fullPath: '/account-deleted'
+      preLoaderRoute: typeof AccountDeletedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -621,6 +641,7 @@ const AuthedRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
+  AccountDeletedRoute: AccountDeletedRoute,
   LoginRoute: LoginRoute,
   LoginResetRoute: LoginResetRoute,
 }
