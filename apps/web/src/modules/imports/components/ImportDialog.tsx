@@ -49,7 +49,7 @@ export function ImportDialog({
     <Dialog open onOpenChange={(open) => !open && onClose(null)}>
       <DialogContent className="flex h-[min(44rem,calc(100vh-4rem))] flex-col sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{spec.title()}</DialogTitle>
+          <DialogTitle>{'Title' in spec && spec.Title ? <spec.Title /> : spec.title()}</DialogTitle>
           <DialogDescription>{session ? m.imports_review_hint() : spec.hint()}</DialogDescription>
         </DialogHeader>
         {session ? (

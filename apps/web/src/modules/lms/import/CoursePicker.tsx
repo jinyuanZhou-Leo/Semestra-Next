@@ -24,6 +24,7 @@ import {
 import { Field, FieldLabel } from '@/ui/field'
 import { Switch } from '@/ui/switch'
 import { externalLabel, groupByTerm } from '../external'
+import { useProviderName } from '../providers'
 
 /** Where the imported courses go: a term, or the term the wizard is about to create. */
 export type CourseImportTarget =
@@ -60,8 +61,8 @@ export function ProgramUnbound() {
 }
 
 /**
- * "Import courses from LMS" (M09 §7.2): tick the platform's courses (this term's by default),
- * then the M08 review; committing creates the courses and their links together.
+ * "Import courses from {provider}" (M09 §7.2): tick the platform's courses (this term's by
+ * default), then the M08 review; committing creates the courses and their links together.
  */
 export function CoursePicker({
   programId,
@@ -103,6 +104,7 @@ function CourseList({
     ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
     placeholderData: keepPreviousData,
   })
+  const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
 
   const start = () => {
     setStarting(true)
@@ -141,7 +143,7 @@ function CourseList({
                 <EmptyMedia variant="icon">
                   <Link2 aria-hidden />
                 </EmptyMedia>
-                <EmptyTitle>{m.lms_courses_empty()}</EmptyTitle>
+                <EmptyTitle>{m.lms_courses_empty({ provider })}</EmptyTitle>
               </EmptyHeader>
             </Empty>
           }

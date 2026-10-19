@@ -2,9 +2,8 @@ import type { Connection } from '@semestra/api-client'
 import {
   lmsConnectionCreateMutation,
   lmsConnectionUpdateMutation,
-  lmsProvidersListOptions,
 } from '@semestra/api-client/react-query'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -12,14 +11,6 @@ import { Button } from '@/ui/button'
 import { DialogFooter } from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
 import { useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 
@@ -30,33 +21,32 @@ function strings(value: Record<string, unknown>): Strings {
 }
 
 /**
- * Add or edit a connection (M09 §7.1): pick the platform, fill in the form it contributes, then
- * "Check and save". The server signs in with the credentials before storing anything, so a
+ * Add or edit a connection (M09 §7.1): fill in the form the platform contributes (`kind`, picked
+ * in the step before), then "Check and save". The server signs in with the credentials before storing anything, so a
  * wrong address or token shows here and nothing is saved.
  */
 export function ConnectionForm({
+  kind,
   connection,
   onSaved,
+  onBack,
 }: {
+  kind: string
   connection?: Connection
   onSaved: (connection: Connection) => void
+  /** Back to the platform list (adding only). */
+  onBack?: () => void
 }) {
   const queryClient = useQueryClient()
   const id = useId()
   const uis = useProviderUis()
-  const offered = (useQuery(lmsProvidersListOptions()).data?.items ?? []).filter((p) =>
-    uis.has(p.kind),
-  )
   const editing = connection !== undefined
-  const [kind, setKind] = useState(connection?.provider ?? '')
   const [name, setName] = useState(connection?.display_name ?? '')
   const [config, setConfig] = useState<Strings>(() => strings(connection?.config ?? {}))
   const [credentials, setCredentials] = useState<Strings>({})
   const create = useMutation(lmsConnectionCreateMutation())
   const update = useMutation(lmsConnectionUpdateMutation())
-  // Until the user picks one, the first platform the server offers (Canvas for now).
-  const chosen = kind || offered[0]?.kind || ''
-  const ui = uis.get(chosen)
+  const ui = uis.get(kind)
   const pending = create.isPending || update.isPending
   const error = create.error ?? update.error
   const saved = connection ? strings(connection.config) : null
@@ -81,7 +71,7 @@ export function ConnectionForm({
         })
       : create.mutateAsync({
           body: {
-            provider: chosen,
+            provider: kind,
             display_name: displayName,
             config: trimmed,
             credentials: filled,
@@ -94,10 +84,6 @@ export function ConnectionForm({
     onSaved(saved)
   }
 
-  const kindItems = offered.map((p) => ({
-    value: p.kind,
-    label: uis.get(p.kind)?.label() ?? p.display_name,
-  }))
   const Form = ui?.ConfigForm
   const Help = ui?.credentialHelp
 
@@ -105,35 +91,6 @@ export function ConnectionForm({
     <form onSubmit={(e) => void submit(e)} noValidate>
       <fieldset disabled={pending}>
         <FieldGroup>
-          {editing || kindItems.length < 2 ? null : (
-            <Field>
-              <FieldLabel id={`${id}-kind`}>{m.lms_connection_provider()}</FieldLabel>
-              <Select
-                value={chosen}
-                items={kindItems}
-                onValueChange={(next) => {
-                  if (!next) return
-                  setKind(next)
-                  setConfig({})
-                  setCredentials({})
-                  create.reset()
-                }}
-              >
-                <SelectTrigger aria-labelledby={`${id}-kind`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {kindItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
           {Form ? (
             <Form
               config={config}
@@ -157,6 +114,11 @@ export function ConnectionForm({
           </Field>
           <FieldError>{error ? errorMessage(error) : null}</FieldError>
           <DialogFooter>
+            {onBack ? (
+              <Button type="button" variant="ghost" onClick={onBack} className="sm:mr-auto">
+                {m.lms_connection_back()}
+              </Button>
+            ) : null}
             <Button type="submit" disabled={!complete}>
               {pending ? m.lms_connection_checking() : m.lms_connection_save()}
             </Button>

@@ -40,10 +40,17 @@ type Props = {
   clientId: string
   onCredential: (idToken: string) => void
   text?: 'continue_with' | 'signin_with'
+  /** `inline` renders the compact pill used on the right of a settings row. */
+  variant?: 'block' | 'inline'
 }
 
 /** Google Identity Services button; hands the ID token to `onCredential`. */
-export function GoogleSignInButton({ clientId, onCredential, text = 'continue_with' }: Props) {
+export function GoogleSignInButton({
+  clientId,
+  onCredential,
+  text = 'continue_with',
+  variant = 'block',
+}: Props) {
   const container = useRef<HTMLDivElement>(null)
   const callback = useRef(onCredential)
   const [failed, setFailed] = useState(false)
@@ -65,25 +72,35 @@ export function GoogleSignInButton({ clientId, onCredential, text = 'continue_wi
         google.renderButton(container.current, {
           type: 'standard',
           theme: 'outline',
-          size: 'large',
           shape: 'pill',
           text,
-          width: 320,
           locale: getLocale(),
+          ...(variant === 'inline' ? { size: 'medium' } : { size: 'large', width: 320 }),
         })
       })
       .catch(() => !cancelled && setFailed(true))
     return () => {
       cancelled = true
     }
-  }, [clientId, text])
+  }, [clientId, text, variant])
 
+  const inline = variant === 'inline'
   if (failed) {
     return (
-      <p className="text-center text-xs text-muted-foreground">{m.auth_google_unavailable()}</p>
+      <p
+        className={
+          inline ? 'text-xs text-muted-foreground' : 'text-center text-xs text-muted-foreground'
+        }
+      >
+        {m.auth_google_unavailable()}
+      </p>
     )
   }
   return (
-    <div ref={container} className="flex min-h-10 justify-center" data-testid="google-button" />
+    <div
+      ref={container}
+      className={inline ? 'flex min-h-8 items-center' : 'flex min-h-10 justify-center'}
+      data-testid="google-button"
+    />
   )
 }

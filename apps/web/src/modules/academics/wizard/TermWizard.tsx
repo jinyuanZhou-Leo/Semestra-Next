@@ -352,7 +352,9 @@ export function TermWizard({
                     <DropdownMenuItem key={source.id} onClick={() => void launch(source)}>
                       <source.icon aria-hidden />
                       <span className="min-w-0">
-                        <span className="block">{source.title()}</span>
+                        <span className="block">
+                          {source.Title ? <source.Title programId={programId} /> : source.title()}
+                        </span>
                         {source.description ? (
                           <span className="block text-xs text-muted-foreground">
                             {source.description()}

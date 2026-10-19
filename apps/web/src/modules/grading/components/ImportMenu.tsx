@@ -46,7 +46,11 @@ export function ImportMenu({ programId, courseId }: { programId: string; courseI
         {sources.map((source) => (
           <DropdownMenuItem key={source.id} onClick={() => void run(source)}>
             <source.icon aria-hidden />
-            {source.title()}
+            {source.Title ? (
+              <source.Title programId={programId} courseId={courseId} />
+            ) : (
+              source.title()
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -124,7 +124,7 @@ export function AssignmentsView({ selected }: { selected?: string }) {
             <EmptyMedia variant="icon">
               <ClipboardList aria-hidden />
             </EmptyMedia>
-            <EmptyTitle>{m.lms_assignments_empty()}</EmptyTitle>
+            <EmptyTitle>{m.lms_assignments_empty({ provider: m.lms_canvas() })}</EmptyTitle>
           </EmptyHeader>
         </Empty>
       }
@@ -194,7 +194,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
           mode: 'direct',
           source: 'session',
           sessionId: data.session_id,
-          title: m.lms_import_assignments,
+          title: () => m.lms_import_assignments_from({ provider: m.lms_canvas() }),
         })
       })
       .then(() => invalidateLms(queryClient))

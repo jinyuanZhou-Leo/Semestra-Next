@@ -85,6 +85,8 @@ export type ImportSourceKind = 'ics' | 'syllabus' | 'timetable_image' | 'text'
  */
 export type ImportPicker = {
   title: () => string
+  /** Shown instead of `title` when it depends on loaded data (M09: "Import courses from Canvas"). */
+  Title?: ComponentType
   hint: () => string
   component: ComponentType<{ onStarted: (session: ImportSessionDetail) => void }>
 }

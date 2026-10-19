@@ -20,6 +20,8 @@ export type AssessmentImportContext = { programId: string; courseId: string }
 export type AssessmentImportSource = {
   id: string
   title: Message
+  /** Shown instead of `title` in the menu when the label depends on the course (M09's platform). */
+  Title?: ComponentType<{ programId: string; courseId: string }>
   icon: LucideIcon
   launch: (ctx: AssessmentImportContext) => Promise<AssessmentDraft[]>
 }

@@ -26,6 +26,7 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Label } from '@/ui/label'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { ProgramUnbound, startedSession } from './CoursePicker'
+import { useProviderName } from '../providers'
 
 type Kind = 'assessment' | 'task'
 
@@ -46,7 +47,7 @@ export function AssignmentPicker({
     <AsyncBoundary query={state}>
       {(data) =>
         data.link ? (
-          <AssignmentList courseId={courseId} onStarted={onStarted} />
+          <AssignmentList courseId={courseId} kind={data.link.provider} onStarted={onStarted} />
         ) : data.program_connection_id ? (
           <Empty className="min-h-0 flex-1">
             <EmptyHeader>
@@ -75,9 +76,11 @@ export function AssignmentPicker({
 
 function AssignmentList({
   courseId,
+  kind: providerKind,
   onStarted,
 }: {
   courseId: string
+  kind: string
   onStarted: (session: ImportSessionDetail) => void
 }) {
   const id = useId()
@@ -85,6 +88,7 @@ function AssignmentList({
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
   const assignments = useQuery(lmsAssignmentsListOptions({ path: { course_id: courseId } }))
+  const provider = useProviderName(providerKind) ?? providerKind
 
   const start = () => {
     setStarting(true)
@@ -127,7 +131,7 @@ function AssignmentList({
                 <EmptyMedia variant="icon">
                   <ClipboardList aria-hidden />
                 </EmptyMedia>
-                <EmptyTitle>{m.lms_assignments_empty()}</EmptyTitle>
+                <EmptyTitle>{m.lms_assignments_empty({ provider })}</EmptyTitle>
               </EmptyHeader>
             </Empty>
           }

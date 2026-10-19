@@ -275,16 +275,18 @@ function GoogleRow({ user, clientId }: { user: UserOut; clientId: string | null 
               {m.auth_account_google_unlink()}
             </Button>
           </ItemActions>
+        ) : clientId ? (
+          <ItemActions>
+            <GoogleSignInButton
+              clientId={clientId}
+              variant="inline"
+              onCredential={(idToken) => link.mutate({ body: { id_token: idToken } })}
+            />
+          </ItemActions>
         ) : null}
       </Item>
-      {!identity && clientId ? (
-        <>
-          <GoogleSignInButton
-            clientId={clientId}
-            onCredential={(idToken) => link.mutate({ body: { id_token: idToken } })}
-          />
-          <FieldError>{link.error ? errorMessage(link.error) : null}</FieldError>
-        </>
+      {link.error ? (
+        <FieldError className="mx-4 mb-3">{errorMessage(link.error)}</FieldError>
       ) : null}
       <ConfirmDialog
         open={confirming}
