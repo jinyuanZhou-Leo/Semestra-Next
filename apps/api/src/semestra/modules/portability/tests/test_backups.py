@@ -21,10 +21,12 @@ from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai.models import AiProvider
 from semestra.modules.auth.mailer import MemoryMailer
 from semestra.modules.auth.models import AuthUser
+from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.portability import registry
 from semestra.modules.portability.registry import Adapter, ImportReport
 from semestra.modules.portability.tests.dataset import FEED_TOKEN_HASH, SECRET_KEY, populate
 from semestra.modules.settings.models import SettingsPreferences
+from semestra.modules.tasks.models import TasksItem
 from semestra.testing import TEST_ORIGIN, Clock, MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -194,6 +196,12 @@ async def test_round_trip_into_another_account(
             select(AiProvider.api_key_encrypted).where(AiProvider.user_id == bob.id)
         )
         assert key is None
+        # A task made from an assessment points at the imported assessment.
+        assessment = await db.scalar(
+            select(GradingAssessment.id).where(GradingAssessment.user_id == bob.id)
+        )
+        task_ref = await db.scalar(select(TasksItem.source_ref).where(TasksItem.user_id == bob.id))
+        assert task_ref == assessment
 
 
 async def test_merge_into_the_same_account_renames_and_selects_programs(

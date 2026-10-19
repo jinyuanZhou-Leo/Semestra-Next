@@ -37,6 +37,7 @@ from semestra.modules.schedule.models import (
     ScheduleMeetingException,
 )
 from semestra.modules.settings.models import SettingsPreferences, SettingsUiState, SettingsValue
+from semestra.modules.tasks.models import TasksItem, TasksList
 
 SECRET_KEY = "sk-very-secret-key-123"
 FEED_TOKEN_HASH = "feed-token-hash-xyz"
@@ -93,8 +94,10 @@ async def populate(
         key_hint="…123",
         capabilities=["chat"],
     )
-    db.add_all([category, meeting, card, provider])
+    task_list = TasksList(**u, program_id=program.id, name="Errands")
+    db.add_all([category, meeting, card, provider, task_list])
     await db.flush()
+    assessment_id = new_id()
     pomodoro_card = LayoutsCardSetting(
         instance_id=new_id(),
         **u,
@@ -117,6 +120,7 @@ async def populate(
             GradingCourseResult(**u, course_id=course.id, target_points=3.7),
             GradingAssessment(
                 **u,
+                id=assessment_id,
                 course_id=course.id,
                 category_id=category.id,
                 title="Midterm",
@@ -165,6 +169,17 @@ async def populate(
                 created_at=NOW,
             ),
             HabitCheckin(**u, instance_id=card.instance_id, day=date(2026, 1, 14)),
+            TasksItem(
+                **u,
+                program_id=program.id,
+                term_id=term.id,
+                course_id=course.id,
+                list_id=task_list.id,
+                title="Study for the midterm",
+                due_date=date(2025, 10, 19),
+                source_kind="assessment",
+                source_ref=assessment_id,
+            ),
             PomodoroSession(
                 **u,
                 instance_id=pomodoro_card.instance_id,
