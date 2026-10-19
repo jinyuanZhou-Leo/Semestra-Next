@@ -25,9 +25,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthState = {
     user,
     isLoading: me.isPending,
-    signOut: async () => {
+    signOut: async ({ to = '/login', flush = true } = {}) => {
       // Interface state changed in the last moments belongs to this session: save it first.
-      await flushUiPrefs(queryClient)
+      if (flush) await flushUiPrefs(queryClient)
+      else setSignedIn(false) // the session is already gone; a 401 now is not "expired"
       try {
         await logOut({})
       } catch (err) {
@@ -40,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSignedIn(false)
       queryClient.clear()
-      await navigate({ to: '/login' })
+      await navigate({ to })
     },
   }
 

@@ -7,7 +7,7 @@ cannot express.
 
 from fastapi import FastAPI
 
-from semestra.modules.layouts import capabilities, models, subscribers  # noqa: F401
+from semestra.modules.layouts import capabilities, models, portability, subscribers  # noqa: F401
 from semestra.modules.layouts.service import (
     CardInstance,
     get_card_instance,

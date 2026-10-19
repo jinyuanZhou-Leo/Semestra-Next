@@ -6,7 +6,13 @@ Other modules save files with `save_bytes_as_file` and read parsed text through 
 
 from fastapi import FastAPI
 
-from semestra.modules.files import capabilities, jobs, models, subscribers  # noqa: F401  (registers on import)
+from semestra.modules.files import (  # noqa: F401  (registers on import)
+    capabilities,
+    jobs,
+    models,
+    portability,
+    subscribers,
+)
 from semestra.modules.files.routes import router
 from semestra.modules.files.service import save_bytes_as_file
 from semestra.modules.files.upload import UploadBodyLimit

@@ -3,7 +3,7 @@
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links
 and imported refs follow the id map of Programs, courses, assessments and tasks. The cache is
-not exported. M13 registers the adapter when it lands.
+not exported. Registered at the bottom with M13's `register_portability`.
 """
 
 from collections.abc import Mapping
@@ -23,6 +23,7 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsProgramBinding,
 )
+from semestra.modules.portability import register_portability
 
 SCHEMA_VERSION = 1
 
@@ -141,13 +142,18 @@ async def import_(
         connections[c.id] = row.id
         report.imported["connections"] += 1
 
-    def skip(kind: str) -> None:
+    # Rows whose Program was left out on purpose are dropped silently, not reported as skipped.
+    excluded: set[str] = getattr(id_map, "excluded", set())
+
+    def skip(kind: str, *archive_ids: str) -> None:
+        if any(i in excluded for i in archive_ids):
+            return
         report.skipped[kind] = report.skipped.get(kind, 0) + 1
 
     for b in data.bindings:
         program_id = id_map.get(b.program_id)
         if program_id is None or b.connection_id not in connections:
-            skip("bindings")
+            skip("bindings", b.program_id)
             continue
         ctx.db.add(
             LmsProgramBinding(
@@ -163,7 +169,7 @@ async def import_(
     for li in data.links:
         course_id, program_id = id_map.get(li.course_id), id_map.get(li.program_id)
         if course_id is None or program_id is None or li.connection_id not in connections:
-            skip("links")
+            skip("links", li.course_id, li.program_id)
             continue
         row = LmsCourseLink(
             id=new_id(),
@@ -186,7 +192,8 @@ async def import_(
     for r in data.refs:
         target_id = id_map.get(r.target_id)
         if r.link_id not in links or target_id is None:
-            skip("refs")
+            link = next((li for li in data.links if li.id == r.link_id), None)
+            skip("refs", r.target_id, *((link.course_id, link.program_id) if link else ()))
             continue
         ctx.db.add(
             LmsImportedRef(
@@ -219,3 +226,21 @@ async def purge(ctx: Ctx) -> None:
     uid = ctx.user_id
     for model in (LmsImportedRef, LmsCourseLink, LmsProgramBinding, LmsCache, LmsConnection):
         await ctx.db.execute(delete(model).where(model.user_id == uid))
+
+
+register_portability(
+    module="lms",
+    schema_version=SCHEMA_VERSION,
+    depends_on=("academics", "grading", "tasks", "schedule"),
+    export=export,
+    import_=import_,
+    preview=preview,
+    purge=purge,
+    tables=(
+        LmsConnection.__tablename__,
+        LmsProgramBinding.__tablename__,
+        LmsCourseLink.__tablename__,
+        LmsImportedRef.__tablename__,
+        LmsCache.__tablename__,
+    ),
+)

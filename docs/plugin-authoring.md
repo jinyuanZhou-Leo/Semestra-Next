@@ -103,7 +103,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 
 ### 4.4 导出/导入适配器（M13 §3）
 
-提供 `export / import_ / preview / purge` 四个回调，导入要幂等（重复导入不产生重复行），`id_map` 用来重映射跨模块 id。完整例子是 `plugins_builtin/portability.py`；M13 落地后在那里统一注册。没有自己数据的插件（如模板里的便签，文本在卡片设置里）适配器可以为空。
+提供 `export / import_ / preview / purge` 四个回调，导入要幂等（重复导入不产生重复行），`id_map` 用来重映射跨模块 id。完整例子是 `plugins_builtin/portability.py`，它在 `plugins_builtin/__init__.py` 里用 `register_portability(..., tables=(...))` 注册；新插件的表要加进这两处，否则 M13 的覆盖测试（每张带 `user_id` 的表都要有适配器负责并能清空）会失败。没有自己数据的插件（如模板里的便签，文本在卡片设置里）适配器可以为空。
 
 ### 4.5 Agent skill
 

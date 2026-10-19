@@ -16,6 +16,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     capabilities,
     imports,
     models,
+    portability,
     subscribers,
 )
 from semestra.modules.lms.cache import purge_expired, runtime

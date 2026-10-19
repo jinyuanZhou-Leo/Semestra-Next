@@ -2,7 +2,13 @@
 
 from fastapi import FastAPI
 
-from semestra.modules.grading import calendar, capabilities, models, subscribers  # noqa: F401  (registers on import)
+from semestra.modules.grading import (  # noqa: F401  (registers on import)
+    calendar,
+    capabilities,
+    models,
+    portability,
+    subscribers,
+)
 
 
 def register(app: FastAPI) -> None:

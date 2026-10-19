@@ -1079,6 +1079,85 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/me/imports": {
+      "post": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Upload a backup file and get its preview.",
+        "operationId": "portabilityImportUpload",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_portabilityImportUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/exports/{export_id}/download": {
+      "get": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Export Download",
+        "operationId": "portabilityExportDownload",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programs/{program_id}/courses": {
       "post": {
         "tags": [
@@ -2214,6 +2293,48 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             },
             "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/me:delete": {
+      "post": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Delete the user's account and all of their data.",
+        "description": "Irreversible. Signs out everywhere at once; the data is deleted by a\nbackground job. Not for agents.",
+        "operationId": "accountDelete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeleteInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -9034,6 +9155,221 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/me/exports": {
+      "get": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "List the user's recent exports and whether they can be downloaded.",
+        "description": "Newest first; expired exports are left out.",
+        "operationId": "portabilityExportList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Start exporting the user's data to a backup file.",
+        "description": "Runs as a background job; the file can be downloaded for 24 hours.",
+        "operationId": "portabilityExportStart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportStartInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/imports/{id}": {
+      "delete": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Discard an uploaded backup without importing it.",
+        "description": "Not for agents.",
+        "operationId": "portabilityImportDiscard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Upload id, as returned by the upload.",
+              "title": "Id"
+            },
+            "description": "Upload id, as returned by the upload."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Discarded"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Get an uploaded backup: its preview, and the import's state and report.",
+        "description": "Not for agents.",
+        "operationId": "portabilityImportGet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Upload id, as returned by the upload.",
+              "title": "Id"
+            },
+            "description": "Upload id, as returned by the upload."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/me/imports/{id}:start": {
+      "post": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Import an uploaded backup, merging it or replacing the current data.",
+        "description": "Runs as a background job in one transaction. Not for agents.",
+        "operationId": "portabilityImportStart",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Upload id, as returned by the upload.",
+              "title": "Id"
+            },
+            "description": "Upload id, as returned by the upload."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStartInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/terms/{term_id}/schedule-conflicts": {
       "get": {
         "tags": [
@@ -11760,6 +12096,40 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
   },
   "components": {
     "schemas": {
+      "AccountDeleteInputBody": {
+        "properties": {
+          "confirmation": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Confirmation",
+            "description": "The typed confirmation sentence."
+          },
+          "acknowledged": {
+            "type": "boolean",
+            "title": "Acknowledged",
+            "description": "The user ticked that this cannot be undone."
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Re-authentication when the last sign-in is older than 10 minutes."
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation",
+          "acknowledged"
+        ],
+        "title": "AccountDeleteInputBody"
+      },
       "AgentAttachmentOut": {
         "properties": {
           "id": {
@@ -14135,6 +14505,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "file"
         ],
         "title": "Body_importsUploadCreate"
+      },
+      "Body_portabilityImportUpload": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_portabilityImportUpload"
       },
       "Break": {
         "properties": {
@@ -16879,6 +17263,19 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "DayFocus"
       },
+      "Discarded": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Discarded"
+      },
       "DocumentOutline": {
         "properties": {
           "item_id": {
@@ -17703,6 +18100,99 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "kind"
         ],
         "title": "ExceptionUpsertInputBody"
+      },
+      "ExportList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ExportList"
+      },
+      "ExportOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "include_files": {
+            "type": "boolean",
+            "title": "Include Files"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "The download link works until then."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "include_files",
+          "size_bytes",
+          "job_id",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "ExportOut"
+      },
+      "ExportStartInputBody": {
+        "properties": {
+          "include_files": {
+            "type": "boolean",
+            "title": "Include Files",
+            "description": "Pack the stored files into the backup too.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ExportStartInputBody"
       },
       "ExternalCourse": {
         "properties": {
@@ -19152,6 +19642,186 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "ImportItem"
       },
+      "ImportOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploaded",
+              "importing",
+              "imported",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/ImportPreview"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportReportOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "size_bytes",
+          "preview",
+          "report",
+          "error_code",
+          "job_id",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "ImportOut"
+      },
+      "ImportPreview": {
+        "properties": {
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          },
+          "app_version": {
+            "type": "string",
+            "title": "App Version"
+          },
+          "include_files": {
+            "type": "boolean",
+            "title": "Include Files"
+          },
+          "files_bytes": {
+            "type": "integer",
+            "title": "Files Bytes"
+          },
+          "counts": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "programs": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramPreview"
+            },
+            "type": "array",
+            "title": "Programs"
+          },
+          "quota_exceeded": {
+            "type": "boolean",
+            "title": "Quota Exceeded",
+            "description": "The backup's files do not fit the storage quota."
+          },
+          "unknown_modules": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unknown Modules",
+            "description": "Data this server cannot import; ignored."
+          }
+        },
+        "type": "object",
+        "required": [
+          "exported_at",
+          "app_version",
+          "include_files",
+          "files_bytes",
+          "counts",
+          "programs",
+          "quota_exceeded",
+          "unknown_modules"
+        ],
+        "title": "ImportPreview"
+      },
+      "ImportReportOut": {
+        "properties": {
+          "imported": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Imported"
+          },
+          "skipped": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "imported",
+          "skipped"
+        ],
+        "title": "ImportReportOut"
+      },
       "ImportSession": {
         "properties": {
           "id": {
@@ -19417,6 +20087,58 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "next_cursor"
         ],
         "title": "ImportSessionPage"
+      },
+      "ImportStartInputBody": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "replace"
+            ],
+            "title": "Mode",
+            "description": "merge adds the backup as new data; replace deletes the current data first."
+          },
+          "program_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Ids",
+            "description": "Ids (from the preview) of the Programs to import; all if null."
+          },
+          "include_preferences": {
+            "type": "boolean",
+            "title": "Include Preferences",
+            "description": "Also import preferences, layouts and account-level settings.",
+            "default": false
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation",
+            "description": "The typed confirmation sentence; required for replace."
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "ImportStartInputBody"
       },
       "ImportStarted": {
         "properties": {
@@ -23176,6 +23898,35 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "items"
         ],
         "title": "ProgramList"
+      },
+      "ProgramPreview": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The Program's id in the backup."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "term_count": {
+            "type": "integer",
+            "title": "Term Count"
+          },
+          "course_count": {
+            "type": "integer",
+            "title": "Course Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "term_count",
+          "course_count"
+        ],
+        "title": "ProgramPreview"
       },
       "ProgramUpdateInputBody": {
         "properties": {

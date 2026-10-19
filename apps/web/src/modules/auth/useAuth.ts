@@ -4,7 +4,11 @@ import type { UserOut } from '@semestra/api-client'
 export type AuthState = {
   user: UserOut | undefined
   isLoading: boolean
-  signOut: () => Promise<void>
+  /**
+   * Ends the session and goes to the login page. `to` goes elsewhere; `flush: false` skips
+   * saving interface state, for a session the server has already ended (account deleted).
+   */
+  signOut: (options?: { to?: string; flush?: boolean }) => Promise<void>
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

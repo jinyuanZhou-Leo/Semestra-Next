@@ -5,6 +5,30 @@ export type ClientOptions = {
 };
 
 /**
+ * AccountDeleteInputBody
+ */
+export type AccountDeleteInputBody = {
+    /**
+     * Confirmation
+     *
+     * The typed confirmation sentence.
+     */
+    confirmation: string;
+    /**
+     * Acknowledged
+     *
+     * The user ticked that this cannot be undone.
+     */
+    acknowledged: boolean;
+    /**
+     * Password
+     *
+     * Re-authentication when the last sign-in is older than 10 minutes.
+     */
+    password?: string | null;
+};
+
+/**
  * AgentAttachmentOut
  */
 export type AgentAttachmentOut = {
@@ -1300,6 +1324,16 @@ export type BodyFilesUpload = {
  * Body_importsUploadCreate
  */
 export type BodyImportsUploadCreate = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_portabilityImportUpload
+ */
+export type BodyPortabilityImportUpload = {
     /**
      * File
      */
@@ -2840,6 +2874,16 @@ export type DayFocus = {
 };
 
 /**
+ * Discarded
+ */
+export type Discarded = {
+    /**
+     * Id
+     */
+    id: string;
+};
+
+/**
  * DocumentOutline
  */
 export type DocumentOutline = {
@@ -3326,6 +3370,64 @@ export type ExceptionUpsertInputBody = {
      * Note shown with the class
      */
     note?: string | null;
+};
+
+/**
+ * ExportList
+ */
+export type ExportList = {
+    /**
+     * Items
+     */
+    items: Array<ExportOut>;
+};
+
+/**
+ * ExportOut
+ */
+export type ExportOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'ready' | 'failed';
+    /**
+     * Include Files
+     */
+    include_files: boolean;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expires At
+     *
+     * The download link works until then.
+     */
+    expires_at: string;
+};
+
+/**
+ * ExportStartInputBody
+ */
+export type ExportStartInputBody = {
+    /**
+     * Include Files
+     *
+     * Pack the stored files into the backup too.
+     */
+    include_files?: boolean;
 };
 
 /**
@@ -4182,6 +4284,110 @@ export type ImportItem = {
 };
 
 /**
+ * ImportOut
+ */
+export type ImportOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: 'uploaded' | 'importing' | 'imported' | 'failed';
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+    preview: ImportPreview;
+    report: ImportReportOut | null;
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+};
+
+/**
+ * ImportPreview
+ */
+export type ImportPreview = {
+    /**
+     * Exported At
+     */
+    exported_at: string;
+    /**
+     * App Version
+     */
+    app_version: string;
+    /**
+     * Include Files
+     */
+    include_files: boolean;
+    /**
+     * Files Bytes
+     */
+    files_bytes: number;
+    /**
+     * Counts
+     */
+    counts: {
+        [key: string]: {
+            [key: string]: number;
+        };
+    };
+    /**
+     * Programs
+     */
+    programs: Array<ProgramPreview>;
+    /**
+     * Quota Exceeded
+     *
+     * The backup's files do not fit the storage quota.
+     */
+    quota_exceeded: boolean;
+    /**
+     * Unknown Modules
+     *
+     * Data this server cannot import; ignored.
+     */
+    unknown_modules: Array<string>;
+};
+
+/**
+ * ImportReportOut
+ */
+export type ImportReportOut = {
+    /**
+     * Imported
+     */
+    imported: {
+        [key: string]: {
+            [key: string]: number;
+        };
+    };
+    /**
+     * Skipped
+     */
+    skipped: {
+        [key: string]: {
+            [key: string]: number;
+        };
+    };
+};
+
+/**
  * ImportSession
  */
 export type ImportSession = {
@@ -4305,6 +4511,36 @@ export type ImportSessionPage = {
      * Next Cursor
      */
     next_cursor: string | null;
+};
+
+/**
+ * ImportStartInputBody
+ */
+export type ImportStartInputBody = {
+    /**
+     * Mode
+     *
+     * merge adds the backup as new data; replace deletes the current data first.
+     */
+    mode: 'merge' | 'replace';
+    /**
+     * Program Ids
+     *
+     * Ids (from the preview) of the Programs to import; all if null.
+     */
+    program_ids?: Array<string> | null;
+    /**
+     * Include Preferences
+     *
+     * Also import preferences, layouts and account-level settings.
+     */
+    include_preferences?: boolean;
+    /**
+     * Confirmation
+     *
+     * The typed confirmation sentence; required for replace.
+     */
+    confirmation?: string | null;
 };
 
 /**
@@ -6423,6 +6659,30 @@ export type ProgramList = {
      * Items
      */
     items: Array<Program>;
+};
+
+/**
+ * ProgramPreview
+ */
+export type ProgramPreview = {
+    /**
+     * Id
+     *
+     * The Program's id in the backup.
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Term Count
+     */
+    term_count: number;
+    /**
+     * Course Count
+     */
+    course_count: number;
 };
 
 /**
@@ -10075,6 +10335,61 @@ export type AgentAttachmentUploadResponses = {
 
 export type AgentAttachmentUploadResponse = AgentAttachmentUploadResponses[keyof AgentAttachmentUploadResponses];
 
+export type PortabilityImportUploadData = {
+    body: BodyPortabilityImportUpload;
+    path?: never;
+    query?: never;
+    url: '/me/imports';
+};
+
+export type PortabilityImportUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PortabilityImportUploadError = PortabilityImportUploadErrors[keyof PortabilityImportUploadErrors];
+
+export type PortabilityImportUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportOut;
+};
+
+export type PortabilityImportUploadResponse = PortabilityImportUploadResponses[keyof PortabilityImportUploadResponses];
+
+export type PortabilityExportDownloadData = {
+    body?: never;
+    path: {
+        /**
+         * Export Id
+         */
+        export_id: string;
+    };
+    query?: never;
+    url: '/me/exports/{export_id}/download';
+};
+
+export type PortabilityExportDownloadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PortabilityExportDownloadError = PortabilityExportDownloadErrors[keyof PortabilityExportDownloadErrors];
+
+export type PortabilityExportDownloadResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+};
+
+export type PortabilityExportDownloadResponse = PortabilityExportDownloadResponses[keyof PortabilityExportDownloadResponses];
+
 export type AcademicsCourseListData = {
     body?: never;
     path: {
@@ -10775,6 +11090,31 @@ export type AcademicsTermDeletePreviewResponses = {
 };
 
 export type AcademicsTermDeletePreviewResponse = AcademicsTermDeletePreviewResponses[keyof AcademicsTermDeletePreviewResponses];
+
+export type AccountDeleteData = {
+    body: AccountDeleteInputBody;
+    path?: never;
+    query?: never;
+    url: '/me:delete';
+};
+
+export type AccountDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountDeleteError = AccountDeleteErrors[keyof AccountDeleteErrors];
+
+export type AccountDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type AccountDeleteResponse = AccountDeleteResponses[keyof AccountDeleteResponses];
 
 export type AccountEmailChangeConfirmData = {
     body: EmailChangeConfirmInputBody;
@@ -15131,6 +15471,152 @@ export type PomodoroStatsResponses = {
 };
 
 export type PomodoroStatsResponse = PomodoroStatsResponses[keyof PomodoroStatsResponses];
+
+export type PortabilityExportListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/exports';
+};
+
+export type PortabilityExportListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityExportListError = PortabilityExportListErrors[keyof PortabilityExportListErrors];
+
+export type PortabilityExportListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExportList;
+};
+
+export type PortabilityExportListResponse = PortabilityExportListResponses[keyof PortabilityExportListResponses];
+
+export type PortabilityExportStartData = {
+    body: ExportStartInputBody;
+    path?: never;
+    query?: never;
+    url: '/me/exports';
+};
+
+export type PortabilityExportStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityExportStartError = PortabilityExportStartErrors[keyof PortabilityExportStartErrors];
+
+export type PortabilityExportStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExportOut;
+};
+
+export type PortabilityExportStartResponse = PortabilityExportStartResponses[keyof PortabilityExportStartResponses];
+
+export type PortabilityImportDiscardData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Upload id, as returned by the upload.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/me/imports/{id}';
+};
+
+export type PortabilityImportDiscardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityImportDiscardError = PortabilityImportDiscardErrors[keyof PortabilityImportDiscardErrors];
+
+export type PortabilityImportDiscardResponses = {
+    /**
+     * Successful Response
+     */
+    200: Discarded;
+};
+
+export type PortabilityImportDiscardResponse = PortabilityImportDiscardResponses[keyof PortabilityImportDiscardResponses];
+
+export type PortabilityImportGetData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Upload id, as returned by the upload.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/me/imports/{id}';
+};
+
+export type PortabilityImportGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityImportGetError = PortabilityImportGetErrors[keyof PortabilityImportGetErrors];
+
+export type PortabilityImportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportOut;
+};
+
+export type PortabilityImportGetResponse = PortabilityImportGetResponses[keyof PortabilityImportGetResponses];
+
+export type PortabilityImportStartData = {
+    body: ImportStartInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Upload id, as returned by the upload.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/me/imports/{id}:start';
+};
+
+export type PortabilityImportStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityImportStartError = PortabilityImportStartErrors[keyof PortabilityImportStartErrors];
+
+export type PortabilityImportStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportOut;
+};
+
+export type PortabilityImportStartResponse = PortabilityImportStartResponses[keyof PortabilityImportStartResponses];
 
 export type ScheduleConflictsData = {
     body?: never;

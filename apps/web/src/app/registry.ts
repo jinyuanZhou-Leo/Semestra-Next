@@ -24,6 +24,7 @@ import pomodoro from '@/modules/plugin-pomodoro/manifest'
 import stickyNote from '@/modules/plugin-sticky-note/manifest'
 import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
+import portability from '@/modules/portability/manifest'
 import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
 import tasks from '@/modules/tasks/manifest'
@@ -57,6 +58,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   imports,
   tasks,
   lms,
+  portability,
   habitStreak,
   pomodoro,
   stickyNote,

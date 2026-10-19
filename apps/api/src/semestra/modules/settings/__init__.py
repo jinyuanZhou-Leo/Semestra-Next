@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from semestra.modules.settings import capabilities, models, subscribers  # noqa: F401
+from semestra.modules.settings import capabilities, models, portability, subscribers  # noqa: F401
 from semestra.modules.settings.registry import (
     ScopeChain,
     register_settings,

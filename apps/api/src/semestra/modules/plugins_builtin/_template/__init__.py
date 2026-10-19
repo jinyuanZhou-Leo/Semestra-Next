@@ -10,7 +10,8 @@ To start a plugin, copy this package to `modules/plugins_builtin/<name>/`, renam
   1. export `PLUGIN` (M10 §3) from the package and import it in the module list;
   2. import the package from `plugins_builtin/__init__.py`;
   3. if you add tables, import `models` in `migrations/env.py` and create a migration;
-  4. register the adapter with M13 (`portability.ADAPTER`) and list your tables in its purge.
+  4. export, import and purge your tables in `plugins_builtin/portability.py` and add them to
+     the `tables` of its `register_portability` call in `plugins_builtin/__init__.py` (M13).
 
 The template itself is not part of the app: its tests import it, which registers its settings
 and capabilities for the test session only.

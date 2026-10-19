@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from semestra.modules.academics import capabilities, models  # noqa: F401  (registers on import)
+from semestra.modules.academics import capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.academics.scopes import resolve_scope
 from semestra.modules.settings import set_scope_resolver
 
