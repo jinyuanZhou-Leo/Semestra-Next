@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
+import { ChoiceControl, SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -19,16 +19,7 @@ import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item } from '@/ui/item'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { categoryName } from '../display'
 import { invalidateGrading, useGradebook } from '../queries'
@@ -57,9 +48,25 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
   const patch = (body: Parameters<typeof update.mutate>[0]['body']) =>
     update.mutate({ path: { course_id: gradebook.course_id }, body })
   const forecastItems = [
-    { value: 'auto', label: m.grading_forecast_auto() },
-    { value: 'simple_minimum_needed', label: m.grading_forecast_simple() },
-  ]
+    { value: 'auto', label: m.grading_forecast_auto(), hint: m.grading_forecast_auto_hint() },
+    {
+      value: 'simple_minimum_needed',
+      label: m.grading_forecast_simple(),
+      hint: m.grading_forecast_simple_hint(),
+    },
+  ] as const
+  const basisItems = [
+    {
+      value: 'percentage',
+      label: m.grading_basis_percentage(),
+      hint: m.grading_basis_percentage_hint(),
+    },
+    {
+      value: 'pass_fail',
+      label: m.grading_basis_pass_fail(),
+      hint: m.grading_basis_pass_fail_hint(),
+    },
+  ] as const
   return (
     <div className="space-y-6">
       <SettingsGroup>
@@ -68,18 +75,12 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
           labelId={basisId}
           description={m.grading_basis_hint()}
         >
-          <ToggleGroup
-            aria-labelledby={basisId}
-            variant="outline"
-            size="sm"
-            value={[result.basis]}
-            onValueChange={([basis]) => {
-              if (basis) patch({ basis: basis === 'pass_fail' ? 'pass_fail' : 'percentage' })
-            }}
-          >
-            <ToggleGroupItem value="percentage">{m.grading_basis_percentage()}</ToggleGroupItem>
-            <ToggleGroupItem value="pass_fail">{m.grading_basis_pass_fail()}</ToggleGroupItem>
-          </ToggleGroup>
+          <ChoiceControl
+            labelId={basisId}
+            options={basisItems}
+            value={result.basis}
+            onChange={(basis) => patch({ basis })}
+          />
         </SettingRow>
         {result.basis === 'percentage'
           ? // An array, not a fragment, so the group still puts a hairline between the rows.
@@ -102,26 +103,12 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
                 labelId={forecastId}
                 description={m.grading_forecast_model_hint()}
               >
-                <Select
+                <ChoiceControl
+                  labelId={forecastId}
+                  options={forecastItems}
                   value={result.forecast_model}
-                  items={forecastItems}
-                  onValueChange={(next) =>
-                    patch({ forecast_model: next === 'simple_minimum_needed' ? next : 'auto' })
-                  }
-                >
-                  <SelectTrigger aria-labelledby={forecastId} className="w-56">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {forecastItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  onChange={(forecast_model) => patch({ forecast_model })}
+                />
               </SettingRow>,
             ]
           : null}

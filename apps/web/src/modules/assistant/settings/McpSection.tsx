@@ -4,6 +4,7 @@ import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import {
   ActionRow,
+  ChoiceControl,
   SettingRow,
   SettingsBlock,
   SettingsGroup,
@@ -13,7 +14,6 @@ import { apiUrl } from '@/lib/api-extras'
 import { m } from '@/paraglide/messages'
 import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton } from '@/ui/code-block'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useUpdatePreferences } from './shared'
 
 type Client = 'claude-desktop' | 'claude-code' | 'cursor'
@@ -95,21 +95,12 @@ export function McpSection() {
         title={m.assistant_mcp_setup()}
         description={m.assistant_mcp_setup_description()}
         action={
-          <ToggleGroup
-            aria-label={m.assistant_mcp_client()}
-            value={[client]}
-            onValueChange={(next) => {
-              if (next[0]) setClient(next[0] as Client)
-            }}
-            variant="outline"
-            size="sm"
-          >
-            {CLIENTS.map((c) => (
-              <ToggleGroupItem key={c.id} value={c.id}>
-                {c.name}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+          <ChoiceControl
+            label={m.assistant_mcp_client()}
+            options={CLIENTS.map((c) => ({ value: c.id, label: c.name }))}
+            value={client}
+            onChange={setClient}
+          />
         }
       >
         <CodeBlock size="sm">

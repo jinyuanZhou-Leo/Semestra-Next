@@ -47,6 +47,7 @@ export function course(overrides: Partial<Course> & { id: string; term_ids: stri
     subject_code: '',
     color: null,
     resolved_color: 'subject-1',
+    subject_color: 'subject-1',
     credits: 0.5,
     include_in_gpa: true,
     instructors: [],

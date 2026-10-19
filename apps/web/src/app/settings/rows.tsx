@@ -54,11 +54,21 @@ export function SettingsBlock({
   )
 }
 
-/** The rounded list that holds rows, with a hairline between them. */
+/**
+ * The rounded list that holds rows, with a hairline between them. `ItemGroup` widens its gap when
+ * any row holds a small control (`has-data-[size=sm]`, e.g. a switch); the rows here sit flush
+ * against their hairlines, so every gap is zeroed, or that space shows up under the row.
+ */
 export function SettingsGroup({ children, className, ...props }: ComponentProps<typeof ItemGroup>) {
   const rows = Children.toArray(children)
   return (
-    <ItemGroup className={className ?? 'gap-0 rounded-2xl border'} {...props}>
+    <ItemGroup
+      className={cn(
+        'gap-0 has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0',
+        className ?? 'rounded-2xl border',
+      )}
+      {...props}
+    >
       {rows.map((row, index) => (
         // `toArray` keys every element, so the separator can share its row's key.
         <SeparatedRow key={isValidElement(row) ? row.key : index} first={index === 0}>
@@ -136,8 +146,9 @@ export function ActionRow({
   return (
     <Item
       render={<button type="button" {...props} />}
+      // The hover tint is inset from the group's border, with its own corners.
       className={cn(
-        'cursor-pointer font-medium hover:bg-muted/50',
+        'isolate cursor-pointer font-medium before:absolute before:inset-1 before:-z-10 before:rounded-xl before:transition-colors hover:before:bg-muted relative',
         destructive ? 'text-destructive' : 'text-primary',
       )}
     >

@@ -131,6 +131,8 @@ async def test_subject_colors_are_assigned_once_and_stay(api: Api):
         "PATCH", f"/courses/{mat['id']}", json={"color": {"palette": 9}, "credits": 0.25}
     )
     assert (own["resolved_color"], own["credits"]) == ("subject-9", 0.25)
+    # The subject's color stays known for "use the subject color".
+    assert own["subject_color"] == "#112233"
     back = await api.call("PATCH", f"/courses/{mat['id']}", json={"color": None})
     assert back["resolved_color"] == "#112233"
 

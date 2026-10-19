@@ -114,7 +114,7 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
           onChange={(event) => onChange({ ...value, label: event.target.value || undefined })}
         />
       </Field>
-      <ItemGroup className="gap-0 rounded-2xl border">
+      <ItemGroup className="gap-0 rounded-2xl border has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0">
         <Item render={<li />}>
           <ItemContent>
             <ItemTitle>

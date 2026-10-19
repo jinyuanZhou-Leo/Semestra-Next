@@ -2,18 +2,10 @@ import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from './choice'
 import type { FieldDescriptor } from './schema'
-import { optionLabel } from './texts'
+import { optionHint, optionLabel } from './texts'
 
 export type ControlProps = {
   namespace: string
@@ -90,47 +82,22 @@ export function FieldControlView(props: ControlProps) {
         />
       )
     case 'segmented':
+    case 'select': {
+      const options = field.options.map((o) => ({
+        value: String(o),
+        label: optionLabel(namespace, field.key, o),
+        hint: optionHint(namespace, field.key, o),
+      }))
       return (
-        <ToggleGroup
-          aria-labelledby={labelId}
-          value={[String(value)]}
-          onValueChange={(next) => {
-            if (next[0]) onChange(field.options.find((o) => String(o) === next[0]))
-          }}
-          variant="outline"
-          size="sm"
-        >
-          {field.options.map((o) => (
-            <ToggleGroupItem key={String(o)} value={String(o)}>
-              {optionLabel(namespace, field.key, o)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      )
-    case 'select':
-      return (
-        <Select
+        <ChoiceControl
+          id={id}
+          labelId={labelId}
+          options={options}
           value={String(value)}
-          items={field.options.map((o) => ({
-            value: String(o),
-            label: optionLabel(namespace, field.key, o),
-          }))}
-          onValueChange={(next) => onChange(field.options.find((o) => String(o) === next))}
-        >
-          <SelectTrigger id={id} aria-labelledby={labelId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {field.options.map((o) => (
-                <SelectItem key={String(o)} value={String(o)}>
-                  {optionLabel(namespace, field.key, o)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          onChange={(next) => onChange(field.options.find((o) => String(o) === next))}
+        />
       )
+    }
     case 'number':
       return <NumberControl {...props} />
     case 'time':

@@ -228,6 +228,9 @@ def _course_out(
             "resolved_color": rules.resolve_course_color(
                 row.color, row.subject_code, program.subject_colors, row.id
             ),
+            "subject_color": rules.resolve_course_color(
+                None, row.subject_code, program.subject_colors, row.id
+            ),
             "term_ids": ordered,
             "end_term_id": ordered[-1] if ordered else "",
         }

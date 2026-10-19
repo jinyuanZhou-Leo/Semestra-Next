@@ -33,7 +33,7 @@ export default function PomodoroSettingsForm({ value, onChange }: Props) {
     ['notify', m.pomodoro_settings_notify_label()],
   ]
   return (
-    <ItemGroup className="gap-0 rounded-2xl border">
+    <ItemGroup className="gap-0 rounded-2xl border has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0">
       {numbers.map(([field, label], index) => (
         <Fragment key={field}>
           {index > 0 ? <ItemSeparator className="my-0" /> : null}

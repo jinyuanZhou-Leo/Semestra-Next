@@ -290,6 +290,9 @@ class Course(BaseModel):
     resolved_color: str = Field(
         description="Color to display: 'subject-<1..12>' (palette token) or '#rrggbb'"
     )
+    subject_color: str = Field(
+        description="Color the course shows without its own color (its subject's), same format"
+    )
     credits: float
     include_in_gpa: bool
     instructors: list[Instructor]
@@ -310,6 +313,7 @@ CourseField = Literal[
     "subject_code",
     "color",
     "resolved_color",
+    "subject_color",
     "credits",
     "include_in_gpa",
     "instructors",
