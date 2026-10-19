@@ -125,6 +125,7 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
             render={
               <SidebarMenuButton
                 size="lg"
+                tooltip={current.name}
                 className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 aria-label={m.academics_switch_program()}
               />
@@ -337,6 +338,7 @@ function AccountMenu() {
           render={
             <SidebarMenuButton
               size="lg"
+              tooltip={user.display_name}
               className="aria-expanded:bg-muted"
               aria-label={m.academics_account_menu()}
             />
