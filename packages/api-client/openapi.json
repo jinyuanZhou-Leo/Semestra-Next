@@ -470,6 +470,97 @@
         }
       }
     },
+    "/account/avatar": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Upload a profile picture (PNG, JPEG or WebP, up to 5 MB).",
+        "operationId": "accountAvatarUpload",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_accountAvatarUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account/avatars/{user_id}/{version}": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Avatar Get",
+        "description": "Public: the URL embeds a random version, so it is unguessable and cacheable forever.",
+        "operationId": "accountAvatarGet",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[\\w-]+$",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[\\w-]+$",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programs/{program_id}/courses": {
       "post": {
         "tags": [
@@ -8098,6 +8189,20 @@
           "cards"
         ],
         "title": "BoardUpdateInputBody"
+      },
+      "Body_accountAvatarUpload": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_accountAvatarUpload"
       },
       "Break": {
         "properties": {

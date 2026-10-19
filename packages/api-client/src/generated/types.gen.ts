@@ -665,6 +665,16 @@ export type BoardUpdateInputBody = {
 };
 
 /**
+ * Body_accountAvatarUpload
+ */
+export type BodyAccountAvatarUpload = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Break
  */
 export type Break = {
@@ -6076,6 +6086,63 @@ export type AuthLogoutResponses = {
 };
 
 export type AuthLogoutResponse = AuthLogoutResponses[keyof AuthLogoutResponses];
+
+export type AccountAvatarUploadData = {
+    body: BodyAccountAvatarUpload;
+    path?: never;
+    query?: never;
+    url: '/account/avatar';
+};
+
+export type AccountAvatarUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AccountAvatarUploadError = AccountAvatarUploadErrors[keyof AccountAvatarUploadErrors];
+
+export type AccountAvatarUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountAvatarUploadResponse = AccountAvatarUploadResponses[keyof AccountAvatarUploadResponses];
+
+export type AccountAvatarGetData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+        /**
+         * Version
+         */
+        version: string;
+    };
+    query?: never;
+    url: '/account/avatars/{user_id}/{version}';
+};
+
+export type AccountAvatarGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AccountAvatarGetError = AccountAvatarGetErrors[keyof AccountAvatarGetErrors];
+
+export type AccountAvatarGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type AcademicsCourseListData = {
     body?: never;
