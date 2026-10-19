@@ -67,6 +67,9 @@ export const canvasUi: LmsProviderUi = {
   logo: School,
   ConfigForm: CanvasForm,
   credentialHelp: CanvasHelp,
-  isComplete: ({ config, credentials }, editing) =>
-    Boolean(config.base_url?.trim()) && (editing || Boolean(credentials.access_token?.trim())),
+  isComplete: ({ config, credentials }, saved) => {
+    const url = config.base_url?.trim() ?? ''
+    const sameAddress = saved !== null && url === (saved.base_url ?? '')
+    return url !== '' && (sameAddress || Boolean(credentials.access_token?.trim()))
+  },
 }

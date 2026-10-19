@@ -52,7 +52,7 @@ def normalize_base_url(raw: str, settings: Settings) -> str:
 def normalize_token(raw: str) -> str:
     token = raw.strip()
     if len(token) < 8 or re.search(r"\s", token) or "@" in token:
-        raise lms_error("lms.invalid_config", field="access_token", reason="token")
+        raise lms_error("lms.invalid_credentials", reason="format")
     return token
 
 

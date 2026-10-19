@@ -13,10 +13,13 @@ export type LmsProviderUi = {
   ConfigForm: ComponentType<LmsConfigFormProps>
   /** How to get the credentials, shown folded under the form. */
   credentialHelp?: ComponentType
-  /** Whether the form can be sent; the server still checks everything. */
+  /**
+   * Whether the form can be sent; the server still checks everything. `saved` is the config of
+   * the connection being edited (null when adding): a new address needs the credentials again.
+   */
   isComplete: (
     form: { config: Record<string, string>; credentials: Record<string, string> },
-    editing: boolean,
+    saved: Record<string, string> | null,
   ) => boolean
 }
 

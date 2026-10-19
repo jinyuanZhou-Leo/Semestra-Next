@@ -16,6 +16,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
+from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.imports import register_commit_hook
 from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsItem, ImportsSession
@@ -333,6 +334,14 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
     return UpdatesOutput(course_id=course_id, count=len(items), items=items)
 
 
+async def _current_weight(ctx: Ctx, target: ImportTarget) -> float | None:
+    """The assessment's weight now, so the review shows what a new weight replaces."""
+    if target.kind != "assessment":
+        return None
+    row = await ctx.db.get(GradingAssessment, target.id)
+    return row.weight if row is not None and row.user_id == ctx.user_id else None
+
+
 async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
     """An M08 session with one patch item per changed assignment; rejecting an item dismisses
     the change (its snapshot is updated either way on commit)."""
@@ -368,7 +377,9 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
             changes["due_date"] = {"old": old_date, "new": new_date}
             changes["due_time"] = {"old": old_time, "new": new_time}
         if "points" in update.changes and update.external_id in weights:
-            changes["weight"] = {"old": None, "new": weights[update.external_id]}
+            old = await _current_weight(ctx, update.target)
+            if old != weights[update.external_id]:
+                changes["weight"] = {"old": old, "new": weights[update.external_id]}
         key = f"u{len(new)}"
         target = update.target
         id_field = "assessment_id" if target.kind == "assessment" else "task_id"

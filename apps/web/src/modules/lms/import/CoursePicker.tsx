@@ -3,7 +3,7 @@ import {
   lmsCoursesListOptions,
   lmsProgramBindingGetOptions,
 } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings'
@@ -99,9 +99,10 @@ function CourseList({
   const [past, setPast] = useState(false)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
-  const courses = useQuery(
-    lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
-  )
+  const courses = useQuery({
+    ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
+    placeholderData: keepPreviousData,
+  })
 
   const start = () => {
     setStarting(true)

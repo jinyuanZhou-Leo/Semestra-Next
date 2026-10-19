@@ -38,8 +38,17 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const banners = useExtensions<CourseGradesBanner>(COURSE_GRADES_BANNERS)
   const { result, summary } = gradebook
 
+  const notices = banners.map((banner) => (
+    <banner.component key={banner.id} programId={programId} courseId={courseId} />
+  ))
+
   if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
-    return <ManualGrade gradebook={gradebook} />
+    return (
+      <div className="space-y-4">
+        {notices}
+        <ManualGrade gradebook={gradebook} />
+      </div>
+    )
   }
 
   const canPlan = summary.weights_ok
@@ -52,9 +61,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   return (
     <div className="space-y-4">
-      {banners.map((banner) => (
-        <banner.component key={banner.id} programId={programId} courseId={courseId} />
-      ))}
+      {notices}
       <SummaryStrip gradebook={gradebook} />
       <Field orientation="horizontal" className="w-fit">
         <Switch

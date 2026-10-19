@@ -112,7 +112,7 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
   await userEvent.type(within(dialog).getByLabelText('API token'), 'wrong-token')
   await userEvent.click(save)
-  expect(await within(dialog).findByText('The platform rejected the API token')).toBeInTheDocument()
+  expect(await within(dialog).findByText("The API token isn't valid")).toBeInTheDocument()
 
   await userEvent.clear(within(dialog).getByLabelText('API token'))
   await userEvent.type(within(dialog).getByLabelText('API token'), '7~abcdefghxy')
@@ -340,4 +340,22 @@ test('a changed assignment shows its name and old → new values', async () => {
   expect(screen.getByText('Assessment change')).toBeInTheDocument()
   expect(screen.getByText('2026-02-07')).toBeInTheDocument()
   expect(screen.getByText('2026-02-12')).toBeInTheDocument()
+})
+
+test('editing the address asks for the token again', async () => {
+  server.use(
+    http.get(`${API}/lms/providers`, () => HttpResponse.json(PROVIDERS)),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+  const dialog = await screen.findByRole('dialog')
+  const save = within(dialog).getByRole('button', { name: 'Check and save' })
+  expect(save).toBeEnabled()
+  const address = within(dialog).getByLabelText('Canvas address')
+  await userEvent.clear(address)
+  await userEvent.type(address, 'https://elsewhere.example.com')
+  expect(save).toBeDisabled()
+  await userEvent.type(within(dialog).getByLabelText('New API token'), '7~abcdefghxy')
+  expect(save).toBeEnabled()
 })

@@ -7,7 +7,7 @@ import {
   lmsCourseLinkUpdateMutation,
   lmsCoursesListOptions,
 } from '@semestra/api-client/react-query'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Link2, Link2Off, RefreshCw } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -234,17 +234,23 @@ function CoursePicker({
   const id = useId()
   const [past, setPast] = useState(false)
   const [chosen, setChosen] = useState(current?.external_course_id ?? '')
-  const courses = useQuery(
-    lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
-  )
+  const [confirming, setConfirming] = useState(false)
+  // Keeps the list while "Show past courses" refetches, so the section does not jump.
+  const courses = useQuery({
+    ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
+    placeholderData: keepPreviousData,
+  })
   const link = useMutation({
     ...lmsCourseLinkSetMutation(),
     onSuccess: async () => {
+      setConfirming(false)
       await queryClient.invalidateQueries()
       onDone()
     },
-    onError: toastError,
+    onError: (err) => (setConfirming(false), toastError(err)),
   })
+  const submit = () =>
+    link.mutate({ path: { course_id: courseId }, body: { external_course_id: chosen } })
 
   return (
     <AsyncBoundary query={courses}>
@@ -252,74 +258,88 @@ function CoursePicker({
         const groups = groupByTerm(data.items)
         const items = data.items.map((c) => ({ value: c.external_id, label: externalLabel(c) }))
         return (
-          <SettingsGroup>
-            <SettingRow label={m.lms_course_pick()} description={m.lms_course_pick_description()}>
-              {(labelId) => (
-                <Select
-                  value={chosen || null}
-                  items={items}
-                  onValueChange={(v) => setChosen(v ?? '')}
-                >
-                  <SelectTrigger aria-labelledby={labelId} className="w-64">
-                    <SelectValue placeholder={m.lms_course_pick_placeholder()} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectGroup key={group.term}>
-                        <SelectLabel>{group.term}</SelectLabel>
-                        {group.courses.map((c) => {
-                          const elsewhere = c.linked_course_id && c.linked_course_id !== courseId
-                          return (
-                            <SelectItem
-                              key={c.external_id}
-                              value={c.external_id}
-                              disabled={Boolean(elsewhere)}
-                            >
-                              {externalLabel(c)}
-                              {elsewhere ? (
-                                <span className="text-xs text-muted-foreground">
-                                  {m.lms_course_linked_to({ course: c.linked_course_name ?? '' })}
-                                </span>
-                              ) : null}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </SettingRow>
-            <Item>
-              <ItemContent>
-                <Field orientation="horizontal" className="w-fit">
-                  <Switch id={`${id}-past`} checked={past} onCheckedChange={setPast} />
-                  <FieldLabel htmlFor={`${id}-past`} className="font-normal">
-                    {m.lms_show_past()}
-                  </FieldLabel>
-                </Field>
-              </ItemContent>
-              <ItemActions>
-                {current ? (
-                  <Button variant="outline" size="sm" onClick={onDone}>
-                    {m.common_cancel()}
+          <>
+            <SettingsGroup>
+              <SettingRow label={m.lms_course_pick()} description={m.lms_course_pick_description()}>
+                {(labelId) =>
+                  data.items.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">{m.lms_courses_empty()}</span>
+                  ) : (
+                    <Select
+                      value={chosen || null}
+                      items={items}
+                      onValueChange={(v) => setChosen(v ?? '')}
+                    >
+                      <SelectTrigger aria-labelledby={labelId} className="w-64">
+                        <SelectValue placeholder={m.lms_course_pick_placeholder()} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups.map((group) => (
+                          <SelectGroup key={group.term}>
+                            <SelectLabel>{group.term}</SelectLabel>
+                            {group.courses.map((c) => {
+                              const elsewhere =
+                                c.linked_course_id && c.linked_course_id !== courseId
+                              return (
+                                <SelectItem
+                                  key={c.external_id}
+                                  value={c.external_id}
+                                  disabled={Boolean(elsewhere)}
+                                >
+                                  {externalLabel(c)}
+                                  {elsewhere ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      {m.lms_course_linked_to({
+                                        course: c.linked_course_name ?? '',
+                                      })}
+                                    </span>
+                                  ) : null}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )
+                }
+              </SettingRow>
+              <Item>
+                <ItemContent>
+                  <Field orientation="horizontal" className="w-fit">
+                    <Switch id={`${id}-past`} checked={past} onCheckedChange={setPast} />
+                    <FieldLabel htmlFor={`${id}-past`} className="font-normal">
+                      {m.lms_show_past()}
+                    </FieldLabel>
+                  </Field>
+                </ItemContent>
+                <ItemActions>
+                  {current ? (
+                    <Button variant="outline" size="sm" onClick={onDone}>
+                      {m.common_cancel()}
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    disabled={!chosen || chosen === current?.external_course_id || link.isPending}
+                    // Moving the link drops what was imported through it: say so first.
+                    onClick={() => (current ? setConfirming(true) : submit())}
+                  >
+                    {m.lms_course_link()}
                   </Button>
-                ) : null}
-                <Button
-                  size="sm"
-                  disabled={!chosen || chosen === current?.external_course_id || link.isPending}
-                  onClick={() =>
-                    link.mutate({
-                      path: { course_id: courseId },
-                      body: { external_course_id: chosen },
-                    })
-                  }
-                >
-                  {m.lms_course_link()}
-                </Button>
-              </ItemActions>
-            </Item>
-          </SettingsGroup>
+                </ItemActions>
+              </Item>
+            </SettingsGroup>
+            <ConfirmDialog
+              open={confirming}
+              onOpenChange={setConfirming}
+              title={m.lms_course_change_title()}
+              description={m.lms_course_change_desc()}
+              confirmLabel={m.lms_course_change()}
+              pending={link.isPending}
+              onConfirm={submit}
+            />
+          </>
         )
       }}
     </AsyncBoundary>

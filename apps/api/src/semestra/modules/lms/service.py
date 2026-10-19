@@ -230,7 +230,8 @@ async def update_connection(ctx: Ctx, inp: ConnectionUpdateInput) -> Connection:
         creds = provider.normalize_credentials(_plain(inp.credentials))
         changed = True
     elif changed:
-        creds = _open(ctx, provider, row)
+        # The saved credentials never go to a new address: a typo would hand them to that host.
+        raise lms_error("lms.credentials_missing")
     else:
         creds = None
     if changed and creds is not None:
@@ -295,7 +296,7 @@ async def validate(ctx: Ctx, inp: ConnectionValidateInput) -> ConnectionCheck:
         )
         if inp.credentials is not None:
             creds = provider.normalize_credentials(_plain(inp.credentials))
-        elif row is not None:
+        elif row is not None and cfg == _config(provider, row):
             creds = _open(ctx, provider, row)
         else:
             raise lms_error("lms.credentials_missing")
@@ -368,6 +369,9 @@ async def refresh_all(ctx: Ctx) -> None:
             await _check(ctx, provider, _config(provider, row), _open(ctx, provider, row))
         except AppError as exc:
             await _record(ctx, row, exc.code)
+        except Exception:
+            # One broken connection (old config, a provider bug) must not stop the round.
+            log.exception("lms.refresh_failed", connection_id=row.id)
         else:
             await _record(ctx, row, None)
 

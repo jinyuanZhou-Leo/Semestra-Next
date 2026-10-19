@@ -311,12 +311,12 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
     # No changes, then the due date and the name of Lab 1 change on the LMS.
     assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
     fake.course_assignments["101"][0] = fake.course_assignments["101"][0].model_copy(
-        update={"name": "Lab 1 (revised)",
+        update={"name": "Lab 1 (revised)", "points": 20,
                 "due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)}
     )  # fmt: skip
     updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
     assert updates["count"] == 1
-    assert set(updates["items"][0]["changes"]) == {"title", "due_at"}
+    assert set(updates["items"][0]["changes"]) == {"title", "due_at", "points"}
     review = await api.call("POST", f"/courses/{course}/lms/updates:review")
     patch = await api.call("GET", f"/imports/{review['session_id']}")
     [item] = patch["items"]
@@ -326,6 +326,8 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
         "new": "2026-02-12",
         "apply": True,
     }
+    # 20 of the Labs' 50 points: 8% of the grade instead of the 5% it has now.
+    assert item["data"]["changes"]["weight"] == {"old": 5, "new": 8, "apply": True}
     done = await api.commit(review["session_id"])
     assert done["failed"] == 0
     lab = next(a for a in (await api.call("GET", f"/courses/{course}/assessments"))["items"]
@@ -503,3 +505,51 @@ async def test_deleted_tasks_can_be_imported_again(api: Api, app: FastAPI):
         await ctx.db.commit()
         left = await ctx.db.scalars(select(LmsImportedRef.target_id))
         assert list(left) == ["t3"]
+
+
+async def test_saved_token_never_goes_to_a_new_address(api: Api, fake: FakeProvider):
+    from structlog.testing import capture_logs
+
+    with capture_logs() as logs:
+        created = await api.connection()
+    assert "good-token-1" not in str(logs)
+    fake.calls.clear()
+    moved = {"base_url": "https://typo.example.com"}
+    err = await api.call("PATCH", f"/lms/connections/{created['id']}", 409, json={"config": moved})
+    assert err["error"]["code"] == "lms.credentials_missing"
+    check = await api.call(
+        "POST", "/lms/connections:validate", json={"connection_id": created["id"], "config": moved}
+    )
+    assert check["error_code"] == "lms.credentials_missing"
+    assert fake.calls == []  # nothing was sent anywhere
+    # With a token typed again the address can change.
+    updated = await api.call(
+        "PATCH",
+        f"/lms/connections/{created['id']}",
+        json={"config": moved, "credentials": {"token": "good-token-1"}},
+    )
+    assert updated["config"]["base_url"] == "https://typo.example.com"
+
+
+async def test_refresh_survives_a_broken_connection(
+    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    first = await api.connection(display_name="Broken")
+    second = await api.connection(display_name="Fine")
+    original = type(fake).validate
+
+    async def flaky(self: FakeProvider, io: Any, cfg: Any, creds: Any) -> Any:
+        if not flaky.failed:
+            flaky.failed = True
+            raise RuntimeError("provider bug")
+        return await original(self, io, cfg, creds)
+
+    flaky.failed = False
+    monkeypatch.setattr(type(fake), "validate", flaky)
+    fake.valid_tokens.clear()  # the second check records an error
+    async with system_ctx(app.state) as ctx:
+        await service.refresh_all(ctx)
+        await ctx.db.commit()
+        rows = {r.id: r for r in await ctx.db.scalars(select(LmsConnection))}
+    assert rows[first["id"]].status == "connected"
+    assert rows[second["id"]].last_error_code == "lms.invalid_credentials"

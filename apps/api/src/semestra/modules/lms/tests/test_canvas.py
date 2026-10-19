@@ -88,8 +88,9 @@ def test_hosted_needs_https(settings: Settings):
 def test_token_rules_and_mask():
     p = CanvasProvider()
     for bad in ("short", "has space token", "me@example.edu-token"):
-        with pytest.raises(AppError):
+        with pytest.raises(AppError) as exc:
             p.normalize_credentials({"access_token": bad})
+        assert exc.value.code == "lms.invalid_credentials"
     assert mask_token("7~abcdefghijklmnxy") == "7~ab…xy"
     assert mask_token("7~abcdefgh") == "…"
 
@@ -248,3 +249,12 @@ def test_internal_links_are_rewritten(settings: Settings):
     assert rel is not None
     assert (rel.kind, rel.ref) == ("assignment", "11")
     assert p.rewrite_internal_link(cfg, "https://other.example/courses/1/pages/x") is None
+
+
+def test_file_cdn_hosts_match_whole_labels():
+    p = CanvasProvider()
+    base = "https://canvas.example.edu"
+    assert p._allowed_hop(base, "https://instructure-uploads.s3.amazonaws.com/f")
+    assert p._allowed_hop(base, "https://a.instructure-uploads.s3.amazonaws.com/f")
+    assert not p._allowed_hop(base, "https://evilinstructure-uploads.s3.amazonaws.com/f")
+    assert not p._allowed_hop(base, "https://evilinstructure.com/f")

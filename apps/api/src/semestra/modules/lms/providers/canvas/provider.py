@@ -64,7 +64,7 @@ FILE_CDN_SUFFIXES = (
     ".instructure.com",
     ".canvas-user-content.com",
     ".inscloudgate.net",
-    "instructure-uploads.s3.amazonaws.com",
+    ".instructure-uploads.s3.amazonaws.com",
 )
 NAV_KINDS: dict[str, NavKind] = {
     k: k

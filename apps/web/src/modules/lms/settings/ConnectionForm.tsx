@@ -59,7 +59,8 @@ export function ConnectionForm({
   const ui = uis.get(chosen)
   const pending = create.isPending || update.isPending
   const error = create.error ?? update.error
-  const complete = ui ? ui.isComplete({ config, credentials }, editing) : false
+  const saved = connection ? strings(connection.config) : null
+  const complete = ui ? ui.isComplete({ config, credentials }, saved) : false
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
