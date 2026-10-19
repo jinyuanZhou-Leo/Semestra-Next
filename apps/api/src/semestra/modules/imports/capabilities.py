@@ -1,0 +1,134 @@
+from semestra.core.capability import Http, capability
+from semestra.core.context import Ctx
+from semestra.modules.imports import service
+from semestra.modules.imports.schemas import (
+    BulkDecideInput,
+    BulkDecideResult,
+    CommitInput,
+    CommitResult,
+    ImportSession,
+    ImportSessionDetail,
+    ImportSessionPage,
+    ItemsAddInput,
+    ItemUpdateInput,
+    SessionCreateInput,
+    SessionListInput,
+    SessionRef,
+    SessionSummary,
+)
+
+TAGS = ("imports",)
+
+
+@capability(
+    name="imports.session.create",
+    summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
+    description="""Creates a draft the user reviews before anything is written. Upload files first
+(POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.
+ICS is parsed at once (status ready); the other sources are extracted in the background
+(status extracting → ready), poll imports.session.get. Never write a document's contents with
+the modules' own create capabilities instead of importing it.""",
+    effect="write",
+    http=Http("POST", "/programs/{program_id}/imports"),
+    tags=TAGS,
+)
+async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDetail:
+    return await service.create_session(ctx, inp)
+
+
+@capability(
+    name="imports.session.get",
+    summary="An import with its items, their issues and the extraction progress.",
+    description="""Use to see what an import found (courses, assessments, meetings...) and what
+needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).""",
+    effect="read",
+    http=Http("GET", "/imports/{session_id}"),
+    tags=TAGS,
+    agent_core=True,
+)
+async def session_get(ctx: Ctx, inp: SessionRef) -> ImportSessionDetail:
+    return await service.detail(ctx, await service.get_session_row(ctx, inp.session_id))
+
+
+@capability(
+    name="imports.session.list",
+    summary="Import history of a Program, newest first.",
+    description="Closed imports are kept for 30 days.",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/imports"),
+    tags=TAGS,
+)
+async def session_list(ctx: Ctx, inp: SessionListInput) -> ImportSessionPage:
+    return await service.list_sessions(ctx, inp.program_id, inp.cursor, inp.limit)
+
+
+@capability(
+    name="imports.item.update",
+    summary="Edit an import item's fields or accept/reject it.",
+    description="""`data` is merged into the item (send null to clear a field); the item's issues
+are checked again afterwards.""",
+    effect="write",
+    http=Http("PATCH", "/imports/{session_id}/items/{item_id}"),
+    tags=TAGS,
+)
+async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
+    return await service.update_item(ctx, inp)
+
+
+@capability(
+    name="imports.items.bulk_decide",
+    summary="Accept or reject many import items at once, by type, issue or id.",
+    description="E.g. reject every item with `import.duplicate_assessment`.",
+    effect="write",
+    http=Http("POST", "/imports/{session_id}/items:decide"),
+    tags=TAGS,
+)
+async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
+    changed, session = await service.bulk_decide(ctx, inp)
+    return BulkDecideResult(changed=changed, session=session)
+
+
+@capability(
+    name="imports.items.add",
+    summary="Append items to an open import (LMS integration, assistant).",
+    description="""Items refer to each other with `item:<key>` in `course_ref` (a course item's
+`key`) or to existing courses with `course:<id>`. The user still reviews them before commit.""",
+    effect="write",
+    expose=("agent", "mcp"),
+    tags=TAGS,
+)
+async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
+    return await service.add_items_capability(ctx, inp.session_id, inp.items, ready=inp.ready)
+
+
+async def _commit_preview(ctx: Ctx, inp: CommitInput) -> SessionSummary:
+    row = await service.get_session_row(ctx, inp.session_id)
+    return SessionSummary.model_validate(row.summary)
+
+
+@capability(
+    name="imports.session.commit",
+    summary="Write the accepted items of an import (courses, gradebook, schedule, tasks).",
+    description="""Only after the user reviewed the import. Writes in dependency order; one item
+failing does not undo the others (see each item's `result`). Repeating it only retries the
+items that have not been written.""",
+    effect="write",
+    http=Http("POST", "/imports/{session_id}:commit"),
+    tags=TAGS,
+    preview=_commit_preview,
+)
+async def session_commit(ctx: Ctx, inp: CommitInput) -> CommitResult:
+    session, counts = await service.commit(ctx, inp)
+    return CommitResult(session=session, **counts)
+
+
+@capability(
+    name="imports.session.discard",
+    summary="Drop an import that has not been committed, with its uploaded files.",
+    description="Use when the user does not want the import.",
+    effect="write",
+    http=Http("POST", "/imports/{session_id}:discard"),
+    tags=TAGS,
+)
+async def session_discard(ctx: Ctx, inp: SessionRef) -> ImportSession:
+    return await service.discard(ctx, inp.session_id)

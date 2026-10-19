@@ -211,7 +211,7 @@ export function TermWizard({
             code: d.code ?? '',
             title: d.title,
             credits: d.credits == null ? '' : String(d.credits),
-            yearLong: false,
+            yearLong: (d.plannedTerms ?? 1) > 1,
             sourceId: source.id,
             draft: d,
           })),

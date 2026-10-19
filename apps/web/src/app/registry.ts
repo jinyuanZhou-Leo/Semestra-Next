@@ -1,13 +1,21 @@
 import type { PluginCatalog } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { createContext, createElement, type ReactNode, useContext, useMemo } from 'react'
+import {
+  type ComponentType,
+  createContext,
+  createElement,
+  type ReactNode,
+  useContext,
+  useMemo,
+} from 'react'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import assistant from '@/modules/assistant/manifest'
 import auth from '@/modules/auth/manifest'
 import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
+import imports from '@/modules/imports/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
 import pomodoro from '@/modules/plugin-pomodoro/manifest'
@@ -44,6 +52,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   plugins,
   schedule,
   files,
+  imports,
   tasks,
   habitStreak,
   pomodoro,
@@ -142,6 +151,10 @@ export function useStatusItems(): StatusItemContribution[] {
   return useModules()
     .flatMap((m) => m.statusItems ?? [])
     .sort(byOrder)
+}
+
+export function useOverlays(): ComponentType[] {
+  return useModules().flatMap((m) => m.overlays ?? [])
 }
 
 /** All contributions to an extension point another module defined, e.g. `'academics.courseColumns'`. */
