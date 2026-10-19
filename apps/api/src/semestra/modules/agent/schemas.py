@@ -8,9 +8,12 @@ ProposalStatus = Literal["pending", "approved", "rejected", "executed", "failed"
 
 
 class AgentScope(BaseModel):
-    program_id: str = Field(description="Program of the page the assistant was opened on.")
-    term_id: str | None = Field(default=None, description="Term of the page, if any.")
-    course_id: str | None = Field(default=None, description="Course of the page, if any.")
+    program_id: str = Field(description="Program the assistant works in.")
+    term_id: str | None = Field(default=None, description="Term it works in, if any.")
+    course_id: str | None = Field(
+        default=None,
+        description="Course of older conversations; new ones work in a Program or a term.",
+    )
 
 
 class AgentSessionOut(BaseModel):
@@ -101,7 +104,7 @@ class AgentSessionUpdateInput(BaseModel):
     pinned: bool | None = Field(default=None, description="Pin to the top of the list.")
     archived: bool | None = Field(default=None, description="Archive or restore.")
     scope: AgentScope | None = Field(
-        default=None, description="Change the context (e.g. from a course to its Program)."
+        default=None, description="Change where the assistant works (a term or the whole Program)."
     )
 
 
@@ -157,6 +160,10 @@ class SendMessageBody(BaseModel):
     attachment_ids: list[str] = Field(default_factory=list, max_length=10)
     scope: AgentScope | None = None
     skill: str | None = Field(default=None, description="Slash-command skill to apply.")
+
+
+class EditMessageBody(BaseModel):
+    text: str = Field(default="", max_length=20_000)
 
 
 class Decision(BaseModel):

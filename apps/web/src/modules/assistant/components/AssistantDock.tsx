@@ -1,5 +1,5 @@
 import { useLocation } from '@tanstack/react-router'
-import { lazy, type ReactNode, Suspense } from 'react'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable'
@@ -26,40 +26,51 @@ export function AssistantDock({ children }: { children: ReactNode }) {
   const { open } = usePanel()
   const isMobile = useIsMobile()
   const pathname = useLocation({ select: (l) => l.pathname })
-  const [width, setWidth] = useUiPref('layout.assistant_width', PANEL_DEFAULT)
   const shown = open && !isMobile && !ASSISTANT_PAGE.test(pathname)
+  // Read here, where it is always mounted, so the remembered width stays in the cache.
+  const [width, setWidth] = useUiPref('layout.assistant_width', PANEL_DEFAULT)
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="min-w-0 flex-1">
       <ResizablePanel id="content" minSize={320} className="flex min-w-0">
         {children}
       </ResizablePanel>
-      {shown ? (
-        <>
-          <ResizableHandle />
-          <ResizablePanel
-            id="assistant"
-            defaultSize={Math.min(PANEL_MAX, Math.max(PANEL_MIN, width))}
-            minSize={PANEL_MIN}
-            maxSize={PANEL_MAX}
-            groupResizeBehavior="preserve-pixel-size"
-            onResize={(size, _id, previous) => {
-              // Only a drag changes the remembered width, not the first layout.
-              if (previous) setWidth(Math.round(size.inPixels))
-            }}
-          >
-            <Suspense
-              fallback={
-                <div className="flex h-full items-center justify-center">
-                  <Spinner aria-hidden />
-                </div>
-              }
-            >
-              <AssistantPanel />
-            </Suspense>
-          </ResizablePanel>
-        </>
-      ) : null}
+      {shown ? <DockedPanel width={width} onWidth={setWidth} /> : null}
     </ResizablePanelGroup>
+  )
+}
+
+/**
+ * The panel itself, mounted while it is shown. Its default size is read once: a changing
+ * `defaultSize` makes react-resizable-panels register the panel again, which ended every drag
+ * after its first pixel step (the remembered width was fed back on each resize).
+ */
+function DockedPanel({ width, onWidth }: { width: number; onWidth: (width: number) => void }) {
+  const [defaultSize] = useState(() => Math.min(PANEL_MAX, Math.max(PANEL_MIN, width)))
+  return (
+    <>
+      <ResizableHandle />
+      <ResizablePanel
+        id="assistant"
+        defaultSize={defaultSize}
+        minSize={PANEL_MIN}
+        maxSize={PANEL_MAX}
+        groupResizeBehavior="preserve-pixel-size"
+        onResize={(size, _id, previous) => {
+          // Only a drag changes the remembered width, not the first layout.
+          if (previous) onWidth(Math.round(size.inPixels))
+        }}
+      >
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center">
+              <Spinner aria-hidden />
+            </div>
+          }
+        >
+          <AssistantPanel />
+        </Suspense>
+      </ResizablePanel>
+    </>
   )
 }

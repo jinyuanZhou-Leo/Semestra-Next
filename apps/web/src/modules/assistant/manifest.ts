@@ -1,4 +1,4 @@
-import { Bot, ListChecks, Plug, Wrench } from 'lucide-react'
+import { ListChecks, MessageCircle, Plug, Wrench } from 'lucide-react'
 import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -8,7 +8,7 @@ import { panel } from './store'
 const settings = () => import('./settings/sections')
 
 /**
- * M12 AI 助手: the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
+ * M12 AI 助手 (shown as 小森 / Sem): the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
  * the settings for auto-approval, MCP and the tool catalog. The app shell docks the panel through
  * `assistant.Dock`.
  */
@@ -17,7 +17,7 @@ export default defineModule({
   kind: 'core',
   name: m.assistant_name,
   description: m.assistant_description,
-  icon: Bot,
+  icon: MessageCircle,
   assistant: {
     open: (_ctx, question) => (question ? panel.open(question) : panel.toggle()),
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },

@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
 import { type AgentEvent, streamAgent } from './stream'
-import { applyEvent, withUserMessage } from './transcript'
+import { applyEvent, withEditedMessage, withUserMessage } from './transcript'
 
 export type ChatError = { code: string; params: Record<string, unknown> }
 
@@ -184,6 +184,15 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:regenerate`, {})
   }
 
+  /** Replaces the text of a sent message; everything after it is dropped and answered again. */
+  function edit(messageId: string, text: string) {
+    if (!sessionId) return Promise.resolve(false)
+    queryClient.setQueryData<AgentSessionDetail>(keyOf(sessionId), (current) =>
+      current ? withEditedMessage(current, messageId, text.trim()) : current,
+    )
+    return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:edit`, { text })
+  }
+
   async function stop() {
     if (!sessionId) return
     try {
@@ -207,6 +216,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     send,
     decide,
     regenerate,
+    edit,
     stop,
   }
 }

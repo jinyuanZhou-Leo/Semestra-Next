@@ -9,7 +9,7 @@ from semestra.core.db import Base, OwnedMixin, new_id
 
 class AgentSession(Base, OwnedMixin):
     """One assistant conversation (M12 §2). `state` replaces LangGraph's checkpoint: the tools
-    loaded with `tools_load` (LRU order) and the summary of compacted turns."""
+    loaded with `tools_load` (in load order) and the summary of compacted turns."""
 
     __tablename__ = "agent_sessions"
     __table_args__ = (Index("ix_agent_sessions_user_updated", "user_id", "updated_at"),)

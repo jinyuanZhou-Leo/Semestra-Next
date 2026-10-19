@@ -5,6 +5,7 @@ import { ArrowUp, BookOpen, CalendarRange, FileText, Plus, Sparkles, Square, X }
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { courseLabel } from '@/modules/academics/color'
+import { courseTermId } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import {
   Attachment,
@@ -21,7 +22,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } fro
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { skillTitle } from '../labels'
-import { useProgramEntities } from '../scope'
+import { termScope, useProgramEntities } from '../scope'
 
 export type PendingAttachment = {
   key: string
@@ -101,8 +102,8 @@ function IconButton({
 
 /**
  * Where the user writes (M12 §6.1): Enter sends and Shift+Enter breaks the line, `/` picks a
- * skill, `@` refers to a course or term (it also becomes the context), files can be attached,
- * pasted or dropped, and a running answer can be stopped.
+ * skill, `@` refers to a course or term (its term becomes where the assistant works), files can
+ * be attached, pasted or dropped, and a running answer can be stopped.
  */
 export function Composer({
   programId,
@@ -190,10 +191,10 @@ export function Composer({
     textarea.current?.setSelectionRange(position, position)
     if (option.kind === 'skill') setSkill(option.skill)
     else if (programId && option.kind === 'course') {
-      const { course } = option
-      onScope({ program_id: programId, term_id: course.term_ids[0] ?? null, course_id: course.id })
+      // The assistant works in a term at most: a course brings its term.
+      onScope(termScope(programId, courseTermId(option.course, terms, undefined)))
     } else if (programId && option.kind === 'term') {
-      onScope({ program_id: programId, term_id: option.term.id, course_id: null })
+      onScope(termScope(programId, option.term.id))
     }
   }
 

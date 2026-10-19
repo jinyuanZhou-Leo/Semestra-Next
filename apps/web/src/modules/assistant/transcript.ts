@@ -155,6 +155,28 @@ export function withUserMessage(
   return { ...detail, messages: [...detail.messages, newMessage(id, 'user', blocks)] }
 }
 
+/** A message edited by the user, before the server answers again: later messages are gone. */
+export function withEditedMessage(
+  detail: AgentSessionDetail,
+  id: string,
+  text: string,
+): AgentSessionDetail {
+  const index = detail.messages.findIndex((m) => m.id === id)
+  if (index < 0) return detail
+  const kept = detail.messages.slice(0, index + 1)
+  const message = kept[index]
+  if (!message) return detail
+  const others = message.content.filter((b) => b.type !== 'text')
+  const skill = others.findIndex((b) => b.type === 'skill')
+  const content = text ? others.toSpliced(skill + 1, 0, { type: 'text', text }) : others
+  const ids = new Set(kept.map((m) => m.id))
+  return {
+    ...detail,
+    messages: kept.with(index, { ...message, content }),
+    proposals: detail.proposals.filter((p) => ids.has(p.message_id)),
+  }
+}
+
 /** Applies one streamed event to the cached transcript (the server copy is re-read after). */
 export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): AgentSessionDetail {
   switch (event.event) {

@@ -217,19 +217,19 @@ export type AgentScope = {
     /**
      * Program Id
      *
-     * Program of the page the assistant was opened on.
+     * Program the assistant works in.
      */
     program_id: string;
     /**
      * Term Id
      *
-     * Term of the page, if any.
+     * Term it works in, if any.
      */
     term_id?: string | null;
     /**
      * Course Id
      *
-     * Course of the page, if any.
+     * Course of older conversations; new ones work in a Program or a term.
      */
     course_id?: string | null;
 };
@@ -337,7 +337,7 @@ export type AgentSessionUpdateInputBody = {
      */
     archived?: boolean | null;
     /**
-     * Change the context (e.g. from a course to its Program).
+     * Change where the assistant works (a term or the whole Program).
      */
     scope?: AgentScope | null;
 };

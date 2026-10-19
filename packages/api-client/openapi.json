@@ -2962,7 +2962,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "agent"
         ],
         "summary": "Start a new conversation.",
-        "description": "The page scope (Program, term, course) is the conversation's context.",
+        "description": "Where the assistant works: a Program or one of its terms.",
         "operationId": "agentSessionCreate",
         "requestBody": {
           "required": true,
@@ -3163,7 +3163,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "agent"
         ],
-        "summary": "Rename, pin, archive a conversation or change its context.",
+        "summary": "Rename, pin, archive a conversation or change where it works.",
         "description": "Only the fields sent are changed.",
         "operationId": "agentSessionUpdate",
         "parameters": [
@@ -12444,7 +12444,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "program_id": {
             "type": "string",
             "title": "Program Id",
-            "description": "Program of the page the assistant was opened on."
+            "description": "Program the assistant works in."
           },
           "term_id": {
             "anyOf": [
@@ -12456,7 +12456,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Term Id",
-            "description": "Term of the page, if any."
+            "description": "Term it works in, if any."
           },
           "course_id": {
             "anyOf": [
@@ -12468,7 +12468,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Course Id",
-            "description": "Course of the page, if any."
+            "description": "Course of older conversations; new ones work in a Program or a term."
           }
         },
         "type": "object",
@@ -12678,7 +12678,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                 "type": "null"
               }
             ],
-            "description": "Change the context (e.g. from a course to its Program)."
+            "description": "Change where the assistant works (a term or the whole Program)."
           }
         },
         "type": "object",

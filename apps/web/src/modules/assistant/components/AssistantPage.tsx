@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { PageHeader } from '@/app/host/PageHeader'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { programScope } from '../scope'
 import { Conversation } from './Conversation'
 import { SessionList, sessionTitle } from './SessionList'
 
@@ -57,7 +58,7 @@ export function AssistantPage({
             key={key}
             className="max-w-3xl"
             sessionId={sessionId}
-            pageScope={{ program_id: programId, term_id: null, course_id: null }}
+            pageScope={programScope(programId)}
             onCreated={(id) => {
               setFresh((f) => ({ ...f, createdId: id }))
               onNavigate(id, { replace: true })

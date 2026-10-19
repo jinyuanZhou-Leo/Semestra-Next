@@ -1,4 +1,4 @@
-import type { AgentScope } from '@semestra/api-client'
+import type { AgentScope, Term } from '@semestra/api-client'
 import type { Scope } from '@/app/extensions'
 import {
   academicsCourseListOptions,
@@ -7,15 +7,43 @@ import {
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { courseLabel } from '@/modules/academics/color'
+import { courseTermId } from '@/modules/academics/queries'
 
-/** The page's scope as the assistant's context. */
-export function agentScope(scope: Scope | undefined): AgentScope | null {
+export const programScope = (programId: string): AgentScope => ({
+  program_id: programId,
+  term_id: null,
+  course_id: null,
+})
+
+export const termScope = (programId: string, termId: string): AgentScope => ({
+  program_id: programId,
+  term_id: termId,
+  course_id: null,
+})
+
+/**
+ * Where the assistant works when opened on this page: the Program or a term. A course page
+ * gives the course's term (the scope stops at the term); while the course loads, the Program.
+ */
+export function usePageScope(scope: Scope | undefined): AgentScope | null {
+  const { terms, courses } = useProgramEntities(
+    scope?.kind === 'course' ? scope.programId : undefined,
+  )
   if (!scope) return null
-  return {
-    program_id: scope.programId,
-    term_id: scope.kind === 'term' ? scope.termId : null,
-    course_id: scope.kind === 'course' ? scope.courseId : null,
+  if (scope.kind === 'term') return termScope(scope.programId, scope.termId)
+  if (scope.kind === 'course') {
+    const course = courses.find((c) => c.id === scope.courseId)
+    if (course) return termScope(scope.programId, courseTermId(course, terms, undefined))
   }
+  return programScope(scope.programId)
+}
+
+/** The Program's terms for the scope menu: the current one first, then the latest first. */
+export function termsForScope(terms: readonly Term[]): Term[] {
+  return terms.toSorted(
+    (a, b) =>
+      Number(b.is_current) - Number(a.is_current) || b.start_date.localeCompare(a.start_date),
+  )
 }
 
 export function sameScope(a: AgentScope | null | undefined, b: AgentScope | null | undefined) {
@@ -60,7 +88,7 @@ export function useProgramEntities(programId: string | undefined) {
   return { terms: terms.data?.items ?? [], courses: courses.data?.items ?? [] }
 }
 
-/** "APS105 · Fall 2026", "Fall 2026" or the Program's name. */
+/** "Fall 2026" or the Program's name ("APS105 · Fall 2026" for older course scopes). */
 export function useScopeLabel(scope: AgentScope | null): string | null {
   const program = useProgramData(scope?.program_id)
   const { terms, courses } = useProgramEntities(scope?.program_id)

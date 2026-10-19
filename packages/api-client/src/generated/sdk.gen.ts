@@ -651,7 +651,7 @@ export const agentSessionList = <ThrowOnError extends boolean = false>(options?:
 /**
  * Start a new conversation.
  *
- * The page scope (Program, term, course) is the conversation's context.
+ * Where the assistant works: a Program or one of its terms.
  */
 export const agentSessionCreate = <ThrowOnError extends boolean = false>(options: Options<AgentSessionCreateData, ThrowOnError>): RequestResult<AgentSessionCreateResponses, AgentSessionCreateErrors, ThrowOnError> => (options.client ?? client).post<AgentSessionCreateResponses, AgentSessionCreateErrors, ThrowOnError>({
     url: '/agent/sessions',
@@ -677,7 +677,7 @@ export const agentSessionDelete = <ThrowOnError extends boolean = false>(options
 export const agentSessionGet = <ThrowOnError extends boolean = false>(options: Options<AgentSessionGetData, ThrowOnError>): RequestResult<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError> => (options.client ?? client).get<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError>({ url: '/agent/sessions/{id}', ...options });
 
 /**
- * Rename, pin, archive a conversation or change its context.
+ * Rename, pin, archive a conversation or change where it works.
  *
  * Only the fields sent are changed.
  */

@@ -114,6 +114,9 @@ export function prefetchUiPrefs(
   prefixes: readonly string[] = UI_PREF_PREFETCH_PREFIXES,
 ): Promise<void> {
   const store = storeOf(queryClient)
+  // Prefetched entries have no observer until a component reads them; without this they would
+  // be collected after the default 5 minutes and a later read would take them for unset.
+  queryClient.setQueryDefaults(['ui-pref'], { gcTime: Infinity })
   store.prefetch = (async () => {
     try {
       const { data } = await settingsUiStateGetMany({
