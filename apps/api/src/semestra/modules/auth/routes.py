@@ -2,16 +2,19 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 
 from semestra.core.context import (
     Ctx,
     client_ip,
     get_anonymous_ctx,
+    get_ctx,
     get_optional_ctx,
     run_after_commit,
 )
-from semestra.modules.auth import service
+from semestra.core.errors import not_found
+from semestra.modules.auth import avatar, service
 from semestra.modules.auth.identity import clear_session_cookies, set_session_cookies
 from semestra.modules.auth.schemas import (
     AuthConfig,
@@ -26,6 +29,7 @@ from semestra.modules.auth.schemas import (
     RefreshIn,
     RegisterCompleteIn,
     TokenPair,
+    UserOut,
 )
 from semestra.modules.auth.service import Client, SignedIn
 
@@ -170,3 +174,48 @@ async def logout(response: Response, ctx: Annotated[Ctx, Depends(get_optional_ct
     await ctx.db.commit()
     clear_session_cookies(response, ctx.settings)
     return Done()
+
+
+account_router = APIRouter(prefix="/account", tags=["account"])
+
+AVATAR_ID = r"^[A-Za-z0-9_-]+$"
+
+
+@account_router.post(
+    "/avatar",
+    operation_id="accountAvatarUpload",
+    response_model=UserOut,
+    summary="Upload a profile picture (PNG, JPEG or WebP, up to 5 MB).",
+)
+async def avatar_upload(file: UploadFile, ctx: Annotated[Ctx, Depends(get_ctx)]) -> UserOut:
+    raw = await file.read(avatar.MAX_UPLOAD_BYTES + 1)
+    user = await service.upload_avatar(ctx, raw)
+    await ctx.db.commit()
+    await run_after_commit(ctx)
+    return user
+
+
+@account_router.get(
+    "/avatars/{user_id}/{version}",
+    operation_id="accountAvatarGet",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"image/webp": {}}}},
+)
+async def avatar_get(
+    user_id: Annotated[str, Path(pattern=AVATAR_ID)],
+    version: Annotated[str, Path(pattern=AVATAR_ID)],
+    request: Request,
+) -> StreamingResponse:
+    """Public: the URL embeds a random version, so it is unguessable and cacheable forever."""
+    storage = request.app.state.storage
+    key = f"users/{user_id}/avatar/{version}"
+    if not await storage.exists(key):
+        raise not_found()
+    return StreamingResponse(
+        storage.open(key),
+        media_type="image/webp",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+        },
+    )
