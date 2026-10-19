@@ -174,6 +174,7 @@ agent_preferences
 - 测试：后端 33 个（脚本化假模型 `tests/conftest.py`，MCP 用 SDK 客户端走 ASGI）；另有一个测试检查每个 agent capability 都有中英 `capability_*_title`。`@pytest.mark.live` 的真实模型评测没有写。
 
 **前端**（`apps/web/src/modules/assistant/`）
+- 聊天界面按 shadcn/ui 的 AI Elements 写法组合（组件已由 CLI 装在 `src/ui`）：对话是 `MessageScroller` 里的 `Message`，用户消息用 `Bubble`，附件用 `Attachment`；工具调用是 `Trace` 里的一行（进行中只显示一行，结束后可展开看参数、改动或错误，参数与错误用 `CodeBlock`）；待确认的写操作是 Confirmation 写法的 `Item`（批准、修改、拒绝在 `ItemActions`），确认后变回一行步骤，展开可看 before → after 和跳转链接；引用角标是 `HoverCard`；建议问题是输入框上方一排 `Button`；输入框是 `InputGroup`。
 - 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。侧边栏在"搜索"下方有入口（`data-tour="assistant"`，`Cmd/Ctrl+J`）。
 - 全屏页路由为 `/p/$programId/assistant/{-$sessionId}`（放在 Program 外壳内，保留侧边栏），而不是 `/assistant/$sessionId?`；新会话创建后替换 URL，不打断正在进行的回答。
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。

@@ -1,7 +1,10 @@
-import { AlertCircle, Check, CircleDashed, CirclePause, Loader2, X } from 'lucide-react'
+import { useRouter } from '@tanstack/react-router'
+import { AlertCircle, ArrowRight, Check, CircleDashed, Loader2, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
+import { CodeBlock, CodeBlockContent } from '@/ui/code-block'
 import {
   Trace,
   TraceCollapsible,
@@ -13,75 +16,98 @@ import {
 } from '@/ui/trace'
 import { capabilityTitle } from '../labels'
 import type { Step, StepStatus } from '../transcript'
+import { ProposalChanges, proposalLink } from './ProposalCard'
 
-const STATUS_ICON: Record<StepStatus, ReactNode> = {
+type Shown = Exclude<StepStatus, 'waiting'>
+
+const ICON: Record<Shown, ReactNode> = {
   running: <Loader2 className="animate-spin" />,
   done: <Check />,
   error: <AlertCircle />,
-  waiting: <CirclePause />,
   rejected: <X />,
   expired: <CircleDashed />,
 }
 
-const STATUS_TEXT: Record<StepStatus, () => string> = {
-  running: m.assistant_step_running,
-  done: m.assistant_step_done,
-  error: m.assistant_step_failed,
-  waiting: m.assistant_step_waiting,
-  rejected: m.assistant_step_rejected,
-  expired: m.assistant_step_expired,
+const TITLE: Record<Shown, (inputs: { name: string }) => string> = {
+  running: m.assistant_step_line_running,
+  done: m.assistant_step_line_done,
+  error: m.assistant_step_line_failed,
+  rejected: m.assistant_step_line_rejected,
+  expired: m.assistant_step_line_expired,
 }
 
-function traceStatus(status: StepStatus): 'running' | 'error' | 'pending' | undefined {
+function traceStatus(status: Shown): 'running' | 'error' | undefined {
   if (status === 'running') return 'running'
   if (status === 'error') return 'error'
-  if (status === 'waiting' || status === 'expired' || status === 'rejected') return 'pending'
   return undefined
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return value
-  return JSON.stringify(value)
+function argsText(args: Record<string, unknown>): string {
+  return Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : ''
 }
 
-function StepRow({ step }: { step: Step }) {
-  const args = Object.entries(step.args)
+/**
+ * One tool call (AI Elements "Tool"): a line while it runs, and a line that opens to what
+ * it was given, what it changed and why it failed once it has finished.
+ */
+function StepRow({ step, status }: { step: Step; status: Shown }) {
+  const router = useRouter()
+  const line = (
+    <TraceLine status={traceStatus(status)}>
+      <TraceIcon>{ICON[status]}</TraceIcon>
+      <TraceTitle>{TITLE[status]({ name: capabilityTitle(step.name) })}</TraceTitle>
+    </TraceLine>
+  )
+  const proposal = step.proposal
+  const link = status === 'done' && proposal ? proposalLink(proposal) : null
+  const args = proposal ? '' : argsText(step.args)
+  if (status === 'running' || (!args && !proposal && !step.errorCode)) return line
   return (
     <TraceCollapsible>
-      <TraceCollapsibleTrigger>
-        <TraceLine status={traceStatus(step.status)}>
-          <TraceIcon>{STATUS_ICON[step.status]}</TraceIcon>
-          <TraceTitle>{capabilityTitle(step.name)}</TraceTitle>
-        </TraceLine>
-      </TraceCollapsibleTrigger>
-      <TraceCollapsibleContent>
-        <dl className="space-y-1 text-xs">
-          <div className="flex gap-2">
-            <dt className="shrink-0 text-muted-foreground">{m.assistant_step_status()}</dt>
-            <dd>
-              {STATUS_TEXT[step.status]()}
-              {step.errorCode ? ` · ${errorMessage({ error: { code: step.errorCode } })}` : ''}
-            </dd>
-          </div>
-          {args.map(([key, value]) => (
-            <div key={key} className="flex gap-2">
-              <dt className="shrink-0 font-mono text-muted-foreground">{key}</dt>
-              <dd className="min-w-0 truncate font-mono">{formatValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
+      <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
+      <TraceCollapsibleContent className="space-y-2">
+        {proposal ? <ProposalChanges proposal={proposal} /> : null}
+        {args ? (
+          <CodeBlock size="sm">
+            <CodeBlockContent wrap className="max-h-64">
+              {args}
+            </CodeBlockContent>
+          </CodeBlock>
+        ) : null}
+        {step.errorCode ? (
+          <CodeBlock size="sm" variant="destructive">
+            <CodeBlockContent wrap>
+              {errorMessage({ error: { code: step.errorCode } })}
+            </CodeBlockContent>
+          </CodeBlock>
+        ) : null}
+        {link ? (
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0"
+            onClick={() => router.history.push(link)}
+          >
+            {m.assistant_proposal_open()}
+            <ArrowRight aria-hidden />
+          </Button>
+        ) : null}
       </TraceCollapsibleContent>
     </TraceCollapsible>
   )
 }
 
-/** The tool calls of an answer, one collapsible line each: what ran and how it went. */
+/**
+ * The tool calls of an answer in one Trace. A call waiting for the user is not a line here:
+ * its confirmation card stands in for it until it is answered.
+ */
 export function Steps({ steps }: { steps: readonly Step[] }) {
-  if (steps.length === 0) return null
+  const shown = steps.filter((step) => step.status !== 'waiting')
+  if (shown.length === 0) return null
   return (
-    <Trace aria-label={m.assistant_steps_label()} className="gap-1.5">
-      {steps.map((step) => (
-        <StepRow key={step.callId} step={step} />
+    <Trace aria-label={m.assistant_steps_label()}>
+      {shown.map((step) => (
+        <StepRow key={step.callId} step={step} status={step.status as Shown} />
       ))}
     </Trace>
   )

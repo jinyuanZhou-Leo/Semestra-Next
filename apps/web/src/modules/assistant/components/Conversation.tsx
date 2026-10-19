@@ -8,7 +8,15 @@ import {
 } from '@semestra/api-client'
 import { agentSessionGetQueryKey } from '@semestra/api-client/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, Copy, FileText, MessageSquareText, RotateCcw, Sparkles } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  FileText,
+  ImageIcon,
+  MessageSquareText,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react'
 import { type DragEvent, useEffect, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
@@ -17,6 +25,13 @@ import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription } from '@/ui/alert'
+import {
+  Attachment,
+  AttachmentContent,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTitle,
+} from '@/ui/attachment'
 import { Badge } from '@/ui/badge'
 import { Bubble, BubbleContent } from '@/ui/bubble'
 import { Button } from '@/ui/button'
@@ -88,7 +103,7 @@ function IconAction({
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<Button variant="ghost" size="icon-xs" aria-label={label} onClick={onClick} />}
+        render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}
       >
         {children}
       </TooltipTrigger>
@@ -125,14 +140,18 @@ function UserMessage({ item }: { item: Extract<ViewItem, { kind: 'user' }> }) {
           </Badge>
         ) : null}
         {item.attachments.length > 0 ? (
-          <div className="flex flex-wrap justify-end gap-1.5">
+          <AttachmentGroup className="justify-end">
             {item.attachments.map((att) => (
-              <Badge key={att.id} variant="outline" className="gap-1">
-                <FileText aria-hidden />
-                {att.name}
-              </Badge>
+              <Attachment key={att.id} size="xs">
+                <AttachmentMedia>
+                  {att.kind === 'image' ? <ImageIcon /> : <FileText />}
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>{att.name}</AttachmentTitle>
+                </AttachmentContent>
+              </Attachment>
             ))}
-          </div>
+          </AttachmentGroup>
         ) : null}
         {item.text ? (
           <Bubble align="end" variant="muted">
@@ -160,7 +179,7 @@ function AssistantMessage({
   const pending = item.proposals.filter((p) => p.status === 'pending')
   return (
     <Message>
-      <MessageContent>
+      <MessageContent className="gap-3">
         {item.text ? <Markdown text={item.text} citations={citations} /> : null}
         <Steps steps={item.steps} />
         {pending.length > 1 ? (
@@ -177,7 +196,7 @@ function AssistantMessage({
             </Button>
           </div>
         ) : null}
-        {item.proposals.map((proposal) => (
+        {pending.map((proposal) => (
           <ProposalCard
             key={proposal.id}
             proposal={proposal}
@@ -420,19 +439,6 @@ export function Conversation({
                     <EmptyTitle>{m.assistant_empty_title()}</EmptyTitle>
                     <EmptyDescription>{m.assistant_empty_description()}</EmptyDescription>
                   </EmptyHeader>
-                  <EmptyContent className="items-stretch">
-                    {suggestions(scope).map((suggest) => (
-                      <Button
-                        key={suggest()}
-                        variant="outline"
-                        className="h-auto justify-start py-2 text-left whitespace-normal"
-                        disabled={chat.generating || !ai.available}
-                        onClick={() => void chat.send({ text: suggest(), scope: newScope })}
-                      >
-                        {suggest()}
-                      </Button>
-                    ))}
-                  </EmptyContent>
                 </Empty>
               ) : (
                 items.map((item) => (
@@ -489,6 +495,22 @@ export function Conversation({
               </Button>
             </AlertAction>
           </Alert>
+        ) : null}
+        {!chat.loading && items.length === 0 ? (
+          <div className="flex scroll-fade-x scrollbar-none gap-2 overflow-x-auto overscroll-x-contain">
+            {suggestions(scope).map((suggest) => (
+              <Button
+                key={suggest()}
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={chat.generating || !ai.available}
+                onClick={() => void chat.send({ text: suggest(), scope: newScope })}
+              >
+                {suggest()}
+              </Button>
+            ))}
+          </div>
         ) : null}
         <Composer
           programId={scope?.program_id ?? pageScope?.program_id}

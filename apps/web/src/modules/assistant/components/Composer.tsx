@@ -1,16 +1,7 @@
 import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-client'
 import { agentSkillsListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import {
-  ArrowUp,
-  BookOpen,
-  CalendarRange,
-  FileText,
-  Paperclip,
-  Sparkles,
-  Square,
-  X,
-} from 'lucide-react'
+import { ArrowUp, BookOpen, CalendarRange, FileText, Plus, Sparkles, Square, X } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { courseLabel } from '@/modules/academics/color'
@@ -369,11 +360,12 @@ export function Composer({
           <IconButton
             label={m.assistant_attach()}
             size="icon-sm"
-            variant="ghost"
+            variant="outline"
+            className="rounded-full"
             disabled={disabled}
             onClick={() => fileInput.current?.click()}
           >
-            <Paperclip />
+            <Plus />
           </IconButton>
           <input
             ref={fileInput}
@@ -391,6 +383,7 @@ export function Composer({
               label={m.assistant_stop()}
               size="icon-sm"
               variant="secondary"
+              className="rounded-full"
               onClick={onStop}
             >
               <Square className="fill-current" />
@@ -400,6 +393,7 @@ export function Composer({
               label={m.assistant_send()}
               size="icon-sm"
               variant="default"
+              className="rounded-full"
               disabled={!canSend}
               onClick={() => void submit()}
             >

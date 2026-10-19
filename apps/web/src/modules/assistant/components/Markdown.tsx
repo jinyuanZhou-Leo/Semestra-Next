@@ -4,7 +4,8 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useHighlightedCode } from '@/hooks/use-highlighted-code'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
+import { Button } from '@/ui/button'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/ui/hover-card'
 import {
   CodeBlock,
   CodeBlockActions,
@@ -13,7 +14,6 @@ import {
   CodeBlockLine,
 } from '@/ui/code-block'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { Citation } from '../stream'
 
 const CITE = /\[\[cite:([^\]\s]+)\]\]/g
@@ -34,32 +34,38 @@ function citationTitle(citation: Citation): string {
   return citation.title ?? citation.name ?? m.assistant_citation_untitled()
 }
 
+/** A quoted file in the sentence (AI Elements "Inline Citation"): its title and words on hover. */
 function CitationBadge({ citation, children }: { citation: Citation; children: ReactNode }) {
   const snippet = citation.snippet ?? citation.text
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <HoverCard>
+      <HoverCardTrigger
+        delay={10}
+        closeDelay={100}
         render={
-          <Badge
+          <Button
             variant="secondary"
+            size="xs"
             className="mx-0.5 h-4 min-w-4 px-1 align-text-top text-[10px] tabular-nums"
-            render={
-              citation.url ? (
-                <a href={citation.url} aria-label={citationTitle(citation)} />
-              ) : (
-                <span />
-              )
-            }
+            aria-label={citationTitle(citation)}
           />
         }
       >
         {children}
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
-        <p className="font-medium">{citationTitle(citation)}</p>
-        {snippet ? <p className="line-clamp-4 opacity-80">{snippet}</p> : null}
-      </TooltipContent>
-    </Tooltip>
+      </HoverCardTrigger>
+      <HoverCardContent className="flex w-64 flex-col gap-1">
+        <div className="font-medium">{citationTitle(citation)}</div>
+        {snippet ? <p className="line-clamp-4 text-muted-foreground">{snippet}</p> : null}
+        {citation.url ? (
+          <a
+            href={citation.url}
+            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {m.assistant_citation_open()}
+          </a>
+        ) : null}
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 

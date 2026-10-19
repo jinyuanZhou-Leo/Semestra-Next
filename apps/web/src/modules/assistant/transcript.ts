@@ -17,6 +17,8 @@ export type Step = {
   args: Record<string, unknown>
   status: StepStatus
   errorCode: string | null
+  /** The confirmation card of a write, when it needed one. */
+  proposal: AgentProposalOut | null
 }
 
 export type AttachmentRef = { id: string; name: string; kind: 'image' | 'file' }
@@ -94,6 +96,7 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
             args: (call.args as Record<string, unknown> | undefined) ?? {},
             status,
             errorCode: result ? ((result.error_code as string | null) ?? null) : null,
+            proposal: proposal ?? null,
           }
         }),
         proposals: detail.proposals.filter((p) => p.message_id === message.id),

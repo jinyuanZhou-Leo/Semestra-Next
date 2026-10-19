@@ -1,16 +1,22 @@
 import type { AgentProposalOut } from '@semestra/api-client'
-import { useRouter } from '@tanstack/react-router'
-import { ArrowRight, Check, CircleDashed, X } from 'lucide-react'
+import { ArrowRight, PencilLine, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
-import { errorMessage } from '@/lib/errors'
 import * as messages from '@/paraglide/messages'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/ui/card'
 import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemMedia,
+  ItemTitle,
+} from '@/ui/item'
 import { Label } from '@/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
@@ -174,57 +180,48 @@ function EditForm({
   )
 }
 
-function ResultLine({ proposal, link }: { proposal: AgentProposalOut; link?: Preview['link'] }) {
-  const router = useRouter()
-  if (proposal.status === 'executed') {
-    return (
-      <div className="flex w-full items-center justify-between gap-2 text-sm">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Check aria-hidden className="size-4 text-primary" />
-          {m.assistant_proposal_done()}
-        </span>
-        {link ? (
-          <Button
-            variant="link"
-            size="sm"
-            className="h-auto p-0"
-            onClick={() => router.history.push(link.to)}
-          >
-            {m.assistant_proposal_open()}
-            <ArrowRight aria-hidden />
-          </Button>
-        ) : null}
-      </div>
-    )
-  }
-  if (proposal.status === 'failed') {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-destructive">
-        <X aria-hidden className="size-4" />
-        {m.assistant_proposal_failed({
-          reason: errorMessage({ error: { code: proposal.error_code ?? 'unknown' } }),
-        })}
-      </p>
-    )
-  }
+/** A proposal's before → after list (M12 §3.5), on the card and later in its step. */
+export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
+  const preview = (proposal.preview ?? {}) as Preview
+  const root = proposal.input_schema as Schema
+  const changes = preview.changes ?? []
+  if (changes.length === 0) return null
   return (
-    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      {proposal.status === 'expired' ? (
-        <CircleDashed aria-hidden className="size-4" />
-      ) : (
-        <X aria-hidden className="size-4" />
-      )}
-      {proposal.status === 'expired'
-        ? m.assistant_proposal_expired()
-        : m.assistant_proposal_rejected()}
-    </p>
+    <dl className="space-y-1 text-sm">
+      {changes.map((change) => (
+        <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
+          <dt className="text-muted-foreground">
+            {fieldLabel(change.field, resolve(root.properties?.[change.field], root))}
+          </dt>
+          <dd className="flex min-w-0 items-baseline gap-1.5">
+            {'before' in change ? (
+              <>
+                <span className="text-muted-foreground line-through">
+                  {formatValue(change.before)}
+                </span>
+                <ArrowRight
+                  aria-label={m.assistant_proposal_becomes()}
+                  className="size-3 self-center"
+                />
+              </>
+            ) : null}
+            <span className="font-medium">{formatValue(change.after)}</span>
+          </dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
+/** Where the change can be seen, from the capability's preview. */
+export function proposalLink(proposal: AgentProposalOut): string | null {
+  return ((proposal.preview ?? {}) as Preview).link?.to ?? null
+}
+
 /**
- * A write the assistant wants to make, waiting for the user (M12 §3.5, §6.1): what changes
- * (before → after), approve, reject with an optional reason, or change the values first.
- * Once decided it shows how it went and a link to the page that changed.
+ * A write the assistant wants to make, waiting for the user (M12 §3.5, §6.1; AI Elements
+ * "Confirmation"): what changes (before → after), approve, reject with an optional reason, or
+ * change the values first. Once decided it is a step line again.
  */
 export function ProposalCard({
   proposal,
@@ -240,25 +237,44 @@ export function ProposalCard({
   const [remember, setRemember] = useState(false)
   const [reason, setReason] = useState('')
   const preview = (proposal.preview ?? {}) as Preview
-  const root = proposal.input_schema as Schema
-  const pending = proposal.status === 'pending'
   const destructive = proposal.effect === 'destructive'
-  const changes = preview.changes ?? []
   const canEdit = editableFields(proposal).length > 0
+  const title = capabilityTitle(proposal.capability)
 
   return (
-    <Card size="sm" className="gap-3" aria-label={capabilityTitle(proposal.capability)}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {capabilityTitle(proposal.capability)}
+    <Item variant="outline" size="sm" aria-label={title} className="flex-wrap">
+      <ItemMedia variant="icon">{destructive ? <Trash2 /> : <PencilLine />}</ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          {title}
           {destructive ? (
             <Badge variant="destructive">{m.assistant_proposal_destructive()}</Badge>
           ) : null}
-        </CardTitle>
-        {preview.target ? <CardDescription>{preview.target}</CardDescription> : null}
-      </CardHeader>
-      {mode === 'edit' && pending ? (
-        <CardContent>
+        </ItemTitle>
+        {preview.target ? <ItemDescription>{preview.target}</ItemDescription> : null}
+      </ItemContent>
+      {mode === 'view' ? (
+        <ItemActions>
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => setMode('reject')}>
+            {m.assistant_proposal_reject()}
+          </Button>
+          {canEdit ? (
+            <Button variant="outline" size="sm" disabled={disabled} onClick={() => setMode('edit')}>
+              {m.assistant_proposal_edit()}
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant={destructive ? 'destructive' : 'default'}
+            disabled={disabled}
+            onClick={() => onDecide({ proposalId: proposal.id, decision: 'approve', remember })}
+          >
+            {m.assistant_proposal_approve()}
+          </Button>
+        </ItemActions>
+      ) : null}
+      <ItemFooter className="flex-col items-stretch gap-3">
+        {mode === 'edit' ? (
           <EditForm
             proposal={proposal}
             disabled={disabled}
@@ -267,102 +283,47 @@ export function ProposalCard({
               onDecide({ proposalId: proposal.id, decision: 'edit', args, remember })
             }
           />
-        </CardContent>
-      ) : changes.length > 0 ? (
-        <CardContent>
-          <dl className="space-y-1 text-sm">
-            {changes.map((change) => (
-              <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
-                <dt className="text-muted-foreground">
-                  {fieldLabel(change.field, resolve(root.properties?.[change.field], root))}
-                </dt>
-                <dd className="flex min-w-0 items-baseline gap-1.5">
-                  {'before' in change ? (
-                    <>
-                      <span className="text-muted-foreground line-through">
-                        {formatValue(change.before)}
-                      </span>
-                      <ArrowRight
-                        aria-label={m.assistant_proposal_becomes()}
-                        className="size-3 self-center"
-                      />
-                    </>
-                  ) : null}
-                  <span className="font-medium">{formatValue(change.after)}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </CardContent>
-      ) : null}
-      {mode === 'reject' && pending ? (
-        <CardContent className="space-y-2">
-          <Label htmlFor={`${id}-reason`}>{m.assistant_proposal_reason()}</Label>
-          <Textarea
-            id={`${id}-reason`}
-            rows={2}
-            value={reason}
-            placeholder={m.assistant_proposal_reason_placeholder()}
-            onChange={(event) => setReason(event.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setMode('view')} disabled={disabled}>
-              {m.common_cancel()}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={() =>
-                onDecide({
-                  proposalId: proposal.id,
-                  decision: 'reject',
-                  reason: reason.trim() || undefined,
-                })
-              }
-            >
-              {m.assistant_proposal_reject()}
-            </Button>
-          </div>
-        </CardContent>
-      ) : null}
-      <CardFooter className="flex-wrap gap-2">
-        {!pending ? (
-          <ResultLine proposal={proposal} link={preview.link} />
-        ) : mode === 'view' ? (
-          <>
-            {proposal.effect === 'write' ? (
-              <Label className="mr-auto text-xs font-normal text-muted-foreground">
-                <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked)} />
-                {m.assistant_proposal_remember()}
-              </Label>
-            ) : (
-              <span className="mr-auto" />
-            )}
-            <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode('reject')}>
-              {m.assistant_proposal_reject()}
-            </Button>
-            {canEdit ? (
+        ) : (
+          <ProposalChanges proposal={proposal} />
+        )}
+        {mode === 'reject' ? (
+          <div className="space-y-2">
+            <Label htmlFor={`${id}-reason`}>{m.assistant_proposal_reason()}</Label>
+            <Textarea
+              id={`${id}-reason`}
+              rows={2}
+              value={reason}
+              placeholder={m.assistant_proposal_reason_placeholder()}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setMode('view')} disabled={disabled}>
+                {m.common_cancel()}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={disabled}
-                onClick={() => setMode('edit')}
+                onClick={() =>
+                  onDecide({
+                    proposalId: proposal.id,
+                    decision: 'reject',
+                    reason: reason.trim() || undefined,
+                  })
+                }
               >
-                {m.assistant_proposal_edit()}
+                {m.assistant_proposal_reject()}
               </Button>
-            ) : null}
-            <Button
-              size="sm"
-              variant={destructive ? 'destructive' : 'default'}
-              disabled={disabled}
-              onClick={() => onDecide({ proposalId: proposal.id, decision: 'approve', remember })}
-            >
-              {m.assistant_proposal_approve()}
-            </Button>
-          </>
+            </div>
+          </div>
         ) : null}
-      </CardFooter>
-    </Card>
+        {mode === 'view' && proposal.effect === 'write' ? (
+          <Label className="text-xs font-normal text-muted-foreground">
+            <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked)} />
+            {m.assistant_proposal_remember()}
+          </Label>
+        ) : null}
+      </ItemFooter>
+    </Item>
   )
 }

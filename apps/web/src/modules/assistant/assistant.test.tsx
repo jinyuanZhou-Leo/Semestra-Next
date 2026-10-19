@@ -361,8 +361,11 @@ test('a write waits on a card: approving sends the decision and shows the result
     path: '/agent/sessions/s1/proposals/pr1:decide',
     body: { decision: 'approve', remember: true },
   })
-  expect(await within(card).findByText('Done')).toBeInTheDocument()
-  expect(within(card).getByRole('button', { name: /Open/ })).toBeInTheDocument()
+  // Answered, the card becomes a step line that opens to what changed and where.
+  await waitFor(() => expect(card).not.toBeInTheDocument())
+  await userEvent.click(await screen.findByRole('button', { name: /Ran Update an assessment/ }))
+  expect(screen.getByText('90')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
 })
 
 test('rejecting asks for an optional reason and sends it', async () => {
