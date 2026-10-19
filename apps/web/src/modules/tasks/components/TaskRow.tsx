@@ -29,10 +29,14 @@ import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 
-/** Flag color of each level; no flag for none (M05 §5.1). */
+/**
+ * Flag color of each level; rows show no flag for none (M05 §5.1). None of them follows the
+ * accent color, so the levels stay apart under any accent and apart from the star (primary).
+ * The menus draw none as an outline flag, so low (filled gray) still differs from it.
+ */
 export const PRIORITY_COLORS: Record<ShownPriority, string> = {
   none: 'text-muted-foreground',
-  low: 'text-primary',
+  low: 'text-muted-foreground',
   medium: 'text-warning',
   high: 'text-destructive',
 }
@@ -263,7 +267,8 @@ export function TaskRow({
           </div>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100">
+      {/* Revealed on hover, focus or selection; always shown where there is no hover (touch). */}
+      <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 group-data-selected/row:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 pointer-coarse:opacity-100">
         <Tooltip>
           <TooltipTrigger
             render={

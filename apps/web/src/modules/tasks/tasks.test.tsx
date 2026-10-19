@@ -197,6 +197,23 @@ test('"Edit details" opens the side panel, and saving closes it', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull())
 })
 
+test('Enter opens the selected task, but a focused button keeps Enter for itself', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  const row = (await screen.findByText('Lab report')).closest('li')!
+  await userEvent.click(row)
+  expect(row.hasAttribute('data-selected')).toBe(true)
+  // Focus on a button: Enter presses the button (opens its menu), not the details panel.
+  screen.getByRole('button', { name: 'More actions for Read chapter 3' }).focus()
+  await userEvent.keyboard('{Enter}')
+  expect(await screen.findByRole('menuitem', { name: 'Edit details' })).toBeTruthy()
+  expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull()
+  await userEvent.keyboard('{Escape}')
+  // Nothing focused: Enter opens the selected task.
+  ;(document.activeElement as HTMLElement | null)?.blur()
+  await userEvent.keyboard('{Enter}')
+  expect(await screen.findByRole('dialog', { name: 'Details' })).toBeTruthy()
+})
+
 test('an urgent task shows as high and stays urgent unless changed', async () => {
   items = [task({ id: 't1', title: 'Exam prep', priority: 'urgent' })]
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)

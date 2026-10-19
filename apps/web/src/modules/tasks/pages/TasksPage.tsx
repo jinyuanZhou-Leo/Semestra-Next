@@ -140,47 +140,42 @@ export default function TasksPage({ scope }: PageProps) {
     if (next) setSelectedId(next.id)
   }
   // Keys act on the list only when focus is on the page or in the list, not in a dialog or sheet.
-  const keysApply = (event: KeyboardEvent) => {
+  // They are skipped (`ignoreEventWhen`) rather than returned from, so a skipped key keeps its
+  // default action, e.g. arrows still scroll and Enter still presses the focused button.
+  const outsideList = (event: KeyboardEvent) => {
     const target = event.target
-    if (!(target instanceof Element)) return true
-    return target === document.body || Boolean(listRef.current?.contains(target))
+    if (!(target instanceof Element)) return false
+    return target !== document.body && !listRef.current?.contains(target)
   }
-  useHotkey('n', (event) => {
-    if (!keysApply(event)) return
-    event.preventDefault()
-    quickAdd.current?.focus()
-  })
-  useHotkey('down, up', (event) => {
-    if (!keysApply(event) || open.length === 0) return
-    if (selectedId === null && event.target === document.body) return
-    event.preventDefault()
-    step(event.key === 'ArrowUp' ? -1 : 1)
+  // Space and Enter belong to a focused control; they act on the selected task only when nothing
+  // in particular has focus.
+  const onControl = (event: KeyboardEvent) => event.target !== document.body
+  useHotkey('n', () => quickAdd.current?.focus(), { ignoreEventWhen: outsideList })
+  useHotkey('down, up', (event) => step(event.key === 'ArrowUp' ? -1 : 1), {
+    enabled: open.length > 0,
+    ignoreEventWhen: (event) =>
+      outsideList(event) || (selectedId === null && event.target === document.body),
   })
   useHotkey(
     'space',
-    (event) => {
-      if (!selected || !keysApply(event)) return
-      event.preventDefault()
-      void actions.complete(selected.id, selected.completed_at === null)
+    () => {
+      if (selected) void actions.complete(selected.id, selected.completed_at === null)
     },
-    { enabled: selected !== null },
+    { enabled: selected !== null, ignoreEventWhen: onControl },
   )
   useHotkey(
     'enter',
-    (event) => {
-      // Only with nothing focused, so Enter still works on the buttons of a row.
-      if (!selected || event.target !== document.body) return
-      event.preventDefault()
-      setDetailId(selected.id)
+    () => {
+      if (selected) setDetailId(selected.id)
     },
-    { enabled: selected !== null },
+    { enabled: selected !== null, ignoreEventWhen: onControl },
   )
   useHotkey(
     'delete, backspace',
-    (event) => {
-      if (selected && keysApply(event)) setDeleteId(selected.id)
+    () => {
+      if (selected) setDeleteId(selected.id)
     },
-    { enabled: selected !== null },
+    { enabled: selected !== null, ignoreEventWhen: outsideList },
   )
 
   const defaultDue = selection.kind === 'smart' && selection.view === 'today' ? today : undefined
