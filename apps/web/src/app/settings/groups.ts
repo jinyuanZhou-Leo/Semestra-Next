@@ -9,8 +9,12 @@ import type {
 /** Navigation order of the groups (M11 §5.1, §5.2). */
 export const GROUP_ORDER: readonly SettingsGroup[] = [
   'general',
+  'grades',
   'account',
+  'security',
   'preferences',
+  'ai',
+  'calendar',
   'features',
   'integrations',
   'plugins',
@@ -20,8 +24,12 @@ export const GROUP_ORDER: readonly SettingsGroup[] = [
 
 export const GROUP_TITLES: Record<SettingsGroup, Message> = {
   general: m.settings_group_general,
+  grades: m.settings_group_grades,
   account: m.settings_group_account,
+  security: m.settings_group_security,
   preferences: m.settings_group_preferences,
+  ai: m.settings_group_ai,
+  calendar: m.settings_group_calendar,
   features: m.settings_group_features,
   integrations: m.settings_group_integrations,
   plugins: m.settings_group_plugins,
@@ -58,4 +66,45 @@ export function buildNavigation(
     id,
     sections: [...(groups.get(id) ?? [])].sort((a, b) => a.order - b.order),
   }))
+}
+
+/** Headings that cluster the account settings groups in the navigation. */
+export type NavCluster = 'personal' | 'features' | 'system'
+
+export const CLUSTER_TITLES: Record<NavCluster, Message> = {
+  personal: m.settings_cluster_personal,
+  features: m.settings_cluster_features,
+  system: m.settings_cluster_system,
+}
+
+const ACCOUNT_CLUSTERS: Partial<Record<SettingsGroup, NavCluster>> = {
+  account: 'personal',
+  security: 'personal',
+  preferences: 'personal',
+  ai: 'features',
+  calendar: 'features',
+  features: 'features',
+  integrations: 'features',
+  plugins: 'features',
+  data: 'system',
+  about: 'system',
+}
+
+/**
+ * The groups of a level as runs under a heading. Only the account settings are long enough to
+ * need headings; scoped levels come back as one run without one.
+ */
+export function clusterNavigation(
+  groups: readonly NavGroup[],
+  level: SettingsLevel,
+): { cluster?: NavCluster; groups: NavGroup[] }[] {
+  if (level !== 'account') return groups.length ? [{ groups: [...groups] }] : []
+  const runs: { cluster?: NavCluster; groups: NavGroup[] }[] = []
+  for (const group of groups) {
+    const cluster = ACCOUNT_CLUSTERS[group.id]
+    const last = runs.at(-1)
+    if (last && last.cluster === cluster) last.groups.push(group)
+    else runs.push({ cluster, groups: [group] })
+  }
+  return runs
 }

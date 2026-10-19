@@ -78,6 +78,10 @@ test('the settings dialog groups sections in a navigation and shows the chosen g
     'page',
   )
   expect(within(nav).getByRole('button', { name: 'About' })).toBeInTheDocument()
+  // Sessions and access tokens moved out of Account into Security; groups sit under headings.
+  expect(within(nav).getByRole('button', { name: 'Security' })).toBeInTheDocument()
+  expect(within(nav).getByText('Personal')).toBeInTheDocument()
+  expect(within(nav).getByText('System')).toBeInTheDocument()
   // The sections of the open group are rendered on the right.
   expect(await screen.findByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
   expect(await screen.findByRole('heading', { name: 'Language and time' })).toBeInTheDocument()

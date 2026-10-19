@@ -121,7 +121,7 @@ export default defineModule({
     {
       id: 'program-grading',
       level: 'program',
-      group: 'general',
+      group: 'grades',
       title: m.grading_settings_program,
       description: m.grading_settings_program_description,
       icon: Percent,
@@ -131,7 +131,7 @@ export default defineModule({
     {
       id: 'course-grading',
       level: 'course',
-      group: 'general',
+      group: 'grades',
       title: m.grading_settings_course,
       icon: Percent,
       order: 30,

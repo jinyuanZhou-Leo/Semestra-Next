@@ -37,7 +37,7 @@ export default defineModule({
     {
       id: 'ai-providers',
       level: 'account',
-      group: 'features',
+      group: 'ai',
       title: m.ai_settings_providers,
       description: m.ai_settings_providers_description,
       icon: KeyRound,
@@ -47,7 +47,7 @@ export default defineModule({
     {
       id: 'ai-models',
       level: 'account',
-      group: 'features',
+      group: 'ai',
       title: m.ai_settings_models,
       description: m.ai_settings_models_description,
       icon: Boxes,
@@ -57,7 +57,7 @@ export default defineModule({
     {
       id: 'ai-usage',
       level: 'account',
-      group: 'features',
+      group: 'ai',
       title: m.ai_settings_usage,
       description: m.ai_settings_usage_description,
       icon: BarChart3,
