@@ -44,9 +44,9 @@ export function useToggleCheckin(
     onError: toastError,
     onSuccess: (result) => {
       // Query keys are `[{ _id, path, ... }]` and match by subset, so these hit every range/goal.
-      for (const _id of ['habitStats', 'habitCheckinsList']) {
+      for (const id of ['habitStats', 'habitCheckinsList']) {
         void queryClient.invalidateQueries({
-          queryKey: [{ _id, path: { instance_id: instanceId } }],
+          queryKey: [{ _id: id, path: { instance_id: instanceId } }],
         })
       }
       onToggled?.(result.stats, result.checked)

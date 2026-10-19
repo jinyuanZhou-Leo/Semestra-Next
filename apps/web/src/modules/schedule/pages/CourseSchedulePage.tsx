@@ -3,10 +3,15 @@ import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import {
+  type CellContext,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
-import { useState } from 'react'
+import { createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { toastError } from '@/lib/errors'
@@ -316,6 +321,128 @@ function weeksText(mt: Meeting): string {
     : range
 }
 
+type MeetingGroupState = {
+  code: string
+  meetings: Meeting[]
+  conflicting: ReadonlySet<string>
+  busy: boolean
+  onToggle: (ids: string[], enabled: boolean) => void
+  onEdit: (meeting: Meeting) => void
+}
+
+/** What the cells of one `MeetingGroup` table need; the columns live outside the component. */
+const MeetingGroupContext = createContext<MeetingGroupState | null>(null)
+
+function useMeetingGroup(): MeetingGroupState {
+  const group = use(MeetingGroupContext)
+  if (!group) throw new Error('Meeting cells render inside a MeetingGroup')
+  return group
+}
+
+type CellProps = CellContext<typeof features, Meeting>
+
+const EnabledHeader = () => <span className="sr-only">{m.schedule_enabled()}</span>
+
+function EnabledCell({ row }: CellProps) {
+  const { code, busy, onToggle } = useMeetingGroup()
+  return (
+    <Switch
+      aria-label={m.schedule_enable_section({ name: row.original.section_code || code })}
+      checked={row.original.enabled}
+      disabled={busy}
+      onCheckedChange={(on) => onToggle([row.original.id], on)}
+    />
+  )
+}
+
+function SectionCell({ row }: CellProps) {
+  const { conflicting } = useMeetingGroup()
+  return (
+    <span className="font-medium">
+      {row.original.section_code || '—'}
+      {conflicting.has(row.original.id) ? (
+        <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
+      ) : null}
+    </span>
+  )
+}
+
+const TimeCell = ({ row }: CellProps) => (
+  <span className="tabular-nums">
+    {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
+  </span>
+)
+
+const ActionsHeader = () => <span className="sr-only">{m.schedule_actions()}</span>
+
+function ActionsCell({ row }: CellProps) {
+  const { meetings, onToggle, onEdit } = useMeetingGroup()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
+      >
+        <MoreHorizontal aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onEdit(row.original)}>
+            {m.schedule_meeting_edit()}
+          </DropdownMenuItem>
+          {meetings.length > 1 ? (
+            <DropdownMenuItem
+              onClick={() => {
+                onToggle([row.original.id], true)
+                onToggle(
+                  meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
+                  false,
+                )
+              }}
+            >
+              {m.schedule_keep_only_this()}
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const columns = column.columns([
+  column.display({ id: 'enabled', header: EnabledHeader, cell: EnabledCell }),
+  column.accessor((mt) => mt.section_code, {
+    id: 'section',
+    header: () => m.schedule_section_code(),
+    cell: SectionCell,
+  }),
+  column.accessor((mt) => mt.weekday, {
+    id: 'weekday',
+    header: () => m.schedule_weekday(),
+    cell: ({ row }) => weekdayName(row.original.weekday),
+  }),
+  column.accessor((mt) => mt.start_time, {
+    id: 'time',
+    header: () => m.schedule_time(),
+    cell: TimeCell,
+  }),
+  column.accessor((mt) => mt.start_week, {
+    id: 'weeks',
+    header: () => m.schedule_weeks(),
+    cell: ({ row }) => weeksText(row.original),
+  }),
+  column.accessor((mt) => mt.location ?? '', {
+    id: 'location',
+    header: () => m.schedule_location(),
+    cell: ({ row }) => row.original.location || '—',
+  }),
+  column.accessor((mt) => mt.instructor ?? '', {
+    id: 'instructor',
+    header: () => m.schedule_instructor(),
+    cell: ({ row }) => row.original.instructor || '—',
+  }),
+  column.display({ id: 'actions', header: ActionsHeader, cell: ActionsCell }),
+])
+
 /** The meetings of one type (e.g. all TUT sections) with enable switches. */
 function MeetingGroup({
   type,
@@ -340,136 +467,51 @@ function MeetingGroup({
       a.weekday - b.weekday ||
       a.start_time.localeCompare(b.start_time),
   )
-  const columns = column.columns([
-    column.display({
-      id: 'enabled',
-      header: () => <span className="sr-only">{m.schedule_enabled()}</span>,
-      cell: ({ row }) => (
-        <Switch
-          aria-label={m.schedule_enable_section({ name: row.original.section_code || code })}
-          checked={row.original.enabled}
-          disabled={busy}
-          onCheckedChange={(on) => onToggle([row.original.id], on)}
-        />
-      ),
-    }),
-    column.accessor((mt) => mt.section_code, {
-      id: 'section',
-      header: () => m.schedule_section_code(),
-      cell: ({ row }) => (
-        <span className="font-medium">
-          {row.original.section_code || '—'}
-          {conflicting.has(row.original.id) ? (
-            <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
-          ) : null}
-        </span>
-      ),
-    }),
-    column.accessor((mt) => mt.weekday, {
-      id: 'weekday',
-      header: () => m.schedule_weekday(),
-      cell: ({ row }) => weekdayName(row.original.weekday),
-    }),
-    column.accessor((mt) => mt.start_time, {
-      id: 'time',
-      header: () => m.schedule_time(),
-      cell: ({ row }) => (
-        <span className="tabular-nums">
-          {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
-        </span>
-      ),
-    }),
-    column.accessor((mt) => mt.start_week, {
-      id: 'weeks',
-      header: () => m.schedule_weeks(),
-      cell: ({ row }) => weeksText(row.original),
-    }),
-    column.accessor((mt) => mt.location ?? '', {
-      id: 'location',
-      header: () => m.schedule_location(),
-      cell: ({ row }) => row.original.location || '—',
-    }),
-    column.accessor((mt) => mt.instructor ?? '', {
-      id: 'instructor',
-      header: () => m.schedule_instructor(),
-      cell: ({ row }) => row.original.instructor || '—',
-    }),
-    column.display({
-      id: 'actions',
-      header: () => <span className="sr-only">{m.schedule_actions()}</span>,
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
-          >
-            <MoreHorizontal aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => onEdit(row.original)}>
-                {m.schedule_meeting_edit()}
-              </DropdownMenuItem>
-              {meetings.length > 1 ? (
-                <DropdownMenuItem
-                  onClick={() => {
-                    onToggle([row.original.id], true)
-                    onToggle(
-                      meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
-                      false,
-                    )
-                  }}
-                >
-                  {m.schedule_keep_only_this()}
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    }),
-  ])
+  const state = { code, meetings, conflicting, busy, onToggle, onEdit }
   const table = useTable({ features, columns, data: sorted, getRowId: (mt) => mt.id })
   return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-medium">
-        {code}
-        {type ? (
-          <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
-        ) : null}
-      </h3>
-      <div className="rounded-2xl border border-border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((h) => (
-                  <TableHead
-                    key={h.id}
-                    scope="col"
-                    className={cn(h.column.id === 'enabled' && 'w-12')}
-                  >
-                    <table.FlexRender header={h} />
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={cn(!row.original.enabled && 'text-muted-foreground opacity-60')}
-              >
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
+    <MeetingGroupContext value={state}>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">
+          {code}
+          {type ? (
+            <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
+          ) : null}
+        </h3>
+        <div className="rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((group) => (
+                <TableRow key={group.id}>
+                  {group.headers.map((h) => (
+                    <TableHead
+                      key={h.id}
+                      scope="col"
+                      className={cn(h.column.id === 'enabled' && 'w-12')}
+                    >
+                      <table.FlexRender header={h} />
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={cn(!row.original.enabled && 'text-muted-foreground opacity-60')}
+                >
+                  {row.getAllCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+    </MeetingGroupContext>
   )
 }
