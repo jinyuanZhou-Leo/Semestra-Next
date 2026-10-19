@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Timer } from 'lucide-react'
 import { http, HttpResponse } from 'msw'
 import type { ReactElement } from 'react'
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import template from '@/modules/_template/manifest'
 import { FakeEventSource } from '@/test-event-source'
 import { API, renderWithRouter, server } from '@/test-utils'
@@ -20,6 +20,26 @@ import { PluginSettingsSections, SettingsSections } from '../settings/SettingsSe
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
+
+// What the host reads besides the module's own data: a default nav, no UI state, default settings.
+beforeEach(() => {
+  server.use(
+    http.get(`${API}/layouts/nav/:kind`, ({ params }) =>
+      HttpResponse.json({ scope_type: params.kind, order: [], hidden: [] }),
+    ),
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.get(`${API}/settings/plugin.template`, () =>
+      HttpResponse.json({
+        namespace: 'plugin.template',
+        scope_type: 'account',
+        scope_id: null,
+        values: {},
+        sources: {},
+        inherited: {},
+      }),
+    ),
+  )
+})
 
 const scope: Scope = { kind: 'term', programId: 'p1', termId: 't1' }
 

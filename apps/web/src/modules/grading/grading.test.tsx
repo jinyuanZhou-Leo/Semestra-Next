@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
@@ -25,6 +25,13 @@ beforeEach(() => {
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)),
+    // No LMS: the gradebook does not offer an import from it.
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
+    ),
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({ program_id: 'p1', connection_id: null, connection: null, link_count: 0 }),
+    ),
     http.patch(`${API}/assessments/:id`, async ({ request, params }) => {
       patches.push({ id: String(params.id), body: await request.json() })
       return HttpResponse.json(book.assessments[0])
@@ -104,9 +111,7 @@ test('hide_gpa shows a mask until it is clicked', async () => {
   const mask = await screen.findByRole('button', { name: 'Show GPA' })
   expect(mask).toHaveTextContent('•••')
   expect(screen.queryByText('3.70')).not.toBeInTheDocument()
-  await act(async () => {
-    await userEvent.click(mask)
-  })
+  await userEvent.click(mask)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
 })
 

@@ -51,6 +51,8 @@ export function renderWithRouter(ui: ReactElement, queryClient = newQueryClient(
   const router = createRouter({
     routeTree: root.addChildren([index]),
     history: createMemoryHistory({ initialEntries: ['/'] }),
+    // Only `/` exists here; a navigation elsewhere (sign-out to /login, say) shows nothing.
+    defaultNotFoundComponent: () => null,
   })
   return {
     queryClient,

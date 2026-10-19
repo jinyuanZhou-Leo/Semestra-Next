@@ -103,6 +103,8 @@ test('the marketplace searches plugins and filters to installed ones', async () 
 
 test('a card opens a details dialog that lists what the plugin adds and installs it', async () => {
   const calls = catalog({})
+  // Once installed, the dialog shows the plugin's settings.
+  templateSettings()
   renderCatalog()
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Module template' }))
