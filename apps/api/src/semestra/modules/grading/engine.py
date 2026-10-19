@@ -491,6 +491,28 @@ def program_aggregate(graded: Sequence[GradedCourse]) -> Aggregate:
     return _aggregate([(g, g.course.credits) for g in graded])
 
 
+def _cumulative_parts(
+    graded: Sequence[GradedCourse], terms_so_far: Sequence[str], rule: YearAttribution
+) -> list[tuple[GradedCourse, float]]:
+    """Each course once, with the credits that landed in the terms so far.
+
+    A course whose credits have all landed counts with exactly its own credits, and courses keep
+    the order of `program_aggregate`, so the last cumulative GPA is the Program GPA to the last
+    decimal (summing split credits term by term drifts in float and can flip the rounding).
+    """
+    done = set(terms_so_far)
+    parts: list[tuple[GradedCourse, float]] = []
+    for g in graded:
+        landed = attribute_credits(g.course.credits, g.course.term_ids, rule)
+        if landed and done.issuperset(landed):
+            parts.append((g, g.course.credits))
+        else:
+            credits = sum(c for t, c in landed.items() if t in done)
+            if credits > 0:
+                parts.append((g, credits))
+    return parts
+
+
 @dataclass(frozen=True)
 class TermPoint:
     term_id: str
@@ -504,11 +526,9 @@ def program_series(
 ) -> list[TermPoint]:
     """Per-term GPA with the cumulative GPA up to and including each term."""
     points: list[TermPoint] = []
-    seen: list[tuple[GradedCourse, float]] = []
-    for term_id in term_order:
+    for k, term_id in enumerate(term_order):
         term_parts = _term_parts(graded, term_id, rule)
-        seen.extend((g, c) for g, c in term_parts if c > 0)
-        cumulative = _aggregate(seen)
+        cumulative = _aggregate(_cumulative_parts(graded, term_order[: k + 1], rule))
         points.append(
             TermPoint(term_id, _aggregate(term_parts), cumulative.gpa, cumulative.credits_counted)
         )

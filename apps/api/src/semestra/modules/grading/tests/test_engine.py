@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from semestra.modules.grading import engine, presets
@@ -406,6 +406,9 @@ credit_choice = st.sampled_from([0.25, 0.5, 1.0, 1.5])
     ),
     st.sampled_from(["end_term", "split_evenly"]),
 )
+# Split credits summed term by term once gave a cumulative GPA of 2.262 against a Program GPA of
+# 2.263: the float sums differed just below the rounding tie.
+@example([(0.5, 3, 85.0), (0.5, 1, 0.0), (1.5, 1, 50.0), (1.5, 1, 85.0)], "split_evenly")
 def test_property_each_course_counts_once_in_the_program(
     rows: list[tuple[float, int, float]], rule: str
 ) -> None:
