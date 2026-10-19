@@ -5334,6 +5334,610 @@ export type SuggestedScore = {
 };
 
 /**
+ * Task
+ */
+export type Task = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string | null;
+    /**
+     * List Id
+     *
+     * Null for the Program's inbox
+     */
+    list_id: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Notes
+     */
+    notes: string;
+    /**
+     * Due Date
+     */
+    due_date: string | null;
+    /**
+     * Due Time
+     *
+     * Wall-clock time in the Program's time zone
+     */
+    due_time: string | null;
+    /**
+     * Priority
+     */
+    priority: 'none' | 'low' | 'medium' | 'high' | 'urgent';
+    /**
+     * Flagged
+     */
+    flagged: boolean;
+    /**
+     * Completed At
+     */
+    completed_at: string | null;
+    /**
+     * Overdue
+     *
+     * Unfinished and past its due moment (Program time zone)
+     */
+    overdue: boolean;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Source Kind
+     */
+    source_kind: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual' | null;
+    /**
+     * Source Ref
+     */
+    source_ref: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TaskClearInputBody
+ */
+export type TaskClearInputBody = {
+    /**
+     * List Id
+     *
+     * Only completed tasks of this list
+     */
+    list_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Only completed tasks of this term
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Only completed tasks of this course
+     */
+    course_id?: string | null;
+};
+
+/**
+ * TaskClearResult
+ */
+export type TaskClearResult = {
+    /**
+     * Deleted
+     */
+    deleted: number;
+};
+
+/**
+ * TaskCompleteInputBody
+ */
+export type TaskCompleteInputBody = {
+    /**
+     * Completed
+     *
+     * False reopens the task
+     */
+    completed?: boolean;
+};
+
+/**
+ * TaskCounts
+ */
+export type TaskCounts = {
+    /**
+     * Today
+     *
+     * Unfinished tasks due today or overdue
+     */
+    today: number;
+    /**
+     * Overdue
+     */
+    overdue: number;
+    /**
+     * Scheduled
+     */
+    scheduled: number;
+    /**
+     * All
+     */
+    all: number;
+    /**
+     * Inbox
+     */
+    inbox: number;
+    /**
+     * Flagged
+     */
+    flagged: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Lists
+     *
+     * Unfinished tasks per list id
+     */
+    lists: {
+        [key: string]: number;
+    };
+    /**
+     * Courses
+     *
+     * Unfinished tasks per course id
+     */
+    courses: {
+        [key: string]: number;
+    };
+};
+
+/**
+ * TaskCreateInputBody
+ */
+export type TaskCreateInputBody = {
+    /**
+     * Title
+     *
+     * What to do
+     */
+    title: string;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Due Date
+     *
+     * Due date (Program time zone)
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time of day; needs a due date. Seconds are dropped.
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority; omit for the Program's default
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag the task
+     */
+    flagged?: boolean;
+    /**
+     * Term Id
+     *
+     * Term; inferred from the course and due date when omitted
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course the task is for
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; omit for the inbox
+     */
+    list_id?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where the task came from
+     */
+    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    /**
+     * Source Ref
+     *
+     * Id of the source item; makes batch imports idempotent
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * TaskCreateManyInputBody
+ */
+export type TaskCreateManyInputBody = {
+    /**
+     * Items
+     *
+     * Tasks to create
+     */
+    items: Array<TaskFields>;
+};
+
+/**
+ * TaskCreateManyResult
+ */
+export type TaskCreateManyResult = {
+    /**
+     * Created
+     */
+    created: Array<Task>;
+    /**
+     * Skipped
+     */
+    skipped: Array<TaskSkipped>;
+};
+
+/**
+ * TaskDeleted
+ */
+export type TaskDeleted = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
+ * TaskFields
+ */
+export type TaskFields = {
+    /**
+     * Title
+     *
+     * What to do
+     */
+    title: string;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string;
+    /**
+     * Due Date
+     *
+     * Due date (Program time zone)
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time of day; needs a due date. Seconds are dropped.
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority; omit for the Program's default
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag the task
+     */
+    flagged?: boolean;
+    /**
+     * Term Id
+     *
+     * Term; inferred from the course and due date when omitted
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course the task is for
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; omit for the inbox
+     */
+    list_id?: string | null;
+    /**
+     * Source Kind
+     *
+     * Where the task came from
+     */
+    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    /**
+     * Source Ref
+     *
+     * Id of the source item; makes batch imports idempotent
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * TaskList
+ */
+export type TaskList = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Term Id
+     *
+     * Null for a list shared by every term of the Program
+     */
+    term_id: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Color
+     */
+    color: string | null;
+    /**
+     * Icon
+     */
+    icon: string | null;
+    /**
+     * Position
+     */
+    position: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * TaskListCreateInputBody
+ */
+export type TaskListCreateInputBody = {
+    /**
+     * Name
+     *
+     * List name, unique within its term (or Program-wide)
+     */
+    name: string;
+    /**
+     * Term Id
+     *
+     * Term the list belongs to; omit for a Program-wide list
+     */
+    term_id?: string | null;
+    /**
+     * Color
+     *
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon
+     */
+    icon?: string | null;
+};
+
+/**
+ * TaskListDeleteResult
+ */
+export type TaskListDeleteResult = {
+    /**
+     * Deleted Task Count
+     */
+    deleted_task_count: number;
+    /**
+     * Moved Task Count
+     */
+    moved_task_count: number;
+};
+
+/**
+ * TaskListOrderInputBody
+ */
+export type TaskListOrderInputBody = {
+    /**
+     * List Ids
+     *
+     * List ids in the new display order (lists not named go last)
+     */
+    list_ids: Array<string>;
+};
+
+/**
+ * TaskListOut
+ */
+export type TaskListOut = {
+    /**
+     * Items
+     */
+    items: Array<TaskList>;
+};
+
+/**
+ * TaskListUpdateInputBody
+ */
+export type TaskListUpdateInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name?: string | null;
+    /**
+     * Color
+     *
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Icon
+     *
+     * Icon
+     */
+    icon?: string | null;
+};
+
+/**
+ * TaskMoveInputBody
+ */
+export type TaskMoveInputBody = {
+    /**
+     * List Id
+     *
+     * Target list (null = inbox); if not sent the list is unchanged
+     */
+    list_id?: string | null;
+    /**
+     * Before Task Id
+     *
+     * Place the task before this one (same target list); else last
+     */
+    before_task_id?: string | null;
+};
+
+/**
+ * TaskPage
+ */
+export type TaskPage = {
+    /**
+     * Items
+     */
+    items: Array<Task>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * TaskSkipped
+ */
+export type TaskSkipped = {
+    /**
+     * Index
+     */
+    index: number;
+    /**
+     * Task Id
+     *
+     * The existing task with the same source
+     */
+    task_id: string;
+};
+
+/**
+ * TaskUpdateInputBody
+ */
+export type TaskUpdateInputBody = {
+    /**
+     * Title
+     *
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Notes
+     *
+     * Notes
+     */
+    notes?: string | null;
+    /**
+     * Due Date
+     *
+     * Due date; null clears date and time
+     */
+    due_date?: string | null;
+    /**
+     * Due Time
+     *
+     * Due time; null clears it
+     */
+    due_time?: string | null;
+    /**
+     * Priority
+     *
+     * Priority
+     */
+    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent' | null;
+    /**
+     * Flagged
+     *
+     * Flag
+     */
+    flagged?: boolean | null;
+    /**
+     * Term Id
+     *
+     * Term; null clears it
+     */
+    term_id?: string | null;
+    /**
+     * Course Id
+     *
+     * Course; null clears it
+     */
+    course_id?: string | null;
+    /**
+     * List Id
+     *
+     * List; null moves to the inbox
+     */
+    list_id?: string | null;
+};
+
+/**
  * Template
  */
 export type Template = {
@@ -11258,3 +11862,582 @@ export type StickyNoteUpdateResponses = {
 };
 
 export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];
+
+export type TasksCountsData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's tasks and those that belong to no term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course's tasks
+         */
+        course_id?: string | null;
+    };
+    url: '/programs/{program_id}/task-counts';
+};
+
+export type TasksCountsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksCountsError = TasksCountsErrors[keyof TasksCountsErrors];
+
+export type TasksCountsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCounts;
+};
+
+export type TasksCountsResponse = TasksCountsResponses[keyof TasksCountsResponses];
+
+export type TasksItemClearCompletedData = {
+    body: TaskClearInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks:clear-completed';
+};
+
+export type TasksItemClearCompletedErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemClearCompletedError = TasksItemClearCompletedErrors[keyof TasksItemClearCompletedErrors];
+
+export type TasksItemClearCompletedResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskClearResult;
+};
+
+export type TasksItemClearCompletedResponse = TasksItemClearCompletedResponses[keyof TasksItemClearCompletedResponses];
+
+export type TasksItemCompleteData = {
+    body: TaskCompleteInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}:complete';
+};
+
+export type TasksItemCompleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCompleteError = TasksItemCompleteErrors[keyof TasksItemCompleteErrors];
+
+export type TasksItemCompleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemCompleteResponse = TasksItemCompleteResponses[keyof TasksItemCompleteResponses];
+
+export type TasksItemQueryData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * View
+         *
+         * today = due today or overdue; scheduled = has a due date; all; completed; inbox = no list; flagged
+         */
+        view?: 'today' | 'scheduled' | 'all' | 'completed' | 'inbox' | 'flagged';
+        /**
+         * List Id
+         *
+         * Only this list
+         */
+        list_id?: string | null;
+        /**
+         * Term Id
+         *
+         * Only this term's tasks and those that belong to no term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course
+         */
+        course_id?: string | null;
+        /**
+         * Search
+         *
+         * Fuzzy match on title and notes
+         */
+        search?: string | null;
+        /**
+         * Due From
+         *
+         * Due on or after this date
+         */
+        due_from?: string | null;
+        /**
+         * Due To
+         *
+         * Due on or before this date
+         */
+        due_to?: string | null;
+        /**
+         * Include Completed
+         *
+         * Also return completed tasks (views other than completed)
+         */
+        include_completed?: boolean;
+        /**
+         * Only Completed
+         *
+         * Return only the completed tasks the view would show (views other than completed); wins over include_completed
+         */
+        only_completed?: boolean;
+        /**
+         * Sort
+         *
+         * Order of the result
+         */
+        sort?: 'manual' | 'due' | 'priority' | 'created' | 'title';
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each task (and its id)
+         */
+        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'created_at' | 'updated_at'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Page size
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/tasks';
+};
+
+export type TasksItemQueryErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemQueryError = TasksItemQueryErrors[keyof TasksItemQueryErrors];
+
+export type TasksItemQueryResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskPage;
+};
+
+export type TasksItemQueryResponse = TasksItemQueryResponses[keyof TasksItemQueryResponses];
+
+export type TasksItemCreateData = {
+    body: TaskCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks';
+};
+
+export type TasksItemCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCreateError = TasksItemCreateErrors[keyof TasksItemCreateErrors];
+
+export type TasksItemCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemCreateResponse = TasksItemCreateResponses[keyof TasksItemCreateResponses];
+
+export type TasksItemCreateManyData = {
+    body: TaskCreateManyInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/tasks:batch';
+};
+
+export type TasksItemCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCreateManyError = TasksItemCreateManyErrors[keyof TasksItemCreateManyErrors];
+
+export type TasksItemCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCreateManyResult;
+};
+
+export type TasksItemCreateManyResponse = TasksItemCreateManyResponses[keyof TasksItemCreateManyResponses];
+
+export type TasksItemDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemDeleteError = TasksItemDeleteErrors[keyof TasksItemDeleteErrors];
+
+export type TasksItemDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskDeleted;
+};
+
+export type TasksItemDeleteResponse = TasksItemDeleteResponses[keyof TasksItemDeleteResponses];
+
+export type TasksItemGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemGetError = TasksItemGetErrors[keyof TasksItemGetErrors];
+
+export type TasksItemGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemGetResponse = TasksItemGetResponses[keyof TasksItemGetResponses];
+
+export type TasksItemUpdateData = {
+    body: TaskUpdateInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}';
+};
+
+export type TasksItemUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemUpdateError = TasksItemUpdateErrors[keyof TasksItemUpdateErrors];
+
+export type TasksItemUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemUpdateResponse = TasksItemUpdateResponses[keyof TasksItemUpdateResponses];
+
+export type TasksItemMoveData = {
+    body: TaskMoveInputBody;
+    path: {
+        /**
+         * Task Id
+         *
+         * Task id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/tasks/{task_id}:move';
+};
+
+export type TasksItemMoveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemMoveError = TasksItemMoveErrors[keyof TasksItemMoveErrors];
+
+export type TasksItemMoveResponses = {
+    /**
+     * Successful Response
+     */
+    200: Task;
+};
+
+export type TasksItemMoveResponse = TasksItemMoveResponses[keyof TasksItemMoveResponses];
+
+export type TasksListListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-lists';
+};
+
+export type TasksListListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListListError = TasksListListErrors[keyof TasksListListErrors];
+
+export type TasksListListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type TasksListListResponse = TasksListListResponses[keyof TasksListListResponses];
+
+export type TasksListCreateData = {
+    body: TaskListCreateInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-lists';
+};
+
+export type TasksListCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListCreateError = TasksListCreateErrors[keyof TasksListCreateErrors];
+
+export type TasksListCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type TasksListCreateResponse = TasksListCreateResponses[keyof TasksListCreateResponses];
+
+export type TasksListDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * List Id
+         *
+         * List id
+         */
+        list_id: string;
+    };
+    query?: {
+        /**
+         * Delete Tasks
+         *
+         * Delete the list's tasks too; by default they move to the inbox
+         */
+        delete_tasks?: boolean;
+    };
+    url: '/task-lists/{list_id}';
+};
+
+export type TasksListDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListDeleteError = TasksListDeleteErrors[keyof TasksListDeleteErrors];
+
+export type TasksListDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListDeleteResult;
+};
+
+export type TasksListDeleteResponse = TasksListDeleteResponses[keyof TasksListDeleteResponses];
+
+export type TasksListUpdateData = {
+    body: TaskListUpdateInputBody;
+    path: {
+        /**
+         * List Id
+         *
+         * List id
+         */
+        list_id: string;
+    };
+    query?: never;
+    url: '/task-lists/{list_id}';
+};
+
+export type TasksListUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListUpdateError = TasksListUpdateErrors[keyof TasksListUpdateErrors];
+
+export type TasksListUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskList;
+};
+
+export type TasksListUpdateResponse = TasksListUpdateResponses[keyof TasksListUpdateResponses];
+
+export type TasksListReorderData = {
+    body: TaskListOrderInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/task-list-order';
+};
+
+export type TasksListReorderErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksListReorderError = TasksListReorderErrors[keyof TasksListReorderErrors];
+
+export type TasksListReorderResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type TasksListReorderResponse = TasksListReorderResponses[keyof TasksListReorderResponses];

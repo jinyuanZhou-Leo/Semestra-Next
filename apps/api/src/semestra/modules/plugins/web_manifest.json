@@ -330,6 +330,81 @@
       "default_board": {}
     },
     {
+      "id": "tasks",
+      "kind": "core",
+      "pages": [
+        {
+          "id": "tasks",
+          "scopes": [
+            "program",
+            "term",
+            "course"
+          ]
+        }
+      ],
+      "cards": [
+        {
+          "id": "tasks.today",
+          "scopes": [
+            "today",
+            "program",
+            "term"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "l",
+          "multiple": false,
+          "settings_schema": null
+        },
+        {
+          "id": "tasks.list",
+          "scopes": [
+            "term",
+            "course"
+          ],
+          "sizes": [
+            "m",
+            "l"
+          ],
+          "default_size": "m",
+          "multiple": true,
+          "settings_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "source": {
+                "default": "all",
+                "type": "string",
+                "maxLength": 80
+              }
+            }
+          }
+        },
+        {
+          "id": "tasks.counter",
+          "scopes": [
+            "term"
+          ],
+          "sizes": [
+            "s"
+          ],
+          "default_size": "s",
+          "multiple": false,
+          "settings_schema": null
+        }
+      ],
+      "default_board": {
+        "today": [
+          {
+            "card": "tasks.today",
+            "size": "l"
+          }
+        ]
+      }
+    },
+    {
       "id": "habit-streak",
       "kind": "plugin",
       "pages": [],
