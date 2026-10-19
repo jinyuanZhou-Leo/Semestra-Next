@@ -6,10 +6,11 @@ import {
   lmsProvidersListOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, Link2, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
+import { ChevronRight, Link2, Pencil, PlugZap, Plus, Trash2 } from 'lucide-react'
+import { createContext, use, useState } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, SettingsGroup } from '@/app/settings'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -17,6 +18,7 @@ import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import {
   Empty,
@@ -26,16 +28,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
+import { Spinner } from '@/ui/spinner'
 import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 import { ConnectionForm } from './ConnectionForm'
@@ -53,84 +48,133 @@ export function ConnectionStatus({ connection }: { connection: Connection }) {
   return <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
 }
 
-function ConnectionRow({
-  connection,
-  onEdit,
-  onDelete,
-}: {
-  connection: Connection
-  onEdit: () => void
-  onDelete: () => void
-}) {
-  const queryClient = useQueryClient()
+type RowHandlers = {
+  checkingId: string | null
+  onCheck: (connection: Connection) => void
+  onEdit: (connection: Connection) => void
+  onDelete: (connection: Connection) => void
+}
+
+const RowContext = createContext<RowHandlers | null>(null)
+
+function useRowHandlers(): RowHandlers {
+  const handlers = use(RowContext)
+  if (!handlers) throw new Error('Connection cells render inside the connections table')
+  return handlers
+}
+
+type CellProps = CellContext<typeof settingsTableFeatures, Connection>
+
+function NameCell({ row }: CellProps) {
+  const connection = row.original
   const ui = useProviderUis().get(connection.provider)
   const providerName = useProviderName(connection.provider)
   const Logo = ui?.logo ?? Link2
-  const check = useMutation({
-    ...lmsConnectionValidateMutation(),
-    onSuccess: async (result) => {
-      await invalidateLms(queryClient)
-      if (result.ok) toast.success(m.lms_connection_check_ok())
-      else
-        toast.error(
-          errorMessage({ error: { code: result.error_code, params: result.error_params ?? {} } }),
-        )
-    },
-    onError: toastError,
-  })
   const details = [
     providerName,
     ui?.summary?.(connection.config) ?? null,
     connection.account_name,
     ...Object.values(connection.credentials_hint),
-    connection.last_checked_at
-      ? m.lms_connection_checked_at({ time: formatDateTime(connection.last_checked_at) })
-      : null,
   ].filter(Boolean)
-  const usage =
-    connection.program_ids.length > 0
-      ? m.lms_connection_usage({
-          programs: connection.program_ids.length,
-          courses: connection.link_count,
-        })
-      : m.lms_connection_unused()
-
   return (
-    <Item>
-      <ItemMedia variant="icon">
-        <Logo aria-hidden className="size-5 text-muted-foreground" />
-      </ItemMedia>
-      <ItemContent className="min-w-0 basis-56">
-        <ItemTitle>
-          <span className="truncate">{connection.display_name}</span>
-          <ConnectionStatus connection={connection} />
-        </ItemTitle>
-        <ItemDescription className="truncate">{details.join(' · ')}</ItemDescription>
-        <ItemDescription>{usage}</ItemDescription>
-      </ItemContent>
-      <ItemActions className="shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={check.isPending || !connection.has_credentials}
-          onClick={() => check.mutate({ body: { connection_id: connection.id } })}
-        >
-          {check.isPending ? m.lms_connection_checking() : m.lms_connection_check()}
-        </Button>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          {m.common_edit()}
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          aria-label={m.lms_connection_delete_aria({ name: connection.display_name })}
-          onClick={onDelete}
-        >
-          {m.common_delete()}
-        </Button>
-      </ItemActions>
-    </Item>
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
+        <Logo aria-hidden className="size-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate font-medium">{connection.display_name}</div>
+        <div className="truncate text-xs text-muted-foreground">{details.join(' · ')}</div>
+      </div>
+    </div>
   )
+}
+
+function UsageCell({ row }: CellProps) {
+  const connection = row.original
+  return (
+    <span className="text-muted-foreground">
+      {connection.program_ids.length > 0
+        ? m.lms_connection_usage({
+            programs: connection.program_ids.length,
+            courses: connection.link_count,
+          })
+        : m.lms_connection_unused()}
+    </span>
+  )
+}
+
+function StatusCell({ row }: CellProps) {
+  const { checkingId } = useRowHandlers()
+  const connection = row.original
+  // Two lines in every state (badge or spinner, then the last check), so checking a connection
+  // never changes the row's height.
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <div className="flex h-5 items-center">
+        {checkingId === connection.id ? (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Spinner aria-hidden className="size-3.5" />
+            {m.lms_connection_checking()}
+          </span>
+        ) : (
+          <ConnectionStatus connection={connection} />
+        )}
+      </div>
+      {connection.last_checked_at ? (
+        <span className="text-xs text-muted-foreground">
+          {m.lms_connection_checked_at({ time: formatDateTime(connection.last_checked_at) })}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function ActionsCell({ row }: CellProps) {
+  const { checkingId, onCheck, onEdit, onDelete } = useRowHandlers()
+  const connection = row.original
+  return (
+    <RowMenu label={m.lms_connection_actions({ name: connection.display_name })}>
+      <DropdownMenuItem
+        disabled={checkingId === connection.id || !connection.has_credentials}
+        onClick={() => onCheck(connection)}
+      >
+        <PlugZap aria-hidden />
+        {m.lms_connection_check()}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => onEdit(connection)}>
+        <Pencil aria-hidden />
+        {m.common_edit()}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => onDelete(connection)}>
+        <Trash2 aria-hidden />
+        {m.common_delete()}
+      </DropdownMenuItem>
+    </RowMenu>
+  )
+}
+
+const column = createColumnHelper<typeof settingsTableFeatures, Connection>()
+const columns = column.columns([
+  column.accessor((c) => c.display_name, {
+    id: 'name',
+    header: () => m.lms_connection_name(),
+    cell: NameCell,
+  }),
+  column.display({ id: 'usage', header: () => m.lms_connection_used_by(), cell: UsageCell }),
+  column.display({ id: 'status', header: () => m.lms_connection_status(), cell: StatusCell }),
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
+    cell: ActionsCell,
+  }),
+])
+
+const COLUMN_CLASS: Record<string, string> = {
+  name: 'w-full max-w-0',
+  usage: 'hidden whitespace-nowrap md:table-cell',
+  status: 'whitespace-nowrap',
+  actions: 'w-10',
 }
 
 /**
@@ -219,6 +263,24 @@ export function ConnectionsSection() {
   useQuery(lmsProvidersListOptions())
   const [editing, setEditing] = useState<Connection | null>(null)
   const [deleting, setDeleting] = useState<Connection | null>(null)
+  const check = useMutation({
+    ...lmsConnectionValidateMutation(),
+    onSuccess: async (result) => {
+      await invalidateLms(queryClient)
+      if (result.ok) toast.success(m.lms_connection_check_ok())
+      else
+        toast.error(
+          errorMessage({ error: { code: result.error_code, params: result.error_params ?? {} } }),
+        )
+    },
+    onError: toastError,
+  })
+  const handlers: RowHandlers = {
+    checkingId: check.isPending ? (check.variables?.body.connection_id ?? null) : null,
+    onCheck: (connection) => check.mutate({ body: { connection_id: connection.id } }),
+    onEdit: setEditing,
+    onDelete: setDeleting,
+  }
   const remove = useMutation({
     ...lmsConnectionDeleteMutation(),
     onSuccess: async () => {
@@ -252,19 +314,20 @@ export function ConnectionsSection() {
         }
       >
         {(data) => (
-          <SettingsGroup>
-            {data.items.map((connection) => (
-              <ConnectionRow
-                key={connection.id}
-                connection={connection}
-                onEdit={() => setEditing(connection)}
-                onDelete={() => setDeleting(connection)}
-              />
-            ))}
-            <ActionRow icon={Plus} onClick={startAdding}>
-              {m.lms_connection_add()}
-            </ActionRow>
-          </SettingsGroup>
+          <RowContext value={handlers}>
+            <SettingsTable
+              label={m.lms_settings_connections()}
+              data={data.items}
+              columns={columns}
+              getRowId={(connection) => connection.id}
+              columnClassName={COLUMN_CLASS}
+              footer={
+                <ActionRow icon={Plus} onClick={startAdding}>
+                  {m.lms_connection_add()}
+                </ActionRow>
+              }
+            />
+          </RowContext>
         )}
       </AsyncBoundary>
       <AddConnectionDialog key={addKey} open={adding} onClose={() => setAdding(false)} />

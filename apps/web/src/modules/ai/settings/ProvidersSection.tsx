@@ -5,26 +5,12 @@ import {
   aiProviderTestMutation,
   aiProviderUpdateMutation,
 } from '@semestra/api-client/react-query'
-import {
-  type CellContext,
-  createColumnHelper,
-  tableFeatures,
-  useTable,
-} from '@tanstack/react-table'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  KeyRound,
-  MoreHorizontal,
-  Pencil,
-  PlugZap,
-  Plus,
-  Power,
-  PowerOff,
-  Trash2,
-} from 'lucide-react'
+import { KeyRound, Pencil, PlugZap, Plus, Power, PowerOff, Trash2 } from 'lucide-react'
 import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ActionRow } from '@/app/settings'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -41,13 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
@@ -59,8 +39,6 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Spinner } from '@/ui/spinner'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
 import { CapabilityChecks, ProviderForm } from './ProviderForm'
@@ -195,7 +173,7 @@ function useRowHandlers(): RowHandlers {
   return handlers
 }
 
-type CellProps = CellContext<typeof features, Provider>
+type CellProps = CellContext<typeof settingsTableFeatures, Provider>
 
 function NameCell({ row }: CellProps) {
   const provider = row.original
@@ -254,53 +232,30 @@ function StatusCell({ row }: CellProps) {
 function ActionsCell({ row }: CellProps) {
   const { testingId, togglingId, onEdit, onTest, onToggle, onDelete } = useRowHandlers()
   const provider = row.original
-  const label = m.ai_provider_actions({ name: provider.display_name })
   return (
-    <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={label}
-                  className="text-muted-foreground"
-                />
-              }
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent>{m.ai_provider_actions_tooltip()}</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={() => onEdit(provider)}>
-          <Pencil aria-hidden />
-          {m.common_edit()}
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={testingId === provider.id} onClick={() => onTest(provider)}>
-          <PlugZap aria-hidden />
-          {m.ai_provider_test()}
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={togglingId === provider.id} onClick={() => onToggle(provider)}>
-          {provider.enabled ? <PowerOff aria-hidden /> : <Power aria-hidden />}
-          {provider.enabled ? m.ai_provider_disable() : m.ai_provider_enable()}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => onDelete(provider)}>
-          <Trash2 aria-hidden />
-          {m.common_delete()}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowMenu label={m.ai_provider_actions({ name: provider.display_name })}>
+      <DropdownMenuItem onClick={() => onEdit(provider)}>
+        <Pencil aria-hidden />
+        {m.common_edit()}
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={testingId === provider.id} onClick={() => onTest(provider)}>
+        <PlugZap aria-hidden />
+        {m.ai_provider_test()}
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={togglingId === provider.id} onClick={() => onToggle(provider)}>
+        {provider.enabled ? <PowerOff aria-hidden /> : <Power aria-hidden />}
+        {provider.enabled ? m.ai_provider_disable() : m.ai_provider_enable()}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => onDelete(provider)}>
+        <Trash2 aria-hidden />
+        {m.common_delete()}
+      </DropdownMenuItem>
+    </RowMenu>
   )
 }
 
-const features = tableFeatures({})
-const column = createColumnHelper<typeof features, Provider>()
+const column = createColumnHelper<typeof settingsTableFeatures, Provider>()
 const columns = column.columns([
   column.accessor((p) => p.display_name, {
     id: 'name',
@@ -324,56 +279,11 @@ const columns = column.columns([
   }),
 ])
 
-const CELL_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0 pl-4',
+const COLUMN_CLASS: Record<string, string> = {
+  name: 'w-full max-w-0',
   kind: 'hidden whitespace-nowrap sm:table-cell',
   status: 'whitespace-nowrap',
-  actions: 'w-10 pr-3 text-right',
-}
-
-function ProvidersTable({ providers, onAdd }: { providers: Provider[]; onAdd: () => void }) {
-  const table = useTable({
-    features,
-    columns,
-    data: providers,
-    getRowId: (provider) => provider.id,
-  })
-  return (
-    <div className="overflow-hidden rounded-2xl border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id} className="hover:bg-transparent">
-              {group.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={cn('text-xs text-muted-foreground', CELL_CLASS[header.column.id])}
-                >
-                  <table.FlexRender header={header} />
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id} className={cn('py-2.5', CELL_CLASS[cell.column.id])}>
-                  <table.FlexRender cell={cell} />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <div className="border-t">
-        <ActionRow icon={Plus} onClick={onAdd}>
-          {m.ai_provider_add()}
-        </ActionRow>
-      </div>
-    </div>
-  )
+  actions: 'w-10',
 }
 
 /**
@@ -451,7 +361,18 @@ export function ProvidersSection() {
       >
         {(data) => (
           <RowContext value={handlers}>
-            <ProvidersTable providers={data.items} onAdd={() => setAdding(true)} />
+            <SettingsTable
+              label={m.ai_settings_providers()}
+              data={data.items}
+              columns={columns}
+              getRowId={(provider) => provider.id}
+              columnClassName={COLUMN_CLASS}
+              footer={
+                <ActionRow icon={Plus} onClick={() => setAdding(true)}>
+                  {m.ai_provider_add()}
+                </ActionRow>
+              }
+            />
           </RowContext>
         )}
       </AsyncBoundary>

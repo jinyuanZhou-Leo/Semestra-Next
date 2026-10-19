@@ -1,4 +1,4 @@
-import { client, type TokenCreated } from '@semestra/api-client'
+import { client, type TokenCreated, type TokenOut } from '@semestra/api-client'
 import {
   accountTokensCreateMutation,
   accountTokensListOptions,
@@ -6,10 +6,11 @@ import {
   accountTokensRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Plus } from 'lucide-react'
-import { useId, useState, type FormEvent } from 'react'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
+import { Ban, KeyRound, Plus } from 'lucide-react'
+import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, SettingsGroup } from '@/app/settings'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -28,7 +29,7 @@ import {
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
+import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -247,6 +248,80 @@ function TokenCreatedDialog({
   )
 }
 
+const RevokeContext = createContext<(token: TokenOut) => void>(() => {})
+
+type CellProps = CellContext<typeof settingsTableFeatures, TokenOut>
+
+function NameCell({ row }: CellProps) {
+  const t = row.original
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
+        <KeyRound aria-hidden className="size-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate font-medium">{t.name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {[
+            `${t.prefix}…`,
+            t.last_used_at
+              ? m.auth_account_tokens_last_used({ time: formatDateTime(t.last_used_at) })
+              : m.auth_account_tokens_never_used(),
+            t.expires_at
+              ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ActionsCell({ row }: CellProps) {
+  const onRevoke = use(RevokeContext)
+  return (
+    <RowMenu label={m.auth_account_tokens_actions({ name: row.original.name })}>
+      <DropdownMenuItem variant="destructive" onClick={() => onRevoke(row.original)}>
+        <Ban aria-hidden />
+        {m.auth_account_tokens_revoke()}
+      </DropdownMenuItem>
+    </RowMenu>
+  )
+}
+
+const column = createColumnHelper<typeof settingsTableFeatures, TokenOut>()
+const columns = column.columns([
+  column.accessor((t) => t.name, {
+    id: 'name',
+    header: () => m.auth_account_tokens_name_label(),
+    cell: NameCell,
+  }),
+  column.display({
+    id: 'scope',
+    header: () => m.auth_account_tokens_scope_label(),
+    cell: ({ row }) => (
+      <Badge variant="secondary">
+        {row.original.scopes.includes('write')
+          ? m.auth_account_tokens_scope_write()
+          : m.auth_account_tokens_scope_read()}
+      </Badge>
+    ),
+  }),
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
+    cell: ActionsCell,
+  }),
+])
+
+const COLUMN_CLASS: Record<string, string> = {
+  name: 'w-full max-w-0',
+  scope: 'whitespace-nowrap',
+  actions: 'w-10',
+}
+
 export function TokensSection() {
   const queryClient = useQueryClient()
   const tokens = useQuery(accountTokensListOptions())
@@ -293,50 +368,20 @@ export function TokensSection() {
           </EmptyContent>
         </Empty>
       ) : (
-        <SettingsGroup>
-          {items.map((t) => (
-            <Item key={t.id}>
-              <ItemContent className="min-w-0">
-                <ItemTitle>
-                  <span className="truncate">{t.name}</span>
-                  <Badge variant="secondary">
-                    {t.scopes.includes('write')
-                      ? m.auth_account_tokens_scope_write()
-                      : m.auth_account_tokens_scope_read()}
-                  </Badge>
-                </ItemTitle>
-                <ItemDescription>
-                  {[
-                    `${t.prefix}…`,
-                    t.last_used_at
-                      ? m.auth_account_tokens_last_used({
-                          time: formatDateTime(t.last_used_at),
-                        })
-                      : m.auth_account_tokens_never_used(),
-                    t.expires_at
-                      ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
-                  onClick={() => setRevoking({ id: t.id, name: t.name })}
-                >
-                  {m.auth_account_tokens_revoke()}
-                </Button>
-              </ItemActions>
-            </Item>
-          ))}
-          <ActionRow icon={Plus} onClick={() => setCreating(true)}>
-            {m.auth_account_tokens_create()}
-          </ActionRow>
-        </SettingsGroup>
+        <RevokeContext value={(t) => setRevoking({ id: t.id, name: t.name })}>
+          <SettingsTable
+            label={m.auth_account_tokens_title()}
+            data={items}
+            columns={columns}
+            getRowId={(t) => t.id}
+            columnClassName={COLUMN_CLASS}
+            footer={
+              <ActionRow icon={Plus} onClick={() => setCreating(true)}>
+                {m.auth_account_tokens_create()}
+              </ActionRow>
+            }
+          />
+        </RevokeContext>
       )}
       <CreateTokenDialog
         open={creating}

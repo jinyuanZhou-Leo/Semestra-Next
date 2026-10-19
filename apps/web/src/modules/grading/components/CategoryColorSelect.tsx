@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { categoryColor } from '../display'
 
@@ -29,17 +30,22 @@ const COLOR_LABELS: Record<(typeof CATEGORY_COLORS)[number], () => string> = {
   slate: () => m.grading_color_slate(),
 }
 
-function Dot({ color }: { color: string }) {
+function Dot({ color, large }: { color: string; large?: boolean }) {
   return (
     <span
       aria-hidden
-      className="inline-block size-2.5 shrink-0 self-center rounded-full"
+      className={cn(
+        'inline-block shrink-0 self-center rounded-full',
+        large ? 'size-4 ring-1 ring-foreground/10' : 'size-2.5',
+      )}
       style={{ backgroundColor: categoryColor(color) }}
     />
   )
 }
 
-/** One of the built-in category colors; a custom `#rrggbb` is kept as it is. */
+/**
+ * One of the built-in category colors, shown as a dot; a custom `#rrggbb` is kept as it is.
+ */
 export function CategoryColorSelect({
   value,
   onChange,
@@ -53,15 +59,13 @@ export function CategoryColorSelect({
   if (!items.some((i) => i.value === value)) items.push({ value, label: value })
   return (
     <Select value={value} items={items} onValueChange={(next) => next && onChange(String(next))}>
-      <SelectTrigger aria-label={label} className="w-36">
-        <SelectValue>
-          {(selected: string) => (
-            <span className="flex items-center gap-2">
-              <Dot color={selected} />
-              {items.find((i) => i.value === selected)?.label ?? selected}
-            </span>
-          )}
-        </SelectValue>
+      <SelectTrigger
+        aria-label={label}
+        title={items.find((i) => i.value === value)?.label ?? value}
+        className="w-auto gap-1.5 bg-transparent hover:bg-muted"
+      >
+        {/* Only the dot: the table row has no room for the name, the list shows it. */}
+        <SelectValue>{(selected: string) => <Dot color={selected} large />}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
