@@ -2,7 +2,18 @@ import type { PluginOut } from '@semestra/api-client'
 import { pluginsInstall, pluginsUninstall } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { Blocks, Check, LayoutGrid, PanelTop, type LucideIcon } from 'lucide-react'
+import {
+  Blocks,
+  Check,
+  ChevronDown,
+  Info,
+  LayoutGrid,
+  PanelTop,
+  Search,
+  SearchX,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
@@ -12,12 +23,22 @@ import { PluginSettingsSections, SettingsBlock, SettingsGroup } from '@/app/sett
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
+import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet'
+import { Separator } from '@/ui/separator'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
 type Entry = {
@@ -27,6 +48,8 @@ type Entry = {
   description: string
   icon: LucideIcon
 }
+
+type Show = 'all' | 'installed'
 
 function toEntry(plugin: PluginOut, modules: readonly ModuleManifest[]): Entry {
   const module = modules.find((mod) => mod.id === plugin.id)
@@ -39,49 +62,160 @@ function toEntry(plugin: PluginOut, modules: readonly ModuleManifest[]): Entry {
   }
 }
 
-/** Refetch everything that depends on which plugins are installed. */
-function useRefreshInstalled() {
+function matches(entry: Entry, query: string): boolean {
+  if (!query) return true
+  const haystack = `${entry.name} ${entry.description} ${entry.plugin.id}`.toLocaleLowerCase()
+  return haystack.includes(query)
+}
+
+/** Install or uninstall, then refetch everything that depends on which plugins are installed. */
+function usePluginActions() {
   const queryClient = useQueryClient()
-  return () =>
+  const [pending, setPending] = useState<readonly string[]>([])
+  const start = (id: string) => setPending((ids) => [...ids, id])
+  const finish = (id: string) => setPending((ids) => ids.filter((other) => other !== id))
+  const refresh = () =>
     invalidateOperations(queryClient, [
       'pluginsCatalogList',
       'layoutsBoardGet',
       'layoutsCardSettingsGet',
     ])
+
+  const install = async (entry: Entry) => {
+    const id = entry.plugin.id
+    start(id)
+    try {
+      await pluginsInstall({ path: { plugin_id: id }, throwOnError: true })
+      await refresh()
+      toast.success(m.plugins_installed_toast({ name: entry.name }))
+    } catch (err) {
+      toastError(err)
+    }
+    finish(id)
+  }
+
+  /** Resolves to whether the plugin was uninstalled. */
+  const uninstall = async (entry: Entry, purge: boolean) => {
+    const id = entry.plugin.id
+    start(id)
+    let done = false
+    try {
+      await pluginsUninstall({
+        path: { plugin_id: id },
+        query: { purge_data: purge },
+        throwOnError: true,
+      })
+      // Deleted data may include remembered UI state (a running timer): forget this tab's copy.
+      if (purge) queryClient.removeQueries({ queryKey: ['ui-pref'] })
+      await refresh()
+      toast.success(m.plugins_uninstalled_toast({ name: entry.name }))
+      done = true
+    } catch (err) {
+      toastError(err)
+    }
+    finish(id)
+    return done
+  }
+
+  return { pending, install, uninstall }
 }
 
-function PluginTile({ entry, onOpen }: { entry: Entry; onOpen: () => void }) {
-  const Icon = entry.icon
+type ActionProps = {
+  entry: Entry
+  /** An install or uninstall of this plugin is running: its controls stay off until it ends. */
+  pending: boolean
+  onInstall: () => void
+  onUninstall: () => void
+  /** Adds "Details" to the installed menu (on the card; the details dialog leaves it out). */
+  onOpen?: () => void
+}
+
+/** "Install", or "Installed ✓" opening a menu with the details and "Uninstall". */
+function InstallButton({ entry, pending, onInstall, onUninstall, onOpen }: ActionProps) {
+  if (!entry.plugin.installed) {
+    return (
+      <Button size="sm" disabled={pending} onClick={onInstall}>
+        {pending ? m.common_loading() : m.plugins_install()}
+      </Button>
+    )
+  }
   return (
-    <li>
-      <Item
-        variant="outline"
-        render={(props) => (
-          <button type="button" {...props}>
-            {props.children}
-          </button>
-        )}
-        onClick={onOpen}
-        className="h-full flex-col items-stretch gap-2"
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button size="sm" variant="secondary" disabled={pending} />}
+        aria-label={m.plugins_installed_menu({ name: entry.name })}
       >
-        <span className="flex w-full items-center gap-2">
-          <ItemMedia variant="icon" className="size-8 rounded-lg bg-muted">
-            <Icon aria-hidden />
-          </ItemMedia>
-          <ItemTitle className="min-w-0 flex-1 truncate">{entry.name}</ItemTitle>
-          {entry.plugin.installed ? (
-            <Badge variant="secondary">
-              <Check aria-hidden />
-              {m.plugins_installed()}
-            </Badge>
-          ) : null}
-        </span>
-        <ItemDescription className="line-clamp-2">{entry.description}</ItemDescription>
-        <ItemDescription className="mt-auto text-xs">
-          {m.plugins_by({ author: entry.plugin.author })}
-        </ItemDescription>
-      </Item>
-    </li>
+        <Check aria-hidden />
+        {pending ? m.common_loading() : m.plugins_installed()}
+        <ChevronDown aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        {onOpen ? (
+          <>
+            <DropdownMenuItem onClick={onOpen}>
+              <Info aria-hidden />
+              {m.plugins_details()}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        <DropdownMenuItem variant="destructive" onClick={onUninstall}>
+          <Trash2 aria-hidden />
+          {m.plugins_uninstall()}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function PluginIcon({ icon: Icon, large }: { icon: LucideIcon; large?: boolean }) {
+  return (
+    <span
+      className={
+        large
+          ? 'flex size-12 shrink-0 items-center justify-center rounded-2xl bg-muted'
+          : 'flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted'
+      }
+    >
+      <Icon aria-hidden className={large ? 'size-6' : 'size-5'} />
+    </span>
+  )
+}
+
+/**
+ * A marketplace card. The whole card opens the details (the name's button stretches over it);
+ * the install control sits above that overlay so it works on its own.
+ */
+function PluginCard(props: ActionProps & { onOpen: () => void }) {
+  const { entry, onOpen } = props
+  return (
+    <Item
+      variant="outline"
+      render={<li />}
+      className="relative h-full flex-col items-stretch gap-3 p-4 transition-colors hover:bg-muted/50"
+    >
+      <div className="flex items-start gap-3">
+        <PluginIcon icon={entry.icon} />
+        <ItemContent className="min-w-0 gap-0.5">
+          <ItemTitle className="w-full">
+            <button
+              type="button"
+              onClick={onOpen}
+              className="truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
+            >
+              {entry.name}
+            </button>
+          </ItemTitle>
+          <ItemDescription className="truncate text-xs">
+            {m.plugins_by({ author: entry.plugin.author })}
+          </ItemDescription>
+        </ItemContent>
+      </div>
+      <ItemDescription className="line-clamp-2 min-h-10">{entry.description}</ItemDescription>
+      <div className="relative mt-auto flex justify-end">
+        <InstallButton {...props} />
+      </div>
+    </Item>
   )
 }
 
@@ -117,71 +251,35 @@ function ProvidesList({
   )
 }
 
-/** A plugin's page (M10 §5.3): what it adds, install or uninstall, and its own settings. */
-function PluginDetails({ entry }: { entry: Entry }) {
-  const refresh = useRefreshInstalled()
-  const queryClient = useQueryClient()
-  const purgeId = useId()
-  const [pending, setPending] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [purge, setPurge] = useState(false)
+/** A plugin's details (M10 §5.3): what it adds, install or uninstall, and its own settings. */
+function PluginDetails(props: ActionProps) {
+  const { entry } = props
   const { plugin, module } = entry
-  const Icon = entry.icon
-
   const pages = (module?.pages ?? []).map((p) => ({ id: p.id, title: p.title() }))
   const cards = (module?.cards ?? []).map((c) => ({
     id: c.id,
     title: c.title(),
     description: c.description?.(),
   }))
-
-  const install = async () => {
-    setPending(true)
-    try {
-      await pluginsInstall({ path: { plugin_id: plugin.id }, throwOnError: true })
-      await refresh()
-      toast.success(m.plugins_installed_toast({ name: entry.name }))
-    } catch (err) {
-      toastError(err)
-    }
-    setPending(false)
-  }
-
-  const uninstall = async () => {
-    setPending(true)
-    try {
-      await pluginsUninstall({
-        path: { plugin_id: plugin.id },
-        query: { purge_data: purge },
-        throwOnError: true,
-      })
-      // Deleted data may include remembered UI state (a running timer): forget this tab's copy.
-      if (purge) queryClient.removeQueries({ queryKey: ['ui-pref'] })
-      await refresh()
-      setConfirming(false)
-      toast.success(m.plugins_uninstalled_toast({ name: entry.name }))
-    } catch (err) {
-      toastError(err)
-    }
-    setPending(false)
-  }
+  const hasSettings = useAllModules().some((mod) =>
+    (mod.settingsSections ?? []).some((s) => s.level === 'account' && s.pluginId === plugin.id),
+  )
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
-      <SheetHeader className="pr-12 text-left">
-        <div className="flex items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-            <Icon aria-hidden className="size-5" />
-          </span>
-          <div className="min-w-0 space-y-0.5">
-            <SheetTitle className="font-heading text-base font-semibold">{entry.name}</SheetTitle>
-            <SheetDescription className="text-xs">
+    <>
+      <DialogHeader className="pr-10">
+        <div className="flex items-center gap-3">
+          <PluginIcon icon={entry.icon} large />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <DialogTitle className="truncate">{entry.name}</DialogTitle>
+            <DialogDescription className="text-xs">
               {m.plugins_version({ author: plugin.author, version: plugin.version })}
-            </SheetDescription>
+            </DialogDescription>
           </div>
+          <InstallButton {...props} />
         </div>
-      </SheetHeader>
-      <div className="flex flex-col gap-6 px-6 pb-6">
+      </DialogHeader>
+      <div className="-mx-6 flex min-h-0 flex-col gap-6 overflow-y-auto px-6 pb-1">
         <p className="text-sm">{entry.description}</p>
         {module?.requirements ? (
           <section className="space-y-1 rounded-lg bg-muted/60 p-3 text-sm">
@@ -191,100 +289,170 @@ function PluginDetails({ entry }: { entry: Entry }) {
         ) : null}
         <ProvidesList icon={PanelTop} title={m.plugins_provides_pages()} items={pages} />
         <ProvidesList icon={LayoutGrid} title={m.plugins_provides_cards()} items={cards} />
-        <div>
-          {plugin.installed ? (
-            <Button variant="outline" disabled={pending} onClick={() => setConfirming(true)}>
-              {m.plugins_uninstall()}
-            </Button>
-          ) : (
-            <Button disabled={pending} onClick={install}>
-              {pending ? m.common_loading() : m.plugins_install()}
-            </Button>
-          )}
-        </div>
-        {plugin.installed ? <PluginSettingsSections pluginId={plugin.id} /> : null}
-        <ConfirmDialog
-          open={confirming}
-          onOpenChange={(open) => {
-            setConfirming(open)
-            if (!open) setPurge(false)
-          }}
-          title={m.plugins_uninstall_title({ name: entry.name })}
-          description={m.plugins_uninstall_description()}
-          extra={
-            <Field orientation="horizontal" className="items-start">
-              <Checkbox
-                id={purgeId}
-                checked={purge}
-                onCheckedChange={(checked) => setPurge(checked)}
-              />
-              <FieldContent>
-                <FieldLabel htmlFor={purgeId} className="font-normal">
-                  {m.plugins_purge_label()}
-                </FieldLabel>
-                <FieldDescription>{m.plugins_purge_hint()}</FieldDescription>
-              </FieldContent>
-            </Field>
-          }
-          confirmLabel={purge ? m.plugins_uninstall_and_purge() : m.plugins_uninstall()}
-          pending={pending}
-          onConfirm={() => void uninstall()}
-        />
+        {plugin.installed && hasSettings ? (
+          <>
+            <Separator />
+            <PluginSettingsSections pluginId={plugin.id} />
+          </>
+        ) : null}
       </div>
-    </div>
+    </>
   )
 }
 
 /**
- * The "Plugins" settings section (M10 §5.3): the plugins to install, and the core features,
- * which cannot be uninstalled but whose pages can be hidden.
+ * The "Plugins" settings section (M10 §5.3): a marketplace grid of plugins to install or
+ * uninstall, and the core features, which cannot be uninstalled but whose pages can be hidden.
  */
 export default function PluginCatalog() {
   const { data } = useSuspenseQuery(pluginsCatalogListOptions())
   const modules = useAllModules()
+  const purgeId = useId()
+  const { pending, install, uninstall } = usePluginActions()
+  const [search, setSearch] = useState('')
+  const [show, setShow] = useState<Show>('all')
   const [openId, setOpenId] = useState<string | null>(null)
+  // The entry stays after the confirmation closes so its title doesn't blank while it fades out.
+  const [removing, setRemoving] = useState<Entry | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [purge, setPurge] = useState(false)
+
   const entries = data.items.map((plugin) => toEntry(plugin, modules))
+  const query = search.trim().toLocaleLowerCase()
   const plugins = entries.filter((e) => e.plugin.kind === 'plugin')
-  const core = entries.filter((e) => e.plugin.kind === 'core')
-  const open = entries.find((e) => e.plugin.id === openId && e.plugin.kind === 'plugin')
+  const visible = plugins.filter((e) => matches(e, query) && (show === 'all' || e.plugin.installed))
+  const core = entries.filter((e) => e.plugin.kind === 'core' && matches(e, query))
+  const open = plugins.find((e) => e.plugin.id === openId)
+  const filtered = query !== '' || show !== 'all'
+  const removingPending = removing != null && pending.includes(removing.plugin.id)
+
+  const actionsFor = (entry: Entry): ActionProps => ({
+    entry,
+    pending: pending.includes(entry.plugin.id),
+    onInstall: () => void install(entry),
+    onUninstall: () => {
+      setRemoving(entry)
+      setPurge(false)
+      setConfirming(true)
+    },
+  })
 
   return (
     <div className="space-y-8">
-      <SettingsBlock title={m.plugins_available()}>
-        {plugins.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{m.plugins_none_available()}</p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {plugins.map((entry) => (
-              <PluginTile
+      {/* The section above already says "Plugins": the marketplace goes without a heading. */}
+      <section aria-label={m.plugins_available()} className="@container space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-48 flex-1">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              aria-label={m.plugins_search()}
+              placeholder={m.plugins_search()}
+              className="pl-9"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <ToggleGroup
+            aria-label={m.plugins_filter_label()}
+            value={[show]}
+            onValueChange={(next) => {
+              if (next[0]) setShow(next[0] as Show)
+            }}
+            variant="outline"
+          >
+            <ToggleGroupItem value="all">{m.plugins_filter_all()}</ToggleGroupItem>
+            <ToggleGroupItem value="installed">{m.plugins_installed()}</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        {visible.length > 0 ? (
+          <ul className="grid gap-3 @lg:grid-cols-2 @3xl:grid-cols-3">
+            {visible.map((entry) => (
+              <PluginCard
                 key={entry.plugin.id}
-                entry={entry}
+                {...actionsFor(entry)}
                 onOpen={() => setOpenId(entry.plugin.id)}
               />
             ))}
           </ul>
+        ) : filtered ? (
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.plugins_no_match()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearch('')
+                  setShow('all')
+                }}
+              >
+                {m.common_clear_filters()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <p className="text-sm text-muted-foreground">{m.plugins_none_available()}</p>
         )}
-      </SettingsBlock>
-      <SettingsBlock title={m.plugins_core_title()} description={m.plugins_core_note()}>
-        <SettingsGroup>
-          {core.map(({ plugin, name, description, icon: Icon }) => (
-            <Item key={plugin.id} render={<li />} size="sm">
-              <ItemMedia variant="icon" className="text-muted-foreground">
-                <Icon aria-hidden />
-              </ItemMedia>
-              <ItemContent className="min-w-0 gap-0.5">
-                <ItemTitle>{name}</ItemTitle>
-                <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
-              </ItemContent>
-            </Item>
-          ))}
-        </SettingsGroup>
-      </SettingsBlock>
-      <Sheet open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
-        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
-          {open ? <PluginDetails entry={open} /> : null}
-        </SheetContent>
-      </Sheet>
+      </section>
+      {core.length > 0 ? (
+        <SettingsBlock title={m.plugins_core_title()} description={m.plugins_core_note()}>
+          <SettingsGroup>
+            {core.map(({ plugin, name, description, icon: Icon }) => (
+              <Item key={plugin.id} render={<li />} size="sm">
+                <ItemMedia variant="icon" className="text-muted-foreground">
+                  <Icon aria-hidden />
+                </ItemMedia>
+                <ItemContent className="min-w-0 gap-0.5">
+                  <ItemTitle>{name}</ItemTitle>
+                  <ItemDescription className="line-clamp-1 text-xs">{description}</ItemDescription>
+                </ItemContent>
+              </Item>
+            ))}
+          </SettingsGroup>
+        </SettingsBlock>
+      ) : null}
+      <Dialog open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
+        <DialogContent className="flex max-h-[min(44rem,calc(100svh-2rem))] flex-col sm:max-w-xl">
+          {open ? <PluginDetails {...actionsFor(open)} /> : null}
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={removing ? m.plugins_uninstall_title({ name: removing.name }) : ''}
+        description={m.plugins_uninstall_description()}
+        extra={
+          <Field orientation="horizontal" className="items-start">
+            <Checkbox
+              id={purgeId}
+              checked={purge}
+              onCheckedChange={(checked) => setPurge(checked)}
+            />
+            <FieldContent>
+              <FieldLabel htmlFor={purgeId} className="font-normal">
+                {m.plugins_purge_label()}
+              </FieldLabel>
+              <FieldDescription>{m.plugins_purge_hint()}</FieldDescription>
+            </FieldContent>
+          </Field>
+        }
+        confirmLabel={purge ? m.plugins_uninstall_and_purge() : m.plugins_uninstall()}
+        pending={removingPending}
+        onConfirm={() => {
+          if (!removing) return
+          void uninstall(removing, purge).then((done) => {
+            if (done) setConfirming(false)
+          })
+        }}
+      />
     </div>
   )
 }
