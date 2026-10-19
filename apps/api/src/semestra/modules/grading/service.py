@@ -635,6 +635,30 @@ async def create_assessments(
     )
 
 
+def _plain(value: Any) -> Any:
+    return value.isoformat() if isinstance(value, date | time | datetime) else value
+
+
+async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): the assessment, its course, each sent field
+    as before → after, and a link to the course's grades page."""
+    row = await _get_assessment(ctx, inp.assessment_id)
+    course, program = await _course_and_program(ctx, row.course_id)
+    changes: list[dict[str, Any]] = []
+    for field in sorted(inp.model_fields_set - {"assessment_id"}):
+        after = getattr(inp, field)
+        before = getattr(row, field, None)
+        if field in ("due_date", "due_time"):
+            before = row.due_at
+        changes.append({"field": field, "before": _plain(before), "after": _plain(after)})
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {
+        "target": f"{row.title} · {label}",
+        "changes": changes,
+        "link": {"to": f"/p/{program.id}/c/{course.id}/grades", "page": "grades"},
+    }
+
+
 async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     row = await _get_assessment(ctx, inp.assessment_id)
     course, program = await _course_and_program(ctx, row.course_id)

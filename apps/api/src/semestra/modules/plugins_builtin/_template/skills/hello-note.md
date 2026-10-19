@@ -1,5 +1,6 @@
 ---
 name: hello-note
+title: { en: "Hello note", zh-CN: "Hello 便签" }
 description: Read or add to the user's hello note cards.
 ---
 

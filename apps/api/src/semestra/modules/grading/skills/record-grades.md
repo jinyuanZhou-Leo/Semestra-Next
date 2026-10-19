@@ -1,5 +1,7 @@
 ---
 name: record-grades
+title: { en: "Record grades", zh-CN: "录入成绩" }
+command: /grade
 description: Record a score the user got ("I got 82 on the midterm", "Lab 3: 18/20") on the right assessment.
 tools: [academics.course.find, grading.assessment.find, grading.assessment.create, grading.assessment.update, grading.gradebook.get]
 ---

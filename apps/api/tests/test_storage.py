@@ -64,7 +64,11 @@ async def test_usage_sums_module_providers(
     await login_as(client, await make_user())  # pyright: ignore[reportCallIssue]
     r = await client.get("/storage/usage")
     assert r.status_code == 200
-    assert r.json() == {"used_bytes": 1000, "quota_bytes": 52_428_800, "by_module": {"test": 1000}}
+    body = r.json()
+    # Real modules (e.g. the assistant's attachments) report 0 for a new user.
+    assert (body["used_bytes"], body["quota_bytes"]) == (1000, 52_428_800)
+    assert body["by_module"]["test"] == 1000
+    assert sum(body["by_module"].values()) == 1000
 
 
 async def test_remaining_quota(app: FastAPI, make_user: MakeUser):

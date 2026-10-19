@@ -1,5 +1,7 @@
 ---
 name: edit-class-schedule
+title: { en: "Edit the timetable", zh-CN: "编辑课表" }
+command: /timetable
 description: Add, change, cancel or move classes, sections and one-off events in the user's timetable.
 tools: [academics.course.find, schedule.meeting.list, schedule.meeting.create, schedule.meeting.update, schedule.meeting.set_enabled, schedule.exception.upsert, schedule.exception.delete, schedule.event.create, schedule.event.update, schedule.event_type.list, schedule.conflicts]
 ---

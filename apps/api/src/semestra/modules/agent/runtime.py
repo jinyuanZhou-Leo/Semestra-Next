@@ -1,0 +1,111 @@
+"""Process-wide assistant state: running generations, stop signals and the model hooks.
+
+Tests replace `chat_model`, `chat_available` and `small_complete` with scripted fakes.
+"""
+
+import asyncio
+import uuid
+from collections import defaultdict
+from collections.abc import AsyncIterator, Awaitable, Callable, Generator, Sequence
+from contextlib import asynccontextmanager, contextmanager
+from typing import Protocol
+
+from starlette.datastructures import State
+
+from semestra.core.context import Ctx, ScopeRef, pick_locale
+from semestra.core.errors import AppError
+from semestra.modules import ai
+from semestra.modules.ai import Chunk, Message, Tool
+
+MAX_GENERATIONS_PER_USER = 2
+
+
+class ChatLike(Protocol):
+    """What the loop needs from a model: M06's `ChatModel` or a test fake."""
+
+    @property
+    def model(self) -> str: ...
+
+    @property
+    def supports_tools(self) -> bool: ...
+
+    def stream(
+        self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
+    ) -> AsyncIterator[Chunk]: ...
+
+
+async def _chat_model(ctx: Ctx) -> ChatLike:
+    return await ai.get_chat_model(ctx, "chat", source_module="agent")
+
+
+async def _chat_available(ctx: Ctx) -> bool:
+    return await ai.available(ctx, "chat")
+
+
+async def _small_complete(ctx: Ctx, messages: list[Message]) -> str:
+    result = await ai.complete(ctx, "title", messages, source_module="agent")
+    assert isinstance(result, ai.Completion)
+    return result.text
+
+
+class AgentRuntime:
+    def __init__(self) -> None:
+        self.chat_model: Callable[[Ctx], Awaitable[ChatLike]] = _chat_model
+        self.chat_available: Callable[[Ctx], Awaitable[bool]] = _chat_available
+        self.small_complete: Callable[[Ctx, list[Message]], Awaitable[str]] = _small_complete
+        self._per_user: defaultdict[str, int] = defaultdict(int)
+        self._running: dict[str, asyncio.Event] = {}
+
+    def generating(self, session_id: str) -> bool:
+        return session_id in self._running
+
+    @contextmanager
+    def slot(self, user_id: str, session_id: str) -> Generator[asyncio.Event]:
+        """Claims one of the user's generation slots; the event is set by `stop`."""
+        if session_id in self._running or self._per_user[user_id] >= MAX_GENERATIONS_PER_USER:
+            raise AppError("agent.busy", 429)
+        cancel = asyncio.Event()
+        self._running[session_id] = cancel
+        self._per_user[user_id] += 1
+        try:
+            yield cancel
+        finally:
+            self._running.pop(session_id, None)
+            self._per_user[user_id] -= 1
+            if self._per_user[user_id] <= 0:
+                del self._per_user[user_id]
+
+    def stop(self, session_id: str) -> bool:
+        cancel = self._running.get(session_id)
+        if cancel is None:
+            return False
+        cancel.set()
+        return True
+
+
+def runtime(state: State) -> AgentRuntime:
+    return state.agent
+
+
+@asynccontextmanager
+async def agent_ctx(
+    state: State, user_id: str, *, scope: ScopeRef | None, actor: str = "agent"
+) -> AsyncIterator[Ctx]:
+    """A ctx with its own database session, for one step of a generation (tool calls run in
+    parallel, so each needs its own session). The caller commits."""
+    async with state.session_factory() as db:
+        from semestra.modules.auth.models import AuthUser
+
+        user = await db.get(AuthUser, user_id)
+        if user is None:
+            raise AppError("common.unauthenticated", 401)
+        yield Ctx(
+            db=db,
+            user=user,
+            locale=pick_locale(None, user.locale),
+            now=state.now(),
+            scope=scope,
+            actor=actor,  # pyright: ignore[reportArgumentType]
+            request_id=str(uuid.uuid7()),
+            state=state,
+        )

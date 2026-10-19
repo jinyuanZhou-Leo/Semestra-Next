@@ -1,5 +1,7 @@
 ---
 name: answer-schedule-questions
+title: { en: "Answer schedule questions", zh-CN: "查询课表与日程" }
+command: /schedule
 description: Answer "when is my next class", "what's due this week" and other questions about the user's timetable and calendar.
 tools: [calendar.today, calendar.occurrences, academics.course.find, academics.term.list, schedule.meeting.list]
 ---

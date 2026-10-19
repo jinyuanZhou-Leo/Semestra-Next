@@ -246,6 +246,7 @@ change.""",
     http=Http("PATCH", "/assessments/{assessment_id}"),
     tags=TAGS,
     agent_core=True,
+    preview=service.preview_assessment_update,
 )
 async def assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     return await service.update_assessment(ctx, inp)
