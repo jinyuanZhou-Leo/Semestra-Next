@@ -53,7 +53,7 @@ export function ProgramView({
             title={page?.title()}
             subtitle={
               Subtitle ? (
-                <PluginBoundary silent>
+                <PluginBoundary key={`${pageId}:${programId}`} silent>
                   <Subtitle scope={scope} />
                 </PluginBoundary>
               ) : (
