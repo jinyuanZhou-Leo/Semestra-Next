@@ -12,6 +12,7 @@ import {
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import auth from '@/modules/auth/manifest'
+import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import imports from '@/modules/imports/manifest'
 import lms from '@/modules/lms/manifest'
@@ -23,6 +24,7 @@ import worldClock from '@/modules/plugin-world-clock/manifest'
 import plugins from '@/modules/plugins/manifest'
 import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
+import tasks from '@/modules/tasks/manifest'
 import type {
   BoardKind,
   CalendarSourceContribution,
@@ -48,7 +50,9 @@ export const builtInModules: readonly ModuleManifest[] = [
   ai,
   plugins,
   schedule,
+  files,
   imports,
+  tasks,
   lms,
   habitStreak,
   pomodoro,
