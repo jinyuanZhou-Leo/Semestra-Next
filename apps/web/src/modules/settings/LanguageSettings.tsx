@@ -3,7 +3,7 @@ import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { type AppLocale, useLocale } from '@/app/locale'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
-import { SettingRow, SettingsGroup } from '@/app/settings'
+import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import {
   Select,
   SelectContent,
@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 type TimeFormat = 'auto' | '12h' | '24h'
 type WeekStart = '0' | '1' | '7'
@@ -85,38 +84,20 @@ function LanguageForm({
         </Select>
       </SettingRow>
       <SettingRow label={m.settings_time_format_label()} labelId={`${id}-time`}>
-        <ToggleGroup
-          aria-labelledby={`${id}-time`}
-          value={[prefs.time_format]}
-          onValueChange={(next) => {
-            if (next[0]) update({ time_format: next[0] as TimeFormat })
-          }}
-          variant="outline"
-          size="sm"
-        >
-          {TIME_FORMATS.map((option) => (
-            <ToggleGroupItem key={option.value} value={option.value}>
-              {option.label()}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <ChoiceControl
+          labelId={`${id}-time`}
+          options={TIME_FORMATS.map((o) => ({ value: o.value, label: o.label() }))}
+          value={prefs.time_format}
+          onChange={(time_format) => update({ time_format })}
+        />
       </SettingRow>
       <SettingRow label={m.settings_week_start_label()} labelId={`${id}-week`}>
-        <ToggleGroup
-          aria-labelledby={`${id}-week`}
-          value={[String(prefs.week_start)]}
-          onValueChange={(next) => {
-            if (next[0]) update({ week_start: Number(next[0]) as 0 | 1 | 7 })
-          }}
-          variant="outline"
-          size="sm"
-        >
-          {WEEK_STARTS.map((option) => (
-            <ToggleGroupItem key={option.value} value={option.value}>
-              {option.label()}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <ChoiceControl
+          labelId={`${id}-week`}
+          options={WEEK_STARTS.map((o) => ({ value: o.value, label: o.label() }))}
+          value={String(prefs.week_start) as WeekStart}
+          onChange={(next) => update({ week_start: Number(next) as 0 | 1 | 7 })}
+        />
       </SettingRow>
     </SettingsGroup>
   )

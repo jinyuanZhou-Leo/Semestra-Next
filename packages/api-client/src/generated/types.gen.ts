@@ -2073,6 +2073,12 @@ export type Course = {
      */
     resolved_color: string;
     /**
+     * Subject Color
+     *
+     * Color the course shows without its own color (its subject's), same format
+     */
+    subject_color: string;
+    /**
      * Credits
      */
     credits: number;
@@ -10424,7 +10430,7 @@ export type AcademicsCourseListData = {
          *
          * Agent/MCP only: return just these fields of each course (and its id)
          */
-        fields?: Array<'code' | 'title' | 'alias' | 'subject_code' | 'color' | 'resolved_color' | 'credits' | 'include_in_gpa' | 'instructors' | 'description' | 'website_url' | 'planned_terms' | 'sort_order' | 'term_ids' | 'end_term_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'code' | 'title' | 'alias' | 'subject_code' | 'color' | 'resolved_color' | 'subject_color' | 'credits' | 'include_in_gpa' | 'instructors' | 'description' | 'website_url' | 'planned_terms' | 'sort_order' | 'term_ids' | 'end_term_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *
