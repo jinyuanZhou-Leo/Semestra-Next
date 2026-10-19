@@ -152,6 +152,7 @@ async def category_update(ctx: Ctx, inp: CategoryUpdateInput) -> AssessmentCateg
     description="Irreversible, but no assessment is deleted. Prefer archiving.",
     effect="destructive",
     http=Http("DELETE", "/grading-categories/{category_id}"),
+    preview=service.preview_category_delete,
     tags=TAGS,
 )
 async def category_delete(ctx: Ctx, inp: CategoryRef) -> Deleted:
@@ -258,6 +259,7 @@ async def assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     description="Irreversible. To ignore an assessment in the grade, set `dropped` instead.",
     effect="destructive",
     http=Http("DELETE", "/assessments/{assessment_id}"),
+    preview=service.preview_assessment_delete,
     tags=TAGS,
 )
 async def assessment_delete(ctx: Ctx, inp: AssessmentRef) -> Deleted:

@@ -1404,6 +1404,7 @@
   "error_agent_tool_limit_reached": "助手执行了 {limit} 步后停下了，需要的话可以让它继续。",
   "error_agent_proposal_expired": "这个确认已过期，请重新发起。",
   "error_agent_proposal_not_pending": "这个操作已经处理过了。",
+  "error_agent_interrupted": "操作被中断了。重试前请先确认它是否已经生效。",
   "error_agent_attachment_too_large": "文件超过 10 MB",
   "error_agent_attachment_in_use": "这个附件已经在消息里，不能单独删除",
   "error_agent_attachment_unsupported": "不支持这种文件类型",

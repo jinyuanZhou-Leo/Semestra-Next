@@ -35,8 +35,10 @@ from semestra.modules.grading.schemas import (
     AssessmentListInput,
     AssessmentOrder,
     AssessmentPage,
+    AssessmentRef,
     AssessmentUpdateInput,
     CategoryCreateInput,
+    CategoryRef,
     CategoryUpdateInput,
     CourseGrade,
     CourseGrades,
@@ -657,6 +659,20 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
         "changes": changes,
         "link": {"to": f"/p/{program.id}/c/{course.id}/grades", "page": "grades"},
     }
+
+
+async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
+    row = await _get_assessment(ctx, inp.assessment_id)
+    course, _ = await _course_and_program(ctx, row.course_id)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {"target": f"{row.title} · {label}", "changes": []}
+
+
+async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
+    row = await _get_category(ctx, inp.category_id)
+    course, _ = await _course_and_program(ctx, row.course_id)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {"target": f"{row.name} · {label}", "changes": []}
 
 
 async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:

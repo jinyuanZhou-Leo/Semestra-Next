@@ -139,7 +139,7 @@ agent_preferences
 - 每用户并发生成数限制 2，超出返回 `agent.busy`。
 
 ## 9. 错误码
-`agent.busy`、`agent.tool_limit_reached`、`agent.proposal_expired`、`agent.proposal_not_pending`、`agent.session_not_found`（用 `common.not_found`）、`agent.attachment_too_large`、`ai.*`（透传 M06）。
+`agent.busy`、`agent.tool_limit_reached`、`agent.proposal_expired`、`agent.proposal_not_pending`、`agent.interrupted`（批准后写操作没跑完就中断，提案保留为 failed）、`agent.session_not_found`（用 `common.not_found`）、`agent.attachment_too_large`、`ai.*`（透传 M06）。
 
 ## 10. 测试
 - 用假模型（LangChain `FakeMessagesListChatModel` 或自定义脚本化模型）驱动图：read 工具直接执行、write 工具生成提案并中断、批准后恢复执行、拒绝后模型收到拒绝原因、auto_approve 生效、destructive 永不自动执行。

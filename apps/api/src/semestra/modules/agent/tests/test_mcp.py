@@ -93,10 +93,16 @@ async def test_prompts_are_skills_and_resources_summarize(app: FastAPI, agent: A
     token = await _token(agent, ["read"])
     async with _connector(app)(token) as mcp:
         prompts = {p.name for p in (await mcp.list_prompts()).prompts}
-        assert {"record-grades", "answer-schedule-questions"} <= prompts
+        assert {"answer-schedule-questions", "grade-planning"} <= prompts
+        assert "record-grades" not in prompts  # needs write tools this token cannot call
+        prompt = await mcp.get_prompt("answer-schedule-questions")
+        assert "Answering schedule questions" in _text(prompt.messages[0].content)
+    async with _connector(app)(await _token(agent, ["read", "write"])) as mcp:
         prompt = await mcp.get_prompt("record-grades")
         assert "Recording grades" in _text(prompt.messages[0].content)
-
+        prompts = {p.name for p in (await mcp.list_prompts()).prompts}
+        assert "manage-terms-and-courses" not in prompts  # deletes are off by default
+    async with _connector(app)(token) as mcp:
         programs = await mcp.read_resource("semestra://programs")
         assert program["id"] in _text(programs.contents[0])
         course_res = await mcp.read_resource(f"semestra://courses/{course['id']}")

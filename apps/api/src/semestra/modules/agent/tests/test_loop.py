@@ -258,6 +258,39 @@ async def test_a_batch_cannot_decide_one_proposal_twice(agent: Agent, model: Fak
     assert (await agent.detail(session["id"]))["proposals"][0]["status"] == "pending"
 
 
+async def test_a_proposal_is_claimed_before_its_write_runs(
+    app: FastAPI, agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """A second decision while the write runs (or a crash mid-write) never finds it pending."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
+    )
+    [proposal] = events_named(await agent.send(session["id"], "lab 3"), "proposal")
+    seen: list[str] = []
+    real_invoke = loop.invoke
+
+    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+        seen.append((await agent.detail(session["id"]))["proposals"][0]["status"])
+        return await real_invoke(*args, **kwargs)
+
+    monkeypatch.setattr(loop, "invoke", invoke)
+    model.then(say("Done"))
+    await agent.decide(session["id"], proposal["id"])
+    assert seen == ["failed"]  # claimed (agent.interrupted) while the write ran
+    [card] = (await agent.detail(session["id"]))["proposals"]
+    assert (card["status"], card["error_code"]) == ("executed", None)
+
+
+async def test_destructive_cards_name_their_target(agent: Agent, model: FakeModel):
+    _, course, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(call("grading.assessment.delete", {"assessment_id": lab["id"]}))
+    [proposal] = events_named(await agent.send(session["id"], "delete lab 3"), "proposal")
+    assert proposal["preview"]["target"] == f"{lab['title']} · APS105H1 {course['title']}"
+
+
 async def test_remember_auto_approves_later_calls(agent: Agent, model: FakeModel):
     _, course, lab = await agent.course_with_lab()
     session = await agent.session()

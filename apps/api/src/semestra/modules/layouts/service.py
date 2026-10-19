@@ -34,6 +34,7 @@ from semestra.modules.layouts.schemas import (
     BoardScopeType,
     BoardUpdateInput,
     CardAddInput,
+    CardRef,
     CardSettings,
     CardSettingsUpdateInput,
     Nav,
@@ -463,6 +464,12 @@ async def get_card_instance(ctx: Ctx, instance_id: str) -> CardInstance:
     """
     row = await _instance_row(ctx, instance_id)
     return CardInstance(row.instance_id, row.card_id, row.scope_type, row.scope_id, row.settings)
+
+
+async def preview_card_remove(ctx: Ctx, inp: CardRef) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): the card by its id in the catalog."""
+    row = await _instance_row(ctx, inp.instance_id)
+    return {"target": row.card_id, "changes": []}
 
 
 async def list_card_instances(

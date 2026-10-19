@@ -120,7 +120,8 @@ async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.Cal
 
 
 async def _visible_skills(ctx: Ctx, ident: McpIdentity) -> list[skills.Skill]:
-    return skills.visible_skills(await registry.available(ctx, "mcp"))
+    """Skills whose tools this token may all call: a read-only token sees no write workflow."""
+    return skills.visible_skills(await _tools_for(ctx, ident))
 
 
 async def _list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:

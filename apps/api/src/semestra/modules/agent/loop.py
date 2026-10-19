@@ -638,6 +638,8 @@ async def decide(
                         "common.validation", 422, errors=[{"loc": ["args"], "code": "missing"}]
                     )
                 edited_preview[row.id] = await make_preview(ctx, cap, d.args)  # validates
+        for d, row in zip(decisions, rows, strict=True):
+            await service.claim_proposal(ctx, row, reject=d.decision == "reject")
         await ctx.db.commit()
         message_ids = {r.message_id for r in rows}
 

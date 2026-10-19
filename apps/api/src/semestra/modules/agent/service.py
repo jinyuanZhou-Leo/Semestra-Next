@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
@@ -262,6 +262,22 @@ def check_pending(row: AgentProposal) -> None:
         raise AppError("agent.proposal_expired", 410)
     if row.status != "pending":
         raise AppError("agent.proposal_not_pending", 409, current=row.status)
+
+
+async def claim_proposal(ctx: Ctx, row: AgentProposal, *, reject: bool) -> None:
+    """Takes a pending proposal before its write runs, so a second decision (another tab, a
+    retried request) cannot run it again. Until the outcome is stored an approved one reads as
+    failed with `agent.interrupted`, which is also what a crash mid-write leaves behind."""
+    values: dict[str, Any] = {"status": "rejected", "decided_at": ctx.now}
+    if not reject:
+        values |= {"status": "failed", "error_code": "agent.interrupted"}
+    result = await ctx.db.execute(
+        update(AgentProposal)
+        .where(AgentProposal.id == row.id, AgentProposal.status == "pending")
+        .values(**values)
+    )
+    if result.rowcount != 1:  # pyright: ignore[reportAttributeAccessIssue]
+        raise AppError("agent.proposal_not_pending", 409, current=values["status"])
 
 
 # --- attachments ---------------------------------------------------------------------------
