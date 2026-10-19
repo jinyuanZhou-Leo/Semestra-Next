@@ -25,7 +25,9 @@ docs/                设计稿与模块规格
 | `pnpm --filter @semestra/api migrate` | `alembic upgrade head` |
 | `pnpm --filter @semestra/web e2e` | Playwright 冒烟（需先 `pnpm exec playwright install chromium`） |
 
-后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`。
+后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
+
+CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只能在 Actions 页手动触发。
 
 ## 硬性约定摘要（完整版见 M00）
 

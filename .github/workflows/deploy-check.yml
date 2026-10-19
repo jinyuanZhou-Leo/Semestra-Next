@@ -1,9 +1,27 @@
 name: Deploy check
 # Everything under deploy/ must keep working: configs parse, scripts pass shellcheck, the images
 # build, start as a non-root user, migrate, and survive a restart without regenerating secrets.
+# Nothing is deployed yet, so it only runs when the files it checks change; start it by hand from
+# the Actions tab to check the images against app changes.
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+    paths:
+      - deploy/**
+      - .dockerignore
+      - .github/workflows/**
+      - apps/web/vercel.json
   pull_request:
+    paths:
+      - deploy/**
+      - .dockerignore
+      - .github/workflows/**
+      - apps/web/vercel.json
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
