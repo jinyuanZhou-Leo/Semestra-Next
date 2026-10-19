@@ -5,7 +5,7 @@ Every module calls models through the functions exported here, never through a p
 
 from fastapi import FastAPI
 
-from semestra.modules.ai import capabilities, models  # noqa: F401  (registers on import)
+from semestra.modules.ai import capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.ai.calls import (
     UNTRUSTED_NOTICE,
     ChatModel,

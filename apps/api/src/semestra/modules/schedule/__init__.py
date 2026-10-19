@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from semestra.modules.schedule import capabilities, models, subscribers  # noqa: F401
+from semestra.modules.schedule import capabilities, models, portability, subscribers  # noqa: F401
 from semestra.modules.schedule.routes import router
 from semestra.modules.schedule.settings import CalendarSettings
 from semestra.modules.settings import register_settings

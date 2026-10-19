@@ -15,6 +15,7 @@ def register_all(app: FastAPI) -> None:
         lms,
         plugins,
         plugins_builtin,
+        portability,
         schedule,
         settings,
         tasks,
@@ -34,3 +35,4 @@ def register_all(app: FastAPI) -> None:
     tasks.register(app)
     lms.register(app)
     agent.register(app)
+    portability.register(app)

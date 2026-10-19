@@ -1,9 +1,9 @@
 """Export/import adapters of the built-in plugins, in the shape of M13 §3.
 
 M13 owns the framework (`register_portability`, the archive writer, the id map); the plugins
-provide the four callbacks and `ADAPTERS` lists them with their module name and schema version.
-M13 registers them when it lands. `writer` needs only `write_json(obj)`; `id_map` maps ids of
-other modules in the archive (card instances, courses) to the ids they got on import.
+provide the four callbacks and `ADAPTER` lists them with their module name and schema version.
+`plugins_builtin/__init__.py` registers it. `writer` needs only `write_json(obj)`; `id_map` maps
+ids of other modules in the archive (card instances, courses) to the ids they got on import.
 """
 
 from collections.abc import Mapping
@@ -103,7 +103,12 @@ async def import_(
         )
     }
     known: dict[str, bool] = {}
+    # Cards M13 left out on purpose (a Program that was not selected): their rows are not
+    # skipped, they were not asked for.
+    excluded: set[str] = getattr(id_map, "excluded", set())
     for row in data.habit_checkins:
+        if row.instance_id in excluded:
+            continue
         instance_id = await _instance_id(ctx, row.instance_id, id_map, known)
         if instance_id is None or (instance_id, row.day) in have_days:
             report.skipped["habit_checkins"] = report.skipped.get("habit_checkins", 0) + 1
@@ -119,6 +124,8 @@ async def import_(
         )
     }
     for srow in data.pomodoro_sessions:
+        if srow.instance_id in excluded:
+            continue
         if not _valid_session(srow):
             report.skipped["pomodoro_sessions"] = report.skipped.get("pomodoro_sessions", 0) + 1
             continue
@@ -202,7 +209,7 @@ async def purge(ctx: Ctx) -> None:
     await pomodoro.purge(ctx, ctx.user_id)
 
 
-# What M13 registers: `register_portability(module=..., **ADAPTER)`.
+# Registered by `plugins_builtin/__init__.py` with the tables it purges.
 ADAPTER = {
     "module": "plugins_builtin",
     "schema_version": SCHEMA_VERSION,

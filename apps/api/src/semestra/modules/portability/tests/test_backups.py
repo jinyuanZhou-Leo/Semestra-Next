@@ -1,0 +1,603 @@
+"""M13 §9: round trip, replace and rollback, secrets, legacy backups, account deletion."""
+
+import io
+import json
+import re
+import zipfile
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from typing import Any
+
+import anyio
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import Table, func, select
+
+from semestra.core.context import Ctx, system_ctx
+from semestra.core.db import Base
+from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
+from semestra.modules.ai.models import AiProvider
+from semestra.modules.auth.mailer import MemoryMailer
+from semestra.modules.auth.models import AuthUser
+from semestra.modules.portability import registry
+from semestra.modules.portability.registry import Adapter, ImportReport
+from semestra.modules.portability.tests.dataset import FEED_TOKEN_HASH, SECRET_KEY, populate
+from semestra.modules.settings.models import SettingsPreferences
+from semestra.testing import TEST_ORIGIN, Clock, MakeUser, UserHandle
+
+LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
+RunJobs = Callable[[], Awaitable[None]]
+_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# Tables an account owns that no adapter exports: sign-in data, jobs and this module's own rows,
+# all removed with the `auth_users` row.
+NOT_ADAPTED = ("auth_", "core_", "portability_")
+
+
+def _user_tables() -> list[Table]:
+    return [
+        t
+        for t in Base.metadata.sorted_tables
+        if "user_id" in t.c and not t.name.startswith(NOT_ADAPTED)
+    ]
+
+
+async def _count(app: FastAPI, table: Table, user_id: str) -> int:
+    async with app.state.session_factory() as db:
+        return await db.scalar(
+            select(func.count()).select_from(table).where(table.c.user_id == user_id)
+        )
+
+
+@asynccontextmanager
+async def _client(app: FastAPI) -> AsyncIterator[AsyncClient]:
+    async with AsyncClient(transport=ASGITransport(app), base_url=TEST_ORIGIN) as c:
+        yield c
+
+
+async def _seed(
+    app: FastAPI, user: UserHandle, name: str = "Engineering", *, singletons: bool = True
+) -> dict[str, Any]:
+    async with app.state.session_factory() as db:
+        return await populate(db, user.id, name=name, singletons=singletons)
+
+
+async def _export(client: AsyncClient, run_jobs: RunJobs, include_files: bool = False) -> bytes:
+    started = await client.post("/me/exports", json={"include_files": include_files})
+    assert started.status_code == 200, started.text
+    assert started.json()["status"] == "pending"
+    await run_jobs()
+    items = (await client.get("/me/exports")).json()["items"]
+    assert items[0]["status"] == "ready"
+    download = await client.get(f"/me/exports/{items[0]['id']}/download")
+    assert download.status_code == 200
+    assert download.headers["content-type"] == "application/zip"
+    assert "semestra-backup-" in download.headers["content-disposition"]
+    return download.content
+
+
+async def _upload(client: AsyncClient, body: bytes, name: str = "backup.zip") -> Any:
+    return await client.post("/me/imports", files={"file": (name, body, "application/zip")})
+
+
+def _normalize(archive: bytes) -> dict[str, Any]:
+    """Each module's payload with ids, references and timestamps blanked, rows sorted."""
+    out: dict[str, Any] = {}
+    with zipfile.ZipFile(io.BytesIO(archive)) as z:
+        for name in z.namelist():
+            if not name.startswith("data/"):
+                continue
+            payload = json.loads(z.read(name))
+            for key, rows in payload.items():
+                if not isinstance(rows, list):
+                    continue
+                cleaned = []
+                for row in rows:
+                    row = {
+                        k: v
+                        for k, v in row.items()
+                        if k not in ("created_at", "updated_at", "installed_at")
+                    }
+                    cleaned.append(json.loads(_UUID.sub("<id>", json.dumps(row, sort_keys=True))))
+                out[f"{name}:{key}"] = sorted(cleaned, key=lambda r: json.dumps(r, sort_keys=True))
+    return out
+
+
+async def test_every_user_table_has_an_adapter_and_purge_empties_it(
+    app: FastAPI, make_user: MakeUser
+) -> None:
+    user = await make_user()
+    other = await make_user(email="other@example.com")
+    await _seed(app, user)
+    await _seed(app, other)
+    covered = {t for a in registry.adapters() for t in a.tables}
+    tables = _user_tables()
+    missing = [t.name for t in tables if t.name not in covered]
+    assert missing == [], f"no portability adapter covers {missing}"
+    for table in tables:
+        assert await _count(app, table, user.id) > 0, f"the dataset leaves {table.name} empty"
+
+    async with system_ctx(app.state, user.id) as ctx:
+        for adapter in reversed(registry.adapters()):
+            await adapter.purge(ctx)
+        await ctx.db.commit()
+    for table in tables:
+        assert await _count(app, table, user.id) == 0, table.name
+        assert await _count(app, table, other.id) > 0, f"purge touched {table.name} of others"
+
+
+async def test_round_trip_into_another_account(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    alice = await make_user(email="alice@example.com")
+    await _seed(app, alice)
+    await login_as(client, alice)
+    archive = await _export(client, run_jobs)
+
+    with zipfile.ZipFile(io.BytesIO(archive)) as z:
+        manifest = json.loads(z.read("manifest.json"))
+        blob = b"".join(z.read(n) for n in z.namelist())
+    assert manifest["format"] == "semestra-backup"
+    assert manifest["version"] == 1
+    assert manifest["counts"]["academics.programs"] == 1
+    assert {"academics", "grading", "schedule", "plugins_builtin"} <= set(manifest["modules"])
+    # No secrets in the backup.
+    for secret in (SECRET_KEY, FEED_TOKEN_HASH, "key_hint", "token_hash"):
+        assert secret.encode() not in blob
+
+    bob = await make_user(email="bob@example.com")
+    async with _client(app) as bob_client:
+        await login_as(bob_client, bob)
+        uploaded = await _upload(bob_client, archive)
+        assert uploaded.status_code == 200, uploaded.text
+        preview = uploaded.json()["preview"]
+        assert preview["programs"][0]["name"] == "Engineering"
+        assert preview["programs"][0]["term_count"] == 1
+        assert preview["programs"][0]["course_count"] == 1
+        assert preview["counts"]["grading"]["assessments"] == 1
+        assert preview["quota_exceeded"] is False
+
+        started = await bob_client.post(
+            f"/me/imports/{uploaded.json()['id']}:start",
+            json={"mode": "merge", "include_preferences": True},
+        )
+        assert started.status_code == 200, started.text
+        await run_jobs()
+        done = (await bob_client.get(f"/me/imports/{uploaded.json()['id']}")).json()
+        assert done["status"] == "imported", done
+        assert done["report"]["imported"]["academics"]["programs"] == 1
+        assert done["report"]["skipped"] == {}
+
+        again = await _export(bob_client, run_jobs)
+
+    before, after = _normalize(archive), _normalize(again)
+    # The provider had a key, so it comes back switched off until a key is entered again.
+    provider = "data/ai.json:providers"
+    assert before[provider][0]["enabled"] is True
+    assert before[provider][0]["had_key"] is True
+    assert after[provider][0]["enabled"] is False
+    assert after[provider][0]["had_key"] is False
+    after[provider][0].update(enabled=True, had_key=True)
+    assert after == before
+
+    async with app.state.session_factory() as db:
+        prefs = await db.get(SettingsPreferences, bob.id)
+        program = await db.scalar(
+            select(AcademicsProgram).where(AcademicsProgram.user_id == bob.id)
+        )
+        assert prefs is not None
+        assert program is not None
+        assert prefs.theme == "dark"
+        assert prefs.active_program_id == program.id
+        key = await db.scalar(
+            select(AiProvider.api_key_encrypted).where(AiProvider.user_id == bob.id)
+        )
+        assert key is None
+
+
+async def test_merge_into_the_same_account_renames_and_selects_programs(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    user = await make_user()
+    await _seed(app, user, "Engineering")
+    await _seed(app, user, "Minor", singletons=False)
+    await login_as(client, user)
+    archive = await _export(client, run_jobs)
+    uploaded = (await _upload(client, archive)).json()
+    programs = {p["name"]: p["id"] for p in uploaded["preview"]["programs"]}
+
+    started = await client.post(
+        f"/me/imports/{uploaded['id']}:start",
+        json={"mode": "merge", "program_ids": [programs["Engineering"]]},
+    )
+    assert started.status_code == 200
+    await run_jobs()
+    report = (await client.get(f"/me/imports/{uploaded['id']}")).json()["report"]
+    # Rows of the Program that was not selected are left out, not reported as skipped.
+    assert report["skipped"] == {}
+    assert report["imported"]["academics"]["programs"] == 1
+    assert report["imported"]["grading"]["assessments"] == 1
+    async with app.state.session_factory() as db:
+        names = set(
+            await db.scalars(
+                select(AcademicsProgram.name).where(AcademicsProgram.user_id == user.id)
+            )
+        )
+    assert names == {"Engineering", "Minor", "Engineering (imported)"}
+
+
+async def test_replace_requires_the_sentence_and_replaces_everything(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    source = await make_user(email="source@example.com")
+    await _seed(app, source, "From backup")
+    async with _client(app) as source_client:
+        await login_as(source_client, source)
+        archive = await _export(source_client, run_jobs)
+
+    user = await make_user()
+    await _seed(app, user, "Old")
+    await login_as(client, user)
+    upload_id = (await _upload(client, archive)).json()["id"]
+
+    wrong = await client.post(
+        f"/me/imports/{upload_id}:start", json={"mode": "replace", "confirmation": "yes"}
+    )
+    assert wrong.json()["error"]["code"] == "portability.confirmation_mismatch"
+
+    ok = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": " Replace my data "},
+    )
+    assert ok.status_code == 200, ok.text
+    await run_jobs()
+    async with app.state.session_factory() as db:
+        names = list(
+            await db.scalars(
+                select(AcademicsProgram.name).where(AcademicsProgram.user_id == user.id)
+            )
+        )
+        prefs = await db.get(SettingsPreferences, user.id)
+        providers = (
+            await db.scalars(select(AiProvider).where(AiProvider.user_id == user.id))
+        ).all()
+    assert names == ["From backup"]
+    # Preferences were not imported, so the account's own stay (with its AI key).
+    assert prefs is not None
+    assert prefs.theme == "dark"
+    assert [p.api_key_encrypted for p in providers] == [SECRET_KEY]
+
+
+async def test_a_failed_replace_rolls_back_everything(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    user = await make_user()
+    await _seed(app, user, "Kept")
+    await login_as(client, user)
+    archive = await _export(client, run_jobs)
+
+    # Break the backup: a term that ends before it starts violates a constraint on write,
+    # after the replace has already purged the account.
+    source = zipfile.ZipFile(io.BytesIO(archive))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "data/academics.json":
+                payload = json.loads(data)
+                payload["terms"][0]["end_date"] = "2000-01-01"
+                data = json.dumps(payload).encode()
+            z.writestr(name, data)
+    upload_id = (await _upload(client, out.getvalue())).json()["id"]
+    started = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": "替换我的数据"},
+    )
+    assert started.status_code == 200
+    await run_jobs()
+
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "failed"
+    assert done["error_code"] == "portability.invalid_archive"
+    async with app.state.session_factory() as db:
+        names = list(
+            await db.scalars(
+                select(AcademicsProgram.name).where(AcademicsProgram.user_id == user.id)
+            )
+        )
+    assert names == ["Kept"]
+    for table in _user_tables():
+        assert await _count(app, table, user.id) > 0, table.name
+
+    # The upload is kept, so the import can be started again (or discarded).
+    discarded = await client.delete(f"/me/imports/{upload_id}")
+    assert discarded.status_code == 200
+    assert (await client.get(f"/me/imports/{upload_id}")).status_code == 404
+
+
+async def test_a_file_stored_before_a_later_failure_is_removed(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored: list[str] = []
+
+    async def export(ctx: Ctx, writer: Any) -> None:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b"file body"
+
+        writer.write_json({"schema_version": 1})
+        await writer.add_file("note-1", chunks())
+
+    async def import_files(ctx: Ctx, payload: Any, id_map: Any, options: Any) -> ImportReport:
+        key = f"users/{ctx.user_id}/aa/note-1"
+        await options.files.store("note-1", key, "text/plain")
+        stored.append(key)
+        assert await app.state.storage.exists(key)
+        return ImportReport({"notes": 1})
+
+    async def import_fails(ctx: Ctx, payload: Any, id_map: Any, options: Any) -> ImportReport:
+        raise ValueError("broken row")
+
+    async def export_json(ctx: Ctx, writer: Any) -> None:
+        writer.write_json({"schema_version": 1})
+
+    async def preview(payload: Any) -> dict[str, int]:
+        return {}
+
+    async def nothing(ctx: Ctx) -> None:
+        return None
+
+    async def nothing_content(ctx: Ctx, preferences: bool) -> None:
+        return None
+
+    first = Adapter("aa_files", 1, (), export, import_files, preview, nothing, nothing_content, ())
+    second = Adapter(
+        "ab_broken",
+        1,
+        ("aa_files",),
+        export_json,
+        import_fails,
+        preview,
+        nothing,
+        nothing_content,
+        (),
+    )
+    monkeypatch.setitem(registry._adapters, "aa_files", first)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setitem(registry._adapters, "ab_broken", second)  # pyright: ignore[reportPrivateUsage]
+    user = await make_user()
+    await login_as(client, user)
+    archive = await _export(client, run_jobs, include_files=True)
+    upload_id = (await _upload(client, archive)).json()["id"]
+    await client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})
+    await run_jobs()
+
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "failed"
+    assert stored
+    for key in stored:
+        assert not await app.state.storage.exists(key)
+
+
+async def test_files_travel_in_the_archive_only_when_asked(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def export(ctx: Ctx, writer: Any) -> None:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b"file body"
+
+        writer.write_json({"schema_version": 1})
+        await writer.add_file("note-1", chunks())
+
+    async def preview(payload: Any) -> dict[str, int]:
+        return {}
+
+    async def nothing(ctx: Ctx) -> None:
+        return None
+
+    async def nothing_content(ctx: Ctx, preferences: bool) -> None:
+        return None
+
+    async def import_(ctx: Ctx, payload: Any, id_map: Any, options: Any) -> ImportReport:
+        return ImportReport()
+
+    adapter = Adapter("zz_files", 1, (), export, import_, preview, nothing, nothing_content, ())
+    monkeypatch.setitem(registry._adapters, "zz_files", adapter)  # pyright: ignore[reportPrivateUsage]
+    user = await make_user()
+    await login_as(client, user)
+    without = zipfile.ZipFile(io.BytesIO(await _export(client, run_jobs)))
+    with_files = zipfile.ZipFile(io.BytesIO(await _export(client, run_jobs, include_files=True)))
+    assert [n for n in without.namelist() if n.startswith("files/")] == []
+    assert with_files.read("files/note-1") == b"file body"
+    assert json.loads(with_files.read("manifest.json"))["include_files"] is True
+
+
+async def test_rejects_old_and_broken_backups(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    legacy = json.dumps({"version": "2.2.3", "exported_at": "2026", "programs": []}).encode()
+    response = await _upload(client, legacy, "semestra.json")
+    assert response.json()["error"]["code"] == "portability.legacy_backup"
+
+    response = await _upload(client, b"not a backup")
+    assert response.json()["error"]["code"] == "portability.invalid_archive"
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        z.writestr("manifest.json", json.dumps({"format": "semestra-backup", "version": 2}))
+    response = await _upload(client, out.getvalue())
+    error = response.json()["error"]
+    assert error["code"] == "portability.unsupported_version"
+    assert error["params"] == {"version": "2"}
+
+
+async def test_upload_over_the_limit_is_refused(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    app.state.settings.user_storage_quota_bytes = 10
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr("semestra.modules.portability.service.UPLOAD_HEADROOM", 10)
+    try:
+        await login_as(client, await make_user())
+        response = await _upload(client, b"x" * 100)
+    finally:
+        monkey.undo()
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "portability.too_large"
+
+
+async def test_downloads_expire_and_are_private(
+    app: FastAPI,
+    client: AsyncClient,
+    clock: Clock,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+) -> None:
+    user = await make_user()
+    await login_as(client, user)
+    await _export(client, run_jobs)
+    export_id = (await client.get("/me/exports")).json()["items"][0]["id"]
+
+    async with _client(app) as other:
+        await login_as(other, await make_user(email="other@example.com"))
+        assert (await other.get(f"/me/exports/{export_id}/download")).status_code == 404
+
+    clock.advance(hours=25)
+    assert (await client.get(f"/me/exports/{export_id}/download")).status_code == 404
+    assert (await client.get("/me/exports")).json()["items"] == []
+    await app.state.jobs.run_until_idle()
+    from semestra.core.jobs import run_periodic
+
+    await run_periodic(app.state, "portability.cleanup")
+    root = anyio.Path(app.state.settings.storage_local_root)
+    assert [p async for p in root.glob("users/*/portability/*")] == []
+
+
+async def test_capabilities_are_not_offered_to_agents_or_tokens(app: FastAPI) -> None:
+    from semestra.core.capability import registry as capabilities
+
+    for cap in capabilities.list():
+        if cap.name.startswith("portability.") or cap.name == "account.delete":
+            assert cap.expose == ("http",), cap.name
+
+
+# --- account deletion -----------------------------------------------------------------------
+
+
+async def test_account_deletion(
+    app: FastAPI,
+    client: AsyncClient,
+    clock: Clock,
+    mailer: MemoryMailer,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    bearer_for: Callable[[UserHandle], Awaitable[dict[str, str]]],
+) -> None:
+    user = await make_user(locale="zh-CN")
+    other = await make_user(email="other@example.com")
+    await _seed(app, user)
+    await _seed(app, other)
+    storage = app.state.storage
+    await storage.put(f"users/{user.id}/avatar/abc", _one(b"img"), "image/webp")
+    await storage.put(f"users/{other.id}/avatar/abc", _one(b"img"), "image/webp")
+    await login_as(client, user)
+    native = await bearer_for(user)
+    token = await client.post("/account/tokens", json={"name": "cli", "scopes": ["read"]})
+    assert token.status_code == 200, token.text
+    pat = token.json()["token"]
+
+    body = {"confirmation": "删除我的账户", "acknowledged": True}
+    mismatch = await client.post("/me:delete", json={**body, "confirmation": "delete"})
+    assert mismatch.json()["error"]["code"] == "portability.confirmation_mismatch"
+    unticked = await client.post("/me:delete", json={**body, "acknowledged": False})
+    assert unticked.json()["error"]["code"] == "portability.confirmation_mismatch"
+
+    clock.advance(minutes=11)
+    stale = await client.post("/me:delete", json=body)
+    assert stale.status_code == 403
+    assert stale.json()["error"] == {
+        "code": "auth.reauth_required",
+        "params": {"password": False},
+        "request_id": stale.json()["error"]["request_id"],
+    }
+    clock.advance(minutes=-11)
+
+    deleted = await client.post("/me:delete", json=body)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["kind"] == "portability.account_delete"
+    # Locked at once: every session and token stops working before the job runs.
+    assert (await client.get("/account/me")).status_code == 401
+    async with _client(app) as fresh:
+        assert (await fresh.get("/account/me", headers=native)).status_code == 401
+        pat_headers = {"Authorization": f"Bearer {pat}"}
+        assert (await fresh.get("/programs", headers=pat_headers)).status_code == 401
+
+    await run_jobs()
+    for table in _user_tables():
+        assert await _count(app, table, user.id) == 0, table.name
+        assert await _count(app, table, other.id) > 0, table.name
+    async with app.state.session_factory() as db:
+        assert await db.get(AuthUser, user.id) is None
+        assert await db.get(AuthUser, other.id) is not None
+    assert not await storage.exists(f"users/{user.id}/avatar/abc")
+    assert await storage.exists(f"users/{other.id}/avatar/abc")
+    assert mailer.outbox[-1].to == user.email
+    assert "已删除" in mailer.outbox[-1].content.subject
+
+
+async def test_account_deletion_with_a_password_after_the_window(
+    app: FastAPI, client: AsyncClient, clock: Clock, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    user = await make_user(password="correct horse battery")
+    await login_as(client, user)
+    clock.advance(minutes=30)
+    body = {"confirmation": "delete my account", "acknowledged": True}
+    stale = await client.post("/me:delete", json=body)
+    assert stale.json()["error"]["params"] == {"password": True}
+    wrong = await client.post("/me:delete", json={**body, "password": "nope"})
+    assert wrong.json()["error"]["code"] == "auth.invalid_credentials"
+    ok = await client.post("/me:delete", json={**body, "password": "correct horse battery"})
+    assert ok.status_code == 200, ok.text
+
+
+async def test_cleanup_finishes_a_deletion_whose_job_never_ran(
+    app: FastAPI, client: AsyncClient, clock: Clock, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    from semestra.core.jobs import run_periodic
+
+    user = await make_user()
+    await _seed(app, user)
+    await login_as(client, user)
+    body = {"confirmation": "delete my account", "acknowledged": True}
+    assert (await client.post("/me:delete", json=body)).status_code == 200
+    clock.advance(hours=2)
+    await run_periodic(app.state, "portability.cleanup")
+    async with app.state.session_factory() as db:
+        assert await db.get(AuthUser, user.id) is None
+        terms = await db.scalar(
+            select(func.count()).select_from(AcademicsTerm).where(AcademicsTerm.user_id == user.id)
+        )
+    assert terms == 0
+
+
+async def _one(data: bytes) -> AsyncIterator[bytes]:
+    yield data
+
+
+def test_adapter_tables_exist() -> None:
+    # Guards the coverage test: a misspelt table name would never be checked.
+    known = {t.name for t in Base.metadata.sorted_tables}
+    for adapter in registry.adapters():
+        for table in adapter.tables:
+            assert table in known, (adapter.module, table)

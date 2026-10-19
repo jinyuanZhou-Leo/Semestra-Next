@@ -31,6 +31,7 @@ from semestra.modules.lms import models as _lms_models  # noqa: E402,F401
 from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.habit_streak import models as _habit_models  # noqa: E402,F401
 from semestra.modules.plugins_builtin.pomodoro import models as _pomodoro_models  # noqa: E402,F401
+from semestra.modules.portability import models as _portability_models  # noqa: E402,F401
 from semestra.modules.schedule import models as _schedule_models  # noqa: E402,F401
 from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
 from semestra.modules.tasks import models as _tasks_models  # noqa: E402,F401

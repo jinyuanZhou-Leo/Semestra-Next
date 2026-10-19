@@ -8,9 +8,11 @@ from semestra.modules.plugins_builtin import (  # noqa: F401  (registers on impo
     counter,
     habit_streak,
     pomodoro,
+    portability,
     sticky_note,
     world_clock,
 )
+from semestra.modules.portability import register_portability
 
 # Ids match the frontend manifests. Counter and world clock have no tables or capabilities: their
 # data lives in the card settings, so their packages only validate those settings.
@@ -53,6 +55,11 @@ PLUGINS = (
 )
 for _info in PLUGINS:
     register_plugin(_info)
+
+register_portability(
+    **portability.ADAPTER,
+    tables=("plugin_habit_checkins", "plugin_pomodoro_sessions"),
+)
 
 
 def register(app: FastAPI) -> None:

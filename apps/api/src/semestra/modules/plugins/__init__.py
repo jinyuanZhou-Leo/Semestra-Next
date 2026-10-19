@@ -8,7 +8,7 @@ have not installed the plugin.
 from fastapi import FastAPI
 
 from semestra.core.capability import registry
-from semestra.modules.plugins import capabilities, models  # noqa: F401  (registers on import)
+from semestra.modules.plugins import capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.plugins.catalog import PluginInfo, register_plugin
 from semestra.modules.plugins.service import installed_ids, is_installed, require_installed
 

@@ -8,6 +8,7 @@ registers a usage counter with `@storage_usage_provider("<module>")`; the user q
 
 import hashlib
 import re
+import shutil
 import uuid
 from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -50,6 +51,10 @@ class Storage(Protocol):
     async def delete(self, key: str) -> None: ...
 
     async def exists(self, key: str) -> bool: ...
+
+    async def delete_prefix(self, prefix: str) -> None:
+        """Deletes every object under `prefix/` (account deletion removes `users/<id>`)."""
+        ...
 
 
 def user_key(user_id: str, module: str) -> str:
@@ -121,6 +126,10 @@ class LocalStorage:
 
     async def exists(self, key: str) -> bool:
         return await anyio.Path(self._path(key)).is_file()
+
+    async def delete_prefix(self, prefix: str) -> None:
+        path = self._path(prefix.rstrip("/"))
+        await anyio.to_thread.run_sync(lambda: shutil.rmtree(path, ignore_errors=True))
 
 
 def get_storage(ctx: Ctx) -> Storage:
