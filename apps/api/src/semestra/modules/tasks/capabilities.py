@@ -4,7 +4,6 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.tasks import service
 from semestra.modules.tasks.schemas import (
-    Deleted,
     ProgramRef,
     Task,
     TaskCandidates,
@@ -16,6 +15,7 @@ from semestra.modules.tasks.schemas import (
     TaskCreateInput,
     TaskCreateManyInput,
     TaskCreateManyResult,
+    TaskDeleted,
     TaskFindInput,
     TaskList,
     TaskListCreateInput,
@@ -208,9 +208,9 @@ the user asks to remove it.""",
     http=Http("DELETE", "/tasks/{task_id}"),
     tags=TAGS,
 )
-async def item_delete(ctx: Ctx, inp: TaskRef) -> Deleted:
+async def item_delete(ctx: Ctx, inp: TaskRef) -> TaskDeleted:
     await service.delete_task(ctx, inp.task_id)
-    return Deleted()
+    return TaskDeleted()
 
 
 @capability(

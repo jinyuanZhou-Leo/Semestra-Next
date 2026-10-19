@@ -40,7 +40,7 @@ import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TasksSidebar } from '../components/TasksSidebar'
-import { useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
+import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
   SMART_VIEWS,
@@ -61,12 +61,6 @@ const SORT_NAMES: Record<SortKey, () => string> = {
 
 type ViewPref = { sort: SortKey; doneOpen: boolean | null }
 const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
-
-function localToday(): string {
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
 
 /**
  * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): smart lists and lists on the
@@ -90,10 +84,16 @@ export default function TasksPage({ scope }: PageProps) {
   const lists = useTaskLists(programId)
   const counts = useTaskCounts(taskScope)
   const courses = useCourses(programId, termId).data?.items ?? []
-  const tasks = useTasks(taskScope, selection, {
-    sort: viewPref.sort,
-    includeCompleted: !(selection.kind === 'smart' && selection.view === 'completed'),
-  })
+  const completedView = selection.kind === 'smart' && selection.view === 'completed'
+  const tasks = useTasks(taskScope, selection, { sort: viewPref.sort, completed: 'hide' })
+  const finished = useTasks(
+    taskScope,
+    selection,
+    { sort: 'created', completed: 'only' },
+    !completedView,
+  )
+  const today = useProgramToday(programId)
+  const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
@@ -103,10 +103,9 @@ export default function TasksPage({ scope }: PageProps) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const completedView = selection.kind === 'smart' && selection.view === 'completed'
-  const items = tasks.data?.items ?? []
-  const open = items.filter((t) => t.completed_at === null)
-  const done = completedView ? items : items.filter((t) => t.completed_at !== null)
+  const open = completedView ? [] : (tasks.data?.items ?? [])
+  const done = (completedView ? tasks.data?.items : finished.data?.items) ?? []
+  const items = [...open, ...done]
   const doneOpen = viewPref.doneOpen ?? settings.show_completed_in_lists
   const selected = items.find((t) => t.id === selectedId) ?? null
   const sortableRows =
@@ -123,33 +122,41 @@ export default function TasksPage({ scope }: PageProps) {
     const next = open[Math.min(open.length - 1, Math.max(0, index + delta))]
     if (next) setSelectedId(next.id)
   }
+  // Keys act on the list only when focus is on the page or in the list, not in a dialog or sheet.
+  const keysApply = (event: KeyboardEvent) => {
+    const target = event.target
+    if (!(target instanceof Element)) return true
+    return target === document.body || Boolean(listRef.current?.contains(target))
+  }
   useHotkey('n', (event) => {
+    if (!keysApply(event)) return
     event.preventDefault()
     quickAdd.current?.focus()
   })
-  useHotkey('down', (event) => {
+  useHotkey('down, up', (event) => {
+    if (!keysApply(event) || open.length === 0) return
+    if (selectedId === null && event.target === document.body) return
     event.preventDefault()
-    step(1)
-  })
-  useHotkey('up', (event) => {
-    event.preventDefault()
-    step(-1)
+    step(event.key === 'ArrowUp' ? -1 : 1)
   })
   useHotkey(
     'space',
     (event) => {
-      if (!selected) return
+      if (!selected || !keysApply(event)) return
       event.preventDefault()
       void actions.complete(selected.id, selected.completed_at === null)
     },
     { enabled: selected !== null },
   )
-  useHotkey('delete, backspace', () => selected && setDeleteId(selected.id), {
-    enabled: selected !== null,
-  })
+  useHotkey(
+    'delete, backspace',
+    (event) => {
+      if (selected && keysApply(event)) setDeleteId(selected.id)
+    },
+    { enabled: selected !== null },
+  )
 
-  const defaultDue =
-    selection.kind === 'smart' && selection.view === 'today' ? localToday() : undefined
+  const defaultDue = selection.kind === 'smart' && selection.view === 'today' ? today : undefined
   const add = (task: {
     title: string
     due_date?: string
@@ -181,6 +188,18 @@ export default function TasksPage({ scope }: PageProps) {
           ? listChoices.find((l) => l.id === selection.listId)?.name
           : courses.find((c) => c.id === selection.courseId)?.title
 
+  const emptyText =
+    selection.kind === 'smart' && selection.view === 'today'
+      ? { title: m.tasks_today_empty(), description: m.tasks_empty_description() }
+      : selection.kind === 'smart' && selection.view === 'flagged'
+        ? { title: m.tasks_empty_flagged(), description: m.tasks_empty_description() }
+        : selection.kind === 'smart' && selection.view === 'scheduled'
+          ? { title: m.tasks_empty_scheduled(), description: m.tasks_empty_scheduled_description() }
+          : { title: m.tasks_empty_title(), description: m.tasks_empty_description() }
+  // Only where the finished tasks listed are exactly what would go: not in smart lists that
+  // filter by date or flag, and not in the inbox.
+  const canClear = completedView || selection.kind === 'list' || selection.kind === 'course'
+
   const clearScope = {
     list_id: selection.kind === 'list' ? selection.listId : undefined,
     term_id: termId,
@@ -188,16 +207,7 @@ export default function TasksPage({ scope }: PageProps) {
   }
 
   return (
-    <div
-      className={cn(
-        'grid gap-6',
-        courseId ? '' : 'md:grid-cols-[13rem_minmax(0,1fr)]',
-        selected &&
-          (courseId
-            ? 'xl:grid-cols-[minmax(0,1fr)_20rem]'
-            : 'xl:grid-cols-[13rem_minmax(0,1fr)_20rem]'),
-      )}
-    >
+    <div className={cn('grid gap-6', !courseId && 'md:grid-cols-[13rem_minmax(0,1fr)]')}>
       {courseId ? null : (
         <TasksSidebar
           programId={programId}
@@ -210,7 +220,7 @@ export default function TasksPage({ scope }: PageProps) {
           actions={actions}
         />
       )}
-      <section className="min-w-0 space-y-3" aria-label={title}>
+      <section ref={listRef} className="min-w-0 space-y-3" aria-label={title}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
             <ToggleGroup
@@ -226,7 +236,7 @@ export default function TasksPage({ scope }: PageProps) {
               ))}
             </ToggleGroup>
           ) : (
-            <h2 className="font-heading text-2xl font-semibold tracking-tight">{title}</h2>
+            <h2 className="font-heading text-xl font-semibold tracking-tight">{title}</h2>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -252,14 +262,14 @@ export default function TasksPage({ scope }: PageProps) {
         <AsyncBoundary query={tasks}>
           {() => (
             <>
-              {open.length === 0 && done.length === 0 ? (
+              {!completedView && open.length === 0 && done.length === 0 ? (
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
                       <ListChecks aria-hidden />
                     </EmptyMedia>
-                    <EmptyTitle>{m.tasks_empty_title()}</EmptyTitle>
-                    <EmptyDescription>{m.tasks_empty_description()}</EmptyDescription>
+                    <EmptyTitle>{emptyText.title}</EmptyTitle>
+                    <EmptyDescription>{emptyText.description}</EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               ) : null}
@@ -330,14 +340,11 @@ export default function TasksPage({ scope }: PageProps) {
                       />
                       {m.tasks_completed_count({ count: done.length })}
                     </CollapsibleTrigger>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setClearing(true)}
-                    >
-                      {m.tasks_clear_completed()}
-                    </Button>
+                    {canClear ? (
+                      <Button variant="destructive" size="sm" onClick={() => setClearing(true)}>
+                        {m.tasks_clear_completed()}
+                      </Button>
+                    ) : null}
                   </div>
                   <CollapsibleContent>
                     <ul>
@@ -362,6 +369,7 @@ export default function TasksPage({ scope }: PageProps) {
         {completedView ? null : (
           <QuickAdd
             inputRef={quickAdd}
+            today={today}
             defaultDue={defaultDue}
             disabled={actions.pending}
             onAdd={add}
@@ -399,7 +407,7 @@ export default function TasksPage({ scope }: PageProps) {
         open={clearing}
         onOpenChange={setClearing}
         title={m.tasks_clear_title()}
-        description={m.tasks_clear_description()}
+        description={m.tasks_clear_description({ count: done.length })}
         confirmLabel={m.tasks_clear_completed()}
         pending={actions.pending}
         onConfirm={() => {
@@ -455,12 +463,7 @@ function CompletedRows({
         ))}
       </ul>
       <div className="px-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-          onClick={onClear}
-        >
+        <Button variant="destructive" size="sm" onClick={onClear}>
           {m.tasks_clear_completed()}
         </Button>
       </div>

@@ -6,6 +6,8 @@ import {
   tasksListListOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
+import { useProgram } from '@/modules/academics/queries'
+import { todayIn } from '@/modules/schedule/time'
 import type { SortKey, Selection } from './types'
 
 const STALE = 15_000
@@ -30,11 +32,15 @@ export function useTaskCounts(scope: TaskScope) {
   })
 }
 
-/** The tasks of a selection (smart list, inbox or list) within a scope. */
+/**
+ * The tasks of a selection (smart list, inbox or list) within a scope: the open ones, or with
+ * `completed: 'only'` the finished ones the selection would show.
+ */
 export function useTasks(
   scope: TaskScope,
   selection: Selection,
-  { sort, includeCompleted }: { sort: SortKey; includeCompleted: boolean },
+  { sort, completed }: { sort: SortKey; completed: 'hide' | 'only' },
+  enabled = true,
 ) {
   return useQuery({
     ...tasksItemQueryOptions({
@@ -50,11 +56,12 @@ export function useTasks(
         term_id: scope.termId,
         course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
         sort,
-        include_completed: includeCompleted,
+        only_completed: completed === 'only' ? true : undefined,
         limit: 500,
       },
     }),
     staleTime: STALE,
+    enabled,
   })
 }
 
@@ -69,9 +76,22 @@ export function useTodayTasks(programId: string) {
   })
 }
 
+type KeyHead = { _id?: unknown; query?: Record<string, unknown> } | undefined
+
 function operationId(queryKey: readonly unknown[]): string {
   // oxlint-disable-next-line no-underscore-dangle -- hey-api's query key field
-  return String((queryKey[0] as { _id?: unknown } | undefined)?._id ?? '')
+  return String((queryKey[0] as KeyHead)?._id ?? '')
+}
+
+/** Reading the task-list query keys the generated client builds. */
+export const taskQueryKeys = {
+  isItemQuery: (queryKey: readonly unknown[]) => operationId(queryKey) === 'tasksItemQuery',
+  params: (queryKey: readonly unknown[]) =>
+    ((queryKey[0] as KeyHead)?.query ?? {}) as {
+      view?: string
+      only_completed?: boolean
+      sort?: string
+    },
 }
 
 /** Refetch everything the tasks module shows, after a change made from this tab. */
@@ -105,4 +125,14 @@ export function useTaskSettings(programId: string): TaskSettings {
     staleTime: STALE,
   }).data?.values
   return { ...DEFAULT_TASK_SETTINGS, ...(values as Partial<TaskSettings> | undefined) }
+}
+
+function deviceTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+/** Today's date in the Program's time zone, which is how the backend counts today and overdue. */
+export function useProgramToday(programId: string): string {
+  const timezone = useProgram(programId).data?.timezone
+  return todayIn(timezone ?? deviceTimeZone())
 }

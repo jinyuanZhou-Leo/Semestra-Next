@@ -1243,7 +1243,7 @@
   "tasks_delete_title": "Delete this task?",
   "tasks_delete_description": "“{title}” will be deleted.",
   "tasks_clear_title": "Clear completed tasks?",
-  "tasks_clear_description": "All completed tasks in this view will be deleted.",
+  "tasks_clear_description": "{count} completed tasks will be deleted. This can't be undone.",
   "tasks_clear_completed": "Clear completed",
   "tasks_quick_add_placeholder": "Add a task, e.g. “Fri lab report !!”",
   "tasks_quick_add_label": "Add a task",
@@ -1268,7 +1268,7 @@
   "tasks_empty_title": "No tasks here",
   "tasks_empty_description": "Type in the box below to add one.",
   "tasks_completed_count": "{count} completed",
-  "tasks_completed_empty": "Nothing completed yet.",
+  "tasks_completed_empty": "Nothing completed yet",
   "tasks_today_empty": "Nothing due today",
   "tasks_list_empty": "No tasks",
   "tasks_card_today": "Today's tasks",
@@ -1281,7 +1281,7 @@
   "settings_tasks_auto_tasks_from_assessments_label": "Create tasks from assessments",
   "settings_tasks_auto_tasks_from_assessments_description": "Every assessment with a due date gets a task that follows it. Completing the task does not affect the grade.",
   "settings_tasks_default_priority_label": "Default priority",
-  "settings_tasks_default_priority_description": "Priority of new tasks.",
+  "settings_tasks_default_priority_description": "Used for tasks you add without a priority. Existing tasks keep theirs.",
   "settings_tasks_default_priority_option_none": "None",
   "settings_tasks_default_priority_option_low": "Low",
   "settings_tasks_default_priority_option_medium": "Medium",
@@ -1291,5 +1291,10 @@
   "settings_tasks_show_completed_in_lists_description": "Otherwise they are only under Completed.",
   "error_tasks_list_name_conflict": "A list with this name already exists.",
   "error_tasks_course_not_in_program": "This course is not in this program.",
-  "error_tasks_invalid_due": "A time needs a date."
+  "error_tasks_invalid_due": "A time needs a date.",
+  "tasks_flagged": "Flagged",
+  "tasks_drag": "Drag to reorder",
+  "tasks_empty_flagged": "No flagged tasks",
+  "tasks_empty_scheduled": "No scheduled tasks",
+  "tasks_empty_scheduled_description": "Tasks with a due date appear here."
 }

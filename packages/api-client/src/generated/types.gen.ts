@@ -1752,6 +1752,16 @@ export type DayFocus = {
 };
 
 /**
+ * Deleted
+ */
+export type Deleted = {
+    /**
+     * Deleted
+     */
+    deleted?: true;
+};
+
+/**
  * Done
  */
 export type Done = {
@@ -5110,6 +5120,16 @@ export type TaskCreateManyResult = {
 };
 
 /**
+ * TaskDeleted
+ */
+export type TaskDeleted = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
  * TaskFields
  */
 export type TaskFields = {
@@ -6317,36 +6337,6 @@ export type ValuesUpdateInputBody = {
 };
 
 /**
- * Deleted
- */
-export type SemestraModulesAcademicsSchemasDeleted = {
-    /**
-     * Deleted
-     */
-    deleted?: true;
-};
-
-/**
- * Deleted
- */
-export type SemestraModulesScheduleSchemasDeleted = {
-    /**
-     * Deleted
-     */
-    deleted?: true;
-};
-
-/**
- * Deleted
- */
-export type SemestraModulesTasksSchemasDeleted = {
-    /**
-     * Ok
-     */
-    ok?: boolean;
-};
-
-/**
  * ProviderCreateInputBody
  */
 export type ProviderCreateInputBodyWritable = {
@@ -6918,7 +6908,7 @@ export type AcademicsCourseDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesAcademicsSchemasDeleted;
+    200: Deleted;
 };
 
 export type AcademicsCourseDeleteResponse = AcademicsCourseDeleteResponses[keyof AcademicsCourseDeleteResponses];
@@ -7128,7 +7118,7 @@ export type AcademicsProgramDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesAcademicsSchemasDeleted;
+    200: Deleted;
 };
 
 export type AcademicsProgramDeleteResponse = AcademicsProgramDeleteResponses[keyof AcademicsProgramDeleteResponses];
@@ -8471,7 +8461,7 @@ export type GradingAssessmentDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesAcademicsSchemasDeleted;
+    200: Deleted;
 };
 
 export type GradingAssessmentDeleteResponse = GradingAssessmentDeleteResponses[keyof GradingAssessmentDeleteResponses];
@@ -8599,7 +8589,7 @@ export type GradingCategoryDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesAcademicsSchemasDeleted;
+    200: Deleted;
 };
 
 export type GradingCategoryDeleteResponse = GradingCategoryDeleteResponses[keyof GradingCategoryDeleteResponses];
@@ -9820,7 +9810,7 @@ export type ScheduleEventDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesScheduleSchemasDeleted;
+    200: Deleted;
 };
 
 export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
@@ -9948,7 +9938,7 @@ export type ScheduleEventTypeDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesScheduleSchemasDeleted;
+    200: Deleted;
 };
 
 export type ScheduleEventTypeDeleteResponse = ScheduleEventTypeDeleteResponses[keyof ScheduleEventTypeDeleteResponses];
@@ -10319,7 +10309,7 @@ export type ScheduleMeetingDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesScheduleSchemasDeleted;
+    200: Deleted;
 };
 
 export type ScheduleMeetingDeleteResponse = ScheduleMeetingDeleteResponses[keyof ScheduleMeetingDeleteResponses];
@@ -10887,6 +10877,12 @@ export type TasksItemQueryData = {
          */
         include_completed?: boolean;
         /**
+         * Only Completed
+         *
+         * Return only the completed tasks the view would show (views other than completed); wins over include_completed
+         */
+        only_completed?: boolean;
+        /**
          * Sort
          *
          * Order of the result
@@ -11023,7 +11019,7 @@ export type TasksItemDeleteResponses = {
     /**
      * Successful Response
      */
-    200: SemestraModulesTasksSchemasDeleted;
+    200: TaskDeleted;
 };
 
 export type TasksItemDeleteResponse = TasksItemDeleteResponses[keyof TasksItemDeleteResponses];

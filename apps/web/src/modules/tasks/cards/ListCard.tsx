@@ -14,12 +14,17 @@ export default function ListCard({ scope, settings }: CardProps<ListCardSettings
     courseId: scope.kind === 'course' ? scope.courseId : undefined,
   }
   const selection = parseSelection(settings.source)
-  const tasks = useTasks(taskScope, selection, { sort: 'manual', includeCompleted: false })
+  const tasks = useTasks(taskScope, selection, { sort: 'manual', completed: 'hide' })
   const actions = useTaskActions()
   if (!tasks.data) return null
   return (
     <div className="h-full overflow-y-auto">
-      <CompactTasks tasks={tasks.data.items} actions={actions} emptyTitle={m.tasks_list_empty()} />
+      <CompactTasks
+        programId={scope.programId}
+        tasks={tasks.data.items}
+        actions={actions}
+        emptyTitle={m.tasks_list_empty()}
+      />
     </div>
   )
 }

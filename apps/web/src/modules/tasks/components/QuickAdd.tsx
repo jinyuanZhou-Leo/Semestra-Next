@@ -5,7 +5,7 @@ import { getLocale } from '@/paraglide/runtime'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
-import { dueLabel } from '../due'
+import { dueLabel, localDate } from '../due'
 import { parseQuickAdd } from '../parse'
 import type { Priority } from '../types'
 import { PRIORITY_NAMES } from './TaskRow'
@@ -23,11 +23,14 @@ export type NewTask = {
  */
 export function QuickAdd({
   inputRef,
+  today,
   defaultDue,
   disabled,
   onAdd,
 }: {
   inputRef?: Ref<HTMLInputElement>
+  /** The Program's today (`useProgramToday`): "tomorrow" is read relative to it. */
+  today: string
   /** Due date when the text has none, e.g. today in the Today list. */
   defaultDue?: string
   disabled?: boolean
@@ -37,7 +40,7 @@ export function QuickAdd({
   // The words the user chose to keep as plain text; the choice holds while those words stay.
   const [keptDate, setKeptDate] = useState<string | null>(null)
   const [keptMark, setKeptMark] = useState<string | null>(null)
-  const [now, setNow] = useState(() => new Date())
+  const now = localDate(today)
   const first = parseQuickAdd(text, now, getLocale())
   const ignoreDate = first.dateText !== null && first.dateText === keptDate
   const ignorePriority = first.priorityText !== null && first.priorityText === keptMark
@@ -77,7 +80,6 @@ export function QuickAdd({
           aria-label={m.tasks_quick_add_label()}
           className="h-6 border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
           onChange={(event) => {
-            setNow(new Date())
             setText(event.target.value)
           }}
           onKeyDown={(event) => {
@@ -97,7 +99,7 @@ export function QuickAdd({
               label={
                 ignoreDate
                   ? parsed.dateText
-                  : dueLabel({ due_date: parsed.dueDate, due_time: parsed.dueTime })
+                  : dueLabel({ due_date: parsed.dueDate, due_time: parsed.dueTime }, today)
               }
               icon={<CalendarDays aria-hidden />}
               undoLabel={m.tasks_quick_add_undo({ text: parsed.dateText })}

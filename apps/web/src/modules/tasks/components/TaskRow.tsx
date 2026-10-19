@@ -8,6 +8,7 @@ import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import {
@@ -19,6 +20,7 @@ import {
 import { Input } from '@/ui/input'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
+import { useProgramToday } from '../queries'
 
 const MARKS: Record<Task['priority'], string> = {
   none: '',
@@ -30,16 +32,24 @@ const MARKS: Record<Task['priority'], string> = {
 
 export function PriorityMark({ priority }: { priority: Task['priority'] }) {
   if (!MARKS[priority]) return null
+  const label = m.tasks_priority_label({ priority: PRIORITY_NAMES[priority]() })
   return (
-    <span
-      title={m.tasks_priority_label({ priority: PRIORITY_NAMES[priority]() })}
-      className={cn(
-        'shrink-0 text-xs font-semibold tabular-nums',
-        priority === 'urgent' ? 'text-destructive' : 'text-primary',
-      )}
-    >
-      {MARKS[priority]}
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label={label}
+            className={cn(
+              'shrink-0 text-xs font-semibold tabular-nums',
+              priority === 'urgent' ? 'text-destructive' : 'text-primary',
+            )}
+          />
+        }
+      >
+        {MARKS[priority]}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -193,6 +203,7 @@ export function TaskRow({
   sortable,
   hideCourse,
 }: Props) {
+  const today = useProgramToday(task.program_id)
   const done = task.completed_at !== null
   const course = courses.find((c) => c.id === task.course_id)
   const note = task.notes.split('\n')[0]?.trim()
@@ -237,7 +248,7 @@ export function TaskRow({
             {note ? <span className="max-w-full truncate">{note}</span> : null}
             {task.due_date ? (
               <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
-                {dueLabel(task)}
+                {dueLabel(task, today)}
               </span>
             ) : null}
             {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
@@ -245,20 +256,27 @@ export function TaskRow({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 focus-within:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
-          aria-pressed={task.flagged}
-          className="text-muted-foreground"
-          onClick={(event) => {
-            event.stopPropagation()
-            void actions.update(task.id, { flagged: !task.flagged })
-          }}
-        >
-          <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
+                aria-pressed={task.flagged}
+                className="text-muted-foreground"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void actions.update(task.id, { flagged: !task.flagged })
+                }}
+              />
+            }
+          >
+            <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
+          </TooltipTrigger>
+          <TooltipContent>{task.flagged ? m.tasks_unflag() : m.tasks_flag()}</TooltipContent>
+        </Tooltip>
         {sortable?.handle}
       </div>
     </li>
@@ -284,19 +302,26 @@ export function SortableTaskRow(props: Omit<Props, 'sortable'>) {
         style: { transform: CSS.Translate.toString(transform), transition },
         dragging: isDragging,
         handle: (
-          <Button
-            ref={setActivatorNodeRef}
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={m.tasks_move({ title: props.task.title })}
-            className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-            onClick={(event) => event.stopPropagation()}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical aria-hidden />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  ref={setActivatorNodeRef}
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={m.tasks_move({ title: props.task.title })}
+                  className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                  onClick={(event) => event.stopPropagation()}
+                  {...attributes}
+                  {...listeners}
+                />
+              }
+            >
+              <GripVertical aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.tasks_drag()}</TooltipContent>
+          </Tooltip>
         ),
       }}
     />

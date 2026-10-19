@@ -531,6 +531,32 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
     assert [o.title for o in merged] == ["in"]
 
 
+async def test_only_completed_returns_the_finished_tasks_of_a_view(api: Api):
+    s = await api.setup()
+    pid = s["program"]
+    await api.task(pid, "open")
+    done = await api.task(pid, "done")
+    await api.call("POST", f"/tasks/{done['id']}:complete", json={})
+    assert await api.titles(pid, view="all", only_completed=True) == ["done"]
+    assert await api.titles(pid, view="inbox", only_completed=True) == ["done"]
+    assert await api.titles(pid, view="today", only_completed=True) == []  # it has no date
+
+
+async def test_clear_completed_in_a_term_includes_tasks_without_a_term(api: Api):
+    s = await api.setup()
+    pid, winter, fall = s["program"], s["terms"]["winter"], s["terms"]["fall"]
+    done = [
+        await api.task(pid, "no term"),
+        await api.task(pid, "winter", term_id=winter),
+        await api.task(pid, "fall", term_id=fall),
+    ]
+    for t in done:
+        await api.call("POST", f"/tasks/{t['id']}:complete", json={})
+    r = await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={"term_id": winter})
+    assert r == {"deleted": 2}  # what the winter view shows: its own and the term-less ones
+    assert await api.titles(pid, view="completed") == ["fall"]
+
+
 async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: UserHandle):
     s = await api.setup()
     pid = s["program"]
@@ -627,6 +653,31 @@ async def test_assessment_changes_follow_through(api: Api):
     assert len(await api.titles(pid)) == 1
     await api.call("PATCH", f"/assessments/{third['id']}", json={"due_date": None})
     assert await api.titles(pid) == []
+
+
+async def test_assessment_tasks_are_not_a_second_calendar_entry(
+    app: FastAPI, api: Api, user: UserHandle
+):
+    s = await api.setup()
+    pid, aps = s["program"], s["courses"]["aps"]
+    await enable_auto(api, pid)
+    await assessment(api, aps, "Midterm", due_date="2026-02-10")
+    await api.task(pid, "Own task", due_date="2026-02-10")
+    zone = ZoneInfo("America/Toronto")
+    async with system_ctx(app.state, user.id) as ctx:
+        merged = await collect(
+            ctx,
+            OccurrenceQuery(
+                pid,
+                datetime(2026, 2, 1, tzinfo=zone).astimezone(UTC),
+                datetime(2026, 3, 1, tzinfo=zone).astimezone(UTC),
+            ),
+            ["tasks.due", "grading.assessments"],
+        )
+    assert sorted((o.source, o.title) for o in merged) == [
+        ("grading.assessments", "APS105H1 · Midterm"),
+        ("tasks.due", "Own task"),
+    ]
 
 
 async def test_a_second_run_of_the_backfill_creates_nothing(

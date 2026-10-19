@@ -1,4 +1,6 @@
-"""The `tasks.due` calendar source (M05 §4, M04 §3): unfinished tasks that have a due date."""
+"""The `tasks.due` calendar source (M05 §4, M04 §3): unfinished tasks that have a due date.
+
+Tasks generated from an assessment are left out: the assessment is already on the calendar."""
 
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -25,7 +27,10 @@ async def due_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     rows = [
         r
         for r in await service.program_rows(ctx, program.id, term_id=q.term_id)
-        if r.due_date is not None and r.completed_at is None and q.wants_course(r.course_id)
+        if r.due_date is not None
+        and r.completed_at is None
+        and r.source_kind != "assessment"  # `grading.assessments` already shows the assessment
+        and q.wants_course(r.course_id)
     ]
     colors = {
         c.id: c.resolved_color

@@ -6,18 +6,22 @@ import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
+import { useProgramToday } from '../queries'
 import { PriorityMark } from './TaskRow'
 
 /** The tasks of a board card: check them off, nothing else. */
 export function CompactTasks({
+  programId,
   tasks,
   actions,
   emptyTitle,
 }: {
+  programId: string
   tasks: readonly Task[]
   actions: TaskActions
   emptyTitle: string
 }) {
+  const today = useProgramToday(programId)
   if (tasks.length === 0) {
     return (
       <Empty className="border-0 p-0">
@@ -49,7 +53,7 @@ export function CompactTasks({
                 task.overdue ? 'text-destructive' : 'text-muted-foreground',
               )}
             >
-              {dueLabel(task)}
+              {dueLabel(task, today)}
             </span>
           ) : null}
         </li>

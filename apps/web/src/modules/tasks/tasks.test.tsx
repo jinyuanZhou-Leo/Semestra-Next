@@ -66,9 +66,12 @@ beforeEach(() => {
         courses: {},
       }),
     ),
-    http.get(`${API}/programs/p1/tasks`, () =>
-      HttpResponse.json({ items, next_cursor: null, total: items.length }),
-    ),
+    http.get(`${API}/programs/p1/tasks`, ({ request }) => {
+      const params = new URL(request.url).searchParams
+      const finished = params.get('view') === 'completed' || params.get('only_completed') === 'true'
+      const rows = items.filter((t) => (t.completed_at !== null) === finished)
+      return HttpResponse.json({ items: rows, next_cursor: null })
+    }),
     http.post(`${API}/programs/p1/tasks`, async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
       log.creates.push(body)
@@ -134,4 +137,31 @@ test('the counter card shows the open count', async () => {
     />,
   )
   expect(await screen.findByText('2')).toBeTruthy()
+})
+
+test('the completed view has one empty state and no add box', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: /^Completed/ }))
+  expect(await screen.findByText('Nothing completed yet')).toBeTruthy()
+  expect(screen.queryByText('No tasks here')).toBeNull()
+  expect(screen.queryByLabelText('Add a task')).toBeNull()
+})
+
+test('clearing completed tasks is offered only where it deletes what is listed', async () => {
+  items = [
+    task({ id: 't1', title: 'Open' }),
+    task({ id: 't2', title: 'Done one', completed_at: stamp }),
+  ]
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await screen.findByText('Open')
+  await screen.findByRole('button', { name: /1 completed/ })
+  expect(screen.queryByRole('button', { name: 'Clear completed' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: /^Completed/ }))
+  expect(await screen.findByRole('button', { name: 'Clear completed' })).toBeTruthy()
+})
+
+test('selecting a task opens its details in a sheet', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByText('Lab report'))
+  expect(await screen.findByRole('dialog', { name: 'Details' })).toBeTruthy()
 })

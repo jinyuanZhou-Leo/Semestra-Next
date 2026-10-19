@@ -547,7 +547,7 @@ async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
     if inp.list_id is not None:
         stmt = stmt.where(TasksItem.list_id == inp.list_id)
     if inp.term_id is not None:
-        stmt = stmt.where(TasksItem.term_id == inp.term_id)
+        stmt = stmt.where(_term_filter(inp.term_id))
     if inp.course_id is not None:
         stmt = stmt.where(TasksItem.course_id == inp.course_id)
     rows = list(await ctx.db.scalars(stmt))
@@ -644,12 +644,19 @@ async def query_tasks(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     rows = await program_rows(
         ctx, program.id, term_id=inp.term_id, course_id=inp.course_id, list_id=inp.list_id
     )
-    wanted = [
-        r
-        for r in rows
-        if _in_view(r, inp.view, today)
-        or (inp.include_completed and inp.view != "completed" and _completed_in_view(r, inp.view))
-    ]
+    if inp.only_completed and inp.view != "completed":
+        wanted = [r for r in rows if _completed_in_view(r, inp.view)]
+    else:
+        wanted = [
+            r
+            for r in rows
+            if _in_view(r, inp.view, today)
+            or (
+                inp.include_completed
+                and inp.view != "completed"
+                and _completed_in_view(r, inp.view)
+            )
+        ]
     if inp.due_from is not None:
         wanted = [r for r in wanted if r.due_date is not None and r.due_date >= inp.due_from]
     if inp.due_to is not None:

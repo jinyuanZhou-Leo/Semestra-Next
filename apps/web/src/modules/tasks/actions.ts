@@ -1,4 +1,4 @@
-import type { TaskCreateInputBody, TaskUpdateInputBody } from '@semestra/api-client'
+import type { Task, TaskCreateInputBody, TaskPage, TaskUpdateInputBody } from '@semestra/api-client'
 import {
   tasksItemClearCompletedMutation,
   tasksItemCompleteMutation,
@@ -11,9 +11,36 @@ import {
   tasksListReorderMutation,
   tasksListUpdateMutation,
 } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
-import { invalidateTasks } from './queries'
+import { invalidateTasks, taskQueryKeys } from './queries'
+
+type Snapshot = [readonly unknown[], TaskPage | undefined][]
+
+/** Changes the cached task pages in place; the returned snapshot puts them back on failure. */
+function patchPages(
+  queryClient: QueryClient,
+  patch: (page: TaskPage, params: TaskQueryParams) => Task[],
+): Snapshot {
+  const snapshot: Snapshot = []
+  for (const [key, page] of queryClient.getQueriesData<TaskPage>({
+    predicate: (query) => taskQueryKeys.isItemQuery(query.queryKey),
+  })) {
+    if (!page) continue
+    snapshot.push([key, page])
+    queryClient.setQueryData<TaskPage>(key, {
+      ...page,
+      items: patch(page, taskQueryKeys.params(key)),
+    })
+  }
+  return snapshot
+}
+
+export type TaskQueryParams = { view?: string; only_completed?: boolean; sort?: string }
+
+function restore(queryClient: QueryClient, snapshot: Snapshot | undefined) {
+  for (const [key, page] of snapshot ?? []) queryClient.setQueryData(key, page)
+}
 
 /** Every change a task view can make, each refreshing the task queries and toasting failures. */
 export function useTaskActions() {
@@ -21,8 +48,49 @@ export function useTaskActions() {
   const shared = { onError: toastError, onSettled: () => invalidateTasks(queryClient) }
   const create = useMutation({ ...tasksItemCreateMutation(), ...shared })
   const update = useMutation({ ...tasksItemUpdateMutation(), ...shared })
-  const complete = useMutation({ ...tasksItemCompleteMutation(), ...shared })
-  const move = useMutation({ ...tasksItemMoveMutation(), ...shared })
+  // Checking a task off and dragging it are applied to the cached lists right away.
+  const complete = useMutation({
+    ...tasksItemCompleteMutation(),
+    ...shared,
+    onMutate: async ({ path, body }) => {
+      await queryClient.cancelQueries({
+        predicate: (query) => taskQueryKeys.isItemQuery(query.queryKey),
+      })
+      // The task leaves the lists it no longer belongs to; the finished list fills on refetch.
+      return patchPages(queryClient, (page, params) => {
+        const showsFinished = params.only_completed === true || params.view === 'completed'
+        return body.completed === showsFinished
+          ? page.items
+          : page.items.filter((t) => t.id !== path.task_id)
+      })
+    },
+    onError: (error, _vars, snapshot) => {
+      restore(queryClient, snapshot)
+      toastError(error)
+    },
+  })
+  const move = useMutation({
+    ...tasksItemMoveMutation(),
+    ...shared,
+    onMutate: async ({ path, body }) => {
+      await queryClient.cancelQueries({
+        predicate: (query) => taskQueryKeys.isItemQuery(query.queryKey),
+      })
+      if (body.list_id !== undefined) return undefined // changing list: wait for the server
+      return patchPages(queryClient, (page, params) => {
+        const moving = page.items.find((t) => t.id === path.task_id)
+        if (!moving || params.sort !== 'manual' || params.only_completed) return page.items
+        const rest = page.items.filter((t) => t.id !== path.task_id)
+        const at = body.before_task_id ? rest.findIndex((t) => t.id === body.before_task_id) : -1
+        rest.splice(at < 0 ? rest.length : at, 0, moving)
+        return rest
+      })
+    },
+    onError: (error, _vars, snapshot) => {
+      restore(queryClient, snapshot)
+      toastError(error)
+    },
+  })
   const remove = useMutation({ ...tasksItemDeleteMutation(), ...shared })
   const clear = useMutation({ ...tasksItemClearCompletedMutation(), ...shared })
   const createList = useMutation({ ...tasksListCreateMutation(), ...shared })

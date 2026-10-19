@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Field, FieldLabel } from '@/ui/field'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
 import { INBOX, type Selection, SMART_VIEWS, orderLists, selectionKey } from '../types'
 import { ListDialog } from './ListDialog'
@@ -106,34 +107,48 @@ function ListItem({
         isDragging && 'z-10 rounded-lg bg-card shadow-md',
       )}
     >
-      <Button
-        ref={setActivatorNodeRef}
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={m.tasks_list_move({ name: list.name })}
-        className="absolute left-0 z-10 cursor-grab touch-none text-muted-foreground opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical aria-hidden />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              ref={setActivatorNodeRef}
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={m.tasks_list_move({ name: list.name })}
+              className="absolute left-0 z-10 cursor-grab touch-none text-muted-foreground opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+              {...attributes}
+              {...listeners}
+            />
+          }
+        >
+          <GripVertical aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{m.tasks_drag()}</TooltipContent>
+      </Tooltip>
       <div className="min-w-0 flex-1">
         <NavItem icon={List} label={list.name} count={count} active={active} onClick={onSelect} />
       </div>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={m.tasks_list_menu({ name: list.name })}
-              className="absolute right-1 opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={m.tasks_list_menu({ name: list.name })}
+                    className="absolute right-1 opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+                  />
+                }
+              />
+            }
+          >
+            <MoreHorizontal aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{m.tasks_list_menu({ name: list.name })}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={onRename}>{m.tasks_list_rename()}</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={onDelete}>
