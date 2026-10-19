@@ -329,7 +329,8 @@ def _jsonable(params: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _record(ctx: Ctx, row: LmsConnection, error_code: str | None) -> None:
-    before = row.status
+    # Same-status changes count too: a transient error appearing or clearing shows on the row.
+    before = (row.status, row.last_error_code)
     row.last_checked_at = ctx.now
     if error_code is None:
         row.status, row.last_error_code = "connected", None
@@ -337,7 +338,7 @@ async def _record(ctx: Ctx, row: LmsConnection, error_code: str | None) -> None:
         row.status, row.last_error_code = "error", error_code
     else:  # unreachable, rate limited: the connection itself may be fine
         row.last_error_code = error_code
-    if before != row.status:
+    if before != (row.status, row.last_error_code):
         await _status_changed(ctx, row)
 
 

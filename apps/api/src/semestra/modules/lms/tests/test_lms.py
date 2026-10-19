@@ -601,3 +601,26 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     err = await api.commit(started["session_id"], 409)
     assert err["error"]["code"] == "lms.course_not_linked"
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
+
+
+async def test_check_results_announce_error_changes_within_a_status(
+    api: Api, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+):
+    conn = await api.connection()
+    seen: list[tuple[str, str | None]] = []
+
+    async def changed(ctx: Any, row: LmsConnection) -> None:
+        seen.append((row.status, row.last_error_code))
+
+    monkeypatch.setattr(service, "_status_changed", changed)
+    async with system_ctx(app.state) as ctx:
+        row = await ctx.db.get(LmsConnection, conn["id"])
+        assert row is not None
+        for code in ("lms.unreachable", "lms.unreachable", "lms.rate_limited", None, None):
+            await service._record(ctx, row, code)  # pyright: ignore[reportPrivateUsage]
+    # Still "connected" throughout, but each new error and the recovery are announced once.
+    assert seen == [
+        ("connected", "lms.unreachable"),
+        ("connected", "lms.rate_limited"),
+        ("connected", None),
+    ]
