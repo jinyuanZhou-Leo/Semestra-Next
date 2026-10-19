@@ -11,6 +11,7 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
+import { AnimatedPercent } from './AnimatedPercent'
 import { GpaValue } from './GpaValue'
 import { InlineInput } from './InlineInput'
 
@@ -94,13 +95,18 @@ export function SummaryStrip({ gradebook }: { gradebook: Gradebook }) {
               {letter ? <span>{letter}</span> : null}
               <span>
                 {m.grading_gpa()}{' '}
-                <GpaValue value={finalPoints} hidden={scale.hide_gpa} className="tabular-nums" />
+                <GpaValue
+                  value={finalPoints}
+                  hidden={scale.hide_gpa}
+                  animated
+                  className="tabular-nums"
+                />
               </span>
               {s.overridden ? <Badge variant="secondary">{m.grading_overridden()}</Badge> : null}
             </span>
           }
         >
-          {s.weights_ok || s.overridden ? percentText(final) : '—'}
+          {s.weights_ok || s.overridden ? <AnimatedPercent value={final} /> : '—'}
         </Stat>
         <Stat
           label={m.grading_weights()}
