@@ -656,3 +656,24 @@ async def test_a_refused_resource_leaves_the_connection_alone(
     assert err["error"]["code"] == "lms.forbidden"
     [row] = (await api.call("GET", "/lms/connections"))["items"]
     assert (row["id"], row["status"], row["last_error_code"]) == (conn, "connected", None)
+
+
+async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: FakeProvider):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    items = fake.course_assignments["101"]
+    items[2] = items[2].model_copy(update={"group_name": "Labs"})  # g2, also called "Labs"
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments",
+        json={"external_ids": ["a1", "a2", "a3"]},
+    )  # fmt: skip
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    categories = by_type(session, "category")
+    assert [(c["data"]["name"], c["data"]["weight_total"]) for c in categories] == [
+        ("Labs", 20),
+        ("Labs", 80),
+    ]
+    assert len({c["data"]["key"] for c in categories}) == 2
+    refs = [a["data"]["category_ref"] for a in by_type(session, "assessment")]
+    assert refs[0] == refs[1] != refs[2]

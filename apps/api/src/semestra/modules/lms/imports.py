@@ -191,7 +191,8 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
     new: list[NewItem] = []
     refs: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
-    groups: dict[str, str] = {}
+    groups: dict[str, str] = {}  # Canvas group id -> category item key
+    slugs: set[str] = set()
     for external_id in dict.fromkeys(inp.external_ids):
         a = by_id.get(external_id)
         if a is None or external_id in done:
@@ -204,16 +205,22 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
             item: dict[str, Any] = {"course_ref": course_ref, "title": a["name"][:200]}
             group = a.get("group_name")
             if group:
-                if group not in groups:
-                    groups[group] = f"g{len(groups)}"
+                # Canvas groups are told apart by id: two groups may share a name or a slug.
+                group_key = str(a.get("group_id") or group)
+                if group_key not in groups:
+                    groups[group_key] = f"g{len(groups)}"
+                    slug = _slug(group)
+                    if slug in slugs:
+                        slug = f"{slug[:20].strip('-')}-{_slug(group_key)}"[:32].strip("-")
+                    slugs.add(slug)
                     new.append(
                         NewItem(
-                            key=groups[group],
+                            key=groups[group_key],
                             type="category",
                             data={
                                 "course_ref": course_ref,
                                 "name": group[:200],
-                                "key": _slug(group),
+                                "key": slug,
                                 **(
                                     {"weight_total": a["group_weight"]}
                                     if a.get("group_weight") is not None
@@ -222,7 +229,7 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
                             },
                         )
                     )
-                item["category_ref"] = f"item:{groups[group]}"
+                item["category_ref"] = f"item:{groups[group_key]}"
             confidence: dict[str, Confidence] = {}
             if external_id in weights:
                 item["weight"] = weights[external_id]

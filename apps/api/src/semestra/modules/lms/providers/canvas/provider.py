@@ -130,15 +130,21 @@ def _int(value: Any, default: int = 0) -> int:
     return int(number) if number is not None else default
 
 
+DEFAULT_PORTS = {"https": 443, "http": 80}
+
+
 def _origin(url: str) -> str:
     """scheme://host[:port]; "" for a URL that doesn't parse (a bad port in course HTML), so it
     never matches the Canvas origin."""
     parts = urlsplit(url)
+    scheme = parts.scheme.lower()
     try:
-        port = f":{parts.port}" if parts.port else ""
+        port = parts.port
     except ValueError:
         return ""
-    return f"{parts.scheme}://{(parts.hostname or '').lower()}{port}"
+    if port == DEFAULT_PORTS.get(scheme):
+        port = None  # https://x:443 and https://x are the same origin
+    return f"{scheme}://{(parts.hostname or '').lower()}{f':{port}' if port else ''}"
 
 
 def _body(response: httpx.Response) -> str:

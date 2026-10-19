@@ -291,6 +291,19 @@ def test_internal_links_are_rewritten(settings: Settings):
     assert p.rewrite_internal_link(cfg, "https://other.example/courses/1/pages/x") is None
 
 
+async def test_default_ports_are_the_same_origin(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    p, cfg, creds = _cfg(settings)
+    mock.get(f"{API}/courses/3/pages").mock(
+        side_effect=lambda request: Response(200, json=[{"url": "b", "title": "B"}])
+        if request.url.params.get("page") == "2"
+        else Response(200, json=[{"url": "a", "title": "A"}],
+                      headers={"link": f'<{CANVAS}:443/api/v1/courses/3/pages?page=2>; rel="next"'})
+    )  # fmt: skip
+    assert [page.ref for page in await p.pages(io, cfg, creds, "3")] == ["a", "b"]
+
+
 def test_links_with_bad_ports_are_not_internal(settings: Settings):
     p, cfg, _ = _cfg(settings)
     assert p.rewrite_internal_link(cfg, "https://example.edu:notaport/courses/1/pages/a") is None

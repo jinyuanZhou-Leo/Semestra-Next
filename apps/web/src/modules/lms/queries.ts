@@ -1,13 +1,26 @@
 import type { QueryClient } from '@tanstack/react-query'
 
-/** Generated query ids that show LMS state; refetched after a change (and via SSE). */
+/**
+ * Generated query ids that show LMS state or content read through a connection; refetched after
+ * a change (and via SSE), so a relinked course or edited connection never shows the old data.
+ */
 export const LMS_QUERIES = [
   'lmsConnectionList',
   'lmsProgramBindingGet',
   'lmsCoursesList',
   'lmsCourseLinkGet',
   'lmsCourseCheckUpdates',
+  'lmsCourseOverview',
   'lmsAssignmentsList',
+  'lmsAnnouncementsList',
+  'lmsGradesList',
+  'lmsModulesList',
+  'lmsModuleItemsList',
+  'lmsPagesList',
+  'lmsPageGet',
+  'lmsQuizzesList',
+  'lmsSyllabusGet',
+  'lmsFileGet',
 ]
 
 export function invalidateLms(queryClient: QueryClient) {
