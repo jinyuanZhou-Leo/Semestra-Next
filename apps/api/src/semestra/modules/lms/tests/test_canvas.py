@@ -295,6 +295,27 @@ async def test_calendar_batches_context_codes(settings: Settings, io: Io, mock: 
     assert {c.request.url.params["type"] for c in route.calls} == {"event", "assignment"}
 
 
+@pytest.mark.parametrize(
+    ("url", "kept"),
+    [
+        ("https://canvas.example.edu/courses/1", True),
+        (" HTTP://canvas.example.edu/x", True),
+        ("javascript:alert(1)", False),
+        ("data:text/html,x", False),
+        ("canvas-student://open", False),
+    ],
+)
+def test_platform_links_must_be_web_links(url: str, kept: bool):
+    from semestra.modules.lms.schemas.dto import LmsCalendarEvent, RichText
+
+    event = LmsCalendarEvent.model_validate(
+        {"external_id": "e1", "external_course_id": "1", "kind": "event", "title": "T",
+         "start_at": datetime(2026, 1, 1, tzinfo=UTC), "web_url": url}
+    )  # fmt: skip
+    assert (event.web_url is not None) is kept
+    assert (RichText(web_url=url).web_url is not None) is kept
+
+
 def test_internal_links_are_rewritten(settings: Settings):
     p, cfg, _ = _cfg(settings)
     page = p.rewrite_internal_link(cfg, f"{CANVAS}/courses/101/pages/week-1")

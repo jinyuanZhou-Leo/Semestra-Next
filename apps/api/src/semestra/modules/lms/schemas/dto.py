@@ -2,9 +2,10 @@
 fields hold the provider's raw HTML until the module cleans it (`html.clean`)."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 LmsFeature = Literal[
     "courses",
@@ -51,9 +52,21 @@ NavKind = Literal[
 ]
 
 
+def _web_only(value: object) -> object:
+    """Platform links end up in `href`s and `window.open`: anything but http(s) is dropped."""
+    if not isinstance(value, str):
+        return value
+    value = value.strip()
+    return value if urlsplit(value).scheme.lower() in ("http", "https") else None
+
+
+# A link to the platform's own web page; provider data, so the scheme is checked.
+WebUrl = Annotated[str | None, BeforeValidator(_web_only)]
+
+
 class Dto(BaseModel):
     external_id: str
-    web_url: str | None = Field(default=None, description="Opens the item on the platform")
+    web_url: WebUrl = Field(default=None, description="Opens the item on the platform")
     raw_kind: str | None = Field(default=None, description="The platform's own type (debugging)")
 
 
@@ -185,7 +198,7 @@ class Quiz(Dto):
 
 class RichText(BaseModel):
     html: str | None = None
-    web_url: str | None = None
+    web_url: WebUrl = None
 
 
 class FileMeta(Dto):
