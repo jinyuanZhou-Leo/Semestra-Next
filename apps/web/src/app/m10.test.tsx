@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import template from '@/modules/_template/manifest'
 import plugins from '@/modules/plugins/manifest'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { SidebarProvider } from '@/ui/sidebar'
 import { openCommandPalette } from './commands'
 import { CommandCenter } from './commands/CommandCenter'
 import type { ModuleManifest, Scope } from './extensions'
@@ -370,7 +371,9 @@ test('a failed job stays listed while its list is open and goes once it closes',
   )
   renderWithRouter(
     <ModuleRegistry value={[]}>
-      <StatusBar />
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
     </ModuleRegistry>,
   )
   const user = userEvent.setup()
