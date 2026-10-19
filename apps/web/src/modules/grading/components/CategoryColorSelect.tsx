@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { m } from '@/paraglide/messages'
 import { categoryColor } from '../display'
 
@@ -36,7 +37,7 @@ function Dot({ color, large }: { color: string; large?: boolean }) {
       aria-hidden
       className={cn(
         'inline-block shrink-0 self-center rounded-full',
-        large ? 'size-4 ring-1 ring-foreground/10' : 'size-2.5',
+        large ? 'size-5 ring-1 ring-foreground/10' : 'size-2.5',
       )}
       style={{ backgroundColor: categoryColor(color) }}
     />
@@ -59,14 +60,22 @@ export function CategoryColorSelect({
   if (!items.some((i) => i.value === value)) items.push({ value, label: value })
   return (
     <Select value={value} items={items} onValueChange={(next) => next && onChange(String(next))}>
-      <SelectTrigger
-        aria-label={label}
-        title={items.find((i) => i.value === value)?.label ?? value}
-        className="w-auto gap-1.5 bg-transparent hover:bg-muted"
-      >
-        {/* Only the dot: the table row has no room for the name, the list shows it. */}
-        <SelectValue>{(selected: string) => <Dot color={selected} large />}</SelectValue>
-      </SelectTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <SelectTrigger
+              aria-label={label}
+              // Only the dot, like `ColorDotPicker`: the list shows the names.
+              className="size-8 justify-center bg-transparent p-0 hover:bg-muted [&>svg:last-child]:hidden"
+            />
+          }
+        >
+          <SelectValue>{(selected: string) => <Dot color={selected} large />}</SelectValue>
+        </TooltipTrigger>
+        <TooltipContent>
+          {label}: {items.find((i) => i.value === value)?.label ?? value}
+        </TooltipContent>
+      </Tooltip>
       <SelectContent>
         <SelectGroup>
           {items.map((item) => (

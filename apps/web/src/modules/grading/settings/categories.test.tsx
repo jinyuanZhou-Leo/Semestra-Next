@@ -53,3 +53,31 @@ test('categories reorder from the row menu and switch off with a plain "In use" 
   await user.click(within(table).getByRole('switch', { name: 'In use: Exam' }))
   await waitFor(() => expect(patches).toEqual([{ archived: true }]))
 })
+
+test('a failed reorder puts the rows back without an unhandled rejection', async () => {
+  let attempts = 0
+  server.use(
+    http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)),
+    http.put(`${API}/courses/c1/grading-category-order`, () => {
+      attempts += 1
+      return HttpResponse.json(
+        { error: { code: 'common.internal', params: {}, request_id: 'r1' } },
+        { status: 500 },
+      )
+    }),
+  )
+  const user = userEvent.setup()
+  renderWithRouter(
+    <CourseGradingSection scope={{ kind: 'course', programId: 'p1', courseId: 'c1' }} />,
+  )
+  const table = await screen.findByRole('table', { name: 'Categories' })
+  await user.click(within(table).getByRole('button', { name: 'Actions for Quiz' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Move down' }))
+  await waitFor(() => expect(attempts).toBe(1))
+  await waitFor(() => {
+    const names = within(table)
+      .getAllByRole('textbox', { name: 'Category name' })
+      .map((input) => (input as HTMLInputElement).value)
+    expect(names).toEqual(['Quiz', 'Exam'])
+  })
+})

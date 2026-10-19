@@ -302,7 +302,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
               body: { category_ids: ids },
             })
           }
-          dragLabel={(c) => m.grading_category_drag({ name: categoryName(c) })}
+          rowName={categoryName}
           footer={
             adding ? (
               <form

@@ -472,7 +472,7 @@ function DefaultCategories({
           onReorder={async (keys) =>
             apply(keys.flatMap((key) => items.filter((t) => t.key === key)))
           }
-          dragLabel={(t) => m.grading_category_drag({ name: t.name })}
+          rowName={(t) => t.name}
           footer={
             adding ? (
               <form

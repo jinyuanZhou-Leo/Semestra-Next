@@ -36,7 +36,7 @@ import {
   DropdownMenuSubTrigger,
 } from '@/ui/dropdown-menu'
 import { Input } from '@/ui/input'
-import { TYPE_ICONS } from '../icons'
+import { TYPE_ICON_LABELS, TYPE_ICONS } from '../icons'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 
@@ -136,7 +136,7 @@ function ActionsCell({ row }: CellProps) {
             {Object.entries(TYPE_ICONS).map(([key, Icon]) => (
               <DropdownMenuRadioItem key={key} value={key}>
                 <Icon aria-hidden />
-                {key}
+                {TYPE_ICON_LABELS[key]?.() ?? key}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
@@ -263,7 +263,7 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
               body: { event_type_ids: ids },
             })
           }
-          dragLabel={(t) => m.schedule_type_drag({ code: t.code })}
+          rowName={(t) => t.code}
           footer={
             adding ? (
               <form onSubmit={submit} className="flex flex-wrap items-center gap-2 px-4 py-3">

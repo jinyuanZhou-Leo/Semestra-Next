@@ -1,9 +1,12 @@
 import {
+  type Active,
   closestCenter,
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
+  type Over,
   PointerSensor,
+  type UniqueIdentifier,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -23,7 +26,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, GripVertical, MoreHorizontal } from 'lucide-react'
-import { createContext, type ReactNode, use, useState } from 'react'
+import { createContext, type ReactNode, use, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -68,8 +71,8 @@ type Props<T extends RowData> = {
    * that order until the returned promise settles, so a row does not jump back while saving.
    */
   onReorder?: (ids: string[]) => Promise<unknown>
-  /** The drag handle's accessible name for a row, e.g. "Move Quizzes". */
-  dragLabel?: (row: T) => string
+  /** The row's name for the drag handle and the drag announcements, e.g. "Quiz". */
+  rowName?: (row: T) => string
   /** Under the last row, e.g. an `ActionRow` that adds an entry or a short form. */
   footer?: ReactNode
 }
@@ -82,10 +85,13 @@ export function SettingsTable<T extends RowData>({
   getRowId,
   columnClassName = {},
   onReorder,
-  dragLabel,
+  rowName,
   footer,
 }: Props<T>) {
   const [pending, setPending] = useState<string[] | null>(null)
+  // Only the latest reorder clears the shown order, so a second drag made while the first is
+  // still saving does not flash back to the server's order.
+  const latest = useRef(0)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -99,7 +105,15 @@ export function SettingsTable<T extends RowData>({
   const reorder = (next: string[]) => {
     if (!onReorder) return
     setPending(next)
-    void onReorder(next).finally(() => setPending(null))
+    latest.current += 1
+    const request = latest.current
+    void onReorder(next)
+      // A failed save is already reported by the caller's `onError`; the rows go back to the
+      // server's order.
+      .catch(() => {})
+      .finally(() => {
+        if (latest.current === request) setPending(null)
+      })
   }
   const move = (id: string, by: -1 | 1) => {
     const from = ids.indexOf(id)
@@ -120,7 +134,11 @@ export function SettingsTable<T extends RowData>({
           <SortableRow
             key={row.id}
             row={row}
-            dragLabel={dragLabel?.(row.original) ?? m.common_drag_to_reorder()}
+            dragLabel={
+              rowName
+                ? m.common_drag_row({ name: rowName(row.original) })
+                : m.common_drag_to_reorder()
+            }
             columnClassName={columnClassName}
             table={table}
           />
@@ -171,9 +189,37 @@ export function SettingsTable<T extends RowData>({
     </div>
   )
   if (!sortable) return frame
+  const nameOf = (id: UniqueIdentifier) => {
+    const row = rows.find((r) => getRowId(r) === String(id))
+    return row && rowName ? rowName(row) : String(ids.indexOf(String(id)) + 1)
+  }
+  const place = (id: UniqueIdentifier | undefined) => ({
+    position: id === undefined ? 0 : ids.indexOf(String(id)) + 1,
+    total: ids.length,
+  })
+  const accessibility = {
+    screenReaderInstructions: { draggable: m.common_drag_instructions() },
+    announcements: {
+      onDragStart: ({ active }: { active: Active }) =>
+        m.common_drag_picked({ name: nameOf(active.id) }),
+      onDragOver: ({ active, over }: { active: Active; over: Over | null }) =>
+        over ? m.common_drag_moved({ name: nameOf(active.id), ...place(over.id) }) : undefined,
+      onDragEnd: ({ active, over }: { active: Active; over: Over | null }) =>
+        over
+          ? m.common_drag_dropped({ name: nameOf(active.id), ...place(over.id) })
+          : m.common_drag_cancelled({ name: nameOf(active.id) }),
+      onDragCancel: ({ active }: { active: Active }) =>
+        m.common_drag_cancelled({ name: nameOf(active.id) }),
+    },
+  }
   return (
     <ReorderContext value={{ ids, move }}>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        accessibility={accessibility}
+        onDragEnd={onDragEnd}
+      >
         {frame}
       </DndContext>
     </ReorderContext>
