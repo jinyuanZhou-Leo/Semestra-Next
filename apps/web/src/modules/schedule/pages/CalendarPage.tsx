@@ -28,6 +28,7 @@ import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { firstDayOfWeek } from '@/lib/format'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { useCourses, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
@@ -352,21 +353,21 @@ function TermCalendar({
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <ToggleGroup
               aria-label={m.schedule_view()}
-              variant="outline"
               size="sm"
+              className={SEGMENTED}
               value={[view]}
               onValueChange={(value) => value[0] && changeView(value[0] as CalendarView)}
             >
-              <ToggleGroupItem value="week">
+              <ToggleGroupItem value="week" className={SEGMENT}>
                 {m.settings_calendar_default_view_option_week()}
               </ToggleGroupItem>
-              <ToggleGroupItem value="month">
+              <ToggleGroupItem value="month" className={SEGMENT}>
                 {m.settings_calendar_default_view_option_month()}
               </ToggleGroupItem>
-              <ToggleGroupItem value="list">
+              <ToggleGroupItem value="list" className={SEGMENT}>
                 {m.settings_calendar_default_view_option_list()}
               </ToggleGroupItem>
-              <ToggleGroupItem value="timetable">
+              <ToggleGroupItem value="timetable" className={SEGMENT}>
                 {m.settings_calendar_default_view_option_timetable()}
               </ToggleGroupItem>
             </ToggleGroup>

@@ -18,6 +18,7 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
+import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
@@ -137,6 +138,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
             <ColorPicker
               label={m.academics_course_color()}
               inheritLabel={m.academics_color_use_subject()}
+              inheritColor={subjectColor(course.subject_color)}
               value={color}
               onChange={(next) => {
                 setColor(next)

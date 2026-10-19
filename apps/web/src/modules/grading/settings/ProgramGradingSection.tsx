@@ -9,7 +9,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { SettingRow, SettingsBlock, SettingsGroup, useAutosave } from '@/app/settings'
+import {
+  ChoiceControl,
+  SettingRow,
+  SettingsBlock,
+  SettingsGroup,
+  useAutosave,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -18,16 +24,7 @@ import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item } from '@/ui/item'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { PresetSelect } from '../components/PresetSelect'
@@ -64,9 +61,25 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
   const [forecast, setForecast] = useState(scale.default_forecast_model)
   const [hide, setHide] = useState(scale.hide_gpa)
   const forecastItems = [
-    { value: 'auto', label: m.grading_forecast_auto() },
-    { value: 'simple_minimum_needed', label: m.grading_forecast_simple() },
-  ]
+    { value: 'auto', label: m.grading_forecast_auto(), hint: m.grading_forecast_auto_hint() },
+    {
+      value: 'simple_minimum_needed',
+      label: m.grading_forecast_simple(),
+      hint: m.grading_forecast_simple_hint(),
+    },
+  ] as const
+  const attributionItems = [
+    {
+      value: 'end_term',
+      label: m.grading_year_rule_end_term(),
+      hint: m.grading_year_rule_end_term_hint(),
+    },
+    {
+      value: 'split_evenly',
+      label: m.grading_year_rule_split(),
+      hint: m.grading_year_rule_split_hint(),
+    },
+  ] as const
   return (
     <div className="space-y-6">
       <BandEditor key={JSON.stringify([scale.bands, scale.max_points])} scale={scale} />
@@ -76,49 +89,30 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
           labelId={attributionId}
           description={m.grading_year_rule_hint()}
         >
-          <ToggleGroup
-            aria-labelledby={attributionId}
-            variant="outline"
-            size="sm"
-            value={[attribution]}
-            onValueChange={([picked]) => {
-              if (!picked) return
-              const next = picked === 'split_evenly' ? 'split_evenly' : 'end_term'
+          <ChoiceControl
+            labelId={attributionId}
+            options={attributionItems}
+            value={attribution}
+            onChange={(next) => {
               setAttribution(next)
               queue({ year_course_attribution: next })
             }}
-          >
-            <ToggleGroupItem value="end_term">{m.grading_year_rule_end_term()}</ToggleGroupItem>
-            <ToggleGroupItem value="split_evenly">{m.grading_year_rule_split()}</ToggleGroupItem>
-          </ToggleGroup>
+          />
         </SettingRow>
         <SettingRow
           label={m.grading_default_forecast()}
           labelId={forecastId}
           description={m.grading_default_forecast_hint()}
         >
-          <Select
+          <ChoiceControl
+            labelId={forecastId}
+            options={forecastItems}
             value={forecast}
-            items={forecastItems}
-            onValueChange={(next) => {
-              const model = next === 'simple_minimum_needed' ? next : 'auto'
+            onChange={(model) => {
               setForecast(model)
               queue({ default_forecast_model: model })
             }}
-          >
-            <SelectTrigger aria-labelledby={forecastId} className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {forecastItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          />
         </SettingRow>
         <SettingRow
           label={m.grading_hide_gpa()}

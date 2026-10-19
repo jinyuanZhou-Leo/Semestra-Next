@@ -8,13 +8,8 @@ import { CollapsibleTrigger } from '@/ui/collapsible'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { capabilityTitle } from '../labels'
 
-/**
- * The rounded list classes for groups that hold `size="sm"` items somewhere inside: `ItemGroup`
- * widens its gap when it contains one (`has-data-[size=sm]:gap-2.5`), which would make the rows
- * jump apart when a folded list opens. `overflow-hidden` keeps row backgrounds inside the corners.
- */
-export const FOLD_GROUP_CLASS =
-  'gap-0 overflow-hidden rounded-2xl border has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0'
+/** The rounded list classes for foldable groups: `overflow-hidden` keeps row backgrounds inside the corners. */
+export const FOLD_GROUP_CLASS = 'overflow-hidden rounded-2xl border'
 
 /** The "63 tools ⌄" button that opens a folded list; sits in a row's `ItemActions`. */
 export function FoldTrigger({ count, describedBy }: { count: number; describedBy?: string }) {

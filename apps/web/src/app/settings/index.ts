@@ -1,4 +1,5 @@
 export { useAutosave } from './autosave'
+export { type ChoiceOption, ChoiceControl } from './choice'
 export { DangerZone } from './DangerZone'
 export { NamespaceForm } from './NamespaceForm'
 export { SettingsDialog } from './SettingsDialog'

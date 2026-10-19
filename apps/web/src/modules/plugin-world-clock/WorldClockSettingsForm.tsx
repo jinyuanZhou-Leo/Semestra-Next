@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { Fragment, useId, useState } from 'react'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Badge } from '@/ui/badge'
@@ -15,7 +16,6 @@ import {
   ItemSeparator,
   ItemTitle,
 } from '@/ui/item'
-import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { MAX_ZONES, type WorldClockSettings } from './schema'
 import { searchZones, zoneLabel } from '@/lib/zones'
@@ -114,37 +114,26 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
           onChange={(event) => onChange({ ...value, label: event.target.value || undefined })}
         />
       </Field>
-      <ItemGroup className="gap-0 rounded-2xl border">
-        <Item render={<li />}>
-          <ItemContent>
-            <ItemTitle>
-              <Label id={`${id}-seconds`}>{m.world_clock_settings_show_seconds_label()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
+      <SettingsGroup>
+        <SettingRow key="seconds" label={m.world_clock_settings_show_seconds_label()}>
+          {(labelId) => (
             <Switch
-              aria-labelledby={`${id}-seconds`}
+              aria-labelledby={labelId}
               checked={value.show_seconds}
               onCheckedChange={(show_seconds) => onChange({ ...value, show_seconds })}
             />
-          </ItemActions>
-        </Item>
-        <ItemSeparator className="my-0" />
-        <Item render={<li />}>
-          <ItemContent>
-            <ItemTitle>
-              <Label id={`${id}-offset`}>{m.world_clock_settings_show_offset_label()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
+          )}
+        </SettingRow>
+        <SettingRow key="offset" label={m.world_clock_settings_show_offset_label()}>
+          {(labelId) => (
             <Switch
-              aria-labelledby={`${id}-offset`}
+              aria-labelledby={labelId}
               checked={value.show_offset}
               onCheckedChange={(show_offset) => onChange({ ...value, show_offset })}
             />
-          </ItemActions>
-        </Item>
-      </ItemGroup>
+          )}
+        </SettingRow>
+      </SettingsGroup>
     </div>
   )
 }

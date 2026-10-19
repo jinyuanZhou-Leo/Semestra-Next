@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Switch } from '@/ui/switch'
 import {
   Select,
   SelectContent,
@@ -10,11 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { ChoiceControl, type FollowChoice } from './choice'
 import type { FieldDescriptor } from './schema'
-import { optionLabel } from './texts'
+import { optionHint, optionLabel } from './texts'
 
 /** The choice that stands for "follow the level above" next to a field's own values. */
 const FOLLOW = '__follow__'
@@ -109,20 +108,6 @@ function NumberControl({ field, id, labelId, value, onChange }: ControlProps) {
   )
 }
 
-/** The "follow" segment, with where the value comes from and what it is in its tooltip. */
-function FollowItem({ inherit }: { inherit: Inheritance }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<ToggleGroupItem value={FOLLOW} />}>
-        {m.settings_follow()}
-      </TooltipTrigger>
-      <TooltipContent>
-        {m.settings_follow_option({ level: inherit.from, value: inherit.valueText })}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
 /**
  * A typed field that can follow: a choice between following and a value of this level, and the
  * input once it has one. Taking a value starts from the followed one.
@@ -153,93 +138,51 @@ function FollowOrOwn(props: ControlProps & { inherit: Inheritance }) {
           </SelectGroup>
         </SelectContent>
       </Select>
-      {inherit.following ? null : <PlainControl {...props} />}
+      {inherit.following ? null : <PlainControl {...props} inherit={undefined} />}
     </div>
   )
 }
 
 export function FieldControlView(props: ControlProps) {
-  const { namespace, field, id, labelId, value, onChange, inherit } = props
+  const { field, inherit } = props
   if (!inherit) return <PlainControl {...props} />
-  const followLabel = m.settings_follow_option({ level: inherit.from, value: inherit.valueText })
-  switch (field.control) {
-    case 'switch':
-      return (
-        <ToggleGroup
-          aria-labelledby={labelId}
-          value={[inherit.following ? FOLLOW : String(value === true)]}
-          onValueChange={(next) => {
-            if (next[0] === FOLLOW) inherit.follow()
-            else if (next[0]) onChange(next[0] === 'true')
-          }}
-          variant="outline"
-          size="sm"
-        >
-          <FollowItem inherit={inherit} />
-          <ToggleGroupItem value="true">{m.settings_switch_on()}</ToggleGroupItem>
-          <ToggleGroupItem value="false">{m.settings_switch_off()}</ToggleGroupItem>
-        </ToggleGroup>
-      )
-    case 'segmented':
-      return (
-        <ToggleGroup
-          aria-labelledby={labelId}
-          value={[inherit.following ? FOLLOW : String(value)]}
-          onValueChange={(next) => {
-            if (next[0] === FOLLOW) inherit.follow()
-            else if (next[0]) onChange(field.options.find((o) => String(o) === next[0]))
-          }}
-          variant="outline"
-          size="sm"
-        >
-          <FollowItem inherit={inherit} />
-          {field.options.map((o) => (
-            <ToggleGroupItem key={String(o)} value={String(o)}>
-              {optionLabel(namespace, field.key, o)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      )
-    case 'select':
-      return (
-        <Select
-          value={inherit.following ? FOLLOW : String(value)}
-          items={[
-            { value: FOLLOW, label: followLabel },
-            ...field.options.map((o) => ({
-              value: String(o),
-              label: optionLabel(namespace, field.key, o),
-            })),
-          ]}
-          onValueChange={(next) => {
-            if (next === FOLLOW) inherit.follow()
-            else onChange(field.options.find((o) => String(o) === next))
-          }}
-        >
-          <SelectTrigger id={id} aria-labelledby={labelId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={FOLLOW}>{followLabel}</SelectItem>
-              {field.options.map((o) => (
-                <SelectItem key={String(o)} value={String(o)}>
-                  {optionLabel(namespace, field.key, o)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      )
-    default:
-      return <FollowOrOwn {...props} inherit={inherit} />
+  if (field.control === 'number' || field.control === 'time' || field.control === 'text') {
+    return <FollowOrOwn {...props} inherit={inherit} />
   }
+  return (
+    <PlainControl
+      {...props}
+      follow={{
+        selected: inherit.following,
+        short: m.settings_follow(),
+        full: m.settings_follow_option({ level: inherit.from, value: inherit.valueText }),
+        onSelect: inherit.follow,
+      }}
+    />
+  )
 }
 
-function PlainControl(props: ControlProps) {
-  const { namespace, field, id, labelId, value, onChange } = props
+/** A field's own control; `follow` adds the "follow the level above" choice to choice controls. */
+function PlainControl(props: ControlProps & { follow?: FollowChoice }) {
+  const { namespace, field, id, labelId, value, onChange, follow } = props
   switch (field.control) {
     case 'switch':
+      // A switch cannot show a third state, so a following one becomes Follow / On / Off.
+      if (follow) {
+        return (
+          <ChoiceControl
+            id={id}
+            labelId={labelId}
+            options={[
+              { value: 'true', label: m.settings_switch_on() },
+              { value: 'false', label: m.settings_switch_off() },
+            ]}
+            value={String(value === true)}
+            onChange={(next) => onChange(next === 'true')}
+            follow={follow}
+          />
+        )
+      }
       return (
         <Switch
           id={id}
@@ -249,47 +192,23 @@ function PlainControl(props: ControlProps) {
         />
       )
     case 'segmented':
+    case 'select': {
+      const options = field.options.map((o) => ({
+        value: String(o),
+        label: optionLabel(namespace, field.key, o),
+        hint: optionHint(namespace, field.key, o),
+      }))
       return (
-        <ToggleGroup
-          aria-labelledby={labelId}
-          value={[String(value)]}
-          onValueChange={(next) => {
-            if (next[0]) onChange(field.options.find((o) => String(o) === next[0]))
-          }}
-          variant="outline"
-          size="sm"
-        >
-          {field.options.map((o) => (
-            <ToggleGroupItem key={String(o)} value={String(o)}>
-              {optionLabel(namespace, field.key, o)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      )
-    case 'select':
-      return (
-        <Select
+        <ChoiceControl
+          id={id}
+          labelId={labelId}
+          options={options}
           value={String(value)}
-          items={field.options.map((o) => ({
-            value: String(o),
-            label: optionLabel(namespace, field.key, o),
-          }))}
-          onValueChange={(next) => onChange(field.options.find((o) => String(o) === next))}
-        >
-          <SelectTrigger id={id} aria-labelledby={labelId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {field.options.map((o) => (
-                <SelectItem key={String(o)} value={String(o)}>
-                  {optionLabel(namespace, field.key, o)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          onChange={(next) => onChange(field.options.find((o) => String(o) === next))}
+          follow={follow}
+        />
       )
+    }
     case 'number':
       return <NumberControl {...props} />
     case 'time':
