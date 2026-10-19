@@ -129,6 +129,18 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   expect(screen.queryByText(/abcdefgh/)).toBeNull()
 })
 
+test('a failed check that keeps the connection usable still shows on its row', async () => {
+  server.use(
+    http.get(`${API}/lms/providers`, () => HttpResponse.json(PROVIDERS)),
+    http.get(`${API}/lms/connections`, () =>
+      HttpResponse.json({ items: [connection({ last_error_code: 'lms.unreachable' })] }),
+    ),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  expect(await screen.findByText("The platform can't be reached right now")).toBeInTheDocument()
+  expect(screen.queryByText('Connected')).not.toBeInTheDocument()
+})
+
 test('deleting a connection in use says what it unlinks and detaches everything', async () => {
   const removed = vi.fn<(url: string) => void>()
   server.use(
