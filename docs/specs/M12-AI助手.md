@@ -19,7 +19,7 @@
 agent_sessions
   id, user_id, program_id?, title?, scope JSON (创建时的作用域), pinned (bool), created_at, updated_at, archived_at?
 agent_messages
-  id, session_id, user_id, role ('user'|'assistant'|'tool'), content JSON (blocks: text | image_ref | file_ref | tool_call | tool_result | proposal_ref | citation),
+  id, session_id, user_id, role ('user'|'assistant'|'tool'), content JSON (blocks: text | image_ref | file_ref | tool_call | tool_result | proposal_ref | citation | reasoning（只回放给同一模型，不返回前端）),
   model?, input_tokens?, output_tokens?, created_at
 agent_proposals
   id, session_id, user_id, message_id, capability, args JSON, preview JSON,

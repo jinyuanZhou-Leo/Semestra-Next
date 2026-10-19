@@ -61,29 +61,31 @@ class ProviderAdapter:
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> Completion:
         model = chat_model(client, ep, req.model)
+        source = convert.source(ep, req)
         response = await _retrying(
             lambda: model_request(
                 model,
-                convert.to_messages(req),
+                convert.to_messages(req, source),
                 model_settings=convert.settings(self.kind, req),
                 model_request_parameters=convert.parameters(self.kind, model, req),
                 instrument=False,
             ),
             req.model,
         )
-        return convert.completion(response, req)
+        return convert.completion(response, req, source)
 
     async def stream(
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> AsyncIterator[Chunk]:
         model = chat_model(client, ep, req.model)
+        source = convert.source(ep, req)
         async with AsyncExitStack() as stack:
 
             async def start():
                 return await stack.enter_async_context(
                     model_request_stream(
                         model,
-                        convert.to_messages(req),
+                        convert.to_messages(req, source),
                         model_settings=convert.settings(self.kind, req),
                         model_request_parameters=convert.parameters(self.kind, model, req),
                         instrument=False,
@@ -108,7 +110,7 @@ class ProviderAdapter:
                 raise
             except Exception as exc:
                 raise map_error(exc, req.model) from None
-        done = convert.completion(response, req)
+        done = convert.completion(response, req, source)
         for call in done.tool_calls:
             yield Chunk(tool_call=call)
         yield Chunk(done=done)

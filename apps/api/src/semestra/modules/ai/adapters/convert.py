@@ -13,6 +13,7 @@ from pydantic_ai.messages import (
     ModelResponsePart,
     SystemPromptPart,
     TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
     UserContent,
@@ -24,13 +25,19 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from semestra.modules.ai.adapters.base import DEFAULT_MAX_TOKENS, ChatRequest, json_instruction
+from semestra.modules.ai.adapters.base import (
+    DEFAULT_MAX_TOKENS,
+    ChatRequest,
+    Endpoint,
+    json_instruction,
+)
 from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS, REASONING_KINDS
 from semestra.modules.ai.llm import (
     Completion,
     Document,
     Image,
     Message,
+    Reasoning,
     StopReason,
     Text,
     ToolCall,
@@ -65,9 +72,15 @@ def _system(req: ChatRequest) -> str:
     return system
 
 
-def to_messages(req: ChatRequest) -> list[ModelMessage]:
+def source(ep: Endpoint, req: ChatRequest) -> str:
+    """Where reasoning came from: it is only sent back to the same provider and model."""
+    return f"{ep.kind}:{ep.provider_id or 'instance'}:{req.model}"
+
+
+def to_messages(req: ChatRequest, source: str) -> list[ModelMessage]:
     """Neutral messages → Pydantic AI requests and responses. System text goes first; consecutive
-    turns of the same side are merged (tool results and the user's next words are one request)."""
+    turns of the same side are merged (tool results and the user's next words are one request).
+    Reasoning goes back only to the provider and model that produced it (`source`)."""
     out: list[ModelMessage] = []
     requests: list[ModelRequestPart] = []
     responses: list[ModelResponsePart] = []
@@ -88,7 +101,18 @@ def to_messages(req: ChatRequest) -> list[ModelMessage]:
         if msg.role == "assistant":
             flush_requests()
             for part in msg.content:
-                if isinstance(part, Text):
+                if isinstance(part, Reasoning):
+                    if part.source == source:
+                        responses.append(
+                            ThinkingPart(
+                                part.content,
+                                id=part.id,
+                                signature=part.signature,
+                                provider_name=part.provider_name,
+                                provider_details=part.details,
+                            )
+                        )
+                elif isinstance(part, Text):
                     responses.append(TextPart(part.text))
                 elif isinstance(part, ToolCall):
                     responses.append(ToolCallPart(part.name, part.arguments, tool_call_id=part.id))
@@ -186,15 +210,38 @@ def usage(raw: RequestUsage) -> Usage:
 _STOP: dict[str, StopReason] = {"stop": "end", "length": "max_tokens", "tool_call": "tool_use"}
 
 
+def _arguments(part: ToolCallPart) -> dict[str, Any]:
+    """Malformed arguments become `{}`: the tool then reports the missing fields to the model."""
+    try:
+        return part.args_as_dict(raise_if_invalid=True)
+    except ValueError, AssertionError:
+        return {}
+
+
 def tool_calls(response: ModelResponse) -> list[ToolCall]:
     return [
-        ToolCall(part.tool_call_id, part.tool_name, part.args_as_dict())
+        ToolCall(part.tool_call_id, part.tool_name, _arguments(part))
         for part in response.parts
         if isinstance(part, ToolCallPart)
     ]
 
 
-def completion(response: ModelResponse, req: ChatRequest) -> Completion:
+def reasoning(response: ModelResponse, source: str) -> list[Reasoning]:
+    return [
+        Reasoning(
+            source,
+            part.content,
+            id=part.id,
+            signature=part.signature,
+            provider_name=part.provider_name,
+            details=part.provider_details,
+        )
+        for part in response.parts
+        if isinstance(part, ThinkingPart)
+    ]
+
+
+def completion(response: ModelResponse, req: ChatRequest, source: str) -> Completion:
     text = "".join(part.content for part in response.parts if isinstance(part, TextPart))
     calls = tool_calls(response)
     stop = _STOP.get(response.finish_reason or "stop", "other")
@@ -211,4 +258,5 @@ def completion(response: ModelResponse, req: ChatRequest) -> Completion:
         stop_reason=stop,
         usage=usage(response.usage),
         model=response.model_name or req.model,
+        reasoning=reasoning(response, source),
     )

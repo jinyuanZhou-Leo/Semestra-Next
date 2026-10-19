@@ -27,7 +27,7 @@ from semestra.modules.agent import history, service, skills, tools
 from semestra.modules.agent.context import system_prompt
 from semestra.modules.agent.models import AgentProposal, AgentSession
 from semestra.modules.agent.runtime import agent_ctx
-from semestra.modules.ai import Completion, Message, ToolCall, wrap_untrusted
+from semestra.modules.ai import Completion, Message, Reasoning, ToolCall, wrap_untrusted
 from semestra.modules.ai import catalog as ai_catalog
 
 log = structlog.get_logger()
@@ -351,8 +351,23 @@ async def _stream(
     yield text
 
 
-def _assistant_blocks(text: str, calls: Sequence[ToolCall]) -> list[dict[str, Any]]:
-    blocks: list[dict[str, Any]] = [{"type": "text", "text": text}] if text else []
+def _assistant_blocks(
+    text: str, calls: Sequence[ToolCall], reasoning: Sequence[Reasoning] = ()
+) -> list[dict[str, Any]]:
+    # Reasoning is sent back to the same model next turn (history.py); clients never see it.
+    blocks: list[dict[str, Any]] = [
+        {
+            "type": "reasoning",
+            "source": r.source,
+            "content": r.content,
+            "id": r.id,
+            "signature": r.signature,
+            "provider_name": r.provider_name,
+            "details": r.details,
+        }
+        for r in reasoning
+    ]
+    blocks += [{"type": "text", "text": text}] if text else []
     blocks += [
         {"type": "tool_call", "id": c.id, "name": c.name, "args": c.arguments} for c in calls
     ]
@@ -459,6 +474,7 @@ async def generate(
             calls,
             prepared.model.model,
             completion.usage,
+            completion.reasoning,
         )
         yield event(
             "message_end",
@@ -499,6 +515,7 @@ async def _save_assistant(
     calls: Sequence[ToolCall],
     model: str | None,
     usage: Any,
+    reasoning: Sequence[Reasoning] = (),
 ) -> None:
     if not text and not calls:
         return
@@ -508,7 +525,7 @@ async def _save_assistant(
             ctx,
             session,
             "assistant",
-            _assistant_blocks(text, calls),
+            _assistant_blocks(text, calls, reasoning),
             message_id=message_id,
             model=model,
             input_tokens=usage.input_tokens if usage else None,

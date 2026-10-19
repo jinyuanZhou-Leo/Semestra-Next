@@ -10,7 +10,16 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from semestra.modules.agent.models import AgentAttachment, AgentMessage
-from semestra.modules.ai import Document, Image, Message, Text, ToolCall, ToolResult, wrap_untrusted
+from semestra.modules.ai import (
+    Document,
+    Image,
+    Message,
+    Reasoning,
+    Text,
+    ToolCall,
+    ToolResult,
+    wrap_untrusted,
+)
 
 PENDING = "Waiting for the user's decision on the confirmation card; not executed yet."
 EXPIRED = "The confirmation card expired without a decision; the action was not executed."
@@ -104,9 +113,11 @@ async def build(
         elif row.role == "assistant":
             calls = [b for b in row.content if b.get("type") == "tool_call"]
             text = "".join(b.get("text", "") for b in row.content if b.get("type") == "text")
-            parts: list[Any] = [Text(text)] if text else []
+            parts: list[Any] = [_reasoning(b) for b in row.content if b.get("type") == "reasoning"]
+            # Reasoning alone is not a message (M06 drops it for other models).
+            parts += [Text(text)] if text else []
             parts += [ToolCall(c["id"], c["name"], c.get("args") or {}) for c in calls]
-            if parts:
+            if text or calls:
                 out.append(Message("assistant", parts))
             results, i = _call_results(rows, i + 1)
             call_ids = {c["id"] for c in calls}
@@ -137,6 +148,17 @@ async def build(
                 out.append(Message("user", [_late_note(b) for b in late]))
             i += 1
     return out
+
+
+def _reasoning(block: dict[str, Any]) -> Reasoning:
+    return Reasoning(
+        str(block.get("source", "")),
+        str(block.get("content") or ""),
+        id=block.get("id"),
+        signature=block.get("signature"),
+        provider_name=block.get("provider_name"),
+        details=block.get("details"),
+    )
 
 
 def estimate_tokens(messages: Sequence[Message]) -> int:

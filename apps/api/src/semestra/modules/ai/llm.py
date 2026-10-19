@@ -65,7 +65,23 @@ class ToolResult:
     is_error: bool = False
 
 
-Part = Text | Image | Document | ToolCall | ToolResult
+@dataclass(frozen=True)
+class Reasoning:
+    """A model's reasoning (Claude thinking, an OpenAI reasoning item), kept as the provider sent
+    it so the next turn can send it back. Opaque to callers: `signature` may be encrypted.
+
+    Only replayed to the provider and model that produced it (`source`); others ignore it.
+    """
+
+    source: str  # "<provider kind>:<provider id>:<model>"
+    content: str = ""
+    id: str | None = None
+    signature: str | None = None
+    provider_name: str | None = None
+    details: dict[str, Any] | None = None
+
+
+Part = Text | Image | Document | ToolCall | ToolResult | Reasoning
 Role = Literal["system", "user", "assistant", "tool"]
 
 
@@ -118,6 +134,8 @@ class Completion:
     usage: Usage = field(default_factory=Usage)
     provider_kind: str = ""
     model: str = ""
+    # Send back with the assistant's message on the next turn (`Message.assistant(*reasoning, …)`).
+    reasoning: list[Reasoning] = field(default_factory=lambda: [])
 
 
 @dataclass(frozen=True)

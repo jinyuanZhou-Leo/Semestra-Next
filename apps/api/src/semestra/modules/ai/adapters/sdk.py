@@ -19,6 +19,7 @@ import httpx
 from anthropic import AsyncAnthropic
 from google.genai import Client as GoogleClient
 from openai import AsyncOpenAI
+from openai import omit as OMIT
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
@@ -84,6 +85,14 @@ def google_client(client: httpx.AsyncClient, ep: Endpoint) -> GoogleClient:
     return google_provider(client, ep).client
 
 
+class _CompatibleChatModel(OpenAIChatModel):
+    """Chat Completions at a compatible server: no `stream_options`, which some of them reject
+    (usage then comes from the final chunk when the server sends it)."""
+
+    def _get_stream_options(self, model_settings: Any) -> Any:
+        return OMIT
+
+
 def chat_model(client: httpx.AsyncClient, ep: Endpoint, model: str) -> Model:
     if ep.kind in ANTHROPIC_KINDS:
         return AnthropicModel(
@@ -103,4 +112,5 @@ def chat_model(client: httpx.AsyncClient, ep: Endpoint, model: str) -> Model:
         if ep.kind == "ollama"
         else OpenAIProvider(openai_client=oai)
     )
-    return OpenAIChatModel(model, provider=provider, profile=profile)
+    cls = _CompatibleChatModel if ep.kind == "openai_compatible" else OpenAIChatModel
+    return cls(model, provider=provider, profile=profile)

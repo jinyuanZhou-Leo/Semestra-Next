@@ -9,9 +9,9 @@ from httpx import Response
 from pydantic import BaseModel
 
 from semestra.modules import ai as m06
-from semestra.modules.ai.llm import Message, Tool, ToolCall, ToolResult
+from semestra.modules.ai.llm import Message, Reasoning, Tool, ToolCall, ToolResult
 from semestra.modules.ai.tests.conftest import Ai
-from semestra.modules.ai.tests.test_calls import anthropic_reply, usage_rows
+from semestra.modules.ai.tests.test_calls import COMPAT, anthropic_reply, openai_reply, usage_rows
 
 RESPONSES = "https://gateway.example.com/v1"
 ANTHROPIC_COMPAT = "https://llm.example.com/anthropic"
@@ -231,6 +231,92 @@ async def test_responses_rate_limit_is_retried(ai: Ai, mock: respx.MockRouter):
     assert isinstance(result, m06.Completion)
     assert result.text == "ok"
     assert route.call_count == 2
+
+
+async def test_responses_reasoning_is_sent_back(ai: Ai, mock: respx.MockRouter):
+    # store:false keeps nothing at OpenAI: the encrypted reasoning must come back next turn.
+    await responses_provider(ai, mock)
+    reasoning_item = {
+        "type": "reasoning",
+        "id": "rs_1",
+        "summary": [{"type": "summary_text", "text": "Think first."}],
+        "encrypted_content": "ENCRYPTED",
+    }
+    route = mock.post(f"{RESPONSES}/responses").mock(
+        return_value=responses_reply([reasoning_item, message_item("4")])
+    )
+    async with ai.ctx() as ctx:
+        first = await m06.complete(ctx, "chat", [Message.user("2+2?")], source_module="t")
+        assert isinstance(first, m06.Completion)
+        assert [r.signature for r in first.reasoning] == ["ENCRYPTED"]
+        assert (
+            "reasoning.encrypted_content" in json.loads(route.calls.last.request.content)["include"]
+        )
+        follow_up = [Message.user("2+2?"), Message.assistant(*first.reasoning, "4")]
+        await m06.complete(ctx, "chat", [*follow_up, Message.user("and 3+3?")], source_module="t")
+        sent = json.loads(route.calls.last.request.content)["input"]
+        [item] = [i for i in sent if i.get("type") == "reasoning"]
+        assert (item["id"], item["encrypted_content"]) == ("rs_1", "ENCRYPTED")
+        # Reasoning from another provider or model is left out.
+        other = Reasoning("openai_responses:elsewhere:gpt-5", "x", id="rs_2", signature="E2")
+        await m06.complete(
+            ctx, "chat", [Message.user("hi"), Message.assistant(other, "hey")], source_module="t"
+        )
+        sent = json.loads(route.calls.last.request.content)["input"]
+        assert not [i for i in sent if i.get("type") == "reasoning"]
+
+
+# --- OpenAI-compatible ----------------------------------------------------------------------
+
+
+async def compatible_chat(ai: Ai, mock: respx.MockRouter) -> None:
+    mock.get(f"{COMPAT}/models").mock(return_value=Response(200, json={"data": []}))
+    provider = await ai.provider("openai_compatible", capabilities=["chat", "tools"])
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={"purpose": "chat", "provider_id": provider["id"], "model": "ds"},
+    )
+
+
+async def test_compatible_stream_sends_no_stream_options(ai: Ai, mock: respx.MockRouter):
+    await compatible_chat(ai, mock)
+    chunks = [
+        {
+            "id": "c",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "ds",
+            "choices": [{"index": 0, "delta": {"content": "Hi"}, "finish_reason": "stop"}],
+        },
+    ]
+    sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+    route = mock.post(f"{COMPAT}/chat/completions").mock(
+        return_value=Response(200, text=sse, headers={"content-type": "text/event-stream"})
+    )
+    async with ai.ctx() as ctx:
+        stream = await m06.complete(
+            ctx, "chat", [Message.user("hi")], stream=True, source_module="t"
+        )
+        assert not isinstance(stream, m06.Completion)
+        out = [c async for c in stream]
+    assert out[-1].done is not None
+    assert out[-1].done.text == "Hi"
+    body = json.loads(route.calls.last.request.content)
+    assert body["stream"] is True
+    assert "stream_options" not in body
+
+
+async def test_malformed_tool_arguments_become_empty(ai: Ai, mock: respx.MockRouter):
+    await compatible_chat(ai, mock)
+    bad = [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": '{"a": '}}]
+    mock.post(f"{COMPAT}/chat/completions").mock(return_value=openai_reply(None, bad))
+    async with ai.ctx() as ctx:
+        result = await m06.complete(
+            ctx, "chat", [Message.user("x")], tools=[Tool("f", "d", {})], source_module="t"
+        )
+    assert isinstance(result, m06.Completion)
+    assert result.tool_calls == [ToolCall("c1", "f", {})]
 
 
 # --- Anthropic-compatible -------------------------------------------------------------------
