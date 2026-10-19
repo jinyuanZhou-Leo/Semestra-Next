@@ -76,6 +76,6 @@ test('a meeting added on the course page shows in the term calendar and today (M
   await expect(page.getByTestId('grid-item').filter({ hasText: 'APS105H1 LEC' })).toBeVisible()
 
   await page.goto(`${programPath}/today`)
-  await expect(page.getByRole('heading', { level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
   await expect(page.getByText("Today's classes")).toBeVisible()
 })

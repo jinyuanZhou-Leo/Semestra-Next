@@ -4,14 +4,22 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
  * Host actions that commands trigger on whatever is on screen: the board of the page, its tab
  * bar, the shortcut help. The component that can do it registers a handler while mounted; the
  * most recently mounted one wins. `board.shown` only says that a board is on screen outside
- * edit mode, so the tab bar can offer its "Edit layout" button even while editing is not yet
- * possible. `settings.plugins` opens the plugin group of the settings dialog. A command is
- * offered only while its action has a handler.
+ * edit mode, so the page header can offer its "Edit layout" button even while editing is not yet
+ * possible. `header.shown` says a page header is on screen (it then hosts the board's edit
+ * buttons); `board.editing`, `board.done` and `board.default.*` are what that header runs
+ * while the board is being edited. `settings.plugins` opens the plugin group of the settings
+ * dialog. A command is offered only while its action has a handler.
  */
 export type HostAction =
   | 'board.edit'
   | 'board.add'
   | 'board.shown'
+  | 'board.editing'
+  | 'board.done'
+  | 'board.default.save'
+  | 'board.default.restore'
+  | 'board.default.reset'
+  | 'header.shown'
   | 'nav.manage'
   | 'hotkeys.help'
   | 'settings.plugins'

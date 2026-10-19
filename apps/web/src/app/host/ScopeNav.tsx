@@ -1,5 +1,5 @@
 import { useRouter } from '@tanstack/react-router'
-import { MoreHorizontal, Pencil } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -11,23 +11,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type Scope, scopePath } from '../extensions'
-import { runHostAction, useHasHostAction, useHostAction } from '../commands/bus'
-import { formatHotkey } from '../hotkeys'
+import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
 
 /**
  * The tab bar of a scope (M10 §5.1): its available pages in the user's order, without hidden
- * ones, and a "⋯" menu to manage them.
+ * ones, and a "⋯" menu to manage them. ("Edit layout" lives in the page header.)
  */
 export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?: string }) {
   const { pages } = useScopePages(scope)
   const router = useRouter()
   const [managing, setManaging] = useState(false)
-  const hasBoard = useHasHostAction('board.shown')
-  const canEditBoard = useHasHostAction('board.edit')
-  const editLabel = `${m.board_edit()} (${formatHotkey('e')})`
   useHostAction('nav.manage', () => setManaging(true))
 
   const follow = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -63,34 +60,26 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
           )
         })}
       </nav>
-      {hasBoard ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="mb-1 shrink-0"
-          aria-label={m.board_edit()}
-          title={editLabel}
-          disabled={!canEditBoard}
-          onClick={() => runHostAction('board.edit')}
-          data-tour="board-edit"
-        >
-          <Pencil aria-hidden />
-        </Button>
-      ) : null}
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="mb-1 shrink-0"
-              aria-label={m.host_nav_more()}
-              title={m.host_nav_more()}
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="mb-1 shrink-0"
+                    aria-label={m.host_nav_more()}
+                  />
+                }
+              />
+            }
+          >
+            <MoreHorizontal aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{m.host_nav_more()}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
             <DropdownMenuItem onClick={() => setManaging(true)}>

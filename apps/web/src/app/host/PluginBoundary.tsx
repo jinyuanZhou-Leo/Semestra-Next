@@ -16,7 +16,10 @@ import {
 
 type State = { error: unknown }
 
-class ErrorBoundary extends Component<{ children: ReactNode; compact?: boolean }, State> {
+class ErrorBoundary extends Component<
+  { children: ReactNode; compact?: boolean; silent?: boolean },
+  State
+> {
   state: State = { error: null }
 
   static getDerivedStateFromError(error: unknown): State {
@@ -29,6 +32,7 @@ class ErrorBoundary extends Component<{ children: ReactNode; compact?: boolean }
 
   render() {
     if (this.state.error == null) return this.props.children
+    if (this.props.silent) return null
     const retry = (
       <Button variant="outline" size="sm" onClick={() => this.setState({ error: null })}>
         {m.common_retry()}
@@ -70,12 +74,23 @@ export function LoadingBlock({ className }: { className?: string }) {
 
 /**
  * Isolates a module's page or card (M10 §5.1): a crash shows a retry instead of taking the
- * page down, and lazy code shows a skeleton while it loads.
+ * page down, and lazy code shows a skeleton while it loads. `silent` is for a fixed-height line
+ * such as a page header's subtitle: a failure or a load shows nothing instead of a block.
  */
-export function PluginBoundary({ children, compact }: { children: ReactNode; compact?: boolean }) {
+export function PluginBoundary({
+  children,
+  compact,
+  silent,
+}: {
+  children: ReactNode
+  compact?: boolean
+  silent?: boolean
+}) {
   return (
-    <ErrorBoundary compact={compact}>
-      <Suspense fallback={<LoadingBlock className={compact ? undefined : 'h-40'} />}>
+    <ErrorBoundary compact={compact} silent={silent}>
+      <Suspense
+        fallback={silent ? null : <LoadingBlock className={compact ? undefined : 'h-40'} />}
+      >
         {children}
       </Suspense>
     </ErrorBoundary>
