@@ -13,6 +13,13 @@ from semestra.modules.academics.models import (
     AcademicsTerm,
     AcademicsTermCourseOrder,
 )
+from semestra.modules.agent.models import (
+    AgentAttachment,
+    AgentMessage,
+    AgentPreferences,
+    AgentProposal,
+    AgentSession,
+)
 from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEvent
 from semestra.modules.files.models import (
     FilesChunk,
@@ -129,7 +136,12 @@ async def populate(
         credentials_hint_json={"token": "…xyz"},
         account_name="Alice",
     )
-    db.add_all([category, meeting, card, provider, task_list, folder, import_session, connection])
+    chat = AgentSession(
+        **u, program_id=program.id, title="Plan the week", created_at=NOW, updated_at=NOW
+    )
+    db.add_all(
+        [category, meeting, card, provider, task_list, folder, import_session, connection, chat]
+    )
     await db.flush()
     # A link: a stored file needs storage, see `test_course_files_travel_with_their_contents`.
     link = FilesItem(
@@ -153,6 +165,9 @@ async def populate(
             link,
             course_link,
             LmsProgramBinding(**u, program_id=program.id, connection_id=connection.id),
+            chat_message := AgentMessage(
+                **u, session_id=chat.id, role="assistant", content=[], created_at=NOW
+            ),
         ]
     )
     await db.flush()
@@ -272,6 +287,25 @@ async def populate(
                 snapshot={"title": "Midterm"},
                 imported_at=NOW,
             ),
+            AgentProposal(
+                **u,
+                session_id=chat.id,
+                message_id=chat_message.id,
+                call_id="call-1",
+                capability="tasks.item.create",
+                args={"title": "Read chapter 3"},
+                created_at=NOW,
+            ),
+            AgentAttachment(
+                **u,
+                session_id=chat.id,
+                kind="file",
+                name="notes.txt",
+                storage_key=f"users/{user_id}/agent/x",
+                mime="text/plain",
+                size=10,
+                created_at=NOW,
+            ),
             LmsCache(
                 **u,
                 key=f"{connection.id}:courses",
@@ -313,6 +347,7 @@ async def populate(
                 PluginsInstallation(**u, plugin_id="pomodoro", installed_at=NOW),
                 PluginsDefaultOffer(**u, plugin_id="pomodoro"),
                 AiModelAssignment(**u, purpose="chat", provider_id=provider.id, model="gpt-5"),
+                AgentPreferences(**u, auto_approve=["tasks.item.create"], updated_at=NOW),
             ]
         )
     await db.commit()
