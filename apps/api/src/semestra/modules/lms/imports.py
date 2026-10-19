@@ -22,6 +22,7 @@ from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsItem, ImportsSession
 from semestra.modules.imports.schemas import Confidence, NewItem, SessionCreateInput, SessionTarget
 from semestra.modules.lms import html, reads, service
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.io import (
     AssignmentsImportInput,
@@ -327,7 +328,13 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
             changes["title"] = FieldUpdate(old=then.get("title"), new=now["title"])
         if not _same_time(now["due_at"], then.get("due_at")):
             changes["due_at"] = FieldUpdate(old=then.get("due_at"), new=now["due_at"])
-        if now["points"] != then.get("points") and ref.target_kind == "assessment":
+        # Points only matter here through the weight they give (imports don't copy points), so
+        # an unweighted course's point change is nothing the user could apply.
+        if (
+            now["points"] != then.get("points")
+            and ref.target_kind == "assessment"
+            and ref.external_id in weights
+        ):
             changes["points"] = FieldUpdate(old=then.get("points"), new=now["points"])
         # Snapshots from before weights were recorded have no "weight" key: nothing to compare.
         if (
@@ -464,13 +471,20 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         i.id: i
         for i in await ctx.db.scalars(select(ImportsItem).where(ImportsItem.session_id == row.id))
     }
+    links: dict[str, LmsCourseLink] = {}
+    for link_id in {info["link_id"] for info in meta.values()}:
+        link = await ctx.db.get(LmsCourseLink, link_id)
+        if link is None:
+            # Unlinked or linked to another platform course since the session started (a
+            # relink replaces the row): roll the whole commit back rather than write untracked
+            # items or apply changes from the old course.
+            raise lms_error("lms.course_not_linked")
+        links[link_id] = link
     for item_id, info in meta.items():
         item = items.get(item_id)
         if item is None:
             continue
-        link = await ctx.db.get(LmsCourseLink, info["link_id"])
-        if link is None:
-            continue
+        link = links[info["link_id"]]
         if kind == "updates":
             # Accepted or rejected, the user has seen this version: stop reporting it.
             target_kind = item.type.removesuffix("_patch")

@@ -35,6 +35,11 @@ export function ConnectionStatus({ connection }: { connection: Connection }) {
     const code = connection.last_error_code ?? 'lms.credentials_missing'
     return <Badge variant="destructive">{errorMessage({ error: { code, params: {} } })}</Badge>
   }
+  if (connection.last_error_code) {
+    // A transient failure (unreachable, rate limited) keeps the connection usable.
+    const code = connection.last_error_code
+    return <Badge variant="outline">{errorMessage({ error: { code, params: {} } })}</Badge>
+  }
   return <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
 }
 
