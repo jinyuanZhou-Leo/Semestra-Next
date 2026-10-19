@@ -1,5 +1,6 @@
 import type { AssessmentCreateInputBody } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
 
 /**
@@ -24,3 +25,11 @@ export type AssessmentImportSource = {
 }
 
 export const ASSESSMENT_IMPORT_SOURCES = 'grading.assessmentImportSources'
+
+/** Notices above a course's gradebook, e.g. M09's "assignments changed on the LMS". */
+export type CourseGradesBanner = {
+  id: string
+  component: ComponentType<{ programId: string; courseId: string }>
+}
+
+export const COURSE_GRADES_BANNERS = 'grading.courseGradesBanners'

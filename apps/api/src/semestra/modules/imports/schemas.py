@@ -14,7 +14,17 @@ from semestra.modules.academics.schemas import Credits, Id, Instructor
 
 SourceKind = Literal["ics", "syllabus", "timetable_image", "lms", "text", "agent"]
 SessionStatus = Literal["extracting", "ready", "committing", "committed", "failed", "discarded"]
-ItemType = Literal["course", "meeting", "event", "category", "assessment", "task", "course_patch"]
+ItemType = Literal[
+    "course",
+    "meeting",
+    "event",
+    "category",
+    "assessment",
+    "task",
+    "course_patch",
+    "assessment_patch",
+    "task_patch",
+]
 Decision = Literal["accept", "reject", "pending"]
 Confidence = Literal["high", "medium", "low"]
 TargetKind = Literal["term_wizard", "term", "course"]
@@ -62,6 +72,22 @@ PatchField = Literal[
 class CoursePatchData(BaseModel):
     course_id: Id
     changes: dict[PatchField, FieldChange]
+
+
+class AssessmentPatchData(BaseModel):
+    """Changes to an existing assessment (M09 LMS updates)."""
+
+    assessment_id: Id
+    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
+    changes: dict[Literal["title", "due_date", "due_time", "weight"], FieldChange]
+
+
+class TaskPatchData(BaseModel):
+    """Changes to an existing task (M09 LMS updates)."""
+
+    task_id: Id
+    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
+    changes: dict[Literal["title", "due_date", "due_time"], FieldChange]
 
 
 class MeetingData(BaseModel):
@@ -119,6 +145,8 @@ class AssessmentData(BaseModel):
     due_text: Text200 | None = None
     note: Annotated[str, Field(max_length=2000)] | None = None
     source_ref: Annotated[str, Field(max_length=200)] | None = None
+    # Fields of the other kind, kept while the user has switched the item (M09).
+    held: dict[str, Any] | None = None
 
 
 class TaskData(BaseModel):
@@ -130,11 +158,15 @@ class TaskData(BaseModel):
     priority: Literal["none", "low", "medium", "high"] = "none"
     notes: Annotated[str, Field(max_length=2000)] | None = None
     source_ref: Annotated[str, Field(max_length=500)] | None = None
+    # Fields of the other kind, kept while the user has switched the item (M09).
+    held: dict[str, Any] | None = None
 
 
 DATA_MODELS: dict[str, type[BaseModel]] = {
     "course": CourseData,
     "course_patch": CoursePatchData,
+    "assessment_patch": AssessmentPatchData,
+    "task_patch": TaskPatchData,
     "meeting": MeetingData,
     "event": EventData,
     "category": CategoryData,
@@ -283,6 +315,9 @@ class ItemUpdateInput(BaseModel):
         default=None, description="Fields to change; merged into the item's data"
     )
     decision: Decision | None = Field(default=None, description="accept, reject or pending")
+    type: Literal["assessment", "task"] | None = Field(
+        default=None, description="Turn an assessment item into a task or back"
+    )
 
 
 class BulkDecideInput(BaseModel):

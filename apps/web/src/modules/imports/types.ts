@@ -1,4 +1,5 @@
 import type { ImportItem, ImportSessionDetail, SessionTarget } from '@semestra/api-client'
+import type { ComponentType } from 'react'
 
 /**
  * The draft fields of each item type (`ImportItem.data`), as the backend stores them
@@ -19,6 +20,8 @@ export type CourseData = {
 
 export type FieldChange = { old?: unknown; new?: unknown; apply?: boolean }
 export type CoursePatchData = { course_id: string; changes: Record<string, FieldChange> }
+/** `assessment_patch` / `task_patch` (M09 LMS updates); `label` names the item. */
+export type TargetPatchData = { label?: string; changes: Record<string, FieldChange> }
 
 export type MeetingData = {
   course_ref: string
@@ -77,18 +80,36 @@ export type ItemType = ImportItem['type']
 export type ImportSourceKind = 'ics' | 'syllabus' | 'timetable_image' | 'text'
 
 /**
+ * The first step of the import dialog for a source that creates the session itself, e.g. M09's
+ * LMS course and assignment pickers. `component` calls `onStarted` with the new session.
+ */
+export type ImportPicker = {
+  title: () => string
+  hint: () => string
+  component: ComponentType<{ onStarted: (session: ImportSessionDetail) => void }>
+}
+
+/**
  * What an import source asks the import dialog for. `wizard` stops after the review and hands
  * the courses to the term wizard (the rest is written once the term exists); `direct` commits
  * from the dialog.
  */
 export type ImportRequest = {
   programId: string
-  source: ImportSourceKind
-  target: SessionTarget
   mode: 'wizard' | 'direct'
-  /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
-  sourceMeta?: Record<string, unknown>
-}
+} & (
+  | {
+      source: ImportSourceKind
+      target: SessionTarget
+      /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
+      sourceMeta?: Record<string, unknown>
+    }
+  | { source: 'picker'; picker: ImportPicker }
+  /** A session created elsewhere (e.g. M09's review of changed assignments): straight to the review. */
+  | { source: 'session'; sessionId: string; title: () => string }
+)
+
+export type FileImportRequest = Extract<ImportRequest, { source: ImportSourceKind }>
 
 /** null when the user closed the dialog without finishing. */
 export type ImportOutcome = { session: ImportSessionDetail } | null

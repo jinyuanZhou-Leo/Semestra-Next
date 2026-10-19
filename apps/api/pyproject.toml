@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.28.1",
     "icalendar>=7.3.0",
     "mcp>=2.3.0",
+    "nh3>=0.3.7",
     "openpyxl>=3.1.5",
     "pillow>=13.0.0",
     "pillow-heif>=1.8.1",

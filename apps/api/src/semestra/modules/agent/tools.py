@@ -155,9 +155,19 @@ class Catalog:
         return next((c for c in self.available if c.name == name), None)
 
 
-# Results that quote the text of the user's files (M07): wrapped as untrusted content, like
-# attachments, so instructions inside a document are not taken as the user's.
-UNTRUSTED_RESULTS = frozenset({"files.search", "files.document.read", "files.document.outline"})
+# Results that quote text other people wrote (the user's files, M07; LMS content, M09):
+# wrapped as untrusted content, like attachments, so instructions inside are not the user's.
+UNTRUSTED_RESULTS = frozenset(
+    {
+        "files.search",
+        "files.document.read",
+        "files.document.outline",
+        "lms.announcements.list",
+        "lms.assignments.list",
+        "lms.page.get",
+        "lms.syllabus.get",
+    }
+)
 
 
 def serialize(result: Any) -> str:
