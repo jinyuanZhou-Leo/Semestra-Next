@@ -1,6 +1,7 @@
 import type { ItemOut } from '@semestra/api-client'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
 import { http, HttpResponse } from 'msw'
 import { type ReactNode, useEffect } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
@@ -27,9 +28,24 @@ vi.mock('react-pdf', () => ({
   Page: ({ pageNumber }: { pageNumber: number }) => <p>PDF page {pageNumber}</p>,
 }))
 
-beforeAll(() => server.listen())
+beforeAll(async () => {
+  server.listen()
+  // fetch is Node's (undici), which cannot send jsdom's FormData, Blob and File on Node 26;
+  // these tests use Node's own, as a browser would use its own.
+  const nativeFormData = (
+    await new Response('a=1', {
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    }).formData()
+  ).constructor
+  vi.stubGlobal('FormData', nativeFormData)
+  vi.stubGlobal('Blob', NodeBlob)
+  vi.stubGlobal('File', NodeFile)
+})
 afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
+afterAll(() => {
+  server.close()
+  vi.unstubAllGlobals()
+})
 
 const scope: Scope = { kind: 'course', programId: 'p1', courseId: 'c1' }
 
@@ -60,7 +76,7 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
 }
 
 let items: ItemOut[] = []
-let uploads: FormData[] = []
+let uploads: string[] = []
 let prefs: { key: string; body: unknown }[] = []
 
 beforeEach(() => {
@@ -101,7 +117,7 @@ beforeEach(() => {
       }),
     ),
     http.post(`${API}/courses/c1/files`, async ({ request }) => {
-      uploads.push(await request.formData())
+      uploads.push(await request.text())
       return HttpResponse.json({ items: [item({ id: 'new', display_name: 'notes.txt' })] })
     }),
     http.post(`${API}/programs/p1/files\\:search`, () =>
@@ -139,7 +155,8 @@ test('files dropped anywhere on the page are uploaded to the course', async () =
   fireEvent.drop(window, { dataTransfer })
 
   await waitFor(() => expect(uploads).toHaveLength(1))
-  expect(await (uploads[0]!.get('files') as Blob).text()).toBe('hello')
+  expect(uploads[0]).toContain('filename="notes.txt"')
+  expect(uploads[0]).toContain('hello')
   expect(screen.queryByText('Drop files to upload to All files')).not.toBeInTheDocument()
   expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
 })
