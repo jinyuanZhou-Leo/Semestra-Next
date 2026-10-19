@@ -224,7 +224,7 @@ function TermCourses({
                 className="size-2 shrink-0 rounded-full"
                 style={{ backgroundColor: courseColor(course) }}
               />
-              <span>{courseLabel(course)}</span>
+              <span className="truncate">{courseLabel(course)}</span>
               {course.term_ids.length > 1 ? (
                 <Repeat
                   aria-label={m.academics_course_year_long()}
@@ -286,7 +286,7 @@ function TermItem({
         }
       >
         <CalendarDays aria-hidden />
-        <span>{term.name}</span>
+        <span className="truncate">{term.name}</span>
         {term.is_current ? (
           <span className="shrink-0 rounded-4xl bg-primary/10 px-1.5 text-[0.625rem] font-medium text-primary">
             {m.academics_term_current_badge()}

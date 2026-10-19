@@ -118,6 +118,42 @@ test('the sidebar lists terms, the current one expanded, year-long courses in bo
   expect(screen.queryByRole('button', { name: 'Switch program' })).not.toBeInTheDocument()
 })
 
+test('the sidebar offers each entry once and leaves page tabs to the page', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await within(nav).findByRole('link', { name: /APS105H1/ })
+  // Overview is the first tab of the page; the Program header and the breadcrumbs lead back to it.
+  expect(within(nav).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument()
+  // Settings, pin and delete of a term live on the page header; the term menu keeps only delete.
+  await userEvent.click(within(nav).getAllByRole('button', { name: /^More for / })[0]!)
+  expect(await screen.findByRole('menuitem', { name: 'Delete term' })).toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: /settings|pin/i })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
+})
+
+test('a Program without terms says so once in the sidebar, with a single way to add one', async () => {
+  world.terms = []
+  world.courses = []
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await within(nav).findByText('No terms yet.')).toBeInTheDocument()
+  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
+})
+
+test('signing out from the account menu asks first', async () => {
+  mount('/p/p1')
+  await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }))
+  const signOut = await screen.findByRole('menuitem', { name: 'Sign out' })
+  // Settings sits in the sidebar and New program in the Program switcher; the menu repeats neither.
+  expect(screen.queryByRole('menuitem', { name: /settings|new program/i })).not.toBeInTheDocument()
+  await userEvent.click(signOut)
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).getByRole('heading', { name: 'Sign out?' })).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+})
+
 test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async () => {
   const { router } = mount('/p/p1/c/c3/notes?fromTerm=t2')
   expect(await screen.findByText('Notes page')).toBeInTheDocument()
