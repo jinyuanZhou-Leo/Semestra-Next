@@ -230,3 +230,4 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 - 连接坏掉的错误（标记 `error`）包括 `lms.invalid_config`：已保存的地址后来开始重定向或资料接口 404，说明它不再是 Canvas API。
 - 两个课程导入会话选了同一门平台课程时，后提交的整体回滚（`lms.course_already_linked`），不会留下一门没关联的重复课程。
 - 文件下载跳转到端口非法的地址时报 `lms.blocked_address`。
+- 关联课程时先写入关联、再重读 Program 的绑定：查询平台期间绑定被改到别的连接时报 `lms.program_not_configured` 并回滚，不会留下走旧连接的关联。

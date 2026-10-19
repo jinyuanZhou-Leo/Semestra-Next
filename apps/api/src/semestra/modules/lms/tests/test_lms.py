@@ -270,6 +270,32 @@ async def test_a_stale_course_import_rolls_back_instead_of_duplicating(api: Api)
     assert len(courses["items"]) == 1
 
 
+async def test_a_link_is_refused_when_the_binding_moved_during_the_lookup(
+    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    other = await api.connection(display_name="Other")
+    original = type(fake).get_course
+
+    async def moving(self: FakeProvider, *args: Any) -> Any:
+        # Another request rebinds the Program while the platform is being asked.
+        async with system_ctx(app.state) as ctx:
+            from semestra.modules.lms.models import LmsProgramBinding
+
+            row = await ctx.db.get(LmsProgramBinding, program_id)
+            assert row is not None
+            row.connection_id = other["id"]
+            await ctx.db.commit()
+        return await original(self, *args)
+
+    monkeypatch.setattr(type(fake), "get_course", moving)
+    err = await api.link(course, "101", 409)
+    assert err["error"]["code"] == "lms.program_not_configured"
+    state = await api.call("GET", f"/courses/{course}/lms-link")
+    assert state["link"] is None
+
+
 async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider):
     program_id, term_id, conn = await setup_program(api)
     course = await api.course(program_id, term_id)
