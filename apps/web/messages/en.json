@@ -746,6 +746,8 @@
   "grading_band_letter": "Letter",
   "grading_band_add": "Add band",
   "grading_band_remove": "Remove band",
+  "grading_band_remove_confirm": "Remove this grade range from the scale? Save the scale to apply it.",
+  "grading_default_category_remove_confirm": "Remove \"{name}\" from the default categories? Courses that already exist keep theirs.",
   "grading_max_points": "Top points",
   "grading_preset": "Preset",
   "grading_preset_uoft_4_0": "University of Toronto (4.0)",

@@ -86,7 +86,19 @@ function cityOfId(tz: string): string {
 export function zoneLabel(tz: string, locale: string): string {
   const city = CITIES.find((c) => c.tz === tz)
   if (city) return isChinese(locale) ? city.zh : city.en
-  return cityOfId(tz)
+  // No curated Chinese city name: use the browser's own Chinese zone name ("西部非洲标准时间")
+  // rather than an English city in an otherwise Chinese list.
+  return isChinese(locale) ? (genericName(tz, locale) ?? cityOfId(tz)) : cityOfId(tz)
+}
+
+function genericName(tz: string, locale: string): string | undefined {
+  try {
+    return new Intl.DateTimeFormat(locale, { timeZone: tz, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date())
+      .find((part) => part.type === 'timeZoneName')?.value
+  } catch {
+    return undefined
+  }
 }
 
 /** Every curated city name (both languages) of `tz`, lower-cased: one zone can have several. */

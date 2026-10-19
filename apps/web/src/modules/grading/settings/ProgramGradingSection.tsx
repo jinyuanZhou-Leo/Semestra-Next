@@ -162,6 +162,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const queryClient = useQueryClient()
   const presets = useScalePresets().data?.items
   const [rows, setRows] = useState(() => toRows(scale.bands))
+  const [removingBand, setRemovingBand] = useState<number | null>(null)
   const [maxPoints, setMaxPoints] = useState(String(scale.max_points))
   const [presetId, setPresetId] = useState('uoft_4_0')
   const [confirming, setConfirming] = useState(false)
@@ -257,7 +258,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
                     variant="destructive"
                     size="icon-sm"
                     aria-label={`${m.grading_band_remove()} ${i + 1}`}
-                    onClick={() => setRows(rows.filter((_, index) => index !== i))}
+                    onClick={() => setRemovingBand(i)}
                   >
                     <Trash2 aria-hidden />
                   </Button>
@@ -313,6 +314,17 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         </Button>
       </div>
       <ConfirmDialog
+        open={removingBand !== null}
+        onOpenChange={(open) => !open && setRemovingBand(null)}
+        title={m.grading_band_remove()}
+        description={m.grading_band_remove_confirm()}
+        confirmLabel={m.grading_band_remove()}
+        onConfirm={() => {
+          setRows(rows.filter((_, index) => index !== removingBand))
+          setRemovingBand(null)
+        }}
+      />
+      <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
         title={m.grading_preset_reset()}
@@ -341,6 +353,7 @@ function DefaultCategories({
 }) {
   const [items, setItems] = useState<CategoryTemplate[]>([...initial])
   const [draft, setDraft] = useState('')
+  const [removing, setRemoving] = useState<number | null>(null)
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
     if (next.every((t) => t.name.trim() !== '')) onChange(next)
@@ -389,7 +402,7 @@ function DefaultCategories({
               variant="destructive"
               size="icon-sm"
               aria-label={`${m.grading_category_remove()}: ${item.name}`}
-              onClick={() => apply(items.filter((_, index) => index !== i))}
+              onClick={() => setRemoving(i)}
             >
               <Trash2 aria-hidden />
             </Button>
@@ -419,6 +432,19 @@ function DefaultCategories({
           </Button>
         </Item>
       </ItemGroup>
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={m.grading_category_remove()}
+        description={m.grading_default_category_remove_confirm({
+          name: removing === null ? '' : (items[removing]?.name ?? ''),
+        })}
+        confirmLabel={m.grading_category_remove()}
+        onConfirm={() => {
+          apply(items.filter((_, index) => index !== removing))
+          setRemoving(null)
+        }}
+      />
     </section>
   )
 }

@@ -746,6 +746,8 @@
   "grading_band_letter": "字母",
   "grading_band_add": "添加区间",
   "grading_band_remove": "删除区间",
+  "grading_band_remove_confirm": "从成绩换算表中移除这个区间？保存换算表后生效。",
+  "grading_default_category_remove_confirm": "从默认分类中移除“{name}”？已有课程不受影响。",
   "grading_max_points": "满分绩点",
   "grading_preset": "预设",
   "grading_preset_uoft_4_0": "多伦多大学（4.0）",

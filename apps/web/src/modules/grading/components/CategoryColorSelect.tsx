@@ -56,7 +56,7 @@ export function CategoryColorSelect({
       <SelectTrigger aria-label={label} className="w-36">
         <SelectValue>
           {(selected: string) => (
-            <span className="flex items-center">
+            <span className="flex items-center gap-2">
               <Dot color={selected} />
               {items.find((i) => i.value === selected)?.label ?? selected}
             </span>
