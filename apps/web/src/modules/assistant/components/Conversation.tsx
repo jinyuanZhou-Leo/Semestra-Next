@@ -335,7 +335,9 @@ function AiSetupNeeded() {
       </EmptyHeader>
       <EmptyContent>
         <Button
-          onClick={() => settings.open({ level: 'account', group: 'ai', section: 'ai-providers' })}
+          onClick={() =>
+            settings.open({ level: 'account', group: 'ai-providers', section: 'ai-providers' })
+          }
         >
           {m.assistant_ai_missing_action()}
         </Button>

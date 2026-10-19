@@ -13,7 +13,11 @@ export const GROUP_ORDER: readonly SettingsGroup[] = [
   'account',
   'security',
   'preferences',
-  'ai',
+  'ai-providers',
+  'ai-models',
+  'ai-usage',
+  'ai-permissions',
+  'ai-mcp',
   'calendar',
   'features',
   'integrations',
@@ -28,13 +32,25 @@ export const GROUP_TITLES: Record<SettingsGroup, Message> = {
   account: m.settings_group_account,
   security: m.settings_group_security,
   preferences: m.settings_group_preferences,
-  ai: m.settings_group_ai,
+  'ai-providers': m.settings_group_ai_providers,
+  'ai-models': m.settings_group_ai_models,
+  'ai-usage': m.settings_group_ai_usage,
+  'ai-permissions': m.settings_group_ai_permissions,
+  'ai-mcp': m.settings_group_ai_mcp,
   calendar: m.settings_group_calendar,
   features: m.settings_group_features,
   integrations: m.settings_group_integrations,
   plugins: m.settings_group_plugins,
   data: m.settings_group_data,
   about: m.settings_group_about,
+}
+
+/**
+ * Groups that were split or renamed, so old `?settings=account/<group>` links still open the page
+ * that took their place (a `#section` in the link wins over this: see `SettingsDialog`).
+ */
+export const GROUP_ALIASES: Readonly<Record<string, SettingsGroup>> = {
+  ai: 'ai-providers',
 }
 
 export function groupOf(section: SettingsSectionContribution): SettingsGroup {
@@ -69,10 +85,11 @@ export function buildNavigation(
 }
 
 /** Headings that cluster the account settings groups in the navigation. */
-export type NavCluster = 'personal' | 'features' | 'system'
+export type NavCluster = 'personal' | 'ai' | 'features' | 'system'
 
 export const CLUSTER_TITLES: Record<NavCluster, Message> = {
   personal: m.settings_cluster_personal,
+  ai: m.settings_cluster_ai,
   features: m.settings_cluster_features,
   system: m.settings_cluster_system,
 }
@@ -81,7 +98,11 @@ const ACCOUNT_CLUSTERS: Partial<Record<SettingsGroup, NavCluster>> = {
   account: 'personal',
   security: 'personal',
   preferences: 'personal',
-  ai: 'features',
+  'ai-providers': 'ai',
+  'ai-models': 'ai',
+  'ai-usage': 'ai',
+  'ai-permissions': 'ai',
+  'ai-mcp': 'ai',
   calendar: 'features',
   features: 'features',
   integrations: 'features',

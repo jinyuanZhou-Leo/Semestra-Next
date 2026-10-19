@@ -5,19 +5,34 @@ import {
   aiProviderTestMutation,
   aiProviderUpdateMutation,
 } from '@semestra/api-client/react-query'
+import {
+  type CellContext,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Plus } from 'lucide-react'
-import { useId, useState, type FormEvent } from 'react'
+import {
+  KeyRound,
+  MoreHorizontal,
+  Pencil,
+  PlugZap,
+  Plus,
+  Power,
+  PowerOff,
+  Trash2,
+} from 'lucide-react'
+import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, SettingsGroup } from '@/app/settings'
+import { ActionRow } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import {
   Dialog,
   DialogContent,
@@ -26,22 +41,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { Switch } from '@/ui/switch'
-import { CAPABILITY_TITLES, KIND_INFO, type Capability } from '../labels'
+import { Spinner } from '@/ui/spinner'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
 import { CapabilityChecks, ProviderForm } from './ProviderForm'
 
 function StatusBadge({ provider }: { provider: Provider }) {
   if (!provider.enabled) return <Badge variant="outline">{m.ai_provider_status_off()}</Badge>
   if (provider.last_error_code) {
-    return (
-      <Badge variant="destructive">
-        {errorMessage({ error: { code: provider.last_error_code, params: {} } })}
-      </Badge>
-    )
+    return <Badge variant="destructive">{m.ai_provider_status_error()}</Badge>
   }
   return <Badge variant="secondary">{m.ai_provider_status_ok()}</Badge>
 }
@@ -151,18 +178,227 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
   )
 }
 
-function ProviderRow({
-  provider,
-  onEdit,
-  onDelete,
-}: {
-  provider: Provider
-  onEdit: () => void
-  onDelete: () => void
-}) {
+type RowHandlers = {
+  testingId: string | null
+  togglingId: string | null
+  onEdit: (provider: Provider) => void
+  onTest: (provider: Provider) => void
+  onToggle: (provider: Provider) => void
+  onDelete: (provider: Provider) => void
+}
+
+const RowContext = createContext<RowHandlers | null>(null)
+
+function useRowHandlers(): RowHandlers {
+  const handlers = use(RowContext)
+  if (!handlers) throw new Error('Provider cells render inside the providers table')
+  return handlers
+}
+
+type CellProps = CellContext<typeof features, Provider>
+
+function NameCell({ row }: CellProps) {
+  const provider = row.original
+  const Icon = KIND_INFO[provider.kind].icon
+  const details = [provider.key_hint, provider.base_url].filter(Boolean)
+  return (
+    // A switched-off provider is dimmed so the ones in use stand out.
+    <div className={cn('flex min-w-0 items-center gap-3', !provider.enabled && 'opacity-60')}>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
+        <Icon aria-hidden className="size-4 text-muted-foreground" />
+      </span>
+      <div className="min-w-0">
+        <div className="truncate font-medium">{provider.display_name}</div>
+        {details.length ? (
+          <div className="truncate text-xs text-muted-foreground">{details.join(' · ')}</div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function StatusCell({ row }: CellProps) {
+  const { testingId } = useRowHandlers()
+  const provider = row.original
+  const error =
+    provider.enabled && provider.last_error_code
+      ? errorMessage({ error: { code: provider.last_error_code, params: {} } })
+      : null
+  // Two lines in every state (the badge, or a spinner while testing, over the error or the last
+  // check), so testing a connection never changes the row's height.
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <div className="flex h-5 items-center">
+        {testingId === provider.id ? (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Spinner aria-hidden className="size-3.5" />
+            {m.ai_provider_checking()}
+          </span>
+        ) : (
+          <StatusBadge provider={provider} />
+        )}
+      </div>
+      {error ? (
+        <span className="line-clamp-2 max-w-64 text-xs whitespace-normal text-destructive">
+          {error}
+        </span>
+      ) : provider.last_checked_at ? (
+        <span className="text-xs text-muted-foreground">
+          {m.ai_provider_checked_at({ time: formatDateTime(provider.last_checked_at) })}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function ActionsCell({ row }: CellProps) {
+  const { testingId, togglingId, onEdit, onTest, onToggle, onDelete } = useRowHandlers()
+  const provider = row.original
+  const label = m.ai_provider_actions({ name: provider.display_name })
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={label}
+                  className="text-muted-foreground"
+                />
+              }
+            />
+          }
+        >
+          <MoreHorizontal aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{m.ai_provider_actions_tooltip()}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem onClick={() => onEdit(provider)}>
+          <Pencil aria-hidden />
+          {m.common_edit()}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={testingId === provider.id} onClick={() => onTest(provider)}>
+          <PlugZap aria-hidden />
+          {m.ai_provider_test()}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={togglingId === provider.id} onClick={() => onToggle(provider)}>
+          {provider.enabled ? <PowerOff aria-hidden /> : <Power aria-hidden />}
+          {provider.enabled ? m.ai_provider_disable() : m.ai_provider_enable()}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={() => onDelete(provider)}>
+          <Trash2 aria-hidden />
+          {m.common_delete()}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const features = tableFeatures({})
+const column = createColumnHelper<typeof features, Provider>()
+const columns = column.columns([
+  column.accessor((p) => p.display_name, {
+    id: 'name',
+    header: () => m.ai_provider_name(),
+    cell: NameCell,
+  }),
+  column.accessor((p) => p.kind, {
+    id: 'kind',
+    header: () => m.ai_provider_type(),
+    cell: ({ row }) => (
+      <span className={cn('text-muted-foreground', !row.original.enabled && 'opacity-60')}>
+        {KIND_INFO[row.original.kind].name()}
+      </span>
+    ),
+  }),
+  column.display({ id: 'status', header: () => m.ai_provider_status(), cell: StatusCell }),
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
+    cell: ActionsCell,
+  }),
+])
+
+const CELL_CLASS: Record<string, string> = {
+  name: 'w-full max-w-0 pl-4',
+  kind: 'hidden whitespace-nowrap sm:table-cell',
+  status: 'whitespace-nowrap',
+  actions: 'w-10 pr-3 text-right',
+}
+
+function ProvidersTable({ providers, onAdd }: { providers: Provider[]; onAdd: () => void }) {
+  const table = useTable({
+    features,
+    columns,
+    data: providers,
+    getRowId: (provider) => provider.id,
+  })
+  return (
+    <div className="overflow-hidden rounded-2xl border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id} className="hover:bg-transparent">
+              {group.headers.map((header) => (
+                <TableHead
+                  key={header.id}
+                  className={cn('text-xs text-muted-foreground', CELL_CLASS[header.column.id])}
+                >
+                  <table.FlexRender header={header} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className={cn('py-2.5', CELL_CLASS[cell.column.id])}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <div className="border-t">
+        <ActionRow icon={Plus} onClick={onAdd}>
+          {m.ai_provider_add()}
+        </ActionRow>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Account settings → AI → providers (M06 §7): the user's keys as a table of name, type and
+ * state; edit, test, switch off and delete sit in each row's "⋯" menu.
+ */
+export function ProvidersSection() {
   const queryClient = useQueryClient()
-  const info = KIND_INFO[provider.kind]
-  const Icon = info.icon
+  const providers = useQuery(aiProviderListOptions())
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Provider | null>(null)
+  // The last provider asked about stays set so the dialog keeps its text while it closes.
+  const [deleting, setDeleting] = useState<Provider | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const remove = useMutation({
+    ...aiProviderDeleteMutation(),
+    onSuccess: async () => {
+      setConfirmingDelete(false)
+      await invalidateAi(queryClient)
+    },
+    onError: (err) => {
+      setConfirmingDelete(false)
+      toastError(err)
+    },
+  })
   const test = useMutation({
     ...aiProviderTestMutation(),
     onSuccess: async (check) => {
@@ -177,78 +413,18 @@ function ProviderRow({
     onSuccess: () => invalidateAi(queryClient),
     onError: toastError,
   })
-  const details = [
-    info.name(),
-    provider.key_hint,
-    provider.base_url,
-    provider.last_checked_at
-      ? m.ai_provider_checked_at({ time: formatDateTime(provider.last_checked_at) })
-      : null,
-  ].filter(Boolean)
-
-  return (
-    <Item>
-      <ItemMedia variant="icon">
-        <Icon aria-hidden className="size-5 text-muted-foreground" />
-      </ItemMedia>
-      <ItemContent className="min-w-0 basis-56">
-        <ItemTitle>
-          <span className="truncate">{provider.display_name}</span>
-          <StatusBadge provider={provider} />
-        </ItemTitle>
-        <ItemDescription className="truncate">{details.join(' · ')}</ItemDescription>
-        <ItemDescription>
-          {provider.capabilities.map((c) => CAPABILITY_TITLES[c]()).join(' · ')}
-        </ItemDescription>
-      </ItemContent>
-      <ItemActions className="shrink-0">
-        <Switch
-          checked={provider.enabled}
-          aria-label={m.ai_provider_enabled_aria({ name: provider.display_name })}
-          disabled={toggle.isPending}
-          onCheckedChange={(enabled) =>
-            toggle.mutate({ path: { id: provider.id }, body: { enabled } })
-          }
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={test.isPending}
-          onClick={() => test.mutate({ path: { id: provider.id } })}
-        >
-          {test.isPending ? m.ai_provider_checking() : m.ai_provider_test()}
-        </Button>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          {m.common_edit()}
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          aria-label={m.ai_provider_delete_aria({ name: provider.display_name })}
-          onClick={onDelete}
-        >
-          {m.common_delete()}
-        </Button>
-      </ItemActions>
-    </Item>
-  )
-}
-
-/** Account settings → AI → providers (M06 §7): the user's keys, masked, with their state. */
-export function ProvidersSection() {
-  const queryClient = useQueryClient()
-  const providers = useQuery(aiProviderListOptions())
-  const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<Provider | null>(null)
-  const [deleting, setDeleting] = useState<Provider | null>(null)
-  const remove = useMutation({
-    ...aiProviderDeleteMutation(),
-    onSuccess: async () => {
-      setDeleting(null)
-      await invalidateAi(queryClient)
+  const handlers: RowHandlers = {
+    testingId: test.isPending ? (test.variables?.path.id ?? null) : null,
+    togglingId: toggle.isPending ? (toggle.variables?.path.id ?? null) : null,
+    onEdit: setEditing,
+    onTest: (provider) => test.mutate({ path: { id: provider.id } }),
+    onToggle: (provider) =>
+      toggle.mutate({ path: { id: provider.id }, body: { enabled: !provider.enabled } }),
+    onDelete: (provider) => {
+      setDeleting(provider)
+      setConfirmingDelete(true)
     },
-    onError: (err) => (setDeleting(null), toastError(err)),
-  })
+  }
 
   return (
     <>
@@ -262,6 +438,7 @@ export function ProvidersSection() {
                 <KeyRound aria-hidden />
               </EmptyMedia>
               <EmptyTitle>{m.ai_providers_empty()}</EmptyTitle>
+              <EmptyDescription>{m.ai_providers_empty_description()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button size="sm" onClick={() => setAdding(true)}>
@@ -273,19 +450,9 @@ export function ProvidersSection() {
         }
       >
         {(data) => (
-          <SettingsGroup>
-            {data.items.map((provider) => (
-              <ProviderRow
-                key={provider.id}
-                provider={provider}
-                onEdit={() => setEditing(provider)}
-                onDelete={() => setDeleting(provider)}
-              />
-            ))}
-            <ActionRow icon={Plus} onClick={() => setAdding(true)}>
-              {m.ai_provider_add()}
-            </ActionRow>
-          </SettingsGroup>
+          <RowContext value={handlers}>
+            <ProvidersTable providers={data.items} onAdd={() => setAdding(true)} />
+          </RowContext>
         )}
       </AsyncBoundary>
       <Dialog open={adding} onOpenChange={setAdding}>
@@ -299,8 +466,8 @@ export function ProvidersSection() {
       </Dialog>
       <EditProviderDialog provider={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
         title={m.ai_provider_delete_title()}
         description={m.ai_provider_delete_desc({ name: deleting?.display_name ?? '' })}
         confirmLabel={m.common_delete()}

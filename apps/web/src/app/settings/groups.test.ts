@@ -50,7 +50,9 @@ test('account groups are clustered under headings; scoped levels stay one run', 
     [
       section('p', { group: 'account' }),
       section('s', { group: 'security' }),
-      section('m', { group: 'ai' }),
+      section('m', { group: 'ai-models' }),
+      section('u', { group: 'ai-usage' }),
+      section('c', { group: 'calendar' }),
       section('a', { group: 'about' }),
     ],
     'account',
@@ -59,7 +61,8 @@ test('account groups are clustered under headings; scoped levels stay one run', 
     clusterNavigation(account, 'account').map((r) => [r.cluster, r.groups.map((g) => g.id)]),
   ).toEqual([
     ['personal', ['account', 'security']],
-    ['features', ['ai']],
+    ['ai', ['ai-models', 'ai-usage']],
+    ['features', ['calendar']],
     ['system', ['about']],
   ])
   const program = buildNavigation(

@@ -27,7 +27,7 @@ export default defineModule({
     {
       id: 'assistant-approvals',
       level: 'account',
-      group: 'ai',
+      group: 'ai-permissions',
       title: m.assistant_settings_approvals,
       description: m.assistant_settings_approvals_description,
       icon: ListChecks,
@@ -37,7 +37,7 @@ export default defineModule({
     {
       id: 'assistant-mcp',
       level: 'account',
-      group: 'ai',
+      group: 'ai-mcp',
       title: m.assistant_settings_mcp,
       description: m.assistant_settings_mcp_description,
       icon: Plug,
@@ -47,7 +47,7 @@ export default defineModule({
     {
       id: 'assistant-tools',
       level: 'account',
-      group: 'ai',
+      group: 'ai-mcp',
       title: m.assistant_settings_tools,
       description: m.assistant_settings_tools_description,
       icon: Wrench,

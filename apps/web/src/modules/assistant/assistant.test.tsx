@@ -629,59 +629,82 @@ test('MCP setups carry the address and the token', () => {
   expect(mcpConfig('claude-desktop', url, 'spat_x')).toContain('mcp-remote')
 })
 
-test('auto-approve lists write tools by module and saves the choice', async () => {
+test('assistant permissions group tools by effect, with a master switch for changes', async () => {
+  const tool = (name: string, effect: string, module = 'grading') => ({
+    name,
+    module,
+    summary: name,
+    effect,
+    plugin_id: null,
+    core: true,
+    mcp: true,
+  })
+  let approved: string[] = []
   const patches: unknown[] = []
   server.use(
     http.get(`${API}/agent/tools`, () =>
       HttpResponse.json({
         items: [
-          {
-            name: 'grading.assessment.list',
-            module: 'grading',
-            summary: 'List',
-            effect: 'read',
-            plugin_id: null,
-            core: true,
-            mcp: true,
-          },
-          {
-            name: 'grading.assessment.update',
-            module: 'grading',
-            summary: 'Update',
-            effect: 'write',
-            plugin_id: null,
-            core: true,
-            mcp: true,
-          },
-          {
-            name: 'grading.assessment.delete',
-            module: 'grading',
-            summary: 'Delete',
-            effect: 'destructive',
-            plugin_id: null,
-            core: false,
-            mcp: true,
-          },
+          tool('grading.assessment.list', 'read'),
+          tool('grading.assessment.update', 'write'),
+          tool('grading.assessment.create', 'write'),
+          tool('grading.assessment.delete', 'destructive'),
+          tool('layouts.card.add', 'write', 'layouts'),
         ],
       }),
     ),
     http.get(`${API}/agent/preferences`, () =>
-      HttpResponse.json({ auto_approve: [], mcp_allow_destructive: false }),
+      HttpResponse.json({ auto_approve: approved, mcp_allow_destructive: false }),
     ),
     http.patch(`${API}/agent/preferences`, async ({ request }) => {
-      const body = await request.json()
+      const body = (await request.json()) as { auto_approve: string[] }
       patches.push(body)
-      return HttpResponse.json({
-        auto_approve: ['grading.assessment.update'],
-        mcp_allow_destructive: false,
-      })
+      approved = body.auto_approve
+      return HttpResponse.json({ auto_approve: approved, mcp_allow_destructive: false })
     }),
   )
   renderWithRouter(<ApprovalsSection />)
-  const update = await screen.findByRole('checkbox', { name: 'Update an assessment' })
-  expect(screen.queryByRole('checkbox', { name: 'Delete an assessment' })).not.toBeInTheDocument()
-  expect(screen.queryByRole('checkbox', { name: /List/ })).not.toBeInTheDocument()
+  // Tools are grouped by effect; only changes have switches, and the lists start folded.
+  const all = await screen.findByRole('switch', { name: 'Auto-approve all changes' })
+  expect(all).not.toBeChecked()
+  expect(screen.getByText('0/3 auto-approved')).toBeInTheDocument()
+  expect(screen.getByText('No confirmation')).toBeInTheDocument()
+  expect(screen.getByText('Always asks')).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'Update an assessment' })).not.toBeInTheDocument()
+
+  const [, changeTools, deleteTools] = screen.getAllByRole('button', { name: /^\d tools/ })
+  await userEvent.click(deleteTools!)
+  expect(await screen.findByText('Delete an assessment')).toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: 'Delete an assessment' })).not.toBeInTheDocument()
+
+  await userEvent.click(changeTools!)
+  // A backend module without a frontend module still gets a readable name.
+  expect(
+    screen.getByRole('switch', { name: 'Auto-approve changes in Pages and cards' }),
+  ).toBeInTheDocument()
+  const update = await screen.findByRole('switch', { name: 'Update an assessment' })
   await userEvent.click(update)
   await waitFor(() => expect(patches).toEqual([{ auto_approve: ['grading.assessment.update'] }]))
   expect(update).toBeChecked()
+  // Partly on: the master switch stays off but says so.
+  expect(await screen.findByText('Partly on · 1/3')).toBeInTheDocument()
+  expect(all).not.toBeChecked()
+
+  // Turning many changes on at once asks first; cancelling changes nothing.
+  await userEvent.click(all)
+  let confirm = await screen.findByRole('alertdialog', { name: 'Auto-approve all 3 changes?' })
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+  expect(patches).toHaveLength(1)
+  await userEvent.click(all)
+  confirm = await screen.findByRole('alertdialog', { name: 'Auto-approve all 3 changes?' })
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Auto-approve' }))
+  await waitFor(() =>
+    expect(patches.at(-1)).toEqual({
+      auto_approve: ['grading.assessment.create', 'grading.assessment.update', 'layouts.card.add'],
+    }),
+  )
+  await waitFor(() => expect(all).toBeChecked())
+  // Turning them off needs no confirmation.
+  await userEvent.click(all)
+  await waitFor(() => expect(patches.at(-1)).toEqual({ auto_approve: [] }))
 })

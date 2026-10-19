@@ -169,7 +169,7 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   expect(await screen.findByText('Available once AI is connected in Settings.')).toBeInTheDocument()
   // The link opens the AI section of the account settings dialog over the current page.
   await user.click(screen.getByRole('button', { name: 'Open settings' }))
-  expect(router.state.location.search).toEqual({ settings: 'account/ai' })
+  expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' })
   expect(router.state.location.hash).toBe('ai-providers')
 
   world.providers.push(provider())
@@ -305,7 +305,7 @@ test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for
   )
 })
 
-test('a provider can be tested, switched off and deleted after confirming', async () => {
+test('a provider row shows name, type and state; its menu tests, switches off and deletes', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
   renderWithQuery(
@@ -314,22 +314,44 @@ test('a provider can be tested, switched off and deleted after confirming', asyn
       <Toaster />
     </>,
   )
-  await user.click(await screen.findByRole('button', { name: 'Test' }))
+  const table = await screen.findByRole('table')
+  const row = within(table).getAllByRole('row')[1]!
+  expect(within(row).getByText('Anthropic', { selector: '.font-medium' })).toBeInTheDocument()
+  expect(within(row).getByText('Working')).toBeInTheDocument()
+  // Actions live in one "⋯" menu instead of three buttons on the row.
+  expect(within(row).getAllByRole('button')).toHaveLength(1)
+
+  const openMenu = () =>
+    user.click(within(row).getByRole('button', { name: 'Actions for Anthropic' }))
+  await openMenu()
+  await user.click(await screen.findByRole('menuitem', { name: 'Test connection' }))
   expect(
     await screen.findByText('The API key was rejected. Check that it is correct and active.'),
   ).toBeInTheDocument()
 
-  await user.click(screen.getByRole('switch', { name: 'Use Anthropic' }))
+  await openMenu()
+  await user.click(await screen.findByRole('menuitem', { name: 'Turn off' }))
   await waitFor(() =>
     expect(requests.at(-1)).toMatchObject({ method: 'PATCH', body: { enabled: false } }),
   )
-  expect(await screen.findByText('Off')).toBeInTheDocument()
+  expect(await within(row).findByText('Off')).toBeInTheDocument()
 
-  await user.click(screen.getByRole('button', { name: 'Delete Anthropic' }))
+  await openMenu()
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
   const confirm = await screen.findByRole('alertdialog')
   await user.click(within(confirm).getByRole('button', { name: 'Delete' }))
   expect(await screen.findByText('No provider connected yet.')).toBeInTheDocument()
   expect(requests.at(-1)).toMatchObject({ method: 'DELETE', path: '/ai/providers/pv1' })
+})
+
+test('a failing provider says "Error" in its badge and the reason underneath', async () => {
+  world.providers.push(provider({ last_error_code: 'ai.invalid_key' }))
+  renderWithQuery(<ProvidersSection />)
+  const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
+  expect(within(row).getByText('Error')).toBeInTheDocument()
+  expect(
+    within(row).getByText('The API key was rejected. Check that it is correct and active.'),
+  ).toBeInTheDocument()
 })
 
 test('each purpose shows the model in use and can be switched to another model', async () => {

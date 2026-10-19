@@ -51,7 +51,9 @@ export function AiRequired({ purpose, children }: Props) {
         <Button
           variant="link"
           className="h-auto p-0 text-xs font-medium"
-          onClick={() => settings.open({ level: 'account', group: 'ai', section: 'ai-providers' })}
+          onClick={() =>
+            settings.open({ level: 'account', group: 'ai-providers', section: 'ai-providers' })
+          }
         >
           {m.ai_required_link()}
         </Button>

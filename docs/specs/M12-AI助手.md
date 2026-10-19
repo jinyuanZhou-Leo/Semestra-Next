@@ -122,10 +122,13 @@ agent_preferences
 - 命令面板（M10）中的"问 AI"把输入带入新会话。
 - AI 未配置时面板显示 `<AiRequired purpose="chat">` 引导。
 
-### 6.2 设置分区（账户级"AI 助手"，位于 M06 的 AI 分区下）
-- 自动批准列表（按模块分组的 write 能力复选框，destructive 不可选）。
-- MCP：允许删除类操作开关、端点地址、配置示例。
-- 可用工具目录（只读，按模块分组，显示本地化名称、说明与 effect）。
+### 6.2 设置分区（账户设置「AI」小标题下的两页，M11 §5.2）
+- **助手权限**（分组 `ai-permissions`，分区 `assistant-approvals`）：按 effect 分三行，每行说明这一类的规则，展开后按模块列出具体工具（默认折叠）。
+  - 读取：徽标「无需确认」，只列工具。
+  - 修改：总开关「自动批准所有修改」+「已自动批准 n/总数」；部分开启时开关为关，旁边徽标「部分开启 · n/总数」。从关闭或部分开启到全部开启要先确认（ConfirmDialog「自动批准全部 N 个修改？」，提醒小森读到的内容也可能触发），关闭不用确认。展开后每个模块一个开关（同样的规则与确认）和每个工具一个开关；工具行用 `Item size="sm"`。没有前端模块的后端模块（account、agent、calendar、core、layouts）用 `assistant_module_<id>` 文案命名。
+  - 分区标题「小森可以做什么」，说明「按效果决定哪些操作需要你确认」。
+  - 删除：徽标「始终询问」（destructive 不能自动批准），附「设置 MCP 客户端能否删除」链接跳到 MCP 页。
+- **MCP 与工具**（分组 `ai-mcp`）：`assistant-mcp`（允许删除类操作开关、端点地址、配置示例）与 `assistant-tools`（可用工具目录，只读；每个模块一行可展开，行内显示"读取 n · 修改 n · 删除 n"，展开后是本地化名称、说明与 effect 徽标）。
 
 ## 7. 本地化
 - 能力与 skill 的界面显示名：`messages` 中 `capability_<name 下划线化>_title`；由各模块在实现 capability 时一并提供（M00 CI 检查：每个 expose 含 agent 的 capability 都有中英标题）。
@@ -186,4 +189,4 @@ agent_preferences
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
 - 工作范围：新会话默认用当前页面的范围，用户选过之后以选择为准；已有会话显示并修改会话自己的范围（`agent.session.update`）。
 - 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
-- 设置分区（账户"AI"分组）：`assistant-approvals`（自动批准）、`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）、`assistant-tools`（工具目录）。
+- 设置分区（账户设置「AI」小标题，第三轮拆页）：`assistant-approvals` 在「助手权限」页（按 effect 分组 + 总开关，见 §6.2），`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）与 `assistant-tools`（工具目录）在「MCP 与工具」页。

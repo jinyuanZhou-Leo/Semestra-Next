@@ -89,8 +89,8 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 事件：`ai.provider.created|updated|deleted`、`ai.assignment.updated`（payload: purpose；M07 订阅 embedding 变化以重建向量）。前端失效：`ai.*` → `aiStatus*`、`aiProvider*`、`aiAssignment*`。
 
 ## 7. 前端
-- 账户设置分区"AI"（M11）：
-  - 提供方列表卡片（类型图标、名称、掩码 key、状态、最后检查时间），添加对话框：选择类型 → 填 key（与 base_url）→ 验证 → 保存。说明文案：key 只用于你自己的请求，加密存储。
+- 账户设置的「AI」小标题下各占一页（M11 §5.2）：服务商、模型、用量（以及 M12 的助手权限、MCP 与工具）。
+  - 服务商表（TanStack Table）：每行只显示名称（类型图标、掩码 key、base_url 作副行）、类型、状态（徽标「正常 / 已停用 / 出错」，下面一行是错误原因或最后检查时间；测试中徽标换成 Spinner，两行结构不变，行高不跳；停用的行名称与类型变淡）；行尾一个 `⋯` 图标按钮（Tooltip「更多操作」）打开 DropdownMenu：编辑、测试连接、启用/停用、删除（红色，ConfirmDialog 确认）。表尾一行「添加服务商」；没有服务商时是带说明与主按钮的 `Empty`。添加对话框：选择类型 → 填 key（与 base_url）→ 验证 → 保存。说明文案：key 只用于你自己的请求，加密存储。
   - 用途模型选择：每个 purpose 一行（下拉选择提供方+模型，显示推荐默认值）。
   - 用量：最近 30 天 token 与估算费用的柱状图（按用途堆叠）+ 明细表。
 - 全局 Hook：`useAiStatus(purpose)`；组件 `<AiRequired purpose="extraction">…</AiRequired>` 包裹 AI 触发入口：不可用时入口**保持可见但置灰**，悬停或聚焦时提示一句"在设置中连接 AI 后可用"并带"去设置"链接；不渲染大块引导卡片。只有用户主动打开 AI 相关页面（如导入中心的 AI 来源、助手面板）时，才显示完整的引导说明。
@@ -146,7 +146,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 
 **前端**
 - 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（不可用时入口置灰，外层可聚焦的包装在悬停或点击时显示一句提示和"去设置"链接）、`hooks/use-ai-fill.ts` + `components/AiFieldMark.tsx`（AI 回填表单：字段短暂高亮 2 秒、旁边的小标记显示出处页码与原文、一键恢复原值；用户改动字段后标记消失）。
-- 模块 `modules/ai/`：账户设置"功能"分组下三个分区 `ai-providers`、`ai-models`、`ai-usage`；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
+- 模块 `modules/ai/`：账户设置「AI」小标题下三个分组（页面）`ai-providers`、`ai-models`、`ai-usage`，各放同名分区；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
 - 用量明细表用 TanStack Table v9；图表是按用途堆叠的 CSS 柱状图，颜色用 `chart-1..5` 令牌。
 - `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。
 

@@ -14,6 +14,18 @@ export const EFFECT_TITLES: Record<AgentToolInfo['effect'], () => string> = {
   destructive: m.assistant_effect_destructive,
 }
 
+/**
+ * Names for backend modules that provide tools but have no frontend module of their own (or one
+ * under another id), so the lists never show a raw id like `layouts`.
+ */
+const BACKEND_MODULE_TITLES: Record<string, () => string> = {
+  account: m.assistant_module_account,
+  agent: m.assistant_module_agent,
+  calendar: m.assistant_module_calendar,
+  core: m.assistant_module_core,
+  layouts: m.assistant_module_layouts,
+}
+
 export type ToolGroup = { id: string; title: string; tools: AgentToolInfo[] }
 
 /** Tools by the module or plugin that provides them, named as the app names it. */
@@ -24,7 +36,8 @@ export function useToolGroups(tools: readonly AgentToolInfo[]): ToolGroup[] {
     const id = tool.plugin_id ?? tool.module
     let group = groups.get(id)
     if (!group) {
-      const title = modules.find((mod) => mod.id === id)?.name() ?? id
+      const title =
+        modules.find((mod) => mod.id === id)?.name() ?? BACKEND_MODULE_TITLES[id]?.() ?? id
       group = { id, title, tools: [] }
       groups.set(id, group)
     }
