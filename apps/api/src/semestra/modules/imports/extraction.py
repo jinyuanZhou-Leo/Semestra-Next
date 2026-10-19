@@ -11,6 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.imports import dates
 from semestra.modules.imports.build import (
@@ -174,9 +175,8 @@ def from_syllabus(
     course = _Fields(source)
     raw_code = _text(c.code)
     code = course.put("code", c.code, raw_code[:32]) if raw_code else None
-    title = _text(c.title) or code
-    if title:
-        course.put("title", c.title if _text(c.title) else c.code, title[:200])
+    if title := _text(c.title):
+        course.put("title", c.title, title[:200])
     if isinstance(c.credits.value, int | float) and 0 <= c.credits.value <= 100:
         course.put("credits", c.credits)
     if desc := _text(c.description):
@@ -200,7 +200,7 @@ def from_syllabus(
                 **source, page=first.evidence.page, quote=first.evidence.quote[:400]
             )
     course.data["planned_terms"] = 2 if year_long(code, c.duration.value) else 1
-    if not course.data.get("title") and ctx.target_kind != "course":
+    if not (course.data.get("title") or code) and ctx.target_kind != "course":
         return 0  # nothing identifies a course: the document is not a syllabus
     ref = builder.course(
         course.data, evidence=course.evidence, confidence=course.confidence, patch_existing=True
@@ -326,6 +326,7 @@ def from_timetable(
             {"code": code and code[:32], "title": title[:200], "planned_terms": 1},
             patch_existing=False,
         )
+        decision = "reject" if builder.foreign(code, _text(cell.title)) else "accept"
         fields = _Fields(source)
         section = (_text(cell.section) or "")[:32]
         fields.data.update(
@@ -342,7 +343,13 @@ def from_timetable(
             f"timetable:{code or title}:{section}:{cell.weekday.value}:"
             f"{cell.start_time.value.isoformat('minutes')}"
         )[:500]
-        builder.add("meeting", fields.data, evidence=fields.evidence, confidence=fields.confidence)
+        builder.add(
+            "meeting",
+            fields.data,
+            evidence=fields.evidence,
+            confidence=fields.confidence,
+            decision=decision,
+        )
     return len(builder.items) - before
 
 
@@ -350,15 +357,27 @@ async def extract_syllabus(
     ctx: Ctx,
     pages: Sequence[ai.PageText],
     *,
+    images: Sequence[ai.Image] = (),
     label: str,
     source_ref: str,
     on_segment: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> SyllabusExtraction:
+    """A syllabus from its page texts and the images of pages without text (a photo, a scan).
+    Images need a vision model; without one, only the text pages are read."""
+    purpose: ai.Purpose = "extraction"
+    if images:
+        if await ai.available(ctx, "vision"):
+            purpose = "vision"
+        elif pages:
+            images = ()
+        else:
+            raise AppError("ai.not_configured", 409, purpose="vision")
     result = await run_extract(
         ctx,
-        "extraction",
+        purpose,
         SyllabusExtraction,
         texts=pages,
+        images=images,
         instructions=SYLLABUS_INSTRUCTIONS,
         source_module="imports",
         source_ref=source_ref,

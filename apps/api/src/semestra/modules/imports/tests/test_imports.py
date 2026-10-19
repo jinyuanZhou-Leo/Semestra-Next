@@ -220,6 +220,8 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert session["status"] == "ready"
 
     (patch,) = by_type(session, "course_patch")
+    # Changing the course itself is opt-in outside "Update course info".
+    assert patch["decision"] == "reject"
     assert set(patch["data"]["changes"]) == {"title", "instructors", "description"}
     assert patch["data"]["changes"]["title"] == {
         "old": "APS 105", "new": "Computer Fundamentals", "apply": True
@@ -265,6 +267,9 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
                                                                   "types": ["task"]},
     )  # fmt: skip
     assert decided["changed"] == 1
+    await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{patch['id']}", json={"decision": "accept"}
+    )
 
     done = await api.commit(session["id"])
     assert done["failed"] == 0, [i["result"] for i in done["session"]["items"] if i["result"]]
@@ -560,9 +565,11 @@ async def test_ics_into_one_course_takes_only_its_meetings(api: Api):
     )  # fmt: skip
     assert by_type(session, "course") == []
     meetings = by_type(session, "meeting")
-    assert meetings
     assert {m["data"]["course_ref"] for m in meetings} == {f"course:{course['id']}"}
     assert all(not m["issues"] for m in meetings)
+    # The file's other course (APS105) is listed but switched off.
+    decisions = sorted(m["decision"] for m in meetings)
+    assert decisions == ["accept", "reject", "reject", "reject"]  # MAT188: 1, APS105: 3
     assert all(e["data"].get("course_ref") for e in by_type(session, "event"))
 
 
@@ -581,3 +588,129 @@ async def test_wizard_drops_what_belongs_to_removed_courses(
     done = await api.commit(session["id"], wizard_courses=[])
     assert (done["created"], done["failed"]) == (0, 0)
     assert all(i["decision"] == "reject" for i in done["session"]["items"] if i["type"] != "event")
+
+
+async def test_course_page_timetable_keeps_other_courses_off(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    fake_ai.append(
+        {
+            "cells": [
+                {"course_code": ev("APS105H1"), "type": ev("LEC"), "weekday": ev(1),
+                 "start_time": ev("10:00"), "end_time": ev("11:00")},
+                {"course_code": ev("ECE110H1"), "type": ev("LEC"), "weekday": ev(3),
+                 "start_time": ev("13:00"), "end_time": ev("15:00")},
+            ]
+        }
+    )  # fmt: skip
+    upload = await api.upload("week.png", b"\x89PNG fake", "image/png")
+    session = await api.create(
+        program_id, source_kind="timetable_image",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert by_type(session, "course") == []
+    assert [(m["data"]["weekday"], m["decision"]) for m in by_type(session, "meeting")] == [
+        (1, "accept"),
+        (3, "reject"),
+    ]
+
+
+async def test_image_syllabus_goes_to_the_vision_model(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs, monkeypatch: pytest.MonkeyPatch
+):
+    seen: list[dict[str, Any]] = []
+    real = extraction.run_extract
+
+    async def spy(ctx: Any, purpose: str, schema: Any, **kwargs: Any) -> Any:
+        seen.append({"purpose": purpose, "images": len(kwargs.get("images") or [])})
+        return await real(ctx, purpose, schema, **kwargs)
+
+    monkeypatch.setattr(extraction, "run_extract", spy)
+    program_id = await api.program()
+    upload = await api.upload("syllabus.png", b"\x89PNG fake", "image/png")
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "term_wizard", "start_date": "2026-01-05", "end_date": "2026-04-24"},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert session["source_refs"][0]["status"] == "done"
+    assert seen == [{"purpose": "vision", "images": 1}]
+    assert by_type(session, "course")[0]["data"]["code"] == "APS105H1"
+
+
+async def test_untitled_syllabus_does_not_rename_the_course(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id, title="Programming Fundamentals")
+    untitled = {**SYLLABUS, "course": {**SYLLABUS["course"], "title": ev(None)}}
+    fake_ai.append(untitled)
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "course", "course_id": course["id"]},
+        text="APS105 ...", source_meta={"only": "course_info"},
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    (patch,) = by_type(session, "course_patch")
+    assert "title" not in patch["data"]["changes"]
+    assert patch["decision"] == "accept"
+    # Instructors are added to the course's list.
+    assert [i["name"] for i in patch["data"]["changes"]["instructors"]["new"]] == ["Ada Lovelace"]
+
+    # A new course without a title is named after its code.
+    fake_ai.append(untitled)
+    wizard = await api.create(
+        await api.program(), source_kind="text",
+        target={"kind": "term_wizard", "start_date": "2026-09-01", "end_date": "2026-12-20"},
+        text="APS105 ...",
+    )  # fmt: skip
+    await run_jobs()
+    wizard = await api.call("GET", f"/imports/{wizard['id']}")
+    assert by_type(wizard, "course")[0]["data"]["title"] == "APS105H1"
+
+
+async def test_course_info_up_to_date(api: Api, fake_ai: list[dict[str, Any]], run_jobs):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(
+        program_id, term_id, title="Computer Fundamentals", description="Programming in C.",
+        instructors=[{"name": "Ada Lovelace", "email": "ada@example.edu"}],
+    )  # fmt: skip
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "course", "course_id": course["id"]},
+        text="APS105 ...", source_meta={"only": "course_info"},
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assert (session["status"], session["error_code"]) == ("failed", "import.no_changes")
+
+
+async def test_discard_while_reading_stays_discarded(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs, monkeypatch: pytest.MonkeyPatch
+):
+    program_id = await api.program()
+    session = await api.create(
+        program_id, source_kind="text",
+        target={"kind": "term_wizard", "start_date": "2026-01-05", "end_date": "2026-04-24"},
+        text="APS105 ...",
+    )  # fmt: skip
+    real = extraction.run_extract
+
+    async def discard_meanwhile(ctx: Any, purpose: str, schema: Any, **kwargs: Any) -> Any:
+        await api.call("POST", f"/imports/{session['id']}:discard")
+        return await real(ctx, purpose, schema, **kwargs)
+
+    monkeypatch.setattr(extraction, "run_extract", discard_meanwhile)
+    await run_jobs()
+    after = await api.call("GET", f"/imports/{session['id']}")
+    assert after["status"] == "discarded"
+    assert after["items"] == []

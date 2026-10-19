@@ -30,6 +30,8 @@ ALLOWED = (
     "image/heic",
 )
 
+INLINE_UNSANDBOXED = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif")
+
 
 def _mime(file: UploadFile) -> str:
     guessed, _ = mimetypes.guess_type(file.filename or "")
@@ -77,13 +79,15 @@ async def upload_content(
     ctx: Annotated[Ctx, Depends(get_ctx)],
 ) -> StreamingResponse:
     upload = await service.get_upload(ctx, upload_id)
+    headers = {
+        "Content-Disposition": "inline",
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+    }
+    # Uploaded HTML and text must not run as our origin. PDFs and images are left out: browsers'
+    # PDF viewers don't render under a sandbox CSP, and neither format runs page scripts.
+    if upload.mime_type not in INLINE_UNSANDBOXED:
+        headers["Content-Security-Policy"] = "sandbox"
     return StreamingResponse(
-        get_storage(ctx).open(upload.storage_key),
-        media_type=upload.mime_type,
-        headers={
-            "Content-Disposition": "inline",
-            "Cache-Control": "private, max-age=3600",
-            "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "sandbox",
-        },
+        get_storage(ctx).open(upload.storage_key), media_type=upload.mime_type, headers=headers
     )

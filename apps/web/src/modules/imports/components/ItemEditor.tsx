@@ -7,7 +7,6 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { weekdayName } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -15,7 +14,7 @@ import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, itemTitle, TYPE_LABELS } from '../labels'
-import { storeSession } from '../queries'
+import { storeSession, trackEdit } from '../queries'
 import type { CoursePatchData, FieldChange } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
@@ -59,60 +58,48 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
   )
 }
 
+/**
+ * The item's fields. A change is saved when the field loses focus (switches and menus at once),
+ * so what the review shows is what the commit writes; the commit waits for saves in flight.
+ */
 function FieldsEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const queryClient = useQueryClient()
   const save = useMutation({
     ...importsItemUpdateMutation(),
-    onError: toastError,
     onSuccess: (session) => storeSession(queryClient, session),
   })
   const specs = FIELDS[item.type as keyof typeof FIELDS]
   const [values, setValues] = useState<Values>(() => pick(item.data, specs))
-  const changed = specs.filter((spec) => !same(values[spec.key], item.data[spec.key]))
 
-  const submit = () => {
-    const data: Values = {}
-    for (const spec of changed) data[spec.key] = values[spec.key] ?? null
-    save.mutate({ path: { session_id: item.session_id, item_id: item.id }, body: { data } })
+  const commit = (key: string, value: unknown) => {
+    if (same(value, item.data[key])) return
+    trackEdit(
+      save
+        .mutateAsync({
+          path: { session_id: item.session_id, item_id: item.id },
+          body: { data: { [key]: value ?? null } },
+        })
+        .catch((error: unknown) => {
+          toastError(error)
+          setValues((current) => ({ ...current, [key]: item.data[key] ?? null }))
+        }),
+    )
   }
 
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (changed.length > 0) submit()
-      }}
-    >
-      <div className="grid grid-cols-2 gap-3">
-        {specs.map((spec) => (
-          <FieldInput
-            key={spec.key}
-            spec={spec}
-            item={item}
-            value={values[spec.key]}
-            disabled={!editable}
-            onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
-          />
-        ))}
-      </div>
-      {editable ? (
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={changed.length === 0}
-            onClick={() => setValues(pick(item.data, specs))}
-          >
-            {m.imports_edit_reset()}
-          </Button>
-          <Button type="submit" size="sm" disabled={changed.length === 0 || save.isPending}>
-            {m.imports_edit_save()}
-          </Button>
-        </div>
-      ) : null}
-    </form>
+    <div className="grid grid-cols-2 gap-3">
+      {specs.map((spec) => (
+        <FieldInput
+          key={spec.key}
+          spec={spec}
+          item={item}
+          value={values[spec.key]}
+          disabled={!editable}
+          onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
+          onCommit={(value) => commit(spec.key, value)}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -122,13 +109,21 @@ function FieldInput({
   value,
   disabled,
   onChange,
+  onCommit,
 }: {
   spec: FieldSpec
   item: ImportItem
   value: unknown
   disabled: boolean
+  /** Typing: only the field changes. */
   onChange: (value: unknown) => void
+  /** The value is final (blur, a switch, a menu): it is saved. */
+  onCommit: (value: unknown) => void
 }) {
+  const choose = (next: unknown) => {
+    onChange(next)
+    onCommit(next)
+  }
   const id = useId()
   const label = spec.label()
   const head = (
@@ -160,7 +155,7 @@ function FieldInput({
           id={id}
           value={text}
           disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => choose(Number(e.target.value))}
         >
           {[1, 2, 3, 4, 5, 6, 7].map((day) => (
             <NativeSelectOption key={day} value={String(day)}>
@@ -176,7 +171,7 @@ function FieldInput({
           id={id}
           value={text || 'weekly'}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => choose(e.target.value)}
         >
           <NativeSelectOption value="weekly">{m.imports_recurrence_weekly()}</NativeSelectOption>
           <NativeSelectOption value="biweekly">
@@ -199,6 +194,7 @@ function FieldInput({
             if (raw === '') onChange(null)
             else onChange(spec.kind === 'number' ? Number(raw) : raw)
           }}
+          onBlur={() => onCommit(value)}
         />
       )
   }

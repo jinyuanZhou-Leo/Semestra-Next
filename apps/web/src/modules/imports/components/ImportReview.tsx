@@ -15,6 +15,7 @@ import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { issueText, itemDetail, itemTitle, TYPE_LABELS } from '../labels'
 import { storeSession } from '../queries'
 import { ItemEditor } from './ItemEditor'
@@ -246,10 +247,13 @@ function ReviewRow({
         ) : done ? (
           <CircleCheck aria-label={m.imports_row_done()} className="size-4 shrink-0 text-success" />
         ) : issues.length > 0 ? (
-          <CircleAlert
-            aria-label={issues.map(issueText).join('; ')}
-            className="size-4 shrink-0 text-destructive"
-          />
+          <Tooltip>
+            <TooltipTrigger render={<span className="shrink-0" />}>
+              <CircleAlert aria-hidden className="size-4 text-destructive" />
+              <span className="sr-only">{issues.map(issueText).join('; ')}</span>
+            </TooltipTrigger>
+            <TooltipContent>{issues.map(issueText).join('; ')}</TooltipContent>
+          </Tooltip>
         ) : null}
       </button>
     </li>

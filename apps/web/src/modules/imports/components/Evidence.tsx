@@ -14,15 +14,21 @@ export function ConfidenceDot({ confidence }: { confidence?: Confidence }) {
   if (!confidence || confidence === 'high') return null
   const label = confidence === 'low' ? m.imports_confidence_low() : m.imports_confidence_medium()
   return (
-    <span
-      title={label}
-      className={cn(
-        'inline-block size-1.5 shrink-0 rounded-full',
-        confidence === 'low' ? 'bg-destructive' : 'bg-muted-foreground/60',
-      )}
-    >
-      <span className="sr-only">{label}</span>
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              'inline-block size-1.5 shrink-0 rounded-full',
+              confidence === 'low' ? 'bg-destructive' : 'bg-muted-foreground/60',
+            )}
+          />
+        }
+      >
+        <span className="sr-only">{label}</span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 

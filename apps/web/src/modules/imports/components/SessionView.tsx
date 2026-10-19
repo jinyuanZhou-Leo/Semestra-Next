@@ -2,6 +2,7 @@ import type { ImportSessionDetail } from '@semestra/api-client'
 import {
   importsSessionCommitMutation,
   importsSessionDiscardMutation,
+  importsSessionGetQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, FileText } from 'lucide-react'
@@ -17,7 +18,7 @@ import { Button } from '@/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Spinner } from '@/ui/spinner'
 import { issueSummary } from '../labels'
-import { invalidateAfterCommit, storeSession } from '../queries'
+import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { ImportReview } from './ImportReview'
 
 /**
@@ -74,11 +75,19 @@ export function SessionView({
     )
   }
 
-  if (session.status === 'failed' || session.status === 'discarded') {
-    const reason =
-      session.status === 'discarded'
-        ? m.imports_discarded()
-        : errorMessage({ error: { code: session.error_code ?? 'import.no_content', params: {} } })
+  // Discarding is the user's own choice and "already up to date" is a fine result: plain text.
+  if (session.status === 'discarded' || session.error_code === 'import.no_changes') {
+    return (
+      <p className={cn('text-sm text-muted-foreground', className)}>
+        {session.status === 'discarded' ? m.imports_discarded() : m.imports_up_to_date()}
+      </p>
+    )
+  }
+
+  if (session.status === 'failed') {
+    const reason = errorMessage({
+      error: { code: session.error_code ?? 'import.no_content', params: {} },
+    })
     return (
       <Alert variant="destructive" className={className}>
         <CircleAlert aria-hidden />
@@ -99,6 +108,7 @@ export function SessionView({
 
   const runCommit = async (itemIds?: string[]) => {
     const body = itemIds ? { item_ids: itemIds } : {}
+    await settleEdits()
     try {
       const result = await commit.mutateAsync({ path: { session_id: session.id }, body })
       storeSession(queryClient, result.session)
@@ -112,6 +122,12 @@ export function SessionView({
     } catch {
       // toastError already showed it
     }
+  }
+  // The wizard takes the courses as they are once the last edits are saved.
+  const addToWizard = async () => {
+    await settleEdits()
+    const key = importsSessionGetQueryKey({ path: { session_id: session.id } })
+    onDone(queryClient.getQueryData<ImportSessionDetail>(key) ?? session)
   }
   const runDiscard = () =>
     discard.mutate(
@@ -166,7 +182,7 @@ export function SessionView({
               {m.imports_later()}
             </Button>
             {mode === 'wizard' ? (
-              <Button disabled={courses === 0} onClick={() => onDone(session)}>
+              <Button disabled={courses === 0} onClick={() => void addToWizard()}>
                 {m.imports_add_to_wizard({ count: courses })}
               </Button>
             ) : wizardPending ? null : (

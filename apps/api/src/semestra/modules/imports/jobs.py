@@ -78,8 +78,9 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
                 added = extraction.from_timetable(timetable, context, builder, source)
             else:
                 syllabus = await extraction.extract_syllabus(
-                    ctx, texts, label=label, source_ref=row.id, on_segment=on_segment
-                )
+                    ctx, texts, images=images, label=label, source_ref=row.id,
+                    on_segment=on_segment,
+                )  # fmt: skip
                 added = extraction.from_syllabus(syllabus, context, builder, source)
             if added == 0:
                 raise AppError("import.no_content", 422)
@@ -89,17 +90,31 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
             ref["error_code"] = exc.code
             failed += 1
     await ctx.stage("checking")
+    # Discarded while the model was reading: leave it discarded.
+    await ctx.db.refresh(row, ["status"])
+    if row.status != "extracting":
+        return ExtractResult(session_id=row.id, items=0, failed_sources=failed)
     row.source_refs = refs
-    if row.source_meta.get("only") == "course_info":
+    course_info = row.source_meta.get("only") == "course_info"
+    if course_info:
         # "Update course info from syllabus": only the field changes of the target course.
         builder.items = [i for i in builder.items if i.type == "course_patch"]
+    else:
+        # Elsewhere (the gradebook, the wizard) changing the course itself is opt-in.
+        for item in builder.items:
+            if item.type == "course_patch":
+                item.decision = "reject"
     if builder.items:
         await service.add_items(ctx, row, builder.items)
         row.status = "ready"
     else:
         row.status = "failed"
         codes = {r.get("error_code") for r in refs}
-        row.error_code = codes.pop() if len(codes) == 1 else "import.no_content"
+        if course_info and failed == 0:
+            row.error_code = "import.no_changes"  # read fine; the course is up to date
+        else:
+            row.error_code = codes.pop() if len(codes) == 1 else "import.no_content"
+            row.error_code = row.error_code or "import.no_content"
         await service.revalidate(ctx, row, [])
     row.job_id = None
     row.updated_at = ctx.now

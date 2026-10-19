@@ -81,7 +81,8 @@ test('the review groups items by course, marks problems and filters to them', as
   expect(await screen.findByText('1 dates to check')).toBeInTheDocument()
   expect(await screen.findByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
   // The first item is selected: its issue and the evidence of its title are shown.
-  expect(screen.getByText('Couldn\'t work out the date "Week 7"')).toBeInTheDocument()
+  // Once on the row (its tooltip text) and once in the editor.
+  expect(screen.getAllByText('Couldn\'t work out the date "Week 7"')).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Where Title came from' })).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('switch', { name: 'Only items with problems' }))
@@ -199,4 +200,30 @@ test('opening a second import cancels the first', async () => {
   expect(await first).toBeNull()
   finishImport(null)
   expect(await second).toBeNull()
+})
+
+test('an edit is saved on blur and the commit waits for it', async () => {
+  server.use(courses())
+  const calls: string[] = []
+  server.use(
+    http.patch(`${API}/imports/s1/items/a1`, async ({ request }) => {
+      calls.push(`patch ${JSON.stringify(await request.json())}`)
+      return HttpResponse.json(session())
+    }),
+    http.post(`${API}/imports/s1:commit`, () => {
+      calls.push('commit')
+      return HttpResponse.json({
+        session: session({ status: 'committed' }),
+        created: 2,
+        updated: 0,
+        failed: 0,
+      })
+    }),
+  )
+  renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
+  const weight = await screen.findByLabelText('Weight (%)')
+  await userEvent.clear(weight)
+  await userEvent.type(weight, '35')
+  await userEvent.click(screen.getByRole('button', { name: 'Save 2 items' }))
+  await waitFor(() => expect(calls).toEqual(['patch {"data":{"weight":35}}', 'commit']))
 })

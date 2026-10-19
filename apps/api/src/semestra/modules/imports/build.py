@@ -143,6 +143,20 @@ class Builder:
             return None
         return next((c for c in self.ctx.courses if normalize_code(c.code) == wanted), None)
 
+    def foreign(self, code: str | None, title: str | None) -> bool:
+        """Whether a course of the source is some other course than the target course (a
+        timetable or calendar file that has the whole week). Its items are rejected by default."""
+        if self.ctx.target_kind != "course":
+            return False
+        target = next((c for c in self.ctx.courses if c.id == self.ctx.target_course_id), None)
+        if target is None:
+            return False
+        if normalize_code(code) and normalize_code(target.code):
+            return normalize_code(code) != normalize_code(target.code)
+        if title:
+            return norm_title(title) != norm_title(target.title)
+        return False
+
     def course(
         self,
         data: dict[str, Any],
@@ -155,7 +169,10 @@ class Builder:
         with the same code (a patch item when `patch_existing`, else a rejected duplicate
         course item), or a new course item."""
         code = data.get("code")
-        group = normalize_code(code) or norm_title(str(data.get("title", "")))
+        group = normalize_code(code) or norm_title(str(data.get("title") or ""))
+        # A course needs a title; when the source has none, its code stands in. Never for a patch:
+        # that would rename the existing course to its code.
+        named = data if data.get("title") else {**data, "title": code or ""}
         if group in self._course_refs:
             return self._course_refs[group]
         existing: ExistingCourse | None
@@ -171,7 +188,11 @@ class Builder:
                 pass  # the target course itself: nothing to say about it
             elif patch_existing:
                 changes = {
-                    name: {"old": existing.fields.get(name), "new": value, "apply": True}
+                    name: {
+                        "old": existing.fields.get(name),
+                        "new": _merged(name, existing.fields.get(name), value),
+                        "apply": True,
+                    }
                     for name, value in data.items()
                     if name in _PATCHABLE and _differs(existing.fields.get(name), value)
                 }
@@ -185,14 +206,14 @@ class Builder:
             else:
                 self.add(
                     "course",
-                    {**data, "existing_course_id": existing.id},
+                    {**named, "existing_course_id": existing.id},
                     evidence=evidence,
                     confidence=confidence,
                     decision="reject",
                 )
         else:
             key = self.add(
-                "course", data, key=self._key("c"), evidence=evidence, confidence=confidence
+                "course", named, key=self._key("c"), evidence=evidence, confidence=confidence
             )
             ref = f"item:{key}"
         self._course_refs[group] = ref
@@ -213,6 +234,15 @@ def _differs(old: Any, new: Any) -> bool:
             str(i.get("name", "")).casefold() not in names for i in new if isinstance(i, dict)
         )  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType, reportUnknownArgumentType]
     return old != new
+
+
+def _merged(name: str, old: Any, new: Any) -> Any:
+    """Instructors are added to the course's list, not swapped for the syllabus's (a TA the user
+    added stays)."""
+    if name != "instructors" or not isinstance(old, list):
+        return new
+    names = {str(i.get("name", "")).casefold() for i in old if isinstance(i, dict)}  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType, reportUnknownArgumentType]
+    return [*old, *(i for i in new if str(i.get("name", "")).casefold() not in names)]  # pyright: ignore[reportUnknownVariableType]
 
 
 def _iso(value: date | time | None) -> str | None:
@@ -238,14 +268,9 @@ def from_ics(
     """ICS courses and events (M08 §4.1): a course whose code the Program already has keeps
     the existing course (its duplicate course item is rejected) and only gets the meetings."""
     builder = Builder(ctx)
-    courses = result.courses
-    if ctx.target_kind == "course":
-        # Into one course: only that course's meetings when the file has several courses.
-        target = next((c for c in ctx.courses if c.id == ctx.target_course_id), None)
-        wanted = normalize_code(target.code) if target else None
-        same = [c for c in courses if wanted and normalize_code(c.code) == wanted]
-        courses = same or courses
-    for course in courses:
+    for course in result.courses:
+        # Into one course: the file's other courses are shown, switched off.
+        decision = "reject" if builder.foreign(course.code, course.title) else "accept"
         ref = builder.course(
             {"code": course.code, "title": course.title[:200], "planned_terms": 1},
             patch_existing=False,
@@ -268,9 +293,10 @@ def from_ics(
                     "instructor": m.instructor,
                     "source_ref": m.source_ref[:500],
                 },
+                decision=decision,
             )
         for e in course.events:
-            builder.add("event", _ics_event(e, ref, ctx, terms))
+            builder.add("event", _ics_event(e, ref, ctx, terms), decision=decision)
     if ctx.target_kind != "course":  # events of no course don't belong to one course
         for e in result.events:
             builder.add("event", _ics_event(e, None, ctx, terms))

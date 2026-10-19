@@ -31,3 +31,15 @@ export function storeSession(queryClient: QueryClient, session: ImportSessionDet
 export async function invalidateAfterCommit(queryClient: QueryClient) {
   await queryClient.invalidateQueries()
 }
+
+/** Field edits still being saved; a commit waits for them so it writes what the review shows. */
+const pendingEdits = new Set<Promise<unknown>>()
+
+export function trackEdit(edit: Promise<unknown>) {
+  pendingEdits.add(edit)
+  void edit.finally(() => pendingEdits.delete(edit))
+}
+
+export async function settleEdits() {
+  await Promise.allSettled([...pendingEdits])
+}
