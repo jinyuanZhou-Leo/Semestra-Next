@@ -53,6 +53,7 @@ class Outcome:
     payload: Any
     error_code: str | None = None
     citations: list[dict[str, Any]] = field(default_factory=lambda: [])
+    ran: bool = True  # False for a rejected proposal: nothing was executed
 
     @property
     def content(self) -> str:
@@ -358,12 +359,14 @@ def _result_block(call: ToolCall, outcome: Outcome) -> dict[str, Any]:
         "is_error": not outcome.ok,
         "error_code": outcome.error_code,
         # Something changed in the user's data: the turn can no longer be regenerated.
-        "changed": outcome.ok and _changes_data(call.name),
+        "changed": _changed(call, outcome),
     }
 
 
-def _changes_data(tool: str) -> bool:
-    cap = service.capability(tools.capability_name(tool))
+def _changed(call: ToolCall, outcome: Outcome) -> bool:
+    if not (outcome.ok and outcome.ran):
+        return False
+    cap = service.capability(tools.capability_name(call.name))
     return cap is not None and cap.effect != "read"
 
 
@@ -375,7 +378,7 @@ def _tool_result_event(message_id: str, call: ToolCall, outcome: Outcome) -> Eve
         name=tools.capability_name(call.name),
         ok=outcome.ok,
         error_code=outcome.error_code,
-        changed=outcome.ok and _changes_data(call.name),
+        changed=_changed(call, outcome),
     )
 
 
@@ -650,7 +653,8 @@ async def decide(
             text = "The user rejected this action; it was not executed."
             if d.reason:
                 text += f" Their reason: {d.reason}"
-            results.append((row, Outcome(True, {"rejected": True, "message": text}), "rejected"))
+            rejected = Outcome(True, {"rejected": True, "message": text}, ran=False)
+            results.append((row, rejected, "rejected"))
             continue
         args = d.args if d.decision == "edit" and d.args is not None else row.args
         outcome = await invoke(state, user_id, scope, row.capability, args)

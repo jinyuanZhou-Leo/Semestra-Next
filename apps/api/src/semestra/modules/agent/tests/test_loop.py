@@ -108,6 +108,7 @@ async def test_rejection_reason_goes_back_to_the_model(agent: Agent, model: Fake
     events = await agent.decide(session["id"], proposal["id"], "reject", reason="wrong lab")
 
     assert events_named(events, "proposal")[0]["status"] == "rejected"
+    assert events_named(events, "tool_result")[0]["changed"] is False  # can still regenerate
     assert "wrong lab" in model.last_text()
     assert (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"][0][
         "score_percentage"

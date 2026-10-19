@@ -53,7 +53,8 @@ export function McpSection() {
   const update = useUpdatePreferences()
   const settings = useSettingsDialog()
   const [client, setClient] = useState<Client>('claude-desktop')
-  const url = apiUrl('/mcp')
+  // Clients run outside the browser: same-origin deployments need the page's origin.
+  const url = new URL(apiUrl('/mcp'), window.location.origin).href
   const config = mcpConfig(client, url, m.assistant_mcp_token_placeholder())
 
   return (
