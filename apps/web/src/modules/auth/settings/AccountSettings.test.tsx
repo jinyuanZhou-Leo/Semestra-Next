@@ -143,7 +143,9 @@ test('revoking a token asks for confirmation first', async () => {
     }),
   )
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'Revoke API token Claude Desktop' }))
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Revoke API token Claude Desktop' }),
+  )
   expect(revoked).not.toHaveBeenCalled()
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }))
