@@ -78,6 +78,7 @@ class AssessmentPatchData(BaseModel):
     """Changes to an existing assessment (M09 LMS updates)."""
 
     assessment_id: Id
+    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
     changes: dict[Literal["title", "due_date", "due_time", "weight"], FieldChange]
 
 
@@ -85,6 +86,7 @@ class TaskPatchData(BaseModel):
     """Changes to an existing task (M09 LMS updates)."""
 
     task_id: Id
+    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
     changes: dict[Literal["title", "due_date", "due_time"], FieldChange]
 
 

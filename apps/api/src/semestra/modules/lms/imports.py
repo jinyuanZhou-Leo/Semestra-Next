@@ -384,7 +384,7 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
             NewItem(
                 key=key,
                 type=f"{target.kind}_patch",  # pyright: ignore[reportArgumentType]
-                data={id_field: target.id, "changes": changes},
+                data={id_field: target.id, "label": a["name"][:200], "changes": changes},
             )
         )
     refs = [

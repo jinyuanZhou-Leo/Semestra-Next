@@ -20,7 +20,17 @@ import { issueText, itemDetail, itemTitle, TYPE_LABELS } from '../labels'
 import { storeSession } from '../queries'
 import { ItemEditor } from './ItemEditor'
 
-const TYPE_ORDER = ['course', 'course_patch', 'category', 'assessment', 'meeting', 'event', 'task']
+const TYPE_ORDER = [
+  'course',
+  'course_patch',
+  'category',
+  'assessment',
+  'assessment_patch',
+  'meeting',
+  'event',
+  'task',
+  'task_patch',
+]
 
 type Group = { key: string; label: string; items: ImportItem[] }
 
@@ -30,21 +40,27 @@ export function isEditable(session: ImportSessionDetail, item: ImportItem): bool
   return session.status === 'committed' && Boolean(item.result?.error_code)
 }
 
-function groupKey(item: ImportItem): string {
+function groupKey(item: ImportItem, targetCourse: string | null | undefined): string {
   if (item.type === 'course') return `item:${item.id}`
   if (item.type === 'course_patch') return `course:${String(item.data.course_id)}`
   const ref = item.data.course_ref
-  return typeof ref === 'string' && ref ? ref : 'none'
+  if (typeof ref === 'string' && ref) return ref
+  // Changes to existing assessments and tasks (M09) belong to the session's course.
+  return item.type.endsWith('_patch') && targetCourse ? `course:${targetCourse}` : 'none'
 }
 
 /** Courses first, each with its categories, assessments, meetings and events (M08 §6.2). */
-function groupItems(items: readonly ImportItem[], courseName: (id: string) => string): Group[] {
+function groupItems(
+  items: readonly ImportItem[],
+  courseName: (id: string) => string,
+  targetCourse: string | null | undefined,
+): Group[] {
   const groups = new Map<string, ImportItem[]>()
   const sorted = items.toSorted(
     (a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.position - b.position,
   )
   for (const item of sorted) {
-    const key = groupKey(item)
+    const key = groupKey(item, targetCourse)
     groups.set(key, [...(groups.get(key) ?? []), item])
   }
   const byId = new Map(items.map((item) => [item.id, item]))
@@ -101,7 +117,7 @@ export function ImportReview({
   })
 
   const visible = onlyProblems ? session.items.filter(hasProblem) : session.items
-  const groups = groupItems(visible, courseName)
+  const groups = groupItems(visible, courseName, session.target.course_id)
   const selected =
     session.items.find((item) => item.id === selectedId) ?? groups[0]?.items[0] ?? null
   const open = session.status === 'ready'

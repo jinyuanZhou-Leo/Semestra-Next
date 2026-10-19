@@ -7,7 +7,7 @@ export type FieldKind = 'text' | 'number' | 'date' | 'time' | 'weekday' | 'recur
 export type FieldSpec = { key: string; label: () => string; kind: FieldKind; wide?: boolean }
 
 /** The fields the review editor shows per item type, in order (M08 §2). */
-export const FIELDS: Record<Exclude<ItemType, 'course_patch'>, readonly FieldSpec[]> = {
+export const FIELDS: Record<Exclude<ItemType, `${string}_patch`>, readonly FieldSpec[]> = {
   course: [
     { key: 'code', label: m.imports_field_code, kind: 'text' },
     { key: 'title', label: m.imports_field_title, kind: 'text', wide: true },
@@ -50,8 +50,11 @@ export const FIELDS: Record<Exclude<ItemType, 'course_patch'>, readonly FieldSpe
   ],
 }
 
-/** Labels of the course fields a `course_patch` can change. */
+/** Labels of the fields a `*_patch` item can change (a course's, or an assessment's or task's). */
 export const PATCH_LABELS: Record<string, () => string> = {
+  due_date: m.imports_field_due_date,
+  due_time: m.imports_field_due_time,
+  weight: m.imports_field_weight,
   code: m.imports_field_code,
   title: m.imports_field_title,
   credits: m.imports_field_credits,

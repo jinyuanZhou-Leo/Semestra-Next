@@ -471,3 +471,35 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
     assert len(listed) == 1
     assert listed[0]["has_credentials"] is False
     assert listed[0]["last_error_code"] == "lms.credentials_missing"
+
+
+async def test_deleted_tasks_can_be_imported_again(api: Api, app: FastAPI):
+    from semestra.core.events import Event
+    from semestra.modules.lms.subscribers import on_task_deleted
+
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    link = (await api.link(course, "101"))["link"]
+    async with system_ctx(app.state) as ctx:
+        owner = await ctx.db.get(LmsConnection, link["connection_id"])
+        assert owner is not None
+        for n in ("1", "2", "3"):
+            ref = LmsImportedRef(
+                user_id=owner.user_id,
+                link_id=link["id"],
+                external_kind="assignment",
+                external_id=n,
+                target_kind="task",
+                target_id=f"t{n}",
+                snapshot={},
+                imported_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+            ctx.db.add(ref)
+        await ctx.db.commit()
+    async with system_ctx(app.state, owner.user_id) as ctx:
+        # One task, then a bulk clear (M05 sends `task_ids`).
+        await on_task_deleted(ctx, Event("tasks.item.deleted", {"task_id": "t1"}, owner.user_id))
+        await on_task_deleted(ctx, Event("tasks.item.deleted", {"task_ids": ["t2"]}, owner.user_id))
+        await ctx.db.commit()
+        left = await ctx.db.scalars(select(LmsImportedRef.target_id))
+        assert list(left) == ["t3"]

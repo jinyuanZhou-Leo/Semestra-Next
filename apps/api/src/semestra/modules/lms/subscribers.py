@@ -27,5 +27,7 @@ async def on_assessment_deleting(ctx: Ctx, event: Event) -> None:
 @events.subscribe("tasks.item.deleted")
 async def on_task_deleted(ctx: Ctx, event: Event) -> None:
     """M05 announces deleted tasks after commit (no `deleting` event yet)."""
-    if isinstance(task_id := event.data.get("task_id"), str):
-        await service.forget_target(ctx, "task", task_id)
+    ids = event.data.get("task_ids") or [event.data.get("task_id")]  # bulk clear, or one task
+    for task_id in ids:
+        if isinstance(task_id, str):
+            await service.forget_target(ctx, "task", task_id)

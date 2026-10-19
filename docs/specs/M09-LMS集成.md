@@ -198,3 +198,28 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 - 添加 Canvas 连接并绑定到 Program 后，在学期向导中能一次性导入本学期全部课程，课程自动关联。
 - 导入作业后，日历中不出现重复的截止事件。
 - 用假 provider 跑通全部模块测试，证明新增 provider 不需要修改模块代码。
+
+## 实现说明（M09 落地时补充）
+以下是实现时做出的取舍与对上文的细化，以代码为准。
+
+**后端**
+- 分支基于 M08（#32）：导入流程直接用 M08 的 session，所以 M09 的 PR 先以 M08 分支为基，#32 合并后改为基于 main。迁移号 `0011`，在 M08 的 `0010` 之后。
+- Provider 方法的第一个参数是 `io`（`providers/base.py` 的 `Io`：共享的安全出站客户端、配置、`truncated` 标记），`normalize_config` 额外接收 `settings`（判断是否允许 http 和私网地址）。Canvas 的文件下载只跟随同源或 Canvas 文件 CDN（`.instructure.com`、`.canvas-user-content.com`、`.inscloudgate.net`、`instructure-uploads.s3.amazonaws.com`）的重定向，令牌只发给同源；每一跳都检查目标地址是否公网。分页只跟随同源的 `Link: rel=next`，最多 50 页，超出时返回 `truncated: true`。
+- 凭证以 `v1:<Fernet 密文>` 存在 `credentials_encrypted`，响应里只有 `credentials_hint`（掩码）和 `has_credentials`。新增错误码 `lms.credentials_missing`（409）：数据导入后或密钥轮换后凭证无法解密时出现，界面提示重新填写。`lms.invalid_credentials` 用 400 而不是 401，避免触发前端的"会话已过期"对话框。
+- 定期任务 `lms.refresh_status`（每 6 小时）重新验证连接状态并清理过期缓存；读缓存在内存 LRU（`app.state.lms`）和表 `lms_cache` 两层，TTL 5 分钟，`refresh=true` 跳过缓存。
+- `lms_imported_refs` 多了 `snapshot`（导入时作业的标题、截止时间、分值），用于更新检测；`check_updates` 比较的是快照与平台当前值。
+- 导入记录不是订阅 `imports.session.committed` 写的，而是 `register_commit_hook("lms", ...)`：与 M08 提交在同一事务里创建课程关联、写导入记录、刷新快照，提交失败时一起回滚。LMS 侧的对应关系存在 session 的 `source_meta.lms.items`（item id → 外部 id），因为 M08 的 item 数据模型会丢掉未知字段。
+- 作业导入按作业组生成 `category` item（`weight_total` 为组权重），考核权重 = 组权重 × 本作业分值占比；课程没开启作业组权重或算不出来时权重为空、置信度为 low，由用户在审核里补。已导入过的作业不再出现在可导入列表里（全部已导入时返回 `import.no_content`）。
+- **对 M08 的改动**（M08 规格同步补充）：新 item 类型 `assessment_patch` / `task_patch`（字段级对比，`label` 用于在审核里显示名称），`imports.item.update` 可以传 `type` 在 `assessment` 与 `task` 之间切换（字段按对方的模型转换，切到考核要求有课程）。
+- 订阅改为 `tasks.item.deleted`（提交后）而不是 `tasks.task.deleting`，因为 M05 发的是这个事件；删除导入记录后同一作业可以再次导入。
+- `lms.file.save_to_course` 通过 `importlib` 调 M07 的 `save_bytes_as_file`，M07 还没合并时返回 `lms.feature_unsupported`（feature `save_to_course`）。
+- 日历源 `lms.events`：描述只显示纯文本（`meta.note`），"渲染 HTML 描述"开关没有做；`meta.url` 指向平台上的原事件。
+- M13 适配器在 `lms/portability.py`（导出连接但不含凭证，导入后状态为 `lms.credentials_missing`；绑定、关联、导入记录按 id 映射；缓存不导出），等 M13 落地时注册。
+
+**前端**
+- 账户设置"集成"组下的"LMS 连接"沿用 AI 服务商分区的列表行样式（`Item` 行 + 行内按钮），没有用表格；手机端仍是对话框，没有做抽屉。删除正在使用的连接时确认框说明会解除多少关联，确认后以 `detach_all=true` 删除。
+- 学业项目设置与课程设置的 LMS 分区都在"集成"组。课程设置里选择外部课程按平台学期分组（当前学期在前），被其它课程关联的项灰显并写明是哪门课程。
+- 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, ConfigForm, credentialHelp, isComplete }`）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）、`grading.courseGradesBanners`（成绩页顶部提示，`LmsUpdatesBanner` 挂在这里）。
+- M08 的 `openImport` 新增两种请求：`source: 'picker'`（来源自己创建 session 的第一步，例如 LMS 课程/作业选择）和 `source: 'session'`（已有 session 直接进入审核，例如作业变更）。学期向导的来源用 M08 导出的 `wizardImportSource` 包装，所以 LMS 课程也走"向导创建课程 → 提交 session"的流程，关联在提交时创建。向导路径下课程只带课程号和名称，平台上的课程全名（alias）和网址不会写入。
+- "从 LMS 导入课程"目前入口是学期向导和学期页的命令面板（命令 `lms.import-courses`），学期页和学业项目页上没有单独的按钮。
+- 公告卡片 `lms.announcements`（课程/学期，m/l）只列标题、课程和日期，点击在平台上打开；学期作用域汇总该学期所有开启同步的已关联课程。

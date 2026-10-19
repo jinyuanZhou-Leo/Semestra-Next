@@ -1,6 +1,7 @@
 import type { Gradebook } from '@semestra/api-client'
 import { useId } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { omitKey } from '@/lib/omit'
@@ -13,6 +14,7 @@ import { ManualGrade } from '../components/ManualGrade'
 import { PlanPanel } from '../components/PlanPanel'
 import { SummaryStrip } from '../components/SummaryStrip'
 import { useGradebook } from '../queries'
+import { COURSE_GRADES_BANNERS, type CourseGradesBanner } from '../types'
 import { DEFAULT_WHATIF, type WhatIf } from '../whatif'
 
 /** The course's grades: summary, plan mode and the assessment table (M03 §5.1). */
@@ -33,6 +35,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [whatIf, setWhatIf] = useUiPref<WhatIf>('grading.whatif', DEFAULT_WHATIF, {
     scope: courseId,
   })
+  const banners = useExtensions<CourseGradesBanner>(COURSE_GRADES_BANNERS)
   const { result, summary } = gradebook
 
   if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
@@ -49,6 +52,9 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   return (
     <div className="space-y-4">
+      {banners.map((banner) => (
+        <banner.component key={banner.id} programId={programId} courseId={courseId} />
+      ))}
       <SummaryStrip gradebook={gradebook} />
       <Field orientation="horizontal" className="w-fit">
         <Switch

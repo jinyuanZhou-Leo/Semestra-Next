@@ -73,6 +73,19 @@ export type CourseInfoAction = {
   run: (ctx: { programId: string; courseId: string }) => Promise<void> | void
 }
 
+/** Extra lines on the course info card, e.g. the linked LMS course (M09). `Row` lays one out. */
+export type CourseInfoRowProps = {
+  programId: string
+  courseId: string
+  Row: ComponentType<{ label: string; children: ReactNode }>
+}
+
+export type CourseInfoRow = {
+  id: string
+  order: number
+  component: ComponentType<CourseInfoRowProps>
+}
+
 /** A field on the onboarding Program form; its value goes to `program.create` `setup[id]`. */
 export type ProgramSetupField = {
   id: string
@@ -91,5 +104,6 @@ export type OnboardingStep = {
 export const COURSE_COLUMNS = 'academics.courseColumns'
 export const TERM_WIZARD_IMPORT_SOURCES = 'academics.termWizardImportSources'
 export const COURSE_INFO_ACTIONS = 'academics.courseInfoActions'
+export const COURSE_INFO_ROWS = 'academics.courseInfoRows'
 export const PROGRAM_SETUP_FIELDS = 'academics.programSetupFields'
 export const ONBOARDING_STEPS = 'academics.onboardingSteps'
