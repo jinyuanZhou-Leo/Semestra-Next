@@ -1,5 +1,5 @@
 import type { Provider } from '@semestra/api-client'
-import { Bot, Gem, type LucideIcon, Plug, Server, Sparkle } from 'lucide-react'
+import { Bot, Gem, type LucideIcon, Plug, PlugZap, Server, Sparkle, Waypoints } from 'lucide-react'
 import type { Message } from '@/app/extensions'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
@@ -12,6 +12,8 @@ export const KINDS: readonly ProviderKind[] = [
   'openai',
   'gemini',
   'openai_compatible',
+  'openai_responses',
+  'anthropic_compatible',
   'ollama',
 ]
 
@@ -72,6 +74,26 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
     chooseCapabilities: true,
     defaultCapabilities: ['chat', 'tools'],
     baseUrlPlaceholder: 'https://api.deepseek.com/v1',
+  },
+  openai_responses: {
+    name: m.ai_kind_openai_responses,
+    hint: m.ai_kind_openai_responses_hint,
+    icon: Waypoints,
+    needsKey: false,
+    needsBaseUrl: true,
+    chooseCapabilities: true,
+    defaultCapabilities: ['chat', 'tools', 'structured'],
+    baseUrlPlaceholder: 'https://api.openai.com/v1',
+  },
+  anthropic_compatible: {
+    name: m.ai_kind_anthropic_compatible,
+    hint: m.ai_kind_anthropic_compatible_hint,
+    icon: PlugZap,
+    needsKey: false,
+    needsBaseUrl: true,
+    chooseCapabilities: true,
+    defaultCapabilities: ['chat', 'tools'],
+    baseUrlPlaceholder: 'https://api.deepseek.com/anthropic',
   },
   ollama: {
     name: m.ai_kind_ollama,

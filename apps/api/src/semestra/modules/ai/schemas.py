@@ -38,12 +38,12 @@ class ProviderCreateInput(BaseModel):
     base_url: str | None = Field(
         default=None,
         max_length=500,
-        description="API base URL; required for openai_compatible and ollama.",
+        description="API base URL; required for the compatible kinds and ollama.",
     )
     api_key: SecretStr | None = Field(default=None, description="API key (stored encrypted).")
     capabilities: list[ProviderCapability] | None = Field(
         default=None,
-        description="What the endpoint supports; only for openai_compatible and ollama.",
+        description="What the endpoint supports; only for the compatible kinds and ollama.",
     )
 
 
@@ -55,7 +55,7 @@ class ProviderUpdateInput(BaseModel):
         default=None, description="New API key; the provider is checked again before saving."
     )
     capabilities: list[ProviderCapability] | None = Field(
-        default=None, description="New capabilities (openai_compatible and ollama only)."
+        default=None, description="New capabilities (compatible kinds and ollama only)."
     )
     enabled: bool | None = Field(default=None, description="Turn the provider on or off.")
 

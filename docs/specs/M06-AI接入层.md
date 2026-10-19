@@ -14,13 +14,15 @@
 ## 2. 支持的提供方
 | provider | 说明 | 能力 |
 |---|---|---|
-| `anthropic` | Anthropic API | chat、tools、vision（含 PDF）、structured（tool 方式） |
-| `openai` | OpenAI API | chat、tools、vision、structured（json_schema）、embedding |
-| `openai_compatible` | 任意兼容端点（DeepSeek、通义、OpenRouter、vLLM 等），需 base_url | 按用户勾选的能力 |
+| `anthropic` | Anthropic API | chat、tools、vision（含 PDF）、structured |
+| `anthropic_compatible` | 任意 Anthropic Messages 兼容端点（DeepSeek、Kimi、智谱、自建网关等），需 base_url | 按用户勾选的能力 |
+| `openai` | OpenAI API（Chat Completions） | chat、tools、vision、structured（json_schema）、embedding |
+| `openai_compatible` | 任意 Chat Completions 兼容端点（DeepSeek、通义、OpenRouter、vLLM 等），需 base_url | 按用户勾选的能力 |
+| `openai_responses` | OpenAI Responses API 或兼容它的端点（OpenAI 官方地址 `https://api.openai.com/v1`），需 base_url | 按用户勾选的能力 |
 | `gemini` | Google Gemini API | chat、tools、vision、structured、embedding |
 | `ollama` | 本地/自部署 Ollama，需 base_url | chat、tools（视模型）、vision（视模型）、embedding |
 
-实现：本模块自己的 httpx 适配器（`modules/ai/adapters/`，每家一个文件，走 M00 的 `safe_client`），不依赖 LangChain 或各家 SDK；对外只暴露本模块自己的接口，其它模块不得直接调用提供方接口（M12 的 LangGraph 运行时通过本模块的 `get_chat_model()` 拿到模型对象，自己包一层 LangGraph 需要的接口）。原因见文末“实现说明”。
+实现：模型调用走 Pydantic AI 的模型层（`pydantic-ai-slim`，只用不带 Agent 的直接调用接口 `pydantic_ai.direct`），embedding 与模型列表用各家官方 SDK（openai、anthropic、google-genai），所有请求都经 M00 的 `safe_client`（`modules/ai/adapters/`）；不依赖 LangChain。对外只暴露本模块自己的接口，其它模块不得直接调用提供方接口（M12 的工具循环通过本模块的 `get_chat_model()` 拿到模型对象）。原因见文末“实现说明”。
 
 ## 3. 数据模型
 ```
@@ -121,13 +123,16 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 以下是实现时做出的取舍与对上文的细化，以代码为准。
 
 **后端**（`apps/api/src/semestra/modules/ai/`）
-- **不用 LangChain**：各家接口用自己的 httpx 适配器（`adapters/anthropic.py`、`openai.py`（含兼容模式）、`gemini.py`、`ollama.py`）。理由：langchain-* 依赖链里有不提供 Python 3.15 wheel 的包（与 PyYAML 同样的问题，见 CLAUDE.md），而且我们只需要补全、流式、工具、结构化与 embedding 五件事；自己的适配器还能统一错误码、重试与用量记录。消息中立格式在 `llm.py`（`Text`、`Image`、`Document`、`ToolCall`、`ToolResult`、`Message`）。
+- **接口层用 Pydantic AI**（2026-10-19 起，替换最初的自写 httpx 适配器）：`adapters/sdk.py` 按 kind 构造 Pydantic AI 模型（`AnthropicModel`、`OpenAIChatModel`、`OpenAIResponsesModel`、`GoogleModel`；Ollama 走它的 OpenAI 兼容接口 `/v1`），`adapters/convert.py` 负责中立消息与 Pydantic AI 消息互转，`adapters/__init__.py` 在其上加 M06 的重试与错误码；embedding 与模型列表直接用官方 SDK（Pydantic AI 没有模型列表）。选型时在 Python 3.15 上实测：LiteLLM 依赖 `tokenizers`、`fastuuid`，没有 3.15 wheel，装不上；LangChain 同理；any-llm 可用但更新、更重。消息中立格式仍在 `llm.py`（`Text`、`Image`、`Document`、`ToolCall`、`ToolResult`、`Message`），其它模块不接触 Pydantic AI 的类型。
+- **SSRF 防护**：各家 SDK 用的是 `httpx2`（httpx 的分支），`adapters/bridge.py` 给 SDK 一个 `httpx2.AsyncClient`，其传输层把每个请求交给 `safe_client`（`httpx`），所以地址检查、不跟随重定向、忽略代理变量都保持不变，测试也照样用 respx。SDK 自带的重试全部关闭（`max_retries=0`），由本模块统一重试 429、5xx 与连接失败。没有 key 的端点给 SDK 一个占位 key，再由 bridge 去掉鉴权头。
+- `pydantic-ai-slim` 精确锁版本（更新快，升级时跑一遍本模块测试）；`google-genai` 要求 `websockets<17`，所以 `websockets` 放宽到 `>=16`（只有 uvicorn 的 WebSocket 支持用到它）。
 - `get_chat_model()` 是 async 的，返回本模块的 `ChatModel`（`complete(messages, tools)`、`stream(...)`、`supports_tools`、`provider_kind`、`model`），不是 LangChain 的 `BaseChatModel`；M12 在 LangGraph 节点里调用它即可，需要 LangChain 接口时由 M12 写一个薄适配。
 - 默认模型与价格表用 TOML（`defaults.toml`、`pricing.toml`，标准库 `tomllib` 读取），不用 YAML，原因同上。价格与上下文窗口按模型名最长前缀匹配；未知模型上下文窗口按 32k 估算。
 - **实例级提供方不入库**：直接由 `SEMESTRA_INSTANCE_AI_*` 环境变量在解析时构造（`resolve.instance_endpoint`），所以 `ai_providers.user_id` 不可为空。实例级提供方没有 id，不出现在提供方列表里，`ai.status` 的 `source` 为 `instance`。
 - 解析规则实现为 `try_resolve` / `resolve_provider`；用户的提供方关闭或不具备能力时跳过；`ai.status` 解析时不解密 key。付费 plan 的预留分支以注释形式在 `resolve.py`。
-- 能力：`anthropic`/`openai`/`gemini` 固定（`catalog.KIND_INFO`）；`openai_compatible` 与 `ollama` 由用户勾选（默认分别为 chat+tools 与 chat+tools+structured+embedding）。`capabilities_editable` 字段告诉前端能否修改。
-- 结构化输出：Anthropic 强制工具调用、OpenAI `json_schema`（`strict: false`，以兼容 Pydantic 生成的 schema）、Gemini `responseJsonSchema`、Ollama `format`；兼容端点用 JSON 模式加 schema 说明。所有方式都会用 Pydantic 校验，失败时把校验错误回传给模型重试（`max_retries` 次，之后 `ai.output_invalid` 502）。schema 中的 `$ref` 先内联。
+- 能力：`anthropic`/`openai`/`gemini` 固定（`catalog.KIND_INFO`）；`anthropic_compatible`、`openai_compatible`、`openai_responses` 与 `ollama` 由用户勾选（默认分别为 chat+tools、chat+tools、chat+tools+structured、chat+tools+structured+embedding）。`capabilities_editable` 字段告诉前端能否修改。三种兼容 kind（`catalog.COMPATIBLE_KINDS`）没有推荐模型，模型列表取不到时允许手填。
+- Anthropic 兼容：base URL 填到 `/v1` 之前（如 `https://api.deepseek.com/anthropic`），带 `/v1` 也接受；有 key 时同时发 `x-api-key` 与 `Authorization: Bearer`（有的网关只认后者）。Responses API：请求带 `store: false`，每次发送完整对话；`reasoning_effort` 只发给 `openai` 与 `openai_responses`。
+- 结构化输出：OpenAI（含 Responses）、Gemini、Ollama 与兼容端点用原生 JSON schema 模式（`strict: false`，以兼容 Pydantic 生成的 schema）；Anthropic 支持 JSON schema 输出的 Claude 模型用原生模式（Claude 的该模式总是严格的，由 Pydantic AI 改写 schema），其余 Anthropic 兼容模型用强制工具调用；未勾选 structured 的端点用 JSON 模式加 schema 说明。所有方式都会用 Pydantic 校验，失败时把校验错误回传给模型重试（`max_retries` 次，之后 `ai.output_invalid` 502）。schema 中的 `$ref` 先内联。
 - `extract`：分段预算为上下文窗口的一半减去输出预留（8000 token），每段最多 8 张图；提供方返回 `ai.context_too_long` 时把该段对半拆开重试。出处校验忽略空白并做 NFKC 规范化，引号统一；引文出现在别的页时改正页码；找不到时丢弃出处并把置信度降到 0.3（low），警告 `evidence_not_found`。合并时标量取置信度高者，取值不同标 `conflict`（`Evidenced.conflict` 不出现在发给模型的 schema 里）；列表按值去重拼接。`on_segment(done, total)` 回调供 job 汇报阶段进度。
 - 不支持读 PDF 的提供方（除 Anthropic、Gemini 外）需要调用方传入 `rasterize` 回调，没有时抛 `ai.capability_unsupported`（capability=`pdf`）。
 - 用量事件与提供方健康状态（`last_checked_at`、`last_error_code`）由 `AiRuntime`（`app.state.ai`）在后台任务里用独立会话写入，不受调用方事务回滚影响，SQLite 繁忙时重试 3 次；测试里用 `await app.state.ai.drain()` 等待。流式调用被中断时记 `ai.cancelled`。

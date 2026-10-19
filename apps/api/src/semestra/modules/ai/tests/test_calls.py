@@ -48,11 +48,43 @@ def openai_reply(content: str | None = "Hi", tool_calls: list[Any] | None = None
     return Response(
         200,
         json={
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "created": 1,
             "model": "gpt-5",
             "choices": [
-                {"message": message, "finish_reason": "tool_calls" if tool_calls else "stop"}
+                {
+                    "index": 0,
+                    "message": message,
+                    "finish_reason": "tool_calls" if tool_calls else "stop",
+                }
             ],
-            "usage": {"prompt_tokens": 1000, "completion_tokens": 100},
+            "usage": {"prompt_tokens": 1000, "completion_tokens": 100, "total_tokens": 1100},
+        },
+    )
+
+
+def ollama_reply(text: str, prompt_tokens: int = 5, completion_tokens: int = 1) -> Response:
+    """Ollama's OpenAI-compatible API (`/v1/chat/completions`)."""
+    return Response(
+        200,
+        json={
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "qwen3:8b",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
         },
     )
 
@@ -87,18 +119,7 @@ async def test_instance_provider_only_when_the_user_has_none(
     assert not status["vision"]["available"]
     assert status["chat"]["provider_id"] is None
 
-    mock.post(f"{OLLAMA}/api/chat").mock(
-        return_value=Response(
-            200,
-            json={
-                "model": "qwen3:8b",
-                "message": {"content": "ok"},
-                "done_reason": "stop",
-                "prompt_eval_count": 5,
-                "eval_count": 1,
-            },
-        )
-    )
+    mock.post(f"{OLLAMA}/v1/chat/completions").mock(return_value=ollama_reply("ok"))
     async with ai.ctx() as ctx:
         result = await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
     assert isinstance(result, m06.Completion)
@@ -226,7 +247,10 @@ async def test_anthropic_stream_writes_usage_at_the_end(
     events = [
         {
             "type": "message_start",
-            "message": {"model": "claude-sonnet-5-5", "usage": {"input_tokens": 9}},
+            "message": {
+                "model": "claude-sonnet-5-5",
+                "usage": {"input_tokens": 9, "output_tokens": 0},
+            },
         },
         {"type": "content_block_start", "index": 0, "content_block": {"type": "text"}},
         {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hel"}},
@@ -449,10 +473,8 @@ async def test_gemini_conversion_and_structured(ai: Ai, mock: respx.MockRouter):
         )
     assert result == Title(title="Week 3")
     body = json.loads(route.calls.last.request.content)
-    assert body["systemInstruction"] == {"parts": [{"text": "Name it."}]}
-    assert body["contents"][0]["parts"][1] == {
-        "inlineData": {"mimeType": "image/png", "data": "iVBORyBmYWtl"}
-    }
+    assert body["systemInstruction"]["parts"] == [{"text": "Name it."}]
+    assert body["contents"][0]["parts"][1]["inlineData"]["data"] == "iVBORyBmYWtl"
     assert body["generationConfig"]["responseMimeType"] == "application/json"
     assert body["generationConfig"]["responseJsonSchema"]["properties"]["title"]["type"] == "string"
     assert route.calls.last.request.headers["x-goog-api-key"] == "g-key-1234567890"
@@ -484,18 +506,11 @@ async def test_structured_retries_with_the_validation_error(
     models_ok(mock)
     await ai.provider("anthropic")
 
-    def tool_reply(payload: Any) -> Response:
-        return Response(
-            200,
-            json={
-                "content": [{"type": "tool_use", "id": "x", "name": "Course", "input": payload}],
-                "stop_reason": "tool_use",
-                "usage": {"input_tokens": 1, "output_tokens": 1},
-            },
-        )
+    def json_reply(payload: Any) -> Response:
+        return anthropic_reply(json.dumps(payload))
 
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(
-        side_effect=[tool_reply({"code": "APS105"}), tool_reply({"code": "APS105", "credits": 0.5})]
+        side_effect=[json_reply({"code": "APS105"}), json_reply({"code": "APS105", "credits": 0.5})]
     )
     async with ai.ctx() as ctx:
         result = await m06.structured(
@@ -503,7 +518,8 @@ async def test_structured_retries_with_the_validation_error(
         )
     assert result == Course(code="APS105", credits=0.5)
     first = json.loads(route.calls[0].request.content)
-    assert first["tool_choice"] == {"type": "tool", "name": "Course"}
+    assert first["output_config"]["format"]["type"] == "json_schema"
+    assert first["output_config"]["format"]["schema"]["required"] == ["code", "credits"]
     second = json.loads(route.calls[1].request.content)
     feedback = second["messages"][-1]["content"][0]["text"]
     assert "credits" in feedback
@@ -567,11 +583,7 @@ async def test_pdf_is_rasterized_for_ollama(ai: Ai, mock: respx.MockRouter):
         "/ai/assignments",
         json={"purpose": "vision", "provider_id": provider["id"], "model": "llava"},
     )
-    route = mock.post(f"{OLLAMA}/api/chat").mock(
-        return_value=Response(
-            200, json={"message": {"content": "page text"}, "done_reason": "stop"}
-        )
-    )
+    route = mock.post(f"{OLLAMA}/v1/chat/completions").mock(return_value=ollama_reply("page text"))
     rendered: list[bytes] = []
 
     async def rasterize(pdf: bytes) -> list[Image]:
@@ -591,7 +603,8 @@ async def test_pdf_is_rasterized_for_ollama(ai: Ai, mock: respx.MockRouter):
         )
     assert rendered == [PDF]
     body = json.loads(route.calls.last.request.content)
-    assert body["messages"][0]["images"] == ["cDE=", "cDI="]
+    images = [p["image_url"]["url"] for p in body["messages"][0]["content"] if "image_url" in p]
+    assert images == ["data:image/png;base64,cDE=", "data:image/png;base64,cDI="]
     assert body["stream"] is False
 
 
@@ -679,19 +692,23 @@ async def test_gemini_and_ollama_streams(ai: Ai, app: FastAPI, mock: respx.MockR
     mock.post(f"{GEMINI}/models/gemini-2.5-pro:streamGenerateContent").mock(
         return_value=Response(200, text="".join(f"data: {json.dumps(e)}\r\n\r\n" for e in events))
     )
-    lines = [
-        {"message": {"content": "Wee"}, "done": False},
-        {"message": {"content": "k 3"}, "done": False},
+    base = {"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "qwen3:8b"}
+    chunks = [
+        {**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Wee"}}]},
+        {**base, "choices": [{"index": 0, "delta": {"content": "k 3"}}]},
+        {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
         {
-            "message": {"content": ""},
-            "done": True,
-            "done_reason": "stop",
-            "prompt_eval_count": 4,
-            "eval_count": 2,
+            **base,
+            "choices": [],
+            "usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
         },
     ]
-    mock.post(f"{OLLAMA}/api/chat").mock(
-        return_value=Response(200, text="\n".join(json.dumps(line) for line in lines))
+    mock.post(f"{OLLAMA}/v1/chat/completions").mock(
+        return_value=Response(
+            200,
+            text="".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n",
+            headers={"content-type": "text/event-stream"},
+        )
     )
     async with ai.ctx() as ctx:
         g = await m06.complete(
@@ -710,7 +727,9 @@ async def test_gemini_and_ollama_streams(ai: Ai, app: FastAPI, mock: respx.MockR
     assert g_done is not None
     assert g_done.text == "Hi "
     assert g_done.stop_reason == "tool_use"
-    assert g_done.tool_calls == [ToolCall("call_1", "f", {"a": 1})]
+    [call] = g_done.tool_calls
+    assert (call.name, call.arguments) == ("f", {"a": 1})
+    assert call.id  # Gemini sends no call ids: one is made up
     assert (g_done.usage.input_tokens, g_done.usage.output_tokens) == (3, 3)
     assert o_done is not None
     assert (o_done.text, o_done.usage.output_tokens) == ("Week 3", 2)
@@ -721,8 +740,16 @@ async def test_gemini_and_ollama_streams(ai: Ai, app: FastAPI, mock: respx.MockR
 async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("ollama")
-    mock.post(f"{OLLAMA}/api/embed").mock(
-        return_value=Response(200, json={"embeddings": [[0.1, 0.2]], "prompt_eval_count": 3})
+    mock.post(f"{OLLAMA}/v1/embeddings").mock(
+        return_value=Response(
+            200,
+            json={
+                "object": "list",
+                "model": "nomic-embed-text",
+                "data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2]}],
+                "usage": {"prompt_tokens": 3, "total_tokens": 3},
+            },
+        )
     )
     async with ai.ctx() as ctx:
         result = await m06.embed(ctx, ["hello"], source_module="files")
@@ -744,7 +771,5 @@ async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     assert result.dim == 3
     assert len(result.vectors) == 2
     body = json.loads(route.calls.last.request.content)
-    assert body["requests"][0] == {
-        "model": "models/gemini-embedding-001",
-        "content": {"parts": [{"text": "a"}]},
-    }
+    assert body["requests"][0]["model"] == "models/gemini-embedding-001"
+    assert body["requests"][0]["content"]["parts"] == [{"text": "a"}]

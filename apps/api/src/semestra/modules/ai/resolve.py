@@ -57,7 +57,8 @@ def instance_endpoint(settings: Settings) -> Endpoint | None:
     capabilities: list[ProviderCapability] = []
     if settings.instance_ai_chat_model:
         capabilities.extend(("chat", "tools", "structured"))
-        if kind not in ("ollama", "openai_compatible"):  # local models are mostly text-only
+        # Local and compatible endpoints are mostly text-only.
+        if kind != "ollama" and kind not in catalog.COMPATIBLE_KINDS:
             capabilities.append("vision")
     if settings.instance_ai_embedding_model:
         capabilities.append("embedding")

@@ -78,7 +78,14 @@ class Settings(BaseSettings):
     # AI (M06). A self-hosted instance may configure one provider every user shares; it is only
     # used when the user has configured nothing that serves the purpose.
     instance_ai_kind: Literal[
-        "", "anthropic", "openai", "openai_compatible", "gemini", "ollama"
+        "",
+        "anthropic",
+        "anthropic_compatible",
+        "openai",
+        "openai_compatible",
+        "openai_responses",
+        "gemini",
+        "ollama",
     ] = ""
     instance_ai_base_url: str = ""
     instance_ai_chat_model: str = ""
