@@ -526,7 +526,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[\\w-]+$",
+              "pattern": "^[A-Za-z0-9_-]+$",
               "title": "User Id"
             }
           },
@@ -536,7 +536,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[\\w-]+$",
+              "pattern": "^[A-Za-z0-9_-]+$",
               "title": "Version"
             }
           }
