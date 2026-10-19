@@ -113,7 +113,7 @@ function Separator() {
  * The header of a Program, term or course page (M02 §5.1) on the shared `PageHeader`: the
  * parents as breadcrumbs (the Program is in the sidebar, so it is left out), the term or
  * course name as the title with a menu to switch to a sibling, pin and settings buttons, and
- * the scope's page tabs.
+ * the page tabs of a term or course (the Program's pages are in the sidebar).
  */
 export function ScopeHeader({
   scope,
@@ -240,9 +240,11 @@ export function ScopeHeader({
         </>
       }
     >
-      <div data-tour="page-tabs">
-        <ScopeNav scope={scope} activePageId={activePageId} />
-      </div>
+      {scope.kind === 'program' ? null : (
+        <div data-tour="page-tabs">
+          <ScopeNav scope={scope} activePageId={activePageId} />
+        </div>
+      )}
     </PageHeader>
   )
 }
