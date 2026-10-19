@@ -1,6 +1,6 @@
 import type { PluginCatalog } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQueries, useQuery } from '@tanstack/react-query'
 import {
   type ComponentType,
   createContext,
@@ -17,6 +17,7 @@ import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import imports from '@/modules/imports/manifest'
 import lms from '@/modules/lms/manifest'
+import canvasTab from '@/modules/plugin-canvas-tab/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
 import pomodoro from '@/modules/plugin-pomodoro/manifest'
@@ -61,6 +62,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   stickyNote,
   counter,
   worldClock,
+  canvasTab,
 ]
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
@@ -125,11 +127,36 @@ function byOrder<T extends { order: number }>(a: T, b: T) {
   return a.order - b.order
 }
 
-export function usePages(scope: Scope): PageContribution[] {
-  return useModules()
+export type PageStatus = 'available' | 'pending' | 'unavailable'
+
+/**
+ * Every page of a scope with whether it is available there. Pages with an `availabilityQuery`
+ * are `pending` until it has loaded, and unavailable if it fails.
+ */
+export function usePageStatuses(scope: Scope): { page: PageContribution; status: PageStatus }[] {
+  const pages = useModules()
     .flatMap((m) => m.pages ?? [])
-    .filter((p) => p.scopes.includes(scope.kind) && (p.isAvailable?.(scope) ?? true))
+    .filter((p) => p.scopes.includes(scope.kind))
     .sort(byOrder)
+  const queries = pages.map((p) => p.availabilityQuery?.(scope) ?? null)
+  const results = useQueries({
+    queries: queries.map(
+      (query, i) => query ?? { queryKey: ['host.page', pages[i]!.id], queryFn: skipToken },
+    ),
+  })
+  return pages.map((page, i) => {
+    const result = results[i]!
+    if (queries[i] && result.isPending) return { page, status: 'pending' }
+    if (queries[i] && result.isError) return { page, status: 'unavailable' }
+    const ok = page.isAvailable?.(scope, queries[i] ? result.data : undefined) ?? true
+    return { page, status: ok ? 'available' : 'unavailable' }
+  })
+}
+
+export function usePages(scope: Scope): PageContribution[] {
+  return usePageStatuses(scope)
+    .filter((p) => p.status === 'available')
+    .map((p) => p.page)
 }
 
 export function useCards(board: BoardKind): CardContribution[] {

@@ -8366,10 +8366,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Page ref from lms.pages.list",
+              "description": "Page ref from lms.pages.list, or `@front` for the course's front page",
               "title": "Ref"
             },
-            "description": "Page ref from lms.pages.list"
+            "description": "Page ref from lms.pages.list, or `@front` for the course's front page"
           },
           {
             "name": "refresh",
@@ -12554,6 +12554,11 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Updated At"
+          },
+          "unread": {
+            "type": "boolean",
+            "title": "Unread",
+            "default": false
           }
         },
         "type": "object",

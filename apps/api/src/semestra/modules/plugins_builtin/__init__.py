@@ -1,4 +1,5 @@
-"""M14 built-in plugins: counter, habit streak, pomodoro, sticky note, world clock."""
+"""First-party plugins: the M14 set (counter, habit streak, pomodoro, sticky note, world clock)
+and the M16 Canvas tab."""
 
 from fastapi import FastAPI
 
@@ -42,6 +43,12 @@ PLUGINS = (
         id="world-clock",
         default_installed=False,
         summary="The time and date in up to three time zones.",
+    ),
+    # M16: frontend only, it reads everything through the core `lms.*` capabilities (M09).
+    PluginInfo(
+        id="canvas-tab",
+        default_installed=False,
+        summary="Browse a linked Canvas course: announcements, assignments, modules, pages.",
     ),
 )
 for _info in PLUGINS:

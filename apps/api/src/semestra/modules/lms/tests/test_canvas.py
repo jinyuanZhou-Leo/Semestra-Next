@@ -15,6 +15,7 @@ from semestra.modules.lms.providers import Io
 from semestra.modules.lms.providers.canvas import CanvasProvider
 from semestra.modules.lms.providers.canvas import provider as canvas_module
 from semestra.modules.lms.providers.canvas.config import mask_token, normalize_base_url
+from semestra.modules.lms.schemas.dto import FRONT_PAGE_REF
 from semestra.modules.lms.tests.conftest import CANVAS, TOKEN, canvas_api
 from semestra.modules.lms.tests.provider_contract import check_provider
 
@@ -353,3 +354,33 @@ def test_file_cdn_hosts_match_whole_labels():
     assert p._allowed_hop(base, "https://a.instructure-uploads.s3.amazonaws.com/f")
     assert not p._allowed_hop(base, "https://evilinstructure-uploads.s3.amazonaws.com/f")
     assert not p._allowed_hop(base, "https://evilinstructure.com/f")
+
+
+async def test_tab_links_read_state_and_front_page(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    """Fields the Canvas tab relies on, as the Canvas API docs describe them."""
+    p, cfg, creds = _cfg(settings)
+    mock.get(f"{API}/courses/1/tabs").mock(
+        return_value=Response(200, json=[
+            {"id": "context_external_tool_4", "label": "Zoom", "type": "external",
+             "html_url": "/courses/1/external_tools/4", "position": 1},
+        ])
+    )  # fmt: skip
+    mock.get(f"{API}/announcements").mock(
+        return_value=Response(200, json=[
+            {"id": 1, "title": "New", "read_state": "unread", "posted_at": "2026-01-02T00:00:00Z"},
+            {"id": 2, "title": "Old", "read_state": "read", "posted_at": "2026-01-01T00:00:00Z"},
+        ])
+    )  # fmt: skip
+    front = mock.get(f"{API}/courses/1/front_page").mock(
+        return_value=Response(200, json={"url": "welcome", "title": "Welcome", "front_page": True,
+                                         "body": "<p>Hi</p>"})
+    )  # fmt: skip
+    [tab] = await p.navigation(io, cfg, creds, "1")
+    assert tab.web_url == f"{CANVAS}/courses/1/external_tools/4"
+    news = await p.announcements(io, cfg, creds, "1")
+    assert [(a.title, a.unread) for a in news] == [("New", True), ("Old", False)]
+    page = await p.page(io, cfg, creds, "1", FRONT_PAGE_REF)
+    assert (page.ref, page.front_page, page.html) == ("welcome", True, "<p>Hi</p>")
+    assert front.called

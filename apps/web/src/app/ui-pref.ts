@@ -21,6 +21,7 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'academics.',
   'onboarding.',
   'commands.',
+  'canvas-tab.',
   'files.',
 ] as const
 

@@ -271,7 +271,9 @@ class PageList(BaseModel):
 
 
 class PageGetInput(CourseReadInput):
-    ref: ExternalId = Field(description="Page ref from lms.pages.list")
+    ref: ExternalId = Field(
+        description="Page ref from lms.pages.list, or `@front` for the course's front page"
+    )
 
 
 class QuizList(BaseModel):
