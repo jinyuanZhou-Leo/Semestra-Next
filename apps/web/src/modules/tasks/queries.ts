@@ -33,7 +33,7 @@ export function useTaskCounts(scope: TaskScope) {
 }
 
 /**
- * The tasks of a selection (smart list, inbox or list) within a scope: the open ones, or with
+ * The tasks of a selection (smart list, Unsorted or list) within a scope: the open ones, or with
  * `completed: 'only'` the finished ones the selection would show.
  */
 export function useTasks(

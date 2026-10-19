@@ -1,5 +1,6 @@
 import { CalendarDays, Flag, Plus, X } from 'lucide-react'
 import { type Ref, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Badge } from '@/ui/badge'
@@ -7,8 +8,8 @@ import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { dueLabel, localDate } from '../due'
 import { parseQuickAdd } from '../parse'
-import type { Priority } from '../types'
-import { PRIORITY_NAMES } from './TaskRow'
+import { type Priority, shownPriority } from '../types'
+import { PRIORITY_COLORS, PRIORITY_NAMES } from './TaskRow'
 
 export type NewTask = {
   title: string
@@ -18,8 +19,9 @@ export type NewTask = {
 }
 
 /**
- * The line under a list (M05 §5.1): Enter adds the task. A date, a time and `!`/`!!`/`!!!` in the
- * text are read and shown as chips that can be undone before adding.
+ * The add line at the top of a list (M05 §5.1): Enter adds the task. A date, a time and
+ * `!`/`!!`/`!!!` (low/medium/high) in the text are read and shown as chips that can be undone
+ * before adding.
  */
 export function QuickAdd({
   inputRef,
@@ -64,7 +66,7 @@ export function QuickAdd({
     await onAdd(task).catch(() => setText(text))
   }
   return (
-    <div className="space-y-1.5 rounded-2xl px-3 py-2.5 hover:bg-muted/40">
+    <div className="rounded-2xl bg-muted/50 px-3 py-2.5 focus-within:bg-muted">
       <div className="flex items-center gap-3">
         <span
           aria-hidden
@@ -90,43 +92,48 @@ export function QuickAdd({
             if (event.key === 'Escape') event.currentTarget.blur()
           }}
         />
+        {/* Chips sit on the same line, so typing a date never changes the height of the box. */}
+        {parsed.dateText || parsed.priorityText ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            {parsed.dateText ? (
+              <Chip
+                undone={ignoreDate}
+                label={
+                  ignoreDate
+                    ? parsed.dateText
+                    : dueLabel({ due_date: parsed.dueDate, due_time: parsed.dueTime }, today)
+                }
+                icon={<CalendarDays aria-hidden />}
+                undoLabel={m.tasks_quick_add_undo({ text: parsed.dateText })}
+                onToggle={() => setKeptDate(ignoreDate ? null : parsed.dateText)}
+              />
+            ) : null}
+            {parsed.priorityText ? (
+              <Chip
+                undone={ignorePriority}
+                label={
+                  ignorePriority
+                    ? parsed.priorityText
+                    : PRIORITY_NAMES[shownPriority(first.priority ?? 'none')]()
+                }
+                icon={
+                  <Flag
+                    aria-hidden
+                    className={cn(
+                      !ignorePriority && 'fill-current',
+                      !ignorePriority && PRIORITY_COLORS[shownPriority(first.priority ?? 'none')],
+                    )}
+                  />
+                }
+                undoLabel={m.tasks_quick_add_undo({ text: parsed.priorityText })}
+                onToggle={() => setKeptMark(ignorePriority ? null : parsed.priorityText)}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
-      {parsed.dateText || parsed.priorityText ? (
-        <div className="flex flex-wrap items-center gap-1.5 pl-8">
-          {parsed.dateText ? (
-            <Chip
-              undone={ignoreDate}
-              label={
-                ignoreDate
-                  ? parsed.dateText
-                  : dueLabel({ due_date: parsed.dueDate, due_time: parsed.dueTime }, today)
-              }
-              icon={<CalendarDays aria-hidden />}
-              undoLabel={m.tasks_quick_add_undo({ text: parsed.dateText })}
-              onToggle={() => setKeptDate(ignoreDate ? null : parsed.dateText)}
-            />
-          ) : null}
-          {parsed.priorityText ? (
-            <Chip
-              undone={ignorePriority}
-              label={
-                ignorePriority
-                  ? parsed.priorityText
-                  : PRIORITY_NAMES[priorityOf(parsed.priorityText)]()
-              }
-              icon={<Flag aria-hidden />}
-              undoLabel={m.tasks_quick_add_undo({ text: parsed.priorityText })}
-              onToggle={() => setKeptMark(ignorePriority ? null : parsed.priorityText)}
-            />
-          ) : null}
-        </div>
-      ) : null}
     </div>
   )
-}
-
-function priorityOf(marks: string): Priority {
-  return marks.length >= 3 ? 'urgent' : marks.length === 2 ? 'high' : 'medium'
 }
 
 function Chip({

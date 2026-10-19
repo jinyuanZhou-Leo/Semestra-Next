@@ -83,6 +83,12 @@ type Options = {
   allowInInputs?: boolean
   /** Match the produced character (for `?`) instead of the physical key. */
   useKey?: boolean
+  /**
+   * Skip the event when this returns true: the handler does not run and the key keeps its default
+   * action (Enter still presses a focused button). Use it instead of returning early from the
+   * handler, which runs after the default has already been prevented.
+   */
+  ignoreEventWhen?: (event: KeyboardEvent) => boolean
 }
 
 /** Lists a shortcut handled elsewhere (by a plain key listener) in the help dialog. */
@@ -109,7 +115,14 @@ export function useHotkey(
   handler: (event: KeyboardEvent) => void,
   options: Options = {},
 ) {
-  const { enabled = true, description, order = 100, allowInInputs = false, useKey } = options
+  const {
+    enabled = true,
+    description,
+    order = 100,
+    allowInInputs = false,
+    useKey,
+    ignoreEventWhen,
+  } = options
   useListedHotkey(combo, description ?? NO_DESCRIPTION, {
     enabled: enabled && description !== undefined,
     order,
@@ -120,6 +133,7 @@ export function useHotkey(
     enableOnFormTags: allowInInputs,
     enableOnContentEditable: allowInInputs,
     preventDefault: true,
+    ignoreEventWhen,
     useKey,
     // A produced character already includes Shift (`?` is Shift + /).
     ignoreModifiers: useKey,

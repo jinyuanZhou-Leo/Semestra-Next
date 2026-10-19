@@ -12,7 +12,8 @@ export type QuickAdd = {
   priorityText: string | null
 }
 
-const PRIORITY_MARKS: Record<number, Priority> = { 1: 'medium', 2: 'high', 3: 'urgent' }
+// As in Apple Reminders: one mark is low, two medium, three high.
+const PRIORITY_MARKS: Record<number, Priority> = { 1: 'low', 2: 'medium', 3: 'high' }
 const MARK = /(^|\s)([!！]{1,3})(?=\s|$)/g
 
 function pad(value: number): string {
@@ -30,7 +31,7 @@ function cut(text: string, index: number, length: number): string {
 
 /**
  * Reads a quick-add line like "Fri 5pm essay !!" or "明天下午3点 复习": a date and time in
- * Chinese or English, and a trailing `!`/`!!`/`!!!` for medium/high/urgent. The words that
+ * Chinese or English, and a trailing `!`/`!!`/`!!!` for low/medium/high. The words that
  * were understood are removed from the title; the caller shows them as chips that can be undone.
  */
 export function parseQuickAdd(

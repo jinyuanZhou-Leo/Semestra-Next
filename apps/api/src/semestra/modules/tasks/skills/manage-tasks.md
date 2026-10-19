@@ -20,8 +20,8 @@ then act on the best candidate; if two are close, name both and ask.
 
 **"What is due this week?"** Use `calendar.occurrences` for the range: it merges tasks
 (`tasks.due`) with assessments and events, and tasks that came from an assessment do not show twice.
-Use `tasks.item.query` only for questions about the task list itself ("what is flagged", "what is in
-my inbox"). `tasks.counts` answers "how many" cheaply.
+Use `tasks.item.query` only for questions about the task list itself ("what is flagged", "what is
+unsorted"; tasks in no list are the `inbox` view, shown to the user as "Unsorted"/"未归类"). `tasks.counts` answers "how many" cheaply.
 
 **Changing.** Complete with `tasks.item.complete`; to undo, call it with `completed: false`.
 `tasks.item.move` changes the list or the position. Tasks made from an assessment follow its due
@@ -29,4 +29,4 @@ date: change the assessment's date, not the task's. Completing such a task never
 
 **Deleting.** `tasks.item.delete` and `tasks.item.clear_completed` cannot be undone. Only do them
 when the user asked, and name how many tasks `clear_completed` will remove (see `tasks.counts`).
-Deleting a list moves its tasks to the inbox unless the user asked to delete them too.
+Deleting a list moves its tasks to Unsorted (no list) unless the user asked to delete them too.

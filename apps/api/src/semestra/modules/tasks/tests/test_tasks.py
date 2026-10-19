@@ -16,6 +16,7 @@ from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, coll
 from semestra.modules.tasks import auto, service
 from semestra.modules.tasks.calendar import due_source
 from semestra.modules.tasks.schemas import TaskCandidates, TaskFindInput
+from semestra.modules.tasks.settings import TasksSettings
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -228,6 +229,21 @@ async def test_default_priority_comes_from_the_program_settings(api: Api):
     )
     assert (await api.task(pid))["priority"] == "high"
     assert (await api.task(pid, priority="low"))["priority"] == "low"
+
+
+async def test_default_priority_offers_four_levels_and_reads_urgent_as_high(api: Api):
+    # A default saved as `urgent` before the app offered four levels keeps working, as high.
+    assert TasksSettings.model_validate({"default_priority": "urgent"}).default_priority == "high"
+    s = await api.setup()
+    pid = s["program"]
+    await api.call(
+        "PATCH",
+        "/settings/tasks",
+        json={"scope_type": "program", "scope_id": pid, "values": {"default_priority": "urgent"}},
+    )
+    assert (await api.task(pid))["priority"] == "high"
+    schema = TasksSettings.model_json_schema()["properties"]["default_priority"]
+    assert schema["enum"] == ["none", "low", "medium", "high"]
 
 
 async def test_create_many_skips_known_sources(api: Api):
