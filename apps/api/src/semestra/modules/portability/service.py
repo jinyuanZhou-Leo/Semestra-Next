@@ -335,12 +335,28 @@ def _import_out(row: PortabilityArchive) -> ImportOut:
     )
 
 
+async def _own_import(ctx: Ctx, archive_id: str) -> PortabilityArchive:
+    return await _reconcile_import(ctx, await _own(ctx, archive_id, "import"))
+
+
+async def _reconcile_import(ctx: Ctx, row: PortabilityArchive) -> PortabilityArchive:
+    """An import whose job died without reaching `run_import`'s error path (a restart, an OOM)
+    would stay `importing` for ever; the job's state says it failed."""
+    if row.status == "importing":
+        job = await ctx.db.get(CoreJob, row.job_id) if row.job_id else None
+        if job is None or job.status in ("failed", "cancelled"):
+            row.status = "failed"
+            row.error_code = (job.error_code if job else None) or "common.internal"
+            await ctx.db.flush()
+    return row
+
+
 async def get_import(ctx: Ctx, archive_id: str) -> ImportOut:
-    return _import_out(await _own(ctx, archive_id, "import"))
+    return _import_out(await _own_import(ctx, archive_id))
 
 
 async def start_import(ctx: Ctx, inp: ImportStartInput) -> ImportOut:
-    row = await _own(ctx, inp.id, "import")
+    row = await _own_import(ctx, inp.id)
     if row.status not in ("uploaded", "failed") or row.storage_key is None:
         raise AppError("portability.import_not_ready", 409)
     if inp.mode == "replace" and not _matches(inp.confirmation, REPLACE_DATA_PHRASES):
@@ -421,7 +437,11 @@ async def run_import(
                 for adapter in reversed(ordered):
                     await adapter.purge_content(ctx, options.include_preferences)
                 await ctx.db.flush()
-            staged = _StagedFiles(ctx, reader, await remaining_quota(ctx))
+            # Without a quota, imported files are still capped like the upload itself.
+            remaining = await remaining_quota(ctx)
+            staged = _StagedFiles(
+                ctx, reader, UNLIMITED_QUOTA_UPLOAD if remaining is None else remaining
+            )
             options.files = staged
             id_map = IdMap()
             imported: dict[str, dict[str, int]] = {}
@@ -485,7 +505,7 @@ async def mark_import_failed(state: State, archive_id: str, code: str) -> None:
 
 
 async def discard_import(ctx: Ctx, archive_id: str) -> None:
-    row = await _own(ctx, archive_id, "import")
+    row = await _own_import(ctx, archive_id)
     if row.status == "importing":
         raise AppError("portability.import_running", 409)
     key = row.storage_key
@@ -583,13 +603,12 @@ async def cleanup(ctx: Ctx) -> None:
     storage = get_storage(ctx)
     expired = (
         await ctx.db.scalars(
-            select(PortabilityArchive).where(
-                PortabilityArchive.expires_at <= ctx.now,
-                PortabilityArchive.status != "importing",
-            )
+            select(PortabilityArchive).where(PortabilityArchive.expires_at <= ctx.now)
         )
     ).all()
     for row in expired:
+        if (await _reconcile_import(ctx, row)).status == "importing":
+            continue
         if row.storage_key:
             with contextlib.suppress(Exception):
                 await storage.delete(row.storage_key)

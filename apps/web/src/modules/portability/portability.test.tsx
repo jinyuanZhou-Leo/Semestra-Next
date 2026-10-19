@@ -215,7 +215,9 @@ test('deletes the account after the sentence and the tick, then leaves', async (
   await userEvent.type(password, 'secret')
   await userEvent.click(confirm)
 
-  await waitFor(() => expect(signOut).toHaveBeenCalledWith({ to: '/account-deleted', flush: false }))
+  await waitFor(() =>
+    expect(signOut).toHaveBeenCalledWith({ to: '/account-deleted', flush: false }),
+  )
   expect(bodies[1]).toEqual({
     confirmation: 'delete my account',
     acknowledged: true,

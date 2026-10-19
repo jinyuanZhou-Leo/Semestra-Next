@@ -16,6 +16,7 @@ from sqlalchemy import Table, func, select
 
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.db import Base
+from semestra.core.jobs import CoreJob
 from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai.models import AiProvider
 from semestra.modules.auth.mailer import MemoryMailer
@@ -438,6 +439,44 @@ async def test_rejects_old_and_broken_backups(
     error = response.json()["error"]
     assert error["code"] == "portability.unsupported_version"
     assert error["params"] == {"version": "2"}
+
+
+async def test_refuses_oversized_data_entries(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    user = await make_user()
+    await login_as(client, user)
+    archive = await _export(client, run_jobs)
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr("semestra.modules.portability.archive.DATA_MAX_BYTES", 100)
+    try:
+        response = await _upload(client, archive)
+    finally:
+        monkey.undo()
+    assert response.json()["error"]["code"] == "portability.invalid_archive"
+
+
+async def test_an_import_whose_job_died_can_be_discarded(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    user = await make_user()
+    await login_as(client, user)
+    archive = await _export(client, run_jobs)
+    upload_id = (await _upload(client, archive)).json()["id"]
+    started = (await client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})).json()
+    assert started["status"] == "importing"
+
+    # The worker was killed mid-import: the job is failed, the upload never heard of it.
+    async with app.state.session_factory() as db:
+        job = await db.get(CoreJob, started["job_id"])
+        assert job is not None
+        job.status = "failed"
+        await db.commit()
+
+    current = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert current["status"] == "failed"
+    assert current["error_code"] == "common.internal"
+    assert (await client.delete(f"/me/imports/{upload_id}")).status_code == 200
 
 
 async def test_upload_over_the_limit_is_refused(

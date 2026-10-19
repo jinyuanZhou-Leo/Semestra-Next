@@ -22,6 +22,9 @@ VERSION = 1
 MANIFEST = "manifest.json"
 CHUNK = 64 * 1024
 LEGACY_MAX_BYTES = 64 * 1024 * 1024  # old JSON backups are only parsed to recognise them
+# `manifest.json` and each `data/<module>.json` are read whole: refuse larger declared sizes so a
+# small, highly compressed upload cannot fill memory (zipfile stops at the declared size).
+DATA_MAX_BYTES = 64 * 1024 * 1024
 _FILE_KEY = re.compile(r"[A-Za-z0-9_.-]{1,200}")
 
 
@@ -80,7 +83,7 @@ class ArchiveReader:
             raise legacy_or_invalid(path)
         try:
             self.zip = zipfile.ZipFile(path)
-            raw = json.loads(self.zip.read(MANIFEST))
+            raw = json.loads(self._read(MANIFEST))
         except KeyError, ValueError, zipfile.BadZipFile:
             raise invalid() from None
         if not isinstance(raw, dict) or raw.get("format") != FORMAT:  # pyright: ignore[reportUnknownMemberType]
@@ -96,9 +99,15 @@ class ArchiveReader:
         except ValidationError:
             raise invalid() from None
 
+    def _read(self, name: str) -> bytes:
+        """Raises `KeyError` when the entry is missing."""
+        if self.zip.getinfo(name).file_size > DATA_MAX_BYTES:
+            raise invalid()
+        return self.zip.read(name)
+
     def payload(self, module: str) -> dict[str, Any] | None:
         try:
-            data = json.loads(self.zip.read(f"data/{module}.json"))
+            data = json.loads(self._read(f"data/{module}.json"))
         except KeyError:
             return None
         except ValueError:
