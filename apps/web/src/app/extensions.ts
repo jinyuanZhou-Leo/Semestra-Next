@@ -91,8 +91,12 @@ export type SettingsSectionProps = { scope?: Scope }
  */
 export type SettingsGroup =
   | 'general'
+  | 'grades'
   | 'account'
+  | 'security'
   | 'preferences'
+  | 'ai'
+  | 'calendar'
   | 'features'
   | 'integrations'
   | 'plugins'

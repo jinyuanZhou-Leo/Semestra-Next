@@ -136,7 +136,7 @@ export default defineModule({
     {
       id: 'event-types',
       level: 'program',
-      group: 'general',
+      group: 'calendar',
       title: m.schedule_settings_event_types,
       description: m.schedule_settings_event_types_description,
       icon: Tags,
@@ -148,7 +148,7 @@ export default defineModule({
     ...(['program', 'term'] as const).map((level) => ({
       id: 'calendar',
       level,
-      group: 'general' as const,
+      group: 'calendar' as const,
       title: m.schedule_settings_calendar,
       icon: Settings2,
       order: 40,
@@ -157,7 +157,7 @@ export default defineModule({
     {
       id: 'calendar',
       level: 'account',
-      group: 'features',
+      group: 'calendar',
       title: m.schedule_settings_calendar,
       icon: Settings2,
       order: 30,

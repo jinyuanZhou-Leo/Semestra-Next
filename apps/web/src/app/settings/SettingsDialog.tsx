@@ -5,15 +5,19 @@ import {
 } from '@semestra/api-client/react-query'
 import { useLocation, useRouterState } from '@tanstack/react-router'
 import {
+  CalendarDays,
   Database,
+  GraduationCap,
   Info,
   type LucideIcon,
   Palette,
   Plug,
   Puzzle,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserRound,
+  Wrench,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { type CSSProperties, useEffect } from 'react'
@@ -34,6 +38,7 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -42,15 +47,19 @@ import {
 import { useHostAction } from '../commands'
 import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
 import { useSettingsSections } from '../registry'
-import { GROUP_TITLES, buildNavigation } from './groups'
+import { CLUSTER_TITLES, GROUP_TITLES, buildNavigation, clusterNavigation } from './groups'
 import { SettingsSections } from './SettingsSections'
 import { useSettingsDialog } from './use-settings-dialog'
 
 const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   general: SlidersHorizontal,
+  grades: GraduationCap,
   account: UserRound,
+  security: ShieldCheck,
   preferences: Palette,
-  features: Sparkles,
+  ai: Sparkles,
+  calendar: CalendarDays,
+  features: Wrench,
   integrations: Plug,
   plugins: Puzzle,
   data: Database,
@@ -116,7 +125,7 @@ export function SettingsDialog() {
     <Dialog open={available} onOpenChange={(next) => !next && close()}>
       {available ? (
         <DialogContent
-          className="gap-0 overflow-hidden p-0 h-[min(36rem,calc(100svh-2rem))] md:w-[56rem] md:max-w-[calc(100%-2rem)]"
+          className="gap-0 overflow-hidden p-0 h-[min(46rem,calc(100svh-2rem))] md:w-[72rem] md:max-w-[calc(100%-2rem)]"
           showCloseButton
         >
           <SettingsBody level={target.level} scope={scope} groupId={target.group} />
@@ -139,11 +148,17 @@ function SettingsBody({
   const name = useScopeName(scope)
   const sections = useSettingsSections(level)
   const groups = buildNavigation(sections, level)
-  const current = groups.find((g) => g.id === groupId) ?? groups[0]
+  const runs = clusterNavigation(groups, level)
+  const hash = useLocation({ select: (location) => location.hash })
+  // A link to a section that has since moved to another group still lands on that section.
+  const current =
+    groups.find((g) => g.id === groupId && g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.id === groupId) ??
+    groups[0]
   const title = name ?? m.settings_title()
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
-  const hash = useLocation({ select: (location) => location.hash })
   useEffect(() => {
     if (hash) document.getElementById(hash)?.scrollIntoView()
   }, [hash, current?.id])
@@ -154,32 +169,37 @@ function SettingsBody({
       <DialogDescription className="sr-only">{m.settings_dialog_description()}</DialogDescription>
       <SidebarProvider
         className="h-full min-h-0 items-start"
-        style={{ '--sidebar-width': '14rem' } as CSSProperties}
+        style={{ '--sidebar-width': '15rem' } as CSSProperties}
       >
         <Sidebar collapsible="none" className="hidden border-r md:flex">
           <SidebarContent>
             <nav aria-label={m.settings_title()}>
-              <SidebarGroup>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {groups.map((group) => {
-                      const Icon = GROUP_ICONS[group.id]
-                      return (
-                        <SidebarMenuItem key={group.id}>
-                          <SidebarMenuButton
-                            isActive={group.id === current?.id}
-                            aria-current={group.id === current?.id ? 'page' : undefined}
-                            onClick={() => select(group.id)}
-                          >
-                            <Icon aria-hidden />
-                            <span>{GROUP_TITLES[group.id]()}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
+              {runs.map((run) => (
+                <SidebarGroup key={run.cluster ?? 'all'}>
+                  {run.cluster ? (
+                    <SidebarGroupLabel>{CLUSTER_TITLES[run.cluster]()}</SidebarGroupLabel>
+                  ) : null}
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {run.groups.map((group) => {
+                        const Icon = GROUP_ICONS[group.id]
+                        return (
+                          <SidebarMenuItem key={group.id}>
+                            <SidebarMenuButton
+                              isActive={group.id === current?.id}
+                              aria-current={group.id === current?.id ? 'page' : undefined}
+                              onClick={() => select(group.id)}
+                            >
+                              <Icon aria-hidden />
+                              <span>{GROUP_TITLES[group.id]()}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
             </nav>
           </SidebarContent>
         </Sidebar>

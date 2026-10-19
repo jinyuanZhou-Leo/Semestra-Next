@@ -169,7 +169,7 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   expect(await screen.findByText('Available once AI is connected in Settings.')).toBeInTheDocument()
   // The link opens the AI section of the account settings dialog over the current page.
   await user.click(screen.getByRole('button', { name: 'Open settings' }))
-  expect(router.state.location.search).toEqual({ settings: 'account/features' })
+  expect(router.state.location.search).toEqual({ settings: 'account/ai' })
   expect(router.state.location.hash).toBe('ai-providers')
 
   world.providers.push(provider())
