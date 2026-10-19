@@ -189,7 +189,7 @@ const googleIdentity = {
 test('the official Google button sits on the Google row; its credential links the account', async () => {
   const linked = vi.fn<(body: unknown) => void>()
   let onCredential: ((response: { credential: string }) => void) | undefined
-  const renderButton = vi.fn((parent: HTMLElement) => {
+  const renderButton = vi.fn<(parent: HTMLElement) => void>((parent) => {
     parent.append(Object.assign(document.createElement('button'), { textContent: 'Google' }))
   })
   window.google = {
@@ -226,7 +226,7 @@ test('the official Google button sits on the Google row; its credential links th
 })
 
 test('a linked Google account shows its email and unlinks after confirmation', async () => {
-  const unlinked = vi.fn()
+  const unlinked = vi.fn<() => void>()
   server.use(
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: 'cid' })),
     http.post(`${API}/account/google/unlink`, () => {
