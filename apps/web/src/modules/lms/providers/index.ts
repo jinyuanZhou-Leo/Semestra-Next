@@ -18,13 +18,14 @@ export function useProviderUis(): ReadonlyMap<string, LmsProviderUi> {
  * The platforms a new connection can use: what the server offers (`lms.providers.list`) and the
  * frontend has a form for, in the server's order.
  */
-export function useOfferedProviders(): LmsProviderUi[] {
+export function useOfferedProviders(): { providers: LmsProviderUi[]; isPending: boolean } {
   const uis = useProviderUis()
-  const offered = useQuery(lmsProvidersListOptions()).data?.items ?? []
-  return offered.flatMap((p) => {
+  const query = useQuery(lmsProvidersListOptions())
+  const providers = (query.data?.items ?? []).flatMap((p) => {
     const ui = uis.get(p.kind)
     return ui ? [ui] : []
   })
+  return { providers, isPending: query.isPending }
 }
 
 /** A provider kind's display name: its UI label, else the server's name, else the kind. */

@@ -1,4 +1,5 @@
 import type { AssessmentCreateInputBody } from '@semestra/api-client'
+import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
@@ -22,6 +23,9 @@ export type AssessmentImportSource = {
   title: Message
   /** Shown instead of `title` in the menu when the label depends on the course (M09's platform). */
   Title?: ComponentType<{ programId: string; courseId: string }>
+  /** What `Title` reads, loaded with the gradebook so the menu label does not change when opened. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
   launch: (ctx: AssessmentImportContext) => Promise<AssessmentDraft[]>
 }

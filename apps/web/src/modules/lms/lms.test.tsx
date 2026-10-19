@@ -154,6 +154,17 @@ test('the platform list shows what the server offers and the frontend has a form
   expect(within(dialog).getByRole('button', { name: /^Canvas/ })).toBeInTheDocument()
 })
 
+test('without an offered platform the first step says so instead of staying blank', async () => {
+  server.use(
+    http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('No providers available')).toBeInTheDocument()
+})
+
 test('a failed check that keeps the connection usable still shows on its row', async () => {
   server.use(
     http.get(`${API}/lms/providers`, () => HttpResponse.json(PROVIDERS)),

@@ -1,4 +1,5 @@
 import { lmsCourseApplyUpdates } from '@semestra/api-client'
+import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
 import type { CommandContribution } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
@@ -46,6 +47,7 @@ export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   id: 'lms.courses',
   title: m.lms_import_courses,
   Title: CoursesTitle,
+  query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
   icon: School,
   request: ({ programId, startDate, endDate }) =>
@@ -70,6 +72,7 @@ export const assignmentSource: AssessmentImportSource = {
   id: 'lms.assignments',
   title: m.lms_import_assignments,
   Title: AssignmentsTitle,
+  query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   icon: ClipboardList,
   launch: async ({ programId, courseId }) => {
     await openImport({
