@@ -23,7 +23,7 @@ from semestra.core.http import safe_client
 from semestra.core.security import decrypt, encrypt
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import cache, html
-from semestra.modules.lms.errors import CONNECTION_ERRORS, lms_error
+from semestra.modules.lms.errors import BROKEN_ON_READ, CONNECTION_ERRORS, lms_error
 from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
@@ -413,7 +413,7 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
             result = await fn(i)
             return result, i.truncated
     except AppError as exc:
-        if exc.code in CONNECTION_ERRORS:
+        if exc.code in BROKEN_ON_READ:
             await _record_failure(ctx, b.row.id, exc.code)
         raise
 

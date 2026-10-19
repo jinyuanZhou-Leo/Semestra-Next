@@ -6640,6 +6640,10 @@ export type Submission = {
      */
     submitted_at?: string | null;
     /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
      * Score
      */
     score?: number | null;

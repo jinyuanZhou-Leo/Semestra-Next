@@ -21074,6 +21074,18 @@
             ],
             "title": "Submitted At"
           },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graded At"
+          },
           "score": {
             "anyOf": [
               {

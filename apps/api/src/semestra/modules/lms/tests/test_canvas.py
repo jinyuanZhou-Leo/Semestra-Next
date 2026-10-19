@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 import respx
@@ -126,6 +127,7 @@ async def test_reads_map_canvas_payloads(settings: Settings, io: Io, mock: respx
     grades = await p.grades(io, cfg, creds, "101")
     assert grades[0].kind == "total"
     assert grades[0].score == 90
+    assert grades[1].graded_at == datetime(2026, 2, 10, 12, tzinfo=UTC)
     # The bearer token goes to Canvas, and only there.
     sent = mock.calls[0].request
     assert sent.headers["authorization"] == f"Bearer {TOKEN}"
@@ -156,29 +158,65 @@ async def test_pagination_follows_link_and_truncates(
     assert not io.truncated
 
 
+BEARER = {"www-authenticate": 'Bearer realm="canvas-lms"'}
+
+
 @pytest.mark.parametrize(
-    ("status", "code"),
+    ("status", "headers", "body", "code"),
     [
-        (401, "lms.invalid_credentials"),
-        (403, "lms.forbidden"),
-        (404, "common.not_found"),
-        (429, "lms.rate_limited"),
-        (500, "lms.unreachable"),
-        (302, "lms.invalid_config"),
+        (401, BEARER, "", "lms.invalid_credentials"),
+        # A signed-in user refused one resource (a locked page): not a bad token.
+        (401, {}, '{"status":"unauthorized"}', "lms.forbidden"),
+        (403, {"x-rate-limit-remaining": "512.3"}, "", "lms.forbidden"),
+        # Canvas throttles with 403 by default and 429 only when the site opts in.
+        (403, {"x-rate-limit-remaining": "0.0"}, "403 Forbidden (Rate Limit Exceeded)",
+         "lms.rate_limited"),
+        (403, {}, "403 Forbidden (Rate Limit Exceeded)", "lms.rate_limited"),
+        (404, {}, "", "common.not_found"),
+        (429, {"retry-after": "30"}, "", "lms.rate_limited"),
+        (500, {}, "", "lms.unreachable"),
+        (302, {"location": "/login"}, "", "lms.invalid_config"),
     ],
-)
+)  # fmt: skip
 async def test_errors_are_mapped(
-    settings: Settings, io: Io, mock: respx.MockRouter, status: int, code: str
+    settings: Settings,
+    io: Io,
+    mock: respx.MockRouter,
+    status: int,
+    headers: dict[str, str],
+    body: str,
+    code: str,
 ):
     p, cfg, creds = _cfg(settings)
     mock.get(f"{API}/users/self/profile").mock(
-        return_value=Response(status, headers={"retry-after": "30", "location": "/login"})
+        return_value=Response(status, headers=headers, text=body)
     )
     with pytest.raises(AppError) as exc:
         await p.validate(io, cfg, creds)
     assert exc.value.code == code
     if code == "lms.rate_limited":
-        assert exc.value.params == {"retry_after": 30}
+        assert exc.value.params == {"retry_after": 30 if status == 429 else 60}
+
+
+async def test_past_courses_include_completed_enrollments(
+    settings: Settings, io: Io, mock: respx.MockRouter
+):
+    p, cfg, creds = _cfg(settings)
+    current = {"id": 1, "name": "Now", "workflow_state": "available"}
+    done = {"id": 2, "name": "Last year", "workflow_state": "completed"}
+
+    def courses(request: Any) -> Response:
+        if request.url.params.get("enrollment_state") == "completed":
+            return Response(200, json=[done, current])
+        return Response(200, json=[current])
+
+    route = mock.get(f"{API}/courses").mock(side_effect=courses)
+    listed = await p.list_courses(io, cfg, creds, include_past=True)
+    assert [(c.external_id, c.is_current) for c in listed] == [("1", True), ("2", False)]
+    assert route.call_count == 2
+    current_only = await p.list_courses(io, cfg, creds, include_past=False)
+    assert [c.external_id for c in current_only] == ["1"]
+    assert route.call_count == 3
 
 
 async def test_network_error_is_unreachable(settings: Settings, io: Io, mock: respx.MockRouter):

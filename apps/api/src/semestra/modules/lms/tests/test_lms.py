@@ -12,6 +12,7 @@ from semestra.core.errors import AppError
 from semestra.modules.imports import service as imports_service
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsConnection, LmsImportedRef
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
@@ -638,3 +639,20 @@ async def test_point_changes_of_an_unweighted_course_are_not_updates(api: Api, f
     await api.commit(started["session_id"])
     items[0] = items[0].model_copy(update={"points": 99})
     assert (await api.call("GET", f"/courses/{course}/lms/updates?refresh=true"))["count"] == 0
+
+
+async def test_a_refused_resource_leaves_the_connection_alone(
+    api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, term_id, conn = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+
+    async def refused(*_: Any) -> Any:
+        raise lms_error("lms.forbidden")  # e.g. Pages turned off in this course
+
+    monkeypatch.setattr(type(fake), "pages", refused)
+    err = await api.call("GET", f"/courses/{course}/lms/pages", 403)
+    assert err["error"]["code"] == "lms.forbidden"
+    [row] = (await api.call("GET", "/lms/connections"))["items"]
+    assert (row["id"], row["status"], row["last_error_code"]) == (conn, "connected", None)

@@ -136,6 +136,13 @@ def _origin(url: str) -> str:
     return f"{parts.scheme}://{(parts.hostname or '').lower()}{port}"
 
 
+def _body(response: httpx.Response) -> str:
+    try:
+        return response.text
+    except httpx.ResponseNotRead:  # a streamed download: the headers have to do
+        return ""
+
+
 def _map_status(response: httpx.Response) -> AppError | None:
     status = response.status_code
     if status < 300:
@@ -145,8 +152,18 @@ def _map_status(response: httpx.Response) -> AppError | None:
         # page, another site).
         return lms_error("lms.invalid_config", field="base_url", reason="redirect")
     if status == 401:
-        return lms_error("lms.invalid_credentials")
+        # A bad or expired token gets `WWW-Authenticate: Bearer`; a 401 without it is Canvas
+        # refusing one resource (a locked page or file) to a signed-in user.
+        if "www-authenticate" in response.headers:
+            return lms_error("lms.invalid_credentials")
+        return lms_error("lms.forbidden")
     if status == 403:
+        # Canvas throttles with 403 "(Rate Limit Exceeded)" unless the site opts into 429
+        # (request_throttle.rb); X-Rate-Limit-Remaining is sent on every response, so only an
+        # empty bucket counts.
+        remaining = _num(response.headers.get("x-rate-limit-remaining"))
+        if (remaining is not None and remaining <= 0) or "Rate Limit Exceeded" in _body(response):
+            return lms_error("lms.rate_limited", retry_after=60)
         return lms_error("lms.forbidden")
     if status == 404:
         return AppError("common.not_found", 404)
@@ -318,6 +335,14 @@ class CanvasProvider:
             params.append(("enrollment_state", "active"))
         now = datetime.now(UTC)
         rows = await self._list(io, cfg, creds, "/courses", params)
+        if include_past:
+            # Without enrollment_state Canvas lists only current-ish enrollments; finished
+            # courses come from enrollment_state=completed (courses_controller#index).
+            seen = {r.get("id") for r in rows}
+            done = await self._list(
+                io, cfg, creds, "/courses", [*params, ("enrollment_state", "completed")]
+            )
+            rows += [r for r in done if r.get("id") not in seen]
         courses = [self._course(cfg, r, now) for r in rows if r.get("id") and r.get("name")]
         if not include_past:
             for course in courses:
@@ -411,6 +436,7 @@ class CanvasProvider:
                     submission = Submission(
                         state=_text(s.get("workflow_state")),
                         submitted_at=s.get("submitted_at"),
+                        graded_at=s.get("graded_at"),
                         score=_num(s.get("score")),
                         grade=_text(s.get("grade")),
                         late=bool(s.get("late")),
@@ -475,7 +501,7 @@ class CanvasProvider:
                     points_possible=a.points,
                     grade=sub.grade if sub else None,
                     group_name=a.group_name,
-                    graded_at=None,
+                    graded_at=sub.graded_at if sub else None,
                 )
             )
         return out
