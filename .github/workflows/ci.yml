@@ -1,7 +1,9 @@
 name: CI
 on:
   push: { branches: [main] }
+  # Draft PRs skip CI; marking the PR ready for review (ready_for_review) runs it.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # A newer push to the same PR cancels the run it replaces; runs on main always finish.
 concurrency:
@@ -12,6 +14,7 @@ jobs:
   # Decides which jobs below have work to do, so a web-only change skips the API job and so on.
   # Skipped jobs report success, so they never block a merge.
   changes:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read

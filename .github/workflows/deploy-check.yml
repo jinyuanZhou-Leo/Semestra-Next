@@ -11,7 +11,9 @@ on:
       - .dockerignore
       - .github/workflows/**
       - apps/web/vercel.json
+  # Draft PRs skip this; marking the PR ready for review runs it.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - deploy/**
       - .dockerignore
@@ -28,6 +30,7 @@ permissions:
 
 jobs:
   static:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -59,6 +62,7 @@ jobs:
           jq empty apps/web/vercel.json deploy/hosted/gcs-lifecycle.json
 
   images:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

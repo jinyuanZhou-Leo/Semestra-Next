@@ -27,7 +27,7 @@ docs/                设计稿与模块规格
 
 后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
 
-CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只能在 Actions 页手动触发。
+**草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只能在 Actions 页手动触发。
 
 ## 硬性约定摘要（完整版见 M00）
 
