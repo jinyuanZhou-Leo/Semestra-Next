@@ -1,6 +1,6 @@
 import { useState } from 'react'
+import { ActionRow } from '@/app/settings'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import { SignOutDialog } from '../components/SignOutDialog'
 import { useUser } from '../useAuth'
 import { ProfileSection } from './ProfileSection'
@@ -14,13 +14,14 @@ import { TokensSection } from './TokensSection'
 export function ProfileSettings() {
   const [signingOut, setSigningOut] = useState(false)
   return (
-    <div className="space-y-3">
-      <ProfileSection user={useUser()} />
-      <Button variant="destructive" onClick={() => setSigningOut(true)}>
-        {m.auth_account_signout()}
-      </Button>
+    <>
+      <ProfileSection user={useUser()}>
+        <ActionRow destructive onClick={() => setSigningOut(true)}>
+          {m.auth_account_signout()}
+        </ActionRow>
+      </ProfileSection>
       <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
-    </div>
+    </>
   )
 }
 

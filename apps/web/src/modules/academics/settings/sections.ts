@@ -1,3 +1,3 @@
-export { CourseBasicsSection } from './CourseSettings'
-export { ProgramBasicsSection, SubjectColorsSection } from './ProgramSettings'
-export { TermBasicsSection } from './TermSettings'
+export { CourseBasicsSection, CourseDangerSection } from './CourseSettings'
+export { ProgramBasicsSection, ProgramDangerSection, SubjectColorsSection } from './ProgramSettings'
+export { TermBasicsSection, TermDangerSection } from './TermSettings'

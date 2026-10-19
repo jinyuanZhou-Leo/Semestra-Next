@@ -7,27 +7,17 @@ import {
 } from '@semestra/api-client/react-query'
 import type { ResolvedSettings } from '@semestra/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
-import { Label } from '@/ui/label'
 import type { FieldOverrides, Scope, SettingsLevel } from '../extensions'
 import { useAutosave } from './autosave'
 import { FieldControlView } from './fields'
+import { SettingRow, SettingsGroup } from './rows'
 import { type FieldDescriptor, type JsonSchema, describeFields } from './schema'
 import { fieldDescription, fieldLabel } from './texts'
 
@@ -170,62 +160,63 @@ function Form({
   }
 
   return (
-    <ItemGroup className="gap-0 rounded-2xl border">
-      {fields.map((field, index) => {
+    <SettingsGroup>
+      {fields.map((field) => {
         const id = `${idBase}-${field.key}`
         const labelId = `${id}-label`
         const value = field.key in draft ? draft[field.key] : data.values[field.key]
         const source = field.key in draft ? level : data.sources[field.key]
-        const description = fieldDescription(namespace, field.key)
         return (
-          <Fragment key={field.key}>
-            {index > 0 ? <ItemSeparator className="my-0" /> : null}
-            <Item data-field={field.key}>
-              <ItemContent className="min-w-0 basis-64">
-                <ItemTitle>
-                  <Label id={labelId} htmlFor={id}>
-                    {fieldLabel(namespace, field.key)}
-                  </Label>
-                </ItemTitle>
-                {description ? <ItemDescription>{description}</ItemDescription> : null}
-                {level !== 'account' ? (
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    {source === level ? (
-                      <>
-                        <Badge variant="outline">{m.settings_inherit_set_here()}</Badge>
-                        <Button
-                          variant="link"
-                          size="xs"
-                          className="h-auto px-1"
-                          onClick={() => void restore(field.key)}
-                        >
-                          {m.settings_inherit_restore()}
-                        </Button>
-                      </>
-                    ) : (
-                      <Badge variant="secondary">
-                        {source && source !== 'default'
-                          ? m.settings_inherit_from({ level: LEVEL_NAMES[source]() })
-                          : m.settings_inherit_default()}
-                      </Badge>
-                    )}
-                  </div>
-                ) : null}
-              </ItemContent>
-              <ItemActions>
-                <FieldControlView
-                  namespace={namespace}
-                  field={field}
-                  id={id}
-                  labelId={labelId}
-                  value={value}
-                  onChange={(next) => change(field.key, next)}
-                />
-              </ItemActions>
-            </Item>
-          </Fragment>
+          <SettingRow
+            key={field.key}
+            data-field={field.key}
+            label={fieldLabel(namespace, field.key)}
+            labelId={labelId}
+            htmlFor={id}
+            description={fieldDescription(namespace, field.key)}
+            note={level === 'account' ? null : inheritance(source, level, () => restore(field.key))}
+          >
+            <FieldControlView
+              namespace={namespace}
+              field={field}
+              id={id}
+              labelId={labelId}
+              value={value}
+              onChange={(next) => change(field.key, next)}
+            />
+          </SettingRow>
         )
       })}
-    </ItemGroup>
+    </SettingsGroup>
   )
+}
+
+/**
+ * Where a scoped value comes from. A default says nothing; a value inherited from a higher
+ * level says which; a value set here shows a dot and the way back to the inherited one.
+ */
+function inheritance(
+  source: SettingsLevel | 'default' | undefined,
+  level: SettingsLevel,
+  restore: () => Promise<void>,
+) {
+  if (source === level) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span aria-hidden className="size-1.5 rounded-full bg-primary" />
+        <span className="sr-only">{m.settings_inherit_set_here()}</span>
+        <Button variant="link" size="xs" className="h-auto p-0" onClick={() => void restore()}>
+          {m.settings_inherit_restore()}
+        </Button>
+      </div>
+    )
+  }
+  if (source && source !== 'default') {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {m.settings_inherit_from({ level: LEVEL_NAMES[source]() })}
+      </p>
+    )
+  }
+  return null
 }

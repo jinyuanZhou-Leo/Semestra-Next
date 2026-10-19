@@ -6,8 +6,10 @@ import {
   accountTokensRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useId, useState, type FormEvent } from 'react'
+import { KeyRound, Plus } from 'lucide-react'
+import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { ActionRow, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -23,18 +25,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Card, CardContent } from '@/ui/card'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -273,88 +267,96 @@ export function TokensSection() {
   const items = tokens.data?.items ?? []
 
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        {tokens.isPending ? (
-          <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
-        ) : tokens.isError ? (
-          <div className="space-y-2">
-            <FieldError>{errorMessage(tokens.error)}</FieldError>
-            <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
-              {m.common_retry()}
+    <>
+      {tokens.isPending ? (
+        <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
+      ) : tokens.isError ? (
+        <div className="space-y-2">
+          <FieldError>{errorMessage(tokens.error)}</FieldError>
+          <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
+            {m.common_retry()}
+          </Button>
+        </div>
+      ) : items.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <KeyRound aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>{m.auth_account_tokens_empty()}</EmptyTitle>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus aria-hidden />
+              {m.auth_account_tokens_create()}
             </Button>
-          </div>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{m.auth_account_tokens_empty()}</p>
-        ) : (
-          <ItemGroup className="gap-0">
-            {items.map((t, i) => (
-              <Fragment key={t.id}>
-                {i > 0 ? <ItemSeparator /> : null}
-                <Item className="px-0">
-                  <ItemContent className="min-w-0">
-                    <ItemTitle>
-                      <span className="truncate">{t.name}</span>
-                      <Badge variant="secondary">
-                        {t.scopes.includes('write')
-                          ? m.auth_account_tokens_scope_write()
-                          : m.auth_account_tokens_scope_read()}
-                      </Badge>
-                    </ItemTitle>
-                    <ItemDescription>
-                      {[
-                        `${t.prefix}…`,
-                        t.last_used_at
-                          ? m.auth_account_tokens_last_used({
-                              time: formatDateTime(t.last_used_at),
-                            })
-                          : m.auth_account_tokens_never_used(),
-                        t.expires_at
-                          ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </ItemDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
-                      onClick={() => setRevoking({ id: t.id, name: t.name })}
-                    >
-                      {m.auth_account_tokens_revoke()}
-                    </Button>
-                  </ItemActions>
-                </Item>
-              </Fragment>
-            ))}
-          </ItemGroup>
-        )}
-        <Button size="sm" onClick={() => setCreating(true)}>
-          {m.auth_account_tokens_create()}
-        </Button>
-        <CreateTokenDialog
-          open={creating}
-          onOpenChange={setCreating}
-          onCreated={(token) => {
-            setCreating(false)
-            setCreated(token)
-            void refresh()
-          }}
-        />
-        <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
-        <ConfirmDialog
-          open={revoking !== null}
-          onOpenChange={(open) => !open && setRevoking(null)}
-          title={m.auth_account_tokens_revoke_title()}
-          description={m.auth_account_tokens_revoke_desc()}
-          confirmLabel={m.auth_account_tokens_revoke()}
-          pending={revoke.isPending}
-          onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
-        />
-      </CardContent>
-    </Card>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <SettingsGroup>
+          {items.map((t) => (
+            <Item key={t.id}>
+              <ItemContent className="min-w-0">
+                <ItemTitle>
+                  <span className="truncate">{t.name}</span>
+                  <Badge variant="secondary">
+                    {t.scopes.includes('write')
+                      ? m.auth_account_tokens_scope_write()
+                      : m.auth_account_tokens_scope_read()}
+                  </Badge>
+                </ItemTitle>
+                <ItemDescription>
+                  {[
+                    `${t.prefix}…`,
+                    t.last_used_at
+                      ? m.auth_account_tokens_last_used({
+                          time: formatDateTime(t.last_used_at),
+                        })
+                      : m.auth_account_tokens_never_used(),
+                    t.expires_at
+                      ? m.auth_account_tokens_expires_at({ time: formatDate(t.expires_at) })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  aria-label={m.auth_account_tokens_revoke_aria({ name: t.name })}
+                  onClick={() => setRevoking({ id: t.id, name: t.name })}
+                >
+                  {m.auth_account_tokens_revoke()}
+                </Button>
+              </ItemActions>
+            </Item>
+          ))}
+          <ActionRow icon={Plus} onClick={() => setCreating(true)}>
+            {m.auth_account_tokens_create()}
+          </ActionRow>
+        </SettingsGroup>
+      )}
+      <CreateTokenDialog
+        open={creating}
+        onOpenChange={setCreating}
+        onCreated={(token) => {
+          setCreating(false)
+          setCreated(token)
+          void refresh()
+        }}
+      />
+      <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
+      <ConfirmDialog
+        open={revoking !== null}
+        onOpenChange={(open) => !open && setRevoking(null)}
+        title={m.auth_account_tokens_revoke_title()}
+        description={m.auth_account_tokens_revoke_desc()}
+        confirmLabel={m.auth_account_tokens_revoke()}
+        pending={revoke.isPending}
+        onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
+      />
+    </>
   )
 }

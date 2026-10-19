@@ -6,19 +6,24 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { DangerZone, useAutosave } from '@/app/settings'
+import {
+  DangerZone,
+  NumberRow,
+  SettingRow,
+  SettingsGroup,
+  TextRow,
+  useAutosave,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { ItemGroup, ItemSeparator } from '@/ui/item'
 import { ColorPicker } from '../components/ColorPicker'
 import { TimezoneSelect } from '../components/TimezoneSelect'
 import { invalidateAcademics, useCourses, useProgram } from '../queries'
-import { ControlRow, NumberRow, TextRow } from './rows'
 
 /** Program "basics" (M02 §5.2 settings): name, school, time zone, credits; delete. */
 export function ProgramBasicsSection({ scope }: SettingsSectionProps) {
@@ -32,7 +37,6 @@ export function ProgramBasicsSection({ scope }: SettingsSectionProps) {
 
 function ProgramBasics({ program }: { program: Program }) {
   const queryClient = useQueryClient()
-  const router = useRouter()
   const update = useMutation({ ...academicsProgramUpdateMutation() })
   const { queue } = useAutosave<ProgramUpdateInputBody>({
     save: async (body) => {
@@ -46,6 +50,66 @@ function ProgramBasics({ program }: { program: Program }) {
     },
   })
   const [timezone, setTimezone] = useState(program.timezone)
+  return (
+    <SettingsGroup>
+      <TextRow
+        label={m.academics_program_name()}
+        value={program.name}
+        required
+        onChange={(name) => queue({ name })}
+      />
+      <TextRow
+        label={m.academics_program_institution()}
+        value={program.institution ?? ''}
+        onChange={(text) => queue({ institution: text.trim() || null })}
+      />
+      <SettingRow
+        label={m.academics_program_timezone()}
+        description={m.academics_program_timezone_hint()}
+      >
+        {(labelId) => (
+          <TimezoneSelect
+            aria-labelledby={labelId}
+            value={timezone}
+            onChange={(next) => {
+              setTimezone(next)
+              queue({ timezone: next })
+            }}
+          />
+        )}
+      </SettingRow>
+      <NumberRow
+        label={m.academics_program_default_credits()}
+        description={m.academics_program_default_credits_hint()}
+        value={program.default_course_credits}
+        max={100}
+        onChange={(value) => value !== null && queue({ default_course_credits: value })}
+      />
+      <NumberRow
+        label={m.academics_program_credit_requirement()}
+        description={m.academics_program_credit_requirement_hint()}
+        value={program.credit_requirement}
+        max={10_000}
+        nullable
+        onChange={(value) => queue({ credit_requirement: value })}
+      />
+    </SettingsGroup>
+  )
+}
+
+/** Delete the Program, at the end of its general settings. */
+export function ProgramDangerSection({ scope }: SettingsSectionProps) {
+  const programId = scope?.programId ?? ''
+  return (
+    <AsyncBoundary query={useProgram(programId)}>
+      {(program) => <ProgramDanger key={program.id} program={program} />}
+    </AsyncBoundary>
+  )
+}
+
+function ProgramDanger({ program }: { program: Program }) {
+  const queryClient = useQueryClient()
+  const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   const remove = useMutation({
     ...academicsProgramDeleteMutation(),
@@ -58,62 +122,15 @@ function ProgramBasics({ program }: { program: Program }) {
   })
   return (
     <>
-      <ItemGroup className="gap-0 rounded-2xl border">
-        <TextRow
-          label={m.academics_program_name()}
-          value={program.name}
-          required
-          onChange={(name) => queue({ name })}
-        />
-        <ItemSeparator className="my-0" />
-        <TextRow
-          label={m.academics_program_institution()}
-          value={program.institution ?? ''}
-          onChange={(text) => queue({ institution: text.trim() || null })}
-        />
-        <ItemSeparator className="my-0" />
-        <ControlRow
-          label={m.academics_program_timezone()}
-          description={m.academics_program_timezone_hint()}
-        >
-          {(labelId) => (
-            <TimezoneSelect
-              aria-labelledby={labelId}
-              value={timezone}
-              onChange={(next) => {
-                setTimezone(next)
-                queue({ timezone: next })
-              }}
-            />
-          )}
-        </ControlRow>
-        <ItemSeparator className="my-0" />
-        <NumberRow
-          label={m.academics_program_default_credits()}
-          description={m.academics_program_default_credits_hint()}
-          value={program.default_course_credits}
-          max={100}
-          onChange={(value) => value !== null && queue({ default_course_credits: value })}
-        />
-        <ItemSeparator className="my-0" />
-        <NumberRow
-          label={m.academics_program_credit_requirement()}
-          description={m.academics_program_credit_requirement_hint()}
-          value={program.credit_requirement}
-          max={10_000}
-          nullable
-          onChange={(value) => queue({ credit_requirement: value })}
-        />
-      </ItemGroup>
       <DangerZone>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {m.academics_program_delete_description()}
-          </p>
+        <SettingRow
+          label={m.academics_program_delete()}
+          description={m.academics_program_delete_description()}
+        >
           <Button variant="destructive" onClick={() => setConfirming(true)}>
-            {m.academics_program_delete()}
+            {m.common_delete()}
           </Button>
-        </div>
+        </SettingRow>
       </DangerZone>
       <ConfirmDialog
         open={confirming}
@@ -152,28 +169,23 @@ export function SubjectColorsSection({ scope }: SettingsSectionProps) {
           return <p className="text-sm text-muted-foreground">{m.academics_subjects_empty()}</p>
         }
         return (
-          <ItemGroup className="gap-0 rounded-2xl border">
-            {subjects.map((subject, index) => (
-              <Fragment key={subject}>
-                {index > 0 ? <ItemSeparator className="my-0" /> : null}
-                <ControlRow label={subject}>
-                  {() => (
-                    <ColorPicker
-                      label={m.academics_subject_color_of({ subject })}
-                      value={p.subject_colors[subject] ?? null}
-                      onChange={(color) =>
-                        color &&
-                        setColor.mutate({
-                          path: { program_id: p.id, subject_code: subject },
-                          body: { color },
-                        })
-                      }
-                    />
-                  )}
-                </ControlRow>
-              </Fragment>
+          <SettingsGroup>
+            {subjects.map((subject) => (
+              <SettingRow key={subject} label={subject}>
+                <ColorPicker
+                  label={m.academics_subject_color_of({ subject })}
+                  value={p.subject_colors[subject] ?? null}
+                  onChange={(color) =>
+                    color &&
+                    setColor.mutate({
+                      path: { program_id: p.id, subject_code: subject },
+                      body: { color },
+                    })
+                  }
+                />
+              </SettingRow>
             ))}
-          </ItemGroup>
+          </SettingsGroup>
         )
       }}
     </AsyncBoundary>

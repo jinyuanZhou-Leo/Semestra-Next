@@ -12,17 +12,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Card, CardContent } from '@/ui/card'
 import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
-import { Separator } from '@/ui/separator'
 import { GoogleSignInButton } from '../components/GoogleSignInButton'
 
 function useUserCache() {
@@ -65,8 +64,8 @@ function EmailRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Item className="px-0 py-0">
+    <div>
+      <Item>
         <ItemContent className="min-w-0">
           <ItemTitle>{m.auth_account_email_row()}</ItemTitle>
           <ItemDescription className="truncate">{user.email}</ItemDescription>
@@ -80,7 +79,11 @@ function EmailRow({ user }: { user: UserOut }) {
         )}
       </Item>
       {editing && !sentTo ? (
-        <form onSubmit={send} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
+        <form
+          onSubmit={send}
+          className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
+          noValidate
+        >
           <FieldSet disabled={start.isPending} className="gap-3">
             <Field>
               <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
@@ -106,7 +109,7 @@ function EmailRow({ user }: { user: UserOut }) {
         </form>
       ) : null}
       {editing && sentTo ? (
-        <div className="space-y-3 rounded-2xl bg-muted/50 p-4">
+        <div className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4">
           <p className="text-sm">{m.auth_account_email_code_sent({ email: sentTo })}</p>
           <InputOTP
             maxLength={6}
@@ -165,8 +168,8 @@ function PasswordRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div className="space-y-3">
-      <Item className="px-0 py-0">
+    <div>
+      <Item>
         <ItemContent className="min-w-0">
           <ItemTitle>{m.auth_account_password_row()}</ItemTitle>
           <ItemDescription>
@@ -184,7 +187,11 @@ function PasswordRow({ user }: { user: UserOut }) {
         )}
       </Item>
       {editing ? (
-        <form onSubmit={submit} className="space-y-3 rounded-2xl bg-muted/50 p-4" noValidate>
+        <form
+          onSubmit={submit}
+          className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
+          noValidate
+        >
           <FieldSet disabled={change.isPending} className="gap-3">
             {user.has_password ? (
               <Field>
@@ -228,9 +235,8 @@ function PasswordRow({ user }: { user: UserOut }) {
   )
 }
 
-function GoogleRow({ user }: { user: UserOut }) {
+function GoogleRow({ user, clientId }: { user: UserOut; clientId: string | null | undefined }) {
   const setUser = useUserCache()
-  const config = useQuery(authConfigOptions())
   const [confirming, setConfirming] = useState(false)
   const link = useMutation({
     ...accountGoogleLinkMutation(),
@@ -252,12 +258,9 @@ function GoogleRow({ user }: { user: UserOut }) {
   })
 
   const identity = user.identities.find((i) => i.provider === 'google')
-  const clientId = config.data?.google_client_id
-  if (!identity && !clientId) return null
-
   return (
-    <div className="space-y-3">
-      <Item className="px-0 py-0">
+    <div>
+      <Item>
         <ItemContent className="min-w-0">
           <ItemTitle>{m.auth_account_google_row()}</ItemTitle>
           <ItemDescription>
@@ -297,15 +300,14 @@ function GoogleRow({ user }: { user: UserOut }) {
 }
 
 export function SignInMethodsSection({ user }: { user: UserOut }) {
+  const config = useQuery(authConfigOptions())
+  const clientId = config.data?.google_client_id
+  const hasGoogle = user.identities.some((i) => i.provider === 'google') || Boolean(clientId)
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        <EmailRow user={user} />
-        <Separator />
-        <PasswordRow user={user} />
-        <Separator />
-        <GoogleRow user={user} />
-      </CardContent>
-    </Card>
+    <SettingsGroup>
+      <EmailRow user={user} />
+      <PasswordRow user={user} />
+      {hasGoogle ? <GoogleRow user={user} clientId={clientId} /> : null}
+    </SettingsGroup>
   )
 }
