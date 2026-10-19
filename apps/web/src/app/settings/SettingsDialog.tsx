@@ -149,11 +149,16 @@ function SettingsBody({
   const sections = useSettingsSections(level)
   const groups = buildNavigation(sections, level)
   const runs = clusterNavigation(groups, level)
-  const current = groups.find((g) => g.id === groupId) ?? groups[0]
+  const hash = useLocation({ select: (location) => location.hash })
+  // A link to a section that has since moved to another group still lands on that section.
+  const current =
+    groups.find((g) => g.id === groupId && g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.id === groupId) ??
+    groups[0]
   const title = name ?? m.settings_title()
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
-  const hash = useLocation({ select: (location) => location.hash })
   useEffect(() => {
     if (hash) document.getElementById(hash)?.scrollIntoView()
   }, [hash, current?.id])

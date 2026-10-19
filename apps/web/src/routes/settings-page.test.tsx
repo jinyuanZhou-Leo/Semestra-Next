@@ -147,3 +147,10 @@ test('the 24-hour clock preference reaches the formatters', async () => {
   const { formatTime } = await import('@/lib/format')
   await waitFor(() => expect(formatTime('2026-01-01T15:30:00')).toBe('15:30'))
 })
+
+test('a link to a section that moved to another group still opens that section', async () => {
+  // Sessions used to live in Account; AI providers in Features.
+  mount('/?settings=account/account#sessions')
+  expect(await screen.findByRole('heading', { name: 'Devices' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Profile' })).not.toBeInTheDocument()
+})
