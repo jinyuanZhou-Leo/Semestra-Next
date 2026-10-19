@@ -67,6 +67,8 @@ export type World = {
   activeProgramId: string | null
   /** Bodies of `POST /programs/{id}/terms`. */
   termCreates: unknown[]
+  /** Saved UI state by full key (`academics.pinned.p1` …); written values stay in the page's cache. */
+  uiState: Record<string, unknown>
 }
 
 export function defaultWorld(): World {
@@ -83,6 +85,7 @@ export function defaultWorld(): World {
     ],
     activeProgramId: null,
     termCreates: [],
+    uiState: {},
   }
 }
 
@@ -112,7 +115,14 @@ export function academicsHandlers(world: World) {
       if (patch.active_program_id !== undefined) world.activeProgramId = patch.active_program_id
       return HttpResponse.json(preferences(world))
     }),
-    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
+      const body = (await request.json()) as { keys?: string[]; prefixes?: string[] }
+      const wanted = ([key]: [string, unknown]) =>
+        body.keys?.includes(key) || body.prefixes?.some((prefix) => key.startsWith(prefix))
+      return HttpResponse.json({
+        items: Object.fromEntries(Object.entries(world.uiState).filter(wanted)),
+      })
+    }),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })),
     http.get(`${API}/settings/schemas`, () => HttpResponse.json({ items: [] })),

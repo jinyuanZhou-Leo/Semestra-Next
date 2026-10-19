@@ -18,7 +18,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
-import { allCoursesPath, coursePath, termPath } from '../paths'
+import { coursePath, termPath, termsAndCoursesPath } from '../paths'
 import { usePins } from '../pins'
 import { modifierKey } from './hotkeys'
 
@@ -113,7 +113,7 @@ function Separator() {
  * The header of a Program, term or course page (M02 §5.1) on the shared `PageHeader`: the
  * parents as breadcrumbs (the Program is in the sidebar, so it is left out), the term or
  * course name as the title with a menu to switch to a sibling, pin and settings buttons, and
- * the scope's page tabs.
+ * the page tabs of a term or course (the Program's pages are in the sidebar).
  */
 export function ScopeHeader({
   scope,
@@ -184,7 +184,10 @@ export function ScopeHeader({
         term ? (
           <nav aria-label={m.academics_breadcrumbs()}>
             <ol className="-ml-1.5 flex min-w-0 flex-wrap items-center text-sm">
-              <Crumb label={m.academics_nav_all_courses()} href={allCoursesPath(program.id)} />
+              <Crumb
+                label={m.academics_nav_terms_and_courses()}
+                href={termsAndCoursesPath(program.id, { term: term.id })}
+              />
               {course ? (
                 <>
                   <Separator />
@@ -240,9 +243,11 @@ export function ScopeHeader({
         </>
       }
     >
-      <div data-tour="page-tabs">
-        <ScopeNav scope={scope} activePageId={activePageId} />
-      </div>
+      {scope.kind === 'program' ? null : (
+        <div data-tour="page-tabs">
+          <ScopeNav scope={scope} activePageId={activePageId} />
+        </div>
+      )}
     </PageHeader>
   )
 }
