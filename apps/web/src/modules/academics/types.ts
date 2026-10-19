@@ -23,8 +23,9 @@ export type CourseColumn = {
   cell: (course: Course, data?: unknown) => ReactNode
   sortValue?: (course: Course, data?: unknown) => string | number | null
   /**
-   * Quick filters offered above the table (e.g. GPA ≥ 3.5). A filter whose `available` says no is
-   * neither shown nor applied (e.g. GPA filters while GPA is hidden).
+   * The options of this column's filter dropdown above the table (e.g. GPA ≥ 3.5), one chosen at
+   * a time. An option whose `available` says no is neither shown nor applied (e.g. GPA filters
+   * while GPA is hidden); with no option left the dropdown is not shown.
    */
   filter?: {
     id: string

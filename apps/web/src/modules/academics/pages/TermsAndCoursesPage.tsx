@@ -113,7 +113,16 @@ export function TermsAndCoursesPage({
           </>
         }
       >
-        <TabsList variant="line" className="h-9 w-full justify-start border-b border-border p-0">
+        {/*
+          The gray rule is an inset shadow, not a border: a border shrinks the list's content box
+          and lifts the triggers, so the active underline that the line variant draws at the
+          list's bottom edge ends up off the rule instead of on it. The vertical padding stays as
+          the variant expects for the same reason.
+        */}
+        <TabsList
+          variant="line"
+          className="w-full justify-start px-0 shadow-[inset_0_-1px_0_var(--color-border)]"
+        >
           <TabsTrigger value="terms" className="flex-none rounded-none">
             {m.terms_courses_tab_terms()}
           </TabsTrigger>
