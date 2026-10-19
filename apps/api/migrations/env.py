@@ -22,6 +22,7 @@ from semestra.core.db import Base, ensure_sqlite_dir  # noqa: E402
 from semestra.modules.academics import models as _academics_models  # noqa: E402,F401
 from semestra.modules.ai import models as _ai_models  # noqa: E402,F401
 from semestra.modules.auth import models as _auth_models  # noqa: E402,F401
+from semestra.modules.files import models as _files_models  # noqa: E402,F401
 from semestra.modules.grading import models as _grading_models  # noqa: E402,F401
 from semestra.modules.layouts import models as _layouts_models  # noqa: E402,F401
 from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
@@ -31,6 +32,17 @@ from semestra.modules.schedule import models as _schedule_models  # noqa: E402,F
 from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
 
 target_metadata = Base.metadata
+
+
+def include_object(
+    obj: object, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    """Leave out M07's FTS5 and vec0 virtual tables (and their shadow tables): they are created
+    by SQL in a migration or at runtime, not by the models."""
+    del obj, reflected, compare_to
+    return not (type_ == "table" and name and name.startswith(("files_chunks_fts", "files_vec_")))
+
+
 # Tests pass their own database through `Config.attributes`.
 database_url = config.attributes.get("database_url") or get_settings().database_url
 ensure_sqlite_dir(database_url)
@@ -62,6 +74,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
         compare_type=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -74,6 +87,7 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         render_as_batch=True,  # SQLite needs batch mode for most ALTERs
         compare_type=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

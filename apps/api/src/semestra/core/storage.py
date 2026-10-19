@@ -43,7 +43,9 @@ class Storage(Protocol):
         max_bytes: int | None = None,
     ) -> StoredObject: ...
 
-    def open(self, key: str) -> AsyncIterator[bytes]: ...
+    def open(
+        self, key: str, *, start: int = 0, length: int | None = None
+    ) -> AsyncIterator[bytes]: ...
 
     async def delete(self, key: str) -> None: ...
 
@@ -92,14 +94,26 @@ class LocalStorage:
             await anyio.Path(tmp).unlink(missing_ok=True)
         return StoredObject(key, size, digest.hexdigest())
 
-    async def open(self, key: str) -> AsyncIterator[bytes]:
+    async def open(
+        self, key: str, *, start: int = 0, length: int | None = None
+    ) -> AsyncIterator[bytes]:
+        """The object's bytes, optionally only `length` bytes from offset `start` (HTTP Range)."""
         path = self._path(key)
         try:
             source = await anyio.open_file(path, "rb")
         except FileNotFoundError:
             raise not_found() from None
         async with source:
-            while chunk := await source.read(CHUNK_SIZE):
+            if start:
+                await source.seek(start)
+            remaining = length
+            while remaining is None or remaining > 0:
+                size = CHUNK_SIZE if remaining is None else min(CHUNK_SIZE, remaining)
+                chunk = await source.read(size)
+                if not chunk:
+                    break
+                if remaining is not None:
+                    remaining -= len(chunk)
                 yield chunk
 
     async def delete(self, key: str) -> None:

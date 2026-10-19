@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     storage_backend: Literal["local"] = "local"
     storage_local_root: Path = Path("./data/storage")
     user_storage_quota_bytes: int = 52_428_800
+    # Largest single file a user may upload (M07 §4).
+    files_max_upload_bytes: int = 26_214_400
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"

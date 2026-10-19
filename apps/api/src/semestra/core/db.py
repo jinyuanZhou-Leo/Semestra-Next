@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import structlog
 from sqlalchemy import DateTime, ForeignKey, String, event
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.ext.asyncio import (
@@ -61,7 +62,26 @@ class OwnedMixin:
     )
 
 
+def _load_sqlite_vec(dbapi_connection: Any) -> None:
+    """Makes `vec0` virtual tables available (M07 vector index). A platform without
+    loadable-extension support just has no semantic search: M07 checks `vec_version()`."""
+    try:
+        import sqlite_vec  # pyright: ignore[reportMissingTypeStubs]
+
+        async def load(conn: Any) -> None:
+            await conn.enable_load_extension(True)
+            try:
+                await conn.load_extension(sqlite_vec.loadable_path())
+            finally:
+                await conn.enable_load_extension(False)
+
+        dbapi_connection.run_async(load)
+    except Exception:  # extension missing or loading disabled in this SQLite build
+        structlog.get_logger().warning("sqlite_vec_unavailable")
+
+
 def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
+    _load_sqlite_vec(dbapi_connection)
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")
