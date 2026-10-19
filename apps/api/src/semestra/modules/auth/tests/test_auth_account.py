@@ -1,7 +1,7 @@
 """CSRF, native tokens, PATs, sessions and account management (M01 §3, §5, §10)."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -617,6 +617,36 @@ async def test_avatar_upload_rejects_bad_files(
         "/account/avatar", files={"file": ("a.png", b"0" * (5 * 1024 * 1024 + 1))}
     )
     assert (big.status_code, big.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+
+
+async def test_avatar_upload_body_limit_applies_before_parsing(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    huge = await client.post("/account/avatar", files={"file": ("a.png", b"0" * (6 * 1024 * 1024))})
+    assert (huge.status_code, huge.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+
+
+async def test_avatar_upload_body_limit_applies_to_chunked_uploads(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user())
+    boundary = "x"
+    head = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.png"\r\n\r\n'
+
+    async def body() -> AsyncIterator[bytes]:
+        yield head.encode()
+        for _ in range(7):
+            yield b"0" * (1024 * 1024)
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    r = await client.post(
+        "/account/avatar",
+        content=body(),
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "auth.avatar_too_large")
+    assert r.json()["error"]["request_id"] == r.headers["x-request-id"]
 
 
 async def test_avatar_upload_requires_login(client: AsyncClient) -> None:

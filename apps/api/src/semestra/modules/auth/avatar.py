@@ -6,6 +6,9 @@ from collections.abc import AsyncIterator
 
 import anyio
 from PIL import Image, ImageOps, UnidentifiedImageError
+from starlette.datastructures import Headers
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -65,3 +68,55 @@ async def store(ctx: Ctx, user_id: str, raw: bytes) -> str:
     key = user_key(user_id, "avatar")
     await get_storage(ctx).put(key, _chunks(data), "image/webp")
     return f"{URL_PREFIX}{user_id}/{key.rsplit('/', 1)[1]}"
+
+
+class UploadBodyLimit:
+    """ASGI middleware: rejects an oversized avatar upload before multipart parsing spools it."""
+
+    PATH = "/account/avatar"
+    LIMIT = MAX_UPLOAD_BYTES + 64 * 1024  # multipart framing
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "POST" or scope["path"] != self.PATH:
+            return await self.app(scope, receive, send)
+        declared = Headers(scope=scope).get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > self.LIMIT:
+            return await self._reject(scope, receive, send)
+
+        received, started, rejected = 0, False, False
+
+        async def counting_receive() -> Message:
+            nonlocal received, rejected
+            message = await receive()
+            if message["type"] == "http.request" and not rejected:
+                received += len(message.get("body", b""))
+                if received > self.LIMIT:
+                    # Answer here: an exception would be rewritten by the body parser downstream.
+                    rejected = True
+                    await self._reject(scope, receive, send)
+                    return {"type": "http.disconnect"}
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            if rejected:
+                return
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counting_receive, tracking_send)
+        except Exception:
+            if not rejected:
+                raise
+
+    async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
+        error = AppError("auth.avatar_too_large", 413, limit_bytes=MAX_UPLOAD_BYTES)
+        request_id = scope.get("state", {}).get("request_id")
+        body = {"error": {"code": error.code, "params": error.params, "request_id": request_id}}
+        await JSONResponse(body, status_code=413, headers={"Connection": "close"})(
+            scope, receive, send
+        )

@@ -57,7 +57,6 @@ export function ProfileSection({ user }: { user: UserOut }) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (!AVATAR_TYPES.includes(file.type)) return void toast.error(m.error_auth_avatar_invalid())
     if (file.size > MAX_AVATAR_BYTES) return void toast.error(m.error_auth_avatar_too_large())
     upload.mutate({ body: { file } })
   }
