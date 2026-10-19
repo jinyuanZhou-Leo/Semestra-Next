@@ -24025,8 +24025,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "enum": [
               "anthropic",
+              "anthropic_compatible",
               "openai",
               "openai_compatible",
+              "openai_responses",
               "gemini",
               "ollama"
             ],
@@ -24168,8 +24170,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "enum": [
               "anthropic",
+              "anthropic_compatible",
               "openai",
               "openai_compatible",
+              "openai_responses",
               "gemini",
               "ollama"
             ],
@@ -24200,7 +24204,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Base Url",
-            "description": "API base URL; required for openai_compatible and ollama."
+            "description": "API base URL; required for the compatible kinds and ollama."
           },
           "api_key": {
             "anyOf": [
@@ -24236,7 +24240,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Capabilities",
-            "description": "What the endpoint supports; only for openai_compatible and ollama."
+            "description": "What the endpoint supports; only for the compatible kinds and ollama."
           }
         },
         "type": "object",
@@ -24388,7 +24392,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Capabilities",
-            "description": "New capabilities (openai_compatible and ollama only)."
+            "description": "New capabilities (compatible kinds and ollama only)."
           },
           "enabled": {
             "anyOf": [
@@ -24456,8 +24460,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                 "type": "string",
                 "enum": [
                   "anthropic",
+                  "anthropic_compatible",
                   "openai",
                   "openai_compatible",
+                  "openai_responses",
                   "gemini",
                   "ollama"
                 ]

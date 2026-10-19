@@ -173,8 +173,10 @@ async def create_provider(ctx: Ctx, inp: ProviderCreateInput) -> Provider:
 def _default_name(kind: str) -> str:
     return {
         "anthropic": "Anthropic",
+        "anthropic_compatible": "Anthropic-compatible",
         "openai": "OpenAI",
         "openai_compatible": "OpenAI-compatible",
+        "openai_responses": "OpenAI Responses",
         "gemini": "Gemini",
         "ollama": "Ollama",
     }[kind]
@@ -265,7 +267,7 @@ async def provider_models(ctx: Ctx, provider_id: str) -> ModelList:
         rt.cache_models(key, ctx.now, models)
     return ModelList(
         items=[ModelOption(id=m.id, display_name=m.display_name) for m in models],
-        manual_entry=row.kind == "openai_compatible" and not models,
+        manual_entry=row.kind in catalog.COMPATIBLE_KINDS and not models,
     )
 
 

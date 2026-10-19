@@ -8,8 +8,29 @@ from typing import Any, Literal
 
 from semestra.modules.ai.llm import ProviderCapability, Purpose
 
-ProviderKind = Literal["anthropic", "openai", "openai_compatible", "gemini", "ollama"]
-KINDS: tuple[ProviderKind, ...] = ("anthropic", "openai", "openai_compatible", "gemini", "ollama")
+ProviderKind = Literal[
+    "anthropic",
+    "anthropic_compatible",
+    "openai",
+    "openai_compatible",
+    "openai_responses",
+    "gemini",
+    "ollama",
+]
+KINDS: tuple[ProviderKind, ...] = (
+    "anthropic",
+    "anthropic_compatible",
+    "openai",
+    "openai_compatible",
+    "openai_responses",
+    "gemini",
+    "ollama",
+)
+# Kinds whose endpoint the user brings: no recommended models, and a model name may be typed when
+# the endpoint cannot list its models.
+COMPATIBLE_KINDS: frozenset[str] = frozenset(
+    ("anthropic_compatible", "openai_compatible", "openai_responses")
+)
 
 _HERE = Path(__file__).parent
 
@@ -28,6 +49,7 @@ KIND_INFO: dict[ProviderKind, KindInfo] = {
     "anthropic": KindInfo(
         "https://api.anthropic.com", True, False, ("chat", "tools", "vision", "structured"), True
     ),
+    "anthropic_compatible": KindInfo(None, False, True, None, False),
     "openai": KindInfo(
         "https://api.openai.com/v1",
         True,
@@ -36,6 +58,8 @@ KIND_INFO: dict[ProviderKind, KindInfo] = {
         True,
     ),
     "openai_compatible": KindInfo(None, False, True, None, False),
+    # The Responses API at any base URL (OpenAI's own is https://api.openai.com/v1).
+    "openai_responses": KindInfo(None, False, True, None, False),
     "gemini": KindInfo(
         "https://generativelanguage.googleapis.com/v1beta",
         True,
@@ -48,7 +72,9 @@ KIND_INFO: dict[ProviderKind, KindInfo] = {
 
 # Offered when the user adds a provider whose capabilities they choose.
 DEFAULT_CHOSEN_CAPABILITIES: dict[ProviderKind, tuple[ProviderCapability, ...]] = {
+    "anthropic_compatible": ("chat", "tools"),
     "openai_compatible": ("chat", "tools"),
+    "openai_responses": ("chat", "tools", "structured"),
     "ollama": ("chat", "tools", "structured", "embedding"),
 }
 

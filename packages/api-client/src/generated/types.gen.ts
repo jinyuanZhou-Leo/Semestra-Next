@@ -6738,7 +6738,7 @@ export type Provider = {
     /**
      * Kind
      */
-    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    kind: 'anthropic' | 'anthropic_compatible' | 'openai' | 'openai_compatible' | 'openai_responses' | 'gemini' | 'ollama';
     /**
      * Display Name
      */
@@ -6808,7 +6808,7 @@ export type ProviderCreateInputBody = {
      *
      * Provider type.
      */
-    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    kind: 'anthropic' | 'anthropic_compatible' | 'openai' | 'openai_compatible' | 'openai_responses' | 'gemini' | 'ollama';
     /**
      * Display Name
      *
@@ -6818,7 +6818,7 @@ export type ProviderCreateInputBody = {
     /**
      * Base Url
      *
-     * API base URL; required for openai_compatible and ollama.
+     * API base URL; required for the compatible kinds and ollama.
      */
     base_url?: string | null;
     /**
@@ -6830,7 +6830,7 @@ export type ProviderCreateInputBody = {
     /**
      * Capabilities
      *
-     * What the endpoint supports; only for openai_compatible and ollama.
+     * What the endpoint supports; only for the compatible kinds and ollama.
      */
     capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
 };
@@ -6908,7 +6908,7 @@ export type ProviderUpdateInputBody = {
     /**
      * Capabilities
      *
-     * New capabilities (openai_compatible and ollama only).
+     * New capabilities (compatible kinds and ollama only).
      */
     capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
     /**
@@ -6942,7 +6942,7 @@ export type PurposeStatus = {
     /**
      * Provider Kind
      */
-    provider_kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama' | null;
+    provider_kind: 'anthropic' | 'anthropic_compatible' | 'openai' | 'openai_compatible' | 'openai_responses' | 'gemini' | 'ollama' | null;
     /**
      * Provider Name
      */
@@ -9621,7 +9621,7 @@ export type ProviderCreateInputBodyWritable = {
      *
      * Provider type.
      */
-    kind: 'anthropic' | 'openai' | 'openai_compatible' | 'gemini' | 'ollama';
+    kind: 'anthropic' | 'anthropic_compatible' | 'openai' | 'openai_compatible' | 'openai_responses' | 'gemini' | 'ollama';
     /**
      * Display Name
      *
@@ -9631,7 +9631,7 @@ export type ProviderCreateInputBodyWritable = {
     /**
      * Base Url
      *
-     * API base URL; required for openai_compatible and ollama.
+     * API base URL; required for the compatible kinds and ollama.
      */
     base_url?: string | null;
     /**
@@ -9643,7 +9643,7 @@ export type ProviderCreateInputBodyWritable = {
     /**
      * Capabilities
      *
-     * What the endpoint supports; only for openai_compatible and ollama.
+     * What the endpoint supports; only for the compatible kinds and ollama.
      */
     capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
 };
@@ -9673,7 +9673,7 @@ export type ProviderUpdateInputBodyWritable = {
     /**
      * Capabilities
      *
-     * New capabilities (openai_compatible and ollama only).
+     * New capabilities (compatible kinds and ollama only).
      */
     capabilities?: Array<'chat' | 'tools' | 'vision' | 'structured' | 'embedding'> | null;
     /**

@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from semestra.core.errors import AppError
 from semestra.modules.agent import loop, tools
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, calls, events_named, say
-from semestra.modules.ai import Chunk, Text, ToolResult
+from semestra.modules.ai import Chunk, Completion, Reasoning, Text, ToolResult, Usage
 from semestra.testing import Clock
 
 
@@ -601,3 +601,19 @@ def test_file_content_results_are_wrapped_as_untrusted():
     assert text.startswith('<untrusted_document label="files.search">')
     other = loop.ToolCall("c2", "grading__gradebook__get", {})
     assert not loop._content(other, loop.Outcome(True, {})).startswith("<untrusted")  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_reasoning_goes_back_to_the_model_but_not_to_the_client(
+    agent: Agent, model: FakeModel
+):
+    session = await agent.session()
+    thought = Reasoning("openai_responses:p1:gpt-5", "Think.", id="rs_1", signature="ENC")
+    model.then(Completion(text="Four.", usage=Usage(10, 5), reasoning=[thought]), say("Six."))
+    await agent.send(session["id"], "2+2?")
+    await agent.send(session["id"], "3+3?")
+    second, _ = model.requests[1]
+    [assistant] = [m for m in second if m.role == "assistant"]
+    assert list(assistant.content) == [thought, Text("Four.")]
+    detail = await agent.detail(session["id"])
+    blocks = [b for m in detail["messages"] for b in m["content"]]
+    assert not [b for b in blocks if b["type"] == "reasoning"]

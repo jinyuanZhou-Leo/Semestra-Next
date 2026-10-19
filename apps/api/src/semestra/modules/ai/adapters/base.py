@@ -1,19 +1,20 @@
-"""What every provider adapter shares: the request shape, HTTP with retries, error mapping."""
+"""What every provider kind shares: the request shape, retries and error mapping."""
 
 import asyncio
-import base64
 import json
-from collections.abc import AsyncIterator, Mapping
-from contextlib import AsyncExitStack, asynccontextmanager
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import httpx
+import structlog
 
 from semestra.core.errors import AppError
 from semestra.modules.ai.llm import Chunk, Completion, Message, ProviderCapability, Tool, Usage
 
-# 429 and 5xx are retried this many times with exponential backoff (M06 §5).
+log = structlog.get_logger()
+
+# 429, 5xx and failed connections are retried this many times with exponential backoff (M06 §5).
 MAX_RETRIES = 3
 RETRY_BASE_SECONDS = 1.0  # tests set this to 0
 MAX_RETRY_AFTER_SECONDS = 30.0
@@ -82,18 +83,6 @@ class Adapter(Protocol):
 DEFAULT_MAX_TOKENS = 4096
 
 
-def b64(data: bytes) -> str:
-    return base64.b64encode(data).decode()
-
-
-def data_url(data: bytes, mime: str) -> str:
-    return f"data:{mime};base64,{b64(data)}"
-
-
-def join_url(base: str, path: str) -> str:
-    return f"{base.rstrip('/')}/{path.lstrip('/')}"
-
-
 # --- errors ---------------------------------------------------------------------------------
 
 _CONTEXT_HINTS = (
@@ -113,7 +102,29 @@ _CONTEXT_HINTS = (
 _KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key", "incorrect api key")
 
 
-def _retry_after(response: httpx.Response) -> float | None:
+class HttpResponse(Protocol):
+    """An `httpx` or `httpx2` response (the SDKs use either)."""
+
+    @property
+    def status_code(self) -> int: ...
+
+    @property
+    def headers(self) -> Any: ...
+
+    @property
+    def text(self) -> str: ...
+
+
+@dataclass(frozen=True)
+class _Bare:
+    """A response rebuilt from an error that kept only its status and body."""
+
+    status_code: int
+    text: str
+    headers: dict[str, str] = field(default_factory=lambda: {})
+
+
+def _retry_after(response: HttpResponse) -> float | None:
     value = response.headers.get("retry-after")
     if not value:
         return None
@@ -123,12 +134,12 @@ def _retry_after(response: httpx.Response) -> float | None:
         return None
 
 
-def error_for(response: httpx.Response, model: str | None = None) -> AppError:
+def error_for(response: HttpResponse, model: str | None = None) -> AppError:
     """Maps a provider's error response to one of M06's error codes (§8)."""
     status = response.status_code
     try:
         body = response.text.lower()
-    except UnicodeDecodeError, httpx.ResponseNotRead:
+    except Exception:
         body = ""
     if status in (401, 403) or any(hint in body for hint in _KEY_HINTS):
         return AppError("ai.invalid_key", 400)
@@ -148,124 +159,55 @@ def error_for(response: httpx.Response, model: str | None = None) -> AppError:
     return AppError("ai.request_rejected", 400, http_status=status)
 
 
-def _retryable(status: int) -> bool:
-    return status == 429 or status >= 500
+def _chain(exc: BaseException) -> Iterator[BaseException]:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
 
 
-async def _backoff(attempt: int, response: httpx.Response | None) -> None:
-    delay = RETRY_BASE_SECONDS * (2**attempt)
-    if response is not None and (after := _retry_after(response)) is not None:
-        delay = min(after, MAX_RETRY_AFTER_SECONDS) if RETRY_BASE_SECONDS else 0
-    await asyncio.sleep(delay)
-
-
-def _transport_error(exc: httpx.HTTPError) -> AppError:
-    if isinstance(exc, httpx.TimeoutException):
-        return AppError("ai.timeout", 504)
+def map_error(exc: BaseException, model: str | None = None) -> AppError:
+    """The M06 error for anything an SDK or Pydantic AI raised: from the HTTP response when there
+    is one, else from the transport failure. An `AppError` underneath (the egress guard) wins."""
+    chain = list(_chain(exc))
+    for e in chain:
+        if isinstance(e, AppError):
+            return e
+    for e in chain:
+        response = getattr(e, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int) and status >= 400:
+            return error_for(response, model)  # pyright: ignore[reportArgumentType]
+    for e in chain:
+        if isinstance(e, TimeoutError) or "timeout" in type(e).__name__.lower():
+            return AppError("ai.timeout", 504)
+    for e in chain:
+        status = getattr(e, "status_code", None)  # Pydantic AI's ModelHTTPError
+        if isinstance(status, int) and status >= 400:
+            return error_for(_Bare(status, str(getattr(e, "body", "") or "")), model)
+    # Only the exception types: their messages may quote the prompt or the reply.
+    log.warning("ai_provider_failure", errors=[type(e).__name__ for e in chain])
     return AppError("ai.provider_unreachable", 502)
 
 
-async def send(
-    client: httpx.AsyncClient,
-    method: str,
-    url: str,
-    *,
-    headers: Mapping[str, str],
-    json_body: Any = None,
-    model: str | None = None,
-) -> Any:
-    """One JSON request with retries on 429/5xx; returns the decoded JSON body."""
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            response = await client.request(method, url, headers=headers, json=json_body)
-        except httpx.HTTPError as exc:
-            if attempt < MAX_RETRIES and not isinstance(exc, httpx.TimeoutException):
-                await _backoff(attempt, None)
-                continue
-            raise _transport_error(exc) from None
-        if response.is_success:
-            try:
-                return response.json()
-            except json.JSONDecodeError:
-                raise AppError("ai.provider_unreachable", 502) from None
-        if _retryable(response.status_code) and attempt < MAX_RETRIES:
-            await _backoff(attempt, response)
-            continue
-        raise error_for(response, model)
-    raise AssertionError("unreachable")
+def retryable(error: AppError, exc: BaseException) -> bool:
+    """429, 5xx and failed connections; not timeouts, and not a request the SDK refused to send."""
+    if error.code == "ai.rate_limited":
+        return True
+    if error.code != "ai.provider_unreachable":
+        return False
+    return "http_status" in error.params or any(
+        "connect" in type(e).__name__.lower() for e in _chain(exc)
+    )
 
 
-@asynccontextmanager
-async def open_stream(
-    client: httpx.AsyncClient,
-    url: str,
-    *,
-    headers: Mapping[str, str],
-    json_body: Any,
-    model: str | None = None,
-) -> AsyncIterator[httpx.Response]:
-    """A streaming POST; retried like `send` until the provider starts answering."""
-    for attempt in range(MAX_RETRIES + 1):
-        stack = AsyncExitStack()
-        try:
-            response = await stack.enter_async_context(
-                client.stream("POST", url, headers=headers, json=json_body)
-            )
-        except httpx.HTTPError as exc:
-            await stack.aclose()
-            if attempt < MAX_RETRIES and isinstance(exc, httpx.ConnectError):
-                await _backoff(attempt, None)
-                continue
-            raise _transport_error(exc) from None
-        if response.is_success:
-            async with stack:
-                yield response
-            return
-        async with stack:
-            await response.aread()
-        if _retryable(response.status_code) and attempt < MAX_RETRIES:
-            await _backoff(attempt, response)
-            continue
-        raise error_for(response, model)
-
-
-async def sse_events(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
-    """`data:` payloads of a server-sent event stream, decoded as JSON."""
-    async for line in _lines(response):
-        if not line.startswith("data:"):
-            continue
-        payload = line[5:].strip()
-        if not payload or payload == "[DONE]":
-            continue
-        try:
-            yield json.loads(payload)
-        except json.JSONDecodeError:
-            continue
-
-
-async def ndjson_events(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
-    async for line in _lines(response):
-        line = line.strip()
-        if line:
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-
-async def _lines(response: httpx.Response) -> AsyncIterator[str]:
-    iterator = response.aiter_lines().__aiter__()
-    while True:
-        try:
-            async with asyncio.timeout(STREAM_IDLE_TIMEOUT_SECONDS):
-                line = await iterator.__anext__()
-        except StopAsyncIteration:
-            return
-        except TimeoutError:
-            raise AppError("ai.timeout", 504) from None
-        except httpx.HTTPError as exc:
-            raise _transport_error(exc) from None
-        yield line
+async def backoff(attempt: int, error: AppError) -> None:
+    delay = RETRY_BASE_SECONDS * (2**attempt)
+    if (after := error.params.get("retry_after")) is not None:
+        delay = min(float(after), MAX_RETRY_AFTER_SECONDS) if RETRY_BASE_SECONDS else 0
+    await asyncio.sleep(delay)
 
 
 def json_instruction(schema: dict[str, Any]) -> str:
@@ -273,16 +215,4 @@ def json_instruction(schema: dict[str, Any]) -> str:
     return (
         "Reply with one JSON object and nothing else (no prose, no code fence). "
         "It must validate against this JSON Schema:\n" + json.dumps(schema, ensure_ascii=False)
-    )
-
-
-def system_text(messages: list[Message]) -> str:
-    from semestra.modules.ai.llm import Text
-
-    return "\n\n".join(
-        part.text
-        for msg in messages
-        if msg.role == "system"
-        for part in msg.content
-        if isinstance(part, Text)
     )

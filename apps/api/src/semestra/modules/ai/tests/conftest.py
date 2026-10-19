@@ -50,8 +50,8 @@ def models_ok(router: respx.MockRouter) -> None:
         return_value=Response(200, json={"models": [{"name": "models/gemini-2.5-flash"}]})
     )
     router.get(f"{COMPAT}/models").mock(return_value=Response(200, json={"data": [{"id": "ds"}]}))
-    router.get(f"{OLLAMA}/api/tags").mock(
-        return_value=Response(200, json={"models": [{"name": "qwen3:8b"}]})
+    router.get(f"{OLLAMA}/v1/models").mock(
+        return_value=Response(200, json={"object": "list", "data": [{"id": "qwen3:8b"}]})
     )
 
 
