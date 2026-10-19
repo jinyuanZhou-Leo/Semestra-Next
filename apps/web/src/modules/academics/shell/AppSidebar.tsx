@@ -100,7 +100,7 @@ function NavItem({
   )
 }
 
-/** The Program at the top: a switcher with several Programs, a link to its overview with one. */
+/** The Program at the top: the Programs to switch between, and where a new one is created. */
 function ProgramHeader({ programs, current }: { programs: Program[]; current: Program }) {
   const { isMobile } = useSidebar()
   const [creating, setCreating] = useState(false)
@@ -117,21 +117,6 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
       </div>
     </>
   )
-  if (programs.length < 2) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            tooltip={current.name}
-            render={<HistoryLink href={programPath(current.id)} />}
-          >
-            {face}
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    )
-  }
   return (
     <SidebarMenu>
       <SidebarMenuItem>

@@ -114,8 +114,16 @@ test('the sidebar lists terms, the current one expanded, year-long courses in bo
   await waitFor(() =>
     expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(2),
   )
-  // A single Program: no switcher anywhere.
-  expect(screen.queryByRole('button', { name: 'Switch program' })).not.toBeInTheDocument()
+})
+
+test('with a single Program the Program menu still offers a new one', async () => {
+  mount('/p/p1')
+  await userEvent.click(await screen.findByRole('button', { name: 'Switch program' }))
+  expect(await screen.findByRole('menuitem', { name: 'New program' })).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: /Computer Engineering/ })).toHaveAttribute(
+    'href',
+    '/p/p1',
+  )
 })
 
 test('the sidebar offers each entry once and leaves page tabs to the page', async () => {
