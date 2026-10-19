@@ -330,6 +330,13 @@
       "default_board": {}
     },
     {
+      "id": "imports",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
       "id": "tasks",
       "kind": "core",
       "pages": [

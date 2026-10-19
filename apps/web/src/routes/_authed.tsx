@@ -4,7 +4,7 @@ import { toApiError } from '@/app/api'
 import { CommandCenter } from '@/app/commands'
 import { PreferencesSync } from '@/app/preferences'
 import { useRealtime } from '@/app/realtime'
-import { InstalledPluginsProvider } from '@/app/registry'
+import { InstalledPluginsProvider, useOverlays } from '@/app/registry'
 import { SettingsDialog } from '@/app/settings'
 import { prefetchUiPrefs } from '@/app/ui-pref'
 
@@ -38,6 +38,11 @@ function AuthedLayout() {
       <Outlet />
       <CommandCenter />
       <SettingsDialog />
+      <ModuleOverlays />
     </InstalledPluginsProvider>
   )
+}
+
+function ModuleOverlays() {
+  return useOverlays().map((Overlay, index) => <Overlay key={index} />)
 }

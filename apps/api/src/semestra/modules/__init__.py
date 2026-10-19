@@ -9,6 +9,7 @@ def register_all(app: FastAPI) -> None:
         auth,
         files,
         grading,
+        imports,
         layouts,
         plugins,
         plugins_builtin,
@@ -27,4 +28,5 @@ def register_all(app: FastAPI) -> None:
     layouts.register(app)
     schedule.register(app)
     plugins_builtin.register(app)
+    imports.register(app)
     tasks.register(app)

@@ -45,6 +45,10 @@ class PageRenderer:
                 raise ValueError("image too large")
             self._image = ImageOps.exif_transpose(image).convert("RGB")
 
+    @property
+    def page_count(self) -> int:
+        return self._pdf.page_count if self._pdf is not None else 1
+
     def close(self) -> None:
         if self._pdf is not None:
             self._pdf.close()

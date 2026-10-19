@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountAvatarGet, accountAvatarUpload, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, calendarOccurrences, calendarToday, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, filesContent, filesDocumentOutline, filesDocumentRead, filesFolderCreate, filesFolderDelete, filesFolderUpdate, filesItemDelete, filesItemGet, filesItemUpdate, filesLinkCreate, filesList, filesPageImage, filesPinned, filesReprocess, filesSearch, filesUpload, filesUsage, gradingAssessmentCreate, gradingAssessmentCreateMany, gradingAssessmentDelete, gradingAssessmentList, gradingAssessmentReorder, gradingAssessmentUpdate, gradingCategoryCreate, gradingCategoryDelete, gradingCategoryReorder, gradingCategoryUpdate, gradingCourseResultUpdate, gradingCourseSummaries, gradingGradebookGet, gradingScaleGet, gradingScalePresets, gradingScaleUpdate, gradingSimulateCourse, gradingSimulateTerm, gradingSuggestScores, gradingSummaryProgram, gradingSummaryTerm, habitCheckinsList, habitCheckinToggle, habitStats, healthz, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, pomodoroSessionRecord, pomodoroStats, readyz, scheduleConflicts, scheduleEventCreate, scheduleEventDelete, scheduleEventList, scheduleEventTypeCreate, scheduleEventTypeDelete, scheduleEventTypeList, scheduleEventTypeReorder, scheduleEventTypeUpdate, scheduleEventUpdate, scheduleExceptionDelete, scheduleExceptionUpsert, scheduleFeedCreate, scheduleFeedList, scheduleFeedRevoke, scheduleMeetingCreate, scheduleMeetingCreateMany, scheduleMeetingDelete, scheduleMeetingList, scheduleMeetingSetEnabled, scheduleMeetingUpdate, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate, stickyNoteList, stickyNoteUpdate, tasksCounts, tasksItemClearCompleted, tasksItemComplete, tasksItemCreate, tasksItemCreateMany, tasksItemDelete, tasksItemGet, tasksItemMove, tasksItemQuery, tasksItemUpdate, tasksListCreate, tasksListDelete, tasksListList, tasksListReorder, tasksListUpdate } from '../sdk.gen';
-import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountAvatarGetData, AccountAvatarGetError, AccountAvatarUploadData, AccountAvatarUploadError, AccountAvatarUploadResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CalendarOccurrencesData, CalendarOccurrencesError, CalendarOccurrencesResponse, CalendarTodayData, CalendarTodayError, CalendarTodayResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, FilesContentData, FilesContentError, FilesContentResponse, FilesDocumentOutlineData, FilesDocumentOutlineError, FilesDocumentOutlineResponse, FilesDocumentReadData, FilesDocumentReadError, FilesDocumentReadResponse, FilesFolderCreateData, FilesFolderCreateError, FilesFolderCreateResponse, FilesFolderDeleteData, FilesFolderDeleteError, FilesFolderDeleteResponse, FilesFolderUpdateData, FilesFolderUpdateError, FilesFolderUpdateResponse, FilesItemDeleteData, FilesItemDeleteError, FilesItemDeleteResponse, FilesItemGetData, FilesItemGetError, FilesItemGetResponse, FilesItemUpdateData, FilesItemUpdateError, FilesItemUpdateResponse, FilesLinkCreateData, FilesLinkCreateError, FilesLinkCreateResponse, FilesListData, FilesListError, FilesListResponse, FilesPageImageData, FilesPageImageError, FilesPinnedData, FilesPinnedError, FilesPinnedResponse, FilesReprocessData, FilesReprocessError, FilesReprocessResponse, FilesSearchData, FilesSearchError, FilesSearchResponse, FilesUploadData, FilesUploadError, FilesUploadResponse, FilesUsageData, FilesUsageError, FilesUsageResponse, GradingAssessmentCreateData, GradingAssessmentCreateError, GradingAssessmentCreateManyData, GradingAssessmentCreateManyError, GradingAssessmentCreateManyResponse, GradingAssessmentCreateResponse, GradingAssessmentDeleteData, GradingAssessmentDeleteError, GradingAssessmentDeleteResponse, GradingAssessmentListData, GradingAssessmentListError, GradingAssessmentListResponse, GradingAssessmentReorderData, GradingAssessmentReorderError, GradingAssessmentReorderResponse, GradingAssessmentUpdateData, GradingAssessmentUpdateError, GradingAssessmentUpdateResponse, GradingCategoryCreateData, GradingCategoryCreateError, GradingCategoryCreateResponse, GradingCategoryDeleteData, GradingCategoryDeleteError, GradingCategoryDeleteResponse, GradingCategoryReorderData, GradingCategoryReorderError, GradingCategoryReorderResponse, GradingCategoryUpdateData, GradingCategoryUpdateError, GradingCategoryUpdateResponse, GradingCourseResultUpdateData, GradingCourseResultUpdateError, GradingCourseResultUpdateResponse, GradingCourseSummariesData, GradingCourseSummariesError, GradingCourseSummariesResponse, GradingGradebookGetData, GradingGradebookGetError, GradingGradebookGetResponse, GradingScaleGetData, GradingScaleGetError, GradingScaleGetResponse, GradingScalePresetsData, GradingScalePresetsError, GradingScalePresetsResponse, GradingScaleUpdateData, GradingScaleUpdateError, GradingScaleUpdateResponse, GradingSimulateCourseData, GradingSimulateCourseError, GradingSimulateCourseResponse, GradingSimulateTermData, GradingSimulateTermError, GradingSimulateTermResponse, GradingSuggestScoresData, GradingSuggestScoresError, GradingSuggestScoresResponse, GradingSummaryProgramData, GradingSummaryProgramError, GradingSummaryProgramResponse, GradingSummaryTermData, GradingSummaryTermError, GradingSummaryTermResponse, HabitCheckinsListData, HabitCheckinsListError, HabitCheckinsListResponse, HabitCheckinToggleData, HabitCheckinToggleError, HabitCheckinToggleResponse, HabitStatsData, HabitStatsError, HabitStatsResponse, HealthzData, HealthzResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, PomodoroSessionRecordData, PomodoroSessionRecordError, PomodoroSessionRecordResponse, PomodoroStatsData, PomodoroStatsError, PomodoroStatsResponse, ReadyzData, ReadyzError, ReadyzResponse, ScheduleConflictsData, ScheduleConflictsError, ScheduleConflictsResponse, ScheduleEventCreateData, ScheduleEventCreateError, ScheduleEventCreateResponse, ScheduleEventDeleteData, ScheduleEventDeleteError, ScheduleEventDeleteResponse, ScheduleEventListData, ScheduleEventListError, ScheduleEventListResponse, ScheduleEventTypeCreateData, ScheduleEventTypeCreateError, ScheduleEventTypeCreateResponse, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteError, ScheduleEventTypeDeleteResponse, ScheduleEventTypeListData, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ScheduleEventTypeReorderData, ScheduleEventTypeReorderError, ScheduleEventTypeReorderResponse, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateError, ScheduleEventTypeUpdateResponse, ScheduleEventUpdateData, ScheduleEventUpdateError, ScheduleEventUpdateResponse, ScheduleExceptionDeleteData, ScheduleExceptionDeleteError, ScheduleExceptionDeleteResponse, ScheduleExceptionUpsertData, ScheduleExceptionUpsertError, ScheduleExceptionUpsertResponse, ScheduleFeedCreateData, ScheduleFeedCreateError, ScheduleFeedCreateResponse, ScheduleFeedListData, ScheduleFeedListError, ScheduleFeedListResponse, ScheduleFeedRevokeData, ScheduleFeedRevokeError, ScheduleFeedRevokeResponse, ScheduleMeetingCreateData, ScheduleMeetingCreateError, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyError, ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateResponse, ScheduleMeetingDeleteData, ScheduleMeetingDeleteError, ScheduleMeetingDeleteResponse, ScheduleMeetingListData, ScheduleMeetingListError, ScheduleMeetingListResponse, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledError, ScheduleMeetingSetEnabledResponse, ScheduleMeetingUpdateData, ScheduleMeetingUpdateError, ScheduleMeetingUpdateResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse, StickyNoteListData, StickyNoteListError, StickyNoteListResponse, StickyNoteUpdateData, StickyNoteUpdateError, StickyNoteUpdateResponse, TasksCountsData, TasksCountsError, TasksCountsResponse, TasksItemClearCompletedData, TasksItemClearCompletedError, TasksItemClearCompletedResponse, TasksItemCompleteData, TasksItemCompleteError, TasksItemCompleteResponse, TasksItemCreateData, TasksItemCreateError, TasksItemCreateManyData, TasksItemCreateManyError, TasksItemCreateManyResponse, TasksItemCreateResponse, TasksItemDeleteData, TasksItemDeleteError, TasksItemDeleteResponse, TasksItemGetData, TasksItemGetError, TasksItemGetResponse, TasksItemMoveData, TasksItemMoveError, TasksItemMoveResponse, TasksItemQueryData, TasksItemQueryError, TasksItemQueryResponse, TasksItemUpdateData, TasksItemUpdateError, TasksItemUpdateResponse, TasksListCreateData, TasksListCreateError, TasksListCreateResponse, TasksListDeleteData, TasksListDeleteError, TasksListDeleteResponse, TasksListListData, TasksListListError, TasksListListResponse, TasksListReorderData, TasksListReorderError, TasksListReorderResponse, TasksListUpdateData, TasksListUpdateError, TasksListUpdateResponse } from '../types.gen';
+import { academicsCourseCreate, academicsCourseCreateMany, academicsCourseDelete, academicsCourseGet, academicsCourseList, academicsCourseReorder, academicsCourseSetTerms, academicsCourseUpdate, academicsProgramCreate, academicsProgramDelete, academicsProgramGet, academicsProgramList, academicsProgramSetSubjectColor, academicsProgramUpdate, academicsTermCalendarInfo, academicsTermCreate, academicsTermDelete, academicsTermDeletePreview, academicsTermGet, academicsTermList, academicsTermUpdate, accountAvatarGet, accountAvatarUpload, accountEmailChangeConfirm, accountEmailChangeStart, accountGoogleLink, accountGoogleUnlink, accountMeGet, accountPasswordChange, accountProfileUpdate, accountSessionsList, accountSessionsRevoke, accountSessionsRevokeOthers, accountTokensCreate, accountTokensList, accountTokensRevoke, aiAssignmentGet, aiAssignmentUpdate, aiProviderCreate, aiProviderDelete, aiProviderList, aiProviderModels, aiProviderTest, aiProviderUpdate, aiStatus, aiUsageSummary, authConfig, authEmailStart, authEmailVerify, authGoogleLogin, authLogout, authPasswordLogin, authPasswordReset, authRegisterComplete, authTokenRefresh, calendarOccurrences, calendarToday, coreJobCancel, coreJobGet, coreJobList, coreStorageUsage, filesContent, filesDocumentOutline, filesDocumentRead, filesFolderCreate, filesFolderDelete, filesFolderUpdate, filesItemDelete, filesItemGet, filesItemUpdate, filesLinkCreate, filesList, filesPageImage, filesPinned, filesReprocess, filesSearch, filesUpload, filesUsage, gradingAssessmentCreate, gradingAssessmentCreateMany, gradingAssessmentDelete, gradingAssessmentList, gradingAssessmentReorder, gradingAssessmentUpdate, gradingCategoryCreate, gradingCategoryDelete, gradingCategoryReorder, gradingCategoryUpdate, gradingCourseResultUpdate, gradingCourseSummaries, gradingGradebookGet, gradingScaleGet, gradingScalePresets, gradingScaleUpdate, gradingSimulateCourse, gradingSimulateTerm, gradingSuggestScores, gradingSummaryProgram, gradingSummaryTerm, habitCheckinsList, habitCheckinToggle, habitStats, healthz, importsItemsBulkDecide, importsItemUpdate, importsSessionCommit, importsSessionCreate, importsSessionDiscard, importsSessionGet, importsSessionList, importsUploadContent, importsUploadCreate, layoutsBoardGet, layoutsBoardUpdate, layoutsCardAdd, layoutsCardRemove, layoutsCardSettingsGet, layoutsCardSettingsUpdate, layoutsNavGet, layoutsNavUpdate, layoutsTemplateGet, layoutsTemplateReset, layoutsTemplateSaveFromBoard, type Options, pluginsCatalogList, pluginsInstall, pluginsUninstall, pomodoroSessionRecord, pomodoroStats, readyz, scheduleConflicts, scheduleEventCreate, scheduleEventDelete, scheduleEventList, scheduleEventTypeCreate, scheduleEventTypeDelete, scheduleEventTypeList, scheduleEventTypeReorder, scheduleEventTypeUpdate, scheduleEventUpdate, scheduleExceptionDelete, scheduleExceptionUpsert, scheduleFeedCreate, scheduleFeedList, scheduleFeedRevoke, scheduleMeetingCreate, scheduleMeetingCreateMany, scheduleMeetingDelete, scheduleMeetingList, scheduleMeetingSetEnabled, scheduleMeetingUpdate, settingsPreferencesGet, settingsPreferencesUpdate, settingsSchemasList, settingsUiStateGetMany, settingsUiStateSet, settingsValuesGet, settingsValuesReset, settingsValuesUpdate, stickyNoteList, stickyNoteUpdate, tasksCounts, tasksItemClearCompleted, tasksItemComplete, tasksItemCreate, tasksItemCreateMany, tasksItemDelete, tasksItemGet, tasksItemMove, tasksItemQuery, tasksItemUpdate, tasksListCreate, tasksListDelete, tasksListList, tasksListReorder, tasksListUpdate } from '../sdk.gen';
+import type { AcademicsCourseCreateData, AcademicsCourseCreateError, AcademicsCourseCreateManyData, AcademicsCourseCreateManyError, AcademicsCourseCreateManyResponse, AcademicsCourseCreateResponse, AcademicsCourseDeleteData, AcademicsCourseDeleteError, AcademicsCourseDeleteResponse, AcademicsCourseGetData, AcademicsCourseGetError, AcademicsCourseGetResponse, AcademicsCourseListData, AcademicsCourseListError, AcademicsCourseListResponse, AcademicsCourseReorderData, AcademicsCourseReorderError, AcademicsCourseReorderResponse, AcademicsCourseSetTermsData, AcademicsCourseSetTermsError, AcademicsCourseSetTermsResponse, AcademicsCourseUpdateData, AcademicsCourseUpdateError, AcademicsCourseUpdateResponse, AcademicsProgramCreateData, AcademicsProgramCreateError, AcademicsProgramCreateResponse, AcademicsProgramDeleteData, AcademicsProgramDeleteError, AcademicsProgramDeleteResponse, AcademicsProgramGetData, AcademicsProgramGetError, AcademicsProgramGetResponse, AcademicsProgramListData, AcademicsProgramListError, AcademicsProgramListResponse, AcademicsProgramSetSubjectColorData, AcademicsProgramSetSubjectColorError, AcademicsProgramSetSubjectColorResponse, AcademicsProgramUpdateData, AcademicsProgramUpdateError, AcademicsProgramUpdateResponse, AcademicsTermCalendarInfoData, AcademicsTermCalendarInfoError, AcademicsTermCalendarInfoResponse, AcademicsTermCreateData, AcademicsTermCreateError, AcademicsTermCreateResponse, AcademicsTermDeleteData, AcademicsTermDeleteError, AcademicsTermDeletePreviewData, AcademicsTermDeletePreviewError, AcademicsTermDeletePreviewResponse, AcademicsTermDeleteResponse, AcademicsTermGetData, AcademicsTermGetError, AcademicsTermGetResponse, AcademicsTermListData, AcademicsTermListError, AcademicsTermListResponse, AcademicsTermUpdateData, AcademicsTermUpdateError, AcademicsTermUpdateResponse, AccountAvatarGetData, AccountAvatarGetError, AccountAvatarUploadData, AccountAvatarUploadError, AccountAvatarUploadResponse, AccountEmailChangeConfirmData, AccountEmailChangeConfirmError, AccountEmailChangeConfirmResponse, AccountEmailChangeStartData, AccountEmailChangeStartError, AccountEmailChangeStartResponse, AccountGoogleLinkData, AccountGoogleLinkError, AccountGoogleLinkResponse, AccountGoogleUnlinkData, AccountGoogleUnlinkError, AccountGoogleUnlinkResponse, AccountMeGetData, AccountMeGetError, AccountMeGetResponse, AccountPasswordChangeData, AccountPasswordChangeError, AccountPasswordChangeResponse, AccountProfileUpdateData, AccountProfileUpdateError, AccountProfileUpdateResponse, AccountSessionsListData, AccountSessionsListError, AccountSessionsListResponse, AccountSessionsRevokeData, AccountSessionsRevokeError, AccountSessionsRevokeOthersData, AccountSessionsRevokeOthersError, AccountSessionsRevokeOthersResponse, AccountSessionsRevokeResponse, AccountTokensCreateData, AccountTokensCreateError, AccountTokensCreateResponse, AccountTokensListData, AccountTokensListError, AccountTokensListResponse, AccountTokensRevokeData, AccountTokensRevokeError, AccountTokensRevokeResponse, AiAssignmentGetData, AiAssignmentGetError, AiAssignmentGetResponse, AiAssignmentUpdateData, AiAssignmentUpdateError, AiAssignmentUpdateResponse, AiProviderCreateData, AiProviderCreateError, AiProviderCreateResponse, AiProviderDeleteData, AiProviderDeleteError, AiProviderDeleteResponse, AiProviderListData, AiProviderListError, AiProviderListResponse, AiProviderModelsData, AiProviderModelsError, AiProviderModelsResponse, AiProviderTestData, AiProviderTestError, AiProviderTestResponse, AiProviderUpdateData, AiProviderUpdateError, AiProviderUpdateResponse, AiStatusData, AiStatusError, AiStatusResponse, AiUsageSummaryData, AiUsageSummaryError, AiUsageSummaryResponse, AuthConfigData, AuthConfigResponse, AuthEmailStartData, AuthEmailStartError, AuthEmailStartResponse, AuthEmailVerifyData, AuthEmailVerifyError, AuthEmailVerifyResponse, AuthGoogleLoginData, AuthGoogleLoginError, AuthGoogleLoginResponse, AuthLogoutData, AuthLogoutResponse, AuthPasswordLoginData, AuthPasswordLoginError, AuthPasswordLoginResponse, AuthPasswordResetData, AuthPasswordResetError, AuthPasswordResetResponse, AuthRegisterCompleteData, AuthRegisterCompleteError, AuthRegisterCompleteResponse, AuthTokenRefreshData, AuthTokenRefreshError, AuthTokenRefreshResponse, CalendarOccurrencesData, CalendarOccurrencesError, CalendarOccurrencesResponse, CalendarTodayData, CalendarTodayError, CalendarTodayResponse, CoreJobCancelData, CoreJobCancelError, CoreJobCancelResponse, CoreJobGetData, CoreJobGetError, CoreJobGetResponse, CoreJobListData, CoreJobListError, CoreJobListResponse, CoreStorageUsageData, CoreStorageUsageError, CoreStorageUsageResponse, FilesContentData, FilesContentError, FilesContentResponse, FilesDocumentOutlineData, FilesDocumentOutlineError, FilesDocumentOutlineResponse, FilesDocumentReadData, FilesDocumentReadError, FilesDocumentReadResponse, FilesFolderCreateData, FilesFolderCreateError, FilesFolderCreateResponse, FilesFolderDeleteData, FilesFolderDeleteError, FilesFolderDeleteResponse, FilesFolderUpdateData, FilesFolderUpdateError, FilesFolderUpdateResponse, FilesItemDeleteData, FilesItemDeleteError, FilesItemDeleteResponse, FilesItemGetData, FilesItemGetError, FilesItemGetResponse, FilesItemUpdateData, FilesItemUpdateError, FilesItemUpdateResponse, FilesLinkCreateData, FilesLinkCreateError, FilesLinkCreateResponse, FilesListData, FilesListError, FilesListResponse, FilesPageImageData, FilesPageImageError, FilesPinnedData, FilesPinnedError, FilesPinnedResponse, FilesReprocessData, FilesReprocessError, FilesReprocessResponse, FilesSearchData, FilesSearchError, FilesSearchResponse, FilesUploadData, FilesUploadError, FilesUploadResponse, FilesUsageData, FilesUsageError, FilesUsageResponse, GradingAssessmentCreateData, GradingAssessmentCreateError, GradingAssessmentCreateManyData, GradingAssessmentCreateManyError, GradingAssessmentCreateManyResponse, GradingAssessmentCreateResponse, GradingAssessmentDeleteData, GradingAssessmentDeleteError, GradingAssessmentDeleteResponse, GradingAssessmentListData, GradingAssessmentListError, GradingAssessmentListResponse, GradingAssessmentReorderData, GradingAssessmentReorderError, GradingAssessmentReorderResponse, GradingAssessmentUpdateData, GradingAssessmentUpdateError, GradingAssessmentUpdateResponse, GradingCategoryCreateData, GradingCategoryCreateError, GradingCategoryCreateResponse, GradingCategoryDeleteData, GradingCategoryDeleteError, GradingCategoryDeleteResponse, GradingCategoryReorderData, GradingCategoryReorderError, GradingCategoryReorderResponse, GradingCategoryUpdateData, GradingCategoryUpdateError, GradingCategoryUpdateResponse, GradingCourseResultUpdateData, GradingCourseResultUpdateError, GradingCourseResultUpdateResponse, GradingCourseSummariesData, GradingCourseSummariesError, GradingCourseSummariesResponse, GradingGradebookGetData, GradingGradebookGetError, GradingGradebookGetResponse, GradingScaleGetData, GradingScaleGetError, GradingScaleGetResponse, GradingScalePresetsData, GradingScalePresetsError, GradingScalePresetsResponse, GradingScaleUpdateData, GradingScaleUpdateError, GradingScaleUpdateResponse, GradingSimulateCourseData, GradingSimulateCourseError, GradingSimulateCourseResponse, GradingSimulateTermData, GradingSimulateTermError, GradingSimulateTermResponse, GradingSuggestScoresData, GradingSuggestScoresError, GradingSuggestScoresResponse, GradingSummaryProgramData, GradingSummaryProgramError, GradingSummaryProgramResponse, GradingSummaryTermData, GradingSummaryTermError, GradingSummaryTermResponse, HabitCheckinsListData, HabitCheckinsListError, HabitCheckinsListResponse, HabitCheckinToggleData, HabitCheckinToggleError, HabitCheckinToggleResponse, HabitStatsData, HabitStatsError, HabitStatsResponse, HealthzData, HealthzResponse, ImportsItemsBulkDecideData, ImportsItemsBulkDecideError, ImportsItemsBulkDecideResponse, ImportsItemUpdateData, ImportsItemUpdateError, ImportsItemUpdateResponse, ImportsSessionCommitData, ImportsSessionCommitError, ImportsSessionCommitResponse, ImportsSessionCreateData, ImportsSessionCreateError, ImportsSessionCreateResponse, ImportsSessionDiscardData, ImportsSessionDiscardError, ImportsSessionDiscardResponse, ImportsSessionGetData, ImportsSessionGetError, ImportsSessionGetResponse, ImportsSessionListData, ImportsSessionListError, ImportsSessionListResponse, ImportsUploadContentData, ImportsUploadContentError, ImportsUploadContentResponse, ImportsUploadCreateData, ImportsUploadCreateError, ImportsUploadCreateResponse, LayoutsBoardGetData, LayoutsBoardGetError, LayoutsBoardGetResponse, LayoutsBoardUpdateData, LayoutsBoardUpdateError, LayoutsBoardUpdateResponse, LayoutsCardAddData, LayoutsCardAddError, LayoutsCardAddResponse, LayoutsCardRemoveData, LayoutsCardRemoveError, LayoutsCardRemoveResponse, LayoutsCardSettingsGetData, LayoutsCardSettingsGetError, LayoutsCardSettingsGetResponse, LayoutsCardSettingsUpdateData, LayoutsCardSettingsUpdateError, LayoutsCardSettingsUpdateResponse, LayoutsNavGetData, LayoutsNavGetError, LayoutsNavGetResponse, LayoutsNavUpdateData, LayoutsNavUpdateError, LayoutsNavUpdateResponse, LayoutsTemplateGetData, LayoutsTemplateGetError, LayoutsTemplateGetResponse, LayoutsTemplateResetData, LayoutsTemplateResetError, LayoutsTemplateResetResponse, LayoutsTemplateSaveFromBoardData, LayoutsTemplateSaveFromBoardError, LayoutsTemplateSaveFromBoardResponse, PluginsCatalogListData, PluginsCatalogListError, PluginsCatalogListResponse, PluginsInstallData, PluginsInstallError, PluginsInstallResponse, PluginsUninstallData, PluginsUninstallError, PluginsUninstallResponse, PomodoroSessionRecordData, PomodoroSessionRecordError, PomodoroSessionRecordResponse, PomodoroStatsData, PomodoroStatsError, PomodoroStatsResponse, ReadyzData, ReadyzError, ReadyzResponse, ScheduleConflictsData, ScheduleConflictsError, ScheduleConflictsResponse, ScheduleEventCreateData, ScheduleEventCreateError, ScheduleEventCreateResponse, ScheduleEventDeleteData, ScheduleEventDeleteError, ScheduleEventDeleteResponse, ScheduleEventListData, ScheduleEventListError, ScheduleEventListResponse, ScheduleEventTypeCreateData, ScheduleEventTypeCreateError, ScheduleEventTypeCreateResponse, ScheduleEventTypeDeleteData, ScheduleEventTypeDeleteError, ScheduleEventTypeDeleteResponse, ScheduleEventTypeListData, ScheduleEventTypeListError, ScheduleEventTypeListResponse, ScheduleEventTypeReorderData, ScheduleEventTypeReorderError, ScheduleEventTypeReorderResponse, ScheduleEventTypeUpdateData, ScheduleEventTypeUpdateError, ScheduleEventTypeUpdateResponse, ScheduleEventUpdateData, ScheduleEventUpdateError, ScheduleEventUpdateResponse, ScheduleExceptionDeleteData, ScheduleExceptionDeleteError, ScheduleExceptionDeleteResponse, ScheduleExceptionUpsertData, ScheduleExceptionUpsertError, ScheduleExceptionUpsertResponse, ScheduleFeedCreateData, ScheduleFeedCreateError, ScheduleFeedCreateResponse, ScheduleFeedListData, ScheduleFeedListError, ScheduleFeedListResponse, ScheduleFeedRevokeData, ScheduleFeedRevokeError, ScheduleFeedRevokeResponse, ScheduleMeetingCreateData, ScheduleMeetingCreateError, ScheduleMeetingCreateManyData, ScheduleMeetingCreateManyError, ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateResponse, ScheduleMeetingDeleteData, ScheduleMeetingDeleteError, ScheduleMeetingDeleteResponse, ScheduleMeetingListData, ScheduleMeetingListError, ScheduleMeetingListResponse, ScheduleMeetingSetEnabledData, ScheduleMeetingSetEnabledError, ScheduleMeetingSetEnabledResponse, ScheduleMeetingUpdateData, ScheduleMeetingUpdateError, ScheduleMeetingUpdateResponse, SettingsPreferencesGetData, SettingsPreferencesGetError, SettingsPreferencesGetResponse, SettingsPreferencesUpdateData, SettingsPreferencesUpdateError, SettingsPreferencesUpdateResponse, SettingsSchemasListData, SettingsSchemasListError, SettingsSchemasListResponse, SettingsUiStateGetManyData, SettingsUiStateGetManyError, SettingsUiStateGetManyResponse, SettingsUiStateSetData, SettingsUiStateSetError, SettingsUiStateSetResponse, SettingsValuesGetData, SettingsValuesGetError, SettingsValuesGetResponse, SettingsValuesResetData, SettingsValuesResetError, SettingsValuesResetResponse, SettingsValuesUpdateData, SettingsValuesUpdateError, SettingsValuesUpdateResponse, StickyNoteListData, StickyNoteListError, StickyNoteListResponse, StickyNoteUpdateData, StickyNoteUpdateError, StickyNoteUpdateResponse, TasksCountsData, TasksCountsError, TasksCountsResponse, TasksItemClearCompletedData, TasksItemClearCompletedError, TasksItemClearCompletedResponse, TasksItemCompleteData, TasksItemCompleteError, TasksItemCompleteResponse, TasksItemCreateData, TasksItemCreateError, TasksItemCreateManyData, TasksItemCreateManyError, TasksItemCreateManyResponse, TasksItemCreateResponse, TasksItemDeleteData, TasksItemDeleteError, TasksItemDeleteResponse, TasksItemGetData, TasksItemGetError, TasksItemGetResponse, TasksItemMoveData, TasksItemMoveError, TasksItemMoveResponse, TasksItemQueryData, TasksItemQueryError, TasksItemQueryResponse, TasksItemUpdateData, TasksItemUpdateError, TasksItemUpdateResponse, TasksListCreateData, TasksListCreateError, TasksListCreateResponse, TasksListDeleteData, TasksListDeleteError, TasksListDeleteResponse, TasksListListData, TasksListListError, TasksListListResponse, TasksListReorderData, TasksListReorderError, TasksListReorderResponse, TasksListUpdateData, TasksListUpdateError, TasksListUpdateResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -435,6 +435,41 @@ export const filesPageImageInfiniteOptions = (options: Options<FilesPageImageDat
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
+
+/**
+ * Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.
+ */
+export const importsUploadCreateMutation = (options?: Partial<Options<ImportsUploadCreateData>>): UseMutationOptions<ImportsUploadCreateResponse, ImportsUploadCreateError, Options<ImportsUploadCreateData>> => {
+    const mutationOptions: UseMutationOptions<ImportsUploadCreateResponse, ImportsUploadCreateError, Options<ImportsUploadCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsUploadCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const importsUploadContentQueryKey = (options: Options<ImportsUploadContentData>) => createQueryKey('importsUploadContent', options);
+
+/**
+ * The uploaded file, shown inline (evidence preview).
+ */
+export const importsUploadContentOptions = (options: Options<ImportsUploadContentData>) => queryOptions<ImportsUploadContentResponse, ImportsUploadContentError, ImportsUploadContentResponse, ReturnType<typeof importsUploadContentQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await importsUploadContent({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: importsUploadContentQueryKey(options)
+});
 
 export const academicsCourseListQueryKey = (options: Options<AcademicsCourseListData>) => createQueryKey('academicsCourseList', options);
 
@@ -2329,6 +2364,181 @@ export const habitStatsOptions = (options: Options<HabitStatsData>) => queryOpti
         return data;
     },
     queryKey: habitStatsQueryKey(options)
+});
+
+/**
+ * Edit an import item's fields or accept/reject it.
+ *
+ * `data` is merged into the item (send null to clear a field); the item's issues
+ * are checked again afterwards.
+ */
+export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemUpdateData>>): UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> => {
+    const mutationOptions: UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsItemUpdate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Accept or reject many import items at once, by type, issue or id.
+ *
+ * E.g. reject every item with `import.duplicate_assessment`.
+ */
+export const importsItemsBulkDecideMutation = (options?: Partial<Options<ImportsItemsBulkDecideData>>): UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> => {
+    const mutationOptions: UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsItemsBulkDecide({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Write the accepted items of an import (courses, gradebook, schedule, tasks).
+ *
+ * Only after the user reviewed the import. Writes in dependency order; one item
+ * failing does not undo the others (see each item's `result`). Repeating it only retries the
+ * items that have not been written.
+ */
+export const importsSessionCommitMutation = (options?: Partial<Options<ImportsSessionCommitData>>): UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> => {
+    const mutationOptions: UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsSessionCommit({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const importsSessionListQueryKey = (options: Options<ImportsSessionListData>) => createQueryKey('importsSessionList', options);
+
+/**
+ * Import history of a Program, newest first.
+ *
+ * Closed imports are kept for 30 days.
+ */
+export const importsSessionListOptions = (options: Options<ImportsSessionListData>) => queryOptions<ImportsSessionListResponse, ImportsSessionListError, ImportsSessionListResponse, ReturnType<typeof importsSessionListQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await importsSessionList({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: importsSessionListQueryKey(options)
+});
+
+export const importsSessionListInfiniteQueryKey = (options: Options<ImportsSessionListData>): QueryKey<Options<ImportsSessionListData>> => createQueryKey('importsSessionList', options, true);
+
+/**
+ * Import history of a Program, newest first.
+ *
+ * Closed imports are kept for 30 days.
+ */
+export const importsSessionListInfiniteOptions = (options: Options<ImportsSessionListData>) => {
+    const opts = infiniteQueryOptions<ImportsSessionListResponse, ImportsSessionListError, InfiniteData<ImportsSessionListResponse>, QueryKey<Options<ImportsSessionListData>>, string | null | Pick<QueryKey<Options<ImportsSessionListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ImportsSessionListData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await importsSessionList({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: importsSessionListInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.
+ *
+ * Creates a draft the user reviews before anything is written. Upload files first
+ * (POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.
+ * ICS is parsed at once (status ready); the other sources are extracted in the background
+ * (status extracting → ready), poll imports.session.get. Never write a document's contents with
+ * the modules' own create capabilities instead of importing it.
+ */
+export const importsSessionCreateMutation = (options?: Partial<Options<ImportsSessionCreateData>>): UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> => {
+    const mutationOptions: UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsSessionCreate({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Drop an import that has not been committed, with its uploaded files.
+ *
+ * Use when the user does not want the import.
+ */
+export const importsSessionDiscardMutation = (options?: Partial<Options<ImportsSessionDiscardData>>): UseMutationOptions<ImportsSessionDiscardResponse, ImportsSessionDiscardError, Options<ImportsSessionDiscardData>> => {
+    const mutationOptions: UseMutationOptions<ImportsSessionDiscardResponse, ImportsSessionDiscardError, Options<ImportsSessionDiscardData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await importsSessionDiscard({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const importsSessionGetQueryKey = (options: Options<ImportsSessionGetData>) => createQueryKey('importsSessionGet', options);
+
+/**
+ * An import with its items, their issues and the extraction progress.
+ *
+ * Use to see what an import found (courses, assessments, meetings...) and what
+ * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).
+ */
+export const importsSessionGetOptions = (options: Options<ImportsSessionGetData>) => queryOptions<ImportsSessionGetResponse, ImportsSessionGetError, ImportsSessionGetResponse, ReturnType<typeof importsSessionGetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await importsSessionGet({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: importsSessionGetQueryKey(options)
 });
 
 export const layoutsBoardGetQueryKey = (options: Options<LayoutsBoardGetData>) => createQueryKey('layoutsBoardGet', options);

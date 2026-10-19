@@ -901,6 +901,87 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/imports/uploads": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.",
+        "operationId": "importsUploadCreate",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_importsUploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imports/uploads/{upload_id}/content": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "The uploaded file, shown inline (evidence preview).",
+        "operationId": "importsUploadContent",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programs/{program_id}/courses": {
       "post": {
         "tags": [
@@ -3769,7 +3850,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ItemUpdateInputBody"
+                "$ref": "#/components/schemas/semestra__core__capability__ItemUpdateInputBody__1"
               }
             }
           }
@@ -5357,6 +5438,400 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HabitStats"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/imports/{session_id}/items/{item_id}": {
+      "patch": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Edit an import item's fields or accept/reject it.",
+        "description": "`data` is merged into the item (send null to clear a field); the item's issues\nare checked again afterwards.",
+        "operationId": "importsItemUpdate",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Import session id",
+              "title": "Session Id"
+            },
+            "description": "Import session id"
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Item id",
+              "title": "Item Id"
+            },
+            "description": "Item id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/semestra__core__capability__ItemUpdateInputBody__2"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/imports/{session_id}/items:decide": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Accept or reject many import items at once, by type, issue or id.",
+        "description": "E.g. reject every item with `import.duplicate_assessment`.",
+        "operationId": "importsItemsBulkDecide",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Import session id",
+              "title": "Session Id"
+            },
+            "description": "Import session id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDecideInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDecideResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/imports/{session_id}:commit": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
+        "description": "Only after the user reviewed the import. Writes in dependency order; one item\nfailing does not undo the others (see each item's `result`). Repeating it only retries the\nitems that have not been written.",
+        "operationId": "importsSessionCommit",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Import session id",
+              "title": "Session Id"
+            },
+            "description": "Import session id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/imports": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
+        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
+        "operationId": "importsSessionCreate",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionCreateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Import history of a Program, newest first.",
+        "description": "Closed imports are kept for 30 days.",
+        "operationId": "importsSessionList",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Page size",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/imports/{session_id}:discard": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Drop an import that has not been committed, with its uploaded files.",
+        "description": "Use when the user does not want the import.",
+        "operationId": "importsSessionDiscard",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Import session id",
+              "title": "Session Id"
+            },
+            "description": "Import session id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/imports/{session_id}": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "An import with its items, their issues and the extraction progress.",
+        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).",
+        "operationId": "importsSessionGet",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Import session id",
+              "title": "Session Id"
+            },
+            "description": "Import session id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionDetail"
                 }
               }
             }
@@ -10290,6 +10765,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "Body_filesUpload"
       },
+      "Body_importsUploadCreate": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_importsUploadCreate"
+      },
       "Break": {
         "properties": {
           "id": {
@@ -10381,6 +10870,97 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "name"
         ],
         "title": "BreakRef"
+      },
+      "BulkDecideInputBody": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "title": "Decision",
+            "description": "Decision to apply"
+          },
+          "types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "course",
+                    "meeting",
+                    "event",
+                    "category",
+                    "assessment",
+                    "task",
+                    "course_patch"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Types",
+            "description": "Only items of these types"
+          },
+          "issue_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Codes",
+            "description": "Only items with one of these issues"
+          },
+          "item_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Ids",
+            "description": "Only these items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "BulkDecideInputBody"
+      },
+      "BulkDecideResult": {
+        "properties": {
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          },
+          "session": {
+            "$ref": "#/components/schemas/ImportSessionDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changed",
+          "session"
+        ],
+        "title": "BulkDecideResult"
       },
       "CalendarBreak": {
         "properties": {
@@ -10812,6 +11392,71 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "stats"
         ],
         "title": "CheckinToggleResult"
+      },
+      "CommitInputBody": {
+        "properties": {
+          "wizard_courses": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WizardCourse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wizard Courses",
+            "description": "Term wizard: the courses it created from the session's course items"
+          },
+          "item_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Ids",
+            "description": "Retry only these items (failed ones); default: all accepted"
+          }
+        },
+        "type": "object",
+        "title": "CommitInputBody"
+      },
+      "CommitResult": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/ImportSessionDetail"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session",
+          "created",
+          "updated",
+          "failed"
+        ],
+        "title": "CommitResult"
       },
       "ConflictList": {
         "properties": {
@@ -12858,6 +13503,58 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "type": "object",
         "title": "EventUpdateInputBody"
       },
+      "Evidence": {
+        "properties": {
+          "upload_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Id"
+          },
+          "file_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Item Id",
+            "description": "M07 file the quote is from"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          }
+        },
+        "type": "object",
+        "title": "Evidence"
+      },
       "ExceptionUpsertInputBody": {
         "properties": {
           "kind": {
@@ -13883,6 +14580,374 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "IdentityOut"
       },
+      "ImportItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "course",
+              "meeting",
+              "event",
+              "category",
+              "assessment",
+              "task",
+              "course_patch"
+            ],
+            "title": "Type"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "The type's draft fields (see the M08 spec §2)"
+          },
+          "evidence": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "object",
+            "title": "Evidence"
+          },
+          "confidence": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "type": "object",
+            "title": "Confidence"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "pending"
+            ],
+            "title": "Decision"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Depends On"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "type",
+          "data",
+          "evidence",
+          "confidence",
+          "decision",
+          "issues",
+          "depends_on",
+          "result",
+          "position"
+        ],
+        "title": "ImportItem"
+      },
+      "ImportSession": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "ics",
+              "syllabus",
+              "timetable_image",
+              "lms",
+              "text",
+              "agent"
+            ],
+            "title": "Source Kind"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SessionTarget"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "extracting",
+              "ready",
+              "committing",
+              "committed",
+              "failed",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "source_refs": {
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            },
+            "type": "array",
+            "title": "Source Refs"
+          },
+          "source_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Meta"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SessionSummary"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "source_kind",
+          "target",
+          "status",
+          "job_id",
+          "source_refs",
+          "source_meta",
+          "summary",
+          "error_code",
+          "created_at",
+          "updated_at",
+          "committed_at"
+        ],
+        "title": "ImportSession"
+      },
+      "ImportSessionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "ics",
+              "syllabus",
+              "timetable_image",
+              "lms",
+              "text",
+              "agent"
+            ],
+            "title": "Source Kind"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SessionTarget"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "extracting",
+              "ready",
+              "committing",
+              "committed",
+              "failed",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "source_refs": {
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            },
+            "type": "array",
+            "title": "Source Refs"
+          },
+          "source_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Meta"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/SessionSummary"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImportItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "source_kind",
+          "target",
+          "status",
+          "job_id",
+          "source_refs",
+          "source_meta",
+          "summary",
+          "error_code",
+          "created_at",
+          "updated_at",
+          "committed_at",
+          "items"
+        ],
+        "title": "ImportSessionDetail"
+      },
+      "ImportSessionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImportSession"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ImportSessionPage"
+      },
       "Instructor": {
         "properties": {
           "name": {
@@ -13924,6 +14989,25 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "name"
         ],
         "title": "Instructor"
+      },
+      "Issue": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Error code, e.g. import.date_unresolved"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "Issue"
       },
       "ItemOut": {
         "properties": {
@@ -14122,51 +15206,54 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "ItemOut"
       },
-      "ItemUpdateInputBody": {
+      "ItemResult": {
         "properties": {
-          "display_name": {
+          "created_id": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 255,
-                "minLength": 1
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Display Name",
-            "description": "New name"
+            "title": "Created Id"
           },
-          "folder_id": {
+          "updated_id": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 64,
-                "minLength": 1
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Folder Id",
-            "description": "Move into this folder; null moves it to the course root"
+            "title": "Updated Id"
           },
-          "pinned": {
+          "reused": {
+            "type": "boolean",
+            "title": "Reused",
+            "default": false
+          },
+          "error_code": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Pinned",
-            "description": "Pin it to the quick-open cards"
+            "title": "Error Code"
+          },
+          "error_params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Error Params"
           }
         },
         "type": "object",
-        "title": "ItemUpdateInputBody"
+        "title": "ItemResult"
       },
       "JobOut": {
         "properties": {
@@ -18031,6 +19118,74 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "SearchResult"
       },
+      "SessionCreateInputBody": {
+        "properties": {
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "ics",
+              "syllabus",
+              "timetable_image",
+              "lms",
+              "text",
+              "agent"
+            ],
+            "title": "Source Kind",
+            "description": "ics, syllabus, timetable_image or text"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SessionTarget",
+            "description": "Wizard, a term or a course"
+          },
+          "upload_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Upload Ids",
+            "description": "Files from POST /imports/uploads"
+          },
+          "file_item_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "File Item Ids",
+            "description": "Existing course files (M07)"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Pasted text (source `text`)"
+          },
+          "source_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Source Meta",
+            "description": "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_kind",
+          "target"
+        ],
+        "title": "SessionCreateInputBody"
+      },
       "SessionList": {
         "properties": {
           "items": {
@@ -18197,6 +19352,124 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "SessionRecorded"
       },
+      "SessionSummary": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts",
+            "description": "Items per type"
+          },
+          "accepted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Accepted",
+            "description": "Accepted items per type"
+          },
+          "issues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Issues",
+            "description": "Open issues per code"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "default": 0
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SessionSummary"
+      },
+      "SessionTarget": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "term_wizard",
+              "term",
+              "course"
+            ],
+            "title": "Kind",
+            "description": "Where the import goes"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term (kind term, or course's term)"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course (kind course)"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date",
+            "description": "Wizard: first day of the term being created"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date",
+            "description": "Wizard: last day of that term"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "SessionTarget"
+      },
       "SettingsSchemaList": {
         "properties": {
           "items": {
@@ -18315,6 +19588,78 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "assessment_id"
         ],
         "title": "SkippedAssessment"
+      },
+      "SourceRef": {
+        "properties": {
+          "upload_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Id"
+          },
+          "file_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Item Id"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "lms_course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lms Course Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "extracting",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "pending"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "type": "object",
+        "title": "SourceRef"
       },
       "StorageUsage": {
         "properties": {
@@ -20616,6 +21961,34 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "UiStateSetInputBody"
       },
+      "Upload": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "filename",
+          "mime_type",
+          "size_bytes"
+        ],
+        "title": "Upload"
+      },
       "UploadResult": {
         "properties": {
           "items": {
@@ -20967,6 +22340,112 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "values"
         ],
         "title": "ValuesUpdateInputBody"
+      },
+      "WizardCourse": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Item Id",
+            "description": "Course item of the session"
+          },
+          "course_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Course Id",
+            "description": "Course the wizard created from it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "course_id"
+        ],
+        "title": "WizardCourse"
+      },
+      "semestra__core__capability__ItemUpdateInputBody__1": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name",
+            "description": "New name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id",
+            "description": "Move into this folder; null moves it to the course root"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned",
+            "description": "Pin it to the quick-open cards"
+          }
+        },
+        "type": "object",
+        "title": "ItemUpdateInputBody"
+      },
+      "semestra__core__capability__ItemUpdateInputBody__2": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "Fields to change; merged into the item's data"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject",
+                  "pending"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision",
+            "description": "accept, reject or pending"
+          }
+        },
+        "type": "object",
+        "title": "ItemUpdateInputBody"
       },
       "semestra__modules__academics__schemas__Deleted": {
         "properties": {
