@@ -64,13 +64,14 @@ export function ColorPicker({
                   <RadioGroupItem
                     value={INHERIT}
                     aria-label={inheritLabel}
-                    className={SWATCH}
+                    // The link mark stays when picked (so it never reads as a plain slot); the ring
+                    // alone shows the choice.
+                    className={cn(SWATCH, '*:data-[slot=radio-group-indicator]:hidden')}
                     style={inheritStyle}
                   />
-                  {/* The link mark gives way to the checked dot. */}
                   <Link2
                     aria-hidden
-                    className="pointer-events-none absolute inset-0 m-auto size-3.5 text-background drop-shadow-sm peer-data-checked:hidden"
+                    className="pointer-events-none absolute inset-0 m-auto size-3.5 text-background drop-shadow-sm"
                   />
                 </span>
               }

@@ -1,17 +1,8 @@
 import { useId } from 'react'
+import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
-import { Label } from '@/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { Switch } from '@/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
@@ -74,77 +65,56 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           ))}
         </ToggleGroup>
       </FieldSet>
-      <ItemGroup className="gap-0 rounded-2xl border has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0">
-        <Item render={<li />}>
-          <ItemContent>
-            <ItemTitle>
-              <Label id={`${id}-goal`}>{m.habit_settings_goal_label()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
-            <ToggleGroup
-              aria-labelledby={`${id}-goal`}
-              variant="outline"
-              size="sm"
-              value={[value.goal]}
-              onValueChange={(next) => {
-                if (next[0]) set({ goal: next[0] as HabitSettings['goal'] })
-              }}
+      <SettingsGroup>
+        {[
+          <SettingRow key="goal" label={m.habit_settings_goal_label()}>
+            {(labelId) => (
+              <ChoiceControl
+                labelId={labelId}
+                options={[
+                  { value: 'daily', label: m.habit_settings_goal_option_daily() },
+                  { value: 'weekly', label: m.habit_settings_goal_option_weekly() },
+                ]}
+                value={value.goal}
+                onChange={(goal) => set({ goal })}
+              />
+            )}
+          </SettingRow>,
+          value.goal === 'weekly' ? (
+            <SettingRow
+              key="target"
+              label={m.habit_settings_weekly_target_label()}
+              htmlFor={`${id}-target-input`}
             >
-              <ToggleGroupItem value="daily">
-                {m.habit_settings_goal_option_daily()}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="weekly">
-                {m.habit_settings_goal_option_weekly()}
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </ItemActions>
-        </Item>
-        {value.goal === 'weekly' ? (
-          <>
-            <ItemSeparator className="my-0" />
-            <Item render={<li />}>
-              <ItemContent>
-                <ItemTitle>
-                  <Label id={`${id}-target`} htmlFor={`${id}-target-input`}>
-                    {m.habit_settings_weekly_target_label()}
-                  </Label>
-                </ItemTitle>
-              </ItemContent>
-              <ItemActions>
-                <Input
-                  id={`${id}-target-input`}
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={value.weekly_target}
-                  onChange={(event) => {
-                    const n = Math.trunc(Number(event.target.value))
-                    if (n >= 1 && n <= 7) set({ weekly_target: n })
-                  }}
-                  className="w-20"
-                />
-              </ItemActions>
-            </Item>
-          </>
-        ) : null}
-        <ItemSeparator className="my-0" />
-        <Item render={<li />}>
-          <ItemContent>
-            <ItemTitle>
-              <Label id={`${id}-toast`}>{m.habit_settings_show_toast_label()}</Label>
-            </ItemTitle>
-            <ItemDescription>{m.habit_settings_show_toast_description()}</ItemDescription>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              aria-labelledby={`${id}-toast`}
-              checked={value.show_toast}
-              onCheckedChange={(show_toast) => set({ show_toast })}
-            />
-          </ItemActions>
-        </Item>
-      </ItemGroup>
+              <Input
+                id={`${id}-target-input`}
+                type="number"
+                min={1}
+                max={7}
+                value={value.weekly_target}
+                onChange={(event) => {
+                  const n = Math.trunc(Number(event.target.value))
+                  if (n >= 1 && n <= 7) set({ weekly_target: n })
+                }}
+                className="w-20"
+              />
+            </SettingRow>
+          ) : null,
+          <SettingRow
+            key="toast"
+            label={m.habit_settings_show_toast_label()}
+            description={m.habit_settings_show_toast_description()}
+          >
+            {(labelId) => (
+              <Switch
+                aria-labelledby={labelId}
+                checked={value.show_toast}
+                onCheckedChange={(show_toast) => set({ show_toast })}
+              />
+            )}
+          </SettingRow>,
+        ]}
+      </SettingsGroup>
       <FieldSet className="gap-2">
         <FieldLegend variant="label" id={`${id}-color`}>
           {m.habit_settings_color_label()}

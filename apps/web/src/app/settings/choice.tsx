@@ -1,3 +1,4 @@
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import {
   Select,
@@ -15,11 +16,6 @@ export type ChoiceOption<T extends string> = {
   /** One line on what picking it does; any option with one turns the control into a select. */
   hint?: string
 }
-
-/** Short choices with no explanation: a segmented control whose picked segment stands out. */
-const SEGMENTED = 'gap-0.5 rounded-full bg-muted p-0.5'
-const SEGMENT =
-  'h-7 rounded-full px-3 text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm dark:aria-pressed:bg-input'
 
 /**
  * The control for a one-of-several setting (round-4 rule): up to four short options with no
