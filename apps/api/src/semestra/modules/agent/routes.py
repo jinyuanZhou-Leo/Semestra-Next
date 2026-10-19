@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from sqlalchemy import delete
 from sse_starlette import EventSourceResponse
+from starlette.background import BackgroundTask
 from starlette.datastructures import State
 
 from semestra.core.capability import registry
@@ -16,8 +17,13 @@ from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
 from semestra.modules.agent import loop, service, skills
-from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentProposal
-from semestra.modules.agent.runtime import AgentRuntime
+from semestra.modules.agent.models import (
+    AgentAttachment,
+    AgentMessage,
+    AgentProposal,
+    AgentSession,
+)
+from semestra.modules.agent.runtime import AgentRuntime, Claim
 from semestra.modules.agent.schemas import (
     AgentAttachmentOut,
     DecideBody,
@@ -43,38 +49,31 @@ async def _check_ai(ctx: Ctx, rt: AgentRuntime) -> None:
         raise AppError("ai.not_configured", 409, purpose="chat")
 
 
-def _check_free(rt: AgentRuntime, user_id: str, session_id: str) -> None:
-    with rt.slot(user_id, session_id):
-        pass
-
-
 async def _events(
     state: State,
-    user_id: str,
-    session_id: str,
+    claim: Claim,
     before: Sequence[loop.Event] = (),
     run_model: bool = True,
 ) -> AsyncIterator[dict[str, str]]:
-    rt: AgentRuntime = state.agent
-    for item in before:
-        yield loop.sse(item)
-    if not run_model:
-        return
+    """The turn's events; the slot claimed by the route is held until the turn ends."""
     try:
-        slot = rt.slot(user_id, session_id)
-        cancel = slot.__enter__()
-    except AppError as exc:
-        yield loop.sse(loop.event("error", code=exc.code, params=exc.params))
-        return
-    try:
-        async for item in loop.generate(state, user_id, session_id, cancel):
+        for item in before:
             yield loop.sse(item)
+        if run_model:
+            async for item in loop.generate(state, claim.user_id, claim.session_id, claim.cancel):
+                yield loop.sse(item)
     finally:
-        slot.__exit__(None, None, None)
+        claim.release()
 
 
-def _respond(stream: AsyncIterator[dict[str, str]]) -> EventSourceResponse:
-    return EventSourceResponse(stream, ping=PING_SECONDS, headers={"Cache-Control": "no-store"})
+def _respond(stream: AsyncIterator[dict[str, str]], claim: Claim) -> EventSourceResponse:
+    # The background task releases the slot too, in case the stream never started.
+    return EventSourceResponse(
+        stream,
+        ping=PING_SECONDS,
+        headers={"Cache-Control": "no-store"},
+        background=BackgroundTask(claim.release),
+    )
 
 
 @router.post("/agent/sessions/{session_id}/messages", include_in_schema=False)
@@ -90,7 +89,19 @@ async def send_message(
     if not text and not body.attachment_ids and not body.skill:
         raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])
     await _check_ai(ctx, rt)
-    _check_free(rt, ctx.user_id, session.id)
+    claim = rt.claim(ctx.user_id, session.id)
+    try:
+        await _store_message(ctx, session, body)
+    except BaseException:
+        claim.release()
+        raise
+    state = request.app.state
+    await ctx.db.close()
+    return _respond(_events(state, claim), claim)
+
+
+async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody) -> None:
+    text = body.text.strip()
     if body.scope is not None and body.scope.model_dump() != session.scope:
         await service._check_scope(ctx, body.scope)  # pyright: ignore[reportPrivateUsage]
         session.scope = body.scope.model_dump()
@@ -130,9 +141,6 @@ async def send_message(
         )
     service.add_message(ctx, session, "user", blocks, message_id=new_id())
     await ctx.db.commit()
-    user_id, state = ctx.user_id, request.app.state
-    await ctx.db.close()
-    return _respond(_events(state, user_id, session.id))
 
 
 async def _decide(
@@ -140,14 +148,20 @@ async def _decide(
 ) -> EventSourceResponse:
     rt = _runtime(request)
     session = await service.get_session_row(ctx, session_id)
-    _check_free(rt, ctx.user_id, session.id)
     user_id, state = ctx.user_id, request.app.state
     await ctx.db.close()
-    events, resume = await loop.decide(state, user_id, session.id, decisions)
-    if resume:
-        async with loop.agent_ctx(state, user_id, scope=None) as check:
-            resume = await rt.chat_available(check)
-    return _respond(_events(state, user_id, session.id, events, resume))
+    # Held from before the pending check until the turn ends: two decisions on the same
+    # proposal (two tabs, "approve all" and a card, a retry) can never both execute it.
+    claim = rt.claim(user_id, session.id)
+    try:
+        events, resume = await loop.decide(state, user_id, session.id, decisions)
+        if resume:
+            async with loop.agent_ctx(state, user_id, scope=None) as check:
+                resume = await rt.chat_available(check)
+    except BaseException:
+        claim.release()
+        raise
+    return _respond(_events(state, claim, events, resume), claim)
 
 
 @router.post("/agent/sessions/{session_id}/proposals/{proposal_id}:decide", include_in_schema=False)
@@ -187,7 +201,18 @@ async def regenerate(
     rt = _runtime(request)
     session = await service.get_session_row(ctx, session_id)
     await _check_ai(ctx, rt)
-    _check_free(rt, ctx.user_id, session.id)
+    claim = rt.claim(ctx.user_id, session.id)
+    try:
+        await _drop_last_answer(ctx, session, message_id)
+    except BaseException:
+        claim.release()
+        raise
+    state = request.app.state
+    await ctx.db.close()
+    return _respond(_events(state, claim), claim)
+
+
+async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) -> None:
     rows = await service.messages(ctx, session.id)
     last_user = max(
         (
@@ -209,9 +234,6 @@ async def regenerate(
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(ids)))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(ids)))
     await ctx.db.commit()
-    user_id, state = ctx.user_id, request.app.state
-    await ctx.db.close()
-    return _respond(_events(state, user_id, session.id))
 
 
 @router.post(

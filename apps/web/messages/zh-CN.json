@@ -1358,7 +1358,7 @@
   "assistant_send": "发送",
   "assistant_settings_approvals": "自动批准",
   "assistant_settings_approvals_description": "助手可以不经确认直接执行的修改。",
-  "assistant_settings_approvals_note": "删除类操作始终需要确认。",
+  "assistant_settings_approvals_note": "删除类操作始终需要确认。自动批准的修改也可能因助手读到的内容（如文件、Canvas 页面）而被触发。",
   "assistant_settings_mcp": "MCP",
   "assistant_settings_mcp_description": "在 Claude、Cursor 等 MCP 客户端里使用 Semestra。",
   "assistant_settings_tools": "可用工具",

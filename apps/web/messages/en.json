@@ -1358,7 +1358,7 @@
   "assistant_send": "Send",
   "assistant_settings_approvals": "Auto-approve",
   "assistant_settings_approvals_description": "Changes the assistant may make without asking.",
-  "assistant_settings_approvals_note": "Deleting always asks.",
+  "assistant_settings_approvals_note": "Deleting always asks. Approved changes can also be triggered by content the assistant reads, such as files or Canvas pages.",
   "assistant_settings_mcp": "MCP",
   "assistant_settings_mcp_description": "Use Semestra from Claude, Cursor and other MCP clients.",
   "assistant_settings_tools": "Available tools",

@@ -48,6 +48,22 @@ async def _small_complete(ctx: Ctx, messages: list[Message]) -> str:
     return result.text
 
 
+class Claim:
+    """A held generation slot. `release` is idempotent."""
+
+    def __init__(self, rt: AgentRuntime, user_id: str, session_id: str, cancel: asyncio.Event):
+        self._rt = rt
+        self.user_id = user_id
+        self.session_id = session_id
+        self.cancel = cancel
+        self._released = False
+
+    def release(self) -> None:
+        if not self._released:
+            self._released = True
+            self._rt._release(self)  # pyright: ignore[reportPrivateUsage]
+
+
 class AgentRuntime:
     def __init__(self) -> None:
         self.chat_model: Callable[[Ctx], Awaitable[ChatLike]] = _chat_model
@@ -59,21 +75,32 @@ class AgentRuntime:
     def generating(self, session_id: str) -> bool:
         return session_id in self._running
 
-    @contextmanager
-    def slot(self, user_id: str, session_id: str) -> Generator[asyncio.Event]:
-        """Claims one of the user's generation slots; the event is set by `stop`."""
+    def claim(self, user_id: str, session_id: str) -> Claim:
+        """Claims one of the user's generation slots until `Claim.release`; raises `agent.busy`.
+        The routes claim before changing anything, so two requests for one session can never
+        both store a message or both execute a proposal."""
         if session_id in self._running or self._per_user[user_id] >= MAX_GENERATIONS_PER_USER:
             raise AppError("agent.busy", 429)
         cancel = asyncio.Event()
         self._running[session_id] = cancel
         self._per_user[user_id] += 1
+        return Claim(self, user_id, session_id, cancel)
+
+    def _release(self, claim: Claim) -> None:
+        if self._running.get(claim.session_id) is claim.cancel:
+            del self._running[claim.session_id]
+        self._per_user[claim.user_id] -= 1
+        if self._per_user[claim.user_id] <= 0:
+            del self._per_user[claim.user_id]
+
+    @contextmanager
+    def slot(self, user_id: str, session_id: str) -> Generator[asyncio.Event]:
+        """`claim` for a block; the event is set by `stop`."""
+        claim = self.claim(user_id, session_id)
         try:
-            yield cancel
+            yield claim.cancel
         finally:
-            self._running.pop(session_id, None)
-            self._per_user[user_id] -= 1
-            if self._per_user[user_id] <= 0:
-                del self._per_user[user_id]
+            claim.release()
 
     def stop(self, session_id: str) -> bool:
         cancel = self._running.get(session_id)

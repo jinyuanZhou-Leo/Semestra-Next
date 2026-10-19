@@ -113,6 +113,55 @@ async def test_rejection_reason_goes_back_to_the_model(agent: Agent, model: Fake
     ] is None
 
 
+async def test_concurrent_decisions_execute_once(agent: Agent, model: FakeModel):
+    """Two tabs, or "approve all" racing a card: only one decision runs the write."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 90})
+    )
+    [proposal] = events_named(await agent.send(session["id"], "90 on lab 3"), "proposal")
+    model.then(say("Recorded."), say("Recorded."))
+    url = f"/agent/sessions/{session['id']}/proposals/{proposal['id']}:decide"
+
+    async def decide() -> int:
+        async with agent.client.stream("POST", url, json={"decision": "approve"}) as r:
+            await r.aread()
+            return r.status_code
+
+    statuses = sorted(await asyncio.gather(decide(), decide()))
+    assert statuses[0] == 200
+    assert statuses[1] in (409, 429)
+    detail = await agent.detail(session["id"])
+    results = [
+        b
+        for m in detail["messages"]
+        if m["role"] == "tool"
+        for b in m["content"]
+        if b.get("call_id") == proposal["call_id"]
+    ]
+    assert len(results) == 1
+
+
+async def test_held_slot_refuses_a_decision(app: FastAPI, agent: Agent, model: FakeModel):
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 90})
+    )
+    [proposal] = events_named(await agent.send(session["id"], "90 on lab 3"), "proposal")
+    me = (await agent.call("GET", "/account/me"))["id"]
+    with app.state.agent.slot(me, session["id"]):
+        err = await agent.call(
+            "POST",
+            f"/agent/sessions/{session['id']}/proposals/{proposal['id']}:decide",
+            429,
+            json={"decision": "approve"},
+        )
+    assert err["error"]["code"] == "agent.busy"
+    assert (await agent.detail(session["id"]))["proposals"][0]["status"] == "pending"
+
+
 async def test_edit_then_approve_uses_the_edited_arguments(agent: Agent, model: FakeModel):
     _, course, lab = await agent.course_with_lab()
     session = await agent.session()

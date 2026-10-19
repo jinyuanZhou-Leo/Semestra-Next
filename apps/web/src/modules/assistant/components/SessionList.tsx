@@ -24,6 +24,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
+import { Item, ItemActions, ItemContent, ItemGroup } from '@/ui/item'
 import { Label } from '@/ui/label'
 import { Skeleton } from '@/ui/skeleton'
 
@@ -194,67 +195,70 @@ export function SessionList({
           groups.map((group) => (
             <section key={group.id} aria-label={group.title}>
               <h3 className="px-2 pb-1 text-xs font-medium text-muted-foreground">{group.title}</h3>
-              <ul className="space-y-0.5">
+              <ItemGroup className="gap-0.5">
                 {group.items.map((session) => (
-                  <li
+                  <Item
                     key={session.id}
-                    className={cn(
-                      'group/session flex items-center rounded-lg hover:bg-muted',
-                      session.id === activeId && 'bg-muted',
-                    )}
+                    size="xs"
+                    variant={session.id === activeId ? 'muted' : 'default'}
+                    className="group/session gap-1 rounded-lg p-0 pr-1 hover:bg-muted"
                   >
-                    <button
-                      type="button"
-                      aria-current={session.id === activeId ? 'true' : undefined}
-                      className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-                      onClick={() => onSelect(session.id)}
-                    >
-                      {sessionTitle(session)}
-                    </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="mr-1 opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                            aria-label={m.assistant_history_actions({
-                              title: sessionTitle(session),
-                            })}
-                          />
-                        }
+                    <ItemContent className="min-w-0">
+                      <button
+                        type="button"
+                        aria-current={session.id === activeId ? 'true' : undefined}
+                        className="truncate rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+                        onClick={() => onSelect(session.id)}
                       >
-                        <MoreHorizontal aria-hidden />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setRenaming(session)}>
-                          <Pencil aria-hidden />
-                          {m.assistant_rename()}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            update.mutate({
-                              path: { id: session.id },
-                              body: { pinned: !session.pinned },
-                            })
+                        {sessionTitle(session)}
+                      </button>
+                    </ItemContent>
+                    <ItemActions>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                              aria-label={m.assistant_history_actions({
+                                title: sessionTitle(session),
+                              })}
+                            />
                           }
                         >
-                          {session.pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-                          {session.pinned ? m.assistant_unpin() : m.assistant_pin()}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => setDeleting(session)}
-                        >
-                          <Trash2 aria-hidden />
-                          {m.common_delete()}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </li>
+                          <MoreHorizontal aria-hidden />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setRenaming(session)}>
+                            <Pencil aria-hidden />
+                            {m.assistant_rename()}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              update.mutate({
+                                path: { id: session.id },
+                                body: { pinned: !session.pinned },
+                              })
+                            }
+                          >
+                            {session.pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+                            {session.pinned ? m.assistant_unpin() : m.assistant_pin()}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setDeleting(session)}
+                          >
+                            <Trash2 aria-hidden />
+                            {m.common_delete()}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </ItemActions>
+                  </Item>
                 ))}
-              </ul>
+              </ItemGroup>
             </section>
           ))
         )}
