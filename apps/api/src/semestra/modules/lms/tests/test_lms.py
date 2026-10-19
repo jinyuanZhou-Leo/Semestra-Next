@@ -588,3 +588,16 @@ async def test_course_import_links_only_through_the_current_binding(api: Api):
     assert done["failed"] == 0
     courses = await api.call("GET", f"/programs/{program_id}/lms/courses")
     assert all(c["linked_course_id"] is None for c in courses["items"])
+
+
+async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    await api.link(course, "102")  # the session's link row is gone
+    err = await api.commit(started["session_id"], 409)
+    assert err["error"]["code"] == "lms.course_not_linked"
+    assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []
