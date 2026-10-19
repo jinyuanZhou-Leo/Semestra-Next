@@ -1,36 +1,29 @@
-import type { Program, Term } from '@semestra/api-client'
+import type { Program } from '@semestra/api-client'
 import { useLocation } from '@tanstack/react-router'
 import {
   BookOpen,
-  CalendarDays,
-  CalendarPlus,
-  ChevronRight,
   ChevronsUpDown,
   GraduationCap,
   Library,
   LogOut,
   MoreHorizontal,
   Plus,
-  Repeat,
   Search,
   Settings,
-  Sun,
-  Trash2,
 } from 'lucide-react'
-import { type MouseEvent, useState } from 'react'
-import { openCommandPalette } from '@/app/commands'
+import { useState } from 'react'
+import { openCommandPalette, useHostAction } from '@/app/commands'
 import { scopePath } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
-import { usePages } from '@/app/registry'
-import { useSettingsDialog } from '@/app/settings'
+import { ManagePagesDialog } from '@/app/host/ManagePagesDialog'
+import { OVERVIEW_PAGE, useScopePages } from '@/app/host/nav'
 import { StatusBar } from '@/app/host/StatusBar'
-import { useUiPref } from '@/app/ui-pref'
+import { useSettingsDialog } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
 import { m } from '@/paraglide/messages'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,21 +44,17 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
   SidebarSeparator,
   useSidebar,
 } from '@/ui/sidebar'
-import { courseColor, courseLabel } from '../color'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
-import { DeleteTermDialog } from '../components/DeleteTermDialog'
-import { allCoursesPath, coursePath, newTermPath, programPath, termPath } from '../paths'
-import { useCourses, usePrograms, useTerms } from '../queries'
+import { allCoursesPath, programPath } from '../paths'
+import { usePrograms } from '../queries'
+import { SidebarTerms } from './SidebarTerms'
 
 /** One link of the main navigation; on the icon rail it shows its label as a tooltip. */
 function NavItem({
@@ -169,164 +158,6 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
   )
 }
 
-function TermCourses({
-  programId,
-  term,
-  pathname,
-  onNavigate,
-}: {
-  programId: string
-  term: Term
-  pathname: string
-  onNavigate: () => void
-}) {
-  const courses = useCourses(programId, term.id).data?.items
-  return (
-    <SidebarMenuSub>
-      {courses && courses.length === 0 ? (
-        <SidebarMenuSubItem>
-          <span className="block px-3 py-1 text-xs text-muted-foreground">
-            {m.academics_term_no_courses()}
-          </span>
-        </SidebarMenuSubItem>
-      ) : null}
-      {(courses ?? []).map((course) => {
-        const courseHref = coursePath(programId, course.id)
-        const courseActive = pathname === courseHref || pathname.startsWith(`${courseHref}/`)
-        return (
-          <SidebarMenuSubItem key={course.id}>
-            <SidebarMenuSubButton
-              isActive={courseActive}
-              title={course.title}
-              render={
-                <HistoryLink
-                  href={coursePath(programId, course.id, undefined, term.id)}
-                  onClick={onNavigate}
-                  aria-current={courseActive ? 'page' : undefined}
-                />
-              }
-            >
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: courseColor(course) }}
-              />
-              <span className="truncate">{courseLabel(course)}</span>
-              {course.term_ids.length > 1 ? (
-                <Repeat
-                  aria-label={m.academics_course_year_long()}
-                  className="ml-auto size-3 shrink-0"
-                />
-              ) : null}
-            </SidebarMenuSubButton>
-          </SidebarMenuSubItem>
-        )
-      })}
-    </SidebarMenuSub>
-  )
-}
-
-function TermItem({
-  programId,
-  term,
-  expanded,
-  onToggle,
-  pathname,
-  onNavigate,
-}: {
-  programId: string
-  term: Term
-  expanded: boolean
-  onToggle: (next: boolean) => void
-  pathname: string
-  onNavigate: () => void
-}) {
-  const { isMobile } = useSidebar()
-  const [deleting, setDeleting] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const href = termPath(programId, term.id)
-  const active = pathname === href || pathname.startsWith(`${href}/`)
-  return (
-    <Collapsible
-      open={expanded}
-      onOpenChange={onToggle}
-      className="group/collapsible"
-      render={
-        <SidebarMenuItem
-          onContextMenu={(event: MouseEvent) => {
-            event.preventDefault()
-            setMenuOpen(true)
-          }}
-        />
-      }
-    >
-      <SidebarMenuButton
-        isActive={active}
-        tooltip={term.name}
-        className="group-has-data-[sidebar=menu-action]/menu-item:pr-14"
-        render={
-          <HistoryLink
-            href={href}
-            onClick={onNavigate}
-            aria-current={pathname === href ? 'page' : undefined}
-          />
-        }
-      >
-        <CalendarDays aria-hidden />
-        <span className="truncate">{term.name}</span>
-        {term.is_current ? (
-          <span className="shrink-0 rounded-4xl bg-primary/10 px-1.5 text-[0.625rem] font-medium text-primary">
-            {m.academics_term_current_badge()}
-          </span>
-        ) : null}
-      </SidebarMenuButton>
-      <CollapsibleTrigger
-        render={
-          <SidebarMenuAction
-            aria-label={expanded ? m.academics_collapse_term() : m.academics_expand_term()}
-          />
-        }
-      >
-        <ChevronRight
-          aria-hidden
-          className="transition-transform duration-200 group-data-open/collapsible:rotate-90 motion-reduce:transition-none"
-        />
-      </CollapsibleTrigger>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger
-          render={
-            <SidebarMenuAction
-              showOnHover
-              className="right-7 aria-expanded:bg-muted"
-              aria-label={m.academics_term_menu({ name: term.name })}
-            />
-          }
-        >
-          <MoreHorizontal aria-hidden />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          side={isMobile ? 'bottom' : 'right'}
-          align={isMobile ? 'end' : 'start'}
-        >
-          <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
-            <Trash2 aria-hidden />
-            {m.academics_term_delete()}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <CollapsibleContent>
-        <TermCourses
-          programId={programId}
-          term={term}
-          pathname={pathname}
-          onNavigate={onNavigate}
-        />
-      </CollapsibleContent>
-      <DeleteTermDialog term={term} open={deleting} onOpenChange={setDeleting} />
-    </Collapsible>
-  )
-}
-
 function AccountMenu() {
   const { isMobile } = useSidebar()
   const { user } = useAuth()
@@ -386,27 +217,15 @@ export function AppSidebar({ programId }: { programId: string }) {
   const pathname = useLocation({ select: (l) => l.pathname })
   const programs = usePrograms().data?.items ?? []
   const program = programs.find((p) => p.id === programId)
-  const terms = useTerms(programId).data?.items
   const programScope = { kind: 'program', programId } as const
-  const todayPage = usePages(programScope).find((p) => p.id === 'today')
-  const current = terms?.find((t) => t.is_current)
-  const [expanded, setExpanded] = useUiPref<string[] | null>('academics.sidebar_expanded', null, {
-    scope: programId,
-  })
-  const open = expanded ?? (current ? [current.id] : [])
-  const toggleTerm = (termId: string, next?: boolean) =>
-    setExpanded(
-      (next ?? !open.includes(termId))
-        ? open.includes(termId)
-          ? open
-          : [...open, termId]
-        : open.filter((id) => id !== termId),
-    )
+  const { pages } = useScopePages(programScope)
+  const [managing, setManaging] = useState(false)
+  // On a term or course page the tab bar's own handler is registered later and wins.
+  useHostAction('nav.manage', () => setManaging(true), !isMobile)
   // Following a link closes the drawer on phones.
   const onNavigate = () => setOpenMobile(false)
 
-  const todayHref = scopePath(programScope, 'today')
-  const allCoursesHref = allCoursesPath(programId)
+  const termsAndCoursesHref = allCoursesPath(programId)
 
   return (
     <Sidebar collapsible="icon" data-tour="sidebar">
@@ -418,9 +237,9 @@ export function AppSidebar({ programId }: { programId: string }) {
           aria-label={m.academics_sidebar_label()}
           className="flex min-h-0 flex-1 flex-col gap-2"
         >
-          <SidebarGroup>
-            <SidebarMenu>
-              {isMobile ? null : (
+          {isMobile ? null : (
+            <SidebarGroup className="pb-0">
+              <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     data-tour="command-palette"
@@ -434,62 +253,67 @@ export function AppSidebar({ programId }: { programId: string }) {
                     </Kbd>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
-              {todayPage ? (
-                <NavItem
-                  href={todayHref}
-                  icon={Sun}
-                  label={todayPage.title()}
-                  active={pathname === todayHref}
-                  onNavigate={onNavigate}
-                />
-              ) : null}
-              {isMobile ? null : (
-                <NavItem
-                  href={allCoursesHref}
-                  icon={BookOpen}
-                  label={m.academics_nav_all_courses()}
-                  active={pathname === allCoursesHref}
-                  onNavigate={onNavigate}
-                />
-              )}
-            </SidebarMenu>
-          </SidebarGroup>
+              </SidebarMenu>
+            </SidebarGroup>
+          )}
 
           <SidebarGroup>
-            <SidebarGroupLabel>{m.academics_terms()}</SidebarGroupLabel>
+            <SidebarGroupLabel>{m.academics_sidebar_pages()}</SidebarGroupLabel>
             {isMobile ? null : (
-              <SidebarGroupAction
-                title={m.academics_term_new()}
-                aria-label={m.academics_term_new()}
-                render={<HistoryLink href={newTermPath(programId)} />}
-              >
-                <CalendarPlus aria-hidden />
-              </SidebarGroupAction>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <DropdownMenuTrigger
+                        render={<SidebarGroupAction aria-label={m.host_nav_more()} />}
+                      />
+                    }
+                  >
+                    <MoreHorizontal aria-hidden />
+                  </TooltipTrigger>
+                  <TooltipContent>{m.host_nav_more()}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="start" side="right">
+                  <DropdownMenuItem onClick={() => setManaging(true)}>
+                    {m.host_nav_manage_pages()}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <SidebarGroupContent>
               <SidebarMenu>
-                {(terms ?? []).map((term) => (
-                  <TermItem
-                    key={term.id}
-                    programId={programId}
-                    term={term}
-                    expanded={open.includes(term.id)}
-                    onToggle={(next) => toggleTerm(term.id, next)}
-                    pathname={pathname}
+                {pages
+                  .filter((page) => !isMobile || page.id === 'today')
+                  .map((page) => {
+                    const href = scopePath(programScope, page.id)
+                    const isOverview = page.id === OVERVIEW_PAGE
+                    return (
+                      <NavItem
+                        key={page.id}
+                        href={isOverview ? scopePath(programScope) : href}
+                        icon={page.icon}
+                        label={page.title()}
+                        active={
+                          pathname === href || (isOverview && pathname === scopePath(programScope))
+                        }
+                        onNavigate={onNavigate}
+                      />
+                    )
+                  })}
+                {isMobile ? null : (
+                  <NavItem
+                    href={termsAndCoursesHref}
+                    icon={BookOpen}
+                    label={m.academics_nav_terms_and_courses()}
+                    active={pathname === termsAndCoursesHref}
                     onNavigate={onNavigate}
                   />
-                ))}
-                {terms && terms.length === 0 ? (
-                  <SidebarMenuItem>
-                    <span className="block px-3 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                      {m.academics_terms_empty()}
-                    </span>
-                  </SidebarMenuItem>
-                ) : null}
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          <SidebarTerms programId={programId} pathname={pathname} onNavigate={onNavigate} />
         </nav>
       </SidebarContent>
       <SidebarFooter>
@@ -517,6 +341,7 @@ export function AppSidebar({ programId }: { programId: string }) {
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
+      <ManagePagesDialog scope={programScope} open={managing} onOpenChange={setManaging} />
     </Sidebar>
   )
 }

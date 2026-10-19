@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   ListChecks,
   Palette,
-  Pin,
   Trash2,
 } from 'lucide-react'
 import { lazy } from 'react'
@@ -63,16 +62,6 @@ export default defineModule({
   navigationSources: [academicsNavigation],
   cards: [
     {
-      id: 'academics.pinned',
-      scopes: ['program'],
-      title: m.academics_pinned,
-      icon: Pin,
-      sizes: ['m', 'xl'],
-      defaultSize: 'm',
-      component: lazy(() => import('./cards/PinnedCard')),
-      multiple: false,
-    },
-    {
       id: 'academics.terms',
       scopes: ['program'],
       title: m.academics_terms,
@@ -104,10 +93,6 @@ export default defineModule({
     },
   ],
   defaultBoard: {
-    program: [
-      { card: 'academics.pinned', size: 'm' },
-      { card: 'academics.terms', size: 'l' },
-    ],
     term: [{ card: 'academics.termCourses', size: 'xl' }],
     course: [{ card: 'academics.courseInfo', size: 'l' }],
   },
