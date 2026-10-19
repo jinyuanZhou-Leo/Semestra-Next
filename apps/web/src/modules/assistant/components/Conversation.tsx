@@ -180,7 +180,10 @@ function UserMessage({
 
   async function save() {
     if (draft === null || !canSave) return
-    if (await onEdit(draft)) setDraft(null)
+    const sent = draft
+    // Closes at once: the transcript already shows the edit while the answer streams.
+    setDraft(null)
+    if (!(await onEdit(sent))) setDraft(sent)
   }
 
   return (

@@ -1366,7 +1366,7 @@
   "assistant_scope_none": "Choose where to work",
   "assistant_edit": "Edit",
   "assistant_edit_label": "Edit message",
-  "assistant_edit_hint": "Sending removes the conversation after this message",
+  "assistant_edit_hint": "Sending removes the conversation after this message. Changes already made stay",
   "assistant_conversation_label": "Conversation",
   "assistant_delete_title": "Delete this conversation?",
   "assistant_delete_description": "“{title}” and its attachments will be deleted. Changes already made stay.",

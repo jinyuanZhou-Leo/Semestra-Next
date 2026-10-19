@@ -13,7 +13,7 @@ from starlette.background import BackgroundTask
 from starlette.datastructures import State
 
 from semestra.core.capability import registry
-from semestra.core.context import Ctx, get_ctx
+from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
@@ -235,6 +235,7 @@ async def edit_message(
     except BaseException:
         claim.release()
         raise
+    await run_after_commit(ctx)  # removes the files of dropped attachments
     state = request.app.state
     await ctx.db.close()
     return _respond(_events(state, claim), claim)

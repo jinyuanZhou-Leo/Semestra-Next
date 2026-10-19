@@ -250,23 +250,26 @@ function AssistantNavItem({
         <MessageCircle aria-hidden />
         <span className="truncate">{label}</span>
       </SidebarMenuButton>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <SidebarMenuAction
-              aria-label={panelLabel}
-              aria-pressed={open}
-              className="aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground"
-              onClick={() => assistant.open(ctx)}
-            />
-          }
-        >
-          <PanelRight aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
-        </TooltipContent>
-      </Tooltip>
+      {/* On the full page the panel is not shown, so its button would do nothing visible. */}
+      {active ? null : (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <SidebarMenuAction
+                aria-label={panelLabel}
+                aria-pressed={open}
+                className="aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground"
+                onClick={() => assistant.open(ctx)}
+              />
+            }
+          >
+            <PanelRight aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
+          </TooltipContent>
+        </Tooltip>
+      )}
     </SidebarMenuItem>
   )
 }

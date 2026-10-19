@@ -444,6 +444,20 @@ test('on a course page the assistant works in the course’s term', async () => 
   expect(await screen.findByText('t2')).toBeInTheDocument()
 })
 
+test('an older conversation scoped to a course checks the course’s term', async () => {
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: null, course_id: 'c2' } })
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.click(await screen.findByRole('button', { name: /^Working in: MAT188H1/ }))
+  expect(await screen.findByRole('menuitemradio', { name: /Winter 2026/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  expect(screen.getByRole('menuitemradio', { name: 'Whole program' })).toHaveAttribute(
+    'aria-checked',
+    'false',
+  )
+})
+
 test('editing a message sends the new text and drops what came after it', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),
@@ -478,6 +492,39 @@ test('editing a message sends the new text and drops what came after it', async 
   })
   expect(screen.queryByText('And next week?')).not.toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+})
+
+test('the editor closes as soon as the edit is sent, while the answer streams', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Lab 3.' }]),
+  ]
+  let finish: (() => void) | undefined
+  srv.reply = () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encode = (text: string) => controller.enqueue(new TextEncoder().encode(text))
+        encode('event: message_start\ndata: {"message_id":"a2"}\n\n')
+        encode('event: text_delta\ndata: {"message_id":"a2","text":"Streaming"}\n\n')
+        finish = () => {
+          encode('event: message_end\ndata: {"message_id":"a2"}\n\n')
+          controller.close()
+        }
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await screen.findByText('Lab 3.')
+  await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Edit message' }), ' Now?{Enter}')
+  expect(await screen.findByText('Streaming')).toBeInTheDocument()
+  // Still answering, and the edited text already shows as a bubble.
+  expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+  expect(screen.getByText('What is due? Now?')).toBeInTheDocument()
+  finish?.()
+  expect(await screen.findByRole('button', { name: 'Send' })).toBeInTheDocument()
 })
 
 test('an edit keeps the skill and attachments and forgets later proposals', () => {

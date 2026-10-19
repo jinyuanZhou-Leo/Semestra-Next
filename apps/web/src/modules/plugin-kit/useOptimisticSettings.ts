@@ -23,6 +23,8 @@ export function useOptimisticSettings<T extends object>(
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const saveRef = useRef(save)
   const inflight = useRef<Promise<void>>(Promise.resolve())
+  /** False once the card unmounted: the last save still runs, but nothing is left to update. */
+  const mounted = useRef(true)
   useEffect(() => {
     saveRef.current = save
   })
@@ -40,7 +42,7 @@ export function useOptimisticSettings<T extends object>(
     if (!patch) return
     pendingRef.current = null
     outstanding.current.push(patch)
-    setStatus('saving')
+    if (mounted.current) setStatus('saving')
     // One request at a time, so the newest values are what the server ends with.
     inflight.current = inflight.current.then(async () => {
       let failed = false
@@ -52,6 +54,7 @@ export function useOptimisticSettings<T extends object>(
       // On success `save` has put the values into the query cache, so `incoming` has them; on
       // failure only what this request carried is rolled back. Later edits keep showing.
       outstanding.current = outstanding.current.filter((p) => p !== patch)
+      if (!mounted.current) return
       show()
       if (failed) setStatus('error')
       else setStatus(outstanding.current.length > 0 || pendingRef.current ? 'saving' : 'idle')
@@ -69,10 +72,12 @@ export function useOptimisticSettings<T extends object>(
   )
 
   useEffect(() => {
+    mounted.current = true
     const onHide = () => send()
     window.addEventListener('pagehide', onHide)
     return () => {
       window.removeEventListener('pagehide', onHide)
+      mounted.current = false
       send()
     }
   }, [send])

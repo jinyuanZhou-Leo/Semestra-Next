@@ -208,8 +208,9 @@ def _has_content(row: AgentMessage) -> bool:
 
 async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: str) -> None:
     """Replaces the text of one of the user's messages and drops everything after it: later
-    messages and their proposals (pending cards included). Changes that already ran stay; the
-    conversation simply continues from the edited message. Skill and attachments are kept."""
+    messages and their proposals (pending cards included). Changes that already ran stay: they
+    are listed in a `note` block on the edited message so the model does not repeat them.
+    Skill and attachments are kept; attachments only the dropped messages used are deleted."""
     rows = await messages(ctx, session.id)
     index = next((i for i, r in enumerate(rows) if r.id == message_id and _has_content(r)), None)
     if index is None:
@@ -227,10 +228,23 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     if not any(b.get("type") != "note" for b in blocks):
         raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])
 
-    dropped = [r.id for r in rows[index + 1 :]]
+    later = rows[index + 1 :]
+    dropped = [r.id for r in later]
+    props = [p for p in await proposals(ctx, session.id) if p.message_id in dropped]
+    done = applied_writes(later, props)
+    if done:
+        # The model no longer sees those turns; it must not do the same thing again.
+        blocks.append(
+            {
+                "type": "note",
+                "text": "Already done earlier in this conversation, before the user edited this "
+                "message (not undone): " + "; ".join(done),
+            }
+        )
     if dropped:
         await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(dropped)))
         await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(dropped)))
+    await _drop_unreferenced_attachments(ctx, session, [*rows[:index], row], later, blocks)
     row.content = blocks
     row.created_at = ctx.now  # what the `[Sent …]` note shows
     st = dict(session.state or {})
@@ -241,6 +255,56 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
         session.state = st
     session.updated_at = ctx.now
     await ctx.db.flush()
+
+
+def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> list[str]:
+    """The writes in these rows that changed data: executed proposals and auto-approved calls
+    whose result says so, as `capability(args)`."""
+    from semestra.modules.agent import tools
+
+    results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
+    executed = {p.call_id: p for p in props if p.status == "executed"}
+    out: list[str] = []
+    for r in rows:
+        for b in r.content:
+            if b.get("type") != "tool_call":
+                continue
+            prop = executed.get(b["id"])
+            result = results.get(b["id"])
+            if prop is not None:
+                out.append(f"{prop.capability}({tools.summarize_args(prop.args)})")
+            elif result is not None and result.get("changed"):
+                name = tools.capability_name(b["name"])
+                out.append(f"{name}({tools.summarize_args(b.get('args') or {})})")
+    return out
+
+
+async def _drop_unreferenced_attachments(
+    ctx: Ctx,
+    session: AgentSession,
+    kept: Sequence[AgentMessage],
+    dropped: Sequence[AgentMessage],
+    edited: list[dict[str, Any]],
+) -> None:
+    """Attachments only the dropped messages referred to: removed with their files, so they stop
+    counting against the storage quota. Unsent uploads (referred to by nothing) stay."""
+    gone = {b.get("attachment_id") for r in dropped for b in r.content} - {None}
+    still = {b.get("attachment_id") for r in kept[:-1] for b in r.content}
+    still |= {b.get("attachment_id") for b in edited}
+    ids = gone - still
+    if not ids:
+        return
+    rows = [a for a in await attachments(ctx, session.id) if a.id in ids]
+    storage = get_storage(ctx)
+    keys = [a.storage_key for a in rows]
+    for a in rows:
+        await ctx.db.delete(a)
+
+    async def _remove_files() -> None:
+        for key in keys:
+            await storage.delete(key)
+
+    ctx.after_commit.append(_remove_files)
 
 
 # --- proposals -----------------------------------------------------------------------------

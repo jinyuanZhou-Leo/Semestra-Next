@@ -1366,7 +1366,7 @@
   "assistant_scope_none": "选择工作范围",
   "assistant_edit": "编辑",
   "assistant_edit_label": "编辑消息",
-  "assistant_edit_hint": "发送后，这条消息之后的对话会被删除",
+  "assistant_edit_hint": "发送后，这条消息之后的对话会被删除，已经生效的修改不会撤销",
   "assistant_conversation_label": "对话",
   "assistant_delete_title": "删除这个对话？",
   "assistant_delete_description": "将删除“{title}”及其附件，已经执行的修改不受影响。",
