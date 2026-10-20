@@ -134,6 +134,7 @@ async def item_get(ctx: Ctx, inp: TaskRef) -> Task:
 
 @capability(
     name="tasks.item.create",
+    agent_core=True,
     summary="Create a task, optionally with a due date, course, list and priority.",
     description="""Always pass the course and due date when the user's words or the current scope
 give them. Dates are in the Program's time zone; a time needs a date. The term is inferred from
@@ -163,6 +164,7 @@ async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateMany
 
 @capability(
     name="tasks.item.update",
+    agent_core=True,
     summary="Change a task's title, notes, due date and time, priority, flag, list or course.",
     description="""Partial update: only the fields that are sent change; null clears the nullable
 ones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task
@@ -179,6 +181,7 @@ async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
 
 @capability(
     name="tasks.item.complete",
+    agent_core=True,
     summary="Mark a task done, or reopen it with completed=false.",
     description="Completing a task never changes grades, even if it came from an assessment.",
     effect="write",
@@ -233,6 +236,7 @@ async def item_clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult
 
 @capability(
     name="tasks.item.find",
+    agent_core=True,
     summary="Find tasks by words of their title ('that lab report').",
     description="""Use whenever the user refers to a task in words and you need its id. If the two
 best candidates score similarly, ask which one is meant.""",

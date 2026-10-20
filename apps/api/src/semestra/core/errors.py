@@ -1,9 +1,10 @@
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -27,8 +28,33 @@ class AppError(Exception):
         self.params = params
 
 
-def not_found() -> AppError:
-    return AppError("common.not_found", 404)
+def not_found(kind: str | None = None, id: str | None = None) -> AppError:
+    """`kind` and `id` name what was not found (`("course", "01…")`), so an agent that passed
+    several ids can tell which one was wrong."""
+    if kind is None:
+        return AppError("common.not_found", 404)
+    return AppError("common.not_found", 404, kind=kind, id=id)
+
+
+def field_errors(errors: Sequence[Any], prefix: Sequence[str | int] = ()) -> list[dict[str, Any]]:
+    """Pydantic errors as `{loc, code, msg, ctx}`. The message and its limits (the allowed values,
+    `le`, the pattern) tell an agent how to fix its call; the rejected input is left out, it can
+    be large."""
+    out: list[dict[str, Any]] = []
+    for e in errors:
+        err: dict[str, Any] = {"loc": [*prefix, *e["loc"]], "code": e["type"], "msg": e["msg"]}
+        limits = e.get("ctx")
+        if limits:
+            err["ctx"] = {
+                k: v if v is None or isinstance(v, str | int | float | bool) else str(v)
+                for k, v in limits.items()
+            }
+        out.append(err)
+    return out
+
+
+def validation_error(exc: ValidationError, prefix: Sequence[str | int] = ()) -> AppError:
+    return AppError("common.validation", 422, errors=field_errors(exc.errors(), prefix))
 
 
 def _response(request: Request, code: str, status: int, params: dict[str, Any]) -> JSONResponse:
@@ -44,7 +70,7 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
-        errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
+        errors = field_errors(exc.errors())
         return _response(request, "common.validation", 422, {"errors": errors})
 
     @app.exception_handler(StarletteHTTPException)

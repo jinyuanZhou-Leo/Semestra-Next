@@ -58,7 +58,7 @@ async def get_item(ctx: Ctx, item_id: str) -> FilesItem:
         select(FilesItem).where(FilesItem.id == item_id, FilesItem.user_id == ctx.user_id)
     )
     if row is None:
-        raise not_found()
+        raise not_found("item", item_id)
     return row
 
 
@@ -70,7 +70,7 @@ async def get_folder(ctx: Ctx, folder_id: str, course_id: str | None = None) -> 
         stmt = stmt.where(FilesFolder.course_id == course_id)
     row = await ctx.db.scalar(stmt)
     if row is None:
-        raise not_found()
+        raise not_found("folder", folder_id)
     return row
 
 
@@ -341,7 +341,7 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
     if parent_id is not None:
         parent = by_id.get(parent_id)
         if parent is None:
-            raise not_found()
+            raise not_found("folder", parent_id)
         if _depth(parent, by_id) >= MAX_FOLDER_DEPTH:
             raise AppError("files.folder_depth", 422, max=MAX_FOLDER_DEPTH)
     await _check_free_name(ctx, course_id, parent_id, name)

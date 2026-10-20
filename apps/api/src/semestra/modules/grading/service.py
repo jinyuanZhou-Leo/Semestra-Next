@@ -339,7 +339,7 @@ async def _category_rows(ctx: Ctx, course_id: str) -> list[models.GradingCategor
 async def _get_category(ctx: Ctx, category_id: str) -> models.GradingCategory:
     row = await ctx.db.get(models.GradingCategory, category_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("category", category_id)
     return row
 
 
@@ -491,7 +491,7 @@ async def _assessment_rows(
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
     row = await ctx.db.get(models.GradingAssessment, assessment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("assessment", assessment_id)
     return row
 
 
@@ -517,7 +517,7 @@ async def _check_category(ctx: Ctx, course_id: str, category_id: str | None) -> 
         return
     row = await _get_category(ctx, category_id)
     if row.course_id != course_id:
-        raise not_found()
+        raise not_found("category", category_id)
 
 
 def _score_fields(

@@ -156,6 +156,8 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 @capability(
     name="files.document.search",
+    agent_core=True,
+    untrusted=True,
     summary="Search what the course files say.",
     description="""Use to answer questions about course content (syllabus rules, dates, lecture
 material): finds the passages of the user's files that match, with page numbers. Narrow it with
@@ -173,6 +175,7 @@ async def files_search(ctx: Ctx, inp: SearchInput) -> SearchResult:
 
 @capability(
     name="files.document.read",
+    untrusted=True,
     summary="Read the text of a processed file, page by page.",
     description="""Returns the markdown of the pages from page_from (a few pages per call, each with
 its citation_id). When next_page is set, call again from there to continue. Use it to summarise or
@@ -187,6 +190,7 @@ async def document_read(ctx: Ctx, inp: DocumentReadInput) -> DocumentRead:
 
 @capability(
     name="files.document.outline",
+    untrusted=True,
     summary="Get the headings of a processed file with their page numbers.",
     description="""Use to see the structure of a long document before reading parts of it.""",
     effect="read",

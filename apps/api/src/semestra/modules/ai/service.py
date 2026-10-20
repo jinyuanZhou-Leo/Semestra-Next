@@ -72,7 +72,7 @@ def to_schema(row: AiProvider) -> Provider:
 async def _get_row(ctx: Ctx, provider_id: str) -> AiProvider:
     row = await ctx.db.get(AiProvider, provider_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("provider", provider_id)
     return row
 
 
