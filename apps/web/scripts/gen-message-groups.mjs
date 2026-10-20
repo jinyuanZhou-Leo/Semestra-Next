@@ -7,7 +7,7 @@
 //
 // `node scripts/gen-message-groups.mjs` rewrites the files; `--check` fails when they are stale
 // (run by `pnpm i18n:lint`).
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const GROUPS = [
   { file: 'errors', name: 'errorMessages', prefix: 'error_' },
@@ -15,7 +15,11 @@ const GROUPS = [
   { file: 'capabilities', name: 'capabilityMessages', prefix: 'capability_' },
   { file: 'assistant-fields', name: 'assistantFieldMessages', prefix: 'assistant_field_' },
   { file: 'job-steps', name: 'jobStepMessages', prefix: 'job_step_' },
-  { file: 'portability-entities', name: 'portabilityEntityMessages', prefix: 'portability_entity_' },
+  {
+    file: 'portability-entities',
+    name: 'portabilityEntityMessages',
+    prefix: 'portability_entity_',
+  },
 ]
 
 const messagesFile = new URL('../messages/en.json', import.meta.url)
@@ -55,6 +59,31 @@ for (const group of GROUPS) {
   if (current === content) continue
   if (check) stale.push(`src/lib/message-groups/${group.file}.gen.ts`)
   else writeFileSync(target, content)
+}
+// Every lookup by a computed key goes through a group above; one on the whole namespace would
+// pull every message into the bundle again.
+const src = new URL('../src/', import.meta.url)
+const NAMESPACE_LOOKUP = [/import \* as \w+ from '@\/paraglide\/messages'/, /(?<![\w.])m\[/]
+const lookups = []
+for (const entry of readdirSync(src, { recursive: true })) {
+  const file = String(entry)
+  if (
+    !/\.tsx?$/.test(file) ||
+    file.startsWith('paraglide/') ||
+    file.startsWith('lib/message-groups/')
+  )
+    continue
+  const lines = readFileSync(new URL(file, src), 'utf8').split('\n')
+  lines.forEach((line, index) => {
+    if (NAMESPACE_LOOKUP.some((pattern) => pattern.test(line)))
+      lookups.push(`src/${file}:${index + 1}`)
+  })
+}
+if (lookups.length) {
+  console.error(
+    `Look messages up by a computed key through src/lib/message-groups: ${lookups.join(', ')}`,
+  )
+  process.exit(1)
 }
 if (stale.length) {
   console.error(`Stale, run \`pnpm i18n:groups\`: ${stale.join(', ')}`)

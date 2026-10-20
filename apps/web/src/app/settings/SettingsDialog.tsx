@@ -1,6 +1,7 @@
 import { useRouterState } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
-import { Dialog, DialogContent } from '@/ui/dialog'
+import { m } from '@/paraglide/messages'
+import { Dialog, DialogContent, DialogTitle } from '@/ui/dialog'
 import { Spinner } from '@/ui/spinner'
 import { useHostAction } from '../commands'
 import type { Params } from './SettingsBody'
@@ -42,6 +43,7 @@ export function SettingsDialog() {
           <Suspense
             fallback={
               <div className="flex flex-1 items-center justify-center">
+                <DialogTitle className="sr-only">{m.settings_title()}</DialogTitle>
                 <Spinner />
               </div>
             }
