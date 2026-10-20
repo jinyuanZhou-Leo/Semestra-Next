@@ -13,6 +13,7 @@ import {
   Check,
   Copy,
   FileText,
+  FileUp,
   ImageIcon,
   MessageCircle,
   MessageSquareText,
@@ -573,7 +574,8 @@ export function Conversation({
       {...dropProps}
     >
       {dragging ? (
-        <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-background/80 text-sm font-medium">
+        <div className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/50 bg-background/80 text-sm font-medium">
+          <FileUp aria-hidden className="size-6 text-muted-foreground" />
           {m.assistant_drop_files()}
         </div>
       ) : null}
@@ -680,6 +682,13 @@ export function Conversation({
             ))}
           </div>
         ) : null}
+        <div className="flex">
+          <ScopeChip
+            scope={scope}
+            programId={pageScope?.program_id}
+            onChange={(next) => void changeScope(next)}
+          />
+        </div>
         <Composer
           programId={scope?.program_id ?? pageScope?.program_id}
           generating={chat.generating}
@@ -691,13 +700,6 @@ export function Conversation({
           onStop={() => void chat.stop()}
           onScope={(next) => void changeScope(next)}
           focusInput={focusInput}
-          header={
-            <ScopeChip
-              scope={scope}
-              programId={pageScope?.program_id}
-              onChange={(next) => void changeScope(next)}
-            />
-          }
         />
       </div>
     </section>

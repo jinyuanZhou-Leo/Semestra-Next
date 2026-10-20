@@ -5,13 +5,25 @@ import type {
   AgentSessionDetail,
   AgentSessionOut,
 } from '@semestra/api-client'
-import { screen, waitFor, within } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import {
+  Outlet,
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useNavigate,
+} from '@tanstack/react-router'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
-import { API, renderWithRouter, server } from '@/test-utils'
+import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
+import { SidebarProvider } from '@/ui/sidebar'
+import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
@@ -876,4 +888,62 @@ test('messages do not pin themselves to the top: the transcript follows the newe
   await screen.findByText('Lab 3.')
   // Scroll anchors moved the view whenever a sent message got its stored id (round 5, #13).
   expect(document.querySelector('[data-scroll-anchor=true]')).toBeNull()
+})
+
+test('on the page, attaching a file to a new conversation keeps the text being typed', async () => {
+  server.use(
+    http.post(`${API}/agent/attachments`, () =>
+      HttpResponse.json({
+        id: 'f1',
+        session_id: 's1',
+        kind: 'file',
+        name: 'notes.txt',
+        mime: 'text/plain',
+        size: 5,
+        created_at: NOW,
+      }),
+    ),
+  )
+  const root = createRootRoute({ component: Outlet })
+  function Page() {
+    const { sessionId } = page.useParams()
+    const navigate = useNavigate()
+    return (
+      <AssistantPage
+        programId="p1"
+        sessionId={sessionId ?? null}
+        onNavigate={(id, options) =>
+          void navigate({
+            to: '/p/$programId/assistant/{-$sessionId}',
+            params: { programId: 'p1', sessionId: id ?? undefined },
+            replace: options?.replace,
+          })
+        }
+      />
+    )
+  }
+  const page = createRoute({
+    getParentRoute: () => root,
+    path: '/p/$programId/assistant/{-$sessionId}',
+    component: Page,
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([page]),
+    history: createMemoryHistory({ initialEntries: ['/p/p1/assistant'] }),
+  })
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <SidebarProvider>
+        <RouterProvider router={router} />
+      </SidebarProvider>
+    </QueryClientProvider>,
+  )
+  const input = await messageInput()
+  await userEvent.type(input, 'Look at this')
+  fireEvent.change(document.querySelector('input[type=file]') as HTMLInputElement, {
+    target: { files: [new File(['notes'], 'notes.txt', { type: 'text/plain' })] },
+  })
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/assistant/s1'))
+  expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Look at this')
 })

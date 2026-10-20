@@ -47,18 +47,25 @@ export function AssistantPage({
   onNavigate: (sessionId: string | null, options?: { replace?: boolean }) => void
 }) {
   const { state: sidebar, isMobile } = useSidebar()
+  // Which conversation the URL shows, read with the history entry in one snapshot: the location
+  // changes before the route's params do, and reading the entry alone gave a new key for one
+  // render while a new conversation got its URL, which remounted it and dropped the typed text.
   // Every visit to the page without a conversation (a link, "New conversation") is a new history
   // entry, so its key starts a new conversation even when the URL was already the page's.
-  // oxlint-disable-next-line no-underscore-dangle -- the router's name for an entry's key
-  const entry = useLocation({ select: (l) => l.state.__TSR_key ?? '' })
+  const at = useLocation({
+    select: (l) => {
+      const segment = l.pathname.replace(/\/$/, '').split('/').at(-1)
+      // oxlint-disable-next-line no-underscore-dangle -- the router's name for an entry's key
+      return segment === 'assistant' ? `new-${l.state.__TSR_key ?? ''}` : (segment ?? '')
+    },
+  })
   // A conversation created here keeps its component (and its running answer) when the URL
   // changes to its id.
   const [created, setCreated] = useState({ id: null as string | null, key: '' })
   const [historyOpen, setHistoryOpen] = useState(false)
   const session = useQuery(sessionQueryOptions(sessionId)).data?.session
   const editing = useSessionEditing((id) => id === sessionId && onNavigate(null))
-  const key =
-    sessionId === null ? `new-${entry}` : sessionId === created.id ? created.key : sessionId
+  const key = at === created.id ? created.key : at
   const title = session ? sessionTitle(session) : m.assistant_name()
 
   return (

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type AiEvidence = { page?: number | null; quote: string }
 
@@ -23,17 +23,29 @@ export const AI_FILL_HIGHLIGHT_MS = 2_000
 export function useAiFill<F extends string, V = unknown>() {
   const [filled, setFilled] = useState<Partial<Record<F, AiFilled<V>>>>({})
   const [highlighted, setHighlighted] = useState<ReadonlySet<F>>(new Set())
+  // Pending "stop highlighting" timers, cleared when the form goes away.
+  const timers = useRef(new Set<number>())
+
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      for (const timer of pending) window.clearTimeout(timer)
+      pending.clear()
+    }
+  }, [])
 
   const fill = useCallback((field: F, previous: V, info: Omit<AiFilled<V>, 'previous'> = {}) => {
     setFilled((current) => ({ ...current, [field]: { previous, ...info } }))
     setHighlighted((current) => new Set(current).add(field))
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      timers.current.delete(timer)
       setHighlighted((current) => {
         const next = new Set(current)
         next.delete(field)
         return next
       })
     }, AI_FILL_HIGHLIGHT_MS)
+    timers.current.add(timer)
   }, [])
 
   const accept = useCallback((field: F) => {
