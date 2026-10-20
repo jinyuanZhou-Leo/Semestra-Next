@@ -1,7 +1,9 @@
 """Programs, terms and courses (M02). Capabilities stay thin and call into here."""
 
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Awaitable, Callable, Generator, Iterable, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date
 from itertools import pairwise
 from typing import Any
@@ -68,6 +70,35 @@ async def default_program_id(ctx: Ctx) -> str | None:
     return ids[0] if len(ids) == 1 else None
 
 
+# --- read-only memo -------------------------------------------------------------------------
+
+_memo: ContextVar[dict[Any, Any] | None] = ContextVar("academics_memo", default=None)
+
+
+@contextmanager
+def read_memo() -> Generator[None]:
+    """Within the block, terms, course lists and the week start are read once and reused.
+    Only for read-only work that asks for them again and again (the calendar's sources, grade
+    summaries): nothing written inside the block would show."""
+    if _memo.get() is not None:  # nested: the outer block's memo stays
+        yield
+        return
+    token = _memo.set({})
+    try:
+        yield
+    finally:
+        _memo.reset(token)
+
+
+async def _memoized[T](key: Any, load: Callable[[], Awaitable[T]]) -> T:
+    memo = _memo.get()
+    if memo is None:
+        return await load()
+    if key not in memo:
+        memo[key] = await load()
+    return memo[key]
+
+
 async def get_program_row(ctx: Ctx, program_id: str) -> AcademicsProgram:
     row = await ctx.db.get(AcademicsProgram, program_id)
     if row is None or row.user_id != ctx.user_id:
@@ -100,7 +131,8 @@ def _course_names(rows: Sequence[AcademicsCourse]) -> list[str]:
     return [r.code or r.title for r in sorted(rows, key=lambda r: (r.code or r.title).lower())]
 
 
-async def _courses_by_id(ctx: Ctx, ids: Sequence[str]) -> list[AcademicsCourse]:
+async def courses_by_id(ctx: Ctx, ids: Sequence[str]) -> list[AcademicsCourse]:
+    """The ctx user's courses with these ids, in one query (missing ones are left out)."""
     if not ids:
         return []
     return list(
@@ -140,11 +172,11 @@ async def preview_term_delete(ctx: Ctx, inp: TermRef) -> dict[str, Any]:
     program = await get_program_row(ctx, term.program_id)
     only, kept = await _term_course_split(ctx, term)
     changes: list[dict[str, Any]] = []
-    if deleted := _course_names(await _courses_by_id(ctx, only)):
+    if deleted := _course_names(await courses_by_id(ctx, only)):
         changes.append(
             {"field": "courses", "before": deleted[:_SHOWN], "after": None, "count": len(deleted)}
         )
-    if staying := _course_names(await _courses_by_id(ctx, kept)):
+    if staying := _course_names(await courses_by_id(ctx, kept)):
         changes.append({"field": "kept_courses", "after": staying[:_SHOWN], "count": len(staying)})
     return {"target": f"{term.name} · {program.name}", "changes": changes}
 
@@ -177,6 +209,12 @@ async def preview_course_delete(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
 
 async def program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     """The Program's terms in chronological order."""
+    return list(
+        await _memoized(("terms", ctx.user_id, program_id), lambda: _program_terms(ctx, program_id))
+    )
+
+
+async def _program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     rows = (
         await ctx.db.scalars(
             select(AcademicsTerm).where(
@@ -648,6 +686,10 @@ async def delete_term(ctx: Ctx, term_id: str) -> TermDeleteResult:
 
 async def week_start(ctx: Ctx) -> rules.WeekStart:
     """The user's first day of the week; 0 follows the language (zh: Monday, en: Sunday)."""
+    return await _memoized(("week_start", ctx.user_id), lambda: _week_start(ctx))
+
+
+async def _week_start(ctx: Ctx) -> rules.WeekStart:
     prefs = await settings_service.get_preferences(ctx)
     if prefs.week_start in (1, 7):
         return prefs.week_start  # pyright: ignore[reportReturnType]
@@ -829,6 +871,12 @@ async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
 
 
 async def list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:
+    return await _memoized(
+        ("courses", ctx.user_id, inp.model_dump_json()), lambda: _list_courses(ctx, inp)
+    )
+
+
+async def _list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:
     program = await get_program_row(ctx, inp.program_id)
     if inp.term_id is not None:
         term = await get_term_row(ctx, inp.term_id)

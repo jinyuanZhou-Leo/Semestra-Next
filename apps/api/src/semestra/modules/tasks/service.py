@@ -6,7 +6,7 @@ from datetime import date, datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import Select, delete, func, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -676,17 +676,42 @@ async def program_rows(
     term_id: str | None = None,
     course_id: str | None = None,
     list_id: str | None = None,
+    open_only: bool = False,
+    due_from: date | None = None,
+    due_to: date | None = None,
 ) -> list[TasksItem]:
-    stmt = select(TasksItem).where(
-        TasksItem.user_id == ctx.user_id, TasksItem.program_id == program_id
+    """Tasks of the Program. `open_only` leaves out completed ones and `due_from`/`due_to` the
+    ones due outside those days (or not due at all): completed tasks pile up over the years, so
+    readers that do not need them should not load them."""
+    stmt = _program_query(
+        select(TasksItem), ctx, program_id, term_id=term_id, course_id=course_id, list_id=list_id
     )
+    if open_only:
+        stmt = stmt.where(TasksItem.completed_at.is_(None))
+    if due_from is not None:
+        stmt = stmt.where(TasksItem.due_date >= due_from)
+    if due_to is not None:
+        stmt = stmt.where(TasksItem.due_date <= due_to)
+    return list(await ctx.db.scalars(stmt))
+
+
+def _program_query[S: Select[Any]](
+    stmt: S,
+    ctx: Ctx,
+    program_id: str,
+    *,
+    term_id: str | None = None,
+    course_id: str | None = None,
+    list_id: str | None = None,
+) -> S:
+    stmt = stmt.where(TasksItem.user_id == ctx.user_id, TasksItem.program_id == program_id)
     if (cond := _term_filter(term_id)) is not None:
         stmt = stmt.where(cond)
     if course_id is not None:
         stmt = stmt.where(TasksItem.course_id == course_id)
     if list_id is not None:
         stmt = stmt.where(TasksItem.list_id == list_id)
-    return list(await ctx.db.scalars(stmt))
+    return stmt
 
 
 def _in_view(row: TasksItem, view: View, today: date) -> bool:
@@ -735,8 +760,16 @@ async def query_tasks(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     program = await academics.get_program_row(ctx, inp.program_id)
     now_local = _now_local(ctx, program)
     today = now_local.date()
+    completed = inp.view == "completed" or inp.include_completed or inp.only_completed
     rows = await program_rows(
-        ctx, program.id, term_id=inp.term_id, course_id=inp.course_id, list_id=inp.list_id
+        ctx,
+        program.id,
+        term_id=inp.term_id,
+        course_id=inp.course_id,
+        list_id=inp.list_id,
+        open_only=not completed,
+        due_from=inp.due_from,
+        due_to=inp.due_to,
     )
     if inp.only_completed and inp.view != "completed":
         wanted = [r for r in rows if _completed_in_view(r, inp.view)]
@@ -790,8 +823,7 @@ async def find_tasks(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
     await academics.get_program_row(ctx, program_id)
     scored = [
         (rules.match_score(inp.query, r.title, r.notes), r)
-        for r in await program_rows(ctx, program_id)
-        if inp.include_completed or r.completed_at is None
+        for r in await program_rows(ctx, program_id, open_only=not inp.include_completed)
     ]
     best = sorted(
         ((s, r) for s, r in scored if s >= 0.35), key=lambda pair: (-pair[0], pair[1].id)
@@ -818,8 +850,18 @@ async def counts(
     program = await academics.get_program_row(ctx, program_id)
     now_local = _now_local(ctx, program)
     today = now_local.date()
-    rows = await program_rows(ctx, program.id, term_id=term_id, course_id=course_id)
-    open_rows = [r for r in rows if r.completed_at is None]
+    open_rows = await program_rows(
+        ctx, program.id, term_id=term_id, course_id=course_id, open_only=True
+    )
+    completed = await ctx.db.scalar(
+        _program_query(
+            select(func.count()).select_from(TasksItem),
+            ctx,
+            program.id,
+            term_id=term_id,
+            course_id=course_id,
+        ).where(TasksItem.completed_at.is_not(None))
+    )
     lists: dict[str, int] = defaultdict(int)
     courses: dict[str, int] = defaultdict(int)
     for r in open_rows:
@@ -828,13 +870,13 @@ async def counts(
         if r.course_id:
             courses[r.course_id] += 1
     return TaskCounts(
-        today=sum(_in_view(r, "today", today) for r in rows),
+        today=sum(_in_view(r, "today", today) for r in open_rows),
         overdue=sum(rules.is_overdue(r.due_date, r.due_time, False, now_local) for r in open_rows),
-        scheduled=sum(_in_view(r, "scheduled", today) for r in rows),
+        scheduled=sum(_in_view(r, "scheduled", today) for r in open_rows),
         all=len(open_rows),
-        inbox=sum(_in_view(r, "inbox", today) for r in rows),
-        flagged=sum(_in_view(r, "flagged", today) for r in rows),
-        completed=len(rows) - len(open_rows),
+        inbox=sum(_in_view(r, "inbox", today) for r in open_rows),
+        flagged=sum(_in_view(r, "flagged", today) for r in open_rows),
+        completed=completed or 0,
         lists=dict(lists),
         courses=dict(courses),
     )

@@ -19,6 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from semestra.core.context import Ctx
+from semestra.modules.academics import service as academics
 from semestra.modules.schedule.rules import overlaps
 
 OccurrenceKind = Literal["class", "event", "deadline", "task"]
@@ -152,10 +153,12 @@ async def collect(
     skipped."""
     names = sources.names() if wanted is None else [n for n in dict.fromkeys(wanted)]
     items: list[Occurrence] = []
-    for name in names:
-        fn = sources.get(name)
-        if fn is not None:
-            items.extend(await fn(ctx, q))
+    # Every source reads the Program's terms and courses: once is enough.
+    with academics.read_memo():
+        for name in names:
+            fn = sources.get(name)
+            if fn is not None:
+                items.extend(await fn(ctx, q))
     items.sort(key=_sort_key)
     mark_conflicts(items)
     return items
