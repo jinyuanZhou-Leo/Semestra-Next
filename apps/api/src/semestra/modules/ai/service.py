@@ -1,12 +1,12 @@
 """Provider management, model choices, status and usage (M06 §6). Model calls are in `calls.py`."""
 
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
@@ -389,14 +389,15 @@ class _Acc:
         self.cost_complete = True
 
     def add(self, row: Any) -> None:
-        self.calls += 1
-        self.errors += row.status == "error"
+        """Adds a group of calls summed up by the database (`usage_summary`)."""
+        self.calls += row.calls
+        self.errors += row.errors
         self.input_tokens += row.input_tokens
-        self.cached_tokens += row.cached_tokens or 0
+        self.cached_tokens += row.cached_tokens
         self.output_tokens += row.output_tokens
-        if row.cost_usd_estimate is not None:
-            self.cost = round((self.cost or 0.0) + row.cost_usd_estimate, 6)
-        elif row.input_tokens or row.output_tokens:
+        if row.cost is not None:
+            self.cost = round((self.cost or 0.0) + row.cost, 6)
+        if row.unpriced:
             self.cost_complete = False
 
     def totals(self) -> UsageTotals:
@@ -420,6 +421,43 @@ def _rows(groups: dict[str, _Acc]) -> list[UsageRow]:
     )
 
 
+def _local_day(column: Any, tz: ZoneInfo, first: datetime, last: datetime) -> ColumnElement[str]:
+    """`column`'s day in `tz`, worked out by SQLite. SQLite knows no time zones, only fixed
+    offsets, so the span is cut where the zone's offset changes (daylight saving time) and each
+    piece shifts by its own offset."""
+    pieces: list[tuple[datetime, int]] = []  # (until, offset in minutes)
+    at, offset = first, _offset(tz, first)
+    # Checked once a day: no zone changes its offset and back within one day.
+    while at < last:
+        step = min(at + timedelta(days=1), last)
+        if _offset(tz, step) != offset:
+            # Offsets change on a whole second: find it exactly, in whole POSIX seconds.
+            low, high = int(at.timestamp()), int(step.timestamp())
+            while high - low > 1:
+                mid = (low + high) // 2
+                low, high = (mid, high) if _offset(tz, _utc(mid)) == offset else (low, mid)
+            change = _utc(high)
+            pieces.append((change, offset))
+            offset = _offset(tz, change)
+            step = change
+        at = step
+    shifted = [func.date(column, f"{minutes:+d} minutes") for _, minutes in pieces]
+    shifted.append(func.date(column, f"{offset:+d} minutes"))
+    if not pieces:
+        return shifted[0]
+    whens = [(column < until, expr) for (until, _), expr in zip(pieces, shifted, strict=False)]
+    return case(*whens, else_=shifted[-1])
+
+
+def _utc(seconds: int) -> datetime:
+    return datetime.fromtimestamp(seconds, UTC)
+
+
+def _offset(tz: ZoneInfo, at: datetime) -> int:
+    delta = at.astimezone(tz).utcoffset()
+    return int(delta.total_seconds() // 60) if delta else 0
+
+
 async def usage_summary(ctx: Ctx, inp: UsageInput) -> UsageSummary:
     try:
         tz = ZoneInfo(inp.tz)
@@ -430,36 +468,55 @@ async def usage_summary(ctx: Ctx, inp: UsageInput) -> UsageSummary:
     start_day = inp.start or (end_day - timedelta(days=inp.days - 1) if inp.days else None)
     if start_day is not None and start_day > end_day:
         raise _invalid("start", "after_end")
-    query = select(
-        AiUsageEvent.created_at,
-        AiUsageEvent.purpose,
-        AiUsageEvent.source_module,
-        AiUsageEvent.provider_kind,
-        AiUsageEvent.model,
-        AiUsageEvent.status,
-        AiUsageEvent.input_tokens,
-        AiUsageEvent.cached_tokens,
-        AiUsageEvent.output_tokens,
-        AiUsageEvent.cost_usd_estimate,
-    ).where(
+    mine = [
         AiUsageEvent.user_id == ctx.user_id,
         AiUsageEvent.created_at < datetime.combine(end_day + timedelta(days=1), time.min, tz),
-    )
+    ]
     if start_day is not None:
-        query = query.where(AiUsageEvent.created_at >= datetime.combine(start_day, time.min, tz))
-    result = await ctx.db.execute(query)
+        mine.append(AiUsageEvent.created_at >= datetime.combine(start_day, time.min, tz))
+    first = await ctx.db.scalar(select(func.min(AiUsageEvent.created_at)).where(*mine))
     total = _Acc()
     days: defaultdict[tuple[Any, str], _Acc] = defaultdict(_Acc)
     purposes: defaultdict[str, _Acc] = defaultdict(_Acc)
     modules: defaultdict[str, _Acc] = defaultdict(_Acc)
     models: defaultdict[str, _Acc] = defaultdict(_Acc)
-    for row in result:
-        day = row.created_at.astimezone(tz).date()
-        total.add(row)
-        days[(day, row.purpose)].add(row)
-        purposes[row.purpose].add(row)
-        modules[row.source_module].add(row)
-        models[f"{row.provider_kind}/{row.model}"].add(row)
+    if first is not None:
+        # Summed by the database per day and kind of call: a busy year is tens of thousands
+        # of calls, but only a few hundred groups.
+        last = datetime.combine(end_day + timedelta(days=1), time.min, tz)
+        day = _local_day(AiUsageEvent.created_at, tz, first, last).label("day")
+        keys = (
+            day,
+            AiUsageEvent.purpose,
+            AiUsageEvent.source_module,
+            AiUsageEvent.provider_kind,
+            AiUsageEvent.model,
+        )
+        unpriced = and_(
+            AiUsageEvent.cost_usd_estimate.is_(None),
+            or_(AiUsageEvent.input_tokens > 0, AiUsageEvent.output_tokens > 0),
+        )
+        result = await ctx.db.execute(
+            select(
+                *keys,
+                func.count().label("calls"),
+                func.sum(case((AiUsageEvent.status == "error", 1), else_=0)).label("errors"),
+                func.sum(AiUsageEvent.input_tokens).label("input_tokens"),
+                func.coalesce(func.sum(AiUsageEvent.cached_tokens), 0).label("cached_tokens"),
+                func.sum(AiUsageEvent.output_tokens).label("output_tokens"),
+                func.sum(AiUsageEvent.cost_usd_estimate).label("cost"),
+                func.max(case((unpriced, 1), else_=0)).label("unpriced"),
+            )
+            .where(*mine)
+            .group_by(*keys)
+        )
+        for row in result:
+            local = date.fromisoformat(row.day)
+            total.add(row)
+            days[(local, row.purpose)].add(row)
+            purposes[row.purpose].add(row)
+            modules[row.source_module].add(row)
+            models[f"{row.provider_kind}/{row.model}"].add(row)
     by_day = [
         UsageDay(
             date=day,

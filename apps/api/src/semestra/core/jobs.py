@@ -43,6 +43,7 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -313,20 +314,22 @@ class PeriodicTask:
     name: str
     every: timedelta
     fn: Callable[[Ctx], Awaitable[None]]
+    first_after: timedelta | None = None
 
 
 _periodic: dict[str, PeriodicTask] = {}
 
 
 def periodic(
-    name: str, *, every: timedelta
+    name: str, *, every: timedelta, first_after: timedelta | None = None
 ) -> Callable[[Callable[[Ctx], Awaitable[None]]], Callable[[Ctx], Awaitable[None]]]:
-    """Run `fn(ctx)` every `every` in a system ctx without a user (first run after one period)."""
+    """Run `fn(ctx)` every `every` in a system ctx without a user (first run after one period,
+    or after `first_after` for a task that should not wait a whole period after each start)."""
 
     def decorate(fn: Callable[[Ctx], Awaitable[None]]) -> Callable[[Ctx], Awaitable[None]]:
         if name in _periodic:
             raise ValueError(f"duplicate periodic task {name!r}")
-        _periodic[name] = PeriodicTask(name, every, fn)
+        _periodic[name] = PeriodicTask(name, every, fn, first_after)
         return fn
 
     return decorate
@@ -344,6 +347,16 @@ async def cleanup_jobs(ctx: Ctx) -> None:
             CoreJob.status.in_(TERMINAL), CoreJob.finished_at < ctx.now - RETENTION
         )
     )
+
+
+# Soon after start too: a local app restarts often and may never stay up for six hours.
+@periodic("core.sqlite_optimize", every=timedelta(hours=6), first_after=timedelta(minutes=1))
+async def optimize_sqlite(ctx: Ctx) -> None:
+    """Keeps SQLite's query planner statistics current (what the SQLite docs advise for
+    long-lived connections); cheap when nothing changed. 0x10000 looks at every table, not
+    only those the pooled connection it happens to get has queried."""
+    if ctx.db.get_bind().dialect.name == "sqlite":
+        await ctx.db.execute(text("PRAGMA optimize=0x10002"))
 
 
 # --- worker ---------------------------------------------------------------------------------
@@ -402,8 +415,10 @@ class JobRunner:
                     await asyncio.wait_for(self._wake.wait(), POLL_SECONDS)
 
     async def _schedule(self, task: PeriodicTask) -> None:
+        wait = task.first_after or task.every
         while True:
-            await asyncio.sleep(task.every.total_seconds())
+            await asyncio.sleep(wait.total_seconds())
+            wait = task.every
             try:
                 await run_periodic(self.state, task.name)
             except Exception:
@@ -420,6 +435,11 @@ class JobRunner:
         now: datetime = self.state.now()
         lease_lapsed = and_(CoreJob.status == "running", CoreJob.lease_expires_at < now)
         async with self.state.session_factory() as db:
+            # Most polls find nothing: check with a read first, so an idle worker does not take
+            # SQLite's write lock every POLL_SECONDS.
+            due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
+            if await db.scalar(select(CoreJob.id).where(due).limit(1)) is None:
+                return None
             # Jobs whose worker died: cancel if asked, fail if out of attempts.
             ended = (
                 await db.scalars(
@@ -438,7 +458,6 @@ class JobRunner:
                     .returning(CoreJob)
                 )
             ).all()
-            due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
             pick = select(CoreJob.id).where(due).order_by(CoreJob.run_after).limit(1)
             job = await db.scalar(
                 update(CoreJob)
