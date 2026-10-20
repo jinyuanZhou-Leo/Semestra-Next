@@ -89,6 +89,7 @@ export const errorMessages = {
   error_import_duplicate_assessment: m.error_import_duplicate_assessment,
   error_import_duplicate_course: m.error_import_duplicate_course,
   error_import_extraction_failed: m.error_import_extraction_failed,
+  error_import_file_too_complex: m.error_import_file_too_complex,
   error_import_file_unsupported: m.error_import_file_unsupported,
   error_import_ics_invalid: m.error_import_ics_invalid,
   error_import_no_changes: m.error_import_no_changes,
