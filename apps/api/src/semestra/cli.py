@@ -24,6 +24,10 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("openapi", help="print the OpenAPI schema as JSON")
 
+    check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
+    check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
+    check.add_argument("--since", help="only sessions updated at or after this ISO date")
+
     args = parser.parse_args(argv)
     match args.command:
         case "dev":
@@ -70,6 +74,19 @@ def main(argv: list[str] | None = None) -> None:
 
             json.dump(create_app().openapi(), sys.stdout, indent=2, ensure_ascii=False)
             sys.stdout.write("\n")
+        case "check-sessions":
+            from pathlib import Path
+
+            from sqlalchemy.engine import make_url
+
+            from semestra.core.config import get_settings
+            from semestra.modules.agent import session_check
+
+            db = Path(args.db or make_url(get_settings().database_url).database or "")
+            if not db.is_file():  # the default path is relative to apps/api, like `semestra dev`
+                parser.error(f"no database at {db}: run in apps/api or pass the file")
+            report = session_check.check(db, since=args.since)
+            sys.stdout.write(session_check.render(report) + "\n")
 
 
 if __name__ == "__main__":

@@ -685,8 +685,10 @@ async def test_at_the_limit_the_model_answers_once_more_and_the_turn_pauses(
 
     results = events_named(events, "tool_result")
     assert len(results) == loop.TOOL_CALL_LIMIT + 2
+    # The second batch does not fit in the 2 calls left: none of it runs.
     blocked = [r for r in results if r["error_code"] == "agent.tool_limit_reached"]
-    assert len(blocked) == 2
+    assert len(blocked) == 4
+    assert '"left":2' in str(model.results(-1)[-1].content)
     # The closing request has the tools but may not call them, and says why.
     assert "limit of tool calls" in model.last_text()
     settings = model.requests[-1][1].model_settings or {}
@@ -724,24 +726,48 @@ async def test_the_count_goes_on_across_an_approval(agent: Agent, model: FakeMod
         for r in events_named(events, "tool_result")
         if r["error_code"] == "agent.tool_limit_reached"
     ]
-    assert len(blocked) == 21 + 12 - loop.TOOL_CALL_LIMIT
+    assert len(blocked) == 12  # 21 + 12 > the limit, so the whole batch waits
     assert events_named(events, "paused")[0]["reason"] == "tool_limit"
 
 
-async def test_a_turn_paused_while_a_card_waits_stays_paused(agent: Agent, model: FakeModel):
-    # The limit was hit in the batch that proposed the card: after the decision the model only
-    # gives its closing answer.
+async def test_a_batch_over_the_limit_runs_nothing_and_proposes_no_card(
+    agent: Agent, model: FakeModel
+):
     _, _, lab = await agent.course_with_lab()
     session = await agent.session()
     write = ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
     reads = [("academics.term.list", {"program_id": f"p{i}"}) for i in range(loop.TOOL_CALL_LIMIT)]
-    model.then(calls([*reads[:-1], write, reads[-1]]))
-    [proposal] = events_named(await agent.send(session["id"], "go"), "proposal")
-    model.then(say("Stopping here."))
-    events = await agent.decide(session["id"], proposal["id"])
+    model.then(calls([*reads[:-1], write, reads[-1]]), say("Stopping here."))
+    events = await agent.send(session["id"], "go")
+    assert events_named(events, "proposal") == []
+    codes = {r["error_code"] for r in events_named(events, "tool_result")}
+    assert codes == {"agent.tool_limit_reached"}
     assert events_named(events, "paused")[0]["reason"] == "tool_limit"
     assert texts(events) == "Stopping here."
     assert (model.requests[-1][1].model_settings or {}).get("tool_choice") == "none"
+
+
+async def test_a_turn_paused_while_a_card_waits_stays_paused(agent: Agent, model: FakeModel):
+    # The batch that proposed the card also repeated itself into a pause: the calls after the
+    # pause are not run, and after the decision the model only gives its closing answer.
+    program = await agent.program()
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    write = ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
+    same = ("academics.term.list", {"program_id": program["id"]})
+    other = ("academics.term.list", {"program_id": "another"})
+    model.then(calls([write, same, same, same, same, same, other]))
+    events = await agent.send(session["id"], "go")
+    [proposal] = events_named(events, "proposal")
+    codes = [r["error_code"] for r in events_named(events, "tool_result")]
+    assert sorted(codes, key=str) == [None, None] + ["agent.repeated_call"] * 4
+
+    model.then(say("Stopping here."))
+    events = await agent.decide(session["id"], proposal["id"])
+    assert events_named(events, "paused")[0]["reason"] == "loop"
+    assert texts(events) == "Stopping here."
+    assert (model.requests[-1][1].model_settings or {}).get("tool_choice") == "none"
+    assert "agent.repeated_call were not run" in model.last_text()
 
 
 async def test_the_same_call_again_and_again_is_stopped(agent: Agent, model: FakeModel):
@@ -766,6 +792,8 @@ async def test_the_request_limit_pauses_too(
     events = await agent.send(session["id"], "terms")
     assert len(model.requests) == 4
     assert events_named(events, "paused")[0]["reason"] == "tool_limit"
+    # The last batch did run here: the note must not say otherwise.
+    assert "Calls whose result is agent.tool_limit_reached were not run" in model.last_text()
 
 
 async def test_long_results_are_cut_and_can_be_read_on(
@@ -807,6 +835,19 @@ async def test_loading_a_skill_gives_its_workflow_and_tools(agent: Agent, model:
     assert "Recording grades" in str(model.results(1)[0].content)
     assert "grading__assessment__create" not in model.tools_of(0)
     assert "grading__assessment__create" in model.tools_of(1)
+
+
+async def test_a_loaded_skills_tools_stay_callable_in_the_next_message(
+    agent: Agent, model: FakeModel
+):
+    # The reveal is stored with the result, so a history loaded back still shows the tools.
+    model.then(call("load_capability", {"id": "record-grades"}), say("ok"))
+    session = await agent.session()
+    await agent.send(session["id"], "I got a score")
+    model.then(call("grading.gradebook.get", {"course_id": "c"}), say("ok"))
+    await agent.send(session["id"], "which ones?")
+    assert "grading__gradebook__get" in model.tools_of(-1)
+    assert "not available yet" not in model.last_text()
 
 
 async def test_slash_skill_is_injected(agent: Agent, model: FakeModel):
