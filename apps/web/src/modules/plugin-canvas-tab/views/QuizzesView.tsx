@@ -1,5 +1,5 @@
 import type { Quiz } from '@semestra/api-client'
-import { lmsQuizzesListOptions } from '@semestra/api-client/react-query'
+import { lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -62,7 +62,7 @@ const columns = column.columns([
 export function QuizzesView({ selected }: { selected?: string }) {
   const { courseId, query } = useCanvasPage()
   const list = useQuery({
-    ...lmsQuizzesListOptions({ path: { course_id: courseId }, query }),
+    ...lmsQuizListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (

@@ -111,7 +111,7 @@ async def card_remove(ctx: Ctx, inp: CardRef) -> Removed:
 
 
 @capability(
-    name="layouts.card.settings.get",
+    name="layouts.card.get_settings",
     summary="Get the settings of a card instance.",
     description="layouts.board.get already includes every card's settings.",
     effect="read",
@@ -124,7 +124,7 @@ async def card_settings_get(ctx: Ctx, inp: CardRef) -> CardSettings:
 
 
 @capability(
-    name="layouts.card.settings.update",
+    name="layouts.card.update_settings",
     summary="Replace the settings of a card instance.",
     description="The settings are validated against the card's schema.",
     effect="write",

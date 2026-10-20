@@ -178,7 +178,7 @@ async def remaining_quota(ctx: Ctx) -> int | None:
 
 
 @capability(
-    name="core.storage.usage",
+    name="core.storage.get",
     summary="Get how much file storage the user has used and their quota.",
     description="""Use when the user asks how much space their files take or why an upload was
 rejected for exceeding the quota.""",

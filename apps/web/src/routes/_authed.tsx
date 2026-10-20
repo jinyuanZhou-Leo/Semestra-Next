@@ -1,4 +1,7 @@
-import { accountMeGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
+import {
+  accountProfileGetOptions,
+  pluginsCatalogListOptions,
+} from '@semestra/api-client/react-query'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { toApiError } from '@/app/api'
 import { CommandCenter } from '@/app/commands'
@@ -13,7 +16,7 @@ export const Route = createFileRoute('/_authed')({
   beforeLoad: async ({ context, location }) => {
     try {
       await context.queryClient.ensureQueryData({
-        ...accountMeGetOptions(),
+        ...accountProfileGetOptions(),
         revalidateIfStale: false,
       })
       // Not awaited: pages that read UI state wait for it themselves (see `useUiPref`).

@@ -2,7 +2,7 @@ import type { Provider } from '@semestra/api-client'
 import {
   aiAssignmentUpdateMutation,
   aiProviderCreateMutation,
-  aiStatusOptions,
+  aiStatusGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
@@ -130,7 +130,7 @@ export function ProviderForm({
     }
     // Endpoints without recommended models: use the typed model where nothing serves yet.
     if (info.chooseCapabilities && model.trim()) {
-      const status = await queryClient.fetchQuery({ ...aiStatusOptions(), staleTime: 0 })
+      const status = await queryClient.fetchQuery({ ...aiStatusGetOptions(), staleTime: 0 })
       const purposes = [
         ...MODEL_PURPOSES,
         ...(capabilities.includes('vision') ? (['vision'] as const) : []),

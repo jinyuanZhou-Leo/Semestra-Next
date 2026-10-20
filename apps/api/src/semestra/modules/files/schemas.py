@@ -54,7 +54,7 @@ class ItemOut(BaseModel):
 # --- list -----------------------------------------------------------------------------------
 
 
-class FilesListInput(BaseModel):
+class FilesItemListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     folder_id: Id | None = Field(
         default=None, description="Only items directly in this folder; omit for the course root"
@@ -65,7 +65,7 @@ class FilesListInput(BaseModel):
     search: Annotated[str, Field(max_length=200)] | None = Field(
         default=None,
         description="Keep items whose name contains this text (case-insensitive). To search "
-        "what the files say, use files.search instead.",
+        "what the files say, use files.document.search instead.",
     )
     sort: SortKey = Field(default="name", description="Sort key")
     descending: bool = Field(default=False, description="Reverse the sort order")
@@ -77,7 +77,7 @@ class FilesListInput(BaseModel):
     limit: Annotated[int, Field(ge=1, le=500)] = Field(default=200, description="Page size")
 
 
-class FilesList(BaseModel):
+class FilesItemList(BaseModel):
     folders: list[FolderOut] = Field(description="Every folder of the course")
     items: list[ItemOut]
     next_cursor: str | None
@@ -238,7 +238,7 @@ class PinnedFiles(BaseModel):
     items: list[ItemOut]
 
 
-class FilesUsage(BaseModel):
+class FilesUsageGet(BaseModel):
     used_bytes: int = Field(description="All the user's stored files, every module")
     files_bytes: int = Field(description="Of which course files")
     quota_bytes: int = Field(description="0 means unlimited")

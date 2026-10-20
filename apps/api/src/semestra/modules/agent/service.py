@@ -22,7 +22,7 @@ from semestra.modules.agent.schemas import (
     AgentAttachmentOut,
     AgentMessageOut,
     AgentPreferencesOut,
-    AgentPreferencesUpdateInput,
+    AgentPreferenceUpdateInput,
     AgentProposalOut,
     AgentScope,
     AgentSessionDetail,
@@ -534,7 +534,7 @@ def _check_auto_approve(names: Sequence[str]) -> list[str]:
     return sorted(set(names))
 
 
-async def update_preferences(ctx: Ctx, inp: AgentPreferencesUpdateInput) -> AgentPreferencesOut:
+async def update_preferences(ctx: Ctx, inp: AgentPreferenceUpdateInput) -> AgentPreferencesOut:
     row = await preferences_row(ctx)
     if row is None:
         row = AgentPreferences(
@@ -554,5 +554,5 @@ async def remember_auto_approve(ctx: Ctx, capability: str) -> None:
     prefs = await get_preferences(ctx)
     if capability not in prefs.auto_approve:
         await update_preferences(
-            ctx, AgentPreferencesUpdateInput(auto_approve=[*prefs.auto_approve, capability])
+            ctx, AgentPreferenceUpdateInput(auto_approve=[*prefs.auto_approve, capability])
         )

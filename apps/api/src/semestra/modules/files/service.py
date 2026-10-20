@@ -26,9 +26,9 @@ from semestra.modules.files.models import (
 from semestra.modules.files.parse import detect
 from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
-    FilesList,
-    FilesListInput,
-    FilesUsage,
+    FilesItemList,
+    FilesItemListInput,
+    FilesUsageGet,
     FolderDeleteInput,
     FolderOut,
     ItemOut,
@@ -231,7 +231,7 @@ async def _folder_counts(ctx: Ctx, course_id: str) -> dict[str, int]:
 # --- listing --------------------------------------------------------------------------------
 
 
-async def list_files(ctx: Ctx, inp: FilesListInput) -> FilesList:
+async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     await academics.get_course_row(ctx, inp.course_id)
     folders = await _course_folders(ctx, inp.course_id)
     if inp.folder_id is not None and inp.folder_id not in {f.id for f in folders}:
@@ -263,7 +263,7 @@ async def list_files(ctx: Ctx, inp: FilesListInput) -> FilesList:
     rows = list((await ctx.db.scalars(stmt.offset(offset).limit(inp.limit + 1))).all())
     more = len(rows) > inp.limit
     counts = await _folder_counts(ctx, inp.course_id)
-    return FilesList(
+    return FilesItemList(
         folders=[folder_out(f, counts) for f in folders],
         items=await item_outs(ctx, rows[: inp.limit]),
         next_cursor=str(offset + inp.limit) if more else None,
@@ -728,10 +728,10 @@ async def files_usage_bytes(ctx: Ctx) -> int:
     return int(total or 0)
 
 
-async def usage(ctx: Ctx) -> FilesUsage:
+async def usage(ctx: Ctx) -> FilesUsageGet:
 
     total = await core_usage(ctx)
-    return FilesUsage(
+    return FilesUsageGet(
         used_bytes=total.used_bytes,
         files_bytes=total.by_module.get("files", 0),
         quota_bytes=total.quota_bytes,

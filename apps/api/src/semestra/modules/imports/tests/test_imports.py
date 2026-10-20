@@ -439,7 +439,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         session_id = created["id"]
         await registry.invoke(
             ctx,
-            "imports.items.add",
+            "imports.item.add_many",
             {"session_id": session_id, "items": [
                 {"key": "c", "type": "course", "data": {"title": "Linear Algebra",
                                                           "code": "MAT188H1"}},
@@ -451,7 +451,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         with pytest.raises(AppError) as err:
             await registry.invoke(
                 ctx,
-                "imports.items.add",
+                "imports.item.add_many",
                 {"session_id": session_id, "items": [
                     {"type": "meeting", "data": {"course_ref": "item:nope", "weekday": 1,
                                                   "start_time": "09:00", "end_time": "10:00"}}
@@ -463,7 +463,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         with pytest.raises(AppError) as err:
             await registry.invoke(
                 ctx,
-                "imports.items.add",
+                "imports.item.add_many",
                 {"session_id": session_id, "items": [
                     {"type": "meeting", "data": {"course_ref": "item:c", "weekday": 1,
                                                   "start_time": "09:00", "end_time": "10:00",
@@ -782,7 +782,7 @@ async def test_meeting_outside_its_term_fails_instead_of_landing_in_week_one(
         session_id = created["id"]
         await registry.invoke(
             ctx,
-            "imports.items.add",
+            "imports.item.add_many",
             {"session_id": session_id, "items": [
                 {"key": "c", "type": "course", "data": {"title": "Linear Algebra",
                                                           "code": "MAT188H1"}},
@@ -830,7 +830,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     )  # fmt: skip
     session_id = session["id"]
     added = await agent(
-        "imports.items.add",
+        "imports.item.add_many",
         {"session_id": session_id, "ready": True, "items": [
             {"key": "w", "type": "course", "data": {"title": "Calculus", "code": "MAT194H1"}},
             {"type": "meeting", "data": {"course_ref": "item:w", "weekday": 2,
@@ -887,7 +887,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     assert terms == {"MAT194H1": [winter], "MAT188H1": [fall], "MAT157Y1": sorted([fall, winter])}
 
 
-@pytest.mark.parametrize("tool", ["imports.items.bulk_decide", "imports.item.update"])
+@pytest.mark.parametrize("tool", ["imports.item.decide_many", "imports.item.update"])
 async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: Api, tool: str):
     program_id = await api.program()
     term_id = await api.term(program_id)
@@ -911,7 +911,7 @@ async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: 
             args["item_ids"] = [course["id"]]
         out = await registry.invoke(ctx, tool, args, "agent")
         await ctx.db.commit()
-    if tool == "imports.items.bulk_decide":
+    if tool == "imports.item.decide_many":
         assert isinstance(out, dict)
         assert out["changed"] == 1 + len(own)
     after = await api.call("GET", f"/imports/{session['id']}")
@@ -980,7 +980,7 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
     assert [i["id"] for i in changed["items"]] == [meeting["id"]]
     assert changed["items"][0]["data"]["location"] == "BA 1"
     bulk = await agent(
-        "imports.items.bulk_decide",
+        "imports.item.decide_many",
         {"session_id": session["id"], "decision": "reject", "types": ["event"]},
     )
     assert bulk["changed"] == 2

@@ -399,7 +399,7 @@ class NewItem(BaseModel):
     decision: Decision = Field(default="accept", description="Initial decision")
 
 
-# --- `imports.items.add`: one schema per item type, unknown fields refused ------------------
+# --- `imports.item.add_many`: one schema per item type, unknown fields refused ------------------
 
 
 class _Strict(BaseModel):

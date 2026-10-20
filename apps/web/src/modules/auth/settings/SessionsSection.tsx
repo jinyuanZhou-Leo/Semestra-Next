@@ -1,8 +1,8 @@
 import {
-  accountSessionsListOptions,
-  accountSessionsListQueryKey,
-  accountSessionsRevokeMutation,
-  accountSessionsRevokeOthersMutation,
+  accountSessionListOptions,
+  accountSessionListQueryKey,
+  accountSessionRevokeMutation,
+  accountSessionRevokeOthersMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
@@ -90,20 +90,20 @@ type Target = { kind: 'one'; id: string } | { kind: 'others' }
 export function SessionsSection() {
   const queryClient = useQueryClient()
   const [signingOut, setSigningOut] = useState(false)
-  const sessions = useQuery(accountSessionsListOptions())
+  const sessions = useQuery(accountSessionListOptions())
   const [target, setTarget] = useState<Target | null>(null)
 
   const done = () => {
     setTarget(null)
-    void queryClient.invalidateQueries({ queryKey: accountSessionsListQueryKey() })
+    void queryClient.invalidateQueries({ queryKey: accountSessionListQueryKey() })
   }
   const revokeOne = useMutation({
-    ...accountSessionsRevokeMutation(),
+    ...accountSessionRevokeMutation(),
     onSuccess: done,
     onError: (err) => (setTarget(null), toastError(err)),
   })
   const revokeOthers = useMutation({
-    ...accountSessionsRevokeOthersMutation(),
+    ...accountSessionRevokeOthersMutation(),
     onSuccess: done,
     onError: (err) => (setTarget(null), toastError(err)),
   })

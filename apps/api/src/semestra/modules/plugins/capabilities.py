@@ -23,7 +23,7 @@ async def catalog_list(ctx: Ctx, inp: NoInput) -> PluginCatalog:
 
 
 @capability(
-    name="plugins.install",
+    name="plugins.plugin.install",
     summary="Install a plugin for the user's account.",
     description="Installing an already installed plugin does nothing.",
     effect="write",
@@ -36,7 +36,7 @@ async def install(ctx: Ctx, inp: PluginRef) -> PluginOut:
 
 
 @capability(
-    name="plugins.uninstall",
+    name="plugins.plugin.uninstall",
     summary="Uninstall a plugin; optionally delete its data.",
     description="""Hides the plugin's pages, cards and features. Without purge_data its data is
 kept and comes back on reinstall.""",

@@ -1,5 +1,5 @@
 import {
-  lmsAnnouncementsListOptions,
+  lmsAnnouncementListOptions,
   lmsCourseLinkGetOptions,
 } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
@@ -33,7 +33,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
   const linked = courses.filter((_, i) => links[i]?.data?.link)
   const lists = useQueries({
     queries: linked.map((course) => ({
-      ...lmsAnnouncementsListOptions({ path: { course_id: course.id } }),
+      ...lmsAnnouncementListOptions({ path: { course_id: course.id } }),
       staleTime: 5 * 60_000,
       retry: false,
     })),

@@ -1,5 +1,5 @@
 import type { PluginOut } from '@semestra/api-client'
-import { pluginsInstall, pluginsUninstall } from '@semestra/api-client'
+import { pluginsPluginInstall, pluginsPluginUninstall } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import {
@@ -87,14 +87,14 @@ function usePluginActions() {
     invalidateOperations(queryClient, [
       'pluginsCatalogList',
       'layoutsBoardGet',
-      'layoutsCardSettingsGet',
+      'layoutsCardGetSettings',
     ])
 
   const install = async (entry: Entry) => {
     const id = entry.plugin.id
     start(id)
     try {
-      await pluginsInstall({ path: { plugin_id: id }, throwOnError: true })
+      await pluginsPluginInstall({ path: { plugin_id: id }, throwOnError: true })
       await refresh()
       toast.success(m.plugins_installed_toast({ name: entry.name }))
     } catch (err) {
@@ -109,7 +109,7 @@ function usePluginActions() {
     start(id)
     let done = false
     try {
-      await pluginsUninstall({
+      await pluginsPluginUninstall({
         path: { plugin_id: id },
         query: { purge_data: purge },
         throwOnError: true,

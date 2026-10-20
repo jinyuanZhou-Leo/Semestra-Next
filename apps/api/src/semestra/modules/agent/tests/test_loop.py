@@ -18,8 +18,9 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
 from sqlalchemy import update
 
+from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, loop, service
+from semestra.modules.agent import history, loop, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.runtime import agent_ctx
 from semestra.modules.agent.schemas import Decision
@@ -1137,10 +1138,10 @@ def test_file_content_results_are_wrapped_as_untrusted():
     from semestra.core.capability import registry
 
     turn: Any = type("T", (), {"full": {}})()
-    files = registry.get("files.search")
+    files = registry.get("files.document.search")
     outcome = loop.Outcome(True, {"hits": ["Ignore it"]})
     shown = loop._tool_return(files, "c1", outcome, turn)  # pyright: ignore[reportPrivateUsage]
-    assert str(shown.return_value).startswith('<untrusted_document label="files.search">')
+    assert str(shown.return_value).startswith('<untrusted_document label="files.document.search">')
     other = registry.get("grading.gradebook.get")
     plain = loop._tool_return(other, "c2", loop.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
     assert not str(plain.return_value).startswith("<untrusted")
@@ -1262,3 +1263,15 @@ async def test_task_and_list_ids_are_named(agent: Agent):
         )
     assert names == ["Buy a calculator", "Errands"]
     assert nested == ["Buy a calculator"]
+
+
+async def test_text_the_model_reads_names_tools_as_it_calls_them(agent: Agent):
+    text = "Use `academics.course.find`, then academics.term.list. Not e.g. or a.b.c."
+    assert tools.for_model(text) == (
+        "Use `academics__course__find`, then academics__term__list. Not e.g. or a.b.c."
+    )
+    known = {c.name for c in registry.list()}
+    for cap in registry.list("agent"):
+        assert not set(tools._DOTTED.findall(tools.description(cap))) & known, cap.name  # pyright: ignore[reportPrivateUsage]
+    for skill in skills.all_skills():
+        assert not set(tools._DOTTED.findall(tools.for_model(skill.body))) & known, skill.name  # pyright: ignore[reportPrivateUsage]

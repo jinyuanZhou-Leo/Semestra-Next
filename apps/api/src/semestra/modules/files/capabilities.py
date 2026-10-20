@@ -8,9 +8,9 @@ from semestra.modules.files.schemas import (
     DocumentOutline,
     DocumentRead,
     DocumentReadInput,
-    FilesList,
-    FilesListInput,
-    FilesUsage,
+    FilesItemList,
+    FilesItemListInput,
+    FilesUsageGet,
     FolderCreateInput,
     FolderDeleteInput,
     FolderOut,
@@ -29,16 +29,16 @@ TAGS = ("files",)
 
 
 @capability(
-    name="files.list",
+    name="files.item.list",
     summary="List the files, links and folders of a course.",
     description="""Use to see what a course has: its files and saved links in one folder (or every
 folder with recursive=true), with their processing status. Do not use to look for what the files
-say; use files.search for that.""",
+say; use files.document.search for that.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/files"),
     tags=TAGS,
 )
-async def files_list(ctx: Ctx, inp: FilesListInput) -> FilesList:
+async def files_list(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     return await service.list_files(ctx, inp)
 
 
@@ -141,7 +141,7 @@ async def folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> Deleted:
 
 
 @capability(
-    name="files.reprocess",
+    name="files.item.reprocess",
     summary="Read a file's text again.",
     description="""Starts the document pipeline again for a file, for example after a failure or
 after an AI model for reading scanned pages was set up.""",
@@ -155,13 +155,13 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 
 @capability(
-    name="files.search",
+    name="files.document.search",
     summary="Search what the course files say.",
     description="""Use to answer questions about course content (syllabus rules, dates, lecture
 material): finds the passages of the user's files that match, with page numbers. Narrow it with
 course_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some
 files are still being processed; tell the user the answer may be incomplete. Do not use to find a
-file by its name; use files.list.""",
+file by its name; use files.item.list.""",
     effect="read",
     http=Http("POST", "/programs/{program_id}/files:search"),
     tags=TAGS,
@@ -175,7 +175,7 @@ async def files_search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     summary="Read the text of a processed file, page by page.",
     description="""Returns the markdown of up to 30 pages starting at page_from. When next_page is
 set, call again from there to continue. Use it to summarise or extract from a whole document; to
-find something specific use files.search first.""",
+find something specific use files.document.search first.""",
     effect="read",
     http=Http("GET", "/files/{item_id}/document"),
     tags=TAGS,
@@ -197,7 +197,7 @@ async def document_outline(ctx: Ctx, inp: ItemRef) -> DocumentOutline:
 
 
 @capability(
-    name="files.usage",
+    name="files.usage.get",
     summary="Get how much file storage is used.",
     description="""Used and available storage, and the largest file that can be uploaded.""",
     effect="read",
@@ -205,13 +205,13 @@ async def document_outline(ctx: Ctx, inp: ItemRef) -> DocumentOutline:
     expose=("http",),
     tags=TAGS,
 )
-async def usage(ctx: Ctx, inp: NoInput) -> FilesUsage:
+async def usage(ctx: Ctx, inp: NoInput) -> FilesUsageGet:
     del inp
     return await service.usage(ctx)
 
 
 @capability(
-    name="files.pinned",
+    name="files.item.list_pinned",
     summary="List the pinned files of a Program.",
     description="""Files and links the user pinned for quick access, across the Program's
 courses.""",

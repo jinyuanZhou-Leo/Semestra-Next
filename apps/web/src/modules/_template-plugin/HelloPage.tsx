@@ -1,4 +1,4 @@
-import { settingsValuesGetOptions } from '@semestra/api-client/react-query'
+import { settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { PageProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -8,7 +8,7 @@ import { m } from '@/paraglide/messages'
  * shown for. Data comes from the generated API client, never from hand-written `fetch`.
  */
 export default function HelloPage({ scope }: PageProps) {
-  const config = useQuery(settingsValuesGetOptions({ path: { namespace: 'plugin.hello-note' } }))
+  const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.hello-note' } }))
   const formal = config.data?.values.greeting === 'formal'
   return (
     <div className="space-y-2 p-6">

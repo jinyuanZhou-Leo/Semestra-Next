@@ -149,7 +149,7 @@ async def read_course_file(ctx: Ctx, item_id: str, program_id: str) -> list[ai.P
         for query in SEARCH_QUERIES:
             found = await call(
                 ctx,
-                "files.search",
+                "files.document.search",
                 {"program_id": program_id, "query": query, "item_ids": [item_id], "top_k": 8,
                  "mode": "keyword"},
             )  # fmt: skip

@@ -1,8 +1,5 @@
-import { lmsImportAssignments, type ImportSessionDetail } from '@semestra/api-client'
-import {
-  lmsAssignmentsListOptions,
-  lmsCourseLinkGetOptions,
-} from '@semestra/api-client/react-query'
+import { lmsAssignmentImport, type ImportSessionDetail } from '@semestra/api-client'
+import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ClipboardList, Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
@@ -87,12 +84,12 @@ function AssignmentList({
   const [kind, setKind] = useState<Kind>('assessment')
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
-  const assignments = useQuery(lmsAssignmentsListOptions({ path: { course_id: courseId } }))
+  const assignments = useQuery(lmsAssignmentListOptions({ path: { course_id: courseId } }))
   const provider = useProviderName(providerKind) ?? providerKind
 
   const start = () => {
     setStarting(true)
-    lmsImportAssignments({
+    lmsAssignmentImport({
       path: { course_id: courseId },
       body: { external_ids: [...picked], as_kind: kind },
       throwOnError: true,

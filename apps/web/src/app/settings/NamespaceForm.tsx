@@ -1,9 +1,9 @@
 import {
-  settingsSchemasListOptions,
-  settingsValuesGetOptions,
-  settingsValuesGetQueryKey,
-  settingsValuesResetMutation,
-  settingsValuesUpdateMutation,
+  settingsSchemaListOptions,
+  settingsValueGetOptions,
+  settingsValueGetQueryKey,
+  settingsValueResetMutation,
+  settingsValueUpdateMutation,
 } from '@semestra/api-client/react-query'
 import type { ResolvedSettings } from '@semestra/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -61,9 +61,9 @@ type Props = {
  */
 export function NamespaceForm({ namespace, level, scope, fields }: Props) {
   const params = scopeParamsFor(level, scope)
-  const schemas = useQuery({ ...settingsSchemasListOptions(), staleTime: Infinity })
+  const schemas = useQuery({ ...settingsSchemaListOptions(), staleTime: Infinity })
   const values = useQuery({
-    ...settingsValuesGetOptions({
+    ...settingsValueGetOptions({
       path: { namespace },
       query: params ?? { scope_type: 'account' },
     }),
@@ -119,9 +119,9 @@ function Form({
   const queryClient = useQueryClient()
   const idBase = useId()
   const [draft, setDraft] = useState<Record<string, unknown>>({})
-  const valuesKey = settingsValuesGetQueryKey({ path: { namespace }, query: params })
-  const update = useMutation(settingsValuesUpdateMutation())
-  const reset = useMutation(settingsValuesResetMutation())
+  const valuesKey = settingsValueGetQueryKey({ path: { namespace }, query: params })
+  const update = useMutation(settingsValueUpdateMutation())
+  const reset = useMutation(settingsValueResetMutation())
 
   const forget = (patch: Record<string, unknown>) =>
     setDraft((current) => {

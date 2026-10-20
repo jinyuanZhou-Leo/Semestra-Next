@@ -107,9 +107,9 @@ async def test_preferences_are_per_user(
 
 def test_agent_reads_formats_but_cannot_change_preferences() -> None:
     agent = {c.name for c in registry.list(expose="agent")}
-    assert "settings.preferences.get" in agent
-    assert "settings.preferences.update" not in agent
-    assert registry.get("settings.preferences.get").agent_output_fields == (
+    assert "settings.preference.get" in agent
+    assert "settings.preference.update" not in agent
+    assert registry.get("settings.preference.get").agent_output_fields == (
         "locale",
         "time_format",
         "week_start",

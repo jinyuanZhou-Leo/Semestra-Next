@@ -73,7 +73,7 @@ def _tool(cap: Capability) -> types.Tool:
     schema.pop("title", None)
     return types.Tool(
         name=tools.tool_name(cap.name),
-        description=f"{cap.summary}\n\n{cap.description}".strip(),
+        description=tools.description(cap),
         input_schema=schema,
         annotations=types.ToolAnnotations(
             read_only_hint=cap.effect == "read",
@@ -150,7 +150,7 @@ async def _get_prompt(ctx: Any, params: types.GetPromptRequestParams) -> types.G
     if skill is None:
         raise ValueError(f"unknown prompt {params.name!r}")
     names = ", ".join(tools.tool_name(t) for t in skill.tools)
-    text = f"{skill.body}\n\nTools this workflow uses: {names}"
+    text = f"{tools.for_model(skill.body)}\n\nTools this workflow uses: {names}"
     return types.GetPromptResult(
         description=skill.description,
         messages=[

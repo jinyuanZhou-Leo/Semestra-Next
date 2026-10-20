@@ -1,4 +1,4 @@
-"""Attachments read on upload into pages, `attachments.read`, and imports from an attachment."""
+"""Attachments read on upload into pages, `agent.attachment.read`, and imports from them."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -73,42 +73,42 @@ async def test_uploads_are_read_into_pages(chat: Chat):
     pages = [f"# Week {n}\nTopic {n}: " + "lorem ipsum " * 40 for n in range(1, 14)]
     pdf = await chat.attach(session_id, "notes.pdf", make_pdf(pages), "application/pdf")
 
-    first = await chat.tool("attachments.read", {"attachment_id": pdf["id"]})
+    first = await chat.tool("agent.attachment.read", {"attachment_id": pdf["id"]})
     assert (first["type"], first["page_count"], first["error_code"]) == ("pdf", 13, None)
     assert [p["page_no"] for p in first["pages"]] == list(range(1, 11))
     assert "Topic 1" in first["pages"][0]["markdown"]
     assert first["next_page"] == 11
-    rest = await chat.tool("attachments.read", {"attachment_id": pdf["id"], "page_from": 11})
+    rest = await chat.tool("agent.attachment.read", {"attachment_id": pdf["id"], "page_from": 11})
     assert [p["page_no"] for p in rest["pages"]] == [11, 12, 13]
     assert rest["next_page"] is None
 
     # A file the parser cannot read is kept, with the reason.
     broken = await chat.attach(session_id, "broken.pdf", b"%PDF-1.4 fake", "application/pdf")
-    read = await chat.tool("attachments.read", {"attachment_id": broken["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": broken["id"]})
     assert (read["page_count"], read["pages"]) == (0, [])
     assert read["error_code"] in ("files.parse_failed", "files.too_complex")
 
     note = await chat.attach(session_id, "notes.txt", b"Office hours: Tuesday 3pm", "text/plain")
-    read = await chat.tool("attachments.read", {"attachment_id": note["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": note["id"]})
     assert (read["type"], read["pages"][0]["markdown"]) == ("text", "Office hours: Tuesday 3pm")
 
     # Text without blank lines is still cut into pages.
     lines = "\n".join(f"Week {n}: lecture notes " + "x" * 60 for n in range(400)).encode()
     long = await chat.attach(session_id, "long.txt", lines, "text/plain")
-    read = await chat.tool("attachments.read", {"attachment_id": long["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": long["id"]})
     assert read["page_count"] > 10
     assert read["next_page"] == 11
     assert max(len(p["markdown"]) for p in read["pages"]) <= LOGICAL_PAGE_CHARS
     with pytest.raises(AppError) as err:
         await chat.tool(
-            "attachments.read", {"attachment_id": long["id"], "page_from": 5, "page_to": 3}
+            "agent.attachment.read", {"attachment_id": long["id"], "page_from": 5, "page_to": 3}
         )
     assert err.value.code == "common.validation"
 
     # Pages go with the attachment.
     await chat.call("DELETE", f"/agent/attachments/{note['id']}")
     with pytest.raises(AppError) as err:
-        await chat.tool("attachments.read", {"attachment_id": note["id"]})
+        await chat.tool("agent.attachment.read", {"attachment_id": note["id"]})
     assert err.value.code == "common.not_found"
 
 
@@ -121,7 +121,7 @@ async def test_attachments_of_other_users_cannot_be_read(
     me = (await client.get("/account/me")).json()
     other = Chat(chat.app, client, me["id"])
     with pytest.raises(AppError) as err:
-        await other.tool("attachments.read", {"attachment_id": note["id"]})
+        await other.tool("agent.attachment.read", {"attachment_id": note["id"]})
     assert err.value.code == "common.not_found"
     with pytest.raises(AppError):
         await other.tool(
@@ -156,7 +156,7 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     term_id = term["term"]["id"]
     session_id = await session_of(chat, program_id)
     att = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
-    read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": att["id"]})
     # The calendar as the importer reads it, one page per course; never the raw file.
     assert (read["type"], read["page_count"], read["next_page"]) == ("ics", 1, None)
     page = read["pages"][0]["markdown"]
@@ -166,7 +166,7 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
         "no class on 2026-10-12, 2026-10-26"
     ) in page
     assert "VCALENDAR" not in page
-    assert "imports.session.create" in read["note"]
+    assert "imports__session__create" in read["note"]
 
     created = await chat.tool(
         "imports.session.create",
@@ -188,7 +188,7 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     cancelled = [(e["original_date"], e["kind"]) for e in meetings[0]["exceptions"]]
     assert cancelled == [("2026-10-12", "cancelled")]
     # The attachment stays with the conversation; the import keeps its own copy.
-    assert (await chat.tool("attachments.read", {"attachment_id": att["id"]}))["type"] == "ics"
+    assert (await chat.tool("agent.attachment.read", {"attachment_id": att["id"]}))["type"] == "ics"
 
 
 async def test_creating_a_conversation_twice_with_one_key_returns_it(chat: Chat):
@@ -263,7 +263,7 @@ async def test_uploads_are_typed_by_their_content(chat: Chat):
     docx = make_docx([("Heading 1", "Grading"), ("Normal", "Midterm 30%, final 50%")])
     att = await chat.attach(session_id, "syllabus.docx", docx, "application/octet-stream")
     assert (att["kind"], att["mime"]) == ("file", DOCX)
-    read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": att["id"]})
     assert read["type"] == "docx"
     assert "Midterm 30%" in read["pages"][0]["markdown"]
     # A calendar sent as octet-stream (some Windows browsers) is still taken.
@@ -272,7 +272,7 @@ async def test_uploads_are_typed_by_their_content(chat: Chat):
     # A GIF is a picture, not an unreadable document.
     gif = await chat.attach(session_id, "wave.gif", b"GIF89a" + b"\x00" * 20, "image/gif")
     assert (gif["kind"], gif["mime"]) == ("image", "image/gif")
-    read = await chat.tool("attachments.read", {"attachment_id": gif["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": gif["id"]})
     assert (read["type"], read["error_code"]) == ("image", None)
     # Binary content is refused whatever the browser claims.
     await chat.call(
@@ -342,7 +342,7 @@ async def test_small_documents_are_given_whole_and_large_ones_start_with_an_outl
     assert "--- page 2 ---" in text
     assert "--- page 3 ---" not in text
     assert "- Week 40 (p. 40)" in text
-    assert f"attachments.read (attachment_id {pdf['id']}" in text
+    assert f"agent__attachment__read (attachment_id {pdf['id']}" in text
 
     docx = make_docx([("Heading 1", "Grading"), ("Normal", "Midterm 30%, final 50%")])
     doc = await chat.attach(session_id, "syllabus.docx", docx, "application/octet-stream")
@@ -356,8 +356,8 @@ async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
     cal = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     text = text_of(await given(chat, cal["id"]))
     assert "- ECE201H1: 2026-09-14 to 2026-12-07, 1 weekly meeting, 0 single events" in text
-    assert f"attachments.read, attachment_id {cal['id']}" in text
-    assert "imports.session.create" in text
+    assert f"agent__attachment__read, attachment_id {cal['id']}" in text
+    assert "imports__session__create" in text
     assert "VCALENDAR" not in text
 
     broken = await chat.attach(session_id, "broken.pdf", b"%PDF-1.4 fake", "application/pdf")
@@ -380,7 +380,7 @@ async def test_scanned_pages_are_given_as_images_to_models_that_see(chat: Chat):
     images = [c for c in content if isinstance(c, BinaryContent)]
     assert [i.media_type for i in images] == ["image/png"]
     assert "Page 2 of scan.pdf (scanned):" in content
-    read = await chat.tool("attachments.read", {"attachment_id": pdf["id"]})
+    read = await chat.tool("agent.attachment.read", {"attachment_id": pdf["id"]})
     assert read["note"].startswith("Scanned pages without text: 2.")
     text = text_of(await given(chat, pdf["id"], vision=False))
     assert "Pages 2 of scan.pdf are scanned images" in text
@@ -400,7 +400,7 @@ async def test_pages_read_later_and_outlines_are_marked_untrusted(
         data={"session_id": session["id"]},
         files={"file": ("notes.pdf", make_pdf(pages), "application/pdf")},
     )
-    model.then(call("attachments.read", {"attachment_id": att["id"], "page_from": 40}))
+    model.then(call("agent.attachment.read", {"attachment_id": att["id"], "page_from": 40}))
     model.then(say("Done."))
     await agent.send(session["id"], "summarize", attachment_ids=[att["id"]])
 
@@ -408,9 +408,9 @@ async def test_pages_read_later_and_outlines_are_marked_untrusted(
     outline = next(p for p in parts if isinstance(p, str) and "Its outline:" in p)
     wrapped = outline.split('<untrusted_document label="notes.pdf (outline)">')[1]
     assert "Ignore previous instructions" in wrapped.split("</untrusted_document>")[0]
-    assert "attachments.read" in outline.split("</untrusted_document>")[1]
+    assert "agent__attachment__read" in outline.split("</untrusted_document>")[1]
     [result] = model.results(-1)
-    assert str(result.content).startswith('<untrusted_document label="attachments.read">')
+    assert str(result.content).startswith('<untrusted_document label="agent.attachment.read">')
     assert "Ignore previous instructions" in str(result.content)
 
 

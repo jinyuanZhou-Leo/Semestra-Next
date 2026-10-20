@@ -60,7 +60,7 @@ class CourseFocus(BaseModel):
     sessions: int
 
 
-class PomodoroStats(BaseModel):
+class PomodoroSessionSummarize(BaseModel):
     from_date: dt.date
     to_date: dt.date
     today: dt.date = Field(description="Today in the time zone used for the days")

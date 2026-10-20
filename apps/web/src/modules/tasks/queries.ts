@@ -1,7 +1,7 @@
 import type { Task } from '@semestra/api-client'
 import {
-  settingsValuesGetOptions,
-  tasksCountsOptions,
+  settingsValueGetOptions,
+  tasksItemCountOptions,
   tasksItemQueryOptions,
   tasksListListOptions,
 } from '@semestra/api-client/react-query'
@@ -24,7 +24,7 @@ export function useTaskLists(programId: string) {
 
 export function useTaskCounts(scope: TaskScope) {
   return useQuery({
-    ...tasksCountsOptions({
+    ...tasksItemCountOptions({
       path: { program_id: scope.programId },
       query: { term_id: scope.termId, course_id: scope.courseId },
     }),
@@ -118,7 +118,7 @@ export const DEFAULT_TASK_SETTINGS: TaskSettings = {
 /** The `tasks` namespace (M11), resolved for a Program. */
 export function useTaskSettings(programId: string): TaskSettings {
   const values = useQuery({
-    ...settingsValuesGetOptions({
+    ...settingsValueGetOptions({
       path: { namespace: 'tasks' },
       query: { scope_type: 'program', scope_id: programId },
     }),

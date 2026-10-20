@@ -1,6 +1,6 @@
 import type { UserOut } from '@semestra/api-client'
 import {
-  accountMeGetQueryKey,
+  accountProfileGetQueryKey,
   authConfigOptions,
   authEmailStartMutation,
   authEmailVerifyMutation,
@@ -72,7 +72,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
 
   const finish = (user: UserOut | null | undefined) => {
     if (!user) return
-    queryClient.setQueryData(accountMeGetQueryKey(), user)
+    queryClient.setQueryData(accountProfileGetQueryKey(), user)
     onSignedIn(user)
   }
 

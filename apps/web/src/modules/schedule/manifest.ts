@@ -15,12 +15,12 @@ import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './pages/TodaySubtitle'
 
-const CALENDAR_QUERIES = ['calendarOccurrences', 'calendarToday'] as const
+const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
   'scheduleMeetingList',
   'scheduleEventList',
   'scheduleEventTypeList',
-  'scheduleConflicts',
+  'scheduleConflictList',
   'scheduleFeedList',
 ] as const
 

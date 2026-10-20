@@ -1,5 +1,5 @@
 import type { CourseGrades } from '@semestra/api-client'
-import { gradingCourseSummariesOptions } from '@semestra/api-client/react-query'
+import { gradingCourseSummaryListOptions } from '@semestra/api-client/react-query'
 import type { Course } from '@semestra/api-client'
 import type { CourseColumn } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
@@ -16,7 +16,7 @@ const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
 const available = (data: unknown) => !gpaHidden(data)
 
 const query = (programId: string) => ({
-  ...gradingCourseSummariesOptions({ path: { program_id: programId } }),
+  ...gradingCourseSummaryListOptions({ path: { program_id: programId } }),
   staleTime: 30_000,
 })
 

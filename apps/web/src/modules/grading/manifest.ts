@@ -18,7 +18,7 @@ const GRADING_QUERIES = [
   'gradingScaleGet',
   'gradingSummaryTerm',
   'gradingSummaryProgram',
-  'gradingCourseSummaries',
+  'gradingCourseSummaryList',
 ] as const
 
 const GRADING_EVENTS = [

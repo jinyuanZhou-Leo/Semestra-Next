@@ -280,9 +280,9 @@ async def test_capabilities_are_http_only():
         "ai.provider.update",
         "ai.provider.delete",
         "ai.provider.test",
-        "ai.provider.models",
+        "ai.provider.list_models",
         "ai.assignment.get",
         "ai.assignment.update",
-        "ai.status",
-        "ai.usage.summary",
+        "ai.status.get",
+        "ai.usage.summarize",
     }

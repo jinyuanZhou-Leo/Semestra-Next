@@ -359,7 +359,7 @@ async def test_agent_surface(app: FastAPI, user: UserHandle):
         names = {c.name for c in await registry.available(ctx, "agent")}
     assert {"layouts.board.get", "layouts.card.add", "layouts.card.remove"} <= names
     assert {"plugins.catalog.list"} <= names
-    assert not {"layouts.board.update", "plugins.install", "layouts.nav.update"} & names
+    assert not {"layouts.board.update", "plugins.plugin.install", "layouts.nav.update"} & names
 
 
 def test_decimal_multiples_are_checked_as_written():

@@ -108,7 +108,7 @@ async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
     name="tasks.item.query",
     summary="List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
     description="""Use for 'what do I have to do'. `today` includes overdue tasks. For questions
-about what is due this week prefer calendar.occurrences, which merges tasks with assessment
+about what is due this week prefer calendar.occurrence.list, which merges tasks with assessment
 deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
 completed tasks are hidden unless the view is `completed` or include_completed is set.""",
     effect="read",
@@ -242,7 +242,7 @@ async def item_find(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
 
 
 @capability(
-    name="tasks.counts",
+    name="tasks.item.count",
     summary="Counts of unfinished tasks per smart list, list and course (sidebar badges).",
     description="Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.",
     effect="read",

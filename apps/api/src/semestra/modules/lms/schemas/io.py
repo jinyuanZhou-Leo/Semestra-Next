@@ -195,7 +195,7 @@ class CourseLinkState(BaseModel):
 
 class LinkSetInput(BaseModel):
     course_id: Id = Field(description="Course id")
-    external_course_id: ExternalId = Field(description="External course id (lms.courses.list)")
+    external_course_id: ExternalId = Field(description="External course id (lms.course.list)")
     sync_enabled: bool = Field(default=True, description="Show in the calendar, check updates")
 
 
@@ -272,7 +272,7 @@ class PageList(BaseModel):
 
 class PageGetInput(CourseReadInput):
     ref: ExternalId = Field(
-        description="Page ref from lms.pages.list, or `@front` for the course's front page"
+        description="Page ref from lms.page.list, or `@front` for the course's front page"
     )
 
 

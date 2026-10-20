@@ -1,7 +1,7 @@
 import type { Gradebook, GradebookSummary, GradeTarget } from '@semestra/api-client'
 import {
   gradingCourseResultUpdateMutation,
-  gradingSuggestScoresMutation,
+  gradingScoreSuggestMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles } from 'lucide-react'
@@ -84,7 +84,7 @@ function PlanTarget({
   onChange: (next: WhatIf) => void
 }) {
   const { course_id: courseId, summary, scale } = gradebook
-  const suggest = useMutation({ ...gradingSuggestScoresMutation(), onError: toastError })
+  const suggest = useMutation({ ...gradingScoreSuggestMutation(), onError: toastError })
   const target = whatIf.target
   const kind = target?.kind ?? 'points'
   const shown = target?.value ?? summary.target_points

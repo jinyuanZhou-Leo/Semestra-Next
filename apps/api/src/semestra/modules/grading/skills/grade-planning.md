@@ -3,7 +3,7 @@ name: grade-planning
 title: { en: "Plan grades", zh-CN: "成绩规划" }
 command: /plan
 description: Answer "what do I need on the final to get an A" and what-if questions without changing real scores.
-tools: [academics.course.find, grading.gradebook.get, grading.simulate.course, grading.suggest_scores, grading.summary.term, grading.simulate.term, grading.summary.program]
+tools: [academics.course.find, grading.gradebook.get, grading.simulate.course, grading.score.suggest, grading.summary.term, grading.simulate.term, grading.summary.program]
 ---
 
 # Grade planning
@@ -21,7 +21,7 @@ answer for another target ("what for an A-?") use `grading.simulate.course` with
 
 **What if.** `grading.simulate.course` with `scores` (assessment id → assumed percentage) answers
 "what if I get 80 on the final". **Never change real scores to simulate**: simulation saves nothing.
-`grading.suggest_scores` proposes a realistic score for every ungraded assessment that reaches the
+`grading.score.suggest` proposes a realistic score for every ungraded assessment that reaches the
 target.
 
 **Terms and the whole Program.** `grading.summary.term` and `grading.summary.program` give GPA,

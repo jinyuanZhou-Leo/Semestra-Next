@@ -143,7 +143,7 @@ class PurposeStatus(BaseModel):
     model: str | None
 
 
-class AiStatus(BaseModel):
+class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
 
 

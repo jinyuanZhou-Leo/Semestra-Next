@@ -4,7 +4,7 @@ from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.ai import service
 from semestra.modules.ai.schemas import (
-    AiStatus,
+    AiStatusGet,
     AssignmentList,
     AssignmentUpdateInput,
     ModelList,
@@ -90,7 +90,7 @@ async def provider_test(ctx: Ctx, inp: ProviderRef) -> ProviderCheck:
 
 
 @capability(
-    name="ai.provider.models",
+    name="ai.provider.list_models",
     summary="List the models a provider offers.",
     description="Cached for an hour. Not for agents.",
     effect="read",
@@ -129,7 +129,7 @@ async def assignment_update(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 
 
 @capability(
-    name="ai.status",
+    name="ai.status.get",
     summary="Whether each AI purpose is available and which model serves it.",
     description="The frontend enables or greys out AI features with it. Not for agents.",
     effect="read",
@@ -137,12 +137,12 @@ async def assignment_update(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def status(ctx: Ctx, inp: NoInput) -> AiStatus:
+async def status(ctx: Ctx, inp: NoInput) -> AiStatusGet:
     return await service.status(ctx)
 
 
 @capability(
-    name="ai.usage.summary",
+    name="ai.usage.summarize",
     summary="Token use and estimated cost by day, purpose, module and model.",
     description="Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.",
     effect="read",

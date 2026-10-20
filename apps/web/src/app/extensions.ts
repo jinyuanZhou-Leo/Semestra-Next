@@ -227,7 +227,7 @@ export type AssistantContribution = {
 
 /**
  * A calendar source's label, icon and click behaviour in the calendar (M04 §5.2). The data itself
- * always comes from the backend source of the same name (`calendar.occurrences`).
+ * always comes from the backend source of the same name (`calendar.occurrence.list`).
  */
 export type CalendarSourceContribution = {
   /** Backend source name, e.g. 'grading.assessments'. */

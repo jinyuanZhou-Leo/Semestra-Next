@@ -1,9 +1,9 @@
 import { client, type TokenCreated, type TokenOut } from '@semestra/api-client'
 import {
-  accountTokensCreateMutation,
-  accountTokensListOptions,
-  accountTokensListQueryKey,
-  accountTokensRevokeMutation,
+  accountTokenCreateMutation,
+  accountTokenListOptions,
+  accountTokenListQueryKey,
+  accountTokenRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
@@ -97,7 +97,7 @@ function CreateTokenDialog({
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('never')
-  const create = useMutation(accountTokensCreateMutation())
+  const create = useMutation(accountTokenCreateMutation())
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -324,14 +324,14 @@ const COLUMN_CLASS: Record<string, string> = {
 
 export function TokensSection() {
   const queryClient = useQueryClient()
-  const tokens = useQuery(accountTokensListOptions())
+  const tokens = useQuery(accountTokenListOptions())
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<TokenCreated | null>(null)
   const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokensListQueryKey() })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
   const revoke = useMutation({
-    ...accountTokensRevokeMutation(),
+    ...accountTokenRevokeMutation(),
     onSuccess: () => {
       setRevoking(null)
       void refresh()

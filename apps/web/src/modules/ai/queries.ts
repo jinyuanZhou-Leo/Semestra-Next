@@ -1,7 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query'
 
 /** Generated query ids that show AI configuration; refetched after any change (and via SSE). */
-export const AI_QUERIES = ['aiStatus', 'aiProviderList', 'aiAssignmentGet', 'aiProviderModels']
+export const AI_QUERIES = [
+  'aiStatusGet',
+  'aiProviderList',
+  'aiAssignmentGet',
+  'aiProviderListModels',
+]
 
 export function invalidateAi(queryClient: QueryClient) {
   return queryClient.invalidateQueries({

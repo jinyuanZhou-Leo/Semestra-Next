@@ -149,7 +149,7 @@ async def term_get(ctx: Ctx, inp: TermRef) -> Term:
 
 
 @capability(
-    name="academics.term.calendar_info",
+    name="academics.term.get_weeks",
     summary="Week numbers of a term: each week's dates, number or break, and today's week.",
     description="""Use to translate between dates and week numbers ("week 6", "reading week"),
 e.g. to resolve "the Friday of week 3". Week 1 is the week the term starts in.""",
@@ -190,7 +190,7 @@ async def term_update(ctx: Ctx, inp: TermUpdateInput) -> Term:
 
 
 @capability(
-    name="academics.term.delete_preview",
+    name="academics.term.preview_delete",
     summary="What deleting a term would remove: its own courses vs. year-long courses kept.",
     description="Use before academics.term.delete to tell the user what will be deleted.",
     effect="read",
@@ -205,7 +205,7 @@ async def term_delete_preview(ctx: Ctx, inp: TermRef) -> TermDeletePreview:
     name="academics.term.delete",
     summary="Delete a term and the courses that are only in it.",
     description="""Irreversible. Year-long courses that also run in other terms are kept and only
-lose this term. Show academics.term.delete_preview to the user first.""",
+lose this term. Show academics.term.preview_delete to the user first.""",
     effect="destructive",
     http=Http("DELETE", "/terms/{term_id}"),
     preview=service.preview_term_delete,

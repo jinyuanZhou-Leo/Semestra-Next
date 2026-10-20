@@ -3,13 +3,13 @@ name: answer-from-course-files
 title: { en: "Answer from course files", zh-CN: "根据课程文件回答" }
 command: /files
 description: Answer questions about course content (syllabus rules, lecture notes, assignment handouts) from the files the user uploaded, with citations.
-tools: [files.search, files.document.read, files.document.outline, files.list, academics.course.find]
+tools: [files.document.search, files.document.read, files.document.outline, files.item.list, academics.course.find]
 ---
 
 # Answering from course files
 
 **Search first.** For any question about what a course's material says ("how much is the
-midterm worth", "what does lecture 4 say about pointers"), call `files.search` before answering.
+midterm worth", "what does lecture 4 say about pointers"), call `files.document.search` before answering.
 Narrow it to the course in question with `course_ids` (find ids with `academics.course.find`);
 search the whole term or Program only when the user did not name a course. `mode: hybrid` is the
 default; use `keyword` for exact codes and names ("APS105", "Lab 3").

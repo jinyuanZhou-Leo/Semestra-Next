@@ -1,5 +1,5 @@
 import type { ItemOut, SearchHit } from '@semestra/api-client'
-import { filesSearch } from '@semestra/api-client'
+import { filesDocumentSearch } from '@semestra/api-client'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { SearchX } from 'lucide-react'
 import { m } from '@/paraglide/messages'
@@ -29,10 +29,16 @@ export function useContentSearch(
   return useQuery({
     // Shaped like a generated key so realtime events and invalidateFiles refresh it too.
     queryKey: [
-      { _id: 'filesSearch', programId, q, courseIds: scope.courseIds, termId: scope.termId },
+      {
+        _id: 'filesDocumentSearch',
+        programId,
+        q,
+        courseIds: scope.courseIds,
+        termId: scope.termId,
+      },
     ],
     queryFn: async ({ signal }) => {
-      const { data } = await filesSearch({
+      const { data } = await filesDocumentSearch({
         path: { program_id: programId },
         body: {
           query: q,

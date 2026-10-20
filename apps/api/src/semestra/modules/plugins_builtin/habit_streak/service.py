@@ -17,7 +17,7 @@ from semestra.modules.plugins_builtin.habit_streak.schemas import (
     MAX_LIST_DAYS,
     CheckinList,
     CheckinToggleResult,
-    HabitStats,
+    HabitStreakGet,
 )
 
 
@@ -47,7 +47,7 @@ def _goal(settings: dict[str, Any]) -> tuple[str, int]:
 
 async def _stats(
     ctx: Ctx, instance: instances.CardInstance, today: date, days: set[date]
-) -> HabitStats:
+) -> HabitStreakGet:
     goal, target = _goal(instance.settings)
     week_start = await academics.week_start(ctx)
     if goal == "weekly":
@@ -56,7 +56,7 @@ async def _stats(
     else:
         current, longest = streak.daily_streaks(days, today)
         done = 1 if today in days else 0
-    return HabitStats(
+    return HabitStreakGet(
         goal="weekly" if goal == "weekly" else "daily",
         weekly_target=target,
         current_streak=current,
@@ -70,7 +70,7 @@ async def _stats(
     )
 
 
-async def stats(ctx: Ctx, instance_id: str) -> HabitStats:
+async def stats(ctx: Ctx, instance_id: str) -> HabitStreakGet:
     instance, today = await _habit(ctx, instance_id)
     return await _stats(ctx, instance, today, await _days(ctx, instance_id))
 

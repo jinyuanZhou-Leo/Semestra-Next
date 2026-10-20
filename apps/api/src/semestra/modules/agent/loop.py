@@ -571,7 +571,10 @@ def _skill(skill: skills.Skill) -> Bundle[Turn]:
     # The catalog (id and description) is in the instructions; `load_capability` returns the
     # workflow as a tool result, so loading one changes neither the prompt nor the tool list.
     return Bundle(
-        id=skill.name, description=skill.description, instructions=skill.body, defer_loading=True
+        id=skill.name,
+        description=tools.for_model(skill.description),
+        instructions=tools.for_model(skill.body),
+        defer_loading=True,
     )
 
 

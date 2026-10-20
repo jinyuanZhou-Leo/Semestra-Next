@@ -105,6 +105,24 @@ export type AgentMessageOut = {
 };
 
 /**
+ * AgentPreferenceUpdateInputBody
+ */
+export type AgentPreferenceUpdateInputBody = {
+    /**
+     * Auto Approve
+     *
+     * Write capabilities that run without asking.
+     */
+    auto_approve?: Array<string> | null;
+    /**
+     * Mcp Allow Destructive
+     *
+     * Let MCP clients run delete actions.
+     */
+    mcp_allow_destructive?: boolean | null;
+};
+
+/**
  * AgentPreferencesOut
  */
 export type AgentPreferencesOut = {
@@ -120,24 +138,6 @@ export type AgentPreferencesOut = {
      * MCP clients may run delete actions.
      */
     mcp_allow_destructive: boolean;
-};
-
-/**
- * AgentPreferencesUpdateInputBody
- */
-export type AgentPreferencesUpdateInputBody = {
-    /**
-     * Auto Approve
-     *
-     * Write capabilities that run without asking.
-     */
-    auto_approve?: Array<string> | null;
-    /**
-     * Mcp Allow Destructive
-     *
-     * Let MCP clients run delete actions.
-     */
-    mcp_allow_destructive?: boolean | null;
 };
 
 /**
@@ -465,9 +465,9 @@ export type AgentToolInfo = {
 };
 
 /**
- * AiStatus
+ * AiStatusGet
  */
-export type AiStatus = {
+export type AiStatusGet = {
     /**
      * Items
      */
@@ -1753,7 +1753,7 @@ export type CheckinToggleResult = {
      * Whether the day is checked after the call
      */
     checked: boolean;
-    stats: HabitStats;
+    stats: HabitStreakGet;
 };
 
 /**
@@ -3706,9 +3706,9 @@ export type FileSaveInputBody = {
 };
 
 /**
- * FilesList
+ * FilesItemList
  */
-export type FilesList = {
+export type FilesItemList = {
     /**
      * Folders
      *
@@ -3726,9 +3726,9 @@ export type FilesList = {
 };
 
 /**
- * FilesUsage
+ * FilesUsageGet
  */
-export type FilesUsage = {
+export type FilesUsageGet = {
     /**
      * Used Bytes
      *
@@ -4171,9 +4171,9 @@ export type HttpValidationError = {
 };
 
 /**
- * HabitStats
+ * HabitStreakGet
  */
-export type HabitStats = {
+export type HabitStreakGet = {
     /**
      * Goal
      */
@@ -4942,7 +4942,7 @@ export type LinkSetInputBody = {
     /**
      * External Course Id
      *
-     * External course id (lms.courses.list)
+     * External course id (lms.course.list)
      */
     external_course_id: string;
     /**
@@ -6441,9 +6441,9 @@ export type PluginProvides = {
 };
 
 /**
- * PomodoroStats
+ * PomodoroSessionSummarize
  */
-export type PomodoroStats = {
+export type PomodoroSessionSummarize = {
     /**
      * From Date
      */
@@ -10224,7 +10224,7 @@ export type AccountAvatarGetResponses = {
     200: unknown;
 };
 
-export type FilesListData = {
+export type FilesItemListData = {
     body?: never;
     path: {
         /**
@@ -10250,7 +10250,7 @@ export type FilesListData = {
         /**
          * Search
          *
-         * Keep items whose name contains this text (case-insensitive). To search what the files say, use files.search instead.
+         * Keep items whose name contains this text (case-insensitive). To search what the files say, use files.document.search instead.
          */
         search?: string | null;
         /**
@@ -10287,23 +10287,23 @@ export type FilesListData = {
     url: '/courses/{course_id}/files';
 };
 
-export type FilesListErrors = {
+export type FilesItemListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type FilesListError = FilesListErrors[keyof FilesListErrors];
+export type FilesItemListError = FilesItemListErrors[keyof FilesItemListErrors];
 
-export type FilesListResponses = {
+export type FilesItemListResponses = {
     /**
      * Successful Response
      */
-    200: FilesList;
+    200: FilesItemList;
 };
 
-export type FilesListResponse = FilesListResponses[keyof FilesListResponses];
+export type FilesItemListResponse = FilesItemListResponses[keyof FilesItemListResponses];
 
 export type FilesUploadData = {
     body: BodyFilesUpload;
@@ -11067,38 +11067,6 @@ export type AcademicsProgramSetSubjectColorResponses = {
 
 export type AcademicsProgramSetSubjectColorResponse = AcademicsProgramSetSubjectColorResponses[keyof AcademicsProgramSetSubjectColorResponses];
 
-export type AcademicsTermCalendarInfoData = {
-    body?: never;
-    path: {
-        /**
-         * Term Id
-         *
-         * Term id
-         */
-        term_id: string;
-    };
-    query?: never;
-    url: '/terms/{term_id}/calendar-info';
-};
-
-export type AcademicsTermCalendarInfoErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type AcademicsTermCalendarInfoError = AcademicsTermCalendarInfoErrors[keyof AcademicsTermCalendarInfoErrors];
-
-export type AcademicsTermCalendarInfoResponses = {
-    /**
-     * Successful Response
-     */
-    200: CalendarInfo;
-};
-
-export type AcademicsTermCalendarInfoResponse = AcademicsTermCalendarInfoResponses[keyof AcademicsTermCalendarInfoResponses];
-
 export type AcademicsTermListData = {
     body?: never;
     path: {
@@ -11259,7 +11227,39 @@ export type AcademicsTermUpdateResponses = {
 
 export type AcademicsTermUpdateResponse = AcademicsTermUpdateResponses[keyof AcademicsTermUpdateResponses];
 
-export type AcademicsTermDeletePreviewData = {
+export type AcademicsTermGetWeeksData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/calendar-info';
+};
+
+export type AcademicsTermGetWeeksErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AcademicsTermGetWeeksError = AcademicsTermGetWeeksErrors[keyof AcademicsTermGetWeeksErrors];
+
+export type AcademicsTermGetWeeksResponses = {
+    /**
+     * Successful Response
+     */
+    200: CalendarInfo;
+};
+
+export type AcademicsTermGetWeeksResponse = AcademicsTermGetWeeksResponses[keyof AcademicsTermGetWeeksResponses];
+
+export type AcademicsTermPreviewDeleteData = {
     body?: never;
     path: {
         /**
@@ -11273,23 +11273,23 @@ export type AcademicsTermDeletePreviewData = {
     url: '/terms/{term_id}/delete-preview';
 };
 
-export type AcademicsTermDeletePreviewErrors = {
+export type AcademicsTermPreviewDeleteErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AcademicsTermDeletePreviewError = AcademicsTermDeletePreviewErrors[keyof AcademicsTermDeletePreviewErrors];
+export type AcademicsTermPreviewDeleteError = AcademicsTermPreviewDeleteErrors[keyof AcademicsTermPreviewDeleteErrors];
 
-export type AcademicsTermDeletePreviewResponses = {
+export type AcademicsTermPreviewDeleteResponses = {
     /**
      * Successful Response
      */
     200: TermDeletePreview;
 };
 
-export type AcademicsTermDeletePreviewResponse = AcademicsTermDeletePreviewResponses[keyof AcademicsTermDeletePreviewResponses];
+export type AcademicsTermPreviewDeleteResponse = AcademicsTermPreviewDeleteResponses[keyof AcademicsTermPreviewDeleteResponses];
 
 export type AccountDeleteData = {
     body: AccountDeleteInputBody;
@@ -11416,31 +11416,6 @@ export type AccountGoogleUnlinkResponses = {
 
 export type AccountGoogleUnlinkResponse = AccountGoogleUnlinkResponses[keyof AccountGoogleUnlinkResponses];
 
-export type AccountMeGetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/account/me';
-};
-
-export type AccountMeGetErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type AccountMeGetError = AccountMeGetErrors[keyof AccountMeGetErrors];
-
-export type AccountMeGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOut;
-};
-
-export type AccountMeGetResponse = AccountMeGetResponses[keyof AccountMeGetResponses];
-
 export type AccountPasswordChangeData = {
     body: PasswordChangeInputBody;
     path?: never;
@@ -11465,6 +11440,31 @@ export type AccountPasswordChangeResponses = {
 };
 
 export type AccountPasswordChangeResponse = AccountPasswordChangeResponses[keyof AccountPasswordChangeResponses];
+
+export type AccountProfileGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/me';
+};
+
+export type AccountProfileGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountProfileGetError = AccountProfileGetErrors[keyof AccountProfileGetErrors];
+
+export type AccountProfileGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type AccountProfileGetResponse = AccountProfileGetResponses[keyof AccountProfileGetResponses];
 
 export type AccountProfileUpdateData = {
     body: ProfileUpdateInputBody;
@@ -11491,32 +11491,32 @@ export type AccountProfileUpdateResponses = {
 
 export type AccountProfileUpdateResponse = AccountProfileUpdateResponses[keyof AccountProfileUpdateResponses];
 
-export type AccountSessionsListData = {
+export type AccountSessionListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/account/sessions';
 };
 
-export type AccountSessionsListErrors = {
+export type AccountSessionListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountSessionsListError = AccountSessionsListErrors[keyof AccountSessionsListErrors];
+export type AccountSessionListError = AccountSessionListErrors[keyof AccountSessionListErrors];
 
-export type AccountSessionsListResponses = {
+export type AccountSessionListResponses = {
     /**
      * Successful Response
      */
     200: SessionList;
 };
 
-export type AccountSessionsListResponse = AccountSessionsListResponses[keyof AccountSessionsListResponses];
+export type AccountSessionListResponse = AccountSessionListResponses[keyof AccountSessionListResponses];
 
-export type AccountSessionsRevokeData = {
+export type AccountSessionRevokeData = {
     body?: never;
     path: {
         /**
@@ -11530,100 +11530,100 @@ export type AccountSessionsRevokeData = {
     url: '/account/sessions/{session_id}';
 };
 
-export type AccountSessionsRevokeErrors = {
+export type AccountSessionRevokeErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountSessionsRevokeError = AccountSessionsRevokeErrors[keyof AccountSessionsRevokeErrors];
+export type AccountSessionRevokeError = AccountSessionRevokeErrors[keyof AccountSessionRevokeErrors];
 
-export type AccountSessionsRevokeResponses = {
+export type AccountSessionRevokeResponses = {
     /**
      * Successful Response
      */
     200: Revoked;
 };
 
-export type AccountSessionsRevokeResponse = AccountSessionsRevokeResponses[keyof AccountSessionsRevokeResponses];
+export type AccountSessionRevokeResponse = AccountSessionRevokeResponses[keyof AccountSessionRevokeResponses];
 
-export type AccountSessionsRevokeOthersData = {
+export type AccountSessionRevokeOthersData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/account/sessions/revoke-others';
 };
 
-export type AccountSessionsRevokeOthersErrors = {
+export type AccountSessionRevokeOthersErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountSessionsRevokeOthersError = AccountSessionsRevokeOthersErrors[keyof AccountSessionsRevokeOthersErrors];
+export type AccountSessionRevokeOthersError = AccountSessionRevokeOthersErrors[keyof AccountSessionRevokeOthersErrors];
 
-export type AccountSessionsRevokeOthersResponses = {
+export type AccountSessionRevokeOthersResponses = {
     /**
      * Successful Response
      */
     200: Revoked;
 };
 
-export type AccountSessionsRevokeOthersResponse = AccountSessionsRevokeOthersResponses[keyof AccountSessionsRevokeOthersResponses];
+export type AccountSessionRevokeOthersResponse = AccountSessionRevokeOthersResponses[keyof AccountSessionRevokeOthersResponses];
 
-export type AccountTokensListData = {
+export type AccountTokenListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/account/tokens';
 };
 
-export type AccountTokensListErrors = {
+export type AccountTokenListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountTokensListError = AccountTokensListErrors[keyof AccountTokensListErrors];
+export type AccountTokenListError = AccountTokenListErrors[keyof AccountTokenListErrors];
 
-export type AccountTokensListResponses = {
+export type AccountTokenListResponses = {
     /**
      * Successful Response
      */
     200: TokenList;
 };
 
-export type AccountTokensListResponse = AccountTokensListResponses[keyof AccountTokensListResponses];
+export type AccountTokenListResponse = AccountTokenListResponses[keyof AccountTokenListResponses];
 
-export type AccountTokensCreateData = {
+export type AccountTokenCreateData = {
     body: TokenCreateInputBody;
     path?: never;
     query?: never;
     url: '/account/tokens';
 };
 
-export type AccountTokensCreateErrors = {
+export type AccountTokenCreateErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountTokensCreateError = AccountTokensCreateErrors[keyof AccountTokensCreateErrors];
+export type AccountTokenCreateError = AccountTokenCreateErrors[keyof AccountTokenCreateErrors];
 
-export type AccountTokensCreateResponses = {
+export type AccountTokenCreateResponses = {
     /**
      * Successful Response
      */
     200: TokenCreated;
 };
 
-export type AccountTokensCreateResponse = AccountTokensCreateResponses[keyof AccountTokensCreateResponses];
+export type AccountTokenCreateResponse = AccountTokenCreateResponses[keyof AccountTokenCreateResponses];
 
-export type AccountTokensRevokeData = {
+export type AccountTokenRevokeData = {
     body?: never;
     path: {
         /**
@@ -11637,23 +11637,23 @@ export type AccountTokensRevokeData = {
     url: '/account/tokens/{id}';
 };
 
-export type AccountTokensRevokeErrors = {
+export type AccountTokenRevokeErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AccountTokensRevokeError = AccountTokensRevokeErrors[keyof AccountTokensRevokeErrors];
+export type AccountTokenRevokeError = AccountTokenRevokeErrors[keyof AccountTokenRevokeErrors];
 
-export type AccountTokensRevokeResponses = {
+export type AccountTokenRevokeResponses = {
     /**
      * Successful Response
      */
     200: Revoked;
 };
 
-export type AccountTokensRevokeResponse = AccountTokensRevokeResponses[keyof AccountTokensRevokeResponses];
+export type AccountTokenRevokeResponse = AccountTokenRevokeResponses[keyof AccountTokenRevokeResponses];
 
 export type AgentAttachmentDeleteData = {
     body?: never;
@@ -11686,6 +11686,38 @@ export type AgentAttachmentDeleteResponses = {
 };
 
 export type AgentAttachmentDeleteResponse = AgentAttachmentDeleteResponses[keyof AgentAttachmentDeleteResponses];
+
+export type AgentAttachmentSaveData = {
+    body: SaveToCourseInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Attachment id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/attachments/{id}:save';
+};
+
+export type AgentAttachmentSaveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentAttachmentSaveError = AgentAttachmentSaveErrors[keyof AgentAttachmentSaveErrors];
+
+export type AgentAttachmentSaveResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type AgentAttachmentSaveResponse = AgentAttachmentSaveResponses[keyof AgentAttachmentSaveResponses];
 
 export type AgentMemoryClearData = {
     body?: never;
@@ -11801,55 +11833,55 @@ export type AgentMemoryListResponses = {
 
 export type AgentMemoryListResponse = AgentMemoryListResponses[keyof AgentMemoryListResponses];
 
-export type AgentPreferencesGetData = {
+export type AgentPreferenceGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/agent/preferences';
 };
 
-export type AgentPreferencesGetErrors = {
+export type AgentPreferenceGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AgentPreferencesGetError = AgentPreferencesGetErrors[keyof AgentPreferencesGetErrors];
+export type AgentPreferenceGetError = AgentPreferenceGetErrors[keyof AgentPreferenceGetErrors];
 
-export type AgentPreferencesGetResponses = {
+export type AgentPreferenceGetResponses = {
     /**
      * Successful Response
      */
     200: AgentPreferencesOut;
 };
 
-export type AgentPreferencesGetResponse = AgentPreferencesGetResponses[keyof AgentPreferencesGetResponses];
+export type AgentPreferenceGetResponse = AgentPreferenceGetResponses[keyof AgentPreferenceGetResponses];
 
-export type AgentPreferencesUpdateData = {
-    body: AgentPreferencesUpdateInputBody;
+export type AgentPreferenceUpdateData = {
+    body: AgentPreferenceUpdateInputBody;
     path?: never;
     query?: never;
     url: '/agent/preferences';
 };
 
-export type AgentPreferencesUpdateErrors = {
+export type AgentPreferenceUpdateErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AgentPreferencesUpdateError = AgentPreferencesUpdateErrors[keyof AgentPreferencesUpdateErrors];
+export type AgentPreferenceUpdateError = AgentPreferenceUpdateErrors[keyof AgentPreferenceUpdateErrors];
 
-export type AgentPreferencesUpdateResponses = {
+export type AgentPreferenceUpdateResponses = {
     /**
      * Successful Response
      */
     200: AgentPreferencesOut;
 };
 
-export type AgentPreferencesUpdateResponse = AgentPreferencesUpdateResponses[keyof AgentPreferencesUpdateResponses];
+export type AgentPreferenceUpdateResponse = AgentPreferenceUpdateResponses[keyof AgentPreferenceUpdateResponses];
 
 export type AgentSessionListData = {
     body?: never;
@@ -12048,55 +12080,55 @@ export type AgentSessionStopResponses = {
 
 export type AgentSessionStopResponse = AgentSessionStopResponses[keyof AgentSessionStopResponses];
 
-export type AgentSkillsListData = {
+export type AgentSkillListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/agent/skills';
 };
 
-export type AgentSkillsListErrors = {
+export type AgentSkillListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AgentSkillsListError = AgentSkillsListErrors[keyof AgentSkillsListErrors];
+export type AgentSkillListError = AgentSkillListErrors[keyof AgentSkillListErrors];
 
-export type AgentSkillsListResponses = {
+export type AgentSkillListResponses = {
     /**
      * Successful Response
      */
     200: AgentSkillList;
 };
 
-export type AgentSkillsListResponse = AgentSkillsListResponses[keyof AgentSkillsListResponses];
+export type AgentSkillListResponse = AgentSkillListResponses[keyof AgentSkillListResponses];
 
-export type AgentToolsCatalogData = {
+export type AgentToolListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/agent/tools';
 };
 
-export type AgentToolsCatalogErrors = {
+export type AgentToolListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AgentToolsCatalogError = AgentToolsCatalogErrors[keyof AgentToolsCatalogErrors];
+export type AgentToolListError = AgentToolListErrors[keyof AgentToolListErrors];
 
-export type AgentToolsCatalogResponses = {
+export type AgentToolListResponses = {
     /**
      * Successful Response
      */
     200: AgentToolCatalog;
 };
 
-export type AgentToolsCatalogResponse = AgentToolsCatalogResponses[keyof AgentToolsCatalogResponses];
+export type AgentToolListResponse = AgentToolListResponses[keyof AgentToolListResponses];
 
 export type AiAssignmentGetData = {
     body?: never;
@@ -12262,7 +12294,7 @@ export type AiProviderUpdateResponses = {
 
 export type AiProviderUpdateResponse = AiProviderUpdateResponses[keyof AiProviderUpdateResponses];
 
-export type AiProviderModelsData = {
+export type AiProviderListModelsData = {
     body?: never;
     path: {
         /**
@@ -12276,23 +12308,23 @@ export type AiProviderModelsData = {
     url: '/ai/providers/{id}/models';
 };
 
-export type AiProviderModelsErrors = {
+export type AiProviderListModelsErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AiProviderModelsError = AiProviderModelsErrors[keyof AiProviderModelsErrors];
+export type AiProviderListModelsError = AiProviderListModelsErrors[keyof AiProviderListModelsErrors];
 
-export type AiProviderModelsResponses = {
+export type AiProviderListModelsResponses = {
     /**
      * Successful Response
      */
     200: ModelList;
 };
 
-export type AiProviderModelsResponse = AiProviderModelsResponses[keyof AiProviderModelsResponses];
+export type AiProviderListModelsResponse = AiProviderListModelsResponses[keyof AiProviderListModelsResponses];
 
 export type AiProviderTestData = {
     body?: never;
@@ -12326,32 +12358,32 @@ export type AiProviderTestResponses = {
 
 export type AiProviderTestResponse = AiProviderTestResponses[keyof AiProviderTestResponses];
 
-export type AiStatusData = {
+export type AiStatusGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/ai/status';
 };
 
-export type AiStatusErrors = {
+export type AiStatusGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AiStatusError = AiStatusErrors[keyof AiStatusErrors];
+export type AiStatusGetError = AiStatusGetErrors[keyof AiStatusGetErrors];
 
-export type AiStatusResponses = {
+export type AiStatusGetResponses = {
     /**
      * Successful Response
      */
-    200: AiStatus;
+    200: AiStatusGet;
 };
 
-export type AiStatusResponse = AiStatusResponses[keyof AiStatusResponses];
+export type AiStatusGetResponse = AiStatusGetResponses[keyof AiStatusGetResponses];
 
-export type AiUsageSummaryData = {
+export type AiUsageSummarizeData = {
     body?: never;
     path?: never;
     query?: {
@@ -12383,57 +12415,25 @@ export type AiUsageSummaryData = {
     url: '/ai/usage';
 };
 
-export type AiUsageSummaryErrors = {
+export type AiUsageSummarizeErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AiUsageSummaryError = AiUsageSummaryErrors[keyof AiUsageSummaryErrors];
+export type AiUsageSummarizeError = AiUsageSummarizeErrors[keyof AiUsageSummarizeErrors];
 
-export type AiUsageSummaryResponses = {
+export type AiUsageSummarizeResponses = {
     /**
      * Successful Response
      */
     200: UsageSummary;
 };
 
-export type AiUsageSummaryResponse = AiUsageSummaryResponses[keyof AiUsageSummaryResponses];
+export type AiUsageSummarizeResponse = AiUsageSummarizeResponses[keyof AiUsageSummarizeResponses];
 
-export type AttachmentsSaveData = {
-    body: SaveToCourseInputBody;
-    path: {
-        /**
-         * Id
-         *
-         * Attachment id
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/agent/attachments/{id}:save';
-};
-
-export type AttachmentsSaveErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type AttachmentsSaveError = AttachmentsSaveErrors[keyof AttachmentsSaveErrors];
-
-export type AttachmentsSaveResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemOut;
-};
-
-export type AttachmentsSaveResponse = AttachmentsSaveResponses[keyof AttachmentsSaveResponses];
-
-export type CalendarOccurrencesData = {
+export type CalendarOccurrenceListData = {
     body?: never;
     path: {
         /**
@@ -12478,25 +12478,25 @@ export type CalendarOccurrencesData = {
     url: '/programs/{program_id}/calendar';
 };
 
-export type CalendarOccurrencesErrors = {
+export type CalendarOccurrenceListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type CalendarOccurrencesError = CalendarOccurrencesErrors[keyof CalendarOccurrencesErrors];
+export type CalendarOccurrenceListError = CalendarOccurrenceListErrors[keyof CalendarOccurrenceListErrors];
 
-export type CalendarOccurrencesResponses = {
+export type CalendarOccurrenceListResponses = {
     /**
      * Successful Response
      */
     200: Occurrences;
 };
 
-export type CalendarOccurrencesResponse = CalendarOccurrencesResponses[keyof CalendarOccurrencesResponses];
+export type CalendarOccurrenceListResponse = CalendarOccurrenceListResponses[keyof CalendarOccurrenceListResponses];
 
-export type CalendarTodayData = {
+export type CalendarTodayGetData = {
     body?: never;
     path: {
         /**
@@ -12510,23 +12510,23 @@ export type CalendarTodayData = {
     url: '/programs/{program_id}/today';
 };
 
-export type CalendarTodayErrors = {
+export type CalendarTodayGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type CalendarTodayError = CalendarTodayErrors[keyof CalendarTodayErrors];
+export type CalendarTodayGetError = CalendarTodayGetErrors[keyof CalendarTodayGetErrors];
 
-export type CalendarTodayResponses = {
+export type CalendarTodayGetResponses = {
     /**
      * Successful Response
      */
     200: Today;
 };
 
-export type CalendarTodayResponse = CalendarTodayResponses[keyof CalendarTodayResponses];
+export type CalendarTodayGetResponse = CalendarTodayGetResponses[keyof CalendarTodayGetResponses];
 
 export type CoreJobCancelData = {
     body?: never;
@@ -12642,30 +12642,30 @@ export type CoreJobListResponses = {
 
 export type CoreJobListResponse = CoreJobListResponses[keyof CoreJobListResponses];
 
-export type CoreStorageUsageData = {
+export type CoreStorageGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/storage/usage';
 };
 
-export type CoreStorageUsageErrors = {
+export type CoreStorageGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type CoreStorageUsageError = CoreStorageUsageErrors[keyof CoreStorageUsageErrors];
+export type CoreStorageGetError = CoreStorageGetErrors[keyof CoreStorageGetErrors];
 
-export type CoreStorageUsageResponses = {
+export type CoreStorageGetResponses = {
     /**
      * Successful Response
      */
     200: StorageUsage;
 };
 
-export type CoreStorageUsageResponse = CoreStorageUsageResponses[keyof CoreStorageUsageResponses];
+export type CoreStorageGetResponse = CoreStorageGetResponses[keyof CoreStorageGetResponses];
 
 export type FilesDocumentOutlineData = {
     body?: never;
@@ -12743,6 +12743,38 @@ export type FilesDocumentReadResponses = {
 };
 
 export type FilesDocumentReadResponse = FilesDocumentReadResponses[keyof FilesDocumentReadResponses];
+
+export type FilesDocumentSearchData = {
+    body: SearchInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id; the search never leaves this Program
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/files:search';
+};
+
+export type FilesDocumentSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDocumentSearchError = FilesDocumentSearchErrors[keyof FilesDocumentSearchErrors];
+
+export type FilesDocumentSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SearchResult;
+};
+
+export type FilesDocumentSearchResponse = FilesDocumentSearchResponses[keyof FilesDocumentSearchResponses];
 
 export type FilesFolderCreateData = {
     body: FolderCreateInputBody;
@@ -12943,6 +12975,70 @@ export type FilesItemUpdateResponses = {
 
 export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
 
+export type FilesItemListPinnedData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/pinned-files';
+};
+
+export type FilesItemListPinnedErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemListPinnedError = FilesItemListPinnedErrors[keyof FilesItemListPinnedErrors];
+
+export type FilesItemListPinnedResponses = {
+    /**
+     * Successful Response
+     */
+    200: PinnedFiles;
+};
+
+export type FilesItemListPinnedResponse = FilesItemListPinnedResponses[keyof FilesItemListPinnedResponses];
+
+export type FilesItemReprocessData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:reprocess';
+};
+
+export type FilesItemReprocessErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemReprocessError = FilesItemReprocessErrors[keyof FilesItemReprocessErrors];
+
+export type FilesItemReprocessResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemReprocessResponse = FilesItemReprocessResponses[keyof FilesItemReprocessResponses];
+
 export type FilesLinkCreateData = {
     body: LinkCreateInputBody;
     path: {
@@ -12975,126 +13071,30 @@ export type FilesLinkCreateResponses = {
 
 export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
 
-export type FilesPinnedData = {
-    body?: never;
-    path: {
-        /**
-         * Program Id
-         *
-         * Program id
-         */
-        program_id: string;
-    };
-    query?: never;
-    url: '/programs/{program_id}/pinned-files';
-};
-
-export type FilesPinnedErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type FilesPinnedError = FilesPinnedErrors[keyof FilesPinnedErrors];
-
-export type FilesPinnedResponses = {
-    /**
-     * Successful Response
-     */
-    200: PinnedFiles;
-};
-
-export type FilesPinnedResponse = FilesPinnedResponses[keyof FilesPinnedResponses];
-
-export type FilesReprocessData = {
-    body?: never;
-    path: {
-        /**
-         * Item Id
-         *
-         * File or link id
-         */
-        item_id: string;
-    };
-    query?: never;
-    url: '/files/{item_id}:reprocess';
-};
-
-export type FilesReprocessErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type FilesReprocessError = FilesReprocessErrors[keyof FilesReprocessErrors];
-
-export type FilesReprocessResponses = {
-    /**
-     * Successful Response
-     */
-    200: ItemOut;
-};
-
-export type FilesReprocessResponse = FilesReprocessResponses[keyof FilesReprocessResponses];
-
-export type FilesSearchData = {
-    body: SearchInputBody;
-    path: {
-        /**
-         * Program Id
-         *
-         * Program id; the search never leaves this Program
-         */
-        program_id: string;
-    };
-    query?: never;
-    url: '/programs/{program_id}/files:search';
-};
-
-export type FilesSearchErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type FilesSearchError = FilesSearchErrors[keyof FilesSearchErrors];
-
-export type FilesSearchResponses = {
-    /**
-     * Successful Response
-     */
-    200: SearchResult;
-};
-
-export type FilesSearchResponse = FilesSearchResponses[keyof FilesSearchResponses];
-
-export type FilesUsageData = {
+export type FilesUsageGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/files-usage';
 };
 
-export type FilesUsageErrors = {
+export type FilesUsageGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type FilesUsageError = FilesUsageErrors[keyof FilesUsageErrors];
+export type FilesUsageGetError = FilesUsageGetErrors[keyof FilesUsageGetErrors];
 
-export type FilesUsageResponses = {
+export type FilesUsageGetResponses = {
     /**
      * Successful Response
      */
-    200: FilesUsage;
+    200: FilesUsageGet;
 };
 
-export type FilesUsageResponse = FilesUsageResponses[keyof FilesUsageResponses];
+export type FilesUsageGetResponse = FilesUsageGetResponses[keyof FilesUsageGetResponses];
 
 export type GradingAssessmentListData = {
     body?: never;
@@ -13473,7 +13473,7 @@ export type GradingCourseResultUpdateResponses = {
 
 export type GradingCourseResultUpdateResponse = GradingCourseResultUpdateResponses[keyof GradingCourseResultUpdateResponses];
 
-export type GradingCourseSummariesData = {
+export type GradingCourseSummaryListData = {
     body?: never;
     path: {
         /**
@@ -13494,23 +13494,23 @@ export type GradingCourseSummariesData = {
     url: '/programs/{program_id}/course-grades';
 };
 
-export type GradingCourseSummariesErrors = {
+export type GradingCourseSummaryListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type GradingCourseSummariesError = GradingCourseSummariesErrors[keyof GradingCourseSummariesErrors];
+export type GradingCourseSummaryListError = GradingCourseSummaryListErrors[keyof GradingCourseSummaryListErrors];
 
-export type GradingCourseSummariesResponses = {
+export type GradingCourseSummaryListResponses = {
     /**
      * Successful Response
      */
     200: CourseGrades;
 };
 
-export type GradingCourseSummariesResponse = GradingCourseSummariesResponses[keyof GradingCourseSummariesResponses];
+export type GradingCourseSummaryListResponse = GradingCourseSummaryListResponses[keyof GradingCourseSummaryListResponses];
 
 export type GradingGradebookGetData = {
     body?: never;
@@ -13608,30 +13608,62 @@ export type GradingScaleUpdateResponses = {
 
 export type GradingScaleUpdateResponse = GradingScaleUpdateResponses[keyof GradingScaleUpdateResponses];
 
-export type GradingScalePresetsData = {
+export type GradingScaleListPresetsData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/grading/scale-presets';
 };
 
-export type GradingScalePresetsErrors = {
+export type GradingScaleListPresetsErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type GradingScalePresetsError = GradingScalePresetsErrors[keyof GradingScalePresetsErrors];
+export type GradingScaleListPresetsError = GradingScaleListPresetsErrors[keyof GradingScaleListPresetsErrors];
 
-export type GradingScalePresetsResponses = {
+export type GradingScaleListPresetsResponses = {
     /**
      * Successful Response
      */
     200: ScalePresets;
 };
 
-export type GradingScalePresetsResponse = GradingScalePresetsResponses[keyof GradingScalePresetsResponses];
+export type GradingScaleListPresetsResponse = GradingScaleListPresetsResponses[keyof GradingScaleListPresetsResponses];
+
+export type GradingScoreSuggestData = {
+    body: SuggestInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/gradebook:suggest';
+};
+
+export type GradingScoreSuggestErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingScoreSuggestError = GradingScoreSuggestErrors[keyof GradingScoreSuggestErrors];
+
+export type GradingScoreSuggestResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScoreSuggestion;
+};
+
+export type GradingScoreSuggestResponse = GradingScoreSuggestResponses[keyof GradingScoreSuggestResponses];
 
 export type GradingSimulateCourseData = {
     body: SimulateCourseInputBody;
@@ -13696,38 +13728,6 @@ export type GradingSimulateTermResponses = {
 };
 
 export type GradingSimulateTermResponse = GradingSimulateTermResponses[keyof GradingSimulateTermResponses];
-
-export type GradingSuggestScoresData = {
-    body: SuggestInputBody;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/gradebook:suggest';
-};
-
-export type GradingSuggestScoresErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type GradingSuggestScoresError = GradingSuggestScoresErrors[keyof GradingSuggestScoresErrors];
-
-export type GradingSuggestScoresResponses = {
-    /**
-     * Successful Response
-     */
-    200: ScoreSuggestion;
-};
-
-export type GradingSuggestScoresResponse = GradingSuggestScoresResponses[keyof GradingSuggestScoresResponses];
 
 export type GradingSummaryProgramData = {
     body?: never;
@@ -13807,6 +13807,51 @@ export type GradingSummaryTermResponses = {
 
 export type GradingSummaryTermResponse = GradingSummaryTermResponses[keyof GradingSummaryTermResponses];
 
+export type HabitCheckinListData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Habit card instance id
+         */
+        instance_id: string;
+    };
+    query: {
+        /**
+         * From Date
+         *
+         * First day to list (inclusive)
+         */
+        from_date: string;
+        /**
+         * To Date
+         *
+         * Last day to list (inclusive)
+         */
+        to_date: string;
+    };
+    url: '/habit/instances/{instance_id}/checkins';
+};
+
+export type HabitCheckinListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type HabitCheckinListError = HabitCheckinListErrors[keyof HabitCheckinListErrors];
+
+export type HabitCheckinListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CheckinList;
+};
+
+export type HabitCheckinListResponse = HabitCheckinListResponses[keyof HabitCheckinListResponses];
+
 export type HabitCheckinToggleData = {
     body: CheckinToggleInputBody;
     path: {
@@ -13839,52 +13884,7 @@ export type HabitCheckinToggleResponses = {
 
 export type HabitCheckinToggleResponse = HabitCheckinToggleResponses[keyof HabitCheckinToggleResponses];
 
-export type HabitCheckinsListData = {
-    body?: never;
-    path: {
-        /**
-         * Instance Id
-         *
-         * Habit card instance id
-         */
-        instance_id: string;
-    };
-    query: {
-        /**
-         * From Date
-         *
-         * First day to list (inclusive)
-         */
-        from_date: string;
-        /**
-         * To Date
-         *
-         * Last day to list (inclusive)
-         */
-        to_date: string;
-    };
-    url: '/habit/instances/{instance_id}/checkins';
-};
-
-export type HabitCheckinsListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type HabitCheckinsListError = HabitCheckinsListErrors[keyof HabitCheckinsListErrors];
-
-export type HabitCheckinsListResponses = {
-    /**
-     * Successful Response
-     */
-    200: CheckinList;
-};
-
-export type HabitCheckinsListResponse = HabitCheckinsListResponses[keyof HabitCheckinsListResponses];
-
-export type HabitStatsData = {
+export type HabitStreakGetData = {
     body?: never;
     path: {
         /**
@@ -13898,23 +13898,55 @@ export type HabitStatsData = {
     url: '/habit/instances/{instance_id}/stats';
 };
 
-export type HabitStatsErrors = {
+export type HabitStreakGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type HabitStatsError = HabitStatsErrors[keyof HabitStatsErrors];
+export type HabitStreakGetError = HabitStreakGetErrors[keyof HabitStreakGetErrors];
 
-export type HabitStatsResponses = {
+export type HabitStreakGetResponses = {
     /**
      * Successful Response
      */
-    200: HabitStats;
+    200: HabitStreakGet;
 };
 
-export type HabitStatsResponse = HabitStatsResponses[keyof HabitStatsResponses];
+export type HabitStreakGetResponse = HabitStreakGetResponses[keyof HabitStreakGetResponses];
+
+export type ImportsItemDecideManyData = {
+    body: BulkDecideInputBody;
+    path: {
+        /**
+         * Session Id
+         *
+         * Import session id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/imports/{session_id}/items:decide';
+};
+
+export type ImportsItemDecideManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ImportsItemDecideManyError = ImportsItemDecideManyErrors[keyof ImportsItemDecideManyErrors];
+
+export type ImportsItemDecideManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkDecideResult;
+};
+
+export type ImportsItemDecideManyResponse = ImportsItemDecideManyResponses[keyof ImportsItemDecideManyResponses];
 
 export type ImportsItemUpdateData = {
     body: SemestraCoreCapabilityItemUpdateInputBody2;
@@ -13953,38 +13985,6 @@ export type ImportsItemUpdateResponses = {
 };
 
 export type ImportsItemUpdateResponse = ImportsItemUpdateResponses[keyof ImportsItemUpdateResponses];
-
-export type ImportsItemsBulkDecideData = {
-    body: BulkDecideInputBody;
-    path: {
-        /**
-         * Session Id
-         *
-         * Import session id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/imports/{session_id}/items:decide';
-};
-
-export type ImportsItemsBulkDecideErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type ImportsItemsBulkDecideError = ImportsItemsBulkDecideErrors[keyof ImportsItemsBulkDecideErrors];
-
-export type ImportsItemsBulkDecideResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkDecideResult;
-};
-
-export type ImportsItemsBulkDecideResponse = ImportsItemsBulkDecideResponses[keyof ImportsItemsBulkDecideResponses];
 
 export type ImportsSessionCommitData = {
     body: CommitInputBody;
@@ -14304,6 +14304,70 @@ export type LayoutsCardAddResponses = {
 
 export type LayoutsCardAddResponse = LayoutsCardAddResponses[keyof LayoutsCardAddResponses];
 
+export type LayoutsCardGetSettingsData = {
+    body?: never;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id (from layouts.board.get)
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}/settings';
+};
+
+export type LayoutsCardGetSettingsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardGetSettingsError = LayoutsCardGetSettingsErrors[keyof LayoutsCardGetSettingsErrors];
+
+export type LayoutsCardGetSettingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardSettings;
+};
+
+export type LayoutsCardGetSettingsResponse = LayoutsCardGetSettingsResponses[keyof LayoutsCardGetSettingsResponses];
+
+export type LayoutsCardUpdateSettingsData = {
+    body: CardSettingsUpdateInputBody;
+    path: {
+        /**
+         * Instance Id
+         *
+         * Card instance id
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/layouts/cards/{instance_id}/settings';
+};
+
+export type LayoutsCardUpdateSettingsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LayoutsCardUpdateSettingsError = LayoutsCardUpdateSettingsErrors[keyof LayoutsCardUpdateSettingsErrors];
+
+export type LayoutsCardUpdateSettingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardSettings;
+};
+
+export type LayoutsCardUpdateSettingsResponse = LayoutsCardUpdateSettingsResponses[keyof LayoutsCardUpdateSettingsResponses];
+
 export type LayoutsCardRemoveData = {
     body?: never;
     path: {
@@ -14335,70 +14399,6 @@ export type LayoutsCardRemoveResponses = {
 };
 
 export type LayoutsCardRemoveResponse = LayoutsCardRemoveResponses[keyof LayoutsCardRemoveResponses];
-
-export type LayoutsCardSettingsGetData = {
-    body?: never;
-    path: {
-        /**
-         * Instance Id
-         *
-         * Card instance id (from layouts.board.get)
-         */
-        instance_id: string;
-    };
-    query?: never;
-    url: '/layouts/cards/{instance_id}/settings';
-};
-
-export type LayoutsCardSettingsGetErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LayoutsCardSettingsGetError = LayoutsCardSettingsGetErrors[keyof LayoutsCardSettingsGetErrors];
-
-export type LayoutsCardSettingsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: CardSettings;
-};
-
-export type LayoutsCardSettingsGetResponse = LayoutsCardSettingsGetResponses[keyof LayoutsCardSettingsGetResponses];
-
-export type LayoutsCardSettingsUpdateData = {
-    body: CardSettingsUpdateInputBody;
-    path: {
-        /**
-         * Instance Id
-         *
-         * Card instance id
-         */
-        instance_id: string;
-    };
-    query?: never;
-    url: '/layouts/cards/{instance_id}/settings';
-};
-
-export type LayoutsCardSettingsUpdateErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LayoutsCardSettingsUpdateError = LayoutsCardSettingsUpdateErrors[keyof LayoutsCardSettingsUpdateErrors];
-
-export type LayoutsCardSettingsUpdateResponses = {
-    /**
-     * Successful Response
-     */
-    200: CardSettings;
-};
-
-export type LayoutsCardSettingsUpdateResponse = LayoutsCardSettingsUpdateResponses[keyof LayoutsCardSettingsUpdateResponses];
 
 export type LayoutsNavGetData = {
     body?: never;
@@ -14560,7 +14560,7 @@ export type LayoutsTemplateSaveFromBoardResponses = {
 
 export type LayoutsTemplateSaveFromBoardResponse = LayoutsTemplateSaveFromBoardResponses[keyof LayoutsTemplateSaveFromBoardResponses];
 
-export type LmsAnnouncementsListData = {
+export type LmsAnnouncementListData = {
     body?: never;
     path: {
         /**
@@ -14587,25 +14587,57 @@ export type LmsAnnouncementsListData = {
     url: '/courses/{course_id}/lms/announcements';
 };
 
-export type LmsAnnouncementsListErrors = {
+export type LmsAnnouncementListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsAnnouncementsListError = LmsAnnouncementsListErrors[keyof LmsAnnouncementsListErrors];
+export type LmsAnnouncementListError = LmsAnnouncementListErrors[keyof LmsAnnouncementListErrors];
 
-export type LmsAnnouncementsListResponses = {
+export type LmsAnnouncementListResponses = {
     /**
      * Successful Response
      */
     200: AnnouncementList;
 };
 
-export type LmsAnnouncementsListResponse = LmsAnnouncementsListResponses[keyof LmsAnnouncementsListResponses];
+export type LmsAnnouncementListResponse = LmsAnnouncementListResponses[keyof LmsAnnouncementListResponses];
 
-export type LmsAssignmentsListData = {
+export type LmsAssignmentImportData = {
+    body: AssignmentsImportInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/imports:assignments';
+};
+
+export type LmsAssignmentImportErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentImportError = LmsAssignmentImportErrors[keyof LmsAssignmentImportErrors];
+
+export type LmsAssignmentImportResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsAssignmentImportResponse = LmsAssignmentImportResponses[keyof LmsAssignmentImportResponses];
+
+export type LmsAssignmentListData = {
     body?: never;
     path: {
         /**
@@ -14626,23 +14658,23 @@ export type LmsAssignmentsListData = {
     url: '/courses/{course_id}/lms/assignments';
 };
 
-export type LmsAssignmentsListErrors = {
+export type LmsAssignmentListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsAssignmentsListError = LmsAssignmentsListErrors[keyof LmsAssignmentsListErrors];
+export type LmsAssignmentListError = LmsAssignmentListErrors[keyof LmsAssignmentListErrors];
 
-export type LmsAssignmentsListResponses = {
+export type LmsAssignmentListResponses = {
     /**
      * Successful Response
      */
     200: SemestraModulesLmsSchemasIoAssignmentList;
 };
 
-export type LmsAssignmentsListResponse = LmsAssignmentsListResponses[keyof LmsAssignmentsListResponses];
+export type LmsAssignmentListResponse = LmsAssignmentListResponses[keyof LmsAssignmentListResponses];
 
 export type LmsConnectionListData = {
     body?: never;
@@ -14861,6 +14893,38 @@ export type LmsCourseCheckUpdatesResponses = {
 
 export type LmsCourseCheckUpdatesResponse = LmsCourseCheckUpdatesResponses[keyof LmsCourseCheckUpdatesResponses];
 
+export type LmsCourseImportData = {
+    body: CoursesImportInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id (must have a bound connection)
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/imports:courses';
+};
+
+export type LmsCourseImportErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseImportError = LmsCourseImportErrors[keyof LmsCourseImportErrors];
+
+export type LmsCourseImportResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsCourseImportResponse = LmsCourseImportResponses[keyof LmsCourseImportResponses];
+
 export type LmsCourseLinkDeleteData = {
     body?: never;
     path: {
@@ -15021,6 +15085,51 @@ export type LmsCourseLinkSyncResponses = {
 
 export type LmsCourseLinkSyncResponse = LmsCourseLinkSyncResponses[keyof LmsCourseLinkSyncResponses];
 
+export type LmsCourseListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Include Past
+         *
+         * Also courses of past terms
+         */
+        include_past?: boolean;
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/programs/{program_id}/lms/courses';
+};
+
+export type LmsCourseListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseListError = LmsCourseListErrors[keyof LmsCourseListErrors];
+
+export type LmsCourseListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExternalCourseList;
+};
+
+export type LmsCourseListResponse = LmsCourseListResponses[keyof LmsCourseListResponses];
+
 export type LmsCourseOverviewData = {
     body?: never;
     path: {
@@ -15059,51 +15168,6 @@ export type LmsCourseOverviewResponses = {
 };
 
 export type LmsCourseOverviewResponse = LmsCourseOverviewResponses[keyof LmsCourseOverviewResponses];
-
-export type LmsCoursesListData = {
-    body?: never;
-    path: {
-        /**
-         * Program Id
-         *
-         * Program id
-         */
-        program_id: string;
-    };
-    query?: {
-        /**
-         * Include Past
-         *
-         * Also courses of past terms
-         */
-        include_past?: boolean;
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
-    url: '/programs/{program_id}/lms/courses';
-};
-
-export type LmsCoursesListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsCoursesListError = LmsCoursesListErrors[keyof LmsCoursesListErrors];
-
-export type LmsCoursesListResponses = {
-    /**
-     * Successful Response
-     */
-    200: ExternalCourseList;
-};
-
-export type LmsCoursesListResponse = LmsCoursesListResponses[keyof LmsCoursesListResponses];
 
 export type LmsFileGetData = {
     body?: never;
@@ -15188,7 +15252,7 @@ export type LmsFileSaveToCourseResponses = {
 
 export type LmsFileSaveToCourseResponse = LmsFileSaveToCourseResponses[keyof LmsFileSaveToCourseResponses];
 
-export type LmsGradesListData = {
+export type LmsGradeListData = {
     body?: never;
     path: {
         /**
@@ -15209,26 +15273,26 @@ export type LmsGradesListData = {
     url: '/courses/{course_id}/lms/grades';
 };
 
-export type LmsGradesListErrors = {
+export type LmsGradeListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsGradesListError = LmsGradesListErrors[keyof LmsGradesListErrors];
+export type LmsGradeListError = LmsGradeListErrors[keyof LmsGradeListErrors];
 
-export type LmsGradesListResponses = {
+export type LmsGradeListResponses = {
     /**
      * Successful Response
      */
     200: GradeList;
 };
 
-export type LmsGradesListResponse = LmsGradesListResponses[keyof LmsGradesListResponses];
+export type LmsGradeListResponse = LmsGradeListResponses[keyof LmsGradeListResponses];
 
-export type LmsImportAssignmentsData = {
-    body: AssignmentsImportInputBody;
+export type LmsModuleListData = {
+    body?: never;
     path: {
         /**
          * Course Id
@@ -15237,93 +15301,36 @@ export type LmsImportAssignmentsData = {
          */
         course_id: string;
     };
-    query?: never;
-    url: '/courses/{course_id}/lms/imports:assignments';
-};
-
-export type LmsImportAssignmentsErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsImportAssignmentsError = LmsImportAssignmentsErrors[keyof LmsImportAssignmentsErrors];
-
-export type LmsImportAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportStarted;
-};
-
-export type LmsImportAssignmentsResponse = LmsImportAssignmentsResponses[keyof LmsImportAssignmentsResponses];
-
-export type LmsImportCoursesData = {
-    body: CoursesImportInputBody;
-    path: {
+    query?: {
         /**
-         * Program Id
+         * Refresh
          *
-         * Program id (must have a bound connection)
+         * Skip the 5-minute cache and ask again
          */
-        program_id: string;
+        refresh?: boolean;
     };
-    query?: never;
-    url: '/programs/{program_id}/lms/imports:courses';
+    url: '/courses/{course_id}/lms/modules';
 };
 
-export type LmsImportCoursesErrors = {
+export type LmsModuleListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsImportCoursesError = LmsImportCoursesErrors[keyof LmsImportCoursesErrors];
+export type LmsModuleListError = LmsModuleListErrors[keyof LmsModuleListErrors];
 
-export type LmsImportCoursesResponses = {
+export type LmsModuleListResponses = {
     /**
      * Successful Response
      */
-    200: ImportStarted;
+    200: ModuleList;
 };
 
-export type LmsImportCoursesResponse = LmsImportCoursesResponses[keyof LmsImportCoursesResponses];
+export type LmsModuleListResponse = LmsModuleListResponses[keyof LmsModuleListResponses];
 
-export type LmsImportSyllabusData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms/imports:syllabus';
-};
-
-export type LmsImportSyllabusErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsImportSyllabusError = LmsImportSyllabusErrors[keyof LmsImportSyllabusErrors];
-
-export type LmsImportSyllabusResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportStarted;
-};
-
-export type LmsImportSyllabusResponse = LmsImportSyllabusResponses[keyof LmsImportSyllabusResponses];
-
-export type LmsModuleItemsListData = {
+export type LmsModuleItemListData = {
     body?: never;
     path: {
         /**
@@ -15350,62 +15357,23 @@ export type LmsModuleItemsListData = {
     url: '/courses/{course_id}/lms/modules/{module_id}/items';
 };
 
-export type LmsModuleItemsListErrors = {
+export type LmsModuleItemListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsModuleItemsListError = LmsModuleItemsListErrors[keyof LmsModuleItemsListErrors];
+export type LmsModuleItemListError = LmsModuleItemListErrors[keyof LmsModuleItemListErrors];
 
-export type LmsModuleItemsListResponses = {
+export type LmsModuleItemListResponses = {
     /**
      * Successful Response
      */
     200: ModuleItemList;
 };
 
-export type LmsModuleItemsListResponse = LmsModuleItemsListResponses[keyof LmsModuleItemsListResponses];
-
-export type LmsModulesListData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id (must be linked)
-         */
-        course_id: string;
-    };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
-    url: '/courses/{course_id}/lms/modules';
-};
-
-export type LmsModulesListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsModulesListError = LmsModulesListErrors[keyof LmsModulesListErrors];
-
-export type LmsModulesListResponses = {
-    /**
-     * Successful Response
-     */
-    200: ModuleList;
-};
-
-export type LmsModulesListResponse = LmsModulesListResponses[keyof LmsModulesListResponses];
+export type LmsModuleItemListResponse = LmsModuleItemListResponses[keyof LmsModuleItemListResponses];
 
 export type LmsPageGetData = {
     body?: never;
@@ -15419,7 +15387,7 @@ export type LmsPageGetData = {
         /**
          * Ref
          *
-         * Page ref from lms.pages.list, or `@front` for the course's front page
+         * Page ref from lms.page.list, or `@front` for the course's front page
          */
         ref: string;
     };
@@ -15452,7 +15420,7 @@ export type LmsPageGetResponses = {
 
 export type LmsPageGetResponse = LmsPageGetResponses[keyof LmsPageGetResponses];
 
-export type LmsPagesListData = {
+export type LmsPageListData = {
     body?: never;
     path: {
         /**
@@ -15473,23 +15441,23 @@ export type LmsPagesListData = {
     url: '/courses/{course_id}/lms/pages';
 };
 
-export type LmsPagesListErrors = {
+export type LmsPageListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsPagesListError = LmsPagesListErrors[keyof LmsPagesListErrors];
+export type LmsPageListError = LmsPageListErrors[keyof LmsPageListErrors];
 
-export type LmsPagesListResponses = {
+export type LmsPageListResponses = {
     /**
      * Successful Response
      */
     200: PageList;
 };
 
-export type LmsPagesListResponse = LmsPagesListResponses[keyof LmsPagesListResponses];
+export type LmsPageListResponse = LmsPageListResponses[keyof LmsPageListResponses];
 
 export type LmsProgramBindingClearData = {
     body?: never;
@@ -15587,32 +15555,32 @@ export type LmsProgramBindingSetResponses = {
 
 export type LmsProgramBindingSetResponse = LmsProgramBindingSetResponses[keyof LmsProgramBindingSetResponses];
 
-export type LmsProvidersListData = {
+export type LmsProviderListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/lms/providers';
 };
 
-export type LmsProvidersListErrors = {
+export type LmsProviderListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsProvidersListError = LmsProvidersListErrors[keyof LmsProvidersListErrors];
+export type LmsProviderListError = LmsProviderListErrors[keyof LmsProviderListErrors];
 
-export type LmsProvidersListResponses = {
+export type LmsProviderListResponses = {
     /**
      * Successful Response
      */
     200: SemestraModulesLmsSchemasIoProviderList;
 };
 
-export type LmsProvidersListResponse = LmsProvidersListResponses[keyof LmsProvidersListResponses];
+export type LmsProviderListResponse = LmsProviderListResponses[keyof LmsProviderListResponses];
 
-export type LmsQuizzesListData = {
+export type LmsQuizListData = {
     body?: never;
     path: {
         /**
@@ -15633,23 +15601,23 @@ export type LmsQuizzesListData = {
     url: '/courses/{course_id}/lms/quizzes';
 };
 
-export type LmsQuizzesListErrors = {
+export type LmsQuizListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsQuizzesListError = LmsQuizzesListErrors[keyof LmsQuizzesListErrors];
+export type LmsQuizListError = LmsQuizListErrors[keyof LmsQuizListErrors];
 
-export type LmsQuizzesListResponses = {
+export type LmsQuizListResponses = {
     /**
      * Successful Response
      */
     200: QuizList;
 };
 
-export type LmsQuizzesListResponse = LmsQuizzesListResponses[keyof LmsQuizzesListResponses];
+export type LmsQuizListResponse = LmsQuizListResponses[keyof LmsQuizListResponses];
 
 export type LmsSyllabusGetData = {
     body?: never;
@@ -15690,6 +15658,38 @@ export type LmsSyllabusGetResponses = {
 
 export type LmsSyllabusGetResponse = LmsSyllabusGetResponses[keyof LmsSyllabusGetResponses];
 
+export type LmsSyllabusImportData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/imports:syllabus';
+};
+
+export type LmsSyllabusImportErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyllabusImportError = LmsSyllabusImportErrors[keyof LmsSyllabusImportErrors];
+
+export type LmsSyllabusImportResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsSyllabusImportResponse = LmsSyllabusImportResponses[keyof LmsSyllabusImportResponses];
+
 export type PluginsCatalogListData = {
     body?: never;
     path?: never;
@@ -15715,7 +15715,7 @@ export type PluginsCatalogListResponses = {
 
 export type PluginsCatalogListResponse = PluginsCatalogListResponses[keyof PluginsCatalogListResponses];
 
-export type PluginsUninstallData = {
+export type PluginsPluginUninstallData = {
     body?: never;
     path: {
         /**
@@ -15736,25 +15736,25 @@ export type PluginsUninstallData = {
     url: '/plugins/{plugin_id}/installation';
 };
 
-export type PluginsUninstallErrors = {
+export type PluginsPluginUninstallErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type PluginsUninstallError = PluginsUninstallErrors[keyof PluginsUninstallErrors];
+export type PluginsPluginUninstallError = PluginsPluginUninstallErrors[keyof PluginsPluginUninstallErrors];
 
-export type PluginsUninstallResponses = {
+export type PluginsPluginUninstallResponses = {
     /**
      * Successful Response
      */
     200: PluginOut;
 };
 
-export type PluginsUninstallResponse = PluginsUninstallResponses[keyof PluginsUninstallResponses];
+export type PluginsPluginUninstallResponse = PluginsPluginUninstallResponses[keyof PluginsPluginUninstallResponses];
 
-export type PluginsInstallData = {
+export type PluginsPluginInstallData = {
     body?: never;
     path: {
         /**
@@ -15768,23 +15768,23 @@ export type PluginsInstallData = {
     url: '/plugins/{plugin_id}/installation';
 };
 
-export type PluginsInstallErrors = {
+export type PluginsPluginInstallErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type PluginsInstallError = PluginsInstallErrors[keyof PluginsInstallErrors];
+export type PluginsPluginInstallError = PluginsPluginInstallErrors[keyof PluginsPluginInstallErrors];
 
-export type PluginsInstallResponses = {
+export type PluginsPluginInstallResponses = {
     /**
      * Successful Response
      */
     200: PluginOut;
 };
 
-export type PluginsInstallResponse = PluginsInstallResponses[keyof PluginsInstallResponses];
+export type PluginsPluginInstallResponse = PluginsPluginInstallResponses[keyof PluginsPluginInstallResponses];
 
 export type PomodoroSessionRecordData = {
     body: SessionRecordInputBody;
@@ -15811,7 +15811,7 @@ export type PomodoroSessionRecordResponses = {
 
 export type PomodoroSessionRecordResponse = PomodoroSessionRecordResponses[keyof PomodoroSessionRecordResponses];
 
-export type PomodoroStatsData = {
+export type PomodoroSessionSummarizeData = {
     body?: never;
     path?: never;
     query?: {
@@ -15843,23 +15843,23 @@ export type PomodoroStatsData = {
     url: '/pomodoro/stats';
 };
 
-export type PomodoroStatsErrors = {
+export type PomodoroSessionSummarizeErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type PomodoroStatsError = PomodoroStatsErrors[keyof PomodoroStatsErrors];
+export type PomodoroSessionSummarizeError = PomodoroSessionSummarizeErrors[keyof PomodoroSessionSummarizeErrors];
 
-export type PomodoroStatsResponses = {
+export type PomodoroSessionSummarizeResponses = {
     /**
      * Successful Response
      */
-    200: PomodoroStats;
+    200: PomodoroSessionSummarize;
 };
 
-export type PomodoroStatsResponse = PomodoroStatsResponses[keyof PomodoroStatsResponses];
+export type PomodoroSessionSummarizeResponse = PomodoroSessionSummarizeResponses[keyof PomodoroSessionSummarizeResponses];
 
 export type PortabilityExportListData = {
     body?: never;
@@ -16007,7 +16007,7 @@ export type PortabilityImportStartResponses = {
 
 export type PortabilityImportStartResponse = PortabilityImportStartResponses[keyof PortabilityImportStartResponses];
 
-export type ScheduleConflictsData = {
+export type ScheduleConflictListData = {
     body?: never;
     path: {
         /**
@@ -16021,23 +16021,23 @@ export type ScheduleConflictsData = {
     url: '/terms/{term_id}/schedule-conflicts';
 };
 
-export type ScheduleConflictsErrors = {
+export type ScheduleConflictListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type ScheduleConflictsError = ScheduleConflictsErrors[keyof ScheduleConflictsErrors];
+export type ScheduleConflictListError = ScheduleConflictListErrors[keyof ScheduleConflictListErrors];
 
-export type ScheduleConflictsResponses = {
+export type ScheduleConflictListResponses = {
     /**
      * Successful Response
      */
     200: ConflictList;
 };
 
-export type ScheduleConflictsResponse = ScheduleConflictsResponses[keyof ScheduleConflictsResponses];
+export type ScheduleConflictListResponse = ScheduleConflictListResponses[keyof ScheduleConflictListResponses];
 
 export type ScheduleEventListData = {
     body?: never;
@@ -16711,80 +16711,80 @@ export type ScheduleMeetingSetEnabledResponses = {
 
 export type ScheduleMeetingSetEnabledResponse = ScheduleMeetingSetEnabledResponses[keyof ScheduleMeetingSetEnabledResponses];
 
-export type SettingsPreferencesGetData = {
+export type SettingsPreferenceGetData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/me/preferences';
 };
 
-export type SettingsPreferencesGetErrors = {
+export type SettingsPreferenceGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsPreferencesGetError = SettingsPreferencesGetErrors[keyof SettingsPreferencesGetErrors];
+export type SettingsPreferenceGetError = SettingsPreferenceGetErrors[keyof SettingsPreferenceGetErrors];
 
-export type SettingsPreferencesGetResponses = {
+export type SettingsPreferenceGetResponses = {
     /**
      * Successful Response
      */
     200: Preferences;
 };
 
-export type SettingsPreferencesGetResponse = SettingsPreferencesGetResponses[keyof SettingsPreferencesGetResponses];
+export type SettingsPreferenceGetResponse = SettingsPreferenceGetResponses[keyof SettingsPreferenceGetResponses];
 
-export type SettingsPreferencesUpdateData = {
+export type SettingsPreferenceUpdateData = {
     body: PreferencesUpdateInputBody;
     path?: never;
     query?: never;
     url: '/me/preferences';
 };
 
-export type SettingsPreferencesUpdateErrors = {
+export type SettingsPreferenceUpdateErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsPreferencesUpdateError = SettingsPreferencesUpdateErrors[keyof SettingsPreferencesUpdateErrors];
+export type SettingsPreferenceUpdateError = SettingsPreferenceUpdateErrors[keyof SettingsPreferenceUpdateErrors];
 
-export type SettingsPreferencesUpdateResponses = {
+export type SettingsPreferenceUpdateResponses = {
     /**
      * Successful Response
      */
     200: Preferences;
 };
 
-export type SettingsPreferencesUpdateResponse = SettingsPreferencesUpdateResponses[keyof SettingsPreferencesUpdateResponses];
+export type SettingsPreferenceUpdateResponse = SettingsPreferenceUpdateResponses[keyof SettingsPreferenceUpdateResponses];
 
-export type SettingsSchemasListData = {
+export type SettingsSchemaListData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/settings/schemas';
 };
 
-export type SettingsSchemasListErrors = {
+export type SettingsSchemaListErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsSchemasListError = SettingsSchemasListErrors[keyof SettingsSchemasListErrors];
+export type SettingsSchemaListError = SettingsSchemaListErrors[keyof SettingsSchemaListErrors];
 
-export type SettingsSchemasListResponses = {
+export type SettingsSchemaListResponses = {
     /**
      * Successful Response
      */
     200: SettingsSchemaList;
 };
 
-export type SettingsSchemasListResponse = SettingsSchemasListResponses[keyof SettingsSchemasListResponses];
+export type SettingsSchemaListResponse = SettingsSchemaListResponses[keyof SettingsSchemaListResponses];
 
 export type SettingsUiStateGetManyData = {
     body: UiStateGetManyInputBody;
@@ -16843,7 +16843,7 @@ export type SettingsUiStateSetResponses = {
 
 export type SettingsUiStateSetResponse = SettingsUiStateSetResponses[keyof SettingsUiStateSetResponses];
 
-export type SettingsValuesGetData = {
+export type SettingsValueGetData = {
     body?: never;
     path: {
         /**
@@ -16870,25 +16870,25 @@ export type SettingsValuesGetData = {
     url: '/settings/{namespace}';
 };
 
-export type SettingsValuesGetErrors = {
+export type SettingsValueGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsValuesGetError = SettingsValuesGetErrors[keyof SettingsValuesGetErrors];
+export type SettingsValueGetError = SettingsValueGetErrors[keyof SettingsValueGetErrors];
 
-export type SettingsValuesGetResponses = {
+export type SettingsValueGetResponses = {
     /**
      * Successful Response
      */
     200: ResolvedSettings;
 };
 
-export type SettingsValuesGetResponse = SettingsValuesGetResponses[keyof SettingsValuesGetResponses];
+export type SettingsValueGetResponse = SettingsValueGetResponses[keyof SettingsValueGetResponses];
 
-export type SettingsValuesUpdateData = {
+export type SettingsValueUpdateData = {
     body: ValuesUpdateInputBody;
     path: {
         /**
@@ -16902,25 +16902,25 @@ export type SettingsValuesUpdateData = {
     url: '/settings/{namespace}';
 };
 
-export type SettingsValuesUpdateErrors = {
+export type SettingsValueUpdateErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsValuesUpdateError = SettingsValuesUpdateErrors[keyof SettingsValuesUpdateErrors];
+export type SettingsValueUpdateError = SettingsValueUpdateErrors[keyof SettingsValueUpdateErrors];
 
-export type SettingsValuesUpdateResponses = {
+export type SettingsValueUpdateResponses = {
     /**
      * Successful Response
      */
     200: ResolvedSettings;
 };
 
-export type SettingsValuesUpdateResponse = SettingsValuesUpdateResponses[keyof SettingsValuesUpdateResponses];
+export type SettingsValueUpdateResponse = SettingsValueUpdateResponses[keyof SettingsValueUpdateResponses];
 
-export type SettingsValuesResetData = {
+export type SettingsValueResetData = {
     body?: never;
     path: {
         /**
@@ -16953,23 +16953,23 @@ export type SettingsValuesResetData = {
     url: '/settings/{namespace}/keys/{key}';
 };
 
-export type SettingsValuesResetErrors = {
+export type SettingsValueResetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type SettingsValuesResetError = SettingsValuesResetErrors[keyof SettingsValuesResetErrors];
+export type SettingsValueResetError = SettingsValueResetErrors[keyof SettingsValueResetErrors];
 
-export type SettingsValuesResetResponses = {
+export type SettingsValueResetResponses = {
     /**
      * Successful Response
      */
     200: ResolvedSettings;
 };
 
-export type SettingsValuesResetResponse = SettingsValuesResetResponses[keyof SettingsValuesResetResponses];
+export type SettingsValueResetResponse = SettingsValueResetResponses[keyof SettingsValueResetResponses];
 
 export type StickyNoteListData = {
     body?: never;
@@ -17041,51 +17041,6 @@ export type StickyNoteUpdateResponses = {
 
 export type StickyNoteUpdateResponse = StickyNoteUpdateResponses[keyof StickyNoteUpdateResponses];
 
-export type TasksCountsData = {
-    body?: never;
-    path: {
-        /**
-         * Program Id
-         *
-         * Program id
-         */
-        program_id: string;
-    };
-    query?: {
-        /**
-         * Term Id
-         *
-         * Only this term's tasks and those that belong to no term
-         */
-        term_id?: string | null;
-        /**
-         * Course Id
-         *
-         * Only this course's tasks
-         */
-        course_id?: string | null;
-    };
-    url: '/programs/{program_id}/task-counts';
-};
-
-export type TasksCountsErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type TasksCountsError = TasksCountsErrors[keyof TasksCountsErrors];
-
-export type TasksCountsResponses = {
-    /**
-     * Successful Response
-     */
-    200: TaskCounts;
-};
-
-export type TasksCountsResponse = TasksCountsResponses[keyof TasksCountsResponses];
-
 export type TasksItemClearCompletedData = {
     body: TaskClearInputBody;
     path: {
@@ -17149,6 +17104,51 @@ export type TasksItemCompleteResponses = {
 };
 
 export type TasksItemCompleteResponse = TasksItemCompleteResponses[keyof TasksItemCompleteResponses];
+
+export type TasksItemCountData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's tasks and those that belong to no term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course's tasks
+         */
+        course_id?: string | null;
+    };
+    url: '/programs/{program_id}/task-counts';
+};
+
+export type TasksItemCountErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type TasksItemCountError = TasksItemCountErrors[keyof TasksItemCountErrors];
+
+export type TasksItemCountResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskCounts;
+};
+
+export type TasksItemCountResponse = TasksItemCountResponses[keyof TasksItemCountResponses];
 
 export type TasksItemQueryData = {
     body?: never;

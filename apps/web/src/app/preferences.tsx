@@ -1,8 +1,8 @@
 import type { Preferences } from '@semestra/api-client'
 import {
-  settingsPreferencesGetOptions,
-  settingsPreferencesGetQueryKey,
-  settingsPreferencesUpdateMutation,
+  settingsPreferenceGetOptions,
+  settingsPreferenceGetQueryKey,
+  settingsPreferenceUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect } from 'react'
@@ -13,7 +13,7 @@ import { useTheme } from './theme'
 
 /** The signed-in user's preferences (M11 §2); undefined while loading. */
 export function usePreferences() {
-  return useQuery({ ...settingsPreferencesGetOptions(), staleTime: 5 * 60_000 })
+  return useQuery({ ...settingsPreferenceGetOptions(), staleTime: 5 * 60_000 })
 }
 
 /** The preferences a patch may change; `locale` and `active_program_id` also accept null. */
@@ -27,9 +27,9 @@ const MUTATION_KEY = ['settings', 'preferences', 'update']
  */
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()
-  const queryKey = settingsPreferencesGetQueryKey()
+  const queryKey = settingsPreferenceGetQueryKey()
   const { mutate } = useMutation({
-    ...settingsPreferencesUpdateMutation(),
+    ...settingsPreferenceUpdateMutation(),
     mutationKey: MUTATION_KEY,
     onError: toastError,
     // Refetch only after the last in-flight change: an earlier response must not overwrite

@@ -1,5 +1,5 @@
 import type { AgentScope } from '@semestra/api-client'
-import { attachmentsSaveMutation } from '@semestra/api-client/react-query'
+import { agentAttachmentSaveMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, FolderCheck, FolderInput } from 'lucide-react'
 import { useState } from 'react'
@@ -45,13 +45,13 @@ export function AttachmentSaveMenu({
   const termId = scope?.term_id
   const shown = termId ? courses.filter((c) => c.term_ids.includes(termId)) : courses
   const save = useMutation({
-    ...attachmentsSaveMutation(),
+    ...agentAttachmentSaveMutation(),
     onSuccess: (_, variables) => {
       const course = courses.find((c) => c.id === variables.body.course_id)
       toast.success(
         m.assistant_attachment_saved({ name, course: course ? courseLabel(course) : '' }),
       )
-      void invalidateOperations(queryClient, ['agentSessionGet', 'filesList'])
+      void invalidateOperations(queryClient, ['agentSessionGet', 'filesItemList'])
     },
     onError: toastError,
   })
