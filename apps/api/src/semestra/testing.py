@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 from alembic import command
 from alembic.config import Config
+from argon2 import PasswordHasher
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -61,6 +62,16 @@ class FakeGoogle:
         if id_token not in self.tokens:
             raise AppError("auth.google_invalid_token", 401)
         return self.tokens[id_token]
+
+
+# Production argon2 settings cost ~0.1 s per hash; tests hash and verify hundreds of passwords.
+_FAST_HASHER = PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
+
+
+@pytest.fixture(autouse=True)
+def fast_password_hashing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(crypto, "_hasher", _FAST_HASHER)
+    monkeypatch.setattr(crypto, "_DUMMY_HASH", _FAST_HASHER.hash("semestra-timing-equalizer"))
 
 
 @pytest.fixture(scope="session")
