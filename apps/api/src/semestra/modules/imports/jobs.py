@@ -37,8 +37,14 @@ async def _source_input(
         data = await service.read_upload_bytes(ctx, upload)
         source: dict[str, str | None] = {"upload_id": upload.id}
         if row.source_kind == "timetable_image":
-            return [], await deps.render_pages(data, upload.mime_type, upload.filename), source
-        texts, images = await deps.read_upload(data, upload.filename, upload.mime_type)
+            return (
+                [],
+                await deps.render_pages(ctx.settings, data, upload.mime_type, upload.filename),
+                source,
+            )
+        texts, images = await deps.read_upload(
+            ctx.settings, data, upload.filename, upload.mime_type
+        )
         return texts, images, source
     if ref.get("file_item_id"):
         pages = await deps.read_course_file(ctx, ref["file_item_id"], row.program_id)

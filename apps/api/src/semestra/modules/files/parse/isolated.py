@@ -7,7 +7,8 @@ instead of tying up a job worker or the API's memory.
 
 import multiprocessing
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from multiprocessing.context import ForkServerContext, SpawnContext
@@ -30,6 +31,12 @@ class Parsed:
 class Thumbnail:
     index: int
     total: int
+    png: bytes
+
+
+@dataclass(frozen=True)
+class Rendered:
+    index: int
     png: bytes
 
 
@@ -87,6 +94,40 @@ def _child(
         conn.close()
 
 
+def _render_child(
+    conn: Connection, data: bytes, pdf: bool, pages: Sequence[int] | int, memory_limit: int
+) -> None:
+    """Page images for a vision model: the given pages, or the first `pages` of them."""
+    _limit_memory(memory_limit)
+    try:
+        renderer = PageRenderer(data, pdf=pdf)
+        indexes = range(min(renderer.page_count, pages)) if isinstance(pages, int) else pages
+        for index in indexes:
+            conn.send(Rendered(index, renderer.ocr_image(index)))
+        renderer.close()
+        conn.send(None)
+    except MemoryError:
+        conn.send(_Failed("files.too_complex", {}))
+    except Exception:
+        conn.send(_Failed("files.parse_failed", {}))
+    finally:
+        conn.close()
+
+
+async def render_isolated(
+    data: bytes,
+    *,
+    pdf: bool,
+    pages: Sequence[int] | int,
+    time_limit: float,
+    memory_limit: int,
+) -> list[bytes]:
+    """PNGs of the pages (`ocr_image`), rendered in a child process like `parse_isolated`."""
+    wanted = pages if isinstance(pages, int) else list(pages)
+    async with aclosing(_run(_render_child, (data, pdf, wanted, memory_limit), time_limit)) as m:
+        return [r.png async for r in m if isinstance(r, Rendered)]
+
+
 async def parse_isolated(
     data: bytes,
     detected: Detected,
@@ -98,12 +139,20 @@ async def parse_isolated(
 ) -> AsyncIterator[Parsed | Thumbnail]:
     """Yields the parsed document, then a preview per page (PDFs and images). Raises
     `ParseError("files.too_complex")` when the child runs out of time or memory."""
+    args = (data, detected, max_pages, thumbnail_pages, memory_limit)
+    # Closed with this generator, so a caller that stops early still ends the child.
+    async with aclosing(_run(_child, args, time_limit)) as messages:
+        async for message in messages:
+            if isinstance(message, Parsed | Thumbnail):
+                yield message
+
+
+async def _run(
+    target: Callable[..., None], args: tuple[object, ...], time_limit: float
+) -> AsyncGenerator[object]:
+    """Runs `target(conn, *args)` in a child process and yields what it sends until `None`."""
     receiver, sender = multiprocessing.Pipe(duplex=False)
-    process = _context().Process(
-        target=_child,
-        args=(sender, data, detected, max_pages, thumbnail_pages, memory_limit),
-        daemon=True,
-    )
+    process = _context().Process(target=target, args=(sender, *args), daemon=True)
     await anyio.to_thread.run_sync(process.start)
     sender.close()
     deadline = time.monotonic() + time_limit

@@ -16,6 +16,7 @@ from semestra.core.capability import mount_http
 from semestra.core.config import Settings, get_settings
 from semestra.core.db import make_engine, make_sessionmaker, utcnow
 from semestra.core.errors import AppError, ErrorResponse, install_error_handlers
+from semestra.core.http import close_shared_transports
 from semestra.core.logging import configure_logging
 from semestra.core.observability import init_sentry
 from semestra.core.realtime import Broadcaster
@@ -59,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # M06 writes usage and provider health in background tasks; let them land first.
         if (ai := getattr(app.state, "ai", None)) is not None:
             await ai.drain()
+        await close_shared_transports()
         await engine.dispose()
 
     app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)

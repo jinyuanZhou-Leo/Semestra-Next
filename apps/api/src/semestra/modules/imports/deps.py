@@ -6,7 +6,6 @@ Everything here fails with an error code instead of an ImportError, so an import
 missing piece fails its item or file, not the whole app.
 """
 
-import asyncio
 import importlib
 from collections.abc import AsyncIterator, Sequence
 from types import ModuleType
@@ -15,6 +14,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from semestra.core.capability import registry
+from semestra.core.config import Settings
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
@@ -86,8 +86,16 @@ def text_pages(text: str) -> list[ai.PageText]:
     return _paginate(text.replace("\r\n", "\n"))
 
 
+# Parsing and rendering run in M07's child process (time and memory limits), like the file
+# pipeline and chat attachments: PyMuPDF holds the GIL, and a hostile PDF must not stall or
+# exhaust the API. An import reads a few documents, so a minute each is plenty.
+PARSE_TIME_LIMIT = 60.0
+SCAN_PAGES = 8
+TIMETABLE_PAGES = 4
+
+
 async def read_upload(
-    data: bytes, filename: str, mime: str
+    settings: Settings, data: bytes, filename: str, mime: str
 ) -> tuple[list[ai.PageText], list[ai.Image]]:
     """Page texts of an uploaded document, plus page images of pages without a text layer
     (scans). Plain text needs nothing else; other formats use M07's parser."""
@@ -95,49 +103,56 @@ async def read_upload(
         return text_pages(data.decode("utf-8", errors="replace")), []
     if mime in IMAGE_MIMES:
         return [], [ai.Image(data, mime)]
-    parse = _files("parse")
-    if parse is None:
+    parse, isolated = _files("parse"), _files("parse.isolated")
+    if parse is None or isolated is None:
         raise AppError("import.file_unsupported", 422, filename=filename)
-
-    def _run() -> tuple[list[ai.PageText], list[ai.Image]]:
-        try:
-            detected = parse.detect(data, filename)
-            parsed = parse.parse(data, detected, max_pages=MAX_READ_PAGES)
-        except parse.ParseError as exc:
-            raise AppError("import.file_unsupported", 422, filename=filename) from exc
+    limits = _limits(settings)
+    try:
+        detected = parse.detect(data, filename)
+        parsed = None
+        async for message in isolated.parse_isolated(
+            data, detected, max_pages=MAX_READ_PAGES, thumbnail_pages=0, **limits
+        ):
+            parsed = message.document
+        if parsed is None:
+            raise parse.ParseError("files.parse_failed")
         texts = [
             ai.PageText(i + 1, p.markdown) for i, p in enumerate(parsed.pages) if p.markdown.strip()
         ]
-        scans = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
-        images: list[ai.Image] = []
-        if scans:
-            renderer = parse.PageRenderer(data, pdf=detected.mime == "application/pdf")
-            try:
-                images = [ai.Image(renderer.ocr_image(i), "image/png") for i in scans[:8]]
-            finally:
-                renderer.close()
-        return texts, images
+        scans = [i for i, p in enumerate(parsed.pages) if p.needs_ocr][:SCAN_PAGES]
+        pngs = (
+            await isolated.render_isolated(
+                data, pdf=detected.mime == "application/pdf", pages=scans, **limits
+            )
+            if scans
+            else []
+        )
+    except parse.ParseError as exc:
+        raise AppError("import.file_unsupported", 422, filename=filename) from exc
+    return texts, [ai.Image(png, "image/png") for png in pngs]
 
-    return await asyncio.to_thread(_run)
 
-
-async def render_pages(data: bytes, mime: str, filename: str) -> list[ai.Image]:
+async def render_pages(settings: Settings, data: bytes, mime: str, filename: str) -> list[ai.Image]:
     """Images of a timetable: the image itself, or the first pages of a PDF (M07 renderer)."""
     if mime in IMAGE_MIMES:
         return [ai.Image(data, mime)]
-    parse = _files("parse")
-    if parse is None or mime != "application/pdf":
+    parse, isolated = _files("parse"), _files("parse.isolated")
+    if parse is None or isolated is None or mime != "application/pdf":
         raise AppError("import.file_unsupported", 422, filename=filename)
+    try:
+        pngs = await isolated.render_isolated(
+            data, pdf=True, pages=TIMETABLE_PAGES, **_limits(settings)
+        )
+    except parse.ParseError as exc:
+        raise AppError("import.file_unsupported", 422, filename=filename) from exc
+    return [ai.Image(png, "image/png") for png in pngs]
 
-    def _run() -> list[ai.Image]:
-        renderer = parse.PageRenderer(data, pdf=True)
-        try:
-            count = min(renderer.page_count, 4)
-            return [ai.Image(renderer.ocr_image(i), "image/png") for i in range(count)]
-        finally:
-            renderer.close()
 
-    return await asyncio.to_thread(_run)
+def _limits(settings: Settings) -> dict[str, Any]:
+    return {
+        "time_limit": min(settings.files_parse_timeout_seconds, PARSE_TIME_LIMIT),
+        "memory_limit": settings.files_parse_memory_bytes,
+    }
 
 
 async def read_course_file(ctx: Ctx, item_id: str, program_id: str) -> list[ai.PageText]:

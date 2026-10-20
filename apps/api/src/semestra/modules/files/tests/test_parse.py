@@ -268,3 +268,15 @@ async def test_parsing_in_a_child_process_yields_the_document_and_previews():
     assert isinstance(messages[0], Parsed)
     assert len(messages[0].document.pages) == 3
     assert [m.index for m in messages[1:] if isinstance(m, Thumbnail)] == [0, 1]
+
+
+async def test_page_images_render_in_a_child_process():
+    from semestra.modules.files.parse.isolated import render_isolated
+
+    data = make_pdf(["one", "two", "three"], scanned={1})
+    limits = {"time_limit": 60, "memory_limit": 2**31}
+    chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
+    first = await render_isolated(data, pdf=True, pages=5, **limits)
+    assert len(chosen) == 1
+    assert chosen[0].startswith(b"\x89PNG")
+    assert len(first) == 3  # at most the pages there are

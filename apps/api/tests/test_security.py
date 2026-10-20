@@ -4,7 +4,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
-from semestra.core.http import is_public_address, safe_client
+from semestra.core.http import close_shared_transports, is_public_address, safe_client
 from semestra.core.security import decrypt, encrypt, mask
 
 
@@ -60,3 +60,18 @@ async def test_private_egress_can_be_allowed_for_self_hosting() -> None:
     async with safe_client(Settings(env="test", allow_private_egress=True)) as client:
         with pytest.raises(httpx.ConnectError):
             await client.get("http://127.0.0.1:9/")
+
+
+async def test_safe_clients_share_one_pool_that_outlives_them() -> None:
+    settings = Settings(env="test")
+    async with safe_client(settings) as first:
+        pass
+    second = safe_client(settings)
+    assert first._transport is second._transport  # pyright: ignore[reportPrivateUsage]
+    # Closing a client left the pool usable, and the egress guard still applies.
+    with pytest.raises(AppError):
+        await second.get("http://127.0.0.1:9/")
+    open_policy = safe_client(Settings(env="test", allow_private_egress=True))
+    assert open_policy._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
+    await close_shared_transports()
+    assert safe_client(settings)._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
