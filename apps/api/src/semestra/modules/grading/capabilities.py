@@ -3,6 +3,7 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseRef, Deleted, ProgramRef
 from semestra.modules.grading import service
 from semestra.modules.grading.schemas import (
@@ -381,7 +382,8 @@ async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
     tags=TAGS,
 )
 async def summary_term(ctx: Ctx, inp: TermSummaryInput) -> TermGrades:
-    return await service.term_grades(ctx, inp.term_id, inp.include_in_progress)
+    with academics.read_memo():
+        return await service.term_grades(ctx, inp.term_id, inp.include_in_progress)
 
 
 @capability(
@@ -409,7 +411,8 @@ course counts once, a year-long one in the term the Program's setting names.""",
     tags=TAGS,
 )
 async def summary_program(ctx: Ctx, inp: ProgramSummaryInput) -> ProgramGrades:
-    return await service.program_grades(ctx, inp.program_id, inp.include_in_progress)
+    with academics.read_memo():
+        return await service.program_grades(ctx, inp.program_id, inp.include_in_progress)
 
 
 @capability(
@@ -421,4 +424,5 @@ async def summary_program(ctx: Ctx, inp: ProgramSummaryInput) -> ProgramGrades:
     tags=TAGS,
 )
 async def course_summaries(ctx: Ctx, inp: ProgramSummaryInput) -> CourseGrades:
-    return await service.course_grades(ctx, inp.program_id, inp.include_in_progress)
+    with academics.read_memo():
+        return await service.course_grades(ctx, inp.program_id, inp.include_in_progress)

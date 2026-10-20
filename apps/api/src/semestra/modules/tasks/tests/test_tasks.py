@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from sqlalchemy import event
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
@@ -545,6 +546,37 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
             ["tasks.due"],
         )
     assert [o.title for o in merged] == ["in"]
+
+
+async def test_the_calendar_reads_courses_once_however_many_have_tasks(app: FastAPI, api: Api):
+    s = await api.setup()
+    pid, terms = s["program"], s["terms"]
+    statements: list[str] = []
+
+    def count(*args: Any) -> None:
+        statements.append(args[2])
+
+    async def calendar_queries() -> int:
+        statements.clear()
+        await api.call(
+            "GET", f"/programs/{pid}/calendar", params={"start": "2026-01-12", "end": "2026-01-19"}
+        )
+        return len(statements)
+
+    await api.task(pid, "one", due_date="2026-01-14", course_id=s["courses"]["aps"])
+    event.listen(app.state.engine.sync_engine, "before_cursor_execute", count)
+    try:
+        before = await calendar_queries()
+        for n in range(5):
+            course = await api.call(
+                "POST",
+                f"/programs/{pid}/courses",
+                json={"title": f"C{n}", "code": f"CSC{n}00H1", "term_ids": [terms["winter"]]},
+            )
+            await api.task(pid, f"t{n}", due_date="2026-01-15", course_id=course["id"])
+        assert await calendar_queries() == before
+    finally:
+        event.remove(app.state.engine.sync_engine, "before_cursor_execute", count)
 
 
 async def test_only_completed_returns_the_finished_tasks_of_a_view(api: Api):
