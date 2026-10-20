@@ -212,7 +212,7 @@ agent_preferences
   - `search_tools` 用 SQLite FTS5 的 BM25 排序（`tools.search`，porter 词干，名称权重 4 倍，最多 10 个），不用库自带的关键词计数，也不新增依赖；描述改成"用英文动作词和对象词搜，找不到换个词再试一次"。
   - 核心工具加上 `tasks.item.create/find/complete/update` 与 `files.document.search`，去掉 `imports.session.get`（导入 skill 会打开它）。
   - 发给模型的输入 schema 去掉 Pydantic 的 `title`（字段名为 `title` 的属性保留），字段描述里的能力名换成工具名。
-  - `registry.set_context_default`：agent/MCP 调用可以省略必填的 `program_id`，由 M02 的 `default_program_id` 填成当前 Program（或唯一的 Program）；schema 里它变成可选并注明这一点。HTTP 仍然必填。
+  - `registry.set_context_default`：agent/MCP 调用可以省略必填的 `program_id`，由 M02 的 `default_program_id` 填成当前 Program（或唯一的 Program）；schema 里它变成可选并注明这一点（agent 看到“省略即当前 Program”，MCP 客户端看到“只有一个 Program 时可省略”）。HTTP 仍然必填。写操作在出卡片前就补全，提案里存的是补全后的参数，所以用户切换范围后再批准仍写入出卡片时的 Program；补全不算用户修改。
   - `@capability(check=...)`：handler 会拒绝的输入在 `registry.validate` 里先检查，agent 的写操作在出确认卡片之前就报错，而不是用户批准之后。同一个函数同时用于卡片前和执行时。
   - `@capability(untrusted=True)` 同时决定结果的不可信包装和描述里的提示（原来是 `tools.UNTRUSTED_RESULTS` 加各自描述两处，`lms.quiz.list` 漏了包装）。
   - 错误：`not_found(kind, id)` 带上找不到的是什么、哪个 id；校验错误带 Pydantic 的 `msg` 与 `ctx`（如 `ge`、允许的值），不带输入值。

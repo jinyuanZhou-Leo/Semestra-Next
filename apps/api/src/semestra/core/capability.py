@@ -84,8 +84,9 @@ ContextDefault = Callable[[Ctx], Awaitable[str | None]]
 @dataclass(frozen=True)
 class ContextArg:
     fill: ContextDefault
-    # Appended to the field's description in the schema agents get.
-    note: str
+    # Appended to the field's description in the schema each surface gets: an agent works in a
+    # Program, an MCP client does not.
+    notes: dict[Surface, str]
 
 
 class Registry:
@@ -94,10 +95,12 @@ class Registry:
         self._plugin_gate: PluginGate | None = None
         self._context_args: dict[str, ContextArg] = {}
 
-    def set_context_default(self, field_name: str, fill: ContextDefault, note: str) -> None:
+    def set_context_default(
+        self, field_name: str, fill: ContextDefault, notes: dict[Surface, str]
+    ) -> None:
         """Agents and MCP clients may leave out a required `field_name`; it is filled from
         the call's context. HTTP callers still pass it."""
-        self._context_args[field_name] = ContextArg(fill, note)
+        self._context_args[field_name] = ContextArg(fill, notes)
 
     def context_args(self, cap: Capability) -> dict[str, ContextArg]:
         """The required inputs of `cap` an agent may leave out."""

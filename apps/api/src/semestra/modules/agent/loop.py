@@ -426,11 +426,14 @@ class _Hooks(AbstractCapability[Turn]):
             return args
         try:
             async with agent_ctx(turn.state, turn.user_id, scope=turn.scope) as c:
-                preview = await make_preview(c, cap, args)
+                # The card keeps the arguments filled in from where the user is now (the
+                # Program), so approving it later, from elsewhere, does what it showed.
+                filled = await registry.with_context_args(c, cap, args)
+                preview = await make_preview(c, cap, filled)
         except AppError as exc:  # wrong arguments go back to the model without a card
             outcome = Outcome(False, _error_payload(exc), exc.code)
             raise SkipToolExecution(_tool_return(cap, call.tool_call_id, outcome, turn)) from None
-        raise ApprovalRequired(metadata={"preview": preview})
+        raise ApprovalRequired(metadata={"preview": preview, "args": filled})
 
     async def after_tool_execute(
         self,
@@ -637,6 +640,18 @@ async def _messages(
     return out
 
 
+def _edited(prop: AgentProposal, called: dict[str, Any]) -> bool:
+    """Whether the user changed the arguments on the card; the ones filled in from the
+    conversation (the Program) do not count."""
+    try:
+        filled = registry.context_args(registry.get(prop.capability))
+    except AppError:
+        filled = {}
+    return any(
+        called.get(k) != v for k, v in prop.args.items() if k in called or k not in filled
+    ) or any(k not in prop.args for k in called)
+
+
 async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared:
     rows = await service.messages(ctx, session.id)
     props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
@@ -658,7 +673,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
             prop = props[c.tool_call_id]
             if prop.status in ("executed", "failed"):
                 resume.approvals[c.tool_call_id] = ToolApproved(override_args=prop.args)
-                if prop.args != history.args_of(c):
+                if _edited(prop, history.args_of(c)):
                     edited[c.tool_call_id] = prop.args
             else:
                 text = _proposal_outcome(prop).content
@@ -1184,7 +1199,7 @@ async def _propose(
                 message_id=owner.get(call.tool_call_id, ""),
                 call_id=call.tool_call_id,
                 capability=tools.capability_name(call.tool_name),
-                args=history.args_of(call),
+                args=meta.get("args") or history.args_of(call),
                 preview=meta.get("preview"),
                 status="pending",
                 created_at=ctx.now,

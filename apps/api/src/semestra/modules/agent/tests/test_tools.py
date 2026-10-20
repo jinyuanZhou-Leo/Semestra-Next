@@ -1,11 +1,13 @@
 """Tools as the model gets them (M12 §3.2): schemas, search, arguments filled from the
 conversation, checks before the card, and errors that say what was wrong."""
 
+import dataclasses
 import json
 from typing import Any
 
 import pytest
 from pydantic import BaseModel, Field
+from pydantic_ai import ModelRetry
 from pydantic_ai.tools import ToolDefinition
 
 from semestra.core.capability import Registry, capability, registry
@@ -34,7 +36,8 @@ async def test_search_ranks_tools_by_what_the_words_mean(agent: Agent):
     assert _search("completed tasks")[0] == "tasks__item__complete"
     assert _search("clash", "overlap")[0] == "schedule__conflict__list"
     assert len(_search("delete")) == tools.SEARCH_LIMIT
-    assert _search("", "  ") == []
+    with pytest.raises(ModelRetry):
+        _search("成绩")
 
 
 def _keys(node: Any, *, properties: bool = False) -> set[str]:
@@ -61,6 +64,43 @@ async def test_schemas_leave_out_titles_and_the_program_is_optional(agent: Agent
     )
     # A field named `title` is a field, not a schema title.
     assert "title" in tools.input_schema(registry.get("tasks.item.create"))["properties"]
+
+
+def _undescribed(node: Any, path: str) -> list[str]:
+    if isinstance(node, list):
+        return [m for v in node for m in _undescribed(v, path)]  # pyright: ignore[reportUnknownVariableType]
+    if not isinstance(node, dict):
+        return []
+    out: list[str] = []
+    for key, value in node.items():  # pyright: ignore[reportUnknownVariableType]
+        if key == "properties":
+            for name, prop in value.items():  # pyright: ignore[reportUnknownVariableType]
+                if not prop.get("description"):
+                    out.append(f"{path}.{name}")
+                out += _undescribed(prop, f"{path}.{name}")
+        elif isinstance(value, (dict, list)):
+            out += _undescribed(value, path)
+    return out
+
+
+async def test_every_field_the_model_fills_has_a_description(agent: Agent):
+    del agent
+    missing = [
+        m for c in registry.list("agent") for m in _undescribed(tools.input_schema(c), c.name)
+    ]
+    assert missing == []
+
+
+async def test_no_core_tool_is_cut_off_by_the_limit(agent: Agent):
+    del agent
+    assert len([c for c in registry.list("agent") if c.agent_core]) <= tools.CORE_LIMIT
+
+
+async def test_mcp_clients_are_not_told_about_a_program_they_are_not_in(agent: Agent):
+    del agent
+    cap = registry.get("calendar.occurrence.list")
+    note = tools.input_schema(cap, "mcp")["properties"]["program_id"]["description"]
+    assert note.endswith("Leave it out when the user has only one Program.")
 
 
 async def test_untrusted_results_say_so_in_the_description(agent: Agent):
@@ -139,3 +179,66 @@ async def test_a_check_refuses_the_input_before_anything_runs(agent: Agent):
         assert ran == []
         await reg.invoke(ctx, "test.echo.say", {"text": "hi"}, "agent")
         assert ran == ["hi"]
+
+
+async def _two_programs(agent: Agent) -> tuple[str, str]:
+    first, _, _ = await agent.course_with_lab()
+    return first["id"], (await agent.program())["id"]
+
+
+async def _titles(agent: Agent, program_id: str) -> list[str]:
+    items = (await agent.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    return [t["title"] for t in items]
+
+
+async def test_the_card_keeps_the_program_it_was_proposed_in(agent: Agent, model: FakeModel):
+    here, other = await _two_programs(agent)
+    session = await agent.session({"program_id": here})
+    model.then(call("tasks.item.create", {"title": "Read ch. 3"}))
+    [proposal] = events_named(await agent.send(session["id"], "remind me"), "proposal")
+    assert proposal["args"]["program_id"] == here
+    # The user opens another Program before approving.
+    await agent.call(
+        "PATCH", f"/agent/sessions/{session['id']}", json={"scope": {"program_id": other}}
+    )
+    model.then(say("Added."))
+    await agent.decide(session["id"], proposal["id"])
+    assert await _titles(agent, here) == ["Read ch. 3"]
+    assert await _titles(agent, other) == []
+    # Filling in the Program is not an edit of the model's call.
+    assert "changed the arguments" not in str(model.results(-1)[0].content)
+
+
+async def test_an_edited_card_keeps_its_program(agent: Agent, model: FakeModel):
+    here, other = await _two_programs(agent)
+    session = await agent.session({"program_id": here})
+    model.then(call("tasks.item.create", {"title": "Read ch. 3"}))
+    [proposal] = events_named(await agent.send(session["id"], "remind me"), "proposal")
+    await agent.call(
+        "PATCH", f"/agent/sessions/{session['id']}", json={"scope": {"program_id": other}}
+    )
+    model.then(say("Added."))
+    edited = {**proposal["args"], "title": "Read ch. 4"}
+    await agent.decide(session["id"], proposal["id"], "edit", args=edited)
+    assert await _titles(agent, here) == ["Read ch. 4"]
+    assert "changed the arguments" in str(model.results(-1)[0].content)
+
+
+async def test_a_check_refuses_before_the_card(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    async def no_reading(ctx: Ctx, inp: Any) -> None:
+        del ctx
+        if "Read" in inp.title:
+            raise AppError("test.no_reading", 422)
+
+    cap = registry.get("tasks.item.create")
+    monkeypatch.setitem(registry._items, cap.name, dataclasses.replace(cap, check=no_reading))  # pyright: ignore[reportPrivateUsage]
+    here, _ = await _two_programs(agent)
+    session = await agent.session({"program_id": here})
+    model.then(call("tasks.item.create", {"title": "Read ch. 3"}), say("Not allowed."))
+    events = await agent.send(session["id"], "remind me")
+    assert events_named(events, "proposal") == []
+    error = json.loads(str(model.results(-1)[0].content))["error"]
+    assert error["code"] == "test.no_reading"
+    assert await _titles(agent, here) == []

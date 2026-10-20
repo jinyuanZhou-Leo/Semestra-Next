@@ -13,5 +13,10 @@ def register(app: FastAPI) -> None:
     del app  # capabilities are mounted by the core
     set_scope_resolver(resolve_scope)
     registry.set_context_default(
-        "program_id", default_program_id, "Leave it out for the Program the user is in."
+        "program_id",
+        default_program_id,
+        {
+            "agent": "Leave it out for the Program the user is in.",
+            "mcp": "Leave it out when the user has only one Program.",
+        },
     )
