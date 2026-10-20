@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import { MonitorSmartphone } from 'lucide-react'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
+import { ShellToolbarSlot } from '@/app/host/ShellToolbar'
 import { useModules } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
@@ -18,6 +19,7 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
   const { isMobile, open } = useSidebar()
   const pathname = useLocation({ select: (l) => l.pathname })
   const programName = useProgram(programId).data?.name ?? ''
+  const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
   return (
     <SidebarInset className="h-full min-w-0 overflow-hidden">
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -42,6 +44,7 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
             </>
           ) : null}
         </div>
+        <div ref={setToolbar} className="flex min-w-0 flex-1 items-center gap-1 pr-4" />
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isMobile && !PHONE_PAGE.test(pathname) ? (
@@ -55,7 +58,7 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
             </EmptyHeader>
           </Empty>
         ) : (
-          children
+          <ShellToolbarSlot value={toolbar}>{children}</ShellToolbarSlot>
         )}
       </div>
     </SidebarInset>

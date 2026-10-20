@@ -59,6 +59,12 @@ import { newTermPath, coursePath, termPath } from '../paths'
 import { movePin, type Pin as PinRef, samePin, usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
 
+/**
+ * A group label slides up behind the group above it on the icon rail (invisible but still
+ * there), so it must not take the clicks meant for that group's last entry.
+ */
+export const GROUP_LABEL = 'group-data-[collapsible=icon]:pointer-events-none'
+
 type Dragging = {
   ref: (node: HTMLElement | null) => void
   style: CSSProperties
@@ -503,7 +509,9 @@ export function SidebarTerms({
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>{m.academics_sidebar_current_term()}</SidebarGroupLabel>
+        <SidebarGroupLabel className={GROUP_LABEL}>
+          {m.academics_sidebar_current_term()}
+        </SidebarGroupLabel>
         {isMobile || !terms || terms.length === 0 ? null : (
           <AddTermPicker terms={addable} onPick={(term) => toggle({ kind: 'term', id: term.id })} />
         )}
@@ -541,7 +549,7 @@ export function SidebarTerms({
 
       {entries.length > 0 ? (
         <SidebarGroup>
-          <SidebarGroupLabel>{m.academics_pinned()}</SidebarGroupLabel>
+          <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_pinned()}</SidebarGroupLabel>
           <SidebarGroupContent>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dropped}>
               <SortableContext

@@ -42,6 +42,30 @@ const notes = defineModule({
   ],
 })
 
+/** A Program page with its own navigation, shown in the sidebar while the page is open. */
+const lists = defineModule({
+  id: 'lists',
+  kind: 'plugin',
+  name: () => 'Lists',
+  description: () => 'Lists',
+  icon: NotebookPen,
+  pages: [
+    {
+      id: 'lists',
+      scopes: ['program'],
+      title: () => 'Lists',
+      icon: FileText,
+      component: () => <p>Lists page</p>,
+      sidebarNav: () => (
+        <ul aria-label="Lists views">
+          <li>Starred</li>
+        </ul>
+      ),
+      order: 60,
+    },
+  ],
+})
+
 let world: World
 beforeEach(() => {
   world = defaultWorld()
@@ -78,7 +102,7 @@ function mount(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   const view = render(
-    <ModuleRegistry value={[auth, settings, academics, notes]}>
+    <ModuleRegistry value={[auth, settings, academics, notes, lists]}>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
@@ -144,6 +168,29 @@ test('the Program pages are in the sidebar and have no tab bar', async () => {
   expect(within(nav).getByRole('link', { name: 'Terms & courses' })).toBeInTheDocument()
   await screen.findByRole('heading', { level: 1, name: 'Overview' })
   expect(document.querySelector('[data-tour="page-tabs"]')).toBeNull()
+})
+
+test("an open page's own navigation shows under its sidebar entry, and only then", async () => {
+  const view = mount('/p/p1/lists')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  const entry = (await within(nav).findByRole('link', { name: 'Lists' })).closest('li')!
+  expect(await within(entry).findByRole('list', { name: 'Lists views' })).toBeInTheDocument()
+  await act(() => view.router.navigate({ to: '/p/$programId', params: { programId: 'p1' } }))
+  await waitFor(() =>
+    expect(within(nav).queryByRole('list', { name: 'Lists views' })).not.toBeInTheDocument(),
+  )
+})
+
+test('on the icon rail a hidden group label lets clicks through to the entry above it', async () => {
+  mount('/p/p1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  // The label slides up behind "Terms & courses" (`-mt-8`) when the sidebar is folded.
+  for (const label of [
+    await within(nav).findByText('Current term'),
+    within(nav).getByText('Pages'),
+  ]) {
+    expect(label).toHaveClass('group-data-[collapsible=icon]:pointer-events-none')
+  }
 })
 
 test('a term page keeps its tab bar and pins to the sidebar', async () => {

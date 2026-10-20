@@ -25,6 +25,9 @@ export default defineModule({
       title: m.tasks_name,
       icon: ListChecks,
       component: lazy(() => import('./pages/TasksPage')),
+      sidebarNav: lazy(() =>
+        import('./components/TasksSidebar').then((mod) => ({ default: mod.TasksSidebarNav })),
+      ),
       order: 20,
     },
   ],
