@@ -111,13 +111,15 @@ def session_out(row: ImportsSession) -> ImportSession:
     )
 
 
-def item_out(row: ImportsItem) -> ImportItem:
+def item_out(row: ImportsItem, *, agent: bool = False) -> ImportItem:
+    # `source_ref` only ties an item to its source for re-imports; an assistant never needs it.
+    data = {k: v for k, v in row.data.items() if k != "source_ref"} if agent else row.data
     return ImportItem.model_validate(
         {
             "id": row.id,
             "session_id": row.session_id,
             "type": row.type,
-            "data": row.data,
+            "data": data,
             "evidence": row.evidence,
             "confidence": row.confidence,
             "decision": row.decision,
@@ -161,7 +163,7 @@ async def detail(
     end = start + limit if limit is not None else len(items)
     return ImportSessionDetail(
         **session_out(row).model_dump(),
-        items=[item_out(i) for i in items[start:end]],
+        items=[item_out(i, agent=for_agent(ctx)) for i in items[start:end]],
         next_cursor=str(end) if end < len(items) else None,
     )
 
@@ -261,20 +263,32 @@ async def _validation_context(
             if str(i.data.get("course_ref", "")).startswith("course:")
         }
     )
-    counts: dict[str, int] = {}
+    course_terms: dict[str, list[str]] = {}
     for course_id in course_ids:
         try:
             course = await academics.course_out(ctx, await academics.get_course_row(ctx, course_id))
         except AppError:
             continue
-        counts[course_id] = len(course.term_ids)
+        course_terms[course_id] = list(course.term_ids)
+    term_ids = {t for terms in course_terms.values() for t in terms}
+    term_ids |= {str(t) for i in items if i.type == "course" for t in i.data.get("term_ids") or []}
+    terms: dict[str, dates.TermDates] = {}
+    for term_id in sorted(term_ids - {target.term_id}):
+        try:
+            terms[term_id] = await _term_dates_of(ctx, await academics.get_term_row(ctx, term_id))
+        except AppError:
+            continue
     term = await _term_dates(ctx, target)
+    if term is not None and target.term_id is not None:
+        terms[target.term_id] = term
     return ValidationContext(
         target_kind=target.kind,
         target_term_id=target.term_id,
         existing_assessments=await _existing_assessments(ctx, course_ids),
-        course_term_counts=counts,
+        course_term_counts={c: len(t) for c, t in course_terms.items()},
         target_weeks=term.weeks if term else None,
+        course_terms=course_terms,
+        terms=terms,
     )
 
 
@@ -634,16 +648,20 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
     row = await get_session_row(ctx, inp.session_id)
     _require_open(row)
     items = await _items(ctx, row.id)
+    chosen = [
+        item
+        for item in items
+        if (inp.types is None or item.type in inp.types)
+        and (inp.item_ids is None or item.id in inp.item_ids)
+        and (inp.issue_codes is None or any(i["code"] in inp.issue_codes for i in item.issues))
+    ]
+    if inp.decision == "reject":
+        # What belongs to a rejected course (its meetings, assessments, ...) goes with it.
+        courses = {f"item:{i.id}" for i in chosen if i.type == "course"}
+        picked = {i.id for i in chosen}
+        chosen += [i for i in items if i.id not in picked and i.data.get("course_ref") in courses]
     changed = 0
-    for item in items:
-        if inp.types is not None and item.type not in inp.types:
-            continue
-        if inp.item_ids is not None and item.id not in inp.item_ids:
-            continue
-        if inp.issue_codes is not None and not any(
-            i["code"] in inp.issue_codes for i in item.issues
-        ):
-            continue
+    for item in chosen:
         if item.result and not item.result.get("error_code"):
             continue  # already written
         if item.decision != inp.decision:
@@ -722,25 +740,17 @@ class _Commit:
     async def term(self, ref: str | None, course_id: str | None, day: date | None) -> str:
         if ref is not None:
             return ref.removeprefix("term:")
-        if self.term_id is not None:
-            if course_id is None:
-                return self.term_id
-            course = await academics.course_out(
-                self.ctx, await academics.get_course_row(self.ctx, course_id)
-            )
-            if self.term_id in course.term_ids:
-                return self.term_id
+        course_terms: list[str] | None = None
         if course_id is not None:
             course = await academics.course_out(
                 self.ctx, await academics.get_course_row(self.ctx, course_id)
             )
-            for term_id in course.term_ids:
-                term = await academics.get_term_row(self.ctx, term_id)
-                if day is not None and term.start_date <= day <= term.end_date:
-                    return term_id
-            if len(course.term_ids) == 1 or (day is None and course.term_ids):
-                return course.term_ids[-1]
-        raise AppError("import.term_unresolved", 422)
+            course_terms = list(course.term_ids)
+        spans = {t: await self.term_dates(t) for t in course_terms or []}
+        found = dates.pick_term(self.term_id, course_terms, day, spans)
+        if found is None:
+            raise AppError("import.term_unresolved", 422)
+        return found
 
     async def term_dates(self, term_id: str) -> dates.TermDates:
         if term_id not in self.terms:

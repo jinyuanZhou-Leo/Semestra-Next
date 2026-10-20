@@ -43,7 +43,8 @@ class Capability:
     agent_core: bool
     public: bool
     plugin_id: str | None
-    # Agent/MCP callers get only these output fields (HTTP callers get everything).
+    # Agent/MCP callers get only these output fields (HTTP callers get everything); `a.b` keeps
+    # field `b` of the object in field `a`.
     agent_output_fields: tuple[str, ...] | None
     # The `fields` agent/MCP callers get when they ask for none (list items keep only these).
     agent_default_fields: tuple[str, ...] | None
@@ -148,12 +149,14 @@ class Registry:
             ctx.surface = outer
         if surface == "http":
             return out
-        if cap.agent_output_fields is not None:
-            return out.model_dump(include=set(cap.agent_output_fields), mode="json")
         fields: object = getattr(inp, "fields", None) or cap.agent_default_fields
+        picked: dict[str, Any] | None = None
         if isinstance(fields, list | tuple) and fields:
-            return _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        return out
+            picked = _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        if cap.agent_output_fields is not None:
+            dumped = picked if picked is not None else out.model_dump(mode="json")
+            return _keep_paths(dumped, cap.agent_output_fields)
+        return picked if picked is not None else out
 
 
 def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
@@ -169,6 +172,23 @@ def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
         ]
         return dumped
     return {k: v for k, v in dumped.items() if k in keep}
+
+
+def _keep_paths(dumped: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any]:
+    """Only these output fields; `a.b` keeps field `b` of the object in field `a`."""
+    out: dict[str, Any] = {}
+    for path in paths:
+        head, _, rest = path.partition(".")
+        if head not in dumped:
+            continue
+        value = dumped[head]
+        if rest and isinstance(value, dict):
+            inner = out.get(head)
+            kept = _keep_paths(value, (rest,))  # pyright: ignore[reportUnknownArgumentType]
+            out[head] = {**inner, **kept} if isinstance(inner, dict) else kept
+        else:
+            out[head] = value
+    return out
 
 
 registry = Registry()
