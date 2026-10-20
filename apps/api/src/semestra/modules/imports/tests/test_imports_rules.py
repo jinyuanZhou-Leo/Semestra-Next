@@ -156,3 +156,13 @@ def test_exdates_and_missing_weeks_become_exceptions():
     ))  # fmt: skip
     meeting = parse_ics(singles, TZ).courses[0].meetings[0]
     assert (meeting.recurrence, meeting.exceptions) == ("weekly", [date(2026, 1, 19)])
+
+    # A full-year course as one VEVENT per class: the winter break is no cancellation.
+    days = [date(2025, 12, 1), date(2025, 12, 8), date(2026, 1, 5), date(2026, 1, 12)]
+    year = ics(*(
+        vevent(uid=f":y{d:%m%d}", summary=":MAT137Y1 LEC0101",
+               dtstart=f";TZID=America/Toronto:{d:%Y%m%d}T090000",
+               dtend=f";TZID=America/Toronto:{d:%Y%m%d}T100000")
+        for d in days
+    ))  # fmt: skip
+    assert parse_ics(year, TZ).courses[0].meetings[0].exceptions == []

@@ -81,7 +81,7 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
         "/agent/attachments",
         415,
         data={"session_id": session["id"]},
-        files={"file": ("a.zip", b"PK", "application/zip")},
+        files={"file": ("a.zip", b"PK\x03\x04 not office", "application/zip")},
     )
     assert err["error"]["code"] == "agent.attachment_unsupported"
 

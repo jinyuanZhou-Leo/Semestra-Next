@@ -108,12 +108,12 @@ async def create_session(
         created_at=ctx.now,
         updated_at=ctx.now,
     )
-    ctx.db.add(row)
     try:
-        await ctx.db.flush()
+        async with ctx.db.begin_nested():
+            ctx.db.add(row)
+            await ctx.db.flush()
     except IntegrityError:
         # A concurrent request with the same key won (unique per user): use its session.
-        await ctx.db.rollback()
         existing = await _session_by_key(ctx, client_key or "")
         if existing is None:
             raise

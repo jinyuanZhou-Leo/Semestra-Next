@@ -26,6 +26,8 @@ SECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
 TYPE_ALIASES = {"DIS": "TUT", "REC": "TUT", "STU": "LAB"}
 _WEEKDAYS = {"MO": 1, "TU": 2, "WE": 3, "TH": 4, "FR": 5, "SA": 6, "SU": 7}
 MAX_EVENTS = 5000
+# Missing occurrences in a row still read as cancellations; more is a break (see `parse`).
+MAX_MISSED_IN_A_ROW = 2
 
 
 @dataclass
@@ -282,13 +284,13 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
         gaps = {(b - a).days for a, b in pairwise(days)}
         biweekly = min(gaps) >= 14
         step = timedelta(days=14 if biweekly else 7)
-        held = set(days)
+        # A class or two missing between held ones is a cancellation (a holiday); a longer gap
+        # is a break between terms or a reading week the term already has.
         missing: list[date] = []
-        day = days[0] + step
-        while day < days[-1]:
-            if day not in held:
-                missing.append(day)
-            day += step
+        for a, b in pairwise(days):
+            skipped = [a + step * n for n in range(1, (b - a) // step)]
+            if len(skipped) <= MAX_MISSED_IN_A_ROW:
+                missing.extend(skipped)
         sec = section_of(first.summary)
         course.meetings.append(
             IcsMeeting(

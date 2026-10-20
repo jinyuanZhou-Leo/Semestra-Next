@@ -156,12 +156,15 @@ const hoverActions =
 function UserMessage({
   item,
   scope,
+  savedFiles,
   canEdit,
   onEdit,
 }: {
   item: Extract<ViewItem, { kind: 'user' }>
   /** Where the conversation works: the courses its attachments can be saved to. */
   scope: AgentScope | null
+  /** Course file each attachment was saved as, by attachment id. */
+  savedFiles: ReadonlyMap<string, string>
   canEdit: boolean
   /** Resolves false when the edit could not be sent; the editor stays open. */
   onEdit: (text: string) => Promise<boolean>
@@ -209,7 +212,12 @@ function UserMessage({
                 <AttachmentContent>
                   <AttachmentTitle>{att.name}</AttachmentTitle>
                 </AttachmentContent>
-                <AttachmentSaveMenu attachmentId={att.id} name={att.name} scope={scope} />
+                <AttachmentSaveMenu
+                  attachmentId={att.id}
+                  name={att.name}
+                  scope={scope}
+                  fileItemId={savedFiles.get(att.id) ?? null}
+                />
               </Attachment>
             ))}
           </AttachmentGroup>
@@ -446,6 +454,9 @@ export function Conversation({
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
+  const savedFiles = new Map(
+    (detail?.attachments ?? []).flatMap((a) => (a.file_item_id ? [[a.id, a.file_item_id]] : [])),
+  )
   const regenerateId = detail && !chat.generating ? canRegenerate(detail, items) : null
   const paused = detail && !chat.generating ? pausedReason(detail) : null
 
@@ -629,6 +640,7 @@ export function Conversation({
                       <UserMessage
                         item={item}
                         scope={scope}
+                        savedFiles={savedFiles}
                         canEdit={!chat.generating && !item.id.startsWith('pending-')}
                         onEdit={(text) => {
                           setSent((n) => n + 1)

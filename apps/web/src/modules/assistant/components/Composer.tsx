@@ -213,8 +213,9 @@ export function Composer({
     setText('')
     setSkill(null)
     setCaret(0)
-    const ok = await onSubmit(sent)
-    submitting.current = false
+    const ok = await onSubmit(sent).finally(() => {
+      submitting.current = false
+    })
     if (!ok) {
       setText(sent.text)
       setSkill(sent.skill)
@@ -375,7 +376,7 @@ export function Composer({
             type="file"
             multiple
             hidden
-            accept="image/*,application/pdf,text/*,.md,.csv,.json"
+            accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/*,.md,.csv,.json,.ics,.html,.docx,.pptx,.xlsx"
             onChange={(event) => {
               onFiles([...(event.target.files ?? [])])
               event.target.value = ''

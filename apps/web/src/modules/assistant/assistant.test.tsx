@@ -1042,3 +1042,33 @@ test('an attachment of a sent message can be saved to a course of the term', asy
   await waitFor(() => expect(saved).toHaveLength(1))
   expect(saved[0]).toEqual({ path: '/agent/attachments/f1:save', body: { course_id: 'c2' } })
 })
+
+test('an attachment saved before shows where it went and opens the saved file', async () => {
+  server.use(
+    http.get(`${API}/files/:id`, () =>
+      HttpResponse.json({ id: 'fi1', course_id: 'c2', display_name: 'notes.txt', kind: 'file' }),
+    ),
+  )
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  srv.detail.attachments = [
+    {
+      id: 'f1',
+      session_id: 's1',
+      kind: 'file',
+      name: 'notes.txt',
+      mime: 'text/plain',
+      size: 5,
+      created_at: NOW,
+      file_item_id: 'fi1',
+    },
+  ]
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'file_ref', attachment_id: 'f1', name: 'notes.txt' }]),
+  ]
+  renderWithRouter(
+    <Conversation sessionId="s1" pageScope={{ program_id: 'p1' }} onCreated={() => {}} />,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Saved to MAT188H1' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Open the saved file' }))
+  expect(await screen.findByRole('dialog')).toBeInTheDocument()
+})

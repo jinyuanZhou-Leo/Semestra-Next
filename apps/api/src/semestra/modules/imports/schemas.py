@@ -193,6 +193,11 @@ class Issue(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class SkippedException(BaseModel):
+    date: str
+    code: str = Field(description="Why it was not written, e.g. schedule.not_a_class_day")
+
+
 class ItemResult(BaseModel):
     created_id: str | None = None
     updated_id: str | None = None
@@ -200,6 +205,11 @@ class ItemResult(BaseModel):
     reused: bool = False
     error_code: str | None = None
     error_params: dict[str, Any] = Field(default_factory=dict)
+    skipped_exceptions: list[SkippedException] = Field(
+        default_factory=lambda: [],
+        description="Cancelled dates of a meeting that were not written (a break week, a date "
+        "outside the meeting's weeks); mention them when reporting the import",
+    )
 
 
 class ImportItem(BaseModel):

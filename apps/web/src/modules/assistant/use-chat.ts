@@ -73,6 +73,13 @@ export function sessionQueryOptions(sessionId: string | null) {
   }
 }
 
+/** Idempotency key of a new conversation. `crypto.randomUUID` needs a secure context, which a
+ * LAN address over http is not; `getRandomValues` does not. */
+function newClientKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 /**
  * One conversation: its transcript (the server copy, with streamed events applied as they
  * arrive) and the actions that start a turn. A new conversation is created on the first send.
@@ -85,7 +92,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   // The conversation this hook creates on the first upload or send: one request at a time,
   // and the key makes the server return the same conversation if two get through anyway.
   const creating = useRef<Promise<string> | null>(null)
-  const clientKey = useRef(crypto.randomUUID())
+  const [clientKey] = useState(newClientKey)
   const sending = useRef(false)
 
   const detail = useQuery({
@@ -126,7 +133,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
 
   async function createSession(scope: AgentScope | null | undefined): Promise<string> {
     const { data } = await agentSessionCreate({
-      body: { ...(scope ? { scope } : {}), client_key: clientKey.current },
+      body: { ...(scope ? { scope } : {}), client_key: clientKey },
       throwOnError: true,
     })
     queryClient.setQueryData(keyOf(data.id), emptyDetail(data))
@@ -149,6 +156,13 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     // A second Enter or click before the first send has started its turn.
     if (sending.current) return false
     sending.current = true
+    // `.finally` rather than try/finally, which the React Compiler cannot lower.
+    return sendOnce(input).finally(() => {
+      sending.current = false
+    })
+  }
+
+  async function sendOnce(input: SendInput): Promise<boolean> {
     setBusy(true)
     const id = await ensureSession(input.scope).catch((err: unknown) => {
       const apiError = toApiError(err)
@@ -156,7 +170,6 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       return null
     })
     if (id === null) {
-      sending.current = false
       setBusy(false)
       return false
     }
@@ -176,14 +189,12 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
       current ? withUserMessage(current, `pending-${Date.now()}`, blocks) : current,
     )
-    const started = await run(id, `/agent/sessions/${id}/messages`, {
+    return run(id, `/agent/sessions/${id}/messages`, {
       text: input.text,
       attachment_ids: input.attachmentIds ?? [],
       scope: input.scope ?? null,
       skill: input.skill?.name ?? null,
     })
-    sending.current = false
-    return started
   }
 
   function decide(decisions: Decision[]) {

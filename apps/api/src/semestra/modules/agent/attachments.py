@@ -9,9 +9,10 @@ import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import Self
 
 import anyio.to_thread
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import exists, func, select
 
 from semestra.core.capability import Http, capability
@@ -19,9 +20,10 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import periodic
 from semestra.core.storage import get_storage
+from semestra.modules.agent import service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentMessage
 from semestra.modules.files import service as files
-from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, detect, parse
+from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
 from semestra.modules.files.parse.detect import Detected
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES
@@ -30,9 +32,18 @@ from semestra.modules.files.schemas import ItemOut
 # Formats whose readers run third-party C code or inflate archives: parsed in a child process
 # with time and memory limits (M07 `parse/isolated.py`). Text formats are read in-process.
 ISOLATED_KINDS = ("pdf", "docx", "pptx", "xlsx")
+# What the composer takes besides images (M07's readers; ICS goes to the importer).
+DOCUMENT_KINDS = ("pdf", "docx", "pptx", "xlsx", "csv", "html", "text", "markdown", "ics")
 PARSE_TIME_LIMIT = 60.0
 READ_MAX_PAGES = 10
 READ_MAX_CHARS = 40_000
+# Pages are cut to M07's logical page size on upload; a PDF or slide page can still be long, so
+# a single page is cut here too.
+PAGE_MAX_CHARS = 20_000
+ICS_NOTE = (
+    "Calendar file: its text is not shown. To import its classes, pass this attachment id to "
+    "imports.session.create with source_kind ics."
+)
 # Uploads no message refers to (removed from the composer, the page closed before sending) are
 # deleted after this long, with their file, so they stop counting against the storage quota.
 UNSENT_RETENTION = timedelta(hours=24)
@@ -49,16 +60,12 @@ class Reading:
     error: str | None = None
 
 
-async def read_upload(ctx: Ctx, data: bytes, filename: str) -> Reading:
-    """Detects the type by content and parses the file into pages. Never raises: a file the
-    parser cannot read is kept with `error` set, so the model can be told why."""
-    detected = detect(data, filename)
-    if detected.kind == "image":
-        return Reading("image", detected.mime)
-    if detected.kind == "ics":
-        # The importer reads calendars; the text pages only serve `attachments.read`.
-        document = parse(data, Detected("text", "text/plain"), max_pages=MAX_PAGES)
-        return Reading("ics", detected.mime, document.pages)
+async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
+    """Parses the file into pages. Never raises: a file the parser cannot read is kept with
+    `error` set, so the model can be told why. Calendars keep no pages: the importer reads
+    them (M08), and their raw text is no use to the model."""
+    if detected.kind in ("image", "ics"):
+        return Reading(detected.kind, detected.mime)
     try:
         if detected.kind in ISOLATED_KINDS:
             document = await _parse_isolated(ctx, data, detected)
@@ -90,7 +97,7 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
     """Fills in the attachment's reading and adds its pages (the caller flushes/commits)."""
     row.doc_kind = reading.kind
     row.parse_error = reading.error
-    row.page_count = None if reading.kind == "image" else len(reading.pages)
+    row.page_count = None if reading.kind in ("image", "ics") else len(reading.pages)
     for index, page in enumerate(reading.pages):
         ctx.db.add(
             AgentAttachmentPage(
@@ -143,8 +150,7 @@ def outline(rows: list[AgentAttachmentPage]) -> list[tuple[int, int, str]]:
 async def open_original(ctx: Ctx, attachment_id: str) -> tuple[AgentAttachment, bytes]:
     """The uploaded file itself, for importers that read the original (M08 `attachment_ids`)."""
     row = await get_owned(ctx, attachment_id)
-    data = b"".join([chunk async for chunk in get_storage(ctx).open(row.storage_key)])
-    return row, data
+    return row, await service.read_attachment(ctx, row)
 
 
 @periodic("agent.attachments.cleanup", every=timedelta(hours=1))
@@ -185,11 +191,18 @@ class AttachmentReadInput(BaseModel):
         default=None, ge=1, description=f"Last page (inclusive); at most {READ_MAX_PAGES} pages"
     )
 
+    @model_validator(mode="after")
+    def _range(self) -> Self:
+        if self.page_to is not None and self.page_to < self.page_from:
+            raise ValueError("page_to must not be before page_from")
+        return self
+
 
 class AttachmentPageOut(BaseModel):
     page_no: int
     markdown: str
     needs_ocr: bool = Field(description="Scanned page without a text layer")
+    truncated: bool = Field(default=False, description="The page was cut; the rest is not shown")
 
 
 class AttachmentRead(BaseModel):
@@ -200,6 +213,7 @@ class AttachmentRead(BaseModel):
     pages: list[AttachmentPageOut]
     next_page: int | None = Field(description="Call again from this page for the rest")
     error_code: str | None = Field(description="Why the file could not be read, if it could not")
+    note: str | None = Field(default=None, description="How to use a file that has no pages")
 
 
 @capability(
@@ -221,16 +235,23 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
     out: list[AttachmentPageOut] = []
     size = 0
     for page in await pages(ctx, row.id, inp.page_from, last):
-        # Long pages: stop early rather than flood the context; next_page picks up from here.
+        # Stop early rather than flood the context; next_page picks up from here.
         if out and size + len(page.markdown) > READ_MAX_CHARS:
             last = page.page_no - 1
             break
+        text = page.markdown[:PAGE_MAX_CHARS]
         out.append(
             AttachmentPageOut(
-                page_no=page.page_no, markdown=page.markdown, needs_ocr=page.needs_ocr
+                page_no=page.page_no,
+                markdown=text,
+                needs_ocr=page.needs_ocr,
+                truncated=len(text) < len(page.markdown),
             )
         )
-        size += len(page.markdown)
+        size += len(text)
+    error = row.parse_error
+    if row.doc_kind is None:
+        error = "agent.attachment_not_read"  # uploaded before attachments were parsed
     return AttachmentRead(
         attachment_id=row.id,
         name=row.name,
@@ -238,7 +259,8 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
         page_count=total,
         pages=out,
         next_page=last + 1 if last < total else None,
-        error_code=row.parse_error,
+        error_code=error,
+        note=ICS_NOTE if row.doc_kind == "ics" else None,
     )
 
 

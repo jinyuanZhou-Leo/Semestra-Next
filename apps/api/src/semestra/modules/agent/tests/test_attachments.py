@@ -9,11 +9,14 @@ from httpx import AsyncClient
 from pydantic import BaseModel
 
 from semestra.core.capability import registry
-from semestra.core.context import system_ctx
+from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
-from semestra.modules.agent.models import AgentMessage
-from semestra.modules.files.tests.conftest import make_pdf
+from semestra.modules.agent import service
+from semestra.modules.agent.models import AgentMessage, AgentSession
+from semestra.modules.files.parse.detect import DOCX
+from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS
+from semestra.modules.files.tests.conftest import make_docx, make_pdf
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
 from semestra.testing import Clock, MakeUser, UserHandle
 
@@ -87,6 +90,19 @@ async def test_uploads_are_read_into_pages(chat: Chat):
     read = await chat.tool("attachments.read", {"attachment_id": note["id"]})
     assert (read["type"], read["pages"][0]["markdown"]) == ("text", "Office hours: Tuesday 3pm")
 
+    # Text without blank lines is still cut into pages.
+    lines = "\n".join(f"Week {n}: lecture notes " + "x" * 60 for n in range(400)).encode()
+    long = await chat.attach(session_id, "long.txt", lines, "text/plain")
+    read = await chat.tool("attachments.read", {"attachment_id": long["id"]})
+    assert read["page_count"] > 10
+    assert read["next_page"] == 11
+    assert max(len(p["markdown"]) for p in read["pages"]) <= LOGICAL_PAGE_CHARS
+    with pytest.raises(AppError) as err:
+        await chat.tool(
+            "attachments.read", {"attachment_id": long["id"], "page_from": 5, "page_to": 3}
+        )
+    assert err.value.code == "common.validation"
+
     # Pages go with the attachment.
     await chat.call("DELETE", f"/agent/attachments/{note['id']}")
     with pytest.raises(AppError) as err:
@@ -139,7 +155,9 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     session_id = await session_of(chat, program_id)
     att = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
-    assert read["type"] == "ics"
+    # The raw calendar is not given to the model; the importer reads it.
+    assert (read["type"], read["page_count"], read["pages"]) == ("ics", 0, [])
+    assert "imports.session.create" in read["note"]
 
     created = await chat.tool(
         "imports.session.create",
@@ -153,12 +171,15 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
 
     done = await chat.call("POST", f"/imports/{created['id']}:commit", json={})
     assert done["failed"] == 0
+    result = next(i for i in done["session"]["items"] if i["type"] == "meeting")["result"]
+    # The reading-week date is not a class day: reported, not silently dropped.
+    assert [s["date"] for s in result["skipped_exceptions"]] == ["2026-10-26"]
     course = (await chat.call("GET", f"/programs/{program_id}/courses"))["items"][0]
     meetings = (await chat.call("GET", f"/courses/{course['id']}/meetings"))["items"]
     cancelled = [(e["original_date"], e["kind"]) for e in meetings[0]["exceptions"]]
     assert cancelled == [("2026-10-12", "cancelled")]
     # The attachment stays with the conversation; the import keeps its own copy.
-    assert (await chat.tool("attachments.read", {"attachment_id": att["id"]}))["page_count"] == 1
+    assert (await chat.tool("attachments.read", {"attachment_id": att["id"]}))["type"] == "ics"
 
 
 async def test_creating_a_conversation_twice_with_one_key_returns_it(chat: Chat):
@@ -226,3 +247,45 @@ async def test_an_attachment_can_be_saved_to_a_course(chat: Chat):
     assert again["id"] == saved["id"]
     detail = await chat.call("GET", f"/agent/sessions/{session_id}")
     assert detail["attachments"][0]["file_item_id"] == saved["id"]
+
+
+async def test_uploads_are_typed_by_their_content(chat: Chat):
+    session_id = await session_of(chat, await chat.program())
+    docx = make_docx([("Heading 1", "Grading"), ("Normal", "Midterm 30%, final 50%")])
+    att = await chat.attach(session_id, "syllabus.docx", docx, "application/octet-stream")
+    assert (att["kind"], att["mime"]) == ("file", DOCX)
+    read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
+    assert read["type"] == "docx"
+    assert "Midterm 30%" in read["pages"][0]["markdown"]
+    # A calendar sent as octet-stream (some Windows browsers) is still taken.
+    cal = await chat.attach(session_id, "cal.ics", THANKSGIVING, "application/octet-stream")
+    assert cal["mime"] == "text/calendar"
+    # Binary content is refused whatever the browser claims.
+    await chat.call(
+        "POST",
+        "/agent/attachments",
+        415,
+        data={"session_id": session_id},
+        files={"file": ("x.txt", b"\x00\x01\x02binary", "text/plain")},
+    )
+
+
+async def test_a_lost_race_on_the_client_key_returns_the_winner(
+    chat: Chat, monkeypatch: pytest.MonkeyPatch
+):
+    program_id = await chat.program()
+    body = {"scope": {"program_id": program_id}, "client_key": "draft-race1"}
+    first = await chat.call("POST", "/agent/sessions", json=body)
+    real = service._session_by_key
+    calls = 0
+
+    async def miss_once(ctx: Ctx, key: str) -> AgentSession | None:
+        nonlocal calls
+        calls += 1
+        return None if calls == 1 else await real(ctx, key)
+
+    # The lookup misses (the other request had not committed yet); the insert then hits the
+    # unique index and the winner's session is returned.
+    monkeypatch.setattr(service, "_session_by_key", miss_once)
+    again = await chat.call("POST", "/agent/sessions", json=body)
+    assert again["id"] == first["id"]

@@ -831,6 +831,7 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
             ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
         )
         meeting_id = (out["created_ids"] or out["updated_ids"])[0]
+        skipped: list[dict[str, str]] = []
         for day in data.get("exceptions") or []:
             try:
                 await deps.call(
@@ -838,11 +839,16 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
                     "schedule.exception.upsert",
                     {"meeting_id": meeting_id, "original_date": day, "kind": "cancelled"},
                 )
-            except AppError:
-                continue  # not a class day of the meeting (a break week, outside its weeks)
-        if out["created_ids"]:
-            return {"created_id": meeting_id}
-        return {"updated_id": meeting_id}
+            except AppError as exc:
+                # Not a class day of the meeting (a break week, outside its weeks): reported so
+                # the user is told which dates were left out.
+                skipped.append({"date": day, "code": exc.code})
+        result: dict[str, Any] = (
+            {"created_id": meeting_id} if out["created_ids"] else {"updated_id": meeting_id}
+        )
+        if skipped:
+            result["skipped_exceptions"] = skipped
+        return result
     if item.type == "event":
         if not data.get("date"):
             raise AppError("import.date_unresolved", 422)

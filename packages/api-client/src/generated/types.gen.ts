@@ -4781,6 +4781,12 @@ export type ItemResult = {
     error_params?: {
         [key: string]: unknown;
     };
+    /**
+     * Skipped Exceptions
+     *
+     * Cancelled dates of a meeting that were not written (a break week, a date outside the meeting's weeks); mention them when reporting the import
+     */
+    skipped_exceptions?: Array<SkippedException>;
 };
 
 /**
@@ -7751,6 +7757,22 @@ export type SkippedAssessment = {
      * The existing assessment with this source
      */
     assessment_id: string;
+};
+
+/**
+ * SkippedException
+ */
+export type SkippedException = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Code
+     *
+     * Why it was not written, e.g. schedule.not_a_class_day
+     */
+    code: string;
 };
 
 /**

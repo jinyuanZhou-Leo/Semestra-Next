@@ -20630,6 +20630,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "additionalProperties": true,
             "type": "object",
             "title": "Error Params"
+          },
+          "skipped_exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedException"
+            },
+            "type": "array",
+            "title": "Skipped Exceptions",
+            "description": "Cancelled dates of a meeting that were not written (a break week, a date outside the meeting's weeks); mention them when reporting the import"
           }
         },
         "type": "object",
@@ -25880,6 +25888,25 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "assessment_id"
         ],
         "title": "SkippedAssessment"
+      },
+      "SkippedException": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Why it was not written, e.g. schedule.not_a_class_day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "code"
+        ],
+        "title": "SkippedException"
       },
       "SourceRef": {
         "properties": {

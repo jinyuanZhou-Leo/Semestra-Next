@@ -1427,6 +1427,8 @@
   "assistant_attachment_save": "Save {name} to course files",
   "assistant_attachment_save_to": "Save to course",
   "assistant_attachment_saved": "Saved {name} to {course}",
+  "assistant_attachment_saved_to": "Saved to {course}",
+  "assistant_attachment_open": "Open the saved file",
   "assistant_attachment_remove": "Remove {name}",
   "assistant_citation_open": "Open the file",
   "assistant_citation_untitled": "Source",
