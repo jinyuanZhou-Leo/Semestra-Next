@@ -115,7 +115,6 @@ export function Composer({
   onSubmit,
   onStop,
   onScope,
-  header,
   focusInput,
 }: {
   programId: string | undefined
@@ -128,7 +127,6 @@ export function Composer({
   onSubmit: (input: ComposerSubmit) => Promise<boolean>
   onStop: () => void
   onScope: (scope: AgentScope) => void
-  header?: ReactNode
   focusInput?: boolean
 }) {
   const id = useId()
@@ -283,9 +281,8 @@ export function Composer({
         </Command>
       ) : null}
       <InputGroup className="rounded-2xl">
-        {header || skill || attachments.length > 0 ? (
+        {skill || attachments.length > 0 ? (
           <InputGroupAddon align="block-start" className="flex-wrap justify-start gap-1.5">
-            {header}
             {skill ? (
               <Badge variant="secondary" className="gap-1">
                 <Sparkles aria-hidden />

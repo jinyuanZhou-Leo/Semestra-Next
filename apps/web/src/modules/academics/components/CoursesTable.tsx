@@ -180,9 +180,9 @@ function TermsCell({ row }: CellProps) {
 const GpaCell = ({ row }: CellProps) =>
   row.original.include_in_gpa ? m.academics_yes() : m.academics_no()
 
-function ExtensionCell({ row, column }: CellProps) {
+function ExtensionCell({ row, column: col }: CellProps) {
   const { extensions, columnData } = useTableState()
-  const extensionId = column.id.slice('ext:'.length)
+  const extensionId = col.id.slice('ext:'.length)
   return extensions.get(extensionId)?.cell(row.original, columnData.get(extensionId))
 }
 

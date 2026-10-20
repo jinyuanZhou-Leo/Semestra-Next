@@ -17,6 +17,7 @@ import type { Task } from '@semestra/api-client'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { useShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -38,8 +39,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useTaskActions } from '../actions'
 import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
-import { SortableTaskRow, TaskRow } from '../components/TaskRow'
-import { TasksSidebar } from '../components/TasksSidebar'
+import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
+import { TasksViewMenu, useTaskSelection } from '../components/TasksSidebar'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
@@ -63,10 +64,11 @@ type ViewPref = { sort: SortKey; doneOpen: boolean | null }
 const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
 
 /**
- * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): smart lists and lists on the
- * left, the add box and the tasks on the right. Titles are edited in place; "Edit details" in a
- * row's ⋯ menu (or Enter on the selected row) opens the side panel. The course page is the same
- * list fixed to the course.
+ * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the add box and the tasks of
+ * one list. The Program's lists are under "Tasks" in the app sidebar; elsewhere (and on the icon
+ * rail) the title is a menu of them. Titles are edited in place; "Edit details" in a row's ⋯ menu
+ * (or Enter on the selected row) opens the side panel. The course page is the same list fixed to
+ * the course, with the smart lists as a segmented control.
  */
 export default function TasksPage({ scope }: PageProps) {
   const programId = scope.programId
@@ -74,8 +76,9 @@ export default function TasksPage({ scope }: PageProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : undefined
   const taskScope = { programId, termId, courseId }
   const scopeId = courseId ?? termId ?? programId
-  const [selectionPref, setSelectionPref] = useUiPref('tasks.selection', 'all', { scope: scopeId })
-  const selection = parseSelection(selectionPref)
+  const [selection, setSelection] = useTaskSelection(scopeId)
+  // The Program's lists are under "Tasks" in the app sidebar while it is open wide.
+  const listsInSidebar = useShellSidebarOpen() && scope.kind === 'program'
   const key = selectionKey(selection)
   const [viewPref, setViewPref] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
     scope: `${scopeId}.${key}`,
@@ -97,6 +100,8 @@ export default function TasksPage({ scope }: PageProps) {
   const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  // The one row open for editing in place; `new` is the empty row at the end of the list.
+  const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
   const quickAdd = useRef<HTMLInputElement>(null)
@@ -117,16 +122,23 @@ export default function TasksPage({ scope }: PageProps) {
     lists.data?.items.filter((l) => !termId || !l.term_id || l.term_id === termId) ?? []
 
   const select = (next: Selection) => {
-    setSelectionPref(selectionKey(next))
+    setSelection(next)
     setSelectedId(null)
     setDetailId(null)
+    setEditing(null)
   }
+  const stopEditing = (id: string) => setEditing((current) => (current?.id === id ? null : current))
   const rowProps = (task: Task) => ({
     task,
     courses,
     selected: task.id === selectedId,
     onSelect: () => setSelectedId(task.id),
+    editing: editing?.id === task.id ? editing.focus : null,
+    onStartEdit: (focus: EditFocus) => setEditing({ id: task.id, focus }),
+    onStopEdit: () => stopEditing(task.id),
     onEdit: () => {
+      // The side panel takes over: the open row closes (saving what was typed) first.
+      stopEditing(task.id)
       setSelectedId(task.id)
       setDetailId(task.id)
     },
@@ -193,6 +205,18 @@ export default function TasksPage({ scope }: PageProps) {
       flagged: selection.kind === 'smart' && selection.view === 'flagged' ? true : undefined,
     })
 
+  // Only under tasks: an empty list keeps its empty state and the add box above.
+  const newRow =
+    open.length > 0 ? (
+      <NewTaskRow
+        open={editing?.id === 'new'}
+        onOpenChange={(next) =>
+          next ? setEditing({ id: 'new', focus: { field: 'title' } }) : stopEditing('new')
+        }
+        onAdd={(title) => add({ title, ...(defaultDue ? { due_date: defaultDue } : {}) })}
+      />
+    ) : null
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     const ids = open.map((t) => t.id)
@@ -229,19 +253,7 @@ export default function TasksPage({ scope }: PageProps) {
   }
 
   return (
-    <div className={cn('grid gap-6', !courseId && 'md:grid-cols-[13rem_minmax(0,1fr)]')}>
-      {courseId ? null : (
-        <TasksSidebar
-          programId={programId}
-          termId={termId}
-          selection={selection}
-          onSelect={select}
-          counts={counts.data}
-          lists={lists.data?.items ?? []}
-          courses={courses}
-          actions={actions}
-        />
-      )}
+    <div>
       <section ref={listRef} className="min-w-0 space-y-3" aria-label={title}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
@@ -257,8 +269,20 @@ export default function TasksPage({ scope }: PageProps) {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-          ) : (
+          ) : listsInSidebar ? (
             <h2 className="font-heading text-xl font-semibold tracking-tight">{title}</h2>
+          ) : (
+            <TasksViewMenu
+              programId={programId}
+              termId={termId}
+              title={title}
+              selection={selection}
+              onSelect={select}
+              counts={counts.data}
+              lists={lists.data?.items ?? []}
+              courses={courses}
+              actions={actions}
+            />
           )}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -318,6 +342,7 @@ export default function TasksPage({ scope }: PageProps) {
                       {open.map((task) => (
                         <SortableTaskRow key={task.id} {...rowProps(task)} />
                       ))}
+                      {newRow}
                     </ul>
                   </SortableContext>
                 </DndContext>
@@ -326,6 +351,7 @@ export default function TasksPage({ scope }: PageProps) {
                   {(completedView ? [] : open).map((task) => (
                     <TaskRow key={task.id} {...rowProps(task)} />
                   ))}
+                  {completedView ? null : newRow}
                 </ul>
               )}
               {completedView ? (
@@ -390,6 +416,7 @@ export default function TasksPage({ scope }: PageProps) {
           if (id) {
             if (id === selectedId) setSelectedId(null)
             if (id === detailId) setDetailId(null)
+            stopEditing(id)
             void actions.remove(id)
           }
         }}

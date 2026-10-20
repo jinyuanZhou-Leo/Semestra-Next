@@ -17,6 +17,7 @@ export type Citation = {
 export type AgentEvent =
   | { event: 'message_start'; data: { message_id: string } }
   | { event: 'text_delta'; data: { message_id: string; text: string } }
+  | { event: 'reasoning_delta'; data: { message_id: string; text: string } }
   | {
       event: 'message_end'
       data: { message_id: string; stopped?: boolean; input_tokens?: number; output_tokens?: number }

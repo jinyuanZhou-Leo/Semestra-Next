@@ -61,6 +61,19 @@ export function emptyDetail(session: AgentSessionDetail['session']): AgentSessio
 }
 
 /**
+ * The conversation query for every component that shows it: they share one cache entry, and
+ * streamed events are applied to it, so none may refetch it on its own while a turn runs.
+ */
+export function sessionQueryOptions(sessionId: string | null) {
+  return {
+    ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
+    enabled: sessionId !== null,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  }
+}
+
+/**
  * One conversation: its transcript (the server copy, with streamed events applied as they
  * arrive) and the actions that start a turn. A new conversation is created on the first send.
  */
@@ -71,10 +84,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const controller = useRef<AbortController | null>(null)
 
   const detail = useQuery({
-    ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
-    enabled: sessionId !== null,
-    // Streamed events are applied to the cache; a refetch mid-turn would undo them.
-    staleTime: 30_000,
+    ...sessionQueryOptions(sessionId),
     refetchOnWindowFocus: !busy,
     // Another tab or device may be answering in this conversation: follow along.
     refetchInterval: (query) => (query.state.data?.generating && !busy ? 2000 : false),

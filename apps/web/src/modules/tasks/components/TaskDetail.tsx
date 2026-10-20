@@ -1,10 +1,9 @@
 import type { Course, Task, TaskList } from '@semestra/api-client'
-import { CalendarDays, Flag, Trash2, X } from 'lucide-react'
+import { CalendarDays, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { formatDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -13,16 +12,21 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { Textarea } from '@/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
 import { PRIORITIES, type Priority, type ShownPriority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES } from './TaskRow'
-
-const NONE = '__none__'
+import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
 type Draft = {
   title: string
@@ -193,10 +197,7 @@ export function TaskDetail({
             >
               {PRIORITIES.map((p) => (
                 <ToggleGroupItem key={p} value={p} className="flex-1 gap-1 px-1 text-xs">
-                  <Flag
-                    aria-hidden
-                    className={cn(p !== 'none' && 'fill-current', PRIORITY_COLORS[p])}
-                  />
+                  {p === 'none' ? null : <PriorityMarks level={p} className="min-w-0" />}
                   {p === 'none' ? m.tasks_priority_none_short() : PRIORITY_NAMES[p]()}
                 </ToggleGroupItem>
               ))}
@@ -211,53 +212,57 @@ export function TaskDetail({
             />
           </Field>
           <Field>
-            <FieldLabel>{m.tasks_list_label()}</FieldLabel>
+            <FieldLabel htmlFor="task-list">{m.tasks_list_label()}</FieldLabel>
             <Select
-              value={draft.list_id ?? NONE}
-              onValueChange={(value) => set('list_id', value === NONE ? null : value)}
+              value={draft.list_id}
+              onValueChange={(value) => set('list_id', value)}
               items={[
-                { value: NONE, label: m.tasks_view_inbox() },
+                { value: null, label: m.tasks_view_inbox() },
                 ...lists.map((l) => ({ value: l.id, label: listName(l) })),
               ]}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="task-list" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>{m.tasks_view_inbox()}</SelectItem>
-                {lists.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {listName(l)}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectItem value={null}>{m.tasks_view_inbox()}</SelectItem>
+                  {lists.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {listName(l)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
           <Field>
-            <FieldLabel>{m.tasks_course_label()}</FieldLabel>
+            <FieldLabel htmlFor="task-course">{m.tasks_course_label()}</FieldLabel>
             <Select
-              value={draft.course_id ?? NONE}
-              onValueChange={(value) => set('course_id', value === NONE ? null : value)}
+              value={draft.course_id}
+              onValueChange={(value) => set('course_id', value)}
               items={[
-                { value: NONE, label: m.tasks_course_none() },
+                { value: null, label: m.tasks_course_none() },
                 ...courses.map((c) => ({ value: c.id, label: courseLabel(c) })),
               ]}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue />
+              <SelectTrigger id="task-course" className="w-full">
+                <SelectValue>
+                  {(value: string | null) => {
+                    const selected = courses.find((c) => c.id === value)
+                    return selected ? <CourseOption course={selected} /> : m.tasks_course_none()
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>{m.tasks_course_none()}</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <span
-                      aria-hidden
-                      className="size-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: courseColor(c) }}
-                    />
-                    {courseLabel(c)}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectItem value={null}>{m.tasks_course_none()}</SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <CourseOption course={c} />
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -290,6 +295,20 @@ export function TaskDetail({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** A course with its color dot, centered on the text in the list and in the field. */
+function CourseOption({ course }: { course: Course }) {
+  return (
+    <>
+      <span
+        aria-hidden
+        className="size-2 shrink-0 self-center rounded-full"
+        style={{ backgroundColor: courseColor(course) }}
+      />
+      <span className="truncate">{courseLabel(course)}</span>
+    </>
   )
 }
 

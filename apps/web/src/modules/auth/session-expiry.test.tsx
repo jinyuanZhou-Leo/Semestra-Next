@@ -7,7 +7,7 @@ import { API, apiError, renderWithQuery, server, user } from '@/test-utils'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext } from './useAuth'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   setSignedIn(false)

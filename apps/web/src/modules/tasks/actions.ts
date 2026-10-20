@@ -47,8 +47,24 @@ export function useTaskActions() {
   const queryClient = useQueryClient()
   const shared = { onError: toastError, onSettled: () => invalidateTasks(queryClient) }
   const create = useMutation({ ...tasksItemCreateMutation(), ...shared })
-  const update = useMutation({ ...tasksItemUpdateMutation(), ...shared })
-  // Checking a task off and dragging it are applied to the cached lists right away.
+  // Edits, checking a task off and dragging it are applied to the cached lists right away, so
+  // a chip or a flag changes as it is clicked.
+  const update = useMutation({
+    ...tasksItemUpdateMutation(),
+    ...shared,
+    onMutate: async ({ path, body }) => {
+      await queryClient.cancelQueries({
+        predicate: (query) => taskQueryKeys.isItemQuery(query.queryKey),
+      })
+      return patchPages(queryClient, (page) =>
+        page.items.map((t) => (t.id === path.task_id ? ({ ...t, ...body } as Task) : t)),
+      )
+    },
+    onError: (error, _vars, snapshot) => {
+      restore(queryClient, snapshot)
+      toastError(error)
+    },
+  })
   const complete = useMutation({
     ...tasksItemCompleteMutation(),
     ...shared,

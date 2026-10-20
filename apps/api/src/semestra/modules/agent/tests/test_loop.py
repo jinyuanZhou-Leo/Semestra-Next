@@ -575,7 +575,7 @@ async def test_stop_keeps_the_partial_answer(app: FastAPI, agent: Agent, model: 
         "data": {"message_id": start["message_id"], "stopped": True},
     }
     detail = await agent.detail(session["id"])
-    assert detail["messages"][-1]["content"] == [{"type": "text", "text": "A long answer"}]
+    assert detail["messages"][-1]["content"][0] == {"type": "text", "text": "A long answer"}
 
 
 async def test_stop_while_the_model_is_silent(app: FastAPI, agent: Agent):
@@ -613,7 +613,43 @@ async def test_stop_while_the_model_is_silent(app: FastAPI, agent: Agent):
     assert events[-1]["data"]["stopped"] is True
     assert closed.is_set()
     detail = await agent.detail(session["id"])
-    assert detail["messages"][-1]["content"] == [{"type": "text", "text": "Thinking"}]
+    assert detail["messages"][-1]["content"][0] == {"type": "text", "text": "Thinking"}
+
+
+async def test_stop_while_thinking_keeps_the_thought_for_display(app: FastAPI, agent: Agent):
+    # Unsigned partial thinking is shown again after a refresh but never replayed to the model.
+    session = await agent.session()
+    user = (await agent.call("GET", "/account/me"))["id"]
+    cancel = asyncio.Event()
+
+    async def thinking(messages: object, tools: object = None) -> AsyncIterator[Chunk]:
+        yield Chunk(thinking="Weighing ")
+        yield Chunk(thinking="the options")
+        await asyncio.Event().wait()
+        yield Chunk(text="never")
+
+    agent.model.stream = thinking  # type: ignore[method-assign]
+    from semestra.modules.agent import service
+    from semestra.modules.agent.runtime import agent_ctx
+
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        service.add_message(ctx, row, "user", [{"type": "text", "text": "hi"}])
+        await ctx.db.commit()
+
+    async def run() -> None:
+        async for item in loop.generate(app.state, user, session["id"], cancel):
+            if item["event"] == "reasoning_delta" and item["data"]["text"] == "the options":
+                cancel.set()
+
+    await asyncio.wait_for(run(), timeout=5)
+    detail = await agent.detail(session["id"])
+    content = detail["messages"][-1]["content"]
+    assert content[0] == {"type": "reasoning", "text": "Weighing the options"}
+    assert content[1]["type"] == "timing"
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        rows = await service.messages(ctx, session["id"])
+    assert rows[-1].content[0] == {"type": "reasoning_text", "text": "Weighing the options"}
 
 
 async def test_one_generation_per_session_and_two_per_user(app: FastAPI):
@@ -679,17 +715,42 @@ def test_file_content_results_are_wrapped_as_untrusted():
     assert not loop._content(other, loop.Outcome(True, {})).startswith("<untrusted")  # pyright: ignore[reportPrivateUsage]
 
 
-async def test_reasoning_goes_back_to_the_model_but_not_to_the_client(
+async def test_reasoning_goes_back_to_the_model_and_only_its_text_to_the_client(
     agent: Agent, model: FakeModel
 ):
     session = await agent.session()
     thought = Reasoning("openai_responses:p1:gpt-5", "Think.", id="rs_1", signature="ENC")
-    model.then(Completion(text="Four.", usage=Usage(10, 5), reasoning=[thought]), say("Six."))
-    await agent.send(session["id"], "2+2?")
+    hidden = Reasoning("anthropic:p1:claude", "", signature="REDACTED")
+    model.then(
+        Completion(text="Four.", usage=Usage(10, 5), reasoning=[thought, hidden]), say("Six.")
+    )
+    events = await agent.send(session["id"], "2+2?")
+    assert [d["text"] for d in events_named(events, "reasoning_delta")] == ["Think."]
     await agent.send(session["id"], "3+3?")
     second, _ = model.requests[1]
     [assistant] = [m for m in second if m.role == "assistant"]
-    assert list(assistant.content) == [thought, Text("Four.")]
+    assert list(assistant.content) == [thought, hidden, Text("Four.")]
     detail = await agent.detail(session["id"])
     blocks = [b for m in detail["messages"] for b in m["content"]]
-    assert not [b for b in blocks if b["type"] == "reasoning"]
+    # The signature and provider details stay on the server; an empty (redacted) one is dropped.
+    assert [b for b in blocks if b["type"] == "reasoning"] == [
+        {"type": "reasoning", "text": "Think."}
+    ]
+
+
+async def test_answers_record_how_long_the_model_worked_before_answering(
+    agent: Agent, model: FakeModel
+):
+    session = await agent.session()
+    model.then(calls([("academics.program.list", {})]), say("None yet."))
+    await agent.send(session["id"], "Programs?")
+    detail = await agent.detail(session["id"])
+    timings = [
+        b["thinking_ms"]
+        for m in detail["messages"]
+        if m["role"] == "assistant"
+        for b in m["content"]
+        if b["type"] == "timing"
+    ]
+    assert len(timings) == 2
+    assert all(isinstance(ms, int) and ms >= 0 for ms in timings)

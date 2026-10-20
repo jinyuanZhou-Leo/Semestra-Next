@@ -22,8 +22,21 @@ export default defineModule({
     open: (_ctx, question) => (question ? panel.open(question) : panel.toggle()),
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
     Dock: AssistantDock,
+    SidebarNav: lazy(() =>
+      import('./components/SessionNav').then((mod) => ({ default: mod.SessionNav })),
+    ),
   },
   settingsSections: [
+    {
+      id: 'assistant-conversation',
+      level: 'account',
+      group: 'ai-models',
+      title: m.assistant_settings_conversation,
+      description: m.assistant_settings_conversation_description,
+      icon: MessageCircle,
+      order: 30,
+      namespace: 'assistant',
+    },
     {
       id: 'assistant-approvals',
       level: 'account',

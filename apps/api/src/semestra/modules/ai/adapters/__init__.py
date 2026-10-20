@@ -11,7 +11,14 @@ from contextlib import AsyncExitStack
 
 import httpx
 from pydantic_ai.direct import model_request, model_request_stream
-from pydantic_ai.messages import PartDeltaEvent, PartStartEvent, TextPart, TextPartDelta
+from pydantic_ai.messages import (
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+)
 
 from semestra.core.errors import AppError
 from semestra.modules.ai.adapters import convert
@@ -33,6 +40,27 @@ from semestra.modules.ai.adapters.sdk import (
     openai_client,
 )
 from semestra.modules.ai.llm import Chunk, Completion, Usage
+
+
+def _chunk(event: object) -> Chunk | None:
+    """A streamed text or reasoning delta; other events (tool call parts) wait for the end."""
+    if isinstance(event, PartStartEvent):
+        if isinstance(event.part, TextPart) and event.part.content:
+            return Chunk(text=event.part.content)
+        if isinstance(event.part, ThinkingPart) and event.part.content:
+            return Chunk(thinking=event.part.content)
+    elif isinstance(event, PartDeltaEvent):
+        if isinstance(event.delta, TextPartDelta) and event.delta.content_delta:
+            return Chunk(text=event.delta.content_delta)
+        if isinstance(event.delta, ThinkingPartDelta) and event.delta.content_delta:
+            return Chunk(thinking=event.delta.content_delta)
+    return None
+
+
+# Endpoints that rejected the Responses reasoning summary (OpenAI requires a verified
+# organization; some compatible gateways refuse the field): later calls go without it.
+_NO_SUMMARY: set[tuple[str, str | None]] = set()
+
 
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
@@ -57,20 +85,45 @@ class ProviderAdapter:
     def __init__(self, kind: str) -> None:
         self.kind = kind
 
+    async def _summary_fallback[T](
+        self, ep: Endpoint, req: ChatRequest, call: Callable[[bool], Awaitable[T]]
+    ) -> T:
+        """Calls with the reasoning summary when it applies; if the provider rejects the request,
+        tries once without it and, when that works, remembers to leave it out for the endpoint."""
+        key = (ep.base_url, ep.provider_id)
+        if (
+            self.kind != "openai_responses"
+            or req.params.reasoning_effort is None
+            or key in _NO_SUMMARY
+        ):
+            return await call(False)
+        try:
+            return await call(True)
+        except AppError as exc:
+            if exc.code != "ai.request_rejected":
+                raise
+        result = await call(False)
+        _NO_SUMMARY.add(key)
+        return result
+
     async def complete(
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> Completion:
         model = chat_model(client, ep, req.model)
         source = convert.source(ep, req)
-        response = await _retrying(
-            lambda: model_request(
-                model,
-                convert.to_messages(req, source),
-                model_settings=convert.settings(self.kind, req),
-                model_request_parameters=convert.parameters(self.kind, model, req),
-                instrument=False,
+        response = await self._summary_fallback(
+            ep,
+            req,
+            lambda summary: _retrying(
+                lambda: model_request(
+                    model,
+                    convert.to_messages(req, source),
+                    model_settings=convert.settings(self.kind, req, summary),
+                    model_request_parameters=convert.parameters(self.kind, model, req),
+                    instrument=False,
+                ),
+                req.model,
             ),
-            req.model,
         )
         return convert.completion(response, req, source)
 
@@ -81,30 +134,26 @@ class ProviderAdapter:
         source = convert.source(ep, req)
         async with AsyncExitStack() as stack:
 
-            async def start():
+            async def start(summary: bool):
                 return await stack.enter_async_context(
                     model_request_stream(
                         model,
                         convert.to_messages(req, source),
-                        model_settings=convert.settings(self.kind, req),
+                        model_settings=convert.settings(self.kind, req, summary),
                         model_request_parameters=convert.parameters(self.kind, model, req),
                         instrument=False,
                     )
                 )
 
             # Retried like a single call until the provider starts answering.
-            stream = await _retrying(start, req.model)
+            stream = await self._summary_fallback(
+                ep, req, lambda summary: _retrying(lambda: start(summary), req.model)
+            )
             try:
                 async for event in stream:
-                    text = None
-                    if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
-                        text = event.part.content
-                    elif isinstance(event, PartDeltaEvent) and isinstance(
-                        event.delta, TextPartDelta
-                    ):
-                        text = event.delta.content_delta
-                    if text:
-                        yield Chunk(text=text)
+                    chunk = _chunk(event)
+                    if chunk is not None:
+                        yield chunk
                 response = stream.get()
             except AppError:
                 raise

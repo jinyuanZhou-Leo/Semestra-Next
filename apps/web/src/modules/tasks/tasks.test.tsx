@@ -4,12 +4,21 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
+import { ShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
+import { TasksSidebarNav } from './components/TasksSidebar'
 import TasksPage from './pages/TasksPage'
 
-beforeAll(() => server.listen())
+/** Without the app sidebar the page title is the menu of lists. */
+async function pickList(current: string, name: RegExp) {
+  await userEvent.click(await screen.findByRole('button', { name: current }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name }))
+}
+
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -42,13 +51,14 @@ type Log = {
   creates: Record<string, unknown>[]
   completes: { id: string; body: unknown }[]
   updates: { id: string; body: Record<string, unknown> }[]
+  deletes: string[]
 }
 let log: Log
 let items: Task[]
 let lists: TaskList[]
 
 beforeEach(() => {
-  log = { creates: [], completes: [], updates: [] }
+  log = { creates: [], completes: [], updates: [], deletes: [] }
   items = [task({ id: 't1', title: 'Read chapter 3' }), task({ id: 't2', title: 'Lab report' })]
   lists = []
   server.use(
@@ -90,6 +100,11 @@ beforeEach(() => {
       const next = { ...current, ...body } as Task
       items = items.map((t) => (t.id === next.id ? next : t))
       return HttpResponse.json(next)
+    }),
+    http.delete(`${API}/tasks/:id`, ({ params }) => {
+      log.deletes.push(String(params.id))
+      items = items.filter((t) => t.id !== params.id)
+      return new HttpResponse(null, { status: 204 })
     }),
     http.post(`${API}/tasks/:id\\:complete`, async ({ params, request }) => {
       const body = await request.json()
@@ -155,7 +170,7 @@ test('the counter card shows the open count', async () => {
 
 test('the completed view has one empty state and no add box', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  await userEvent.click(await screen.findByRole('button', { name: /^Completed/ }))
+  await pickList('All', /^Completed/)
   expect(await screen.findByText('Nothing completed yet')).toBeTruthy()
   expect(screen.queryByText('No tasks here')).toBeNull()
   expect(screen.queryByLabelText('Add a task')).toBeNull()
@@ -170,7 +185,7 @@ test('clearing completed tasks is offered only where it deletes what is listed',
   await screen.findByText('Open')
   await screen.findByRole('button', { name: /1 completed/ })
   expect(screen.queryByRole('button', { name: 'Clear completed' })).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: /^Completed/ }))
+  await pickList('All', /^Completed/)
   expect(await screen.findByRole('button', { name: 'Clear completed' })).toBeTruthy()
 })
 
@@ -183,6 +198,85 @@ test('clicking a title edits it in place without opening the side panel', async 
   await waitFor(() => expect(log.updates).toHaveLength(1))
   expect(log.updates[0]).toEqual({ id: 't2', body: { title: 'Lab report v2' } })
   expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull()
+})
+
+test('an open row shows notes and chips; opening another row saves it first', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Read chapter 3' }))
+  const notes = screen.getByRole('textbox', { name: 'Notes' })
+  expect(screen.getByRole('button', { name: 'Date' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Priority' })).toBeTruthy()
+  await userEvent.type(notes, 'Sections 3.1 to 3.4')
+  // Only one row is open: opening the next one closes and saves this one.
+  await userEvent.click(screen.getByRole('button', { name: 'Edit title: Lab report' }))
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't1', body: { notes: 'Sections 3.1 to 3.4' } })
+  expect(screen.getAllByRole('textbox', { name: 'Title' })).toHaveLength(1)
+  expect((screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).toBe(
+    'Lab report',
+  )
+})
+
+test('Esc throws away the edit, and a chip saves right away', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  const input = screen.getByRole('textbox', { name: 'Title' })
+  await userEvent.type(input, ' draft')
+  const row = input.closest('li')!
+  await userEvent.click(within(row).getByRole('button', { name: 'Flag', pressed: false }))
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't2', body: { flagged: true } })
+  await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), '{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(log.updates).toHaveLength(1)
+})
+
+test('clicking outside saves; a title left empty deletes the task without asking', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  await userEvent.clear(screen.getByRole('textbox', { name: 'Title' }))
+  await userEvent.click(document.body)
+  await waitFor(() => expect(log.deletes).toEqual(['t2']))
+  expect(screen.queryByRole('alertdialog')).toBeNull()
+  expect(log.updates).toHaveLength(0)
+})
+
+test('checking off a row being edited keeps what was typed', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(log.completes).toHaveLength(1)
+})
+
+test('Esc on a chip closes the row, and focus goes back to its title', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  screen.getByRole('button', { name: 'Date' }).focus()
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'Edit title: Lab report' }),
+  )
+  // Enter on the title opens it again; Enter in the field saves and gives focus back.
+  await userEvent.keyboard('{Enter}')
+  await userEvent.keyboard('{End} v2{Enter}')
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(document.activeElement?.getAttribute('aria-label')).toMatch(/^Edit title: Lab report/)
+})
+
+test('the empty row at the end adds tasks one after another', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'New task' }))
+  const input = screen.getByRole('textbox', { name: 'New task' })
+  await userEvent.type(input, 'Problem set 4{Enter}')
+  await waitFor(() => expect(log.creates).toHaveLength(1))
+  expect(log.creates[0]).toMatchObject({ title: 'Problem set 4' })
+  // The field stays open for the next one; Esc drops what was typed.
+  await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Never mind{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'New task' })).toBeNull()
+  expect(log.creates).toHaveLength(1)
 })
 
 test('"Edit details" opens the side panel, and saving closes it', async () => {
@@ -222,6 +316,44 @@ test('an urgent task shows as high and stays urgent unless changed', async () =>
 
 test('tasks in no list are called Unsorted', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  expect(await screen.findByRole('button', { name: /^Unsorted/ })).toBeTruthy()
+  await userEvent.click(await screen.findByRole('button', { name: 'All' }))
+  expect(await screen.findByRole('menuitemradio', { name: /^Unsorted/ })).toBeTruthy()
   expect(screen.queryByText('Inbox')).toBeNull()
+})
+
+test('in the app sidebar the lists sit under Tasks, and the page drops its own switcher', async () => {
+  lists = [
+    {
+      id: 'l1',
+      program_id: 'p1',
+      term_id: null,
+      name: 'Personal',
+      color: null,
+      icon: null,
+      position: 1,
+      created_at: stamp,
+      updated_at: stamp,
+    } as TaskList,
+  ]
+  renderWithRouter(
+    <SidebarProvider>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} onNavigate={() => {}} />
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <ShellSidebarOpen value>
+        <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+      </ShellSidebarOpen>
+    </SidebarProvider>,
+  )
+  const nav = await screen.findByRole('list', { name: 'Tasks' })
+  await userEvent.click(await within(nav).findByRole('button', { name: 'Personal' }))
+  expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()
+  expect(within(nav).getByRole('button', { name: 'Personal' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  // No menu of lists on the page while the sidebar shows them.
+  expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
 })

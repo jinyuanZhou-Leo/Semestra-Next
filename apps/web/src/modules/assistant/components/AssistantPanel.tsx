@@ -1,4 +1,3 @@
-import { agentSessionGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { History, Maximize2, SquarePen, X } from 'lucide-react'
@@ -10,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { usePageScope } from '../scope'
 import { panel, usePanel } from '../store'
+import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
 import { SessionList, sessionTitle } from './SessionList'
 
@@ -37,16 +37,13 @@ export function AssistantPanel() {
   const router = useRouter()
   const [historyOpen, setHistoryOpen] = useState(false)
   const pageScope = usePageScope(ctx.scope)
-  const session = useQuery({
-    ...agentSessionGetOptions({ path: { id: state.sessionId ?? '' } }),
-    enabled: state.sessionId !== null,
-  }).data?.session
+  const session = useQuery(sessionQueryOptions(state.sessionId)).data?.session
   const title = session ? sessionTitle(session) : m.assistant_name()
 
   return (
     <aside aria-label={m.assistant_name()} className="flex h-full min-w-0 flex-col bg-background">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
+      <header className="flex h-10 shrink-0 items-center gap-0.5 border-b px-2">
+        <h2 className="min-w-0 flex-1 truncate px-1.5 text-sm font-medium">{title}</h2>
         <HeaderButton label={m.assistant_new()} onClick={() => panel.show(null)}>
           <SquarePen />
         </HeaderButton>

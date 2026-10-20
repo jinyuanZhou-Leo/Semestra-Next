@@ -107,31 +107,17 @@ function RenameDialog({
   )
 }
 
-/**
- * Past conversations: search, pinned first, then grouped by day; each can be renamed, pinned
- * or deleted. Used by the full page and the panel's history menu.
- */
-export function SessionList({
-  activeId,
-  onSelect,
-  onDeleted,
-  className,
-}: {
-  activeId: string | null
-  onSelect: (id: string) => void
-  onDeleted?: (id: string) => void
-  className?: string
-}) {
-  const id = useId()
+/** Pinned first, then most recently used: the conversations listed in the sidebar. */
+export function recentSessions(items: readonly AgentSessionOut[]): AgentSessionOut[] {
+  return [...items.filter((s) => s.pinned), ...items.filter((s) => !s.pinned)]
+}
+
+/** The rename, pin and delete actions on conversations, with their dialogs. */
+export function useSessionEditing(onDeleted?: (id: string) => void) {
   const queryClient = useQueryClient()
-  const [query, setQuery] = useState('')
   const [renaming, setRenaming] = useState<AgentSessionOut | null>(null)
   const [deleting, setDeleting] = useState<AgentSessionOut | null>(null)
-  const list = useQuery({
-    ...agentSessionListOptions({ query: { query: query.trim() || undefined, limit: 100 } }),
-    placeholderData: (previous) => previous,
-  })
-  const refresh = () => invalidateOperations(queryClient, ['agentSessionList'])
+  const refresh = () => invalidateOperations(queryClient, ['agentSessionList', 'agentSessionGet'])
   const update = useMutation({
     ...agentSessionUpdateMutation(),
     onSuccess: refresh,
@@ -145,6 +131,86 @@ export function SessionList({
       setDeleting(null)
     },
     onError: toastError,
+  })
+  const dialogs = (
+    <>
+      <RenameDialog
+        key={renaming?.id ?? 'none'}
+        session={renaming}
+        onOpenChange={(open) => !open && setRenaming(null)}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={m.assistant_delete_title()}
+        description={m.assistant_delete_description({
+          title: deleting ? sessionTitle(deleting) : '',
+        })}
+        confirmLabel={m.common_delete()}
+        pending={remove.isPending}
+        onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
+      />
+    </>
+  )
+  return {
+    rename: setRenaming,
+    togglePin: (session: AgentSessionOut) =>
+      update.mutate({ path: { id: session.id }, body: { pinned: !session.pinned } }),
+    remove: setDeleting,
+    dialogs,
+  }
+}
+
+export type SessionEditing = ReturnType<typeof useSessionEditing>
+
+/** Rename, pin and delete, as items of a conversation's ⋯ menu. */
+export function SessionMenuItems({
+  session,
+  editing,
+}: {
+  session: AgentSessionOut
+  editing: SessionEditing
+}) {
+  return (
+    <>
+      <DropdownMenuItem onClick={() => editing.rename(session)}>
+        <Pencil aria-hidden />
+        {m.assistant_rename()}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => editing.togglePin(session)}>
+        {session.pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+        {session.pinned ? m.assistant_unpin() : m.assistant_pin()}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => editing.remove(session)}>
+        <Trash2 aria-hidden />
+        {m.common_delete()}
+      </DropdownMenuItem>
+    </>
+  )
+}
+
+/**
+ * Past conversations: search, pinned first, then grouped by day; each can be renamed, pinned
+ * or deleted. Used by the panel's history menu and the page's "All conversations" dialog.
+ */
+export function SessionList({
+  activeId,
+  onSelect,
+  onDeleted,
+  className,
+}: {
+  activeId: string | null
+  onSelect: (id: string) => void
+  onDeleted?: (id: string) => void
+  className?: string
+}) {
+  const id = useId()
+  const [query, setQuery] = useState('')
+  const editing = useSessionEditing(onDeleted)
+  const list = useQuery({
+    ...agentSessionListOptions({ query: { query: query.trim() || undefined, limit: 100 } }),
+    placeholderData: (previous) => previous,
   })
   const groups = groupSessions(list.data?.items ?? [])
 
@@ -230,29 +296,7 @@ export function SessionList({
                           <MoreHorizontal aria-hidden />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setRenaming(session)}>
-                            <Pencil aria-hidden />
-                            {m.assistant_rename()}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              update.mutate({
-                                path: { id: session.id },
-                                body: { pinned: !session.pinned },
-                              })
-                            }
-                          >
-                            {session.pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-                            {session.pinned ? m.assistant_unpin() : m.assistant_pin()}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => setDeleting(session)}
-                          >
-                            <Trash2 aria-hidden />
-                            {m.common_delete()}
-                          </DropdownMenuItem>
+                          <SessionMenuItems session={session} editing={editing} />
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </ItemActions>
@@ -263,22 +307,7 @@ export function SessionList({
           ))
         )}
       </nav>
-      <RenameDialog
-        key={renaming?.id ?? 'none'}
-        session={renaming}
-        onOpenChange={(open) => !open && setRenaming(null)}
-      />
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={m.assistant_delete_title()}
-        description={m.assistant_delete_description({
-          title: deleting ? sessionTitle(deleting) : '',
-        })}
-        confirmLabel={m.common_delete()}
-        pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
-      />
+      {editing.dialogs}
     </div>
   )
 }

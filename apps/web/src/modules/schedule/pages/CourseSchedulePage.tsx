@@ -1,13 +1,37 @@
-import type { Course, EventType, Meeting, OneOffEvent } from '@semestra/api-client'
+import type {
+  Course,
+  EventType,
+  Meeting,
+  MeetingException,
+  OneOffEvent,
+} from '@semestra/api-client'
 import {
+  scheduleEventDeleteMutation,
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import {
+  type CellContext,
+  type ReactTable,
+  type RowData,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
-import { useState } from 'react'
+import {
+  CalendarClock,
+  CalendarOff,
+  CalendarPlus,
+  ChevronDown,
+  Import,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+} from 'lucide-react'
+import { createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useExtensions } from '@/app/registry'
 import { toastError } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
@@ -15,12 +39,20 @@ import { cn } from '@/lib/utils'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
@@ -31,14 +63,8 @@ import { MeetingDialog } from '../components/MeetingDialog'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
-import { dayLabel, timeRange, typeName } from '../labels'
-import {
-  invalidateSchedule,
-  useCalendarSettings,
-  useEvents,
-  useEventTypes,
-  useMeetings,
-} from '../queries'
+import { dayLabel, sectionLabel, timeRange, typeName } from '../labels'
+import { invalidateSchedule, useEvents, useEventTypes, useMeetings } from '../queries'
 import { wallDate, weekdayName } from '../time'
 import { MEETING_IMPORT_SOURCES, type MeetingImportSource } from '../types'
 
@@ -105,7 +131,6 @@ function TermSchedule({
   const events = (useEvents(programId, { course_id: course.id }).data?.items ?? []).filter(
     (e) => !e.term_id || e.term_id === termId,
   )
-  const settings = useCalendarSettings(termId)
   const conflicting = useConflictingIds(termId)
   const importers = useExtensions<MeetingImportSource>(MEETING_IMPORT_SOURCES)
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
@@ -134,29 +159,59 @@ function TermSchedule({
     .flatMap((mt) => mt.exceptions.map((exc) => ({ meeting: mt, exc })))
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
+  const enabled = meetings.filter((mt) => mt.enabled)
+  // Only the hours that have classes.
+  const gridStart = Math.min(...enabled.map((mt) => minutes(mt.start_time)))
+  const gridEnd = Math.max(...enabled.map((mt) => minutes(mt.end_time)))
+  const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing, {
+    bySection: true,
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={() => setEditing('new')}>
-          <Plus aria-hidden />
-          {m.schedule_meeting_add()}
-        </Button>
-        {importers.map((source) => (
-          <Button
-            key={source.id}
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              void source
-                .launch({ programId, courseId: course.id, termId })
-                .then(() => invalidateSchedule(queryClient))
-                .catch(toastError)
-            }
-          >
-            <source.icon aria-hidden />
-            {source.title()}
-          </Button>
-        ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button size="sm" />}>
+            <Plus aria-hidden />
+            {m.schedule_add()}
+            <ChevronDown aria-hidden data-icon="inline-end" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setEditing('new')}>
+              <CalendarClock aria-hidden />
+              {m.schedule_add_meeting()}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setEventEdit('new')}>
+              <CalendarPlus aria-hidden />
+              {m.schedule_add_event()}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {importers.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
+              <Import aria-hidden />
+              {m.schedule_import()}
+              <ChevronDown aria-hidden data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {importers.map((source) => (
+                <DropdownMenuItem
+                  key={source.id}
+                  onClick={() =>
+                    void source
+                      .launch({ programId, courseId: course.id, termId })
+                      .then(() => invalidateSchedule(queryClient))
+                      .catch(toastError)
+                  }
+                >
+                  <source.icon aria-hidden />
+                  {source.title()}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
 
       {meetings.length === 0 ? (
@@ -166,114 +221,87 @@ function TermSchedule({
               <CalendarClock aria-hidden />
             </EmptyMedia>
             <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
+            <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <Button size="sm" onClick={() => setEditing('new')}>
+              <Plus aria-hidden />
+              {m.schedule_meeting_add()}
+            </Button>
+          </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-5">
-            {typeCodes.map((code) => (
-              <MeetingGroup
-                key={code}
-                type={types.find((t) => t.code === code)}
-                code={code}
-                meetings={meetings.filter((mt) => mt.type_code === code)}
-                conflicting={conflicting}
-                busy={setEnabled.isPending}
-                onToggle={toggle}
-                onEdit={setEditing}
-              />
-            ))}
-          </div>
-          <section aria-label={m.schedule_week_preview()} className="space-y-2">
-            <h3 className="text-sm font-medium">{m.schedule_week_preview()}</h3>
-            <WeekGrid
-              days={weekDays(settings.show_weekends || meetings.some((mt) => mt.weekday >= 6))}
-              items={meetingGridItems(meetings, [course], conflicting, setEditing)}
-              dayStart={minutes(settings.day_start)}
-              dayEnd={minutes(settings.day_end)}
-              hourHeight={28}
-              compact
-            />
+        <>
+          <section aria-label={m.schedule_week_view()} className="space-y-2">
+            <h3 className="text-sm font-medium">{m.schedule_week_view()}</h3>
+            {enabled.length === 0 ? (
+              <Empty className="rounded-2xl border border-solid border-border p-6">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <CalendarOff aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>{m.schedule_meetings_all_disabled()}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-border p-3 pt-2">
+                <WeekGrid
+                  className="min-w-xl"
+                  days={weekDays(enabled.some((mt) => mt.weekday >= 6))}
+                  items={gridItems}
+                  dayStart={gridStart}
+                  dayEnd={gridEnd}
+                  hourHeight={44}
+                />
+              </div>
+            )}
           </section>
-        </div>
+          {typeCodes.map((code) => (
+            <MeetingGroup
+              key={code}
+              type={types.find((t) => t.code === code)}
+              code={code}
+              meetings={meetings.filter((mt) => mt.type_code === code)}
+              conflicting={conflicting}
+              busy={setEnabled.isPending}
+              onToggle={toggle}
+              onEdit={setEditing}
+            />
+          ))}
+        </>
       )}
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">{m.schedule_events()}</h3>
-          <Button size="xs" variant="ghost" onClick={() => setEventEdit('new')}>
-            <Plus aria-hidden />
-            {m.schedule_event_add()}
-          </Button>
-        </div>
+        <h3 className="text-sm font-medium">{m.schedule_events()}</h3>
         {events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{m.schedule_events_empty()}</p>
+          <Empty className="rounded-2xl border border-border border-solid p-6">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CalendarPlus aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.schedule_events_empty_title()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" variant="link" onClick={() => setEventEdit('new')}>
+                {m.schedule_event_add()}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
-          <ul className="divide-y divide-border rounded-2xl border border-border text-sm">
-            {events.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted/40"
-                  onClick={() => setEventEdit(e)}
-                >
-                  <span className="w-36 shrink-0 text-muted-foreground">
-                    {dayLabel(wallDate(e.start_at, timezone))}
-                  </span>
-                  <span className="w-28 shrink-0 text-muted-foreground tabular-nums">
-                    {timeRange(e, timezone)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">{e.title}</span>
-                  {e.location ? (
-                    <span className="truncate text-muted-foreground">{e.location}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
         )}
       </section>
 
       {exceptions.length > 0 ? (
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{m.schedule_exceptions()}</h3>
-          <ul className="divide-y divide-border rounded-2xl border border-border text-sm">
-            {exceptions.map(({ meeting, exc }) => (
-              <li key={exc.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="w-36 shrink-0">{dayLabel(exc.original_date)}</span>
-                <span className="w-28 shrink-0 text-muted-foreground">
-                  {meeting.type_code} {meeting.section_code}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {exc.kind === 'cancelled'
-                    ? m.schedule_status_cancelled()
-                    : m.schedule_moved_to({
-                        when: [
-                          exc.new_date ? dayLabel(exc.new_date) : null,
-                          exc.new_start_time ? formatTime(exc.new_start_time) : null,
-                          exc.new_location,
-                        ]
-                          .filter(Boolean)
-                          .join(' · '),
-                      })}
-                  {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
-                </span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={restore.isPending}
-                  onClick={() =>
-                    restore.mutate({
-                      path: { meeting_id: meeting.id, original_date: exc.original_date },
-                    })
-                  }
-                >
-                  <RotateCcw aria-hidden />
-                  {m.schedule_restore()}
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <ExceptionsTable
+            exceptions={exceptions}
+            busy={restore.isPending}
+            onRestore={(meeting, exc) =>
+              restore.mutate({ path: { meeting_id: meeting.id, original_date: exc.original_date } })
+            }
+          />
         </section>
       ) : null}
 
@@ -316,6 +344,128 @@ function weeksText(mt: Meeting): string {
     : range
 }
 
+type MeetingGroupState = {
+  code: string
+  meetings: Meeting[]
+  conflicting: ReadonlySet<string>
+  busy: boolean
+  onToggle: (ids: string[], enabled: boolean) => void
+  onEdit: (meeting: Meeting) => void
+}
+
+/** What the cells of one `MeetingGroup` table need; the columns live outside the component. */
+const MeetingGroupContext = createContext<MeetingGroupState | null>(null)
+
+function useMeetingGroup(): MeetingGroupState {
+  const group = use(MeetingGroupContext)
+  if (!group) throw new Error('Meeting cells render inside a MeetingGroup')
+  return group
+}
+
+type CellProps = CellContext<typeof features, Meeting>
+
+const EnabledHeader = () => <span className="sr-only">{m.schedule_enabled()}</span>
+
+function EnabledCell({ row }: CellProps) {
+  const { code, busy, onToggle } = useMeetingGroup()
+  return (
+    <Switch
+      aria-label={m.schedule_enable_section({ name: row.original.section_code || code })}
+      checked={row.original.enabled}
+      disabled={busy}
+      onCheckedChange={(on) => onToggle([row.original.id], on)}
+    />
+  )
+}
+
+function SectionCell({ row }: CellProps) {
+  const { conflicting } = useMeetingGroup()
+  return (
+    <span className="font-medium">
+      {row.original.section_code || '—'}
+      {conflicting.has(row.original.id) ? (
+        <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
+      ) : null}
+    </span>
+  )
+}
+
+const TimeCell = ({ row }: CellProps) => (
+  <span className="tabular-nums">
+    {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
+  </span>
+)
+
+const ActionsHeader = () => <span className="sr-only">{m.schedule_actions()}</span>
+
+function ActionsCell({ row }: CellProps) {
+  const { meetings, onToggle, onEdit } = useMeetingGroup()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
+      >
+        <MoreHorizontal aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onEdit(row.original)}>
+            {m.schedule_meeting_edit()}
+          </DropdownMenuItem>
+          {meetings.length > 1 ? (
+            <DropdownMenuItem
+              onClick={() => {
+                onToggle([row.original.id], true)
+                onToggle(
+                  meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
+                  false,
+                )
+              }}
+            >
+              {m.schedule_keep_only_this()}
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const columns = column.columns([
+  column.display({ id: 'enabled', header: EnabledHeader, cell: EnabledCell }),
+  column.accessor((mt) => mt.section_code, {
+    id: 'section',
+    header: () => m.schedule_section_code(),
+    cell: SectionCell,
+  }),
+  column.accessor((mt) => mt.weekday, {
+    id: 'weekday',
+    header: () => m.schedule_weekday(),
+    cell: ({ row }) => weekdayName(row.original.weekday),
+  }),
+  column.accessor((mt) => mt.start_time, {
+    id: 'time',
+    header: () => m.schedule_time(),
+    cell: TimeCell,
+  }),
+  column.accessor((mt) => mt.start_week, {
+    id: 'weeks',
+    header: () => m.schedule_weeks(),
+    cell: ({ row }) => weeksText(row.original),
+  }),
+  column.accessor((mt) => mt.location ?? '', {
+    id: 'location',
+    header: () => m.schedule_location(),
+    cell: ({ row }) => row.original.location || '—',
+  }),
+  column.accessor((mt) => mt.instructor ?? '', {
+    id: 'instructor',
+    header: () => m.schedule_instructor(),
+    cell: ({ row }) => row.original.instructor || '—',
+  }),
+  column.display({ id: 'actions', header: ActionsHeader, cell: ActionsCell }),
+])
+
 /** The meetings of one type (e.g. all TUT sections) with enable switches. */
 function MeetingGroup({
   type,
@@ -340,136 +490,319 @@ function MeetingGroup({
       a.weekday - b.weekday ||
       a.start_time.localeCompare(b.start_time),
   )
-  const columns = column.columns([
-    column.display({
-      id: 'enabled',
-      header: () => <span className="sr-only">{m.schedule_enabled()}</span>,
-      cell: ({ row }) => (
-        <Switch
-          aria-label={m.schedule_enable_section({ name: row.original.section_code || code })}
-          checked={row.original.enabled}
-          disabled={busy}
-          onCheckedChange={(on) => onToggle([row.original.id], on)}
-        />
-      ),
-    }),
-    column.accessor((mt) => mt.section_code, {
-      id: 'section',
-      header: () => m.schedule_section_code(),
-      cell: ({ row }) => (
-        <span className="font-medium">
-          {row.original.section_code || '—'}
-          {conflicting.has(row.original.id) ? (
-            <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
-          ) : null}
-        </span>
-      ),
-    }),
-    column.accessor((mt) => mt.weekday, {
-      id: 'weekday',
-      header: () => m.schedule_weekday(),
-      cell: ({ row }) => weekdayName(row.original.weekday),
-    }),
-    column.accessor((mt) => mt.start_time, {
-      id: 'time',
-      header: () => m.schedule_time(),
-      cell: ({ row }) => (
-        <span className="tabular-nums">
-          {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
-        </span>
-      ),
-    }),
-    column.accessor((mt) => mt.start_week, {
-      id: 'weeks',
-      header: () => m.schedule_weeks(),
-      cell: ({ row }) => weeksText(row.original),
-    }),
-    column.accessor((mt) => mt.location ?? '', {
-      id: 'location',
-      header: () => m.schedule_location(),
-      cell: ({ row }) => row.original.location || '—',
-    }),
-    column.accessor((mt) => mt.instructor ?? '', {
-      id: 'instructor',
-      header: () => m.schedule_instructor(),
-      cell: ({ row }) => row.original.instructor || '—',
-    }),
-    column.display({
-      id: 'actions',
-      header: () => <span className="sr-only">{m.schedule_actions()}</span>,
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
-          >
-            <MoreHorizontal aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => onEdit(row.original)}>
-                {m.schedule_meeting_edit()}
-              </DropdownMenuItem>
-              {meetings.length > 1 ? (
-                <DropdownMenuItem
-                  onClick={() => {
-                    onToggle([row.original.id], true)
-                    onToggle(
-                      meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
-                      false,
-                    )
-                  }}
-                >
-                  {m.schedule_keep_only_this()}
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    }),
-  ])
+  const state = { code, meetings, conflicting, busy, onToggle, onEdit }
   const table = useTable({ features, columns, data: sorted, getRowId: (mt) => mt.id })
   return (
-    <section className="space-y-2">
-      <h3 className="text-sm font-medium">
-        {code}
-        {type ? (
-          <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
-        ) : null}
-      </h3>
-      <div className="rounded-2xl border border-border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((h) => (
-                  <TableHead
-                    key={h.id}
-                    scope="col"
-                    className={cn(h.column.id === 'enabled' && 'w-12')}
-                  >
-                    <table.FlexRender header={h} />
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className={cn(!row.original.enabled && 'text-muted-foreground opacity-60')}
-              >
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </section>
+    <MeetingGroupContext value={state}>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">
+          {code}
+          {type ? (
+            <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
+          ) : null}
+        </h3>
+        <div className="rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((group) => (
+                <TableRow key={group.id}>
+                  {group.headers.map((h) => (
+                    <TableHead
+                      key={h.id}
+                      scope="col"
+                      className={cn(h.column.id === 'enabled' && 'w-12')}
+                    >
+                      <table.FlexRender header={h} />
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  className={cn(!row.original.enabled && 'text-muted-foreground opacity-60')}
+                >
+                  {row.getAllCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+    </MeetingGroupContext>
+  )
+}
+
+const eventColumn = createColumnHelper<typeof features, OneOffEvent>()
+
+/**
+ * Cells live at module level and read the page's state from context (see CoursesTable): a cell
+ * defined inside the component would be a new component on every render and remount.
+ */
+type EventsState = {
+  types: EventType[]
+  timezone: string
+  onEdit: (event: OneOffEvent) => void
+  onDelete: (event: OneOffEvent) => void
+}
+const EventsContext = createContext<EventsState | null>(null)
+
+function useEventsState(): EventsState {
+  const state = use(EventsContext)
+  if (!state) throw new Error('EventsTable cells must render inside EventsTable')
+  return state
+}
+
+type EventCell = CellContext<typeof features, OneOffEvent>
+
+function EventDateCell({ row }: EventCell) {
+  const { timezone } = useEventsState()
+  return dayLabel(wallDate(row.original.start_at, timezone))
+}
+
+function EventTimeCell({ row }: EventCell) {
+  const { timezone } = useEventsState()
+  return <span className="tabular-nums">{timeRange(row.original, timezone)}</span>
+}
+
+function EventTitleCell({ row }: EventCell) {
+  return <span className="font-medium">{row.original.title}</span>
+}
+
+function EventTypeCell({ row }: EventCell) {
+  const { types } = useEventsState()
+  const type = types.find((t) => t.code === row.original.type_code)
+  return type ? typeName(type) : (row.original.type_code ?? '—')
+}
+
+function EventLocationCell({ row }: EventCell) {
+  return row.original.location || '—'
+}
+
+function EventActionsCell({ row }: EventCell) {
+  const { onEdit, onDelete } = useEventsState()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
+      >
+        <MoreHorizontal aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onEdit(row.original)}>
+            {m.schedule_event_edit()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>
+            {m.schedule_event_delete()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const eventColumns = eventColumn.columns([
+  eventColumn.accessor((e) => e.start_at, {
+    id: 'date',
+    header: () => m.schedule_date(),
+    cell: EventDateCell,
+  }),
+  eventColumn.display({ id: 'time', header: () => m.schedule_time(), cell: EventTimeCell }),
+  eventColumn.accessor((e) => e.title, {
+    id: 'title',
+    header: () => m.schedule_event_title(),
+    cell: EventTitleCell,
+  }),
+  eventColumn.accessor((e) => e.type_code ?? '', {
+    id: 'type',
+    header: () => m.schedule_type(),
+    cell: EventTypeCell,
+  }),
+  eventColumn.accessor((e) => e.location ?? '', {
+    id: 'location',
+    header: () => m.schedule_location(),
+    cell: EventLocationCell,
+  }),
+  eventColumn.display({ id: 'actions', header: ActionsHeader, cell: EventActionsCell }),
+])
+
+/** The course's one-off events (exams, extra sessions) in the same table style as meetings. */
+function EventsTable({
+  events,
+  types,
+  timezone,
+  onEdit,
+}: {
+  events: OneOffEvent[]
+  types: EventType[]
+  timezone: string
+  onEdit: (event: OneOffEvent) => void
+}) {
+  const queryClient = useQueryClient()
+  const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
+  const remove = useMutation({
+    ...scheduleEventDeleteMutation(),
+    onError: toastError,
+    onSuccess: () => setDeleting(null),
+    onSettled: () => invalidateSchedule(queryClient),
+  })
+  const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
+  const table = useTable({ features, columns: eventColumns, data: sorted, getRowId: (e) => e.id })
+  return (
+    <EventsContext value={{ types, timezone, onEdit, onDelete: setDeleting }}>
+      <DataTable table={table} />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={m.schedule_event_delete_title()}
+        description={m.schedule_event_delete_description()}
+        confirmLabel={m.schedule_event_delete()}
+        pending={remove.isPending}
+        onConfirm={() => deleting && remove.mutate({ path: { event_id: deleting.id } })}
+      />
+    </EventsContext>
+  )
+}
+
+type ExceptionRow = { meeting: Meeting; exc: MeetingException }
+const exceptionColumn = createColumnHelper<typeof features, ExceptionRow>()
+
+type ExceptionsState = {
+  busy: boolean
+  onRestore: (meeting: Meeting, exc: MeetingException) => void
+}
+const ExceptionsContext = createContext<ExceptionsState | null>(null)
+
+type ExceptionCell = CellContext<typeof features, ExceptionRow>
+
+function ExceptionDateCell({ row }: ExceptionCell) {
+  return dayLabel(row.original.exc.original_date)
+}
+
+function ExceptionSectionCell({ row }: ExceptionCell) {
+  return sectionLabel(row.original.meeting)
+}
+
+function ExceptionChangeCell({ row }: ExceptionCell) {
+  const { exc } = row.original
+  return (
+    <span className="whitespace-normal">
+      {exc.kind === 'cancelled'
+        ? m.schedule_status_cancelled()
+        : m.schedule_moved_to({
+            when: [
+              exc.new_date ? dayLabel(exc.new_date) : null,
+              exc.new_start_time ? formatTime(exc.new_start_time) : null,
+              exc.new_location,
+            ]
+              .filter(Boolean)
+              .join(' · '),
+          })}
+      {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
+    </span>
+  )
+}
+
+function ExceptionRestoreCell({ row }: ExceptionCell) {
+  const state = use(ExceptionsContext)
+  if (!state) throw new Error('ExceptionsTable cells must render inside ExceptionsTable')
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      disabled={state.busy}
+      onClick={() => state.onRestore(row.original.meeting, row.original.exc)}
+    >
+      <RotateCcw aria-hidden />
+      {m.schedule_restore()}
+    </Button>
+  )
+}
+
+const exceptionColumns = exceptionColumn.columns([
+  exceptionColumn.accessor((r) => r.exc.original_date, {
+    id: 'date',
+    header: () => m.schedule_date(),
+    cell: ExceptionDateCell,
+  }),
+  exceptionColumn.accessor((r) => r.meeting.section_code, {
+    id: 'section',
+    header: () => m.schedule_section_code(),
+    cell: ExceptionSectionCell,
+  }),
+  exceptionColumn.display({
+    id: 'change',
+    header: () => m.schedule_exception_change(),
+    cell: ExceptionChangeCell,
+  }),
+  exceptionColumn.display({ id: 'actions', header: ActionsHeader, cell: ExceptionRestoreCell }),
+])
+
+/** Cancelled and moved classes, each with a button that puts the class back. */
+function ExceptionsTable({
+  exceptions,
+  busy,
+  onRestore,
+}: {
+  exceptions: ExceptionRow[]
+  busy: boolean
+  onRestore: (meeting: Meeting, exc: MeetingException) => void
+}) {
+  const table = useTable({
+    features,
+    columns: exceptionColumns,
+    data: exceptions,
+    getRowId: (r) => r.exc.id,
+  })
+  return (
+    <ExceptionsContext value={{ busy, onRestore }}>
+      <DataTable table={table} />
+    </ExceptionsContext>
+  )
+}
+
+/** The bordered table every section of this page uses. */
+function DataTable<T extends RowData>({ table }: { table: ReactTable<typeof features, T> }) {
+  return (
+    <div className="rounded-2xl border border-border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id}>
+              {group.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  scope="col"
+                  className={cn(h.column.id === 'actions' && 'w-12')}
+                >
+                  <table.FlexRender header={h} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

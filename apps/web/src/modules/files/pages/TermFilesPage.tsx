@@ -157,6 +157,7 @@ function TermFiles({
                   />
                   <h2 className="min-w-0 truncate text-sm font-medium">{courseLabel(course)}</h2>
                   <Button
+                    nativeButton={false}
                     variant="ghost"
                     size="sm"
                     className="ml-auto text-muted-foreground"

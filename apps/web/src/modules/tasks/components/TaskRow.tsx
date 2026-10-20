@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Course, Task } from '@semestra/api-client'
-import { Check, Flag, GripVertical, MoreHorizontal, PanelRight, Star, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
+import { Check, Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -14,6 +14,7 @@ import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -23,97 +24,196 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Input } from '@/ui/input'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
+import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
+import { TaskChips } from './TaskChips'
+
+/** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
+export type EditFocus = { field: 'title' | 'notes'; caret?: number }
+
+/** Popups opened from a row (menus, the calendar); clicks in them stay "inside" the row. */
+const POPUPS =
+  '[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="select-content"]'
+
+/** The text offset under a click, so the field opens with the caret where the user clicked. */
+function caretAt(event: React.MouseEvent): number | undefined {
+  if (event.detail === 0) return undefined // keyboard: the caret goes to the end
+  const pos = document.caretPositionFromPoint?.(event.clientX, event.clientY)
+  if (pos) return pos.offset
+  // Safari before 26 only has the older API.
+  const legacy = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null
+  }
+  return legacy.caretRangeFromPoint?.(event.clientX, event.clientY)?.startOffset
+}
+
+/** Focuses a field with the caret at `caret` (the end when unset). */
+function focusAt(el: HTMLInputElement | HTMLTextAreaElement | null, caret?: number) {
+  if (!el) return
+  el.focus()
+  const at = Math.min(caret ?? el.value.length, el.value.length)
+  el.setSelectionRange(at, at)
+}
 
 /**
- * Flag color of each level; rows show no flag for none (M05 §5.1). None of them follows the
- * accent color, so the levels stay apart under any accent and apart from the star (primary).
- * The menus draw none as an outline flag, so low (filled gray) still differs from it.
+ * The open row (M05 §5.1), like Reminders: the title and notes are edited where they are, the
+ * property chips save right away. Enter or a click outside saves and closes; Esc throws away the
+ * title and notes changes; a title left empty deletes the task without asking.
  */
-export const PRIORITY_COLORS: Record<ShownPriority, string> = {
-  none: 'text-muted-foreground',
-  low: 'text-muted-foreground',
-  medium: 'text-warning',
-  high: 'text-destructive',
-}
-
-export const PRIORITY_NAMES: Record<ShownPriority, () => string> = {
-  none: m.tasks_priority_none,
-  low: m.tasks_priority_low,
-  medium: m.tasks_priority_medium,
-  high: m.tasks_priority_high,
-}
-
-/** The small colored flag of a task's priority; nothing when it has none. */
-export function PriorityFlag({ priority }: { priority: Task['priority'] }) {
-  const shown = shownPriority(priority)
-  if (shown === 'none') return null
-  const label = m.tasks_priority_label({ priority: PRIORITY_NAMES[shown]() })
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span aria-label={label} className="inline-flex shrink-0" />}>
-        <Flag aria-hidden className={cn('size-3.5 fill-current', PRIORITY_COLORS[shown])} />
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function InlineTitle({
-  title,
-  done,
-  onSave,
+function RowEditor({
+  task,
+  courses,
+  hideCourse,
+  focus,
+  rowRef,
+  actions,
+  onClose,
 }: {
-  title: string
-  done: boolean
-  onSave: (title: string) => void
+  task: Task
+  courses: readonly Course[]
+  hideCourse?: boolean
+  focus: EditFocus
+  rowRef: RefObject<HTMLLIElement | null>
+  actions: TaskActions
+  /** `refocus`: closed from the keyboard, so focus goes back to the row's title. */
+  onClose: (refocus: boolean) => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(title)
-  const finish = (save: boolean) => {
-    setEditing(false)
-    const next = draft.trim()
-    if (save && next && next !== title) onSave(next)
+  const today = useProgramToday(task.program_id)
+  const [title, setTitle] = useState(task.title)
+  const [notes, setNotes] = useState(task.notes)
+  const closed = useRef(false)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+  // As the row opens: the field and caret where the click was.
+  useEffect(() => {
+    focusAt(focus.field === 'title' ? titleRef.current : notesRef.current, focus.caret)
+  }, [focus.field, focus.caret])
+  /** The title and notes edits; an empty title is left out (closing deletes instead). */
+  const draftBody = () => {
+    const body: TaskUpdateInputBody = {}
+    const nextTitle = title.trim()
+    if (nextTitle && nextTitle !== task.title) body.title = nextTitle
+    if (notes !== task.notes) body.notes = notes
+    return body
   }
-  if (editing) {
-    return (
-      <Input
-        ref={(el) => el?.focus()}
-        aria-label={m.tasks_title_label()}
-        className="-my-px -ml-2 h-6.5 flex-1 px-2 text-base font-medium"
-        value={draft}
-        maxLength={300}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => finish(true)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') finish(true)
-          if (event.key === 'Escape') finish(false)
-          event.stopPropagation()
-        }}
-        onClick={(event) => event.stopPropagation()}
-      />
-    )
+  const finish = (save: boolean, refocus = false) => {
+    if (closed.current) return
+    closed.current = true
+    onClose(refocus)
+    if (!save) return
+    if (!title.trim()) {
+      void actions.remove(task.id)
+      return
+    }
+    const body = draftBody()
+    if (Object.keys(body).length > 0) void actions.update(task.id, body)
+  }
+  // The row can go away while open: checked off, or moved out of a filtered list by a chip.
+  // What was typed is saved then too (never a delete: the user did not close it), and the row
+  // stops being the open one, so it does not open by itself if it comes back.
+  const saveOnUnmount = useEffectEvent(() => {
+    if (closed.current) return
+    const body = draftBody()
+    if (Object.keys(body).length > 0) void actions.update(task.id, body)
+    // Strict Mode runs this cleanup once on mount too; only a row that really left (its node
+    // detached) stops being open.
+    queueMicrotask(() => {
+      if (!rowRef.current) onClose(false)
+    })
+  })
+  useEffect(() => () => saveOnUnmount(), [])
+  // Esc anywhere in the row (a chip included) throws the edits away; a popup takes its own Esc
+  // first, and the time field uses Esc to undo just the time.
+  const escape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || event.isComposing || event.defaultPrevented) return
+    if (event.target instanceof HTMLInputElement && event.target.type === 'time') return
+    event.preventDefault()
+    finish(false, true)
+  })
+  const leave = useEffectEvent((target: EventTarget | null, row: HTMLElement) => {
+    if (target instanceof Node && row.contains(target)) return
+    if (target instanceof Element && target.closest(POPUPS)) return
+    finish(true)
+  })
+  useEffect(() => {
+    const row = rowRef.current
+    if (!row) return
+    // Closing on the click, not the press: closing on the press would shift the rows below
+    // under the pointer, and the click meant for another row's title would miss it.
+    let pressed = false
+    let popupWasOpen = false
+    const onPointerDown = () => {
+      pressed = true
+      popupWasOpen = row.querySelector('[aria-expanded="true"]') !== null
+    }
+    const onPointerUp = () => {
+      pressed = false
+    }
+    const onClick = (event: MouseEvent) => {
+      // The first click outside an open menu or calendar only closes that popup.
+      if (!popupWasOpen) leave(event.target, row)
+      popupWasOpen = false
+    }
+    // Tabbing away; focus moved by a press is left to the click.
+    const onFocusOut = (event: FocusEvent) => {
+      if (!pressed && event.relatedTarget) leave(event.relatedTarget, row)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('pointerup', onPointerUp, true)
+    document.addEventListener('click', onClick, true)
+    row.addEventListener('focusout', onFocusOut)
+    row.addEventListener('keydown', escape)
+    return () => {
+      row.removeEventListener('keydown', escape)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('pointerup', onPointerUp, true)
+      document.removeEventListener('click', onClick, true)
+      row.removeEventListener('focusout', onFocusOut)
+    }
+  }, [rowRef])
+
+  const keys = (event: React.KeyboardEvent, enterSaves: boolean) => {
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Enter' && (enterSaves || event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      finish(true, true)
+    }
   }
   return (
-    <button
-      type="button"
-      aria-label={m.tasks_edit_title({ title })}
-      className={cn(
-        'min-w-0 cursor-text truncate rounded-sm text-left text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-        done && 'text-muted-foreground line-through',
-      )}
-      onClick={(event) => {
-        event.stopPropagation()
-        setDraft(title)
-        setEditing(true)
-      }}
-    >
-      {title}
-    </button>
+    <>
+      <input
+        ref={titleRef}
+        aria-label={m.tasks_title_label()}
+        className="block w-full bg-transparent p-0 text-base font-medium outline-none"
+        value={title}
+        maxLength={300}
+        onChange={(event) => setTitle(event.target.value)}
+        onKeyDown={(event) => keys(event, true)}
+      />
+      <textarea
+        ref={notesRef}
+        aria-label={m.tasks_notes_label()}
+        placeholder={m.tasks_notes_label()}
+        rows={Math.min(Math.max(notes.split('\n').length, 1), 8)}
+        maxLength={20000}
+        className="block w-full resize-none bg-transparent p-0 text-sm text-muted-foreground outline-none placeholder:text-muted-foreground/70"
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+        onKeyDown={(event) => keys(event, false)}
+      />
+      <div className="pt-1.5 pb-0.5">
+        <TaskChips
+          task={task}
+          courses={courses}
+          today={today}
+          hideCourse={hideCourse}
+          onChange={(body) => void actions.update(task.id, body)}
+        />
+      </div>
+    </>
   )
 }
 
@@ -154,24 +254,26 @@ function CourseTag({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-        <DropdownMenuItem onClick={() => void actions.update(task.id, { course_id: null })}>
-          {m.tasks_course_none()}
-          {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
-        </DropdownMenuItem>
-        {courses.map((c) => (
-          <DropdownMenuItem
-            key={c.id}
-            onClick={() => void actions.update(task.id, { course_id: c.id })}
-          >
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ backgroundColor: courseColor(c) }}
-            />
-            <span className="truncate">{courseLabel(c)}</span>
-            {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => void actions.update(task.id, { course_id: null })}>
+            {m.tasks_course_none()}
+            {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
           </DropdownMenuItem>
-        ))}
+          {courses.map((c) => (
+            <DropdownMenuItem
+              key={c.id}
+              onClick={() => void actions.update(task.id, { course_id: c.id })}
+            >
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: courseColor(c) }}
+              />
+              <span className="truncate">{courseLabel(c)}</span>
+              {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -189,6 +291,10 @@ type Props = {
   courses: readonly Course[]
   selected: boolean
   onSelect: () => void
+  /** Set while the row is open for editing in place; only one row is open at a time. */
+  editing: EditFocus | null
+  onStartEdit: (focus: EditFocus) => void
+  onStopEdit: () => void
   /** Opens the task in the side panel. */
   onEdit: () => void
   /** Asks to delete the task. */
@@ -201,14 +307,18 @@ type Props = {
 }
 
 /**
- * One task (M05 §5.1): check, title edited in place with a click, course tag, due date, priority
- * flag and star. The ⋯ menu opens the side panel, changes the priority and deletes.
+ * One task (M05 §5.1): check, title, course tag, due date, priority flag and star. A click on the
+ * title or the note opens the row in place (`RowEditor`); the ⋯ menu opens the side panel with
+ * every field, changes the priority and deletes.
  */
 export function TaskRow({
   task,
   courses,
   selected,
   onSelect,
+  editing,
+  onStartEdit,
+  onStopEdit,
   onEdit,
   onDelete,
   actions,
@@ -216,20 +326,32 @@ export function TaskRow({
   hideCourse,
 }: Props) {
   const today = useProgramToday(task.program_id)
+  const rowRef = useRef<HTMLLIElement | null>(null)
+  // Set when the editor closes from the keyboard; the title button takes focus as it returns.
+  const refocusTitle = useRef(false)
   const done = task.completed_at !== null
   const course = courses.find((c) => c.id === task.course_id)
   const note = task.notes.split('\n')[0]?.trim()
   const hasMeta = Boolean(note) || task.due_date !== null || (course !== undefined && !hideCourse)
+  const start = (field: EditFocus['field']) => (event: React.MouseEvent) => {
+    event.stopPropagation()
+    onSelect()
+    onStartEdit({ field, caret: caretAt(event) })
+  }
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- the row selects; every control in it is a real button
     <li
-      ref={sortable?.setNodeRef}
+      ref={(node) => {
+        rowRef.current = node
+        sortable?.setNodeRef(node)
+      }}
       style={sortable?.style}
       data-selected={selected || undefined}
+      data-editing={editing ? true : undefined}
       data-task-id={task.id}
       onClick={onSelect}
       className={cn(
-        'group/row flex items-start gap-3 rounded-2xl px-3 py-2.5 hover:bg-muted/40 data-selected:bg-muted/70',
+        'group/row flex items-start gap-3 rounded-2xl px-3 py-2.5 hover:bg-muted/40 data-selected:bg-muted/70 data-editing:bg-muted/70',
         sortable?.dragging && 'relative z-10 bg-card shadow-md ring-1 ring-foreground/10',
       )}
     >
@@ -238,61 +360,181 @@ export function TaskRow({
         aria-label={m.tasks_complete({ title: task.title })}
         className="mt-0.5 size-5 rounded-full"
         onClick={(event) => event.stopPropagation()}
-        onCheckedChange={(checked) => void actions.complete(task.id, checked)}
+        onCheckedChange={(checked) => {
+          // The row leaves the list; the editor saves what was typed as it goes.
+          if (editing) onStopEdit()
+          void actions.complete(task.id, checked)
+        }}
       />
       <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <InlineTitle
-            title={task.title}
-            done={done}
-            onSave={(title) => void actions.update(task.id, { title })}
+        {editing ? (
+          <RowEditor
+            task={task}
+            courses={courses}
+            hideCourse={hideCourse}
+            focus={editing}
+            rowRef={rowRef}
+            actions={actions}
+            onClose={(refocus) => {
+              refocusTitle.current = refocus
+              onStopEdit()
+            }}
           />
-          <PriorityFlag priority={task.priority} />
-          {task.flagged ? (
-            <Star
-              aria-label={m.tasks_flagged()}
-              className="size-3.5 shrink-0 fill-current text-primary"
-            />
-          ) : null}
-        </div>
-        {hasMeta ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
-            {note ? <span className="max-w-full truncate">{note}</span> : null}
-            {task.due_date ? (
-              <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
-                {dueLabel(task, today)}
-              </span>
-            ) : null}
-            {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
-          </div>
-        ) : null}
-      </div>
-      {/* Revealed on hover, focus or selection; always shown where there is no hover (touch). */}
-      <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 group-data-selected/row:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 pointer-coarse:opacity-100">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
-                aria-pressed={task.flagged}
-                className="text-muted-foreground"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void actions.update(task.id, { flagged: !task.flagged })
+        ) : (
+          <>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <TaskPriority priority={task.priority} />
+              <button
+                ref={(el) => {
+                  if (el && refocusTitle.current) {
+                    refocusTitle.current = false
+                    el.focus()
+                  }
                 }}
-              />
-            }
-          >
-            <Star aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
-          </TooltipTrigger>
-          <TooltipContent>{task.flagged ? m.tasks_unflag() : m.tasks_flag()}</TooltipContent>
-        </Tooltip>
+                type="button"
+                aria-label={m.tasks_edit_title({ title: task.title })}
+                className={cn(
+                  'min-w-0 cursor-text truncate rounded-sm text-left text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  done && 'text-muted-foreground line-through',
+                )}
+                onClick={start('title')}
+              >
+                {task.title}
+              </button>
+              {task.flagged ? (
+                <Flag
+                  aria-label={m.tasks_flagged()}
+                  className="size-3.5 shrink-0 fill-current text-primary"
+                />
+              ) : null}
+            </div>
+            {hasMeta ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+                {note ? (
+                  <button
+                    type="button"
+                    aria-label={m.tasks_edit_notes({ title: task.title })}
+                    className="max-w-full cursor-text truncate rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    onClick={start('notes')}
+                  >
+                    {note}
+                  </button>
+                ) : null}
+                {task.due_date ? (
+                  <span className={cn('tabular-nums', task.overdue && !done && 'text-destructive')}>
+                    {dueLabel(task, today)}
+                  </span>
+                ) : null}
+                {hideCourse ? null : <CourseTag task={task} courses={courses} actions={actions} />}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+      {/* Revealed on hover, focus, selection or editing; always shown where there is no hover (touch). */}
+      <div className="flex shrink-0 items-center opacity-0 group-hover/row:opacity-100 group-data-selected/row:opacity-100 group-data-editing/row:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 pointer-coarse:opacity-100">
+        {/* While open, the flag chip under the title takes its place. */}
+        {editing ? null : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={task.flagged ? m.tasks_unflag() : m.tasks_flag()}
+                  aria-pressed={task.flagged}
+                  className="text-muted-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void actions.update(task.id, { flagged: !task.flagged })
+                  }}
+                />
+              }
+            >
+              <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
+            </TooltipTrigger>
+            <TooltipContent>{task.flagged ? m.tasks_unflag() : m.tasks_flag()}</TooltipContent>
+          </Tooltip>
+        )}
         <RowMenu task={task} onEdit={onEdit} onDelete={onDelete} actions={actions} />
         {sortable?.handle}
       </div>
+    </li>
+  )
+}
+
+/**
+ * The empty circle at the end of a list (M05 §5.1), like Reminders: a click turns it into a title
+ * field; Enter adds the task and leaves the field open for the next one, leaving it adds what was
+ * typed, Esc drops it.
+ */
+export function NewTaskRow({
+  open,
+  onOpenChange,
+  onAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onAdd: (title: string) => Promise<unknown>
+}) {
+  const [title, setTitle] = useState('')
+  // Esc closes without adding, even if the browser reports a blur as the field goes away.
+  const dropped = useRef(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (open) focusAt(inputRef.current)
+  }, [open])
+  const add = () => {
+    const next = title.trim()
+    setTitle('')
+    if (next) void onAdd(next).catch(() => setTitle(next))
+  }
+  return (
+    <li className="flex items-center gap-3 rounded-2xl px-3 py-2.5">
+      <span
+        aria-hidden
+        className="size-5 shrink-0 rounded-full border border-dashed border-muted-foreground/50"
+      />
+      {open ? (
+        <input
+          ref={inputRef}
+          aria-label={m.tasks_new_row()}
+          placeholder={m.tasks_new_row()}
+          className="block w-full bg-transparent p-0 text-base font-medium outline-none placeholder:text-muted-foreground"
+          value={title}
+          maxLength={300}
+          onChange={(event) => setTitle(event.target.value)}
+          onBlur={() => {
+            if (!dropped.current) add()
+            onOpenChange(false)
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              add()
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              dropped.current = true
+              setTitle('')
+              onOpenChange(false)
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="flex-1 cursor-text text-left text-base font-medium text-transparent outline-none hover:text-muted-foreground focus-visible:text-muted-foreground"
+          onClick={() => {
+            dropped.current = false
+            onOpenChange(true)
+          }}
+        >
+          {m.tasks_new_row()}
+        </button>
+      )}
     </li>
   )
 }
@@ -333,42 +575,43 @@ function RowMenu({
         <TooltipContent>{m.tasks_more()}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={onEdit}>
-          <PanelRight aria-hidden />
-          {m.tasks_edit_details()}
-        </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Flag aria-hidden />
-            {m.tasks_priority_field()}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup
-              value={shownPriority(task.priority)}
-              onValueChange={(value) => {
-                const next = value as ShownPriority
-                if (next !== shownPriority(task.priority)) {
-                  void actions.update(task.id, { priority: next })
-                }
-              }}
-            >
-              {PRIORITIES.map((p) => (
-                <DropdownMenuRadioItem key={p} value={p}>
-                  <Flag
-                    aria-hidden
-                    className={cn(p !== 'none' && 'fill-current', PRIORITY_COLORS[p])}
-                  />
-                  {PRIORITY_NAMES[p]()}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={onEdit}>
+            <PanelRight aria-hidden />
+            {m.tasks_edit_details()}
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PriorityMarks level={shownPriority(task.priority)} placeholder />
+              {m.tasks_priority_field()}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={shownPriority(task.priority)}
+                onValueChange={(value) => {
+                  const next = value as ShownPriority
+                  if (next !== shownPriority(task.priority)) {
+                    void actions.update(task.id, { priority: next })
+                  }
+                }}
+              >
+                {PRIORITIES.map((p) => (
+                  <DropdownMenuRadioItem key={p} value={p}>
+                    <PriorityMarks level={p} />
+                    {PRIORITY_NAMES[p]()}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>
-          <Trash2 aria-hidden />
-          {m.common_delete()}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            <Trash2 aria-hidden />
+            {m.common_delete()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

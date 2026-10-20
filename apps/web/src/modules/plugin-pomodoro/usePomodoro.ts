@@ -204,7 +204,7 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
   )
 
   useEffect(() => {
-    if (state.status !== 'running') return
+    if (state.status !== 'running' || state.endsAt === null) return
     const tick = () => {
       const t = Date.now()
       setNow(t)
