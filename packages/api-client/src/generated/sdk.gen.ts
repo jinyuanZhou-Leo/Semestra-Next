@@ -1355,8 +1355,10 @@ export const importsItemUpdate = <ThrowOnError extends boolean = false>(options:
 /**
  * Accept or reject many import items at once, by type, issue or id.
  *
- * E.g. reject every item with `import.duplicate_assessment`. The assistant gets
- * `changed` and the session's `summary`, without its items.
+ * E.g. reject every item with `import.duplicate_assessment`. The filters combine
+ * (an item must match all given). Rejecting a course item also rejects the items that belong to it
+ * (its meetings, assessments, categories, events and tasks), so leaving a course out takes only its
+ * id. The assistant gets `changed` and the session's `summary`, without its items.
  */
 export const importsItemsBulkDecide = <ThrowOnError extends boolean = false>(options: Options<ImportsItemsBulkDecideData, ThrowOnError>): RequestResult<ImportsItemsBulkDecideResponses, ImportsItemsBulkDecideErrors, ThrowOnError> => (options.client ?? client).post<ImportsItemsBulkDecideResponses, ImportsItemsBulkDecideErrors, ThrowOnError>({
     url: '/imports/{session_id}/items:decide',
