@@ -315,10 +315,12 @@ class AssessmentFindInput(BaseModel):
         description="How the user named it: 'Lab 3', 'midterm', 'assignment 2'"
     )
     course_id: Id | None = Field(
-        default=None, description="Search this course; default is the course on screen"
+        default=None,
+        description="Search only this course; otherwise the whole Program, the current term's "
+        "courses first",
     )
     program_id: Id | None = Field(
-        default=None, description="Search the whole Program when no course is given"
+        default=None, description="Program to search when no course is given"
     )
     limit: Annotated[int, Field(ge=1, le=20)] = Field(default=5, description="Max candidates")
 
@@ -326,8 +328,12 @@ class AssessmentFindInput(BaseModel):
 class AssessmentCandidate(BaseModel):
     id: str
     course_id: str
+    course_code: str | None
+    course_title: str
+    in_current_term: bool = Field(description="The course runs in the current term")
     title: str
     category_id: str | None
+    category_name: str | None
     due_at: datetime | None
     weight: float
     score_percentage: float | None
@@ -435,6 +441,17 @@ class GradeTarget(BaseModel):
     value: Annotated[float, Field(ge=0, le=1000)] = Field(description="Target value")
 
 
+class IgnoredScore(BaseModel):
+    id: str
+    reason: Literal["graded", "unknown"] = Field(
+        description="graded: it already has a real score; unknown: not an assessment of this course"
+    )
+
+
+class SimulatedGradebook(GradebookSummary):
+    ignored: list[IgnoredScore] = Field(description="Assumed scores that were not used")
+
+
 class SimulateCourseInput(BaseModel):
     course_id: Id = Field(description="Course id")
     scores: dict[str, Percent] = Field(
@@ -529,6 +546,14 @@ class TermSimulateInput(BaseModel):
     )
 
 
+class IgnoredCourseScore(BaseModel):
+    id: str
+    reason: Literal["finished", "unknown"] = Field(
+        description="finished: the course already has its final grade (or is not graded by "
+        "percentage); unknown: not a course of this term that counts towards its GPA"
+    )
+
+
 class TermGradeSimulation(BaseModel):
     term_id: str
     gpa: float | None
@@ -541,6 +566,7 @@ class TermGradeSimulation(BaseModel):
     required_percentage: float | None = Field(
         description="One average for the courses left blank that reaches the target"
     )
+    ignored: list[IgnoredCourseScore] = Field(description="Assumed percentages that were not used")
 
 
 class TermGradePoint(BaseModel):

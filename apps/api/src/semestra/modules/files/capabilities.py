@@ -175,8 +175,8 @@ async def files_search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     name="files.document.read",
     summary="Read the text of a processed file, page by page.",
     description="""Returns the markdown of the pages from page_from (a few pages per call, each with
-its citation_id). When next_page is set, call again from there to continue. Use it to summarise or extract from a whole document; to
-find something specific use files.document.search first.""",
+its citation_id). When next_page is set, call again from there to continue. Use it to summarise or
+extract from a whole document; to find something specific use files.document.search first.""",
     effect="read",
     http=Http("GET", "/files/{item_id}/document"),
     tags=TAGS,

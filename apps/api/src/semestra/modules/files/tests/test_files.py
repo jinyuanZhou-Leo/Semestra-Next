@@ -236,7 +236,8 @@ async def test_keyword_search_finds_codes_and_chinese(fx: Fx):
     cite = result["citations"][0]
     assert cite["id"] == hit["citation_id"]
     assert cite["title"] == "syllabus.pdf"
-    assert "<mark>" not in cite["snippet"] and "midterm" in cite["snippet"]
+    assert "<mark>" not in cite["snippet"]
+    assert "midterm" in cite["snippet"]
 
     assert (await fx.search("APS105"))["results"][0]["page_from"] == 1
     chinese = (await fx.search("考试时间"))["results"]

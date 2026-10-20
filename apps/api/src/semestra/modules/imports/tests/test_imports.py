@@ -285,7 +285,8 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
         "PATCH", f"/imports/{session['id']}/items/{lab2['id']}", 422,
         json={"data": {"weigth": 20}},
     )  # fmt: skip
-    assert err["error"]["params"]["errors"] == [{"loc": ["data", "weigth"], "code": "extra_forbidden"}]
+    errors = err["error"]["params"]["errors"]
+    assert errors == [{"loc": ["data", "weigth"], "code": "extra_forbidden"}]
     # A bulk decision needs at least one filter.
     err = await api.call(
         "POST", f"/imports/{session['id']}/items:decide", 422, json={"decision": "reject"}
