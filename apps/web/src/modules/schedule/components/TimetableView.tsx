@@ -1,6 +1,7 @@
 import type { Course, Meeting } from '@semestra/api-client'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
+import { sectionLabel } from '../labels'
 import { useConflicts } from '../queries'
 import { type GridItem, WeekGrid, minutes, weekDays } from './WeekGrid'
 
@@ -10,6 +11,7 @@ export function meetingGridItems(
   courses: readonly Course[],
   conflicting: ReadonlySet<string>,
   onClick?: (meeting: Meeting) => void,
+  { bySection = false }: { bySection?: boolean } = {},
 ): GridItem[] {
   return meetings
     .filter((mt) => mt.enabled)
@@ -17,7 +19,7 @@ export function meetingGridItems(
       const course = courses.find((c) => c.id === mt.course_id)
       const label = course ? courseLabel(course) : ''
       const parts = [
-        mt.section_code || null,
+        bySection ? null : mt.section_code || null,
         mt.recurrence === 'biweekly' ? m.schedule_recurrence_biweekly() : null,
         mt.location,
       ].filter(Boolean)
@@ -27,8 +29,8 @@ export function meetingGridItems(
         start: minutes(mt.start_time),
         end: minutes(mt.end_time),
         color: course ? courseColor(course) : 'var(--subject-12)',
-        title: `${label} ${mt.type_code}`.trim(),
-        subtitle: parts.join(' · '),
+        title: bySection ? sectionLabel(mt) : `${label} ${mt.type_code}`.trim(),
+        subtitle: parts.join(' · ') || undefined,
         conflict: conflicting.has(mt.id),
         onClick: onClick ? () => onClick(mt) : undefined,
       }

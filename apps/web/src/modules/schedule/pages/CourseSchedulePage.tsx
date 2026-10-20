@@ -1,21 +1,37 @@
-import type { Course, EventType, Meeting, OneOffEvent } from '@semestra/api-client'
+import type {
+  Course,
+  EventType,
+  Meeting,
+  MeetingException,
+  OneOffEvent,
+} from '@semestra/api-client'
 import {
+  scheduleEventDeleteMutation,
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import {
+  type CellContext,
+  type ReactTable,
+  type RowData,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
+  CalendarOff,
   CalendarPlus,
   ChevronDown,
-  Download,
+  Import,
   MoreHorizontal,
   Plus,
   RotateCcw,
 } from 'lucide-react'
-import { useState } from 'react'
+import { createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useExtensions } from '@/app/registry'
 import { toastError } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
@@ -36,6 +52,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
@@ -46,14 +63,8 @@ import { MeetingDialog } from '../components/MeetingDialog'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
-import { dayLabel, timeRange, typeName } from '../labels'
-import {
-  invalidateSchedule,
-  useCalendarSettings,
-  useEvents,
-  useEventTypes,
-  useMeetings,
-} from '../queries'
+import { dayLabel, sectionLabel, timeRange, typeName } from '../labels'
+import { invalidateSchedule, useEvents, useEventTypes, useMeetings } from '../queries'
 import { wallDate, weekdayName } from '../time'
 import { MEETING_IMPORT_SOURCES, type MeetingImportSource } from '../types'
 
@@ -120,7 +131,6 @@ function TermSchedule({
   const events = (useEvents(programId, { course_id: course.id }).data?.items ?? []).filter(
     (e) => !e.term_id || e.term_id === termId,
   )
-  const settings = useCalendarSettings(termId)
   const conflicting = useConflictingIds(termId)
   const importers = useExtensions<MeetingImportSource>(MEETING_IMPORT_SOURCES)
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
@@ -150,25 +160,11 @@ function TermSchedule({
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
   const enabled = meetings.filter((mt) => mt.enabled)
-  // Only the hours that have classes; the term's day range when nothing is enabled.
-  const gridStart = enabled.length
-    ? Math.min(...enabled.map((mt) => minutes(mt.start_time)))
-    : minutes(settings.day_start)
-  const gridEnd = enabled.length
-    ? Math.max(...enabled.map((mt) => minutes(mt.end_time)))
-    : minutes(settings.day_end)
-  const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing).map((item) => {
-    const mt = enabled.find((x) => x.id === item.id)
-    return mt
-      ? {
-          ...item,
-          // The section code usually starts with the type (LEC0101); avoid "LEC LEC0101".
-          title: mt.section_code.startsWith(mt.type_code)
-            ? mt.section_code
-            : `${mt.type_code} ${mt.section_code}`.trim(),
-          subtitle: mt.location ?? undefined,
-        }
-      : item
+  // Only the hours that have classes.
+  const gridStart = Math.min(...enabled.map((mt) => minutes(mt.start_time)))
+  const gridEnd = Math.max(...enabled.map((mt) => minutes(mt.end_time)))
+  const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing, {
+    bySection: true,
   })
 
   return (
@@ -194,7 +190,7 @@ function TermSchedule({
         {importers.length > 0 ? (
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
-              <Download aria-hidden />
+              <Import aria-hidden />
               {m.schedule_import()}
               <ChevronDown aria-hidden data-icon="inline-end" />
             </DropdownMenuTrigger>
@@ -238,16 +234,27 @@ function TermSchedule({
         <>
           <section aria-label={m.schedule_week_view()} className="space-y-2">
             <h3 className="text-sm font-medium">{m.schedule_week_view()}</h3>
-            <div className="overflow-x-auto rounded-2xl border border-border p-3 pt-2">
-              <WeekGrid
-                className="min-w-xl"
-                days={weekDays(enabled.some((mt) => mt.weekday >= 6))}
-                items={gridItems}
-                dayStart={gridStart}
-                dayEnd={gridEnd}
-                hourHeight={44}
-              />
-            </div>
+            {enabled.length === 0 ? (
+              <Empty className="rounded-2xl border border-solid border-border p-6">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <CalendarOff aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>{m.schedule_meetings_all_disabled()}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-border p-3 pt-2">
+                <WeekGrid
+                  className="min-w-xl"
+                  days={weekDays(enabled.some((mt) => mt.weekday >= 6))}
+                  items={gridItems}
+                  dayStart={gridStart}
+                  dayEnd={gridEnd}
+                  hourHeight={44}
+                />
+              </div>
+            )}
           </section>
           {typeCodes.map((code) => (
             <MeetingGroup
@@ -288,51 +295,13 @@ function TermSchedule({
       {exceptions.length > 0 ? (
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{m.schedule_exceptions()}</h3>
-          <div className="rounded-2xl border border-border">
-            <Table>
-              <TableBody>
-                {exceptions.map(({ meeting, exc }) => (
-                  <TableRow key={exc.id}>
-                    <TableCell className="w-40">{dayLabel(exc.original_date)}</TableCell>
-                    <TableCell className="w-32 text-muted-foreground">
-                      {meeting.type_code} {meeting.section_code}
-                    </TableCell>
-                    <TableCell className="whitespace-normal">
-                      {exc.kind === 'cancelled'
-                        ? m.schedule_status_cancelled()
-                        : m.schedule_moved_to({
-                            when: [
-                              exc.new_date ? dayLabel(exc.new_date) : null,
-                              exc.new_start_time ? formatTime(exc.new_start_time) : null,
-                              exc.new_location,
-                            ]
-                              .filter(Boolean)
-                              .join(' · '),
-                          })}
-                      {exc.note ? (
-                        <span className="text-muted-foreground"> · {exc.note}</span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="w-px text-right">
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        disabled={restore.isPending}
-                        onClick={() =>
-                          restore.mutate({
-                            path: { meeting_id: meeting.id, original_date: exc.original_date },
-                          })
-                        }
-                      >
-                        <RotateCcw aria-hidden />
-                        {m.schedule_restore()}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ExceptionsTable
+            exceptions={exceptions}
+            busy={restore.isPending}
+            onRestore={(meeting, exc) =>
+              restore.mutate({ path: { meeting_id: meeting.id, original_date: exc.original_date } })
+            }
+          />
         </section>
       ) : null}
 
@@ -535,6 +504,80 @@ function MeetingGroup({
 
 const eventColumn = createColumnHelper<typeof features, OneOffEvent>()
 
+/**
+ * Cells live at module level and read the page's state from context (see CoursesTable): a cell
+ * defined inside the component would be a new component on every render and remount.
+ */
+type EventsState = {
+  types: EventType[]
+  timezone: string
+  onEdit: (event: OneOffEvent) => void
+  onDelete: (event: OneOffEvent) => void
+}
+const EventsContext = createContext<EventsState | null>(null)
+
+function useEventsState(): EventsState {
+  const state = use(EventsContext)
+  if (!state) throw new Error('EventsTable cells must render inside EventsTable')
+  return state
+}
+
+type EventCell = CellContext<typeof features, OneOffEvent>
+
+function ActionsHeader() {
+  return <span className="sr-only">{m.schedule_actions()}</span>
+}
+
+function EventDateCell({ row }: EventCell) {
+  const { timezone } = useEventsState()
+  return dayLabel(wallDate(row.original.start_at, timezone))
+}
+
+function EventTimeCell({ row }: EventCell) {
+  const { timezone } = useEventsState()
+  return <span className="tabular-nums">{timeRange(row.original, timezone)}</span>
+}
+
+function EventTitleCell({ row }: EventCell) {
+  return <span className="font-medium">{row.original.title}</span>
+}
+
+function EventTypeCell({ row }: EventCell) {
+  const { types } = useEventsState()
+  const type = types.find((t) => t.code === row.original.type_code)
+  return type ? typeName(type) : (row.original.type_code ?? '—')
+}
+
+function EventLocationCell({ row }: EventCell) {
+  return row.original.location || '—'
+}
+
+function EventActionsCell({ row }: EventCell) {
+  const { onEdit, onDelete } = useEventsState()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
+      >
+        <MoreHorizontal aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onEdit(row.original)}>
+            {m.schedule_event_edit()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>
+            {m.schedule_event_delete()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /** The course's one-off events (exams, extra sessions) in the same table style as meetings. */
 function EventsTable({
   events,
@@ -547,56 +590,149 @@ function EventsTable({
   timezone: string
   onEdit: (event: OneOffEvent) => void
 }) {
+  const queryClient = useQueryClient()
+  const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
+  const remove = useMutation({
+    ...scheduleEventDeleteMutation(),
+    onError: toastError,
+    onSuccess: () => setDeleting(null),
+    onSettled: () => invalidateSchedule(queryClient),
+  })
   const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
   const columns = eventColumn.columns([
     eventColumn.accessor((e) => e.start_at, {
       id: 'date',
-      header: () => m.schedule_date(),
-      cell: ({ row }) => dayLabel(wallDate(row.original.start_at, timezone)),
+      header: m.schedule_date(),
+      cell: EventDateCell,
     }),
-    eventColumn.display({
-      id: 'time',
-      header: () => m.schedule_time(),
-      cell: ({ row }) => <span className="tabular-nums">{timeRange(row.original, timezone)}</span>,
-    }),
+    eventColumn.display({ id: 'time', header: m.schedule_time(), cell: EventTimeCell }),
     eventColumn.accessor((e) => e.title, {
       id: 'title',
-      header: () => m.schedule_event_title(),
-      cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
+      header: m.schedule_event_title(),
+      cell: EventTitleCell,
     }),
     eventColumn.accessor((e) => e.type_code ?? '', {
       id: 'type',
-      header: () => m.schedule_type(),
-      cell: ({ row }) => {
-        const type = types.find((t) => t.code === row.original.type_code)
-        return type ? typeName(type) : (row.original.type_code ?? '—')
-      },
+      header: m.schedule_type(),
+      cell: EventTypeCell,
     }),
     eventColumn.accessor((e) => e.location ?? '', {
       id: 'location',
-      header: () => m.schedule_location(),
-      cell: ({ row }) => row.original.location || '—',
+      header: m.schedule_location(),
+      cell: EventLocationCell,
     }),
-    eventColumn.display({
-      id: 'actions',
-      header: () => <span className="sr-only">{m.schedule_actions()}</span>,
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
-          >
-            <MoreHorizontal aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(row.original)}>
-              {m.schedule_event_edit()}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    }),
+    eventColumn.display({ id: 'actions', header: ActionsHeader, cell: EventActionsCell }),
   ])
   const table = useTable({ features, columns, data: sorted, getRowId: (e) => e.id })
+  return (
+    <EventsContext value={{ types, timezone, onEdit, onDelete: setDeleting }}>
+      <DataTable table={table} />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={m.schedule_event_delete_title()}
+        description={m.schedule_event_delete_description()}
+        confirmLabel={m.schedule_event_delete()}
+        pending={remove.isPending}
+        onConfirm={() => deleting && remove.mutate({ path: { event_id: deleting.id } })}
+      />
+    </EventsContext>
+  )
+}
+
+type ExceptionRow = { meeting: Meeting; exc: MeetingException }
+const exceptionColumn = createColumnHelper<typeof features, ExceptionRow>()
+
+type ExceptionsState = {
+  busy: boolean
+  onRestore: (meeting: Meeting, exc: MeetingException) => void
+}
+const ExceptionsContext = createContext<ExceptionsState | null>(null)
+
+type ExceptionCell = CellContext<typeof features, ExceptionRow>
+
+function ExceptionDateCell({ row }: ExceptionCell) {
+  return dayLabel(row.original.exc.original_date)
+}
+
+function ExceptionSectionCell({ row }: ExceptionCell) {
+  return sectionLabel(row.original.meeting)
+}
+
+function ExceptionChangeCell({ row }: ExceptionCell) {
+  const { exc } = row.original
+  return (
+    <span className="whitespace-normal">
+      {exc.kind === 'cancelled'
+        ? m.schedule_status_cancelled()
+        : m.schedule_moved_to({
+            when: [
+              exc.new_date ? dayLabel(exc.new_date) : null,
+              exc.new_start_time ? formatTime(exc.new_start_time) : null,
+              exc.new_location,
+            ]
+              .filter(Boolean)
+              .join(' · '),
+          })}
+      {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
+    </span>
+  )
+}
+
+function ExceptionRestoreCell({ row }: ExceptionCell) {
+  const state = use(ExceptionsContext)
+  if (!state) throw new Error('ExceptionsTable cells must render inside ExceptionsTable')
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      disabled={state.busy}
+      onClick={() => state.onRestore(row.original.meeting, row.original.exc)}
+    >
+      <RotateCcw aria-hidden />
+      {m.schedule_restore()}
+    </Button>
+  )
+}
+
+/** Cancelled and moved classes, each with a button that puts the class back. */
+function ExceptionsTable({
+  exceptions,
+  busy,
+  onRestore,
+}: {
+  exceptions: ExceptionRow[]
+  busy: boolean
+  onRestore: (meeting: Meeting, exc: MeetingException) => void
+}) {
+  const columns = exceptionColumn.columns([
+    exceptionColumn.accessor((r) => r.exc.original_date, {
+      id: 'date',
+      header: m.schedule_date(),
+      cell: ExceptionDateCell,
+    }),
+    exceptionColumn.accessor((r) => r.meeting.section_code, {
+      id: 'section',
+      header: m.schedule_section_code(),
+      cell: ExceptionSectionCell,
+    }),
+    exceptionColumn.display({
+      id: 'change',
+      header: m.schedule_exception_change(),
+      cell: ExceptionChangeCell,
+    }),
+    exceptionColumn.display({ id: 'actions', header: ActionsHeader, cell: ExceptionRestoreCell }),
+  ])
+  const table = useTable({ features, columns, data: exceptions, getRowId: (r) => r.exc.id })
+  return (
+    <ExceptionsContext value={{ busy, onRestore }}>
+      <DataTable table={table} />
+    </ExceptionsContext>
+  )
+}
+
+/** The bordered table every section of this page uses. */
+function DataTable<T extends RowData>({ table }: { table: ReactTable<typeof features, T> }) {
   return (
     <div className="rounded-2xl border border-border">
       <Table>

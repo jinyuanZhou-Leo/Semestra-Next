@@ -1043,6 +1043,8 @@
   "schedule_week_view": "Week",
   "schedule_meetings_empty_description": "Add a meeting, or import one from a calendar file or a timetable screenshot.",
   "schedule_events_empty_title": "No one-off events yet",
+  "schedule_exception_change": "Change",
+  "schedule_meetings_all_disabled": "All meetings are turned off",
   "schedule_event_edit": "Edit event",
   "schedule_event_delete": "Delete event",
   "schedule_event_delete_title": "Delete this event?",
