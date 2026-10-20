@@ -77,7 +77,7 @@ async def _check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
 async def get_session_row(ctx: Ctx, session_id: str) -> AgentSession:
     row = await ctx.db.get(AgentSession, session_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("session", session_id)
     return row
 
 
@@ -404,7 +404,7 @@ def expire_if_stale(ctx: Ctx, row: AgentProposal) -> None:
 async def get_proposal(ctx: Ctx, session_id: str, proposal_id: str) -> AgentProposal:
     row = await ctx.db.get(AgentProposal, proposal_id)
     if row is None or row.user_id != ctx.user_id or row.session_id != session_id:
-        raise not_found()
+        raise not_found("proposal", proposal_id)
     expire_if_stale(ctx, row)
     return row
 
@@ -458,7 +458,7 @@ async def attachments(ctx: Ctx, session_id: str) -> list[AgentAttachment]:
 async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("attachment", attachment_id)
     sent = any(
         block.get("attachment_id") == row.id
         for msg in await messages(ctx, row.session_id)

@@ -115,7 +115,7 @@ async def io(ctx: Ctx) -> AsyncIterator[Io]:
 async def get_connection_row(ctx: Ctx, connection_id: str) -> LmsConnection:
     row = await ctx.db.get(LmsConnection, connection_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("connection", connection_id)
     return row
 
 
