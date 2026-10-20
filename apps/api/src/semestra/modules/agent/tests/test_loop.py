@@ -75,6 +75,23 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
     assert detail["generating"] is False
 
 
+async def test_a_call_id_reused_in_a_later_turn_still_stores_its_result(
+    agent: Agent, model: FakeModel
+):
+    # Some OpenAI-compatible servers number call ids per response, so ids repeat across turns.
+    program = await agent.program()
+    session = await agent.session()
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("a"))
+    await agent.send(session["id"], "one")
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("b"))
+    await agent.send(session["id"], "two")
+
+    detail = await agent.detail(session["id"])
+    roles = [m["role"] for m in detail["messages"]]
+    assert roles == ["user", "assistant", "tool", "assistant"] * 2
+    assert "interrupted" not in str(model.results(-1))
+
+
 async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeModel):
     program, course, _ = await agent.course_with_lab()
     term_id = course["term_ids"][0]

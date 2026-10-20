@@ -740,15 +740,18 @@ def _delta(item: Any, answer: _Answer) -> Event | None:
 
 
 class _Store:
-    """Writes the run's messages as they complete. Tool results are told apart by their call id,
+    """Writes the run's messages as they complete. Tool results are told apart by the part object,
     not by position: Pydantic AI merges every run of consecutive requests in the history (a tool
-    row followed by a note, say), so indexes into the stored history do not hold."""
+    row followed by a note, say), so indexes into the stored history do not hold, while the merge
+    keeps the part objects. Not by call id either: some OpenAI-compatible servers reuse ids across
+    turns."""
 
     def __init__(self, prepared: Prepared) -> None:
         self.prepared = prepared
         self.turn = prepared.turn
-        self.answered: set[str] = {
-            p.tool_call_id
+        # `id()` of every result part already stored; the parts stay alive in the run's history.
+        self.answered: set[int] = {
+            id(p)
             for m in prepared.messages
             if isinstance(m, ModelRequest)
             for p in m.parts
@@ -820,7 +823,7 @@ class _Store:
             p
             for p in message.parts
             if isinstance(p, ToolReturnPart | RetryPromptPart)
-            and p.tool_call_id not in self.answered
+            and id(p) not in self.answered
             and not (
                 isinstance(p, ToolReturnPart)
                 and isinstance(p.metadata, dict)
@@ -840,7 +843,7 @@ class _Store:
         async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
             session = await service.get_session_row(ctx, self.turn.session_id)
             for m, parts in new:
-                self.answered.update(p.tool_call_id for p in parts)
+                self.answered.update(id(p) for p in parts)
                 request = replace(m, parts=list(parts)) if len(parts) != len(m.parts) else m
                 blocks = history.request_blocks(request)
                 history.strip_full(request)
@@ -1199,7 +1202,9 @@ async def decide(
                 text += f" Their reason: {d.reason}"
             outcome = Outcome(True, {"rejected": True, "message": text}, ran=False)
             results.append((row, outcome, "rejected"))
-            await _record(state, user_id, session_id, row, outcome, "rejected", None)
+            await asyncio.shield(
+                _record(state, user_id, session_id, row, outcome, "rejected", None)
+            )
             continue
         args = d.args if d.decision == "edit" and d.args is not None else row.args
         outcome = await invoke(state, user_id, scope, row.capability, args)
@@ -1207,7 +1212,10 @@ async def decide(
         status = "executed" if outcome.ok else "failed"
         results.append((row, outcome, status))
         # Stored at once: if anything stops the rest, this card still shows what it did.
-        await _record(state, user_id, session_id, row, outcome, status, edited_preview.get(row.id))
+        # The write is committed: a client leaving now must not leave the card "interrupted".
+        await asyncio.shield(
+            _record(state, user_id, session_id, row, outcome, status, edited_preview.get(row.id))
+        )
         if d.remember and cap.effect == "write" and outcome.ok:
             async with agent_ctx(state, user_id, scope=None) as ctx:
                 await service.remember_auto_approve(ctx, cap.name)
