@@ -71,6 +71,21 @@ async def test_schemas_leave_out_titles_and_the_program_is_optional(agent: Agent
     assert "title" in tools.input_schema(registry.get("tasks.item.create"))["properties"]
 
 
+async def test_schemas_are_built_once_and_handed_out_as_copies(
+    agent: Agent, monkeypatch: pytest.MonkeyPatch
+):
+    del agent
+    cap = registry.get("tasks.item.create")
+    first = tools.input_schema(cap)
+    first["properties"].clear()
+    assert "title" in tools.input_schema(cap)["properties"]
+    # A capability replaced in place gets its own schema.
+    narrower = dataclasses.replace(cap, summary="Replaced.")
+    monkeypatch.setitem(registry._items, cap.name, narrower)  # pyright: ignore[reportPrivateUsage]
+    assert tools.description(narrower).startswith("Replaced.")
+    assert not tools.description(cap).startswith("Replaced.")
+
+
 def _undescribed(node: Any, path: str) -> list[str]:
     if isinstance(node, list):
         return [m for v in node for m in _undescribed(v, path)]  # pyright: ignore[reportUnknownVariableType]

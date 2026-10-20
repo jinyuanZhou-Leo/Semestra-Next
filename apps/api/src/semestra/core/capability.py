@@ -96,6 +96,16 @@ class Registry:
         self._plugin_gate: PluginGate | None = None
         self._context_args: dict[str, ContextArg] = {}
         self._id_sources: dict[str, str] = {}
+        # Bumped whenever something that shapes agent tool schemas changes, so caches built from
+        # the registry (`agent.tools`) know when to rebuild.
+        self._generation = 0
+
+    @property
+    def generation(self) -> int:
+        return self._generation
+
+    def names(self) -> frozenset[str]:
+        return frozenset(self._items)
 
     def set_context_default(
         self, field_name: str, fill: ContextDefault, notes: dict[Surface, str]
@@ -103,6 +113,7 @@ class Registry:
         """Agents and MCP clients may leave out a required `field_name`; it is filled from
         the call's context. HTTP callers still pass it."""
         self._context_args[field_name] = ContextArg(fill, notes)
+        self._generation += 1
 
     def set_id_source(self, field_name: str, capability: str) -> None:
         """The capability an agent gets `field_name` (and `<field_name>s`) from, e.g.
@@ -111,6 +122,7 @@ class Registry:
         if self._id_sources.get(field_name, capability) != capability:
             raise ValueError(f"{field_name} already comes from {self._id_sources[field_name]}")
         self._id_sources[field_name] = capability
+        self._generation += 1
 
     @property
     def id_sources(self) -> dict[str, str]:
@@ -172,6 +184,7 @@ class Registry:
         if cap.name in self._items:
             raise ValueError(f"duplicate capability {cap.name!r}")
         self._items[cap.name] = cap
+        self._generation += 1
 
     def get(self, name: str) -> Capability:
         try:
