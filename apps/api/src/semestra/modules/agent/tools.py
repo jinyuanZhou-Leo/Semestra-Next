@@ -10,6 +10,8 @@ Text the model reads (descriptions, skills) names tools by their tool name (`for
 model never has to translate one into the other.
 """
 
+import copy
+import functools
 import json
 import re
 import sqlite3
@@ -53,7 +55,13 @@ _DOTTED = re.compile(r"(?<![\w.])[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+(?!\w)")
 
 def for_model(text: str) -> str:
     """`text` with every capability name in it written as the tool the model calls."""
-    known = {c.name for c in registry.list()}
+    return _for_model(text, registry.generation)
+
+
+@functools.lru_cache(maxsize=4096)
+def _for_model(text: str, generation: int) -> str:
+    del generation  # part of the cache key: new capabilities change what counts as a name
+    known = registry.names()
     return _DOTTED.sub(lambda m: tool_name(m[0]) if m[0] in known else m[0], text)
 
 
@@ -65,6 +73,10 @@ def is_untrusted(name: str) -> bool:
 
 
 def description(cap: Capability) -> str:
+    return _cached(cap, "description", lambda: _description(cap))
+
+
+def _description(cap: Capability) -> str:
     text = f"{cap.summary}\n\n{cap.description}".strip()
     if cap.untrusted:
         text += f"\n\n{UNTRUSTED_NOTE}"
@@ -113,9 +125,32 @@ def core_capabilities(available: list[Capability]) -> list[Capability]:
     return [c for c in available if c.agent_core][:CORE_LIMIT]
 
 
+# Schemas and descriptions only change when the registry does, but building them for every tool
+# on every turn costs over 100 ms of CPU. Keyed by the capability object too, so a capability
+# replaced in place (tests) is rebuilt; the value keeps that object alive so its id is not reused.
+_built: dict[tuple[str, int, str], tuple[Capability, Any]] = {}
+_built_generation = -1
+
+
+def _cached[T](cap: Capability, what: str, build: Callable[[], T]) -> T:
+    global _built_generation
+    if _built_generation != registry.generation:
+        _built.clear()
+        _built_generation = registry.generation
+    key = (cap.name, id(cap), what)
+    hit = _built.get(key)
+    if hit is None:
+        hit = _built[key] = (cap, build())
+    return copy.deepcopy(hit[1])
+
+
 def input_schema(cap: Capability, surface: Surface = "agent") -> dict[str, Any]:
     """The input JSON schema as the model gets it: references inlined, Pydantic's `title`s left
     out (they repeat the field names) and tool names in the descriptions."""
+    return _cached(cap, f"schema:{surface}", lambda: _input_schema(cap, surface))
+
+
+def _input_schema(cap: Capability, surface: Surface) -> dict[str, Any]:
     schema = _for_model_schema(inline_refs(cap.input_model.model_json_schema()))
     # Arguments the runtime fills from the conversation (the Program) are optional here.
     for name, arg in registry.context_args(cap).items():
