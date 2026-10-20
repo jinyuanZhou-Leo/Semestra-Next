@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 
 from semestra.core import jobs
 from semestra.core.context import run_after_commit, system_ctx
@@ -278,3 +278,25 @@ async def test_progress_within_a_stage_is_throttled(
     await ctx.stage("a", current=3, total=10)
     await ctx.stage("b")  # stage changes are always sent
     assert [(v["step"], v["step_current"]) for v in sent] == [("a", 1), ("a", 3), ("b", None)]
+
+
+async def test_an_idle_worker_only_reads(app: FastAPI, client: AsyncClient):
+    del client  # starts the app
+    statements: list[str] = []
+
+    def record(*args: Any) -> None:
+        statements.append(args[2])
+
+    engine = app.state.engine.sync_engine
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        assert await app.state.jobs.run_one() is False
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert statements
+    assert all(s.lstrip().upper().startswith("SELECT") for s in statements)
+
+
+async def test_sqlite_statistics_are_refreshed(app: FastAPI, client: AsyncClient):
+    del client
+    await run_periodic(app.state, "core.sqlite_optimize")

@@ -43,6 +43,7 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -346,6 +347,14 @@ async def cleanup_jobs(ctx: Ctx) -> None:
     )
 
 
+@periodic("core.sqlite_optimize", every=timedelta(hours=6))
+async def optimize_sqlite(ctx: Ctx) -> None:
+    """Keeps SQLite's query planner statistics current (what the SQLite docs advise for
+    long-lived connections); cheap when nothing changed."""
+    if ctx.db.get_bind().dialect.name == "sqlite":
+        await ctx.db.execute(text("PRAGMA optimize"))
+
+
 # --- worker ---------------------------------------------------------------------------------
 
 
@@ -420,6 +429,11 @@ class JobRunner:
         now: datetime = self.state.now()
         lease_lapsed = and_(CoreJob.status == "running", CoreJob.lease_expires_at < now)
         async with self.state.session_factory() as db:
+            # Most polls find nothing: check with a read first, so an idle worker does not take
+            # SQLite's write lock every POLL_SECONDS.
+            due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
+            if await db.scalar(select(CoreJob.id).where(due).limit(1)) is None:
+                return None
             # Jobs whose worker died: cancel if asked, fail if out of attempts.
             ended = (
                 await db.scalars(
@@ -438,7 +452,6 @@ class JobRunner:
                     .returning(CoreJob)
                 )
             ).all()
-            due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
             pick = select(CoreJob.id).where(due).order_by(CoreJob.run_after).limit(1)
             job = await db.scalar(
                 update(CoreJob)

@@ -87,6 +87,9 @@ def _set_sqlite_pragmas(dbapi_connection: Any, _record: Any) -> None:
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA busy_timeout=5000")
     cursor.execute("PRAGMA synchronous=NORMAL")
+    # Sorts and temporary indexes in memory; 32 MB of page cache per connection (default 2 MB).
+    cursor.execute("PRAGMA temp_store=MEMORY")
+    cursor.execute("PRAGMA cache_size=-32000")
     cursor.close()
 
 
