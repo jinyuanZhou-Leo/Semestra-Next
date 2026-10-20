@@ -54,6 +54,19 @@ from semestra.modules.settings import service as settings_service
 # --- loading --------------------------------------------------------------------------------
 
 
+async def default_program_id(ctx: Ctx) -> str | None:
+    """The Program an agent call without `program_id` means: the one the user is in, else their
+    only one."""
+    if ctx.scope is not None:
+        return ctx.scope.program_id
+    ids = (
+        await ctx.db.scalars(
+            select(AcademicsProgram.id).where(AcademicsProgram.user_id == ctx.user_id).limit(2)
+        )
+    ).all()
+    return ids[0] if len(ids) == 1 else None
+
+
 async def get_program_row(ctx: Ctx, program_id: str) -> AcademicsProgram:
     row = await ctx.db.get(AcademicsProgram, program_id)
     if row is None or row.user_id != ctx.user_id:

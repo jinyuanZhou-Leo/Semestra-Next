@@ -52,6 +52,12 @@ class Capability:
     output_model: type[BaseModel]
     handler: Callable[[Ctx, Any], Awaitable[BaseModel]]
     preview: Callable[[Ctx, Any], Awaitable[Any]] | None = field(default=None, compare=False)
+    # Rules the handler would refuse the input for, checked before anything runs: an agent's
+    # write is refused before its confirmation card is shown, not after the user approved it.
+    check: Callable[[Ctx, Any], Awaitable[None]] | None = field(default=None, compare=False)
+    # Results quote text other people wrote (files, LMS content): agents get them marked as
+    # untrusted, and the description says so.
+    untrusted: bool = False
 
     def tool_spec(self) -> dict[str, Any]:
         """What an agent or MCP client sees: name, description and the input JSON schema."""
@@ -70,12 +76,62 @@ class Capability:
 
 # Returns the plugin ids the ctx user has installed (registered by M10's plugins module).
 PluginGate = Callable[[Ctx], Awaitable[set[str]]]
+# Fills an argument an agent or MCP client left out from the call's context (M02 registers
+# `program_id`: the Program the user is in, or their only one). None leaves it missing.
+ContextDefault = Callable[[Ctx], Awaitable[str | None]]
+
+
+@dataclass(frozen=True)
+class ContextArg:
+    fill: ContextDefault
+    # Appended to the field's description in the schema agents get.
+    note: str
 
 
 class Registry:
     def __init__(self) -> None:
         self._items: dict[str, Capability] = {}
         self._plugin_gate: PluginGate | None = None
+        self._context_args: dict[str, ContextArg] = {}
+
+    def set_context_default(self, field_name: str, fill: ContextDefault, note: str) -> None:
+        """Agents and MCP clients may leave out a required `field_name`; it is filled from
+        the call's context. HTTP callers still pass it."""
+        self._context_args[field_name] = ContextArg(fill, note)
+
+    def context_args(self, cap: Capability) -> dict[str, ContextArg]:
+        """The required inputs of `cap` an agent may leave out."""
+        fields = cap.input_model.model_fields
+        return {
+            n: a for n, a in self._context_args.items() if n in fields and fields[n].is_required()
+        }
+
+    async def with_context_args(
+        self, ctx: Ctx, cap: Capability, args: dict[str, Any]
+    ) -> dict[str, Any]:
+        out = dict(args)
+        for name, arg in self.context_args(cap).items():
+            if out.get(name) is None:
+                value = await arg.fill(ctx)
+                if value is not None:
+                    out[name] = value
+        return out
+
+    async def validate(
+        self, ctx: Ctx, cap: Capability, raw_args: dict[str, Any] | None, surface: Surface
+    ) -> BaseModel:
+        """The input model for these arguments, after the capability's own `check`. Agents and
+        MCP clients get their left-out context arguments filled in first."""
+        args = raw_args or {}
+        if surface != "http":
+            args = await self.with_context_args(ctx, cap, args)
+        try:
+            inp = cap.input_model.model_validate(args)
+        except ValidationError as exc:
+            raise validation_error(exc) from exc
+        if cap.check is not None:
+            await cap.check(ctx, inp)
+        return inp
 
     def set_plugin_gate(self, gate: PluginGate | None) -> None:
         """Capabilities with a `plugin_id` are refused (`plugins.not_installed`) and left out of
@@ -137,10 +193,7 @@ class Registry:
         gate = self._plugin_gate
         if cap.plugin_id is not None and gate is not None and cap.plugin_id not in await gate(ctx):
             raise AppError("plugins.not_installed", 403, plugin_id=cap.plugin_id)
-        try:
-            inp = cap.input_model.model_validate(raw_args or {})
-        except ValidationError as exc:
-            raise validation_error(exc) from exc
+        inp = await self.validate(ctx, cap, raw_args, surface)
         outer, ctx.surface = ctx.surface, surface
         try:
             out = await cap.handler(ctx, inp)
@@ -219,6 +272,8 @@ def capability(
     agent_output_fields: tuple[str, ...] | None = None,
     agent_default_fields: tuple[str, ...] | None = None,
     preview: Callable[[Ctx, Any], Awaitable[Any]] | None = None,
+    check: Callable[[Ctx, Any], Awaitable[None]] | None = None,
+    untrusted: bool = False,
     target: Registry | None = None,
 ) -> Callable[[Callable[[Ctx, Any], Awaitable[Any]]], Callable[[Ctx, Any], Awaitable[Any]]]:
     def decorate(
@@ -254,6 +309,8 @@ def capability(
                 output_model=output_model,
                 handler=fn,
                 preview=preview,
+                check=check,
+                untrusted=untrusted,
             )
         )
         return fn

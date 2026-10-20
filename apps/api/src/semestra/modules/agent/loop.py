@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any, Literal
 
 import structlog
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from pydantic_ai import Agent, AgentRun, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability, Caching, ToolSearch
 from pydantic_ai.capabilities import Capability as Bundle
@@ -63,7 +63,7 @@ from starlette.datastructures import State
 from semestra.core.capability import Capability, Surface, registry
 from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
 from semestra.core.db import new_id
-from semestra.core.errors import AppError, validation_error
+from semestra.core.errors import AppError
 from semestra.modules.agent import display, history, memory, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
@@ -234,11 +234,9 @@ def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
 
 async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
     """The capability's own `preview` (changes with before → after, a link), else the
-    arguments as a list. Raises `common.validation` for arguments the model got wrong."""
-    try:
-        inp = cap.input_model.model_validate(args)
-    except ValidationError as exc:
-        raise validation_error(exc) from exc
+    arguments as a list. Raises `common.validation` for arguments the model got wrong, and the
+    capability's own `check` errors, before the card is shown."""
+    inp = await registry.validate(ctx, cap, args, "agent")
     out: dict[str, Any] = _generic_preview(args)
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)
@@ -326,7 +324,7 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
         if name == memory.FORGET or saved.get("created"):
             action = "forgot" if name == memory.FORGET else "remembered"
             meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
-    if outcome.ok and name in tools.UNTRUSTED_RESULTS:
+    if outcome.ok and tools.is_untrusted(name):
         shown = wrap_untrusted(shown, tools.tool_name(name))
     return ToolReturn(return_value=shown, metadata=meta)
 
@@ -380,12 +378,11 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
         if block is not None:
             found = (str(block.get("capability", "")), str(block["full"]))
     if found is None:
-        return tools.serialize({"error": {"code": "common.not_found", "params": {}}})
+        params = {"kind": "call", "id": call_id}
+        return tools.serialize({"error": {"code": "common.not_found", "params": params}})
     name, text = found
     shown = tools.page(text, call_id, max(0, offset))
-    return (
-        wrap_untrusted(shown, tools.tool_name(name)) if name in tools.UNTRUSTED_RESULTS else shown
-    )
+    return wrap_untrusted(shown, tools.tool_name(name)) if tools.is_untrusted(name) else shown
 
 
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
@@ -583,7 +580,11 @@ def _agent(
     if turn.model.supports_tools:
         toolsets.append(tools.toolset(available, _tool, _read_result))
         capabilities = [
-            ToolSearch(strategy="keywords"),
+            ToolSearch(
+                strategy=tools.search,
+                max_results=tools.SEARCH_LIMIT,
+                tool_description=tools.SEARCH_DESCRIPTION,
+            ),
             *(_skill(s) for s in visible),
             *capabilities,
         ]

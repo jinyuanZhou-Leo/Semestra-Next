@@ -237,6 +237,7 @@ class AttachmentRead(BaseModel):
 
 @capability(
     name="agent.attachment.read",
+    untrusted=True,
     summary="Read pages of a file the user attached to the conversation.",
     description=f"""Returns the text of up to {READ_MAX_PAGES} pages as markdown, starting at
 page_from; when next_page is set, call again from there for more. Use the attachment id from the
