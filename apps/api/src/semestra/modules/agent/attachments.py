@@ -64,8 +64,10 @@ async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
     """Parses the file into pages. Never raises: a file the parser cannot read is kept with
     `error` set, so the model can be told why. Calendars keep no pages: the importer reads
     them (M08), and their raw text is no use to the model."""
-    if detected.kind in ("image", "ics"):
-        return Reading(detected.kind, detected.mime)
+    if detected.mime.startswith("image/"):
+        return Reading("image", detected.mime)  # GIF is kind "other" to M07, but a picture here
+    if detected.kind == "ics":
+        return Reading("ics", detected.mime)
     try:
         if detected.kind in ISOLATED_KINDS:
             document = await _parse_isolated(ctx, data, detected)

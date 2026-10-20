@@ -260,6 +260,11 @@ async def test_uploads_are_typed_by_their_content(chat: Chat):
     # A calendar sent as octet-stream (some Windows browsers) is still taken.
     cal = await chat.attach(session_id, "cal.ics", THANKSGIVING, "application/octet-stream")
     assert cal["mime"] == "text/calendar"
+    # A GIF is a picture, not an unreadable document.
+    gif = await chat.attach(session_id, "wave.gif", b"GIF89a" + b"\x00" * 20, "image/gif")
+    assert (gif["kind"], gif["mime"]) == ("image", "image/gif")
+    read = await chat.tool("attachments.read", {"attachment_id": gif["id"]})
+    assert (read["type"], read["error_code"]) == ("image", None)
     # Binary content is refused whatever the browser claims.
     await chat.call(
         "POST",
