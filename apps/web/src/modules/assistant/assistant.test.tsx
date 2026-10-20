@@ -1141,7 +1141,7 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
   expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
 })
 
-test('steps sit under the sentence the model said before them, folded to it', async () => {
+test('the sentence the model said and its steps show in order, not folded into groups', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [{ type: 'text', text: 'When is Lab 3 due?' }]),
     msg('a1', 'assistant', [
@@ -1162,15 +1162,9 @@ test('steps sit under the sentence the model said before them, folded to it', as
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   expect(await screen.findByText('Lab 3 is due Friday.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /Thought for/ }))
-  // The heading keeps the underscore of a file name; only Markdown marks go.
-  const group = screen.getByRole('button', { name: /Looking up Lab 3 in lab_scores\.csv\./ })
-  expect(group).toHaveTextContent('2 steps')
-  expect(group).toHaveAttribute('aria-expanded', 'false')
-  await userEvent.click(group)
-  expect(group).toHaveAttribute('aria-expanded', 'true')
-  // Text past the heading is still shown, as Markdown.
-  expect(screen.getByText('Then I will check the due date.')).toBeVisible()
   expect(screen.getByText('Lab 3', { selector: 'strong' })).toBeVisible()
+  expect(screen.getByText('Then I will check the due date.')).toBeVisible()
+  expect(screen.queryByRole('button', { name: /Looking up/ })).not.toBeInTheDocument()
 })
 
 test('a round whose only call waits on a card keeps the whole sentence the model said', async () => {
