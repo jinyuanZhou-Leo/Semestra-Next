@@ -136,7 +136,9 @@ AGENT_PAGE = 25
 
 
 def for_agent(ctx: Ctx) -> bool:
-    return ctx.actor != "user"
+    """Called by an assistant or MCP client: they get trimmed, paged results. HTTP callers
+    (personal access tokens included) always get the whole session."""
+    return ctx.surface != "http"
 
 
 async def detail(

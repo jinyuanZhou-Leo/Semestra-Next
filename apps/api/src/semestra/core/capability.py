@@ -141,7 +141,11 @@ class Registry:
         except ValidationError as exc:
             errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
             raise AppError("common.validation", 422, errors=errors) from exc
-        out = await cap.handler(ctx, inp)
+        outer, ctx.surface = ctx.surface, surface
+        try:
+            out = await cap.handler(ctx, inp)
+        finally:
+            ctx.surface = outer
         if surface == "http":
             return out
         if cap.agent_output_fields is not None:

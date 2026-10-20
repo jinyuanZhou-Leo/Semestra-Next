@@ -257,7 +257,7 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
         parsed = await attachment_context.calendar(ctx, row)
         if parsed is None:
             error = "files.parse_failed"
-        texts = attachment_context.calendar_pages(parsed) if parsed is not None else []
+        texts = parsed.pages if parsed is not None else []
         made = [_Page(n, t) for n, t in enumerate(texts, start=1)]
         total = len(made)
     else:

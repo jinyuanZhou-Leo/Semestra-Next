@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel
 
 from semestra.core.capability import registry
@@ -817,3 +817,28 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
     full = await api.call("GET", f"/imports/{session['id']}")
     assert len(full["items"]) == 8
     assert "evidence" in full["items"][0]
+
+
+async def test_http_with_a_token_gets_the_whole_session(app: FastAPI, api: Api):
+    # Trimmed results are for assistant and MCP tool calls, not for HTTP callers using a token.
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    body = {"name": "Script", "scopes": ["write"]}
+    token = (await api.call("POST", "/account/tokens", json=body))["token"]
+    auth = {"Authorization": f"Bearer {token}"}
+    async with AsyncClient(transport=ASGITransport(app), base_url="https://test") as other:
+        got = await other.get(f"/imports/{session['id']}", headers=auth)
+        assert got.status_code == 200, got.text
+        assert len(got.json()["items"]) == len(session["items"])
+        item = session["items"][0]
+        patched = await other.patch(
+            f"/imports/{session['id']}/items/{item['id']}", json={"decision": "reject"},
+            headers=auth,
+        )  # fmt: skip
+        assert patched.status_code == 200, patched.text
+        assert len(patched.json()["items"]) == len(session["items"])

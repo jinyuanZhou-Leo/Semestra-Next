@@ -15,6 +15,7 @@ and the model's abilities: the same attachment renders the same way each time (p
 
 import re
 from collections import OrderedDict
+from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -43,8 +44,9 @@ SCANNED_IMAGES_MAX = 5
 _CACHE_MAX = 32
 # Rendered page images by (attachment id, page): every request of a turn sends them again.
 _images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
-# Parsed calendars by (attachment id, time zone); None when the file could not be read.
-_calendars: OrderedDict[tuple[str, str], IcsResult | None] = OrderedDict()
+# Rendered calendars by (attachment id, time zone); None when the file could not be read. The
+# text is kept, not the parsed events: it is all the assistant reads, and much smaller.
+_calendars: OrderedDict[tuple[str, str], Calendar | None] = OrderedDict()
 SUMMARY_COURSES = 40
 EVENTS_PER_PAGE = 100
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -189,10 +191,17 @@ def _unreadable(code: str) -> str:
     )
 
 
-async def calendar(ctx: Ctx, att: AgentAttachment) -> IcsResult | None:
-    """The calendar as the importer reads it, in the conversation's Program's time zone. Parsed
-    once per (attachment, time zone) in a worker thread, then kept: a turn sends the summary on
-    every request, and a calendar can hold thousands of events."""
+@dataclass(frozen=True)
+class Calendar:
+    summary: str
+    pages: list[str]
+
+
+async def calendar(ctx: Ctx, att: AgentAttachment) -> Calendar | None:
+    """The calendar as the importer reads it, in the conversation's Program's time zone, as the
+    summary and the pages `attachments.read` serves. Parsed once per (attachment, time zone) in a
+    worker thread, then kept: a turn sends the summary on every request, and a calendar can hold
+    thousands of events."""
     from semestra.modules.imports.ics import parse_ics
 
     tz = await _timezone(ctx, att)
@@ -200,7 +209,8 @@ async def calendar(ctx: Ctx, att: AgentAttachment) -> IcsResult | None:
     if key not in _calendars:
         data = await service.read_attachment(ctx, att)
         try:
-            _calendars[key] = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz))
+            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz))
+            _calendars[key] = Calendar(_summary_text(att, result), calendar_pages(result))
         except AppError:
             _calendars[key] = None
         while len(_calendars) > _CACHE_MAX:
@@ -210,10 +220,10 @@ async def calendar(ctx: Ctx, att: AgentAttachment) -> IcsResult | None:
 
 
 async def _calendar_summary(ctx: Ctx, att: AgentAttachment) -> str:
-    result = await calendar(ctx, att)
-    if result is None:
+    rendered = await calendar(ctx, att)
+    if rendered is None:
         return _unreadable("files.parse_failed")
-    return _summary_text(att, result)
+    return rendered.summary
 
 
 def _course_days(course: IcsCourse) -> list[date]:
@@ -230,10 +240,9 @@ def _summary_text(att: AgentAttachment, result: IcsResult) -> str:
     for course in result.courses[:SUMMARY_COURSES]:
         days = _course_days(course)
         span = f"{min(days)} to {max(days)}, " if days else ""
-        lines.append(
-            f"- {course.code or 'A course without a code'}: {span}{len(course.meetings)} weekly "
-            f"meetings, {len(course.events)} single events"
-        )
+        meetings = _count(len(course.meetings), "weekly meeting")
+        events = _count(len(course.events), "single event")
+        lines.append(f"- {course.code or 'A course without a code'}: {span}{meetings}, {events}")
     if len(result.courses) > SUMMARY_COURSES:
         lines.append(f"- … and {len(result.courses) - SUMMARY_COURSES} more courses")
     if not result.courses:
@@ -242,8 +251,9 @@ def _summary_text(att: AgentAttachment, result: IcsResult) -> str:
         lines.append(f"- {len(result.events)} events without a course")
     lines.append(
         f"Read all of it (sections, times, rooms, instructors, dates without class) with "
-        f"attachments.read, attachment_id {att.id}: one page per course. To import its classes, "
-        "pass the attachment id to imports.session.create with source_kind ics."
+        f"attachments.read, attachment_id {att.id}: a page per course (many single events "
+        "go on over more pages). To import its classes, pass the attachment id to "
+        "imports.session.create with source_kind ics."
     )
     return "\n".join(lines)
 
@@ -259,9 +269,16 @@ def _event_line(e: IcsEvent) -> str:
     return "- " + " · ".join(parts)
 
 
-def _course_page(course: IcsCourse) -> str:
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}" + ("" if n == 1 else "s")
+
+
+def _course_pages(course: IcsCourse) -> list[str]:
+    """The course's meetings and its first `EVENTS_PER_PAGE` single events, then the rest of its
+    events on pages of their own, so that no page outgrows what `attachments.read` returns."""
     head = course.code or course.title
-    lines = [f"## {head}" + (f" ({course.title})" if course.title != head else "")]
+    title = f"## {head}" + (f" ({course.title})" if course.title != head else "")
+    lines = [title]
     if course.meetings:
         lines.append("Weekly meetings:")
     for m in course.meetings:
@@ -276,16 +293,25 @@ def _course_page(course: IcsCourse) -> str:
         if m.exceptions:
             parts.append("no class on " + ", ".join(map(str, m.exceptions)))
         lines.append("- " + " · ".join(parts))
-    if course.events:
-        lines.append("Single events:")
-        lines += [_event_line(e) for e in course.events]
-    return "\n".join(lines)
+    chunks = [
+        course.events[i : i + EVENTS_PER_PAGE]
+        for i in range(0, len(course.events), EVENTS_PER_PAGE)
+    ]
+    if chunks:
+        lines += ["Single events:", *map(_event_line, chunks[0])]
+    pages = ["\n".join(lines)]
+    pages += [
+        "\n".join([f"{title}, continued", "Single events:", *map(_event_line, chunk)])
+        for chunk in chunks[1:]
+    ]
+    return pages
 
 
 def calendar_pages(result: IcsResult) -> list[str]:
-    """The calendar as pages for `attachments.read`: one per course, then the events without a
-    course, `EVENTS_PER_PAGE` at a time. Times are the Program's local wall-clock time."""
-    pages = [_course_page(c) for c in result.courses]
+    """The calendar as pages for `attachments.read`: one per course (more for a course with many
+    single events), then the events without a course, `EVENTS_PER_PAGE` at a time. Times are the
+    Program's local wall-clock time."""
+    pages = [page for c in result.courses for page in _course_pages(c)]
     for i in range(0, len(result.events), EVENTS_PER_PAGE):
         chunk = result.events[i : i + EVENTS_PER_PAGE]
         pages.append("\n".join(["## Events without a course", *map(_event_line, chunk)]))
