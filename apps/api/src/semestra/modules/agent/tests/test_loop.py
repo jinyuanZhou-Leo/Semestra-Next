@@ -747,6 +747,29 @@ async def test_a_batch_over_the_limit_runs_nothing_and_proposes_no_card(
     assert (model.requests[-1][1].model_settings or {}).get("tool_choice") == "none"
 
 
+async def test_a_turn_paused_while_a_card_waits_stays_paused(agent: Agent, model: FakeModel):
+    # The batch that proposed the card also repeated itself into a pause: the calls after the
+    # pause are not run, and after the decision the model only gives its closing answer.
+    program = await agent.program()
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    write = ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
+    same = ("academics.term.list", {"program_id": program["id"]})
+    other = ("academics.term.list", {"program_id": "another"})
+    model.then(calls([write, same, same, same, same, same, other]))
+    events = await agent.send(session["id"], "go")
+    [proposal] = events_named(events, "proposal")
+    codes = [r["error_code"] for r in events_named(events, "tool_result")]
+    assert sorted(codes, key=str) == [None, None] + ["agent.repeated_call"] * 4
+
+    model.then(say("Stopping here."))
+    events = await agent.decide(session["id"], proposal["id"])
+    assert events_named(events, "paused")[0]["reason"] == "loop"
+    assert texts(events) == "Stopping here."
+    assert (model.requests[-1][1].model_settings or {}).get("tool_choice") == "none"
+    assert "agent.repeated_call were not run" in model.last_text()
+
+
 async def test_the_same_call_again_and_again_is_stopped(agent: Agent, model: FakeModel):
     program = await agent.program()
     session = await agent.session()
@@ -769,6 +792,8 @@ async def test_the_request_limit_pauses_too(
     events = await agent.send(session["id"], "terms")
     assert len(model.requests) == 4
     assert events_named(events, "paused")[0]["reason"] == "tool_limit"
+    # The last batch did run here: the note must not say otherwise.
+    assert "Calls whose result is agent.tool_limit_reached were not run" in model.last_text()
 
 
 async def test_long_results_are_cut_and_can_be_read_on(

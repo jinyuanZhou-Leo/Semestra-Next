@@ -77,11 +77,15 @@ def main(argv: list[str] | None = None) -> None:
         case "check-sessions":
             from pathlib import Path
 
+            from sqlalchemy.engine import make_url
+
             from semestra.core.config import get_settings
             from semestra.modules.agent import session_check
 
-            db = args.db or get_settings().database_url.split(":///", 1)[1]
-            report = session_check.check(Path(db), since=args.since)
+            db = Path(args.db or make_url(get_settings().database_url).database or "")
+            if not db.is_file():  # the default path is relative to apps/api, like `semestra dev`
+                parser.error(f"no database at {db}: run in apps/api or pass the file")
+            report = session_check.check(db, since=args.since)
             sys.stdout.write(session_check.render(report) + "\n")
 
 

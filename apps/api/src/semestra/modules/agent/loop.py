@@ -85,16 +85,19 @@ TITLE_MAX_CHARS = 20
 PauseReason = Literal["tool_limit", "loop"]
 PAUSE_NOTES: dict[str, str] = {
     "tool_limit": (
-        "You reached the limit of tool calls for this message; your last batch of calls was "
-        "not run. Do not call tools now. Going only by the tool results above, tell the user in "
-        "a few sentences what is saved (changes that succeeded), what is still a draft or not "
-        "done, and what you are unsure of. They can press Continue to let you go on."
+        "You reached the limit of tool calls or model requests for this message, so the turn "
+        "was paused. Calls whose result is agent.tool_limit_reached were not run; every other "
+        "result above is what really happened. Do not call tools now. Going only by those "
+        "results, tell the user in a few sentences what is saved (changes that succeeded), what "
+        "is still a draft or not done, and what you are unsure of. They can press Continue to "
+        "let you go on."
     ),
     "loop": (
         "You repeated the same tool call several times without progress, so the turn was paused. "
-        "Do not call tools now. Going only by the tool results above, tell the user in a few "
-        "sentences what is saved, what is left and what went wrong. They can press Continue to "
-        "let you try again."
+        "Calls whose result is agent.repeated_call were not run; every other result above is "
+        "what really happened. Do not call tools now. Going only by those results, tell the user "
+        "in a few sentences what is saved, what is left and what went wrong. They can press "
+        "Continue to let you try again."
     ),
 }
 CONTINUE_NOTE = "The user pressed Continue: carry on from where you stopped."
@@ -367,6 +370,8 @@ class _Hooks(AbstractCapability[Turn]):
         if ctx.tool_call_approved:
             return args  # counted when it was proposed
         counters = turn.counters
+        if counters.pause == "loop":  # the rest of the batch that repeated itself
+            raise _skipped(turn, call, "agent.repeated_call", paused=True)
         if counters.pause is not None:
             left = max(0, TOOL_CALL_LIMIT - counters.tool_calls)
             raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT, left=left)
@@ -649,7 +654,10 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
 def _keep_callable(messages: list[ModelMessage], calls: Sequence[ToolCallPart]) -> None:
     """The cards being resumed already ran (`decide`), so their tools must still count as
     shown, or Pydantic AI refuses the calls and the model never sees what they did. A history
-    stored before the reveals were kept lacks them: say they were shown just before the calls."""
+    stored before the reveals were kept lacks them: say they were shown just before the calls.
+    Only the resumed cards are covered: in such a history the next message or Continue still
+    misses the reveals, which costs the model one "not available yet" and a reload, as nothing
+    has run."""
     shown = set(history.revealed_tools(messages))
     missing = sorted({c.tool_name for c in calls} - shown)
     at = next(

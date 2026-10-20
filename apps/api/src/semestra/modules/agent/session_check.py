@@ -153,19 +153,23 @@ def _check_parts(parts: list[dict[str, Any]], sid: str, at: str, report: Report)
 
 
 def _check_duplicates(con: sqlite3.Connection, report: Report) -> None:
+    # Courses per term: the same code in two terms is a retake, not a duplicate.
     for kind, sql in (
-        ("duplicate_term", "SELECT program_id, name FROM academics_terms"),
+        ("duplicate_term", "SELECT program_id AS place, name FROM academics_terms"),
         (
             "duplicate_course",
-            "SELECT program_id, code AS name FROM academics_courses WHERE code IS NOT NULL",
+            "SELECT coalesce(ct.term_id, 'no term in ' || c.program_id) AS place, c.code AS name"
+            " FROM academics_courses c LEFT JOIN academics_course_terms ct ON ct.course_id = c.id"
+            " WHERE c.code IS NOT NULL",
         ),
     ):
         seen: defaultdict[tuple[str, str], int] = defaultdict(int)
         for r in con.execute(sql):
-            seen[(r["program_id"], r["name"].strip().casefold())] += 1
-        for (program, name), n in seen.items():
+            seen[(r["place"], r["name"].strip().casefold())] += 1
+        where = "program" if kind == "duplicate_term" else "term"
+        for (place, name), n in seen.items():
             if n > 1:
-                report.findings.append(Finding(kind, "-", f"{name!r} x{n} in program {program}"))
+                report.findings.append(Finding(kind, "-", f"{name!r} x{n} in {where} {place}"))
 
 
 def _text(blocks: list[dict[str, Any]]) -> str:

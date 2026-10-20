@@ -73,6 +73,7 @@ async def _run_ics_two_terms(agent: Agent, model: FakeModel) -> tuple[dict[str, 
 
     model.then(say("Both terms are there."))
     events = [e for card in cards for e in await agent.decide(session["id"], card["id"])]
+    assert events_named(events, "error") == []  # a broken history fails the run here
     results = {r["call_id"]: r for r in events_named(events, "tool_result")}
     return program, [results[c["call_id"]] for c in cards]
 

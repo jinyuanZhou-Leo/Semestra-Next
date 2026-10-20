@@ -124,7 +124,11 @@ class FakeModel:
     def _check_tools_kept(self, messages: list[ModelMessage], info: AgentInfo) -> None:
         """A tool the model could call stays callable for the rest of the conversation, also
         after the history is loaded back from the database (an approval, the next message,
-        Continue). Losing one means the stored history dropped what revealed it."""
+        Continue). Losing one means the stored history dropped what revealed it.
+
+        Requests belong to one conversation when their first user prompt is the same: after
+        compaction the first prompt is the summary, so the check stops there, and two sessions
+        in one test that open with the same text are compared with each other."""
         first = _first_prompt(messages)
         earlier = next(
             (i for m, i in reversed(self.requests) if first and _first_prompt(m) == first), None
