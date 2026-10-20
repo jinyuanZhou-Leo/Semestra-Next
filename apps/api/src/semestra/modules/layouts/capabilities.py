@@ -9,6 +9,8 @@ from semestra.modules.layouts.schemas import (
     BoardRef,
     BoardUpdateInput,
     CardAddInput,
+    CardInstanceList,
+    CardInstanceListInput,
     CardRef,
     CardSettings,
     CardSettingsUpdateInput,
@@ -67,6 +69,21 @@ sticky notes or habit trackers a course has, before calling a card-specific tool
 )
 async def board_get(ctx: Ctx, inp: BoardRef) -> Board:
     return await service.get_board(ctx, inp)
+
+
+@capability(
+    name="layouts.card.list",
+    summary="Find cards across a Program's boards: sticky notes, habit trackers and others.",
+    description="""Use to get a card's instance_id when the user names a card ("my reading habit",
+"the note on APS105") without saying which board it is on. Searches the Program overview, the
+Today page, and every term and course board; filter by card_id. Each card comes with its board's
+name and a label (a habit's name, a note's first line).""",
+    effect="read",
+    expose=("agent", "mcp"),
+    tags=TAGS,
+)
+async def card_list(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
+    return await service.list_program_cards(ctx, inp)
 
 
 @capability(

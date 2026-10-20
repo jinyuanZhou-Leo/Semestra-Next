@@ -3,8 +3,12 @@
 from collections.abc import Awaitable, Callable
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 
+from semestra.core.capability import registry
+from semestra.core.context import system_ctx
+from semestra.modules.layouts.schemas import CardInstanceList
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -58,7 +62,7 @@ async def test_sticky_note_is_read_and_written_through_the_card_settings(
 ):
     pid = await program(client)
     note = await add_card(client, pid, "sticky.note", {"content": "old", "color": "subject-3"})
-    r = await client.put(f"/sticky/notes/{note}", json={"content": "old\nnew"})
+    r = await client.put(f"/sticky/notes/{note}", json={"content": "new"})
     assert r.status_code == 200, r.text
     listed = await client.get("/sticky/notes", params={"scope_type": "program", "scope_id": pid})
     assert listed.json()["items"] == [
@@ -192,3 +196,41 @@ async def test_sticky_notes_of_a_board_that_follows_the_template_are_listed(
     # The note an agent found can be written.
     r = await client.put(f"/sticky/notes/{notes[0]['instance_id']}", json={"content": "edited"})
     assert r.status_code == 200, r.text
+
+
+async def test_cards_are_found_across_the_programs_boards(
+    app: FastAPI, client: AsyncClient, user: UserHandle
+):
+    pid = await program(client)
+    habit = await add_card(client, pid, "habit.board", {"name": "Reading"})
+    term = await client.post(
+        f"/programs/{pid}/terms",
+        json={"name": "Fall", "start_date": "2026-01-05", "end_date": "2026-04-30"},
+    )
+    course = await client.post(
+        f"/programs/{pid}/courses",
+        json={
+            "title": "Computer Fundamentals",
+            "code": "APS105",
+            "term_ids": [term.json()["term"]["id"]],
+        },
+    )
+    course_id = course.json()["id"]
+    r = await client.post(
+        f"/layouts/boards/course/{course_id}/cards",
+        json={"card_id": "sticky.note", "settings": {"content": "Midterm: ch. 1-4\nmore"}},
+    )
+    note = r.json()["instance_id"]
+
+    async with system_ctx(app.state, user.id) as ctx:
+        found = await registry.invoke(ctx, "layouts.card.list", {"program_id": pid}, "agent")
+        notes = await registry.invoke(
+            ctx, "layouts.card.list", {"program_id": pid, "card_id": "sticky.note"}, "agent"
+        )
+    assert isinstance(found, CardInstanceList)
+    assert isinstance(notes, CardInstanceList)
+    by_id = {c.instance_id: c for c in found.items}
+    assert (by_id[habit].board_name, by_id[habit].label) == ("BASc", "Reading")
+    assert [(c.instance_id, c.scope_type, c.board_name, c.label) for c in notes.items] == [
+        (note, "course", "APS105", "Midterm: ch. 1-4")
+    ]

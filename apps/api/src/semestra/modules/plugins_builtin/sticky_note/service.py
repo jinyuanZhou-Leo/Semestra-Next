@@ -1,6 +1,12 @@
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 from semestra.modules.plugins_builtin import instances
-from semestra.modules.plugins_builtin.sticky_note.schemas import CARD_IDS, Note, NoteList
+from semestra.modules.plugins_builtin.sticky_note.schemas import (
+    CARD_IDS,
+    MAX_CONTENT,
+    Note,
+    NoteList,
+)
 
 
 def _note(instance: instances.CardInstance) -> Note:
@@ -20,8 +26,12 @@ async def list_notes(ctx: Ctx, scope_type: str, scope_id: str) -> NoteList:
     return NoteList(items=[_note(i) for i in found])
 
 
-async def update_note(ctx: Ctx, instance_id: str, content: str) -> Note:
-    await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)
+async def update_note(ctx: Ctx, instance_id: str, content: str, mode: str) -> Note:
+    current = _note(await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS))
+    if mode == "append" and current.content:
+        content = f"{current.content.rstrip(chr(10))}\n{content}"
+    if len(content) > MAX_CONTENT:
+        raise AppError("common.validation", 422, errors=[{"loc": ["content"], "code": "too_long"}])
     await instances.update_card_settings(ctx, instance_id, {"content": content})
     instance = await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)
     return _note(instance)

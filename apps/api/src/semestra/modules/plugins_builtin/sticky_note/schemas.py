@@ -11,8 +11,8 @@ InstanceId = Annotated[str, Field(min_length=1, max_length=64)]
 
 
 class NoteListInput(BaseModel):
-    scope_type: Literal["program", "term", "course"] = Field(
-        description="Kind of board the note sits on"
+    scope_type: Literal["program", "term", "course", "today"] = Field(
+        description="Kind of board the note sits on; 'today' is the Program's Today page"
     )
     scope_id: InstanceId = Field(description="Id of that Program, term or course")
 
@@ -20,7 +20,11 @@ class NoteListInput(BaseModel):
 class NoteUpdateInput(BaseModel):
     instance_id: InstanceId = Field(description="Sticky note card instance id")
     content: Annotated[str, Field(max_length=MAX_CONTENT)] = Field(
-        description="The new Markdown text of the note; replaces the old text"
+        description="Markdown text: the lines to add, or the whole new note with mode replace"
+    )
+    mode: Literal["append", "replace"] = Field(
+        default="append",
+        description="append adds the text on a new line after the note; replace overwrites it",
     )
 
 

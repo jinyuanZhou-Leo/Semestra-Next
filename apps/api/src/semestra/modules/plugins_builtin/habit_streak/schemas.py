@@ -24,6 +24,12 @@ class CheckinToggleInput(BaseModel):
     )
 
 
+class CheckinSetInput(BaseModel):
+    instance_id: InstanceId = Field(description="Habit card instance id (layouts.card.list)")
+    date: dt.date = Field(description="Day in the Program's time zone: today or up to 7 days ago")
+    checked: bool = Field(default=True, description="True checks the day, false unchecks it")
+
+
 class CheckinListInput(BaseModel):
     instance_id: InstanceId = Field(description="Habit card instance id")
     from_date: dt.date = Field(description="First day to list (inclusive)")

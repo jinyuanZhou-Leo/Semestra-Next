@@ -14,9 +14,10 @@ TAGS = ("sticky",)
 
 @capability(
     name="sticky.note.list",
-    summary="List the sticky notes on a Program, term or course board.",
-    description="""Use to find a note before reading or changing it ("what is in my note for this
-course"). Returns each note's instance_id and Markdown text.""",
+    summary="List the sticky notes on a Program, term, course or Today board.",
+    description="""Use to read the notes of one board ("what is in my note for this course").
+Returns each note's instance_id and Markdown text. To find a note without knowing its board use
+layouts.card.list.""",
     effect="read",
     http=Http("GET", "/sticky/notes"),
     tags=TAGS,
@@ -28,14 +29,15 @@ async def note_list(ctx: Ctx, inp: NoteListInput) -> NoteList:
 
 @capability(
     name="sticky.note.update",
-    summary="Replace the text of a sticky note.",
+    summary="Add to or replace the text of a sticky note.",
     description="""Use when the user asks to jot something down in a note ("note the midterm scope
-in this course's sticky"). It replaces the whole text, so call sticky.note.list first and send
-the old text with the new lines added. At most 10 000 characters.""",
+in this course's sticky"): by default (mode append) the lines go after the note's text. To rewrite
+or delete text, read the note first and send the whole new text with mode replace. At most 10 000
+characters.""",
     effect="write",
     http=Http("PUT", "/sticky/notes/{instance_id}"),
     tags=TAGS,
     plugin_id=PLUGIN_ID,
 )
 async def note_update(ctx: Ctx, inp: NoteUpdateInput) -> Note:
-    return await service.update_note(ctx, inp.instance_id, inp.content)
+    return await service.update_note(ctx, inp.instance_id, inp.content, inp.mode)
