@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic import BaseModel
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
@@ -434,7 +435,8 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
              "target": {"kind": "term", "term_id": term_id}},
             "agent",
         )  # fmt: skip
-        session_id = created.id  # pyright: ignore[reportAttributeAccessIssue]
+        assert isinstance(created, dict)
+        session_id = created["id"]
         await registry.invoke(
             ctx,
             "imports.items.add",
@@ -759,3 +761,59 @@ async def test_pdf_syllabus_with_a_task(api: Api, fake_ai: list[dict[str, Any]],
     assert (got["title"], got["due_date"], got["course_id"]) == (
         "Drop deadline", "2026-03-09", course["id"]
     )  # fmt: skip
+
+
+async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api: Api):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    meeting = by_type(session, "meeting")[0]
+    me = await api.call("GET", "/account/me")
+
+    async def agent(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        async with system_ctx(app.state, me["id"]) as ctx:
+            ctx.actor = "agent"
+            out = await registry.invoke(ctx, name, args, "agent")
+            await ctx.db.commit()
+        return out.model_dump(mode="json") if isinstance(out, BaseModel) else out
+
+    # By default: the summary and a page of items without evidence or confidence.
+    page = await agent("imports.session.get", {"session_id": session["id"], "limit": 3})
+    assert page["summary"]["counts"] == {"course": 2, "meeting": 4, "event": 2}
+    assert len(page["items"]) == 3
+    assert page["next_cursor"] == "3"
+    assert set(page["items"][0]) == {"id", "type", "data", "decision", "issues", "result"}
+    rest = await agent("imports.session.get", {"session_id": session["id"], "cursor": "3"})
+    assert len(rest["items"]) == 5
+    assert rest["next_cursor"] is None
+
+    one = await agent(
+        "imports.session.get",
+        {"session_id": session["id"], "item_ids": [meeting["id"]], "fields": ["decision"]},
+    )
+    assert one["items"] == [{"id": meeting["id"], "decision": "accept"}]
+    courses = await agent("imports.session.get", {"session_id": session["id"], "types": ["course"]})
+    assert {i["type"] for i in courses["items"]} == {"course"}
+
+    # A change gives back the changed item only; a bulk decision none.
+    changed = await agent(
+        "imports.item.update",
+        {"session_id": session["id"], "item_id": meeting["id"], "data": {"location": "BA 1"}},
+    )
+    assert [i["id"] for i in changed["items"]] == [meeting["id"]]
+    assert changed["items"][0]["data"]["location"] == "BA 1"
+    bulk = await agent(
+        "imports.items.bulk_decide",
+        {"session_id": session["id"], "decision": "reject", "types": ["event"]},
+    )
+    assert bulk["changed"] == 2
+    assert bulk["session"]["items"] == []
+
+    # The app still gets the whole session.
+    full = await api.call("GET", f"/imports/{session['id']}")
+    assert len(full["items"]) == 8
+    assert "evidence" in full["items"][0]

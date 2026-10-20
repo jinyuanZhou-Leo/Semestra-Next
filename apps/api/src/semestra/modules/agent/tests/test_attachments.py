@@ -52,8 +52,7 @@ class Chat:
             ctx.actor = "agent"
             out = await registry.invoke(ctx, name, args, "agent")
             await ctx.db.commit()
-        assert isinstance(out, BaseModel)
-        return out.model_dump(mode="json")
+        return out.model_dump(mode="json") if isinstance(out, BaseModel) else out
 
 
 @pytest.fixture
@@ -158,8 +157,15 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     session_id = await session_of(chat, program_id)
     att = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
-    # The raw calendar is not given to the model; the importer reads it.
-    assert (read["type"], read["page_count"], read["pages"]) == ("ics", 0, [])
+    # The calendar as the importer reads it, one page per course; never the raw file.
+    assert (read["type"], read["page_count"], read["next_page"]) == ("ics", 1, None)
+    page = read["pages"][0]["markdown"]
+    assert page.startswith("## ECE201H1\nWeekly meetings:")
+    assert (
+        "- LEC0101 · Mon 10:00-11:00 · weekly · 2026-09-14 to 2026-12-07 · "
+        "no class on 2026-10-12, 2026-10-26"
+    ) in page
+    assert "VCALENDAR" not in page
     assert "imports.session.create" in read["note"]
 
     created = await chat.tool(
@@ -349,8 +355,8 @@ async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
     session_id = await session_of(chat, await chat.program())
     cal = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     text = text_of(await given(chat, cal["id"]))
-    assert "ECE201H1" in text
-    assert "Dates: 2026-09-14 to 2026-12-07" in text
+    assert "- ECE201H1: 2026-09-14 to 2026-12-07, 1 weekly meetings, 0 single events" in text
+    assert f"attachments.read, attachment_id {cal['id']}" in text
     assert "imports.session.create" in text
     assert "VCALENDAR" not in text
 

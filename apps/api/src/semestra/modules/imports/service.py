@@ -1,7 +1,7 @@
 """Import sessions: create, review, commit, discard (M08 §2-§5)."""
 
 import contextlib
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Sequence
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -129,9 +129,39 @@ def item_out(row: ImportsItem) -> ImportItem:
     )
 
 
-async def detail(ctx: Ctx, row: ImportsSession) -> ImportSessionDetail:
-    items = await _items(ctx, row.id)
-    return ImportSessionDetail(**session_out(row).model_dump(), items=[item_out(i) for i in items])
+# What the assistant and MCP clients get of each item unless they ask for other `fields`, and
+# how many items per page: a whole session can be tens of thousands of characters.
+AGENT_ITEM_FIELDS = ("type", "data", "decision", "issues", "result")
+AGENT_PAGE = 25
+
+
+def for_agent(ctx: Ctx) -> bool:
+    return ctx.actor != "user"
+
+
+async def detail(
+    ctx: Ctx,
+    row: ImportsSession,
+    *,
+    item_ids: Collection[str] | None = None,
+    types: Collection[str] | None = None,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> ImportSessionDetail:
+    """The session with its items: all of them, or those with these ids or types, a page at a
+    time when `limit` is given (`cursor` is the position to go on from)."""
+    items = [
+        i
+        for i in await _items(ctx, row.id)
+        if (item_ids is None or i.id in item_ids) and (types is None or i.type in types)
+    ]
+    start = int(cursor) if cursor and cursor.isdigit() else 0
+    end = start + limit if limit is not None else len(items)
+    return ImportSessionDetail(
+        **session_out(row).model_dump(),
+        items=[item_out(i) for i in items[start:end]],
+        next_cursor=str(end) if end < len(items) else None,
+    )
 
 
 # --- context for building and validating ----------------------------------------------------
@@ -367,7 +397,7 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
     else:
         row.status = "ready"
         await revalidate(ctx, row, [])
-    return await detail(ctx, row)
+    return await detail(ctx, row, limit=AGENT_PAGE if for_agent(ctx) else None)
 
 
 async def _ics_items(ctx: Ctx, row: ImportsSession, uploads: Sequence[ImportsUpload]) -> None:
@@ -459,11 +489,12 @@ async def add_items_capability(
 ) -> ImportSessionDetail:
     row = await get_session_row(ctx, session_id)
     _require_open(row)
-    await add_items(ctx, row, new)
+    added = await add_items(ctx, row, new)
     if ready and row.status == "extracting" and row.job_id is None:
         row.status = "ready"
         await events.publish(ctx, "imports.session.ready", event_data(row))
-    return await detail(ctx, row)
+    # The assistant gets the items it added (their ids), not the whole session again.
+    return await detail(ctx, row, item_ids={i.id for i in added} if for_agent(ctx) else None)
 
 
 def _require_open(row: ImportsSession) -> None:
@@ -563,7 +594,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     if inp.decision is not None:
         item.decision = inp.decision
     await revalidate(ctx, row, items)
-    return await detail(ctx, row)
+    return await detail(ctx, row, item_ids={item.id} if for_agent(ctx) else None)
 
 
 def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
@@ -609,7 +640,7 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
             item.decision = inp.decision
             changed += 1
     await revalidate(ctx, row, items)
-    return changed, await detail(ctx, row)
+    return changed, await detail(ctx, row, item_ids=set() if for_agent(ctx) else None)
 
 
 async def list_sessions(
@@ -1010,7 +1041,8 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
     row.text = None
     await revalidate(ctx, row, items)
     await events.publish(ctx, "imports.session.committed", {**event_data(row), **counts})
-    return await detail(ctx, row), counts
+    failed = {i.id for i in items if i.result and i.result.get("error_code")}
+    return await detail(ctx, row, item_ids=failed if for_agent(ctx) else None), counts
 
 
 def _jsonable(params: dict[str, Any]) -> dict[str, Any]:
