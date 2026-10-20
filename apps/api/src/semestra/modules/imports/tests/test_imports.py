@@ -858,6 +858,28 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     )
     assert moved["summary"]["issues"] == {}
 
+    # The confirmation card says what the commit writes, by name and count, without ids.
+    # Items still to decide are counted, since the commit leaves them out.
+    year_meeting = next(i for i in added["items"] if i["data"].get("first_date") == "2026-09-16")
+    await agent(
+        "imports.item.update",
+        {"session_id": session_id, "item_id": year_meeting["id"], "decision": "pending"},
+    )
+    async with system_ctx(app.state, me["id"]) as ctx:
+        preview = await service.commit_preview(ctx, session_id)
+    assert preview == {
+        "target": "Winter 2026",
+        "changes": [
+            {"field": "import_course", "after": ["MAT194H1", "MAT188H1", "MAT157Y1"]},
+            {"field": "import_meeting", "after": 2},
+            {"field": "import_pending", "after": 1},
+        ],
+    }
+    await agent(
+        "imports.item.update",
+        {"session_id": session_id, "item_id": year_meeting["id"], "decision": "accept"},
+    )
+
     done = await api.commit(session_id)
     assert (done["created"], done["failed"]) == (6, 0)
     courses = await api.call("GET", f"/programs/{program_id}/courses")

@@ -1,7 +1,6 @@
 import type { AgentProposalOut } from '@semestra/api-client'
 import { ArrowRight, PencilLine, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
-import * as messages from '@/paraglide/messages'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -21,7 +20,7 @@ import { Label } from '@/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { Textarea } from '@/ui/textarea'
-import { capabilityTitle } from '../labels'
+import { capabilityTitle, fieldLabel, formatValue } from '../labels'
 import type { Decision } from '../use-chat'
 
 type Schema = {
@@ -40,20 +39,6 @@ type Preview = {
   target?: string
   changes?: Change[]
   link?: { to: string; page?: string }
-}
-
-const byKey = messages as unknown as Record<string, (() => string) | undefined>
-
-/** A field's name for people: a shared translation when there is one, else the schema title. */
-function fieldLabel(field: string, schema: Schema | undefined): string {
-  return byKey[`assistant_field_${field}`]?.() ?? schema?.title ?? field.replaceAll('_', ' ')
-}
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'boolean') return value ? m.assistant_value_yes() : m.assistant_value_no()
-  if (typeof value === 'string' || typeof value === 'number') return String(value)
-  return JSON.stringify(value)
 }
 
 /** The schema of one argument, following `$ref` and dropping the `null` of optional fields. */
@@ -121,7 +106,7 @@ function EditForm({
     >
       <FieldGroup className="gap-3">
         {fields.map(({ key, schema, kind }) => {
-          const label = fieldLabel(key, schema)
+          const label = fieldLabel(key, schema.title)
           const value = values[key]
           const inputId = `${id}-${key}`
           if (kind === 'boolean') {
@@ -191,13 +176,13 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
       {changes.map((change) => (
         <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
           <dt className="text-muted-foreground">
-            {fieldLabel(change.field, resolve(root.properties?.[change.field], root))}
+            {fieldLabel(change.field, resolve(root.properties?.[change.field], root)?.title)}
           </dt>
           <dd className="flex min-w-0 items-baseline gap-1.5">
             {'before' in change ? (
               <>
                 <span className="text-muted-foreground line-through">
-                  {formatValue(change.before)}
+                  {formatValue(change.before, change.field)}
                 </span>
                 <ArrowRight
                   aria-label={m.assistant_proposal_becomes()}
@@ -205,7 +190,7 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
                 />
               </>
             ) : null}
-            <span className="font-medium">{formatValue(change.after)}</span>
+            <span className="font-medium">{formatValue(change.after, change.field)}</span>
           </dd>
         </div>
       ))}

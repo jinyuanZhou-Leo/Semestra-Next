@@ -1,5 +1,5 @@
 import type { AgentMessageOut, AgentProposalOut, AgentSessionDetail } from '@semestra/api-client'
-import type { AgentEvent, Citation, PauseReason, RememberedMemory } from './stream'
+import type { AgentEvent, Citation, PauseReason, RememberedMemory, StepDisplay } from './stream'
 
 type Block = Record<string, unknown>
 
@@ -21,15 +21,22 @@ export type Step = {
   proposal: AgentProposalOut | null
   /** What a memory call saved. */
   memory: RememberedMemory | null
+  /** Names and counts for its line, once it has run. */
+  display: StepDisplay | null
+  /** It changed the user's data. */
+  changed: boolean
 }
 
 export type AttachmentRef = { id: string; name: string; kind: 'image' | 'file' }
 
 /** What the model did before it answered, in order: shown folded in the thinking block. */
-export type ProcessEntry =
+export type ProcessEntry = {
+  /** The model message it came from: one step of the model. */ message: string
+} & (
   | { kind: 'reasoning'; key: string; text: string }
   | { kind: 'text'; key: string; text: string }
   | { kind: 'step'; key: string; step: Step }
+)
 
 export type ViewItem =
   | {
@@ -98,6 +105,8 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
       errorCode: result ? ((result.error_code as string | null) ?? null) : null,
       proposal: proposal ?? null,
       memory: (result?.memory as RememberedMemory | undefined) ?? null,
+      display: (result?.display as StepDisplay | undefined) ?? null,
+      changed: result?.changed === true,
     }
   }
 
@@ -150,18 +159,23 @@ function assistantItem(
     const calls = message.content.filter((b) => b.type === 'tool_call')
     message.content.forEach((block, index) => {
       if (block.type === 'reasoning' && str(block.text)) {
-        process.push({ kind: 'reasoning', key: `${message.id}-r${index}`, text: str(block.text) })
+        process.push({
+          kind: 'reasoning',
+          key: `${message.id}-r${index}`,
+          text: str(block.text),
+          message: message.id,
+        })
       }
     })
     const text = textOf(message)
     // Words said before calling tools ("Let me check your grades") belong to the process.
     if (text && (message !== last || lastCalls)) {
-      process.push({ kind: 'text', key: `${message.id}-t`, text })
+      process.push({ kind: 'text', key: `${message.id}-t`, text, message: message.id })
     }
     for (const call of calls) {
       const step = stepOf(call)
       steps.push(step)
-      process.push({ kind: 'step', key: step.callId, step })
+      process.push({ kind: 'step', key: step.callId, step, message: message.id })
     }
     const ms = timingOf(message)
     if (ms !== null) thinkingMs = (thinkingMs ?? 0) + ms
@@ -316,6 +330,7 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
               error_code: event.data.error_code,
               changed: event.data.changed ?? false,
               ...(event.data.memory ? { memory: event.data.memory } : {}),
+              ...(event.data.display ? { display: event.data.display } : {}),
             },
           ]),
         ],

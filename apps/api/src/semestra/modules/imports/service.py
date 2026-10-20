@@ -91,6 +91,11 @@ async def _items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
     )
 
 
+async def items_of(ctx: Ctx, session_id: str) -> list[ImportsItem]:
+    """The items of a session the caller already loaded (the assistant's display labels)."""
+    return await _items(ctx, session_id)
+
+
 def session_out(row: ImportsSession) -> ImportSession:
     return ImportSession.model_validate(
         {
@@ -716,6 +721,49 @@ async def discard(ctx: Ctx, session_id: str) -> ImportSession:
         row.updated_at = ctx.now
         await ctx.db.flush()
     return session_out(row)
+
+
+async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
+    row = await get_session_row(ctx, session_id)
+    items = await _items(ctx, row.id)
+    waiting = [
+        i
+        for i in items
+        if i.decision == "accept" and not (i.result and not i.result.get("error_code"))
+    ]
+    changes: list[dict[str, Any]] = []
+    courses = [
+        str(name)
+        for i in waiting
+        if i.type == "course" and (name := i.data.get("code") or i.data.get("title"))
+    ]
+    if courses:
+        changes.append({"field": "import_course", "after": courses})
+    counts: dict[str, int] = {}
+    for item in waiting:
+        if item.type != "course":
+            counts[item.type] = counts.get(item.type, 0) + 1
+    changes += [{"field": f"import_{t}", "after": n} for t, n in counts.items()]
+    rejected = sum(1 for i in items if i.decision == "reject")
+    if rejected:
+        changes.append({"field": "import_rejected", "after": rejected})
+    pending = sum(1 for i in items if i.decision == "pending")
+    if pending:
+        changes.append({"field": "import_pending", "after": pending})
+    issues = sum(len(i.issues) for i in waiting)
+    if issues:
+        changes.append({"field": "import_issues", "after": issues})
+    files = [str(r["filename"]) for r in row.source_refs if r.get("filename")]
+    target = target_of(row)
+    into: str | None = None
+    with contextlib.suppress(AppError):
+        if target.course_id is not None:
+            course = await academics.get_course_row(ctx, target.course_id)
+            into = course.code or course.title
+        elif target.term_id is not None:
+            into = (await academics.get_term_row(ctx, target.term_id)).name
+    target_text = " → ".join(p for p in (", ".join(files), into) if p)
+    return {"target": target_text, "changes": changes}
 
 
 # --- committing -----------------------------------------------------------------------------

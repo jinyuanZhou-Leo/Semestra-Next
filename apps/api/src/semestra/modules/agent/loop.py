@@ -64,7 +64,7 @@ from semestra.core.capability import Capability, Surface, registry
 from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, memory, service, skills, tools
+from semestra.modules.agent import display, history, memory, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
 from semestra.modules.agent.runtime import ChatLike, agent_ctx
@@ -119,6 +119,7 @@ class Outcome:
     error_code: str | None = None
     citations: list[dict[str, Any]] = field(default_factory=lambda: [])
     ran: bool = True  # False for a rejected proposal: nothing was executed
+    display: dict[str, Any] = field(default_factory=lambda: {})  # the chat's line (display.py)
 
     @property
     def content(self) -> str:
@@ -159,6 +160,8 @@ async def invoke(
         try:
             out = await registry.invoke(ctx, name, args, surface)
             await ctx.db.commit()
+            payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
+            shown = await _display(ctx, name, args, payload) if surface == "agent" else {}
         except AppError as exc:
             await ctx.db.rollback()
             return Outcome(False, _error_payload(exc), exc.code)
@@ -168,8 +171,16 @@ async def invoke(
             await ctx.db.rollback()
             return _error("common.internal")
     await run_after_commit(ctx)
-    payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
-    return Outcome(True, payload, citations=_citations(payload))
+    return Outcome(True, payload, citations=_citations(payload), display=shown)
+
+
+async def _display(ctx: Ctx, name: str, args: dict[str, Any], payload: Any) -> dict[str, Any]:
+    """The chat's names and counts for this call; a failure here never fails the call."""
+    try:
+        return await display.describe(ctx, name, args, payload)
+    except Exception:
+        log.exception("agent_display_failed", capability=name)
+        return {}
 
 
 def _proposal_outcome(row: AgentProposal) -> Outcome:
@@ -192,14 +203,33 @@ REJECTED = "The user rejected this action; it was not executed."
 # --- proposals ------------------------------------------------------------------------------
 
 
+def _is_ref(key: str) -> bool:
+    return key in ("id", "fields") or key.endswith(("_id", "_ids"))
+
+
+def _plain(value: Any) -> Any:
+    """A value as the card shows it: without ids (the card names them in `target`); None when
+    nothing is left (an object that only held ids and its `kind`)."""
+    if isinstance(value, dict):
+        kept = {
+            str(k): v  # pyright: ignore[reportUnknownArgumentType]
+            for k, v in ((k, _plain(v)) for k, v in value.items())  # pyright: ignore[reportUnknownVariableType]
+            if not _is_ref(str(k)) and v is not None  # pyright: ignore[reportUnknownArgumentType]
+        }
+        return kept if set(kept) - {"kind"} else None
+    if isinstance(value, list):
+        items = [p for p in (_plain(v) for v in value) if p is not None]  # pyright: ignore[reportUnknownVariableType]
+        return items if items or not value else None
+    return value
+
+
 def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "changes": [
-            {"field": key, "after": value}
-            for key, value in args.items()
-            if key != "id" and not key.endswith("_id") and key != "fields"
-        ]
-    }
+    changes: list[dict[str, Any]] = []
+    for key, value in args.items():
+        shown = None if _is_ref(key) else _plain(value)
+        if shown is not None:
+            changes.append({"field": key, "after": shown})
+    return {"changes": changes}
 
 
 def _validation_error(exc: ValidationError) -> AppError:
@@ -214,13 +244,23 @@ async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[
         inp = cap.input_model.model_validate(args)
     except ValidationError as exc:
         raise _validation_error(exc) from exc
+    out: dict[str, Any] = _generic_preview(args)
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)
         if isinstance(preview, BaseModel):
-            return preview.model_dump(mode="json")
-        if isinstance(preview, dict):
-            return preview  # pyright: ignore[reportUnknownVariableType]
-    return _generic_preview(args)
+            out = preview.model_dump(mode="json")
+        elif isinstance(preview, dict):
+            out = dict(preview)  # pyright: ignore[reportUnknownArgumentType]
+    if not out.get("target"):
+        # What the card is about, by name: the ids in the arguments are never shown.
+        try:
+            names = await display.labels(ctx, cap.name, args)
+        except Exception:
+            log.exception("agent_display_failed", capability=cap.name)
+            names = []
+        if names:
+            out["target"] = " · ".join(names)
+    return out
 
 
 # --- what one run shares ----------------------------------------------------------------------
@@ -279,6 +319,7 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
         "error_code": outcome.error_code,
         "changed": bool(outcome.ok and outcome.ran and cap is not None and cap.effect != "read"),
         "citations": outcome.citations,
+        "display": outcome.display,
     }
     if shown != text:
         meta["full"] = text
@@ -925,6 +966,7 @@ def _result_event(message_id: str, part: ToolReturnPart | RetryPromptPart) -> li
             error_code=block["error_code"],
             changed=block["changed"],
             **({"memory": block["memory"]} if "memory" in block else {}),
+            **({"display": block["display"]} if "display" in block else {}),
         )
     ]
     meta = part.metadata if isinstance(part, ToolReturnPart) else None
@@ -1291,6 +1333,7 @@ async def decide(
                     "error_code": outcome.error_code,
                     "changed": outcome.ok and outcome.ran and cap.effect != "read",
                     "citations": outcome.citations,
+                    "display": outcome.display,
                 },
             )
             out += _result_event(row.message_id, part)

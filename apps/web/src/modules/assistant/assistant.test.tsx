@@ -450,7 +450,12 @@ test('a write waits on a card: approving sends the decision and shows the result
   // changed and where.
   await waitFor(() => expect(card).not.toBeInTheDocument())
   await userEvent.click(await screen.findByRole('button', { name: /1 step/ }))
-  await userEvent.click(await screen.findByRole('button', { name: /Ran Update an assessment/ }))
+  const stepLine = await screen.findByRole('button', { name: /Update an assessment/ })
+  // The line names what the step was about, without the "Ran" prefix.
+  expect(stepLine).toHaveTextContent(
+    /^Update an assessment Lab 3 · APS105H1 Computer Fundamentals$/,
+  )
+  await userEvent.click(stepLine)
   expect(screen.getByText('90')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
 })
@@ -1108,6 +1113,8 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
     errorCode: null,
     proposal: null,
     memory,
+    display: null,
+    changed: true,
   })
   render(
     <QueryClientProvider client={newQueryClient()}>
@@ -1132,4 +1139,52 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
     expect(screen.queryByText('Remembered: Likes short bullet points')).not.toBeInTheDocument(),
   )
   expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
+})
+
+test('steps sit under the sentence the model said before them, folded to it', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'When is Lab 3 due?' }]),
+    msg('a1', 'assistant', [
+      {
+        type: 'text',
+        text: 'Looking up **Lab 3** in lab_scores.csv.\n\nThen I will check the due date.',
+      },
+      { type: 'tool_call', id: 'c1', name: 'grading__assessment__find', args: {} },
+      { type: 'tool_call', id: 'c2', name: 'grading__assessment__find', args: {} },
+      { type: 'timing', thinking_ms: 2400 },
+    ]),
+    msg('t1', 'tool', [
+      { type: 'tool_result', call_id: 'c1', name: 'x', is_error: false },
+      { type: 'tool_result', call_id: 'c2', name: 'x', is_error: false },
+    ]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'Lab 3 is due Friday.' }]),
+  ]
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Lab 3 is due Friday.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /Thought for/ }))
+  // The heading keeps the underscore of a file name; only Markdown marks go.
+  const group = screen.getByRole('button', { name: /Looking up Lab 3 in lab_scores\.csv\./ })
+  expect(group).toHaveTextContent('2 steps')
+  expect(group).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.click(group)
+  expect(group).toHaveAttribute('aria-expanded', 'true')
+  // Text past the heading is still shown, as Markdown.
+  expect(screen.getByText('Then I will check the due date.')).toBeVisible()
+  expect(screen.getByText('Lab 3', { selector: 'strong' })).toBeVisible()
+})
+
+test('a round whose only call waits on a card keeps the whole sentence the model said', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'I got 18/20 on Lab 3' }]),
+    msg('a1', 'assistant', [
+      { type: 'text', text: 'Recording your **Lab_3** score.\n\nPlease confirm below.' },
+      { type: 'tool_call', id: 'call1', name: 'grading__assessment__update', args: {} },
+    ]),
+  ]
+  srv.detail.proposals = [proposal()]
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await screen.findByLabelText('Update an assessment')
+  await userEvent.click(screen.getByRole('button', { name: /Thought/ }))
+  expect(screen.getByText('Lab_3', { selector: 'strong' })).toBeVisible()
+  expect(screen.getByText('Please confirm below.')).toBeVisible()
 })
