@@ -30,10 +30,13 @@ export type Step = {
 export type AttachmentRef = { id: string; name: string; kind: 'image' | 'file' }
 
 /** What the model did before it answered, in order: shown folded in the thinking block. */
-export type ProcessEntry =
+export type ProcessEntry = {
+  /** The model message it came from: one step of the model. */ message: string
+} & (
   | { kind: 'reasoning'; key: string; text: string }
   | { kind: 'text'; key: string; text: string }
   | { kind: 'step'; key: string; step: Step }
+)
 
 export type ViewItem =
   | {
@@ -156,18 +159,23 @@ function assistantItem(
     const calls = message.content.filter((b) => b.type === 'tool_call')
     message.content.forEach((block, index) => {
       if (block.type === 'reasoning' && str(block.text)) {
-        process.push({ kind: 'reasoning', key: `${message.id}-r${index}`, text: str(block.text) })
+        process.push({
+          kind: 'reasoning',
+          key: `${message.id}-r${index}`,
+          text: str(block.text),
+          message: message.id,
+        })
       }
     })
     const text = textOf(message)
     // Words said before calling tools ("Let me check your grades") belong to the process.
     if (text && (message !== last || lastCalls)) {
-      process.push({ kind: 'text', key: `${message.id}-t`, text })
+      process.push({ kind: 'text', key: `${message.id}-t`, text, message: message.id })
     }
     for (const call of calls) {
       const step = stepOf(call)
       steps.push(step)
-      process.push({ kind: 'step', key: step.callId, step })
+      process.push({ kind: 'step', key: step.callId, step, message: message.id })
     }
     const ms = timingOf(message)
     if (ms !== null) thinkingMs = (thinkingMs ?? 0) + ms
