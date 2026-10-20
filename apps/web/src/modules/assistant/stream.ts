@@ -2,6 +2,21 @@ import type { AgentProposalOut } from '@semestra/api-client'
 import { csrfHeaders, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
+/** What the server tells the chat about one tool call: names behind its ids, and counts. */
+export type StepDisplay = {
+  /** What it was about, by name (a term, a course code, a file). */
+  target?: string[]
+  /** How many items it read. */
+  count?: number
+  changed?: number
+  created?: number
+  updated?: number
+  failed?: number
+  /** An import's accepted items per type, and its open issues. */
+  accepted?: Record<string, number>
+  issues?: number
+}
+
 /** A file quoted by a tool result (M07); `[[cite:<id>]]` in the answer points at it. */
 export type Citation = {
   id: string
@@ -47,6 +62,8 @@ export type AgentEvent =
         changed?: boolean
         /** What `agent.memory.remember` saved: the chat offers to undo it. */
         memory?: RememberedMemory
+        /** Names and counts for the step's line (`agent/display.py`). */
+        display?: StepDisplay
       }
     }
   | { event: 'citation'; data: Citation }

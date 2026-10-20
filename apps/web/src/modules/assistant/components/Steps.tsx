@@ -1,8 +1,11 @@
+import { agentSkillsListOptions } from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AlertCircle, ArrowRight, Brain, Check, CircleDashed, Loader2, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { CodeBlock, CodeBlockContent } from '@/ui/code-block'
 import {
@@ -10,11 +13,19 @@ import {
   TraceCollapsible,
   TraceCollapsibleContent,
   TraceCollapsibleTrigger,
+  TraceDescription,
   TraceIcon,
   TraceLine,
   TraceTitle,
 } from '@/ui/trace'
-import { capabilityTitle } from '../labels'
+import {
+  capabilityTitle,
+  fieldLabel,
+  formatValue,
+  plainArgs,
+  skillTitle,
+  stepLine,
+} from '../labels'
 import type { Step, StepStatus, ViewItem } from '../transcript'
 import { Markdown } from './Markdown'
 import { ProposalChanges, proposalLink } from './ProposalCard'
@@ -29,9 +40,9 @@ const ICON: Record<Shown, ReactNode> = {
   expired: <CircleDashed />,
 }
 
-const TITLE: Record<Shown, (inputs: { name: string }) => string> = {
+/** How a step that did not simply run says so; a step that ran is just its title. */
+const TITLE: Partial<Record<Shown, (inputs: { name: string }) => string>> = {
   running: m.assistant_step_line_running,
-  done: m.assistant_step_line_done,
   error: m.assistant_step_line_failed,
   rejected: m.assistant_step_line_rejected,
   expired: m.assistant_step_line_expired,
@@ -43,37 +54,62 @@ function traceStatus(status: Shown): 'running' | 'error' | undefined {
   return undefined
 }
 
-function argsText(args: Record<string, unknown>): string {
-  return Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : ''
+/** The arguments as a short list, without ids (the line names what they point to). */
+function ArgList({ args }: { args: [string, unknown][] }) {
+  return (
+    <dl className="space-y-1 text-sm">
+      {args.map(([key, value]) => (
+        <div key={key} className="flex flex-wrap items-baseline gap-x-2">
+          <dt className="text-muted-foreground">{fieldLabel(key)}</dt>
+          <dd className="min-w-0">{formatValue(value, key)}</dd>
+        </div>
+      ))}
+    </dl>
+  )
 }
 
 /**
- * One tool call (AI Elements "Tool"): a line while it runs, and a line that opens to what
- * it was given, what it changed and why it failed once it has finished.
+ * One tool call (AI Elements "Tool"): what it did and to what, by name, with a few facts
+ * ("pages 1–4", "11 courses"); it opens to its arguments in words, what it changed and why it
+ * failed.
  */
-function StepRow({ step, status }: { step: Step; status: Shown }) {
+function StepRow({
+  step,
+  status,
+  skillTitles,
+}: {
+  step: Step
+  status: Shown
+  skillTitles: ReadonlyMap<string, string>
+}) {
+  const title = capabilityTitle(step.name)
+  const said = stepLine(step, skillTitles)
+  const label = TITLE[status]?.({ name: title }) ?? title
   const line = (
     <TraceLine status={traceStatus(status)}>
       <TraceIcon>{ICON[status]}</TraceIcon>
-      <TraceTitle>{TITLE[status]({ name: capabilityTitle(step.name) })}</TraceTitle>
+      <TraceTitle>
+        {label}
+        {said.target ? <span className="text-foreground">{` ${said.target}`}</span> : null}
+      </TraceTitle>
+      {said.details.length > 0 ? (
+        <TraceDescription>{said.details.join(' · ')}</TraceDescription>
+      ) : null}
+      {said.issues > 0 ? (
+        <Badge variant="outline">{m.assistant_step_issues({ count: said.issues })}</Badge>
+      ) : null}
     </TraceLine>
   )
   const proposal = step.proposal
   const link = status === 'done' && proposal ? proposalLink(proposal) : null
-  const args = proposal ? '' : argsText(step.args)
-  if (status === 'running' || (!args && !proposal && !step.errorCode)) return line
+  const args = proposal ? [] : plainArgs(step.args)
+  if (status === 'running' || (args.length === 0 && !proposal && !step.errorCode)) return line
   return (
     <TraceCollapsible>
       <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
       <TraceCollapsibleContent className="space-y-2">
         {proposal ? <ProposalChanges proposal={proposal} /> : null}
-        {args ? (
-          <CodeBlock size="sm">
-            <CodeBlockContent wrap className="max-h-64">
-              {args}
-            </CodeBlockContent>
-          </CodeBlock>
-        ) : null}
+        {args.length > 0 ? <ArgList args={args} /> : null}
         {step.errorCode ? (
           <CodeBlock size="sm" variant="destructive">
             <CodeBlockContent wrap>
@@ -100,7 +136,7 @@ function StepRow({ step, status }: { step: Step; status: Shown }) {
 
 const NO_CITATIONS = new Map()
 
-function summary(thinkingMs: number | null, steps: number): string {
+function summary(thinkingMs: number | null, steps: number, changes: number): string {
   const parts: string[] = []
   if (thinkingMs !== null) {
     parts.push(m.assistant_thought_for({ seconds: Math.max(1, Math.round(thinkingMs / 1000)) }))
@@ -110,6 +146,7 @@ function summary(thinkingMs: number | null, steps: number): string {
       steps === 1 ? m.assistant_thought_one_step() : m.assistant_thought_steps({ count: steps }),
     )
   }
+  if (changes > 0) parts.push(m.assistant_thought_changes({ count: changes }))
   return parts.length > 0 ? parts.join(' · ') : m.assistant_thought()
 }
 
@@ -131,6 +168,8 @@ export function Thinking({
   showReasoning: boolean
 }) {
   const [chosen, setChosen] = useState<boolean | null>(null)
+  const skills = useQuery({ ...agentSkillsListOptions(), staleTime: 5 * 60_000 }).data?.items
+  const skillTitles = new Map((skills ?? []).map((s) => [s.name, skillTitle(s.title, s.name)]))
   const entries = item.process.filter((entry) =>
     entry.kind === 'reasoning'
       ? showReasoning
@@ -140,13 +179,17 @@ export function Thinking({
   const reasoned = item.process.some((entry) => entry.kind === 'reasoning')
   if (!thinking && entries.length === 0 && !(reasoned && item.thinkingMs !== null)) return null
 
-  const steps = item.steps.filter((step) => step.status !== 'waiting').length
+  const shownSteps = item.steps.filter((step) => step.status !== 'waiting')
+  const steps = shownSteps.length
+  const changes = shownSteps.filter((step) => step.changed).length
   const line = (
     <TraceLine status={thinking ? 'running' : undefined}>
       <TraceIcon>
         <Brain />
       </TraceIcon>
-      <TraceTitle>{thinking ? m.assistant_thinking() : summary(item.thinkingMs, steps)}</TraceTitle>
+      <TraceTitle>
+        {thinking ? m.assistant_thinking() : summary(item.thinkingMs, steps, changes)}
+      </TraceTitle>
     </TraceLine>
   )
   return (
@@ -159,7 +202,12 @@ export function Thinking({
           <TraceCollapsibleContent className="flex flex-col gap-3">
             {entries.map((entry) =>
               entry.kind === 'step' ? (
-                <StepRow key={entry.key} step={entry.step} status={entry.step.status as Shown} />
+                <StepRow
+                  key={entry.key}
+                  step={entry.step}
+                  status={entry.step.status as Shown}
+                  skillTitles={skillTitles}
+                />
               ) : (
                 <Markdown
                   key={entry.key}
