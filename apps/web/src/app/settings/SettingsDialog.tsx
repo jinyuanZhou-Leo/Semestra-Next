@@ -186,7 +186,9 @@ function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }
         <Sidebar collapsible="none" className="hidden border-r md:flex">
           <SidebarContent>
             <ScopePath path={path} onSelect={goTo} />
-            <SidebarSeparator className="mx-3" />
+            {/* The Separator's `data-horizontal:w-full` outranks SidebarSeparator's `w-auto`, so with
+                side margins it ends up wider than the column and the sidebar scrolls sideways. */}
+            <SidebarSeparator className="mx-3 data-horizontal:w-auto" />
             <nav aria-label={m.settings_title()}>
               {runs.map((run) => (
                 <SidebarGroup key={run.cluster ?? 'all'}>
