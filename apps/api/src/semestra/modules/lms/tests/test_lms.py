@@ -839,9 +839,7 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI):
         "after": ["Lab 1", "Midterm"],
         "count": 2,
     }
-    assert assignments["target"].endswith(
-        "· APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026"
-    )
+    assert assignments["target"] == "APS105H1 Computer Fundamentals"
     unlinked = await card("lms.course.link.delete", {"course_id": course_id})
     assert unlinked["changes"] == [
         {

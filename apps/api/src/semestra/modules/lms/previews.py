@@ -151,8 +151,7 @@ async def preview_assignment_import(ctx: Ctx, inp: AssignmentsImportInput) -> di
         if names:
             changes.append(_listed("lms_assignments", names))
     changes.append({"field": "as_kind", "after": inp.as_kind})
-    linked = await _linked(ctx, inp.course_id)
-    return {"target": f"{target} · {linked}" if linked else target, "changes": changes}
+    return {"target": target, "changes": changes}
 
 
 async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:

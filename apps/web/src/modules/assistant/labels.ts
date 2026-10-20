@@ -119,6 +119,8 @@ export function formatValue(value: unknown, field?: string): string {
   if (typeof value === 'string') return stringText(value, field)
   if (Array.isArray(value)) {
     const parts = value.map((each) => formatValue(each, field))
+    // Chinese "unit" lists have no separator at all ("Lab 1Lab 2").
+    if (getLocale().startsWith('zh')) return parts.join('、')
     return new Intl.ListFormat(getLocale(), { type: 'unit' }).format(parts)
   }
   if (typeof value === 'object') {
