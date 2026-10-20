@@ -35,6 +35,8 @@ jobs:
             api:
               - *ci
               - apps/api/**
+              # tests/test_settings_messages.py and the agent tests read the message files.
+              - apps/web/messages/**
             web:
               - *ci
               - apps/web/**

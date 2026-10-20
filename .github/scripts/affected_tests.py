@@ -11,7 +11,8 @@ that references <m> directly: imports, or string names such as event and capabil
 (`"grading.assessment.created"`). Only one hop: modules register into hubs (portability,
 settings, schedule) and everything reaches everything through them, so following references
 further would select the whole suite every time. `apps/api/tests/` always runs.
-Anything else under apps/api (core, migrations, dependencies, test fixtures) runs everything.
+Anything else under apps/api (core, migrations, dependencies, test fixtures), and modules
+those import (auth), run everything.
 
 web: changed files under `src/` go to `vitest related`, which follows the import graph.
 Changed message keys add the files that use them. Config, dependencies, the generated API
@@ -83,31 +84,42 @@ def module_of(path: str) -> str | None:
     return rel.parts[0] if len(rel.parts) > 1 else None
 
 
-def module_references(names: set[str]) -> dict[str, set[str]]:
-    """For each module, the other modules it names in imports or string constants."""
+def referenced_modules(files: list[Path], *, strings: bool = True) -> set[str]:
+    """Module names the files import, or name in string constants (`"grading.assessment.x"`)."""
     word = re.compile(r"^(?:semestra\.modules\.)?(\w+)\.\w")
-    refs: dict[str, set[str]] = {}
-    for name in names:
-        found: set[str] = set()
-        for file in (MODULES / name).rglob("*.py"):
-            for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
-                if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                    if node.module == "semestra.modules":
-                        found.update(a.name for a in node.names)
-                    elif node.module.startswith("semestra.modules."):
-                        found.add(node.module.split(".")[2])
-                elif isinstance(node, ast.Import):
-                    for a in node.names:
-                        if a.name.startswith("semestra.modules."):
-                            found.add(a.name.split(".")[2])
-                elif (
-                    isinstance(node, ast.Constant)
-                    and isinstance(node.value, str)
-                    and (m := word.match(node.value))
-                ):
-                    found.add(m.group(1))
-        refs[name] = (found & names) - {name}
-    return refs
+    found: set[str] = set()
+    for file in files:
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                if node.module == "semestra.modules":
+                    found.update(a.name for a in node.names)
+                elif node.module.startswith("semestra.modules."):
+                    found.add(node.module.split(".")[2])
+            elif isinstance(node, ast.Import):
+                for a in node.names:
+                    if a.name.startswith("semestra.modules."):
+                        found.add(a.name.split(".")[2])
+            elif (
+                strings
+                and isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and (m := word.match(node.value))
+            ):
+                found.add(m.group(1))
+    return found
+
+
+def module_references(names: set[str]) -> dict[str, set[str]]:
+    """For each module, the other modules it references."""
+    return {n: (referenced_modules(list((MODULES / n).rglob("*.py"))) & names) - {n} for n in names}
+
+
+def core_modules() -> set[str]:
+    """Modules that core, the app factory or the shared test fixtures import (auth): every
+    test runs through them, so a change there runs everything."""
+    pkg = MODULES.parent
+    files = [*(pkg / "core").rglob("*.py"), pkg / "main.py", pkg / "testing.py"]
+    return referenced_modules(files, strings=False)
 
 
 def select_api(files: list[str]) -> str:
@@ -115,6 +127,7 @@ def select_api(files: list[str]) -> str:
     names = {p.name for p in MODULES.iterdir() if p.is_dir() and not p.name.startswith("__")}
     changed: set[str] = set()
     messages = False
+    core = core_modules()
     for f in files:
         if f in SHARED:
             return "all"
@@ -123,6 +136,8 @@ def select_api(files: list[str]) -> str:
         elif f.startswith(modules_dir):
             m = module_of(f)
             if m is None:  # modules/__init__.py registers every module
+                return "all"
+            if m in core:
                 return "all"
             if m in names:
                 changed.add(m)
