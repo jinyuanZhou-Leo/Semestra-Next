@@ -35,6 +35,7 @@ from semestra.modules.academics.schemas import (
     CourseOrder,
     CoursePage,
     CourseRef,
+    CourseSetTermsInput,
     CourseUpdateInput,
     Program,
     ProgramCreateInput,
@@ -78,15 +79,79 @@ async def get_course_row(ctx: Ctx, course_id: str) -> AcademicsCourse:
 # Targets for the assistant's confirmation cards of deletes (M12 §3.5): what goes, by name.
 
 
+# Lists on a card show this many names; `count` says how many there are in all.
+_SHOWN = 10
+
+
+def _course_names(rows: Sequence[AcademicsCourse]) -> list[str]:
+    return [r.code or r.title for r in sorted(rows, key=lambda r: (r.code or r.title).lower())]
+
+
+async def _courses_by_id(ctx: Ctx, ids: Sequence[str]) -> list[AcademicsCourse]:
+    if not ids:
+        return []
+    return list(
+        await ctx.db.scalars(
+            select(AcademicsCourse).where(
+                AcademicsCourse.user_id == ctx.user_id, AcademicsCourse.id.in_(ids)
+            )
+        )
+    )
+
+
 async def preview_program_delete(ctx: Ctx, inp: ProgramRef) -> dict[str, Any]:
     program = await get_program_row(ctx, inp.program_id)
-    return {"target": program.name, "changes": []}
+    terms = [t.name for t in await program_terms(ctx, program.id)]
+    courses = _course_names(
+        list(
+            await ctx.db.scalars(
+                select(AcademicsCourse).where(
+                    AcademicsCourse.user_id == ctx.user_id,
+                    AcademicsCourse.program_id == program.id,
+                )
+            )
+        )
+    )
+    changes = [
+        {"field": field, "before": names[:_SHOWN], "after": None, "count": len(names)}
+        for field, names in (("terms", terms), ("courses", courses))
+        if names
+    ]
+    return {"target": program.name, "changes": changes}
 
 
 async def preview_term_delete(ctx: Ctx, inp: TermRef) -> dict[str, Any]:
+    """Which courses go with the term, and which stay because they have other terms (the same
+    split as `academics.term.preview_delete` and the delete itself)."""
     term = await get_term_row(ctx, inp.term_id)
     program = await get_program_row(ctx, term.program_id)
-    return {"target": f"{term.name} · {program.name}", "changes": []}
+    only, kept = await _term_course_split(ctx, term)
+    changes: list[dict[str, Any]] = []
+    if deleted := _course_names(await _courses_by_id(ctx, only)):
+        changes.append(
+            {"field": "courses", "before": deleted[:_SHOWN], "after": None, "count": len(deleted)}
+        )
+    if staying := _course_names(await _courses_by_id(ctx, kept)):
+        changes.append({"field": "kept_courses", "after": staying[:_SHOWN], "count": len(staying)})
+    return {"target": f"{term.name} · {program.name}", "changes": changes}
+
+
+async def preview_course_set_terms(ctx: Ctx, inp: CourseSetTermsInput) -> dict[str, Any]:
+    """The course's terms before → after, by name and in the Program's order."""
+    course = await get_course_row(ctx, inp.course_id)
+    terms = await program_terms(ctx, course.program_id)
+    current = (await _links(ctx, [course.id])).get(course.id, set())
+    wanted = set(inp.term_ids)
+    return {
+        "target": course.code or course.title,
+        "changes": [
+            {
+                "field": "terms",
+                "before": [t.name for t in terms if t.id in current],
+                "after": [t.name for t in terms if t.id in wanted],
+            }
+        ],
+    }
 
 
 async def preview_course_delete(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:

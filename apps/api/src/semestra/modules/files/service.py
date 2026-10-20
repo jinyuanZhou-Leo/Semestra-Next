@@ -83,8 +83,16 @@ async def preview_item_delete(ctx: Ctx, inp: ItemRef) -> dict[str, Any]:
 
 
 async def preview_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> dict[str, Any]:
+    """What goes with the folder: its files (by name) and subfolders."""
     row = await get_folder(ctx, inp.folder_id)
-    return {"target": row.name, "changes": [{"field": "recursive", "after": inp.recursive}]}
+    tree, items = await _folder_contents(ctx, row)
+    names = sorted((i.display_name for i in items), key=str.lower)
+    changes: list[dict[str, Any]] = []
+    if names:
+        changes.append({"field": "files", "before": names[:10], "after": None, "count": len(names)})
+    if len(tree) > 1:
+        changes.append({"field": "subfolders", "before": len(tree) - 1, "after": None})
+    return {"target": row.name, "changes": changes}
 
 
 async def _course_folders(ctx: Ctx, course_id: str) -> list[FilesFolder]:
@@ -397,8 +405,8 @@ async def update_folder(
     return folder_out(row, await _folder_counts(ctx, row.course_id))
 
 
-async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
-    row = await get_folder(ctx, folder_id)
+async def _folder_contents(ctx: Ctx, row: FilesFolder) -> tuple[set[str], list[FilesItem]]:
+    """(the folder and its subfolders, the files in any of them): what deleting it removes."""
     folders = await _course_folders(ctx, row.course_id)
     tree = {row.id} | _descendants(row.id, folders)
     items = list(
@@ -410,6 +418,12 @@ async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
             )
         ).all()
     )
+    return tree, items
+
+
+async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
+    row = await get_folder(ctx, folder_id)
+    tree, items = await _folder_contents(ctx, row)
     if (items or len(tree) > 1) and not recursive:
         raise AppError("files.folder_not_empty", 409)
     await purge_items(ctx, items)

@@ -47,6 +47,7 @@ from semestra.modules.schedule.schemas import (
     EventTypeRef,
     EventTypeUpdateInput,
     EventUpdateInput,
+    ExceptionRef,
     ExceptionUpsertInput,
     Feed,
     FeedCreated,
@@ -699,12 +700,91 @@ async def preview_event_type_delete(ctx: Ctx, inp: EventTypeRef) -> dict[str, An
     return {"target": f"{row.code} {row.name}", "changes": []}
 
 
-async def preview_meeting_delete(ctx: Ctx, inp: MeetingRef) -> dict[str, Any]:
-    row = await _meeting_row(ctx, inp.meeting_id)
+async def meeting_label(ctx: Ctx, meeting_id: str) -> str:
+    """A meeting as people name it: its type and section, then its course ("LEC 0101 · APS105
+    Intro"); also what the assistant shows for a meeting id."""
+    row = await _meeting_row(ctx, meeting_id)
     course = await academics.get_course_row(ctx, row.course_id)
-    section = " ".join(p for p in (row.type_code, row.section_code) if p)
+    section = " ".join(p for p in (row.type_code, row.section_code) if p) or row.title
     label = f"{course.code} {course.title}" if course.code else course.title
-    return {"target": f"{section} · {label}", "changes": []}
+    return f"{section} · {label}" if section else label
+
+
+async def preview_meeting_delete(ctx: Ctx, inp: MeetingRef) -> dict[str, Any]:
+    return {"target": await meeting_label(ctx, inp.meeting_id), "changes": []}
+
+
+async def _exception_row(
+    ctx: Ctx, meeting_id: str, original_date: date
+) -> ScheduleMeetingException | None:
+    return await ctx.db.scalar(
+        select(ScheduleMeetingException).where(
+            ScheduleMeetingException.user_id == ctx.user_id,
+            ScheduleMeetingException.meeting_id == meeting_id,
+            ScheduleMeetingException.original_date == original_date,
+        )
+    )
+
+
+_EXCEPTION_FIELDS = ("new_date", "new_start_time", "new_end_time", "new_location", "note")
+
+
+def _clock(value: time | None) -> str | None:
+    return value.isoformat(timespec="minutes") if value is not None else None
+
+
+def _exception_values(row: ScheduleMeetingException | None) -> dict[str, Any]:
+    if row is None:
+        return {}
+    return {
+        "exception": row.kind,
+        "new_date": row.new_date.isoformat() if row.new_date else None,
+        "new_start_time": _clock(row.new_start_time),
+        "new_end_time": _clock(row.new_end_time),
+        "new_location": row.new_location,
+        "note": row.note,
+    }
+
+
+async def preview_exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): the class on its date, cancelled or moved,
+    with what the date's change was before (if it had one)."""
+    target = await meeting_label(ctx, inp.meeting_id)
+    before = _exception_values(await _exception_row(ctx, inp.meeting_id, inp.original_date))
+    after = {
+        "exception": inp.kind,
+        "new_date": inp.new_date.isoformat() if inp.new_date else None,
+        "new_start_time": _clock(inp.new_start_time),
+        "new_end_time": _clock(inp.new_end_time),
+        "new_location": inp.new_location,
+        "note": inp.note,
+    }
+    changes: list[dict[str, Any]] = [
+        {"field": "original_date", "after": inp.original_date.isoformat()}
+    ]
+    # A cancelled class has no new date, time or place, only a note.
+    shown = ("exception", "note") if inp.kind == "cancelled" else ("exception", *_EXCEPTION_FIELDS)
+    for field in shown:
+        new, old = after[field], before.get(field)
+        if new is None and old is None:
+            continue
+        change: dict[str, Any] = {"field": field, "after": new}
+        if before and old != new:
+            change["before"] = old
+        changes.append(change)
+    return {"target": target, "changes": changes}
+
+
+async def preview_exception_delete(ctx: Ctx, inp: ExceptionRef) -> dict[str, Any]:
+    """The card for undoing a date's change: the class goes back to its regular time."""
+    target = await meeting_label(ctx, inp.meeting_id)
+    row = await _exception_row(ctx, inp.meeting_id, inp.original_date)
+    changes: list[dict[str, Any]] = [
+        {"field": "original_date", "after": inp.original_date.isoformat()}
+    ]
+    if row is not None:
+        changes.append({"field": "exception", "before": row.kind, "after": None})
+    return {"target": target, "changes": changes}
 
 
 async def preview_event_delete(ctx: Ctx, inp: EventRef) -> dict[str, Any]:

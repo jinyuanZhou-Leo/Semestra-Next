@@ -792,3 +792,69 @@ async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: F
     assert len({c["data"]["key"] for c in categories}) == 2
     refs = [a["data"]["category_ref"] for a in by_type(session, "assessment")]
     assert refs[0] == refs[1] != refs[2]
+
+
+async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI):
+    # The confirmation cards (M12 §3.5) say which LMS course, assignments and connection, by
+    # name, from the cached reads; never an external id.
+    from semestra.core.capability import registry
+    from semestra.modules.agent.loop import make_preview
+
+    program_id, term_id, conn = await setup_program(api)
+    course_id = await api.course(program_id, term_id)
+    connection = await api.call("GET", f"/programs/{program_id}/lms-binding")
+    me = await api.call("GET", "/account/me")
+
+    async def card(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        async with system_ctx(app.state, me["id"]) as ctx:
+            ctx.actor = "agent"
+            return await make_preview(ctx, registry.get(name), args)
+
+    linked = await card(
+        "lms.course.link.set", {"course_id": course_id, "external_course_id": "101"}
+    )
+    assert linked["changes"][0] == {
+        "field": "lms_course",
+        "after": "APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026",
+    }
+    assert {"field": "connection", "after": connection["connection"]["display_name"]} in linked[
+        "changes"
+    ]
+    imported = await card(
+        "lms.course.import",
+        {"program_id": program_id, "external_course_ids": ["101", "90"], "term_id": term_id},
+    )
+    [courses] = imported["changes"]
+    assert courses["field"] == "lms_courses"
+    assert courses["count"] == 2
+    assert courses["after"][1] == "OLD100 · Old course · Fall 2025"  # a past course too
+    assert "'101'" not in str(imported)
+
+    await api.link(course_id, "101")
+    assignments = await card(
+        "lms.assignment.import", {"course_id": course_id, "external_ids": ["a1", "a3"]}
+    )
+    assert assignments["changes"][0] == {
+        "field": "lms_assignments",
+        "after": ["Lab 1", "Midterm"],
+        "count": 2,
+    }
+    assert assignments["target"].endswith(
+        "· APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026"
+    )
+    unlinked = await card("lms.course.link.delete", {"course_id": course_id})
+    assert unlinked["changes"] == [
+        {
+            "field": "lms_course",
+            "before": "APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026",
+            "after": None,
+        }
+    ]
+    saved = await card("lms.file.save_to_course", {"course_id": course_id, "file_id": "f9"})
+    assert saved["changes"] == [
+        {"field": "lms_file", "after": "notes.txt"},
+        {"field": "folder", "after": None},
+    ]
+    cleared = await card("lms.program.binding.clear", {"program_id": program_id})
+    assert cleared["changes"][0]["before"] == connection["connection"]["display_name"]
+    assert conn not in str(cleared)

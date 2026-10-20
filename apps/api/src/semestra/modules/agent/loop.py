@@ -203,33 +203,14 @@ REJECTED = "The user rejected this action; it was not executed."
 # --- proposals ------------------------------------------------------------------------------
 
 
-def _is_ref(key: str) -> bool:
-    return key in ("id", "fields") or key.endswith(("_id", "_ids"))
-
-
-def _plain(value: Any) -> Any:
-    """A value as the card shows it: without ids (the card names them in `target`); None when
-    nothing is left (an object that only held ids and its `kind`)."""
-    if isinstance(value, dict):
-        kept = {
-            str(k): v  # pyright: ignore[reportUnknownArgumentType]
-            for k, v in ((k, _plain(v)) for k, v in value.items())  # pyright: ignore[reportUnknownVariableType]
-            if not _is_ref(str(k)) and v is not None  # pyright: ignore[reportUnknownArgumentType]
-        }
-        return kept if set(kept) - {"kind"} else None
-    if isinstance(value, list):
-        items = [p for p in (_plain(v) for v in value) if p is not None]  # pyright: ignore[reportUnknownVariableType]
-        return items if items or not value else None
-    return value
-
-
-def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
-    changes: list[dict[str, Any]] = []
-    for key, value in args.items():
-        shown = None if _is_ref(key) else _plain(value)
-        if shown is not None:
-            changes.append({"field": key, "after": shown})
-    return {"changes": changes}
+async def _generic_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
+    """Each argument as a change, before → after for an update, ids by name (agent/display).
+    A failure here leaves the card without details, never without the card."""
+    try:
+        return await display.preview(ctx, cap.name, args)
+    except Exception:
+        log.exception("agent_display_failed", capability=cap.name)
+        return {"changes": []}
 
 
 def _validation_error(exc: ValidationError) -> AppError:
@@ -244,13 +225,15 @@ async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[
         inp = cap.input_model.model_validate(args)
     except ValidationError as exc:
         raise _validation_error(exc) from exc
-    out: dict[str, Any] = _generic_preview(args)
+    out: dict[str, Any] = {"changes": []}
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)
         if isinstance(preview, BaseModel):
             out = preview.model_dump(mode="json")
         elif isinstance(preview, dict):
             out = dict(preview)  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        out = await _generic_preview(ctx, cap, args)
     if not out.get("target"):
         # What the card is about, by name: the ids in the arguments are never shown.
         try:

@@ -466,10 +466,45 @@ async def get_card_instance(ctx: Ctx, instance_id: str) -> CardInstance:
     return CardInstance(row.instance_id, row.card_id, row.scope_type, row.scope_id, row.settings)
 
 
+def card_name(settings: dict[str, Any] | None) -> str | None:
+    """What the user calls a card: a habit's or counter's name, else a note's first line."""
+    settings = settings or {}
+    for key in ("name", "label"):
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    content = settings.get("content")
+    if isinstance(content, str) and content.strip():
+        line = content.strip().splitlines()[0].strip()
+        return line if len(line) <= 40 else f"{line[:39]}…"
+    return None
+
+
+async def _scope_name(ctx: Ctx, scope_type: str, scope_id: str) -> str | None:
+    from semestra.modules.academics import service as academics
+
+    try:
+        if scope_type in ("program", "today"):
+            return (await academics.get_program_row(ctx, scope_id)).name
+        if scope_type == "term":
+            return (await academics.get_term_row(ctx, scope_id)).name
+        if scope_type == "course":
+            course = await academics.get_course_row(ctx, scope_id)
+            return course.code or course.title
+    except AppError:
+        return None
+    return None
+
+
 async def preview_card_remove(ctx: Ctx, inp: CardRef) -> dict[str, Any]:
-    """The assistant's confirmation card (M12 §3.5): the card by its id in the catalog."""
+    """The assistant's confirmation card (M12 §3.5): the card by its name and its board; the
+    UI names the kind of card (`card`) in its language."""
     row = await _instance_row(ctx, inp.instance_id)
-    return {"target": row.card_id, "changes": []}
+    names = (card_name(row.settings), await _scope_name(ctx, row.scope_type, row.scope_id))
+    return {
+        "target": " · ".join(n for n in names if n),
+        "changes": [{"field": "card", "before": row.card_id, "after": None}],
+    }
 
 
 async def list_card_instances(

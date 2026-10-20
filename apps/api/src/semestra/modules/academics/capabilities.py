@@ -305,6 +305,7 @@ async def course_update(ctx: Ctx, inp: CourseUpdateInput) -> Course:
 other in time.""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/terms"),
+    preview=service.preview_course_set_terms,
     tags=TAGS,
 )
 async def course_set_terms(ctx: Ctx, inp: CourseSetTermsInput) -> Course:
