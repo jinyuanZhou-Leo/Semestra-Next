@@ -10,6 +10,8 @@ from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.schemas import (
     MAX_READ_PAGES,
+    READ_CHAR_BUDGET,
+    Citation,
     DocumentOutline,
     DocumentPage,
     DocumentRead,
@@ -36,6 +38,10 @@ async def _active_document(ctx: Ctx, item_id: str) -> tuple[FilesItem, FilesDocu
 async def read_document(
     ctx: Ctx, item_id: str, page_from: int, page_to: int | None
 ) -> DocumentRead:
+    if page_to is not None and page_to < page_from:
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": ["page_to"], "code": "before_page_from"}]
+        )
     item, document = await _active_document(ctx, item_id)
     last = min(page_to or page_from + MAX_READ_PAGES - 1, page_from + MAX_READ_PAGES - 1)
     last = min(last, document.page_count)
@@ -50,15 +56,52 @@ async def read_document(
             .order_by(FilesDocumentPage.page_no)
         )
     ).all()
+    if ctx.surface != "http":
+        # The assistant's results are cut at a fixed size: stop at a page boundary before that,
+        # so next_page is the only paging it needs. The first page always comes back.
+        kept: list[FilesDocumentPage] = []
+        used = 0
+        for row in rows:
+            if kept and used + len(row.markdown) > READ_CHAR_BUDGET:
+                break
+            kept.append(row)
+            used += len(row.markdown)
+        if len(kept) < len(rows):
+            last = kept[-1].page_no
+        rows = kept
+    pages = [
+        DocumentPage(
+            page_no=r.page_no,
+            markdown=r.markdown,
+            ocr_used=r.ocr_used,
+            citation_id=f"{item.id}:p{r.page_no}-{r.page_no}",
+        )
+        for r in rows
+    ]
     return DocumentRead(
         item_id=item.id,
         display_name=item.display_name,
         page_count=document.page_count,
-        pages=[
-            DocumentPage(page_no=r.page_no, markdown=r.markdown, ocr_used=r.ocr_used) for r in rows
-        ],
+        pages=pages,
         next_page=last + 1 if last < document.page_count else None,
+        citations=[
+            Citation(
+                id=p.citation_id,
+                title=item.display_name,
+                item_id=item.id,
+                page_from=p.page_no,
+                page_to=p.page_no,
+                snippet=_snippet(p.markdown),
+            )
+            for p in pages
+        ],
     )
+
+
+def _snippet(markdown: str) -> str:
+    """The start of a page as plain text, for the citation's hover card."""
+    plain = re.sub(r"\s+", " ", re.sub(r"[#*_`>|]", " ", markdown)).strip()
+    return plain[:200] + ("…" if len(plain) > 200 else "")
 
 
 async def outline(ctx: Ctx, item_id: str) -> DocumentOutline:
