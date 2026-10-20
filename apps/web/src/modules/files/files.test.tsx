@@ -29,7 +29,7 @@ vi.mock('react-pdf', () => ({
 }))
 
 beforeAll(async () => {
-  server.listen()
+  server.listen({ onUnhandledFrame: 'error' })
   // fetch is Node's (undici), which cannot send jsdom's FormData, Blob and File on Node 26;
   // these tests use Node's own, as a browser would use its own.
   const nativeFormData = (

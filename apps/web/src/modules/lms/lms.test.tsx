@@ -18,7 +18,7 @@ import { ConnectionsSection } from './settings/ConnectionsSection'
 import { CourseLmsSection } from './settings/CourseLmsSection'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

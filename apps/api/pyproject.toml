@@ -43,7 +43,7 @@ dependencies = [
 semestra = "semestra.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.10.10,<0.11.0"]
+requires = ["uv_build>=0.10.10,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -65,6 +65,11 @@ asyncio_mode = "auto"
 testpaths = ["tests", "src"]
 markers = ["live: hits real external services; skipped in CI"]
 addopts = "-m 'not live' -p semestra.testing"
+filterwarnings = [
+    # Third-party code that Python 3.15 flags for removal in 3.17; nothing for us to change.
+    "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
+    "ignore:'typing.ByteString' and 'collections.abc.ByteString' are deprecated:DeprecationWarning:pymupdf",
+]
 
 [tool.ruff]
 line-length = 100

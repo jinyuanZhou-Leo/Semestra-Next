@@ -63,7 +63,7 @@ export function askNotificationPermission(): void {
 export function showNotification(title: string, body: string): void {
   try {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      new Notification(title, { body })
+      void new Notification(title, { body })
     }
   } catch {
     // Not allowed here (some mobile browsers only allow service-worker notifications).

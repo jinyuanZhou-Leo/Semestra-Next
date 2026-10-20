@@ -106,7 +106,11 @@ export function TermsAndCoursesPage({
               <Plus aria-hidden data-icon="inline-start" />
               {m.academics_course_add()}
             </Button>
-            <Button size="sm" render={<HistoryLink href={newTermPath(programId)} />}>
+            <Button
+              nativeButton={false}
+              size="sm"
+              render={<HistoryLink href={newTermPath(programId)} />}
+            >
               <CalendarPlus aria-hidden data-icon="inline-start" />
               {m.academics_term_new()}
             </Button>
@@ -145,7 +149,7 @@ export function TermsAndCoursesPage({
                 <EmptyDescription>{m.terms_courses_terms_empty_description()}</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button render={<HistoryLink href={newTermPath(programId)} />}>
+                <Button nativeButton={false} render={<HistoryLink href={newTermPath(programId)} />}>
                   {m.academics_term_new()}
                 </Button>
               </EmptyContent>
@@ -406,6 +410,7 @@ function TermPane({
             </Button>
           )}
           <Button
+            nativeButton={false}
             size="sm"
             variant="outline"
             render={<HistoryLink href={termPath(programId, term.id)} />}

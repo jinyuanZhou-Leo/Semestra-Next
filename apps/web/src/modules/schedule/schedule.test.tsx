@@ -72,7 +72,7 @@ vi.mock('modern-screenshot', () => ({
 // The first test loads the calendar page and FullCalendar's plugins lazily, which is slow in CI.
 vi.setConfig({ testTimeout: 20_000 })
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   calendar.props = null

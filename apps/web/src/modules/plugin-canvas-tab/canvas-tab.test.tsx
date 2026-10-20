@@ -24,7 +24,7 @@ const openImport = vi.hoisted(() =>
 )
 vi.mock('@/modules/imports/launcher', () => ({ openImport }))
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   openImport.mockClear()

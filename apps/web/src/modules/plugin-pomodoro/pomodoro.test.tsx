@@ -6,7 +6,7 @@ import { API, renderWithQuery, server } from '@/test-utils'
 import PomodoroCard from './PomodoroCard'
 import { pomodoroSettingsSchema } from './schema'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   vi.useRealTimers()

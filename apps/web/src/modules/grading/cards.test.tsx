@@ -9,7 +9,7 @@ import ProgramChartsCard from './cards/ProgramChartsCard'
 import CourseSummaryCard from './cards/CourseSummaryCard'
 import { gradebook, summary } from './test-data'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

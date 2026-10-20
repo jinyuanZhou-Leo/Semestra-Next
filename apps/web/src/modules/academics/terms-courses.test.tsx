@@ -16,7 +16,7 @@ import academics from './manifest'
 import { type World, academicsHandlers, defaultWorld } from './test-data'
 import { COURSE_COLUMNS, type CourseColumn } from './types'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
