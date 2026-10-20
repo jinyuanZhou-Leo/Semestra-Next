@@ -18,7 +18,7 @@ from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
-from semestra.modules.agent import loop, service, skills, tools
+from semestra.modules.agent import attachments, loop, service, skills, tools
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -330,6 +330,7 @@ async def upload_attachment(
     data = await file.read(MAX_ATTACHMENT_BYTES + 1)
     if len(data) > MAX_ATTACHMENT_BYTES:
         raise AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
+    reading = await attachments.read_upload(ctx, data, file.filename or "file")
     # One upload at a time per user, so parallel uploads cannot each pass the quota check.
     async with _upload_locks.setdefault(ctx.user_id, asyncio.Lock()):
         left = await remaining_quota(ctx)
@@ -342,6 +343,7 @@ async def upload_attachment(
         key = user_key(ctx.user_id, "agent")
         stored = await get_storage(ctx).put(key, chunks(), mime)
         row = AgentAttachment(
+            id=new_id(),
             user_id=ctx.user_id,
             session_id=session.id,
             kind=kind,
@@ -352,5 +354,6 @@ async def upload_attachment(
             created_at=ctx.now,
         )
         ctx.db.add(row)
+        attachments.store_reading(ctx, row, reading)
         await ctx.db.commit()
     return service.attachment_out(row)

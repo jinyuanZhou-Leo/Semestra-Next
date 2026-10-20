@@ -15,6 +15,7 @@ from semestra.modules.academics.models import (
 )
 from semestra.modules.agent.models import (
     AgentAttachment,
+    AgentAttachmentPage,
     AgentMessage,
     AgentPreferences,
     AgentProposal,
@@ -195,6 +196,7 @@ async def populate(
     )
     await db.flush()
     assessment_id = new_id()
+    attachment_id = new_id()
     pomodoro_card = LayoutsCardSetting(
         instance_id=new_id(),
         **u,
@@ -298,6 +300,7 @@ async def populate(
             ),
             AgentAttachment(
                 **u,
+                id=attachment_id,
                 session_id=chat.id,
                 kind="file",
                 name="notes.txt",
@@ -305,7 +308,10 @@ async def populate(
                 mime="text/plain",
                 size=10,
                 created_at=NOW,
+                doc_kind="text",
+                page_count=1,
             ),
+            AgentAttachmentPage(**u, attachment_id=attachment_id, page_no=1, markdown="notes"),
             LmsCache(
                 **u,
                 key=f"{connection.id}:courses",

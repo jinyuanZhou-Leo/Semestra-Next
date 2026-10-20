@@ -41,6 +41,9 @@ class IcsMeeting:
     location: str | None
     instructor: str | None
     source_ref: str
+    # Dates of this weekday the class does not happen: EXDATEs, or the weeks missing between
+    # one-VEVENT-per-class entries.
+    exceptions: list[date] = field(default_factory=lambda: [])
 
 
 @dataclass
@@ -137,6 +140,23 @@ class _Raw:
     rrule: dict[str, Any] | None
     location: str | None
     instructor: str | None
+    exdates: list[date] = field(default_factory=lambda: [])
+
+
+def _exdates(component: Any, tz: ZoneInfo) -> list[date]:
+    """EXDATE values (one property or several, each with one or more dates) as local days."""
+    value = component.get("exdate")
+    if value is None:
+        return []
+    days: set[date] = set()
+    for prop in value if isinstance(value, list) else [value]:
+        for item in getattr(prop, "dts", []):
+            try:
+                local = _local(item.dt, tz)
+            except ValueError:
+                continue
+            days.add(local.date() if isinstance(local, datetime) else local)
+    return sorted(days)
 
 
 def _read(data: bytes, tz: ZoneInfo) -> list[_Raw]:
@@ -168,6 +188,7 @@ def _read(data: bytes, tz: ZoneInfo) -> list[_Raw]:
                 rrule=dict(rrule) if rrule else None,
                 location=_text(component, "location"),
                 instructor=_instructor(component),
+                exdates=_exdates(component, tz),
             )
         )
     return raws
@@ -233,6 +254,7 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
                         location=raw.location,
                         instructor=raw.instructor,
                         source_ref=f"{raw.uid}:{weekday}",
+                        exceptions=[d for d in raw.exdates if d.isoweekday() == weekday],
                     )
                 )
             continue
@@ -256,8 +278,17 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
             sec = section_of(first.summary)
             course.events.append(_event(first, sec[0] if sec else None))
             continue
-        gaps = {(b.start.date() - a.start.date()).days for a, b in pairwise(group)}  # pyright: ignore[reportAttributeAccessIssue]
+        days = [r.start.date() for r in group]  # pyright: ignore[reportAttributeAccessIssue]
+        gaps = {(b - a).days for a, b in pairwise(days)}
         biweekly = min(gaps) >= 14
+        step = timedelta(days=14 if biweekly else 7)
+        held = set(days)
+        missing: list[date] = []
+        day = days[0] + step
+        while day < days[-1]:
+            if day not in held:
+                missing.append(day)
+            day += step
         sec = section_of(first.summary)
         course.meetings.append(
             IcsMeeting(
@@ -272,6 +303,7 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
                 location=first.location,
                 instructor=first.instructor,
                 source_ref=f"{code}:{section}:{weekday}:{start.isoformat('minutes')}",
+                exceptions=missing,
             )
         )
     ordered = sorted(courses.values(), key=lambda c: (c.code is None, c.code or c.title))

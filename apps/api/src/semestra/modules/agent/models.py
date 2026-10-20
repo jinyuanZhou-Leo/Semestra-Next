@@ -92,6 +92,26 @@ class AgentAttachment(Base, OwnedMixin):
     size: Mapped[int] = mapped_column(Integer)
     file_item_id: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column()
+    # Read on upload with M07's parser (`attachments.py`): the detected kind (pdf, docx, ics,
+    # image, ...), the number of pages stored in `agent_attachment_pages`, or why it failed.
+    doc_kind: Mapped[str | None] = mapped_column(String, default=None)
+    page_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    parse_error: Mapped[str | None] = mapped_column(String, default=None)
+
+
+class AgentAttachmentPage(Base, OwnedMixin):
+    """One page of an attachment as markdown (M12 实现说明). Not chunked or indexed: saving the
+    attachment to the course's files does that."""
+
+    __tablename__ = "agent_attachment_pages"
+
+    attachment_id: Mapped[str] = mapped_column(
+        String, ForeignKey("agent_attachments.id", ondelete="CASCADE"), primary_key=True
+    )
+    page_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    markdown: Mapped[str] = mapped_column(String, default="")
+    # A scanned page without a text layer: its markdown is empty.
+    needs_ocr: Mapped[bool] = mapped_column(default=False)
 
 
 class AgentPreferences(Base):

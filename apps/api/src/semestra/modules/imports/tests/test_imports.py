@@ -457,6 +457,20 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
                 "agent",
             )  # fmt: skip
         assert err.value.code == "import.course_ref_missing"
+        # Each type has its own fields: a misspelt or made-up one is refused, not dropped.
+        with pytest.raises(AppError) as err:
+            await registry.invoke(
+                ctx,
+                "imports.items.add",
+                {"session_id": session_id, "items": [
+                    {"type": "meeting", "data": {"course_ref": "item:c", "weekday": 1,
+                                                  "start_time": "09:00", "end_time": "10:00",
+                                                  "skip_breaks": True}}
+                ]},
+                "agent",
+            )  # fmt: skip
+        assert err.value.code == "common.validation"
+        assert any("skip_breaks" in e["loc"] for e in err.value.params["errors"])
         await ctx.db.commit()
 
     session = await api.call("GET", f"/imports/{session_id}")

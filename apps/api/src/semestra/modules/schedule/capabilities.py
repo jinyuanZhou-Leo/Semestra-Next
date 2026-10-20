@@ -67,7 +67,8 @@ async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
     summary="Everything on the calendar in a date range: classes, events, deadlines, tasks.",
     description="""Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
 overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
-and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
+classes are included with status 'cancelled'.
 For today alone prefer calendar.today. Each class carries its term week in meta.week_number.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/calendar"),
@@ -75,7 +76,10 @@ For today alone prefer calendar.today. Each class carries its term week in meta.
     agent_core=True,
 )
 async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
-    return await service.occurrences(ctx, inp)
+    # The app pages by view; the assistant and MCP clients ask for whole terms.
+    wide = ctx.actor in ("agent", "mcp")
+    max_days = service.EXPORT_MAX_RANGE_DAYS if wide else service.MAX_RANGE_DAYS
+    return await service.occurrences(ctx, inp, max_days=max_days)
 
 
 # --- event types ----------------------------------------------------------------------------

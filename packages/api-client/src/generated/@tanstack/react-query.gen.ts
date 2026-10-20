@@ -1686,7 +1686,8 @@ export const calendarOccurrencesQueryKey = (options: Options<CalendarOccurrences
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+ * and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
+ * classes are included with status 'cancelled'.
  * For today alone prefer calendar.today. Each class carries its term week in meta.week_number.
  */
 export const calendarOccurrencesOptions = (options: Options<CalendarOccurrencesData>) => queryOptions<CalendarOccurrencesResponse, CalendarOccurrencesError, CalendarOccurrencesResponse, ReturnType<typeof calendarOccurrencesQueryKey>>({
@@ -1709,7 +1710,8 @@ export const calendarOccurrencesInfiniteQueryKey = (options: Options<CalendarOcc
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.
+ * and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
+ * classes are included with status 'cancelled'.
  * For today alone prefer calendar.today. Each class carries its term week in meta.week_number.
  */
 export const calendarOccurrencesInfiniteOptions = (options: Options<CalendarOccurrencesData>) => {
@@ -2786,7 +2788,8 @@ export const importsSessionListInfiniteOptions = (options: Options<ImportsSessio
  * Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.
  *
  * Creates a draft the user reviews before anything is written. Upload files first
- * (POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.
+ * (POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
+ * the assistant conversation (`attachment_ids`), or `text`.
  * ICS is parsed at once (status ready); the other sources are extracted in the background
  * (status extracting → ready), poll imports.session.get. Never write a document's contents with
  * the modules' own create capabilities instead of importing it.

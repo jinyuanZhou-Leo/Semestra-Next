@@ -292,6 +292,7 @@ def from_ics(
                     "location": (m.location or None) and m.location[:200],
                     "instructor": m.instructor,
                     "source_ref": m.source_ref[:500],
+                    "exceptions": [_iso(d) for d in m.exceptions],
                 },
                 decision=decision,
             )

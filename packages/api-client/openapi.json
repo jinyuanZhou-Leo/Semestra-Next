@@ -3751,7 +3751,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "schedule"
         ],
         "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
-        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today. Each class carries its term week in meta.week_number.",
+        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled\nclasses are included with status 'cancelled'.\nFor today alone prefer calendar.today. Each class carries its term week in meta.week_number.",
         "operationId": "calendarOccurrences",
         "parameters": [
           {
@@ -3784,10 +3784,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "schema": {
               "type": "string",
               "format": "date",
-              "description": "Day after the last day (exclusive); at most 120 days later",
+              "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)",
               "title": "End"
             },
-            "description": "Day after the last day (exclusive); at most 120 days later"
+            "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)"
           },
           {
             "name": "sources",
@@ -6339,7 +6339,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
+        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
         "operationId": "importsSessionCreate",
         "parameters": [
           {
@@ -25346,6 +25346,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "title": "File Item Ids",
             "description": "Existing course files (M07)"
           },
+          "attachment_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Attachment Ids",
+            "description": "Files the user attached to the assistant conversation (the id of an <attachment> block); the importer reads the original file"
+          },
           "text": {
             "anyOf": [
               {
@@ -25357,7 +25368,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Text",
-            "description": "Pasted text (source `text`)"
+            "description": "Only for source_kind `text`: text the user pasted"
           },
           "source_meta": {
             "additionalProperties": true,

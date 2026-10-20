@@ -7450,9 +7450,15 @@ export type SessionCreateInputBody = {
      */
     file_item_ids?: Array<string>;
     /**
+     * Attachment Ids
+     *
+     * Files the user attached to the assistant conversation (the id of an <attachment> block); the importer reads the original file
+     */
+    attachment_ids?: Array<string>;
+    /**
      * Text
      *
-     * Pasted text (source `text`)
+     * Only for source_kind `text`: text the user pasted
      */
     text?: string | null;
     /**
@@ -12135,7 +12141,7 @@ export type CalendarOccurrencesData = {
         /**
          * End
          *
-         * Day after the last day (exclusive); at most 120 days later
+         * Day after the last day (exclusive); at most 400 days later (120 in the app)
          */
         end: string;
         /**

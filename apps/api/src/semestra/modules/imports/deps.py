@@ -167,6 +167,18 @@ async def read_course_file(ctx: Ctx, item_id: str, program_id: str) -> list[ai.P
     return out
 
 
+async def read_attachment(ctx: Ctx, attachment_id: str) -> tuple[str, str, bytes]:
+    """(file name, type, bytes) of a file attached to an assistant conversation (M12)."""
+    try:
+        attachments = importlib.import_module("semestra.modules.agent.attachments")
+    except ImportError:
+        raise AppError("import.file_unsupported", 422) from None
+    row, data = await attachments.open_original(ctx, attachment_id)
+    parse = _files("parse")
+    mime = parse.detect(data, row.name).mime if parse is not None else row.mime
+    return row.name, mime, data
+
+
 async def move_to_course(
     ctx: Ctx, *, course_id: str, filename: str, chunks: AsyncIterator[bytes]
 ) -> str | None:

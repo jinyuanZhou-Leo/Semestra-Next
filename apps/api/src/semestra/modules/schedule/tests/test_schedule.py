@@ -612,6 +612,17 @@ async def test_agent_surface(
         )
     assert isinstance(result, Occurrences)
     assert len(result.items) == 1
+    # The assistant reads a whole term in one call (the app is limited to 120 days).
+    async with system_ctx(app.state, user.id) as ctx:
+        ctx.actor = "agent"
+        term = await registry.invoke(
+            ctx,
+            "calendar.occurrences",
+            {"program_id": program_id, "start": "2026-01-01", "end": "2026-06-01"},
+            "agent",
+        )
+    assert isinstance(term, Occurrences)
+    assert len(term.items) > 1
 
 
 async def test_feed_window_moves_with_today(api: Api, clock: Clock):

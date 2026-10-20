@@ -285,6 +285,25 @@ async def _claim_uploads(
     return uploads
 
 
+async def _attachment_uploads(
+    ctx: Ctx, session_id: str, attachment_ids: Sequence[str]
+) -> list[ImportsUpload]:
+    """Copies files attached to an assistant conversation into the session's uploads, so the
+    importers, "show source" and moving the file into the course work as for any upload."""
+    uploads: list[ImportsUpload] = []
+    for attachment_id in dict.fromkeys(attachment_ids):
+        filename, mime, data = await deps.read_attachment(ctx, attachment_id)
+
+        async def chunks(data: bytes = data) -> AsyncIterator[bytes]:
+            yield data
+
+        out = await store_upload(ctx, filename=filename, mime=mime, chunks=chunks())
+        upload = await get_upload(ctx, out.id)
+        upload.session_id = session_id
+        uploads.append(upload)
+    return uploads
+
+
 async def read_upload_bytes(ctx: Ctx, upload: ImportsUpload) -> bytes:
     return b"".join([chunk async for chunk in get_storage(ctx).open(upload.storage_key)])
 
@@ -293,11 +312,12 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
     await academics.get_program_row(ctx, inp.program_id)
     target = await _check_target(ctx, inp.program_id, inp.target)
     kind = inp.source_kind
-    if kind in ("ics", "timetable_image") and not inp.upload_ids:
+    files = [*inp.upload_ids, *inp.attachment_ids]
+    if kind in ("ics", "timetable_image") and not files:
         raise AppError(
             "common.validation", 422, errors=[{"loc": ["upload_ids"], "code": "missing"}]
         )
-    if kind == "syllabus" and not (inp.upload_ids or inp.file_item_ids):
+    if kind == "syllabus" and not (files or inp.file_item_ids):
         raise AppError(
             "common.validation", 422, errors=[{"loc": ["upload_ids"], "code": "missing"}]
         )
@@ -324,6 +344,7 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
     ctx.db.add(row)
     await ctx.db.flush()
     uploads = await _claim_uploads(ctx, row.id, inp.upload_ids)
+    uploads += await _attachment_uploads(ctx, row.id, inp.attachment_ids)
     refs: list[dict[str, Any]] = [
         {"upload_id": u.id, "filename": u.filename, "status": "pending"} for u in uploads
     ]
@@ -809,9 +830,19 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         out = await deps.call(
             ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
         )
+        meeting_id = (out["created_ids"] or out["updated_ids"])[0]
+        for day in data.get("exceptions") or []:
+            try:
+                await deps.call(
+                    ctx,
+                    "schedule.exception.upsert",
+                    {"meeting_id": meeting_id, "original_date": day, "kind": "cancelled"},
+                )
+            except AppError:
+                continue  # not a class day of the meeting (a break week, outside its weeks)
         if out["created_ids"]:
-            return {"created_id": out["created_ids"][0]}
-        return {"updated_id": out["updated_ids"][0]}
+            return {"created_id": meeting_id}
+        return {"updated_id": meeting_id}
     if item.type == "event":
         if not data.get("date"):
             raise AppError("import.date_unresolved", 422)

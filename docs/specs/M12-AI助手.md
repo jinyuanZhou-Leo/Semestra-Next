@@ -197,3 +197,4 @@ agent_preferences
 - 工作范围：新会话默认用当前页面的范围，用户选过之后以选择为准；已有会话显示并修改会话自己的范围（`agent.session.update`）。
 - 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
 - 设置分区（账户设置「AI」小标题，第三轮拆页）：`assistant-approvals` 在「权限」页（按 effect 分组 + 总开关，见 §6.2），`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）与 `assistant-tools`（工具目录）在「MCP 与工具」页。
+- 附件解析（Sem 重构 PR 2）：上传时用 M07 的解析器（`files.parse`，PDF/Office 在限时限内存的子进程里）按内容识别类型并读成按页 markdown，存 `agent_attachment_pages`（附件 id、页码、markdown、`needs_ocr`），附件行记下 `doc_kind`、`page_count`、`parse_error`；不切块、不建索引，读不了的文件照样保存并记下原因。agent 专用的只读 capability `attachments.read(attachment_id, page_from, page_to)` 一次最多 10 页、约 4 万字符，返回 `next_page`。代码在 `agent/attachments.py`。

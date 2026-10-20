@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
+import { itemDetail } from './labels'
 import { finishImport, openImport } from './launcher'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -226,4 +227,20 @@ test('an edit is saved on blur and the commit waits for it', async () => {
   await userEvent.type(weight, '35')
   await userEvent.click(screen.getByRole('button', { name: 'Save 2 items' }))
   await waitFor(() => expect(calls).toEqual(['patch {"data":{"weight":35}}', 'commit']))
+})
+
+test('a meeting shows how many of its dates are cancelled', () => {
+  const meeting = item({
+    id: 'm1',
+    type: 'meeting',
+    data: {
+      course_ref: 'item:c1',
+      weekday: 1,
+      start_time: '10:00:00',
+      end_time: '11:00:00',
+      location: 'BA 1180',
+      exceptions: ['2026-10-12', '2026-10-26'],
+    },
+  })
+  expect(itemDetail(meeting)).toBe('10:00–11:00 · BA 1180 · 2 cancelled dates')
 })
