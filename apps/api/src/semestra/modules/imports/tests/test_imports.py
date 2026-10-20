@@ -841,6 +841,12 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
             {"type": "meeting", "data": {"course_ref": "item:f", "weekday": 1,
                                           "start_time": "09:00", "end_time": "10:00",
                                           "first_date": "2026-09-14", "last_date": "2026-12-07"}},
+            # A full-year course's fall meeting goes to fall, though the target is winter.
+            {"key": "y", "type": "course", "data": {"title": "Analysis", "code": "MAT157Y1",
+                                                      "term_ids": [fall, winter]}},
+            {"type": "meeting", "data": {"course_ref": "item:y", "weekday": 3,
+                                          "start_time": "11:00", "end_time": "12:00",
+                                          "first_date": "2026-09-16", "last_date": "2026-12-02"}},
         ]},
     )  # fmt: skip
     assert added["summary"]["issues"] == {"import.outside_term": 1}
@@ -864,13 +870,14 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     }
 
     done = await api.commit(session_id)
-    assert (done["created"], done["failed"]) == (4, 0)
+    assert (done["created"], done["failed"]) == (6, 0)
     courses = await api.call("GET", f"/programs/{program_id}/courses")
-    terms = {c["code"]: c["term_ids"] for c in courses["items"]}
-    assert terms == {"MAT194H1": [winter], "MAT188H1": [fall]}
+    terms = {c["code"]: sorted(c["term_ids"]) for c in courses["items"]}
+    assert terms == {"MAT194H1": [winter], "MAT188H1": [fall], "MAT157Y1": sorted([fall, winter])}
 
 
-async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: Api):
+@pytest.mark.parametrize("tool", ["imports.items.bulk_decide", "imports.item.update"])
+async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: Api, tool: str):
     program_id = await api.program()
     term_id = await api.term(program_id)
     upload = await api.upload("acorn.ics", ACORN, "text/calendar")
@@ -886,15 +893,16 @@ async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: 
     me = await api.call("GET", "/account/me")
     async with system_ctx(app.state, me["id"]) as ctx:
         ctx.actor = "agent"
-        out = await registry.invoke(
-            ctx,
-            "imports.items.bulk_decide",
-            {"session_id": session["id"], "decision": "reject", "item_ids": [course["id"]]},
-            "agent",
-        )
+        args: dict[str, Any] = {"session_id": session["id"], "decision": "reject"}
+        if tool == "imports.item.update":
+            args["item_id"] = course["id"]
+        else:
+            args["item_ids"] = [course["id"]]
+        out = await registry.invoke(ctx, tool, args, "agent")
         await ctx.db.commit()
-    assert isinstance(out, dict)
-    assert out["changed"] == 1 + len(own)
+    if tool == "imports.items.bulk_decide":
+        assert isinstance(out, dict)
+        assert out["changed"] == 1 + len(own)
     after = await api.call("GET", f"/imports/{session['id']}")
     rejected = {i["id"] for i in after["items"] if i["decision"] == "reject"}
     assert rejected == {course["id"], *own}
@@ -1001,3 +1009,17 @@ async def test_http_with_a_token_gets_the_whole_session(app: FastAPI, api: Api):
         )  # fmt: skip
         assert patched.status_code == 200, patched.text
         assert len(patched.json()["items"]) == len(session["items"])
+
+
+def test_agent_output_paths_reach_into_lists():
+    from semestra.core.capability import _keep_paths  # pyright: ignore[reportPrivateUsage]
+
+    dumped = {
+        "failed": 1,
+        "session": {
+            "id": "s",
+            "items": [{"id": "i", "type": "course", "evidence": "long", "position": 3}],
+        },
+    }
+    kept = _keep_paths(dumped, ("failed", "session.id", "session.items.id", "session.items.type"))
+    assert kept == {"failed": 1, "session": {"id": "s", "items": [{"id": "i", "type": "course"}]}}

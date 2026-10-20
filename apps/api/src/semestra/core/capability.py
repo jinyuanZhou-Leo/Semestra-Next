@@ -175,17 +175,28 @@ def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
 
 
 def _keep_paths(dumped: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any]:
-    """Only these output fields; `a.b` keeps field `b` of the object in field `a`."""
-    out: dict[str, Any] = {}
+    """Only these output fields; `a.b` keeps field `b` of the object in field `a`, or of each
+    object in the list in field `a`."""
+    nested: dict[str, list[str]] = {}  # an empty list keeps the whole field
     for path in paths:
         head, _, rest = path.partition(".")
+        kept = nested.setdefault(head, [rest] if rest else [])
+        if not rest:
+            kept.clear()
+        elif kept and rest not in kept:
+            kept.append(rest)
+    out: dict[str, Any] = {}
+    for head, rests in nested.items():
         if head not in dumped:
             continue
         value = dumped[head]
-        if rest and isinstance(value, dict):
-            inner = out.get(head)
-            kept = _keep_paths(value, (rest,))  # pyright: ignore[reportUnknownArgumentType]
-            out[head] = {**inner, **kept} if isinstance(inner, dict) else kept
+        if rests and isinstance(value, dict):
+            out[head] = _keep_paths(value, tuple(rests))  # pyright: ignore[reportUnknownArgumentType]
+        elif rests and isinstance(value, list):
+            out[head] = [
+                _keep_paths(item, tuple(rests)) if isinstance(item, dict) else item  # pyright: ignore[reportUnknownArgumentType]
+                for item in value  # pyright: ignore[reportUnknownVariableType]
+            ]
         else:
             out[head] = value
     return out

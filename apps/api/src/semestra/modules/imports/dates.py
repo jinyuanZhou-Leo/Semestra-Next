@@ -169,20 +169,21 @@ def pick_term(
     day: date | None,
     terms: Mapping[str, TermDates],
 ) -> str | None:
-    """The term a meeting or event lands in: the session's target term when its course runs
-    then (or it has no course), else the course's term that contains `day`, else its only (or,
+    """The term a meeting or event lands in: the course's term that contains `day` (a full-year
+    course's fall meeting goes to fall, whatever the session's target), else the session's
+    target term when its course runs then (or it has no course), else the course's only (or,
     without a day, last) term. None when that leaves no term. Validation and commit both use it,
     so the review flags exactly what the commit would refuse."""
+    for term_id in course_term_ids or ():
+        span = terms.get(term_id)
+        if day is not None and span is not None and span.start <= day <= span.end:
+            return term_id
     if target_term_id is not None and (
         course_term_ids is None or target_term_id in course_term_ids
     ):
         return target_term_id
     if not course_term_ids:
         return None
-    for term_id in course_term_ids:
-        span = terms.get(term_id)
-        if day is not None and span is not None and span.start <= day <= span.end:
-            return term_id
     if len(course_term_ids) == 1 or day is None:
         return course_term_ids[-1]
     return None

@@ -621,9 +621,24 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         if item.result and item.result.get("error_code"):
             item.result = None  # a fixed failure can be retried
     if inp.decision is not None:
-        item.decision = inp.decision
+        for each in _with_contents(items, [item]) if inp.decision == "reject" else [item]:
+            if each is item or not _written(each):
+                each.decision = inp.decision
     await revalidate(ctx, row, items)
     return await detail(ctx, row, item_ids={item.id} if for_agent(ctx) else None)
+
+
+def _with_contents(items: list[ImportsItem], chosen: list[ImportsItem]) -> list[ImportsItem]:
+    """The chosen items and what belongs to the courses among them (their meetings,
+    assessments, ...): rejecting a course leaves those out too, whichever tool rejected it.
+    Accepting does not cascade: a course's items rejected one by one stay rejected."""
+    courses = {f"item:{i.id}" for i in chosen if i.type == "course"}
+    picked = {i.id for i in chosen}
+    return chosen + [i for i in items if i.id not in picked and i.data.get("course_ref") in courses]
+
+
+def _written(item: ImportsItem) -> bool:
+    return bool(item.result and not item.result.get("error_code"))
 
 
 def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
@@ -661,14 +676,11 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
         and (inp.issue_codes is None or any(i["code"] in inp.issue_codes for i in item.issues))
     ]
     if inp.decision == "reject":
-        # What belongs to a rejected course (its meetings, assessments, ...) goes with it.
-        courses = {f"item:{i.id}" for i in chosen if i.type == "course"}
-        picked = {i.id for i in chosen}
-        chosen += [i for i in items if i.id not in picked and i.data.get("course_ref") in courses]
+        chosen = _with_contents(items, chosen)
     changed = 0
     for item in chosen:
-        if item.result and not item.result.get("error_code"):
-            continue  # already written
+        if _written(item):
+            continue
         if item.decision != inp.decision:
             item.decision = inp.decision
             changed += 1
