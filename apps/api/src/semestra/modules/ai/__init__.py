@@ -8,11 +8,11 @@ from fastapi import FastAPI
 from semestra.modules.ai import capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.ai.calls import (
     UNTRUSTED_NOTICE,
-    ChatModel,
+    AgentModel,
+    agent_model,
     available,
     complete,
     embed,
-    get_chat_model,
     structured,
     wrap_untrusted,
 )
@@ -45,7 +45,7 @@ from semestra.modules.ai.runtime import AiRuntime
 
 __all__ = [
     "UNTRUSTED_NOTICE",
-    "ChatModel",
+    "AgentModel",
     "Chunk",
     "Completion",
     "Document",
@@ -65,11 +65,11 @@ __all__ = [
     "ToolCall",
     "ToolResult",
     "Usage",
+    "agent_model",
     "available",
     "complete",
     "embed",
     "extract",
-    "get_chat_model",
     "register",
     "resolve_provider",
     "structured",

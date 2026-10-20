@@ -28354,6 +28354,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "integer",
             "title": "Input Tokens"
           },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens"
+          },
           "output_tokens": {
             "type": "integer",
             "title": "Output Tokens"
@@ -28379,6 +28383,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "calls",
           "errors",
           "input_tokens",
+          "cached_tokens",
           "output_tokens",
           "cost_usd",
           "key"
@@ -28454,6 +28459,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "integer",
             "title": "Input Tokens"
           },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens"
+          },
           "output_tokens": {
             "type": "integer",
             "title": "Output Tokens"
@@ -28475,6 +28484,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "calls",
           "errors",
           "input_tokens",
+          "cached_tokens",
           "output_tokens",
           "cost_usd"
         ],

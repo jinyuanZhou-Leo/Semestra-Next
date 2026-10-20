@@ -42,7 +42,7 @@ async def test_private_addresses_are_refused(
     async def no_backoff(attempt: int, error: AppError) -> None:
         retries.append(attempt)
 
-    monkeypatch.setattr("semestra.modules.ai.adapters.backoff", no_backoff)
+    monkeypatch.setattr("semestra.modules.ai.adapters.model.backoff", no_backoff)
     settings = app.state.settings
     assert not settings.allow_private_egress
     ep = Endpoint(kind, "http://127.0.0.1:9/v1", "k" * 20, ("chat", "embedding"), None, "x")

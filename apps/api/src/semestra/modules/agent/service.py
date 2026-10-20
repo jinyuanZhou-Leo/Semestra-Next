@@ -171,12 +171,14 @@ def add_message(
     model: str | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    model_parts: list[dict[str, Any]] | None = None,
 ) -> AgentMessage:
     row = AgentMessage(
         user_id=ctx.user_id,
         session_id=session.id,
         role=role,
         content=content,
+        model_parts=model_parts,
         model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -189,18 +191,11 @@ def add_message(
     return row
 
 
-def _is_public(block: dict[str, Any]) -> bool:
-    return block.get("type") != "reasoning" or bool(block.get("content"))
-
-
 def _public_block(block: dict[str, Any]) -> dict[str, Any]:
-    # A reasoning block is kept as the provider sent it so it can go back to the same model
-    # (signatures, possibly encrypted details); the transcript shows only its readable text.
-    # `reasoning_text` is the thinking streamed before a stop: shown the same way, never replayed.
-    if block.get("type") == "reasoning":
-        return {"type": "reasoning", "text": block["content"]}
-    if block.get("type") == "reasoning_text":
-        return {"type": "reasoning", "text": block["text"]}
+    # The uncut text of a long tool result is for `read_tool_result`, not the transcript.
+    # (Signatures and other provider data of reasoning live in `model_parts`, never sent here.)
+    if block.get("type") == "tool_result" and "full" in block:
+        return {k: v for k, v in block.items() if k != "full"}
     return block
 
 
@@ -208,7 +203,7 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
     return AgentMessageOut(
         id=row.id,
         role=row.role,  # pyright: ignore[reportArgumentType]
-        content=[_public_block(b) for b in row.content if _is_public(b)],
+        content=[_public_block(b) for b in row.content],
         model=row.model,
         input_tokens=row.input_tokens,
         output_tokens=row.output_tokens,
@@ -217,8 +212,15 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
 
 
 def _has_content(row: AgentMessage) -> bool:
-    """A user row the person wrote (rows of only `note` blocks are late tool results)."""
+    """A user row the person wrote (rows of only `note` blocks are added by Semestra)."""
     return row.role == "user" and any(b.get("type") != "note" for b in row.content)
+
+
+def reset_turn(session: AgentSession) -> None:
+    """A new user message (or Continue): the tool-call counts of the loop start afresh."""
+    st = dict(session.state or {})
+    st.pop("turn", None)
+    session.state = st
 
 
 async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: str) -> None:
@@ -263,11 +265,12 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     row.content = blocks
     row.created_at = ctx.now  # what the `[Sent …]` note shows
     st = dict(session.state or {})
+    st.pop("turn", None)
     if st.get("summarized_until") and st["summarized_until"] not in {r.id for r in rows[:index]}:
         # The summary covered messages that are gone or changed.
-        st.pop("summary", None)
-        st.pop("summarized_until", None)
-        session.state = st
+        for key in ("summary", "summarized_until", "revealed"):
+            st.pop(key, None)
+    session.state = st
     session.updated_at = ctx.now
     await ctx.db.flush()
 

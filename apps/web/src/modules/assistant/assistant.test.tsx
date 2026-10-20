@@ -578,6 +578,38 @@ test('editing a message sends the new text and drops what came after it', async 
   expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
 })
 
+test('an answer that paused at the step limit can be continued', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Import every course' }]),
+    msg('a1', 'assistant', [
+      { type: 'text', text: 'Imported 12 of 20.' },
+      { type: 'paused', reason: 'tool_limit' },
+    ]),
+  ]
+  let continued = false
+  server.use(
+    http.post(`${API}/agent/sessions/s1\\:continue`, () => {
+      continued = true
+      srv.detail.messages = [
+        ...srv.detail.messages.slice(0, 1),
+        msg('a1', 'assistant', [{ type: 'text', text: 'Imported 12 of 20.' }]),
+        msg('a2', 'assistant', [{ type: 'text', text: 'All 20 imported.' }]),
+      ]
+      return sse([
+        ['message_start', { message_id: 'a2' }],
+        ['text_delta', { message_id: 'a2', text: 'All 20 imported.' }],
+        ['message_end', { message_id: 'a2' }],
+      ])
+    }),
+  )
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Sem paused after many steps.')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+  expect(await screen.findByText('All 20 imported.')).toBeInTheDocument()
+  expect(continued).toBe(true)
+  expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
+})
+
 test('the editor closes as soon as the edit is sent, while the answer streams', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),

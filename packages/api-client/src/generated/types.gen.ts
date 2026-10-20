@@ -9234,6 +9234,10 @@ export type UsageRow = {
      */
     input_tokens: number;
     /**
+     * Cached Tokens
+     */
+    cached_tokens: number;
+    /**
      * Output Tokens
      */
     output_tokens: number;
@@ -9294,6 +9298,10 @@ export type UsageTotals = {
      * Input Tokens
      */
     input_tokens: number;
+    /**
+     * Cached Tokens
+     */
+    cached_tokens: number;
     /**
      * Output Tokens
      */

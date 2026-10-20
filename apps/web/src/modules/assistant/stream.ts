@@ -13,6 +13,9 @@ export type Citation = {
   [key: string]: unknown
 }
 
+/** Why a turn paused: the tool-call limit of one message, or the same call over and over. */
+export type PauseReason = 'tool_limit' | 'loop'
+
 /** The server-sent events of a turn (M12 §4). */
 export type AgentEvent =
   | { event: 'message_start'; data: { message_id: string } }
@@ -40,6 +43,8 @@ export type AgentEvent =
   | { event: 'citation'; data: Citation }
   | { event: 'proposal'; data: AgentProposalOut }
   | { event: 'title'; data: { title: string } }
+  /** The turn stopped at a limit (M12 §3.2); `continue` picks it up again. */
+  | { event: 'paused'; data: { message_id: string; reason: PauseReason } }
   | { event: 'error'; data: { code: string; params: Record<string, unknown> } }
 
 /** Splits an SSE body into events; `rest` is an incomplete block to prepend to the next chunk. */

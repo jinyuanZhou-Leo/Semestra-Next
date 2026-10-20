@@ -8,8 +8,8 @@ from semestra.core.db import Base, OwnedMixin, new_id
 
 
 class AgentSession(Base, OwnedMixin):
-    """One assistant conversation (M12 §2). `state` replaces LangGraph's checkpoint: the tools
-    loaded with `tools_load` (in load order) and the summary of compacted turns."""
+    """One assistant conversation (M12 §2). `state` holds what the loop keeps between requests:
+    the summary of compacted turns and the tool-call counts of the current user message."""
 
     __tablename__ = "agent_sessions"
     __table_args__ = (Index("ix_agent_sessions_user_updated", "user_id", "updated_at"),)
@@ -20,7 +20,8 @@ class AgentSession(Base, OwnedMixin):
     # The page scope the session was started from: {program_id, term_id?, course_id?}.
     scope: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     pinned: Mapped[bool] = mapped_column(default=False)
-    # {loaded_tools: [name, ...], summary: str | None, summarized_until: message id | None}
+    # {summary: str | None, summarized_until: message id | None,
+    #  turn: {tool_calls, requests, last_call, repeats} (see `loop.Counters`)}
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
@@ -28,8 +29,10 @@ class AgentSession(Base, OwnedMixin):
 
 
 class AgentMessage(Base, OwnedMixin):
-    """One message of the transcript. `content` is a list of blocks: text, image_ref, file_ref,
-    tool_call, tool_result, proposal_ref, citation, note (see `schemas.Block`)."""
+    """One message of the transcript. `content` is what the UI shows, a list of blocks: text,
+    reasoning, image_ref, file_ref, skill, tool_call, tool_result, citation, note, timing, paused.
+    `model_parts` is what the model sees: the Pydantic AI message of an assistant or tool row
+    (`history.dump`); user rows are rendered from their blocks (`history.user_request`)."""
 
     __tablename__ = "agent_messages"
     __table_args__ = (Index("ix_agent_messages_session_created", "session_id", "created_at"),)
@@ -40,6 +43,7 @@ class AgentMessage(Base, OwnedMixin):
     )
     role: Mapped[str] = mapped_column(String)  # 'user' | 'assistant' | 'tool'
     content: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    model_parts: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, default=None)
     model: Mapped[str | None] = mapped_column(String, default=None)
     input_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
     output_tokens: Mapped[int | None] = mapped_column(Integer, default=None)

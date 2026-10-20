@@ -16,7 +16,7 @@ import { useModules } from '@/app/registry'
 import { SettingsBlock, SettingsNote } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
-import { formatCount, formatDate, formatUsd } from '@/lib/format'
+import { formatCount, formatDate, formatPercent, formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -253,6 +253,12 @@ function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }
 }
 
 /** Account settings → AI → usage over the last 30 days (M06 §7). Costs are estimates. */
+/** Over the assistant's calls: other purposes rarely repeat a prompt prefix. */
+function chatCacheRate(summary: UsageSummary): string {
+  const chat = summary.by_purpose.find((row) => row.key === 'chat')
+  return chat && chat.input_tokens > 0 ? formatPercent(chat.cached_tokens / chat.input_tokens) : '—'
+}
+
 export function UsageSection() {
   const [grouping, setGrouping] = useState<Grouping>('purpose')
   const usage = useQuery(
@@ -263,7 +269,7 @@ export function UsageSection() {
     <AsyncBoundary query={usage}>
       {(summary) => (
         <div className="space-y-6">
-          <dl className="grid grid-cols-2 gap-4 rounded-2xl border p-4 sm:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-4 rounded-2xl border p-4 sm:grid-cols-4">
             <div>
               <dt className="text-xs text-muted-foreground">{m.ai_usage_calls()}</dt>
               <dd className="text-lg font-semibold tabular-nums">
@@ -276,6 +282,15 @@ export function UsageSection() {
                 {formatCount(summary.totals.input_tokens + summary.totals.output_tokens, {
                   compact: true,
                 })}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{m.ai_usage_cache_hit_rate()}</dt>
+              <dd
+                className="text-lg font-semibold tabular-nums"
+                title={m.ai_usage_cache_hit_rate_hint()}
+              >
+                {chatCacheRate(summary)}
               </dd>
             </div>
             <div>

@@ -36,7 +36,7 @@ async def test_summary_groups_by_local_day_purpose_module_and_model(
     # The test clock is 2026-01-15 12:00 UTC.
     uid = ai.user.id
     await add_event(app, uid, datetime(2026, 1, 15, 3, 0, tzinfo=UTC))  # Jan 14 in Toronto
-    await add_event(app, uid, datetime(2026, 1, 15, 11, 0, tzinfo=UTC))
+    await add_event(app, uid, datetime(2026, 1, 15, 11, 0, tzinfo=UTC), cached_tokens=600)
     await add_event(
         app,
         uid,
@@ -67,6 +67,7 @@ async def test_summary_groups_by_local_day_purpose_module_and_model(
         "calls": 4,
         "errors": 1,
         "input_tokens": 3000,
+        "cached_tokens": 600,
         "output_tokens": 300,
         "cost_usd": 0.009,
     }

@@ -383,6 +383,7 @@ class _Acc:
         self.calls = 0
         self.errors = 0
         self.input_tokens = 0
+        self.cached_tokens = 0
         self.output_tokens = 0
         self.cost: float | None = None
 
@@ -390,6 +391,7 @@ class _Acc:
         self.calls += 1
         self.errors += row.status == "error"
         self.input_tokens += row.input_tokens
+        self.cached_tokens += row.cached_tokens or 0
         self.output_tokens += row.output_tokens
         if row.cost_usd_estimate is not None:
             self.cost = round((self.cost or 0.0) + row.cost_usd_estimate, 6)
@@ -399,6 +401,7 @@ class _Acc:
             calls=self.calls,
             errors=self.errors,
             input_tokens=self.input_tokens,
+            cached_tokens=self.cached_tokens,
             output_tokens=self.output_tokens,
             cost_usd=self.cost,
         )
@@ -431,6 +434,7 @@ async def usage_summary(ctx: Ctx, inp: UsageInput) -> UsageSummary:
             AiUsageEvent.model,
             AiUsageEvent.status,
             AiUsageEvent.input_tokens,
+            AiUsageEvent.cached_tokens,
             AiUsageEvent.output_tokens,
             AiUsageEvent.cost_usd_estimate,
         ).where(AiUsageEvent.user_id == ctx.user_id, AiUsageEvent.created_at >= since)

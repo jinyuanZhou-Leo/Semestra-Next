@@ -1,26 +1,44 @@
-"""The stored transcript → the provider-neutral messages the model sees (M12 §3.1).
+"""The model's view of the transcript (M12 §3.1): Pydantic AI messages.
 
-Every tool call needs a result right after it. A call still waiting for the user's decision gets
-a placeholder; a result that arrives after the conversation moved on (a proposal decided later)
-is told to the model as a note at the point where it happened.
+Assistant and tool rows keep the Pydantic AI message they came from (`model_parts`), so what the
+model saw is sent back unchanged. User rows are rendered from their blocks on every request: the
+`[Sent …]` note, the text, a chosen skill and attachments (`attachment_content`). The rendering
+depends only on the row, so earlier messages read the same on every request (prompt caching).
+
+Every tool call needs a result. A call still waiting for the user's decision when they write
+again gets a placeholder (`PENDING`); the real result arrives later as a note.
 """
 
 import json
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
-from semestra.modules.agent.models import AgentAttachment, AgentMessage
-from semestra.modules.ai import (
-    Document,
-    Image,
-    Message,
-    Reasoning,
-    Text,
-    ToolCall,
-    ToolResult,
-    wrap_untrusted,
+from pydantic_ai.messages import (
+    BinaryContent,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelRequestPart,
+    ModelResponse,
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    ToolAvailabilityDeltaPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserContent,
+    UserPromptPart,
 )
+from pydantic_ai.toolsets._tool_search import (  # pyright: ignore[reportPrivateImportUsage]
+    discovered_tool_names_in_order,
+)
+
+from semestra.core.context import Ctx
+from semestra.modules.agent import tools
+from semestra.modules.agent.models import AgentAttachment, AgentMessage
+from semestra.modules.ai import wrap_untrusted
 
 PENDING = "Waiting for the user's decision on the confirmation card; not executed yet."
 EXPIRED = "The confirmation card expired without a decision; the action was not executed."
@@ -28,187 +46,275 @@ CHARS_PER_TOKEN = 4
 IMAGE_TOKENS = 1_200
 TEXT_ATTACHMENT_LIMIT = 60_000
 
-LoadAttachment = Callable[[AgentAttachment], Awaitable[bytes]]
+
+# --- stored messages ------------------------------------------------------------------------
 
 
-def _call_results(
-    rows: Sequence[AgentMessage], start: int
-) -> tuple[dict[str, dict[str, Any]], int]:
-    """Tool results in the rows directly after `start`; returns them and the next index."""
-    results: dict[str, dict[str, Any]] = {}
-    i = start
-    while i < len(rows) and rows[i].role == "tool":
-        for block in rows[i].content:
-            if block.get("type") == "tool_result":
-                results[block["call_id"]] = block
-        i += 1
-    return results, i
+def dump(message: ModelMessage) -> list[dict[str, Any]]:
+    """A message for `model_parts`. The instructions are left out: they are sent fresh with
+    every request, so keeping a copy per row would only grow the table."""
+    if isinstance(message, ModelRequest):
+        message = replace(message, instructions=None)
+    return ModelMessagesTypeAdapter.dump_python([message], mode="json")
 
 
-def _late_note(block: dict[str, Any]) -> Text:
-    return Text(
-        f"[Update on the earlier `{block['name']}` call] "
-        + ("It failed: " if block.get("is_error") else "Result: ")
-        + str(block.get("content", ""))
-    )
+def load(row: AgentMessage) -> ModelMessage | None:
+    if not row.model_parts:
+        return None
+    return ModelMessagesTypeAdapter.validate_python(row.model_parts)[0]
 
 
-async def _user_parts(
+# --- user messages --------------------------------------------------------------------------
+
+
+async def attachment_content(
+    ctx: Ctx, att: AgentAttachment, *, vision: bool, reads_pdf: bool
+) -> list[UserContent]:
+    """What the model gets for one attachment of a user message. Called on every request, so it
+    must give the same result each time."""
+    from semestra.modules.agent import service
+
+    if att.mime == "application/pdf" and not reads_pdf:
+        # No renderer yet for providers without PDF input: say so instead of failing the whole
+        # turn, so the model can ask for text or a screenshot.
+        return [f"[PDF {att.name} cannot be read by the current model]"]
+    data = await service.read_attachment(ctx, att)
+    if att.kind == "image" or att.mime == "application/pdf":
+        return [BinaryContent(data=data, media_type=att.mime)]
+    text = data.decode("utf-8", errors="replace")[:TEXT_ATTACHMENT_LIMIT]
+    return [wrap_untrusted(text, att.name)]
+
+
+def is_typed(row: AgentMessage) -> bool:
+    """A user row the person wrote (rows of only `note` blocks are added by Semestra)."""
+    return row.role == "user" and any(b.get("type") != "note" for b in row.content)
+
+
+async def user_request(
+    ctx: Ctx,
     row: AgentMessage,
+    *,
     attachments: dict[str, AgentAttachment],
-    load: LoadAttachment,
+    stamp: Callable[[datetime], str],
+    vision: bool,
     reads_pdf: bool,
-) -> list[Any]:
-    parts: list[Any] = []
+) -> ModelRequest | None:
+    """`stamp` turns the row's stored time into the `[Sent …]` note put before what the user
+    wrote. A chosen skill brings its workflow and reveals its tools."""
+    content: list[UserContent] = []
+    revealed: list[str] = []
     for block in row.content:
         kind = block.get("type")
         if kind == "text" and block.get("text"):
-            parts.append(Text(block["text"]))
+            content.append(block["text"])
         elif kind == "skill":
-            parts.append(
-                Text(f"[The user chose the skill `{block['name']}`]\n\n{block.get('body', '')}")
+            content.append(
+                f"[The user chose the skill `{block['name']}`]\n\n{block.get('body', '')}"
             )
+            revealed += [tools.tool_name(t) for t in block.get("tools", [])]
         elif kind == "note":
-            parts.append(Text(f"[Note] {block.get('text', '')}"))
+            content.append(f"[Note] {block.get('text', '')}")
         elif kind in ("image_ref", "file_ref"):
             att = attachments.get(block.get("attachment_id", ""))
             if att is None:
-                parts.append(Text(f"[Attachment {block.get('name', '')} is no longer available]"))
-                continue
-            if att.mime == "application/pdf" and not reads_pdf:
-                # No renderer yet for providers without PDF input: say so instead of failing
-                # the whole turn, so the model can ask for text or a screenshot.
-                parts.append(Text(f"[PDF {att.name} cannot be read by the current model]"))
-                continue
-            data = await load(att)
-            if att.kind == "image":
-                parts.append(Image(data, att.mime))
-            elif att.mime == "application/pdf":
-                parts.append(Document(data))
+                content.append(f"[Attachment {block.get('name', '')} is no longer available]")
             else:
-                text = data.decode("utf-8", errors="replace")[:TEXT_ATTACHMENT_LIMIT]
-                parts.append(Text(wrap_untrusted(text, att.name)))
-    return parts
+                content += await attachment_content(ctx, att, vision=vision, reads_pdf=reads_pdf)
+    if not content:
+        return None
+    if is_typed(row):
+        content.insert(0, stamp(row.created_at))
+    parts: list[ModelRequestPart] = [UserPromptPart(content, timestamp=row.created_at)]
+    if revealed:
+        parts.append(ToolAvailabilityDeltaPart(tools_added=revealed))
+    return ModelRequest(parts=parts, timestamp=row.created_at)
 
 
-async def build(
-    rows: Sequence[AgentMessage],
-    *,
-    proposal_status: dict[str, str],
-    attachments: dict[str, AgentAttachment],
-    load: LoadAttachment,
-    reads_pdf: bool = True,
-    summary: str | None = None,
-    stamp: Callable[[datetime], str] | None = None,
-) -> list[Message]:
-    """`stamp` turns a user message's stored time into a note put before it. It depends only on
-    that message, so earlier messages read the same on every turn (prompt caching)."""
-    out: list[Message] = []
-    if summary:
-        out.append(Message.user(f"[Summary of the earlier conversation]\n{summary}"))
-    i = 0
-    while i < len(rows):
-        row = rows[i]
-        if row.role == "user":
-            parts = await _user_parts(row, attachments, load, reads_pdf)
-            if parts and stamp is not None and any(b.get("type") != "note" for b in row.content):
-                parts.insert(0, Text(stamp(row.created_at)))
-            if parts:
-                out.append(Message("user", parts))
-            i += 1
-        elif row.role == "assistant":
-            calls = [b for b in row.content if b.get("type") == "tool_call"]
-            text = "".join(b.get("text", "") for b in row.content if b.get("type") == "text")
-            parts: list[Any] = [_reasoning(b) for b in row.content if b.get("type") == "reasoning"]
-            # Reasoning alone is not a message (M06 drops it for other models).
-            parts += [Text(text)] if text else []
-            parts += [ToolCall(c["id"], c["name"], c.get("args") or {}) for c in calls]
-            if text or calls:
-                out.append(Message("assistant", parts))
-            results, i = _call_results(rows, i + 1)
-            call_ids = {c["id"] for c in calls}
-            tool_parts: list[Any] = []
-            for call in calls:
-                block = results.get(call["id"])
-                if block is not None:
-                    tool_parts.append(
-                        ToolResult(
-                            call["id"], call["name"], block["content"], bool(block.get("is_error"))
-                        )
-                    )
-                else:
-                    status = proposal_status.get(call["id"])
-                    tool_parts.append(
-                        ToolResult(
-                            call["id"], call["name"], EXPIRED if status == "expired" else PENDING
-                        )
-                    )
-            if tool_parts:
-                out.append(Message("tool", tool_parts))
-            late = [b for cid, b in results.items() if cid not in call_ids]
-            if late:
-                out.append(Message("user", [_late_note(b) for b in late]))
-        else:  # a result for an assistant message further back
-            late = [b for b in row.content if b.get("type") == "tool_result"]
-            if late:
-                out.append(Message("user", [_late_note(b) for b in late]))
-            i += 1
-    return out
+def note_request(text: str) -> ModelRequest:
+    return ModelRequest(parts=[UserPromptPart(f"[Note] {text}")])
 
 
-def _reasoning(block: dict[str, Any]) -> Reasoning:
-    return Reasoning(
-        str(block.get("source", "")),
-        str(block.get("content") or ""),
-        id=block.get("id"),
-        signature=block.get("signature"),
-        provider_name=block.get("provider_name"),
-        details=block.get("details"),
+def late_note(name: str, content: str, is_error: bool) -> str:
+    """A result for a call the conversation already moved past (decided after a new message)."""
+    return (
+        f"[Update on the earlier `{name}` call] "
+        + ("It failed: " if is_error else "Result: ")
+        + content
     )
 
 
-def estimate_tokens(messages: Sequence[Message]) -> int:
+# --- what the model called and got -----------------------------------------------------------
+
+
+def open_calls(messages: Sequence[ModelMessage]) -> list[ToolCallPart]:
+    """Tool calls of the last response that have no result yet (proposals waiting at the end)."""
+    answered = {
+        p.tool_call_id
+        for m in messages
+        if isinstance(m, ModelRequest)
+        for p in m.parts
+        if isinstance(p, ToolReturnPart | RetryPromptPart)
+    }
+    last = next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
+    if last is None:
+        return []
+    return [p for p in last.parts if isinstance(p, ToolCallPart) and p.tool_call_id not in answered]
+
+
+def args_of(part: ToolCallPart) -> dict[str, Any]:
+    try:
+        return part.args_as_dict(raise_if_invalid=True)
+    except ValueError, AssertionError:
+        return {}
+
+
+def response_blocks(response: ModelResponse, thinking_ms: int | None) -> list[dict[str, Any]]:
+    """The UI's blocks for an answer: readable reasoning, the text, the tool calls, the time the
+    model worked before it started to answer."""
+    blocks: list[dict[str, Any]] = []
+    text = ""
+    for part in response.parts:
+        if isinstance(part, ThinkingPart) and part.content:
+            blocks.append({"type": "reasoning", "text": part.content})
+        elif isinstance(part, TextPart):
+            text += part.content
+    blocks += [{"type": "text", "text": text}] if text else []
+    blocks += [
+        {"type": "tool_call", "id": p.tool_call_id, "name": p.tool_name, "args": args_of(p)}
+        for p in response.parts
+        if isinstance(p, ToolCallPart)
+    ]
+    blocks += [{"type": "timing", "thinking_ms": thinking_ms}] if thinking_ms is not None else []
+    return blocks
+
+
+def result_block(part: ToolReturnPart | RetryPromptPart) -> dict[str, Any]:
+    """The UI's block for one tool result. Our tools put `ok`, `error_code`, `changed` and the
+    uncut text (`full`) in the return's metadata, which the model never sees."""
+    name = part.tool_name or ""
+    if isinstance(part, RetryPromptPart):
+        content = part.model_response()
+        missing = "Unknown tool" in content or "not available yet" in content
+        meta: dict[str, Any] = {
+            "ok": False,
+            "error_code": "common.not_found" if missing else "common.validation",
+        }
+    else:
+        content = part.model_response_str()
+        meta = dict(part.metadata or {}) if isinstance(part.metadata, dict) else {}
+    block: dict[str, Any] = {
+        "type": "tool_result",
+        "call_id": part.tool_call_id,
+        "name": name,
+        "capability": tools.capability_name(name),
+        "content": content,
+        "is_error": not meta.get("ok", True),
+        "error_code": meta.get("error_code"),
+        # Something changed in the user's data: the turn can no longer be regenerated.
+        "changed": bool(meta.get("changed")),
+    }
+    if meta.get("full"):
+        block["full"] = meta["full"]
+    return block
+
+
+def request_blocks(request: ModelRequest) -> list[dict[str, Any]]:
+    """Blocks of a tool row: one result per call, then the files those results quoted."""
+    blocks: list[dict[str, Any]] = []
+    citations: list[dict[str, Any]] = []
+    for part in request.parts:
+        if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_name:
+            blocks.append(result_block(part))
+            meta = part.metadata if isinstance(part, ToolReturnPart) else None
+            if isinstance(meta, dict):
+                citations += [{"type": "citation", **c} for c in meta.get("citations", [])]
+    return blocks + citations
+
+
+def strip_full(request: ModelRequest) -> None:
+    """The uncut text lives in the row's blocks only (`read_tool_result` reads it there)."""
+    for part in request.parts:
+        if isinstance(part, ToolReturnPart) and isinstance(part.metadata, dict):
+            part.metadata.pop("full", None)
+
+
+# --- size and compaction --------------------------------------------------------------------
+
+
+def estimate_tokens(messages: Sequence[ModelMessage]) -> int:
     chars, images = 0, 0
     for msg in messages:
-        for part in msg.content:
-            if isinstance(part, Text):
-                chars += len(part.text)
-            elif isinstance(part, ToolResult):
+        for part in msg.parts:
+            if isinstance(part, UserPromptPart):
+                items = [part.content] if isinstance(part.content, str) else part.content
+                for item in items:
+                    if isinstance(item, str):
+                        chars += len(item)
+                    else:
+                        images += 1
+            elif isinstance(part, TextPart | ThinkingPart):
                 chars += len(part.content)
-            elif isinstance(part, ToolCall):
-                chars += len(json.dumps(part.arguments)) + len(part.name)
-            elif isinstance(part, Image | Document):
-                images += 1
+            elif isinstance(part, ToolCallPart):
+                chars += len(part.args_as_json_str()) + len(part.tool_name)
+            elif isinstance(part, ToolReturnPart | RetryPromptPart):
+                chars += len(
+                    part.model_response_str()
+                    if isinstance(part, ToolReturnPart)
+                    else part.model_response()
+                )
     return chars // CHARS_PER_TOKEN + images * IMAGE_TOKENS
 
 
-def compaction_cut(rows: Sequence[AgentMessage], keep_user_turns: int = 2) -> int | None:
-    """Index of the first row to keep when compacting: the start of the last `keep_user_turns`
-    user turns. None when there is nothing older to summarize."""
-    starts = [
-        i
-        for i, r in enumerate(rows)
-        if r.role == "user" and any(b.get("type") != "note" for b in r.content)
-    ]
-    if len(starts) <= keep_user_turns:
-        return None
-    return starts[-keep_user_turns]
+def prompt_tokens(messages: Sequence[ModelMessage]) -> int:
+    """How big a request is: what the provider counted for the last answer (instructions, tools
+    and attachments included) plus that answer and an estimate of what came after it. Only
+    the estimate before the first answer."""
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, ModelResponse) and msg.usage.input_tokens:
+            return (
+                msg.usage.input_tokens
+                + msg.usage.output_tokens
+                + estimate_tokens(messages[i + 1 :])
+            )
+    return estimate_tokens(messages)
 
 
-def transcript_text(rows: Sequence[AgentMessage]) -> str:
-    """Plain text of rows for the summarizer (attachments and tool payloads abbreviated)."""
+def transcript_text(messages: Sequence[ModelMessage]) -> str:
+    """Plain text of messages for the summarizer (attachments and tool payloads abbreviated)."""
     lines: list[str] = []
-    for row in rows:
-        for block in row.content:
-            kind = block.get("type")
-            if kind == "text" and block.get("text"):
-                lines.append(f"{row.role}: {block['text']}")
-            elif kind == "tool_call":
-                lines.append(
-                    f"assistant called {block['name']}({json.dumps(block.get('args'))[:300]})"
-                )
-            elif kind == "tool_result":
-                lines.append(f"tool {block['name']}: {str(block.get('content', ''))[:500]}")
-            elif kind in ("image_ref", "file_ref"):
-                lines.append(f"{row.role} attached {block.get('name', 'a file')}")
+    for msg in messages:
+        for part in msg.parts:
+            if isinstance(part, UserPromptPart):
+                items = [part.content] if isinstance(part.content, str) else part.content
+                for item in items:
+                    lines.append(
+                        f"user: {item}" if isinstance(item, str) else "user attached a file"
+                    )
+            elif isinstance(part, TextPart) and part.content:
+                lines.append(f"assistant: {part.content}")
+            elif isinstance(part, ToolCallPart):
+                lines.append(f"assistant called {part.tool_name}({part.args_as_json_str()[:300]})")
+            elif isinstance(part, ToolReturnPart):
+                lines.append(f"tool {part.tool_name}: {part.model_response_str()[:500]}")
     return "\n".join(lines)
+
+
+def revealed_tools(messages: Sequence[ModelMessage]) -> list[str]:
+    """Tools that search or a skill revealed in these messages (kept visible after compaction),
+    in the order they were found. Pydantic AI's own reading of the history, so it follows the
+    library's search strategies and result shapes."""
+    return list(discovered_tool_names_in_order(messages))
+
+
+def summary_request(summary: str, revealed: list[str]) -> ModelRequest:
+    parts: list[ModelRequestPart] = [
+        UserPromptPart(f"[Summary of the earlier conversation]\n{summary}")
+    ]
+    if revealed:
+        parts.append(ToolAvailabilityDeltaPart(tools_added=revealed))
+    return ModelRequest(parts=parts)
+
+
+def args_json(args: dict[str, Any]) -> str:
+    return json.dumps(args, ensure_ascii=False, sort_keys=True, default=str)
