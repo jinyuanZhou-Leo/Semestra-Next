@@ -62,7 +62,7 @@ from semestra.core.capability import Capability, Surface, registry
 from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, service, skills, tools
+from semestra.modules.agent import history, memory, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
 from semestra.modules.agent.runtime import ChatLike, agent_ctx
@@ -271,6 +271,13 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
     if shown != text:
         meta["full"] = text
         turn.full[call_id] = (name, text)
+    if outcome.ok and outcome.ran and name in memory.TOOLS and isinstance(outcome.payload, dict):
+        # The chat shows "Remembered: …" with an undo link (only for a memory this call created,
+        # so the undo never deletes an older one), or "Forgot: …".
+        saved: dict[str, Any] = outcome.payload  # pyright: ignore[reportUnknownVariableType]
+        if name == memory.FORGET or saved.get("created"):
+            action = "forgot" if name == memory.FORGET else "remembered"
+            meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
     if outcome.ok and name in tools.UNTRUSTED_RESULTS:
         shown = wrap_untrusted(shown, name)
     return ToolReturn(return_value=shown, metadata=meta)
@@ -296,7 +303,11 @@ def _tool(cap: Capability) -> tools.ToolFunction:
             async with turn.sem:
                 outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
         else:
-            outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+            token = memory.conversation.set(turn.session_id)
+            try:
+                outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+            finally:
+                memory.conversation.reset(token)
         return _tool_return(cap, call_id, outcome, turn)
 
     return run
@@ -364,7 +375,7 @@ class _Hooks(AbstractCapability[Turn]):
         cap = turn.caps.get(tools.capability_name(call.tool_name))
         if cap is None or cap.effect == "read":
             return args
-        if cap.effect == "write" and cap.name in turn.auto_approve:
+        if cap.effect == "write" and (cap.name in turn.auto_approve or cap.name in memory.TOOLS):
             return args
         try:
             async with agent_ctx(turn.state, turn.user_id, scope=turn.scope) as c:
@@ -583,7 +594,10 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
             else:
                 text = _proposal_outcome(prop).content
                 resume.approvals[c.tool_call_id] = ToolDenied(text)
+    remembered = await memory.snapshot(ctx, session)
     available = await registry.available(ctx, "agent")
+    if not remembered:  # a temporary conversation, or memory turned off
+        available = [c for c in available if c.name not in memory.TOOLS]
     prefs = await service.get_preferences(ctx)
     visible = skills.visible_skills(available)
     st = dict(session.state or {})
@@ -598,7 +612,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
         skills={s.name: s for s in visible},
         counters=Counters.load(st.pop("turn", None)),
         memo=st,
-        work=work.text,
+        work=f"{work.text}\n\n{remembered}" if remembered else work.text,
         decided={
             p.call_id: _proposal_outcome(p)
             for p in props.values()
@@ -828,6 +842,7 @@ def _result_event(message_id: str, part: ToolReturnPart | RetryPromptPart) -> li
             ok=not block["is_error"],
             error_code=block["error_code"],
             changed=block["changed"],
+            **({"memory": block["memory"]} if "memory" in block else {}),
         )
     ]
     meta = part.metadata if isinstance(part, ToolReturnPart) else None

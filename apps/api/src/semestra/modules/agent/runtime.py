@@ -1,6 +1,7 @@
 """Process-wide assistant state: running generations, stop signals and the model hooks.
 
-Tests replace `chat_model`, `chat_available` and `small_complete` with scripted fakes.
+Tests replace `chat_model`, `chat_available`, `small_complete` and `memory_model` with scripted
+fakes.
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from starlette.datastructures import State
 from semestra.core.context import Ctx, ScopeRef, pick_locale
 from semestra.core.errors import AppError
 from semestra.modules import ai
+from semestra.modules.agent.memory import MemoryUpdates
 from semestra.modules.ai import Message
 
 MAX_GENERATIONS_PER_USER = 2
@@ -60,6 +62,10 @@ async def _small_complete(ctx: Ctx, messages: list[Message]) -> str:
     return result.text
 
 
+async def _memory_model(ctx: Ctx, messages: list[Message]) -> MemoryUpdates:
+    return await ai.structured(ctx, "title", messages, MemoryUpdates, source_module="agent")
+
+
 class Claim:
     """A held generation slot. `release` is idempotent."""
 
@@ -81,6 +87,7 @@ class AgentRuntime:
         self.chat_model: Callable[[Ctx], AbstractAsyncContextManager[ChatLike]] = _chat_model
         self.chat_available: Callable[[Ctx], Awaitable[bool]] = _chat_available
         self.small_complete: Callable[[Ctx, list[Message]], Awaitable[str]] = _small_complete
+        self.memory_model: Callable[[Ctx, list[Message]], Awaitable[MemoryUpdates]] = _memory_model
         self._per_user: defaultdict[str, int] = defaultdict(int)
         self._running: dict[str, asyncio.Event] = {}
 

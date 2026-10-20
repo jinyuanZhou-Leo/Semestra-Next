@@ -8,6 +8,7 @@ import { agentSessionGetOptions, agentSessionGetQueryKey } from '@semestra/api-c
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
+import { MEMORY_QUERIES } from './memory'
 import { type AgentEvent, streamAgent } from './stream'
 import { applyEvent, withEditedMessage, withUserMessage } from './transcript'
 
@@ -18,6 +19,8 @@ export type SendInput = {
   attachmentIds?: string[]
   skill?: { name: string; title: Record<string, string> } | null
   scope?: AgentScope | null
+  /** A new conversation that neither reads nor writes memories. */
+  temporary?: boolean
 }
 
 export type Decision = {
@@ -119,6 +122,9 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
         current ? applyEvent(current, event) : current,
       )
       if (event.event === 'title') void invalidateOperations(queryClient, LIST_QUERIES)
+      if (event.event === 'tool_result' && event.data.memory) {
+        void invalidateOperations(queryClient, MEMORY_QUERIES)
+      }
     }
     const result = await streamTurn(path, body, onEvent, abort.signal)
     if (result.error) setError(result.error)
@@ -131,9 +137,16 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return result.started
   }
 
-  async function createSession(scope: AgentScope | null | undefined): Promise<string> {
+  async function createSession(
+    scope: AgentScope | null | undefined,
+    temporary: boolean,
+  ): Promise<string> {
     const { data } = await agentSessionCreate({
-      body: { ...(scope ? { scope } : {}), client_key: clientKey },
+      body: {
+        ...(scope ? { scope } : {}),
+        client_key: clientKey,
+        ...(temporary ? { temporary } : {}),
+      },
       throwOnError: true,
     })
     queryClient.setQueryData(keyOf(data.id), emptyDetail(data))
@@ -141,10 +154,10 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return data.id
   }
 
-  function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
+  function ensureSession(scope: AgentScope | null | undefined, temporary = false): Promise<string> {
     if (sessionId) return Promise.resolve(sessionId)
     if (!creating.current) {
-      creating.current = createSession(scope).catch((err: unknown) => {
+      creating.current = createSession(scope, temporary).catch((err: unknown) => {
         creating.current = null
         throw err
       })
@@ -164,7 +177,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
 
   async function sendOnce(input: SendInput): Promise<boolean> {
     setBusy(true)
-    const id = await ensureSession(input.scope).catch((err: unknown) => {
+    const id = await ensureSession(input.scope, input.temporary).catch((err: unknown) => {
       const apiError = toApiError(err)
       setError({ code: apiError.code, params: apiError.params })
       return null

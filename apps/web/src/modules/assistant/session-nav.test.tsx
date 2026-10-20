@@ -20,6 +20,7 @@ function session(index: number, overrides: Partial<AgentSessionOut> = {}): Agent
     program_id: 'p1',
     scope: { program_id: 'p1', term_id: null, course_id: null },
     pinned: false,
+    temporary: false,
     created_at: NOW,
     updated_at: NOW,
     archived_at: null,

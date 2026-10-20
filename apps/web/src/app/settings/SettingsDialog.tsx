@@ -1,15 +1,15 @@
 import { useLocation, useRouterState } from '@tanstack/react-router'
 import {
   BarChart3,
+  Bookmark,
   Boxes,
-  CalendarDays,
   Cable,
+  CalendarDays,
   Database,
   GraduationCap,
   Info,
   KeyRound,
   ListChecks,
-  type LucideIcon,
   Palette,
   Plug,
   Puzzle,
@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   UserRound,
   Wrench,
+  type LucideIcon,
 } from 'lucide-react'
 import { type CSSProperties, useEffect, useState } from 'react'
 import { courseLabel } from '@/modules/academics/color'
@@ -68,6 +69,7 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   'ai-models': Boxes,
   'ai-usage': BarChart3,
   'ai-permissions': ListChecks,
+  'ai-memory': Bookmark,
   'ai-mcp': Cable,
   calendar: CalendarDays,
   features: Wrench,

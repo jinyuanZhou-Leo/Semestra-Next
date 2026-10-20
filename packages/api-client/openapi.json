@@ -2885,6 +2885,168 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/agent/memories:clear": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Delete every memory.",
+        "description": "Conversations are kept.",
+        "operationId": "agentMemoryClear",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cleared"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/memories/{id}": {
+      "delete": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Delete a memory.",
+        "description": "Also the undo of a memory saved in a conversation.",
+        "operationId": "agentMemoryDelete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Memory id.",
+              "title": "Id"
+            },
+            "description": "Memory id."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Edit a memory.",
+        "description": "Only the fields sent are changed.",
+        "operationId": "agentMemoryUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Memory id.",
+              "title": "Id"
+            },
+            "description": "Memory id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/memories": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "List what Sem remembers about the user.",
+        "description": "Newest first.",
+        "operationId": "agentMemoryList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/preferences": {
       "get": {
         "tags": [
@@ -12614,6 +12776,12 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             ],
             "title": "Client Key",
             "description": "Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing)."
+          },
+          "temporary": {
+            "type": "boolean",
+            "title": "Temporary",
+            "description": "A temporary chat neither reads nor writes memories.",
+            "default": false
           }
         },
         "type": "object",
@@ -12719,6 +12887,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "boolean",
             "title": "Pinned"
           },
+          "temporary": {
+            "type": "boolean",
+            "title": "Temporary"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -12749,6 +12921,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "program_id",
           "scope",
           "pinned",
+          "temporary",
           "created_at",
           "updated_at",
           "archived_at"
@@ -12940,6 +13113,11 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "boolean",
             "title": "Mcp",
             "description": "Also offered to MCP clients."
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "description": "Changes data behind a confirmation card (memory tools never ask)."
           }
         },
         "type": "object",
@@ -12950,7 +13128,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "effect",
           "plugin_id",
           "core",
-          "mcp"
+          "mcp",
+          "confirm"
         ],
         "title": "AgentToolInfo"
       },
@@ -15260,6 +15439,19 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "stats"
         ],
         "title": "CheckinToggleResult"
+      },
+      "Cleared": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "Cleared"
       },
       "CommitInputBody": {
         "properties": {
@@ -21980,6 +22172,117 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         },
         "type": "object",
         "title": "MeetingUpdateInputBody"
+      },
+      "MemoryList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "limit"
+        ],
+        "title": "MemoryList"
+      },
+      "MemoryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "preference",
+              "goal",
+              "constraint",
+              "context"
+            ],
+            "title": "Category"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "source_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Session Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "content",
+          "source_session_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MemoryOut"
+      },
+      "MemoryUpdateInputBody": {
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content",
+            "description": "New text."
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "preference",
+                  "goal",
+                  "constraint",
+                  "context"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category",
+            "description": "New category."
+          }
+        },
+        "type": "object",
+        "title": "MemoryUpdateInputBody"
       },
       "ModelList": {
         "properties": {

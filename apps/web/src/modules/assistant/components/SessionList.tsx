@@ -6,7 +6,16 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { differenceInCalendarDays } from 'date-fns'
-import { MessagesSquare, MoreHorizontal, Pencil, Pin, PinOff, SearchX, Trash2 } from 'lucide-react'
+import {
+  MessageCircleDashed,
+  MessagesSquare,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  PinOff,
+  SearchX,
+  Trash2,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -45,6 +54,19 @@ export function groupSessions(items: readonly AgentSessionOut[], now = new Date(
     groups[index]?.items.push(session)
   }
   return groups.filter((g) => g.items.length > 0)
+}
+
+/** Before the title of a temporary conversation. */
+export function TemporaryMark() {
+  return (
+    <>
+      <MessageCircleDashed
+        aria-hidden
+        className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground"
+      />
+      <span className="sr-only">{m.assistant_temporary_chat()}: </span>
+    </>
+  )
 }
 
 export function sessionTitle(session: Pick<AgentSessionOut, 'title'>): string {
@@ -276,6 +298,7 @@ export function SessionList({
                         className="truncate rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
                         onClick={() => onSelect(session.id)}
                       >
+                        {session.temporary ? <TemporaryMark /> : null}
                         {sessionTitle(session)}
                       </button>
                     </ItemContent>

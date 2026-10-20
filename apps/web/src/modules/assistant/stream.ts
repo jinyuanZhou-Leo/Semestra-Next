@@ -17,6 +17,13 @@ export type Citation = {
 export type PauseReason = 'tool_limit' | 'loop'
 
 /** The server-sent events of a turn (M12 §4). */
+export type RememberedMemory = {
+  id: string
+  content: string
+  /** Missing on results saved before forgetting was shown. */
+  action?: 'remembered' | 'forgot'
+}
+
 export type AgentEvent =
   | { event: 'message_start'; data: { message_id: string } }
   | { event: 'text_delta'; data: { message_id: string; text: string } }
@@ -38,6 +45,8 @@ export type AgentEvent =
         ok: boolean
         error_code: string | null
         changed?: boolean
+        /** What `agent.memory.remember` saved: the chat offers to undo it. */
+        memory?: RememberedMemory
       }
     }
   | { event: 'citation'; data: Citation }
