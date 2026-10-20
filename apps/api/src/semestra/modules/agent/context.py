@@ -113,7 +113,7 @@ async def work_context(ctx: Ctx, scope: ScopeRef | None) -> WorkContext:
     name = ctx.user.display_name.strip() if ctx.user is not None else ""
     text = "\n".join(
         [
-            "# Context",
+            "# Context (read when this step started)",
             *([f"- The user's name: {_quoted(name)}."] if name else []),
             f"- You work in: {await _scope_line(ctx, program, scope)}",
             f"- Today: {today.strftime('%A %Y-%m-%d')} ({tz}).",
