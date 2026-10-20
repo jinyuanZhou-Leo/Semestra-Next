@@ -1,7 +1,7 @@
 """Provider management, model choices, status and usage (M06 §6). Model calls are in `calls.py`."""
 
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -427,16 +427,19 @@ def _local_day(column: Any, tz: ZoneInfo, first: datetime, last: datetime) -> Co
     piece shifts by its own offset."""
     pieces: list[tuple[datetime, int]] = []  # (until, offset in minutes)
     at, offset = first, _offset(tz, first)
+    # Checked once a day: no zone changes its offset and back within one day.
     while at < last:
         step = min(at + timedelta(days=1), last)
         if _offset(tz, step) != offset:
-            low, high = at, step  # find the change to the second
-            while high - low > timedelta(seconds=1):
-                mid = low + (high - low) / 2
-                low, high = (mid, high) if _offset(tz, mid) == offset else (low, mid)
-            pieces.append((high, offset))
-            offset = _offset(tz, high)
-            step = high
+            # Offsets change on a whole second: find it exactly, in whole POSIX seconds.
+            low, high = int(at.timestamp()), int(step.timestamp())
+            while high - low > 1:
+                mid = (low + high) // 2
+                low, high = (mid, high) if _offset(tz, _utc(mid)) == offset else (low, mid)
+            change = _utc(high)
+            pieces.append((change, offset))
+            offset = _offset(tz, change)
+            step = change
         at = step
     shifted = [func.date(column, f"{minutes:+d} minutes") for _, minutes in pieces]
     shifted.append(func.date(column, f"{offset:+d} minutes"))
@@ -444,6 +447,10 @@ def _local_day(column: Any, tz: ZoneInfo, first: datetime, last: datetime) -> Co
         return shifted[0]
     whens = [(column < until, expr) for (until, _), expr in zip(pieces, shifted, strict=False)]
     return case(*whens, else_=shifted[-1])
+
+
+def _utc(seconds: int) -> datetime:
+    return datetime.fromtimestamp(seconds, UTC)
 
 
 def _offset(tz: ZoneInfo, at: datetime) -> int:

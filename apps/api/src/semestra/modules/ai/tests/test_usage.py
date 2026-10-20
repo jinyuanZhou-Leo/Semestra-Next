@@ -176,3 +176,17 @@ async def test_days_follow_daylight_saving_time(ai: Ai, app: FastAPI):
         ("2026-03-09", 1),
         ("2026-11-01", 2),
     ]
+
+
+async def test_days_change_offset_on_the_exact_second(ai: Ai, app: FastAPI):
+    # Santiago goes from UTC-3 back to UTC-4 at 03:00 UTC on 2026-04-05, at local midnight:
+    # half a second later it is 23:00 on Apr 4 again, not 00:00 on Apr 5.
+    uid = ai.user.id
+    await add_event(app, uid, datetime(2026, 3, 1, tzinfo=UTC))
+    await add_event(app, uid, datetime(2026, 4, 5, 3, 0, 0, 500_000, tzinfo=UTC))
+    summary = await ai.call(
+        "GET",
+        "/ai/usage",
+        params={"start": "2026-04-04", "end": "2026-04-05", "tz": "America/Santiago"},
+    )
+    assert [(d["date"], d["calls"]) for d in summary["by_day"]] == [("2026-04-04", 1)]

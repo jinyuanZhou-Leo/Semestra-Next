@@ -314,20 +314,22 @@ class PeriodicTask:
     name: str
     every: timedelta
     fn: Callable[[Ctx], Awaitable[None]]
+    first_after: timedelta | None = None
 
 
 _periodic: dict[str, PeriodicTask] = {}
 
 
 def periodic(
-    name: str, *, every: timedelta
+    name: str, *, every: timedelta, first_after: timedelta | None = None
 ) -> Callable[[Callable[[Ctx], Awaitable[None]]], Callable[[Ctx], Awaitable[None]]]:
-    """Run `fn(ctx)` every `every` in a system ctx without a user (first run after one period)."""
+    """Run `fn(ctx)` every `every` in a system ctx without a user (first run after one period,
+    or after `first_after` for a task that should not wait a whole period after each start)."""
 
     def decorate(fn: Callable[[Ctx], Awaitable[None]]) -> Callable[[Ctx], Awaitable[None]]:
         if name in _periodic:
             raise ValueError(f"duplicate periodic task {name!r}")
-        _periodic[name] = PeriodicTask(name, every, fn)
+        _periodic[name] = PeriodicTask(name, every, fn, first_after)
         return fn
 
     return decorate
@@ -347,12 +349,14 @@ async def cleanup_jobs(ctx: Ctx) -> None:
     )
 
 
-@periodic("core.sqlite_optimize", every=timedelta(hours=6))
+# Soon after start too: a local app restarts often and may never stay up for six hours.
+@periodic("core.sqlite_optimize", every=timedelta(hours=6), first_after=timedelta(minutes=1))
 async def optimize_sqlite(ctx: Ctx) -> None:
     """Keeps SQLite's query planner statistics current (what the SQLite docs advise for
-    long-lived connections); cheap when nothing changed."""
+    long-lived connections); cheap when nothing changed. 0x10000 looks at every table, not
+    only those the pooled connection it happens to get has queried."""
     if ctx.db.get_bind().dialect.name == "sqlite":
-        await ctx.db.execute(text("PRAGMA optimize"))
+        await ctx.db.execute(text("PRAGMA optimize=0x10002"))
 
 
 # --- worker ---------------------------------------------------------------------------------
@@ -411,8 +415,10 @@ class JobRunner:
                     await asyncio.wait_for(self._wake.wait(), POLL_SECONDS)
 
     async def _schedule(self, task: PeriodicTask) -> None:
+        wait = task.first_after or task.every
         while True:
-            await asyncio.sleep(task.every.total_seconds())
+            await asyncio.sleep(wait.total_seconds())
+            wait = task.every
             try:
                 await run_periodic(self.state, task.name)
             except Exception:

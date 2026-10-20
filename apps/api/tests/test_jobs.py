@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from pydantic import BaseModel
-from sqlalchemy import event, select, update
+from sqlalchemy import event, select, text, update
 
 from semestra.core import jobs
 from semestra.core.context import run_after_commit, system_ctx
@@ -297,6 +297,11 @@ async def test_an_idle_worker_only_reads(app: FastAPI, client: AsyncClient):
     assert all(s.lstrip().upper().startswith("SELECT") for s in statements)
 
 
-async def test_sqlite_statistics_are_refreshed(app: FastAPI, client: AsyncClient):
-    del client
+async def test_sqlite_statistics_are_refreshed(app: FastAPI, make_user: MakeUser):
+    user = await make_user()
+    for n in range(300):
+        await start(app, user.id, "test.ok", name=f"stats {n}")
     await run_periodic(app.state, "core.sqlite_optimize")
+    async with app.state.session_factory() as db:
+        analyzed = (await db.execute(text("SELECT DISTINCT tbl FROM sqlite_stat1"))).scalars()
+        assert "core_jobs" in set(analyzed)
