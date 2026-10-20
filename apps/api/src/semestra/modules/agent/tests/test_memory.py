@@ -42,8 +42,9 @@ async def test_remember_runs_without_a_card_and_reaches_the_next_conversation(
     [saved] = await _memories(agent)
     assert saved["content"] == "Prefers answers in bullet points."
     assert saved["category"] == "preference"
+    assert saved["source_session_id"] == session["id"]
     # The chat shows what was remembered, live and after a reload, for its undo link.
-    shown = {"id": saved["id"], "content": saved["content"]}
+    shown = {"id": saved["id"], "content": saved["content"], "action": "remembered"}
     assert result["memory"] == shown
     detail = await agent.detail(session["id"])
     blocks = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
@@ -61,9 +62,25 @@ async def test_remember_runs_without_a_card_and_reaches_the_next_conversation(
         model.instructions_of(-1)
     )
 
+    # Saying it again finds the same memory: no undo, which would delete the older one.
+    model.then(
+        call(
+            "agent.memory.remember",
+            {"content": "prefers answers in bullet points.", "category": "preference"},
+        ),
+        say("Already noted."),
+    )
+    events = await agent.send(other["id"], "remember bullet points")
+    [again] = events_named(events, "tool_result")
+    assert again["ok"] is True
+    assert "memory" not in again
+    assert len(await _memories(agent)) == 1
+
     model.then(call("agent.memory.forget", {"id": saved["id"]}), say("Forgotten."))
     events = await agent.send(other["id"], "forget that")
     assert events_named(events, "proposal") == []
+    [forgot] = events_named(events, "tool_result")
+    assert forgot["memory"] == {**shown, "action": "forgot"}
     assert await _memories(agent) == []
 
 
@@ -82,7 +99,15 @@ async def test_sensitive_details_are_not_saved(agent: Agent, model: FakeModel):
     assert await _memories(agent) == []
     for text in ("My password is hunter2", "Takes medication for ADHD", "我的银行卡是招行"):
         assert memory.is_sensitive(text)
-    assert not memory.is_sensitive("Wants a 3.7 GPA this term")
+    for text in (
+        "Wants a 3.7 GPA this term",
+        "Majors in physical therapy",
+        "Works as a department secretary",
+        "Researching tokenization for an NLP course",
+        "专业是疾病控制",
+        "Applying for a low-income student scholarship",
+    ):
+        assert not memory.is_sensitive(text), text
 
 
 async def test_temporary_chats_and_memory_turned_off_neither_read_nor_write(
@@ -108,6 +133,18 @@ async def test_temporary_chats_and_memory_turned_off_neither_read_nor_write(
     assert "# Memory" not in model.instructions_of(-1)
 
     await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": False}})
+    # The conversation that started with memory on keeps its tools (the prompt cache), but
+    # nothing is saved any more.
+    model.then(
+        call("agent.memory.remember", {"content": "Likes tea.", "category": "preference"}),
+        say("ok"),
+    )
+    events = await agent.send(session["id"], "I like tea, remember that")
+    assert REMEMBER in model.tools_of(-2)
+    [refused] = events_named(events, "tool_result")
+    assert refused["error_code"] == "agent.memory_off"
+    assert [m["content"] for m in await _memories(agent)] == ["Works Wednesday nights."]
+
     off = await agent.session()
     model.then(say("Hi."))
     await agent.send(off["id"], "hello")
@@ -188,6 +225,7 @@ async def test_idle_conversations_are_consolidated_once(
     prompt = str(seen[0][1].content[0])
     assert old["id"] in prompt
     assert "make that 3.7" in prompt
+    assert "Good luck!" not in prompt  # only the user's own words
     contents = sorted(m["content"] for m in await _memories(agent))
     assert contents == ["Majors in ECE.", "Wants a 3.7 GPA."]  # the card number was dropped
 
@@ -203,3 +241,28 @@ async def test_idle_conversations_are_consolidated_once(
     clock.advance(hours=1)
     await run_periodic(app.state, "agent.memory.consolidate")
     assert len(seen) == 1
+
+
+async def test_a_conversation_held_with_memory_off_is_never_consolidated(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": False}})
+    session = await agent.session()
+    model.then(say("Hi."))
+    await agent.send(session["id"], "I'm majoring in ECE")
+    # Turned back on before the conversation goes idle.
+    await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": True}})
+
+    seen: list[list[Message]] = []
+
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        seen.append(messages)
+        return MemoryUpdates(
+            operations=[MemoryOperation(action="add", category="context", content="Majors in ECE.")]
+        )
+
+    app.state.agent.memory_model = memory_model
+    clock.advance(hours=1)
+    await run_periodic(app.state, "agent.memory.consolidate")
+    assert seen == []
+    assert await _memories(agent) == []

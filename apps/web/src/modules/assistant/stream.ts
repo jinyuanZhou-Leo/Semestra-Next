@@ -17,7 +17,12 @@ export type Citation = {
 export type PauseReason = 'tool_limit' | 'loop'
 
 /** The server-sent events of a turn (M12 §4). */
-export type RememberedMemory = { id: string; content: string }
+export type RememberedMemory = {
+  id: string
+  content: string
+  /** Missing on results saved before forgetting was shown. */
+  action?: 'remembered' | 'forgot'
+}
 
 export type AgentEvent =
   | { event: 'message_start'; data: { message_id: string } }

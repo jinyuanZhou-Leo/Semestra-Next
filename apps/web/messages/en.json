@@ -2264,10 +2264,12 @@
   "assistant_memory_clear_confirm_title": "Clear all memories?",
   "assistant_memory_remembered": "Remembered: {content}",
   "assistant_memory_undo": "Undo",
+  "assistant_memory_forgot": "Forgot: {content}",
   "assistant_temporary_chat": "Temporary chat",
   "assistant_temporary_chat_hint": "Not saved to memory and not read from it",
   "capability_agent_memory_remember_title": "Remember",
   "capability_agent_memory_forget_title": "Forget a memory",
   "error_agent_memory_sensitive": "Sensitive information such as passwords, ID numbers or health details is not saved to memory.",
-  "error_agent_memory_full": "Memory is full. Delete some memories first."
+  "error_agent_memory_full": "Memory is full. Delete some memories first.",
+  "error_agent_memory_off": "Memory is turned off, so nothing was saved."
 }

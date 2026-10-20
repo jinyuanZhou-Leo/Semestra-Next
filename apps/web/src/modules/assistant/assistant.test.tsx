@@ -1083,7 +1083,7 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
     {
       id: 'm1',
       category: 'preference',
-      content: 'Likes bullet points',
+      content: 'Likes short bullet points',
       created_at: NOW,
       updated_at: NOW,
     },
@@ -1097,7 +1097,10 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
       return new HttpResponse(null, { status: 204 })
     }),
   )
-  const step = (callId: string, memory: { id: string; content: string } | null) => ({
+  const step = (
+    callId: string,
+    memory: { id: string; content: string; action?: 'remembered' | 'forgot' } | null,
+  ) => ({
     callId,
     name: 'agent.memory.remember',
     args: {},
@@ -1108,21 +1111,25 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
   })
   render(
     <QueryClientProvider client={newQueryClient()}>
-      {/* m2 was deleted elsewhere: it is not offered for undo. */}
+      {/* m1 was edited in settings since: the current wording shows. m2 was deleted
+          elsewhere: it is not offered for undo. */}
       <Remembered
         steps={[
-          step('c1', { id: 'm1', content: 'Likes bullet points' }),
+          step('c1', { id: 'm1', content: 'Likes bullet points', action: 'remembered' }),
           step('c2', { id: 'm2', content: 'Gone' }),
           step('c3', null),
+          step('c4', { id: 'm3', content: 'Works Fridays', action: 'forgot' }),
         ]}
       />
     </QueryClientProvider>,
   )
-  expect(await screen.findByText('Remembered: Likes bullet points')).toBeInTheDocument()
+  expect(await screen.findByText('Remembered: Likes short bullet points')).toBeInTheDocument()
   expect(screen.queryByText('Remembered: Gone')).not.toBeInTheDocument()
+  expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
   await waitFor(() => expect(deleted).toEqual(['m1']))
   await waitFor(() =>
-    expect(screen.queryByText('Remembered: Likes bullet points')).not.toBeInTheDocument(),
+    expect(screen.queryByText('Remembered: Likes short bullet points')).not.toBeInTheDocument(),
   )
+  expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
 })

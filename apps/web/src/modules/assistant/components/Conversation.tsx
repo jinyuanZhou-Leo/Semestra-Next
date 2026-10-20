@@ -62,6 +62,7 @@ import {
 } from '@/ui/message-scroller'
 import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { Toggle } from '@/ui/toggle'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
@@ -745,13 +746,12 @@ export function Conversation({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    aria-pressed={temporary}
+                  <Toggle
+                    size="sm"
+                    pressed={temporary}
                     disabled={sessionId !== null}
-                    className="shrink-0 text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
-                    onClick={() => setTemporaryChoice((on) => !on)}
+                    className="shrink-0 text-xs text-muted-foreground aria-pressed:text-foreground"
+                    onPressedChange={setTemporaryChoice}
                   />
                 }
               >

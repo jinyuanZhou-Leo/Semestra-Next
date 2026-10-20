@@ -76,7 +76,12 @@ function ContentCell({ row }: CellProps) {
         className="h-8 w-full"
         onBlur={(e) => {
           const value = e.target.value.trim()
-          if (value && value !== memory.content) patch(memory, { content: value })
+          if (!value) {
+            // A memory cannot be empty (delete it from the menu): show its text again.
+            e.target.value = memory.content
+            return
+          }
+          if (value !== memory.content) patch(memory, { content: value })
         }}
       />
       <p className="px-0.5 text-xs text-muted-foreground">{CATEGORY_LABELS[memory.category]()}</p>

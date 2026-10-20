@@ -271,10 +271,13 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
     if shown != text:
         meta["full"] = text
         turn.full[call_id] = (name, text)
-    if outcome.ok and name == memory.REMEMBER and isinstance(outcome.payload, dict):
-        # The chat shows "Remembered: …" with an undo link.
+    if outcome.ok and outcome.ran and name in memory.TOOLS and isinstance(outcome.payload, dict):
+        # The chat shows "Remembered: …" with an undo link (only for a memory this call created,
+        # so the undo never deletes an older one), or "Forgot: …".
         saved: dict[str, Any] = outcome.payload  # pyright: ignore[reportUnknownVariableType]
-        meta["memory"] = {"id": saved["id"], "content": saved["content"]}
+        if name == memory.FORGET or saved.get("created"):
+            action = "forgot" if name == memory.FORGET else "remembered"
+            meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
     if outcome.ok and name in tools.UNTRUSTED_RESULTS:
         shown = wrap_untrusted(shown, name)
     return ToolReturn(return_value=shown, metadata=meta)
@@ -300,7 +303,11 @@ def _tool(cap: Capability) -> tools.ToolFunction:
             async with turn.sem:
                 outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
         else:
-            outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+            token = memory.conversation.set(turn.session_id)
+            try:
+                outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+            finally:
+                memory.conversation.reset(token)
         return _tool_return(cap, call_id, outcome, turn)
 
     return run

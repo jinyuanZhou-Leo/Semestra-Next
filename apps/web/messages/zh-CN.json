@@ -2264,10 +2264,12 @@
   "assistant_memory_clear_confirm_title": "清空全部记忆？",
   "assistant_memory_remembered": "已记住：{content}",
   "assistant_memory_undo": "撤销",
+  "assistant_memory_forgot": "已忘记：{content}",
   "assistant_temporary_chat": "临时对话",
   "assistant_temporary_chat_hint": "不读取也不写入记忆",
   "capability_agent_memory_remember_title": "记住",
   "capability_agent_memory_forget_title": "忘掉一条记忆",
   "error_agent_memory_sensitive": "密码、证件号、健康状况等敏感信息不会保存到记忆中。",
-  "error_agent_memory_full": "记忆已满，请先删除一些记忆。"
+  "error_agent_memory_full": "记忆已满，请先删除一些记忆。",
+  "error_agent_memory_off": "记忆已关闭，没有保存。"
 }
