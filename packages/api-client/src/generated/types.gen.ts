@@ -4539,6 +4539,12 @@ export type ImportSessionDetail = {
      * Items
      */
     items: Array<ImportItem>;
+    /**
+     * Next Cursor
+     *
+     * More items: pass it as `cursor` to imports.session.get
+     */
+    next_cursor?: string | null;
 };
 
 /**
@@ -14131,7 +14137,38 @@ export type ImportsSessionGetData = {
          */
         session_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Item Ids
+         *
+         * Only these items
+         */
+        item_ids?: Array<string> | null;
+        /**
+         * Types
+         *
+         * Only items of these types
+         */
+        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its id); by default type, data, decision, issues and result
+         */
+        fields?: Array<'session_id' | 'type' | 'data' | 'evidence' | 'confidence' | 'decision' | 'issues' | 'depends_on' | 'result' | 'position'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Items per page (agent/MCP default 25; HTTP: all)
+         */
+        limit?: number | null;
+    };
     url: '/imports/{session_id}';
 };
 

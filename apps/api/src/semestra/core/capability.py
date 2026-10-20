@@ -45,6 +45,8 @@ class Capability:
     plugin_id: str | None
     # Agent/MCP callers get only these output fields (HTTP callers get everything).
     agent_output_fields: tuple[str, ...] | None
+    # The `fields` agent/MCP callers get when they ask for none (list items keep only these).
+    agent_default_fields: tuple[str, ...] | None
     input_model: type[BaseModel]
     output_model: type[BaseModel]
     handler: Callable[[Ctx, Any], Awaitable[BaseModel]]
@@ -139,13 +141,17 @@ class Registry:
         except ValidationError as exc:
             errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
             raise AppError("common.validation", 422, errors=errors) from exc
-        out = await cap.handler(ctx, inp)
+        outer, ctx.surface = ctx.surface, surface
+        try:
+            out = await cap.handler(ctx, inp)
+        finally:
+            ctx.surface = outer
         if surface == "http":
             return out
         if cap.agent_output_fields is not None:
             return out.model_dump(include=set(cap.agent_output_fields), mode="json")
-        fields: object = getattr(inp, "fields", None)
-        if isinstance(fields, list) and fields:
+        fields: object = getattr(inp, "fields", None) or cap.agent_default_fields
+        if isinstance(fields, list | tuple) and fields:
             return _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         return out
 
@@ -181,6 +187,7 @@ def capability(
     public: bool = False,
     plugin_id: str | None = None,
     agent_output_fields: tuple[str, ...] | None = None,
+    agent_default_fields: tuple[str, ...] | None = None,
     preview: Callable[[Ctx, Any], Awaitable[Any]] | None = None,
     target: Registry | None = None,
 ) -> Callable[[Callable[[Ctx, Any], Awaitable[Any]]], Callable[[Ctx, Any], Awaitable[Any]]]:
@@ -212,6 +219,7 @@ def capability(
                 public=public,
                 plugin_id=plugin_id,
                 agent_output_fields=agent_output_fields,
+                agent_default_fields=agent_default_fields,
                 input_model=input_model,
                 output_model=output_model,
                 handler=fn,

@@ -2807,7 +2807,7 @@ export const habitStatsOptions = (options: Options<HabitStatsData>) => queryOpti
  * Edit an import item's fields or accept/reject it.
  *
  * `data` is merged into the item (send null to clear a field); the item's issues
- * are checked again afterwards.
+ * are checked again afterwards. The assistant gets the session's `summary` and the changed item.
  */
 export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemUpdateData>>): UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> => {
     const mutationOptions: UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> = {
@@ -2826,7 +2826,8 @@ export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemU
 /**
  * Accept or reject many import items at once, by type, issue or id.
  *
- * E.g. reject every item with `import.duplicate_assessment`.
+ * E.g. reject every item with `import.duplicate_assessment`. The assistant gets
+ * `changed` and the session's `summary`, without its items.
  */
 export const importsItemsBulkDecideMutation = (options?: Partial<Options<ImportsItemsBulkDecideData>>): UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> => {
     const mutationOptions: UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> = {
@@ -2847,7 +2848,7 @@ export const importsItemsBulkDecideMutation = (options?: Partial<Options<Imports
  *
  * Only after the user reviewed the import. Writes in dependency order; one item
  * failing does not undo the others (see each item's `result`). Repeating it only retries the
- * items that have not been written.
+ * items that have not been written. The assistant gets the counts and the items that failed.
  */
 export const importsSessionCommitMutation = (options?: Partial<Options<ImportsSessionCommitData>>): UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> => {
     const mutationOptions: UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> = {
@@ -2923,7 +2924,8 @@ export const importsSessionListInfiniteOptions = (options: Options<ImportsSessio
  * the assistant conversation (`attachment_ids`), or `text`.
  * ICS is parsed at once (status ready); the other sources are extracted in the background
  * (status extracting → ready), poll imports.session.get. Never write a document's contents with
- * the modules' own create capabilities instead of importing it.
+ * the modules' own create capabilities instead of importing it. The assistant gets `summary` and the
+ * first 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreateMutation = (options?: Partial<Options<ImportsSessionCreateData>>): UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> => {
     const mutationOptions: UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> = {
@@ -2964,7 +2966,9 @@ export const importsSessionGetQueryKey = (options: Options<ImportsSessionGetData
  * An import with its items, their issues and the extraction progress.
  *
  * Use to see what an import found (courses, assessments, meetings...) and what
- * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).
+ * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
+ * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`
+ * and `fields`; items come 25 at a time, follow `next_cursor` for more.
  */
 export const importsSessionGetOptions = (options: Options<ImportsSessionGetData>) => queryOptions<ImportsSessionGetResponse, ImportsSessionGetError, ImportsSessionGetResponse, ReturnType<typeof importsSessionGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2978,6 +2982,41 @@ export const importsSessionGetOptions = (options: Options<ImportsSessionGetData>
     },
     queryKey: importsSessionGetQueryKey(options)
 });
+
+export const importsSessionGetInfiniteQueryKey = (options: Options<ImportsSessionGetData>): QueryKey<Options<ImportsSessionGetData>> => createQueryKey('importsSessionGet', options, true);
+
+/**
+ * An import with its items, their issues and the extraction progress.
+ *
+ * Use to see what an import found (courses, assessments, meetings...) and what
+ * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
+ * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`
+ * and `fields`; items come 25 at a time, follow `next_cursor` for more.
+ */
+export const importsSessionGetInfiniteOptions = (options: Options<ImportsSessionGetData>) => {
+    const opts = infiniteQueryOptions<ImportsSessionGetResponse, ImportsSessionGetError, InfiniteData<ImportsSessionGetResponse>, QueryKey<Options<ImportsSessionGetData>>, string | null | Pick<QueryKey<Options<ImportsSessionGetData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ImportsSessionGetData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await importsSessionGet({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: importsSessionGetInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const layoutsBoardGetQueryKey = (options: Options<LayoutsBoardGetData>) => createQueryKey('layoutsBoardGet', options);
 

@@ -112,8 +112,14 @@ def serialize(result: Any) -> str:
 
 
 def page(text: str, call_id: str, offset: int = 0) -> str:
-    """`RESULT_LIMIT` characters of a result from `offset` on, with a note on how to read on."""
+    """`RESULT_LIMIT` characters of a result from `offset` on, with a note on how to read on. A
+    cut inside a list falls between two of its objects when one ends in the second half of the
+    page, so the model does not have to piece an object together from two pages."""
     chunk = text[offset : offset + RESULT_LIMIT]
+    if offset + len(chunk) < len(text):
+        boundary = chunk.rfind("},{")
+        if boundary >= RESULT_LIMIT // 2:
+            chunk = chunk[: boundary + 1]
     end = offset + len(chunk)
     if offset == 0 and end >= len(text):
         return chunk

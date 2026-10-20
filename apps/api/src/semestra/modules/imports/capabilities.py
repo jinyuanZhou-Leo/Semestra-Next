@@ -13,6 +13,7 @@ from semestra.modules.imports.schemas import (
     ItemUpdateInput,
     NewItem,
     SessionCreateInput,
+    SessionGetInput,
     SessionListInput,
     SessionRef,
     SessionSummary,
@@ -24,15 +25,17 @@ TAGS = ("imports",)
 @capability(
     name="imports.session.create",
     summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-    description="""Creates a draft the user reviews before anything is written. Upload files first
+    description=f"""Creates a draft the user reviews before anything is written. Upload files first
 (POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
 the assistant conversation (`attachment_ids`), or `text`.
 ICS is parsed at once (status ready); the other sources are extracted in the background
 (status extracting → ready), poll imports.session.get. Never write a document's contents with
-the modules' own create capabilities instead of importing it.""",
+the modules' own create capabilities instead of importing it. The assistant gets `summary` and the
+first {service.AGENT_PAGE} items; read the rest with imports.session.get.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/imports"),
     tags=TAGS,
+    agent_default_fields=service.AGENT_ITEM_FIELDS,
 )
 async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDetail:
     return await service.create_session(ctx, inp)
@@ -41,15 +44,26 @@ async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
 @capability(
     name="imports.session.get",
     summary="An import with its items, their issues and the extraction progress.",
-    description="""Use to see what an import found (courses, assessments, meetings...) and what
-needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).""",
+    description=f"""Use to see what an import found (courses, assessments, meetings...) and what
+needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
+counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`
+and `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` for more.""",
     effect="read",
     http=Http("GET", "/imports/{session_id}"),
     tags=TAGS,
     agent_core=True,
+    agent_default_fields=service.AGENT_ITEM_FIELDS,
 )
-async def session_get(ctx: Ctx, inp: SessionRef) -> ImportSessionDetail:
-    return await service.detail(ctx, await service.get_session_row(ctx, inp.session_id))
+async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
+    limit = inp.limit or (service.AGENT_PAGE if service.for_agent(ctx) else None)
+    return await service.detail(
+        ctx,
+        await service.get_session_row(ctx, inp.session_id),
+        item_ids=inp.item_ids,
+        types=inp.types,
+        cursor=inp.cursor,
+        limit=limit,
+    )
 
 
 @capability(
@@ -68,10 +82,11 @@ async def session_list(ctx: Ctx, inp: SessionListInput) -> ImportSessionPage:
     name="imports.item.update",
     summary="Edit an import item's fields or accept/reject it.",
     description="""`data` is merged into the item (send null to clear a field); the item's issues
-are checked again afterwards.""",
+are checked again afterwards. The assistant gets the session's `summary` and the changed item.""",
     effect="write",
     http=Http("PATCH", "/imports/{session_id}/items/{item_id}"),
     tags=TAGS,
+    agent_default_fields=service.AGENT_ITEM_FIELDS,
 )
 async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     return await service.update_item(ctx, inp)
@@ -80,7 +95,8 @@ async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
 @capability(
     name="imports.items.bulk_decide",
     summary="Accept or reject many import items at once, by type, issue or id.",
-    description="E.g. reject every item with `import.duplicate_assessment`.",
+    description="""E.g. reject every item with `import.duplicate_assessment`. The assistant gets
+`changed` and the session's `summary`, without its items.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}/items:decide"),
     tags=TAGS,
@@ -96,10 +112,12 @@ async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
     description="""For what you read yourself (source_kind `agent`); files the user attached go
 to imports.session.create with attachment_ids instead. Items refer to each other with `item:<key>`
 in `course_ref` (a course item's `key`) or to existing courses with `course:<id>`. Each type has
-its own fields; unknown fields are refused. The user still reviews the items before commit.""",
+its own fields; unknown fields are refused. The user still reviews the items before commit.
+Returns the session's `summary` and the added items.""",
     effect="write",
     expose=("agent", "mcp"),
     tags=TAGS,
+    agent_default_fields=service.AGENT_ITEM_FIELDS,
 )
 async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
     new = [
@@ -125,7 +143,7 @@ async def _commit_preview(ctx: Ctx, inp: CommitInput) -> SessionSummary:
     summary="Write the accepted items of an import (courses, gradebook, schedule, tasks).",
     description="""Only after the user reviewed the import. Writes in dependency order; one item
 failing does not undo the others (see each item's `result`). Repeating it only retries the
-items that have not been written.""",
+items that have not been written. The assistant gets the counts and the items that failed.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}:commit"),
     tags=TAGS,

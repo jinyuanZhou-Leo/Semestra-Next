@@ -6424,7 +6424,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Edit an import item's fields or accept/reject it.",
-        "description": "`data` is merged into the item (send null to clear a field); the item's issues\nare checked again afterwards.",
+        "description": "`data` is merged into the item (send null to clear a field); the item's issues\nare checked again afterwards. The assistant gets the session's `summary` and the changed item.",
         "operationId": "importsItemUpdate",
         "parameters": [
           {
@@ -6490,7 +6490,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Accept or reject many import items at once, by type, issue or id.",
-        "description": "E.g. reject every item with `import.duplicate_assessment`.",
+        "description": "E.g. reject every item with `import.duplicate_assessment`. The assistant gets\n`changed` and the session's `summary`, without its items.",
         "operationId": "importsItemsBulkDecide",
         "parameters": [
           {
@@ -6545,7 +6545,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
-        "description": "Only after the user reviewed the import. Writes in dependency order; one item\nfailing does not undo the others (see each item's `result`). Repeating it only retries the\nitems that have not been written.",
+        "description": "Only after the user reviewed the import. Writes in dependency order; one item\nfailing does not undo the others (see each item's `result`). Repeating it only retries the\nitems that have not been written. The assistant gets the counts and the items that failed.",
         "operationId": "importsSessionCommit",
         "parameters": [
           {
@@ -6600,7 +6600,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
+        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it. The assistant gets `summary` and the\nfirst 25 items; read the rest with imports.session.get.",
         "operationId": "importsSessionCreate",
         "parameters": [
           {
@@ -6773,7 +6773,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "An import with its items, their issues and the extraction progress.",
-        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).",
+        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`\nand `fields`; items come 25 at a time, follow `next_cursor` for more.",
         "operationId": "importsSessionGet",
         "parameters": [
           {
@@ -6786,6 +6786,132 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Session Id"
             },
             "description": "Import session id"
+          },
+          {
+            "name": "item_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these items",
+              "title": "Item Ids"
+            },
+            "description": "Only these items"
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "course",
+                      "meeting",
+                      "event",
+                      "category",
+                      "assessment",
+                      "task",
+                      "course_patch",
+                      "assessment_patch",
+                      "task_patch"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only items of these types",
+              "title": "Types"
+            },
+            "description": "Only items of these types"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "session_id",
+                      "type",
+                      "data",
+                      "evidence",
+                      "confidence",
+                      "decision",
+                      "issues",
+                      "depends_on",
+                      "result",
+                      "position"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its id); by default type, data, decision, issues and result",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its id); by default type, data, decision, issues and result"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 500,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Items per page (agent/MCP default 25; HTTP: all)",
+              "title": "Limit"
+            },
+            "description": "Items per page (agent/MCP default 25; HTTP: all)"
           }
         ],
         "responses": {
@@ -20362,6 +20488,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             },
             "type": "array",
             "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "More items: pass it as `cursor` to imports.session.get"
           }
         },
         "type": "object",

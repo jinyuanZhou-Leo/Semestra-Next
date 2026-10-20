@@ -52,8 +52,7 @@ class Chat:
             ctx.actor = "agent"
             out = await registry.invoke(ctx, name, args, "agent")
             await ctx.db.commit()
-        assert isinstance(out, BaseModel)
-        return out.model_dump(mode="json")
+        return out.model_dump(mode="json") if isinstance(out, BaseModel) else out
 
 
 @pytest.fixture
@@ -158,8 +157,15 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     session_id = await session_of(chat, program_id)
     att = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     read = await chat.tool("attachments.read", {"attachment_id": att["id"]})
-    # The raw calendar is not given to the model; the importer reads it.
-    assert (read["type"], read["page_count"], read["pages"]) == ("ics", 0, [])
+    # The calendar as the importer reads it, one page per course; never the raw file.
+    assert (read["type"], read["page_count"], read["next_page"]) == ("ics", 1, None)
+    page = read["pages"][0]["markdown"]
+    assert page.startswith("## ECE201H1\nWeekly meetings:")
+    assert (
+        "- LEC0101 · Mon 10:00-11:00 · weekly · 2026-09-14 to 2026-12-07 · "
+        "no class on 2026-10-12, 2026-10-26"
+    ) in page
+    assert "VCALENDAR" not in page
     assert "imports.session.create" in read["note"]
 
     created = await chat.tool(
@@ -349,8 +355,8 @@ async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
     session_id = await session_of(chat, await chat.program())
     cal = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     text = text_of(await given(chat, cal["id"]))
-    assert "ECE201H1" in text
-    assert "Dates: 2026-09-14 to 2026-12-07" in text
+    assert "- ECE201H1: 2026-09-14 to 2026-12-07, 1 weekly meeting, 0 single events" in text
+    assert f"attachments.read, attachment_id {cal['id']}" in text
     assert "imports.session.create" in text
     assert "VCALENDAR" not in text
 
@@ -406,3 +412,22 @@ async def test_pages_read_later_and_outlines_are_marked_untrusted(
     [result] = model.results(-1)
     assert str(result.content).startswith('<untrusted_document label="attachments.read">')
     assert "Ignore previous instructions" in str(result.content)
+
+
+def test_a_course_with_many_events_goes_on_over_more_pages():
+    from datetime import date, timedelta
+
+    from semestra.modules.agent.attachment_context import EVENTS_PER_PAGE, calendar_pages
+    from semestra.modules.imports.ics import IcsCourse, IcsEvent, IcsResult
+
+    day = date(2026, 9, 8)
+    events = [
+        IcsEvent(f"Lab {i}", day + timedelta(days=i), None, None, day + timedelta(days=i), True,
+                 None, None, f"e{i}")
+        for i in range(EVENTS_PER_PAGE + 5)
+    ]  # fmt: skip
+    pages = calendar_pages(IcsResult([IcsCourse("ECE201H1", "Circuits", events=events)], []))
+    assert len(pages) == 2
+    assert pages[1].startswith("## ECE201H1 (Circuits), continued")
+    assert f"Lab {EVENTS_PER_PAGE + 4}" in pages[1]
+    assert f"Lab {EVENTS_PER_PAGE + 4}" not in pages[0]

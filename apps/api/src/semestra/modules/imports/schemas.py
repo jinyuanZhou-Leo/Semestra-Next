@@ -272,6 +272,9 @@ class ImportSession(BaseModel):
 
 class ImportSessionDetail(ImportSession):
     items: list[ImportItem]
+    next_cursor: str | None = Field(
+        default=None, description="More items: pass it as `cursor` to imports.session.get"
+    )
 
 
 class ImportSessionPage(BaseModel):
@@ -321,6 +324,29 @@ class SessionCreateInput(BaseModel):
 
 class SessionRef(BaseModel):
     session_id: Id = Field(description="Import session id")
+
+
+ItemField = Literal[
+    "session_id", "type", "data", "evidence", "confidence", "decision", "issues", "depends_on",
+    "result", "position",
+]  # fmt: skip
+
+
+class SessionGetInput(BaseModel):
+    session_id: Id = Field(description="Import session id")
+    item_ids: list[Id] | None = Field(default=None, max_length=500, description="Only these items")
+    types: list[ItemType] | None = Field(default=None, description="Only items of these types")
+    fields: list[ItemField] | None = Field(
+        default=None,
+        description=(
+            "Agent/MCP only: return just these fields of each item (and its id); by default "
+            "type, data, decision, issues and result"
+        ),
+    )
+    cursor: str | None = Field(default=None, description="`next_cursor` of the previous page")
+    limit: Annotated[int, Field(ge=1, le=500)] | None = Field(
+        default=None, description="Items per page (agent/MCP default 25; HTTP: all)"
+    )
 
 
 class SessionListInput(BaseModel):

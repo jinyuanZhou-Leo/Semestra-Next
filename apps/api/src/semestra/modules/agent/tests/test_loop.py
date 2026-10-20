@@ -1157,3 +1157,13 @@ async def test_answers_record_how_long_the_model_worked_before_answering(
     ]
     assert len(timings) == 2
     assert all(isinstance(ms, int) and ms >= 0 for ms in timings)
+
+
+def test_a_cut_falls_between_two_objects_of_a_list(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(loop.tools, "RESULT_LIMIT", 50)
+    text = loop.tools.serialize({"items": [{"id": n, "name": f"item {n}"} for n in range(10)]})
+    first = loop.tools.page(text, "c1")
+    # 50 characters would end inside the second object: the page stops after the first.
+    assert first.startswith('{"items":[{"id":0,"name":"item 0"}\n[characters 0-34 of')
+    assert "offset 34 for more" in first
+    assert loop.tools.page(text, "c1", 34).startswith(',{"id":1,')
