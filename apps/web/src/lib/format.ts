@@ -45,13 +45,16 @@ export function formatDateTime(value: string | Date, opts: { hour12?: boolean } 
   }).format(new Date(value))
 }
 
-/** A calendar day: a Date, an ISO timestamp, or a date-only `YYYY-MM-DD` from the API. */
-export function formatDate(value: string | Date): string {
+/**
+ * A calendar day: a Date, an ISO timestamp, or a date-only `YYYY-MM-DD` from the API. `short`
+ * leaves out the year ("Jan 15"), for chart axes and labels within one recent range.
+ */
+export function formatDate(value: string | Date, opts: { short?: boolean } = {}): string {
   // `new Date('2026-01-15')` is midnight UTC, which west of Greenwich is still the 14th locally:
   // a date without a time is a calendar day and keeps its own day.
   const calendarDay = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
   return new Intl.DateTimeFormat(getLocale(), {
-    dateStyle: 'medium',
+    ...(opts.short ? { month: 'short', day: 'numeric' } : { dateStyle: 'medium' }),
     ...(calendarDay ? { timeZone: 'UTC' } : {}),
   }).format(new Date(value))
 }

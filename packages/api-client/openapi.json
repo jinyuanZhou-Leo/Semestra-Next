@@ -3855,7 +3855,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "ai"
         ],
         "summary": "Token use and estimated cost by day, purpose, module and model.",
-        "description": "Defaults to the last 30 days. Not for agents.",
+        "description": "Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.",
         "operationId": "aiUsageSummary",
         "parameters": [
           {
@@ -3863,12 +3863,56 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "description": "How many days back to summarise.",
-              "default": 30,
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How many days back to summarise, today included; omit for all time.",
               "title": "Days"
             },
-            "description": "How many days back to summarise."
+            "description": "How many days back to summarise, today included; omit for all time."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First local day to summarise; overrides `days`.",
+              "title": "Start"
+            },
+            "description": "First local day to summarise; overrides `days`."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last local day to summarise (inclusive); defaults to today.",
+              "title": "End"
+            },
+            "description": "Last local day to summarise (inclusive); defaults to today."
           },
           {
             "name": "tz",
@@ -28883,6 +28927,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             ],
             "title": "Purpose"
           },
+          "calls": {
+            "type": "integer",
+            "title": "Calls"
+          },
           "input_tokens": {
             "type": "integer",
             "title": "Input Tokens"
@@ -28901,15 +28949,21 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Cost Usd"
+          },
+          "cost_complete": {
+            "type": "boolean",
+            "title": "Cost Complete"
           }
         },
         "type": "object",
         "required": [
           "date",
           "purpose",
+          "calls",
           "input_tokens",
           "output_tokens",
-          "cost_usd"
+          "cost_usd",
+          "cost_complete"
         ],
         "title": "UsageDay"
       },
@@ -28949,6 +29003,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "key": {
             "type": "string",
             "title": "Key"
+          },
+          "cost_complete": {
+            "type": "boolean",
+            "title": "Cost Complete"
           }
         },
         "type": "object",
@@ -28959,7 +29017,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "cached_tokens",
           "output_tokens",
           "cost_usd",
-          "key"
+          "key",
+          "cost_complete"
         ],
         "title": "UsageRow"
       },
@@ -28969,6 +29028,11 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "format": "date-time",
             "title": "Since"
+          },
+          "until": {
+            "type": "string",
+            "format": "date",
+            "title": "Until"
           },
           "totals": {
             "$ref": "#/components/schemas/UsageTotals"
@@ -29009,6 +29073,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "type": "object",
         "required": [
           "since",
+          "until",
           "totals",
           "cost_complete",
           "by_day",

@@ -1742,7 +1742,7 @@ export const aiUsageSummaryQueryKey = (options?: Options<AiUsageSummaryData>) =>
 /**
  * Token use and estimated cost by day, purpose, module and model.
  *
- * Defaults to the last 30 days. Not for agents.
+ * Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.
  */
 export const aiUsageSummaryOptions = (options?: Options<AiUsageSummaryData>) => queryOptions<AiUsageSummaryResponse, AiUsageSummaryError, AiUsageSummaryResponse, ReturnType<typeof aiUsageSummaryQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1756,6 +1756,38 @@ export const aiUsageSummaryOptions = (options?: Options<AiUsageSummaryData>) => 
     },
     queryKey: aiUsageSummaryQueryKey(options)
 });
+
+export const aiUsageSummaryInfiniteQueryKey = (options?: Options<AiUsageSummaryData>): QueryKey<Options<AiUsageSummaryData>> => createQueryKey('aiUsageSummary', options, true);
+
+/**
+ * Token use and estimated cost by day, purpose, module and model.
+ *
+ * Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.
+ */
+export const aiUsageSummaryInfiniteOptions = (options?: Options<AiUsageSummaryData>) => {
+    const opts = infiniteQueryOptions<AiUsageSummaryResponse, AiUsageSummaryError, InfiniteData<AiUsageSummaryResponse>, QueryKey<Options<AiUsageSummaryData>>, string | null | Pick<QueryKey<Options<AiUsageSummaryData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<AiUsageSummaryData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await aiUsageSummary({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: aiUsageSummaryInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * Save a file attached to the conversation to a course's files.

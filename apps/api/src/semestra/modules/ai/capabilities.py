@@ -144,7 +144,7 @@ async def status(ctx: Ctx, inp: NoInput) -> AiStatus:
 @capability(
     name="ai.usage.summary",
     summary="Token use and estimated cost by day, purpose, module and model.",
-    description="Defaults to the last 30 days. Not for agents.",
+    description="Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.",
     effect="read",
     http=Http("GET", "/ai/usage"),
     expose=HTTP_ONLY,
