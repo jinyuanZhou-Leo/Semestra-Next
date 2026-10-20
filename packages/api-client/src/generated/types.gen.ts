@@ -9342,6 +9342,10 @@ export type UsageDay = {
      */
     purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
     /**
+     * Calls
+     */
+    calls: number;
+    /**
      * Input Tokens
      */
     input_tokens: number;
@@ -9353,6 +9357,10 @@ export type UsageDay = {
      * Cost Usd
      */
     cost_usd: number | null;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**
@@ -9387,6 +9395,10 @@ export type UsageRow = {
      * Key
      */
     key: string;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**
@@ -9397,6 +9409,10 @@ export type UsageSummary = {
      * Since
      */
     since: string;
+    /**
+     * Until
+     */
+    until: string;
     totals: UsageTotals;
     /**
      * Cost Complete
@@ -12336,9 +12352,21 @@ export type AiUsageSummaryData = {
         /**
          * Days
          *
-         * How many days back to summarise.
+         * How many days back to summarise, today included; omit for all time.
          */
-        days?: number;
+        days?: number | null;
+        /**
+         * Start
+         *
+         * First local day to summarise; overrides `days`.
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Last local day to summarise (inclusive); defaults to today.
+         */
+        end?: string | null;
         /**
          * Tz
          *

@@ -135,7 +135,13 @@ def _finish(
     model_name = resolved.model
     error_code = error.code if error else None
     cost = catalog.estimate_cost(
-        ep.kind, model_name, usage.input_tokens, usage.output_tokens, usage.cached_tokens
+        ep.kind,
+        ep.base_url,
+        model_name,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cached_tokens,
+        at=ctx.now,
     )
     rt = runtime(ctx.state)
     rt.record_usage(
