@@ -1155,6 +1155,43 @@ async def test_regenerate_replaces_the_last_answer(agent: Agent, model: FakeMode
     assert model.responses_of(-1) == []
 
 
+async def test_a_search_result_s_citations_reach_the_answer(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """files.document.search returns `citations`; the loop keeps them for the answer's
+    `[[cite:<id>]]` markers (M12 §6.1)."""
+    from semestra.modules.files import search
+    from semestra.modules.files.schemas import Citation, SearchHit, SearchResult
+
+    hit = SearchHit(
+        item_id="i1", display_name="Syllabus.pdf", course_id="c1", page_from=2, page_to=2,
+        heading_path=["Assessment"], snippet="The <mark>midterm</mark> is in week 7", score=1.0,
+        citation_id="i1:p2-2",
+    )  # fmt: skip
+
+    async def fake_search(ctx: Any, inp: Any) -> SearchResult:
+        return SearchResult(
+            results=[hit], pending_items=[], unreadable_items=[], mode_used="keyword",
+            citations=[Citation(id="i1:p2-2", title="Syllabus.pdf", item_id="i1", page_from=2,
+                                page_to=2, snippet="The midterm is in week 7")],
+        )  # fmt: skip
+
+    monkeypatch.setattr(search, "search", fake_search)
+    program = await agent.program()
+    session = await agent.session()
+    model.then(
+        _found("files.document.search"),
+        call("files.document.search", {"program_id": program["id"], "query": "midterm"}),
+        say("In week 7 [[cite:i1:p2-2]]."),
+    )
+    await agent.send(session["id"], "When is the midterm?")
+    detail = await agent.detail(session["id"])
+    cited = [b for m in detail["messages"] for b in m["content"] if b["type"] == "citation"]
+    assert [(b["id"], b["title"], b["page_from"]) for b in cited] == [
+        ("i1:p2-2", "Syllabus.pdf", 2)
+    ]
+
+
 def test_file_content_results_are_wrapped_as_untrusted():
     from semestra.core.capability import registry
 

@@ -242,11 +242,14 @@ async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     summary="Link a course to a course on its Program's LMS.",
     description="""Uses the Program's bound connection (lms.program_not_configured without one).
 An external course can be linked to only one course of the Program
-(lms.course_already_linked).""",
+(lms.course_already_linked). If the course is already linked to another external course this fails
+with lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking
+what was imported through the old link.""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/lms-link"),
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
+    check=service.check_link,
 )
 async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     return await service.set_link(ctx, inp)
@@ -541,7 +544,7 @@ async def import_syllabus(ctx: Ctx, inp: CourseRef) -> ImportStarted:
 @capability(
     name="lms.course.check_updates",
     summary="Imported assignments whose title, due date or points changed on the LMS.",
-    description="Review them with lms.course.apply_updates.",
+    description="Put them up for the user's review with lms.course.queue_updates.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/updates"),
     tags=TAGS,
@@ -551,12 +554,13 @@ async def check_updates(ctx: Ctx, inp: CourseReadInput) -> UpdatesOutput:
 
 
 @capability(
-    name="lms.course.apply_updates",
+    name="lms.course.queue_updates",
     summary="Put the LMS changes of imported assignments up for review.",
-    description="Creates an import of changes; nothing changes before the user commits it.",
+    description="""Creates an import of the changes and changes nothing itself: they are written
+when the import is committed (imports.session.commit) after the user reviewed it.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/updates:review"),
     tags=TAGS,
 )
-async def apply_updates(ctx: Ctx, inp: CourseRef) -> ImportStarted:
+async def queue_updates(ctx: Ctx, inp: CourseRef) -> ImportStarted:
     return await imports.review_updates(ctx, inp.course_id)

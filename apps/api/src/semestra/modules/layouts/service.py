@@ -34,6 +34,9 @@ from semestra.modules.layouts.schemas import (
     BoardScopeType,
     BoardUpdateInput,
     CardAddInput,
+    CardInstanceList,
+    CardInstanceListInput,
+    CardInstanceSummary,
     CardRef,
     CardSettings,
     CardSettingsUpdateInput,
@@ -487,6 +490,63 @@ async def list_card_instances(
     return [
         CardInstance(r.instance_id, r.card_id, r.scope_type, r.scope_id, r.settings) for r in rows
     ]
+
+
+LABEL_CHARS = 80
+
+
+def _label(settings: dict[str, Any]) -> str | None:
+    """How the user tells cards of one kind apart: a name, else the first line of the text."""
+    for key in ("name", "title", "label"):
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:LABEL_CHARS]
+    content = settings.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip().split("\n", 1)[0][:LABEL_CHARS]
+    return None
+
+
+async def list_program_cards(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
+    """Every card on the boards of a Program (its overview, Today, its terms and courses), so
+    the assistant finds a card without guessing its board. Generated boards are read, not
+    stored. Courses have no archived state, so every course of every term is searched: one board
+    read each (a few queries), fine for a Program's tens of courses; past terms are kept because
+    the user may name a card on one."""
+    from semestra.modules.academics import service as academics
+    from semestra.modules.academics.schemas import CourseListInput
+
+    program = await academics.get_program_row(ctx, inp.program_id)
+    boards: list[tuple[str, str, str]] = [
+        ("program", program.id, program.name),
+        ("today", program.id, program.name),
+    ]
+    boards += [("term", t.id, t.name) for t in await academics.program_terms(ctx, program.id)]
+    cursor: str | None = None
+    while True:
+        page = await academics.list_courses(
+            ctx, CourseListInput(program_id=program.id, cursor=cursor, limit=500)
+        )
+        boards += [("course", c.id, c.code or c.title) for c in page.items]
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    items: list[CardInstanceSummary] = []
+    for scope_type, scope_id, name in boards:
+        board = await get_board(ctx, BoardRef(scope_type=scope_type, scope_id=scope_id))  # pyright: ignore[reportArgumentType]
+        items += [
+            CardInstanceSummary(
+                instance_id=card.instance_id,
+                card_id=card.card_id,
+                scope_type=board.scope_type,
+                scope_id=scope_id,
+                board_name=name,
+                label=_label(card.settings),
+            )
+            for card in board.cards
+            if inp.card_id is None or card.card_id == inp.card_id
+        ]
+    return CardInstanceList(items=items)
 
 
 async def remove_card(ctx: Ctx, instance_id: str) -> Removed:

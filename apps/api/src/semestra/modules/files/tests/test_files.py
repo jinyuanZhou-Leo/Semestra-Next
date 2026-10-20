@@ -232,6 +232,12 @@ async def test_keyword_search_finds_codes_and_chinese(fx: Fx):
     assert hit["page_from"] == 2
     assert "<mark>midterm</mark>" in hit["snippet"]
     assert hit["citation_id"] == f"{item['id']}:p2-2"
+    # The assistant turns `[[cite:<id>]]` into a badge from this list (M12 §6.1).
+    cite = result["citations"][0]
+    assert cite["id"] == hit["citation_id"]
+    assert cite["title"] == "syllabus.pdf"
+    assert "<mark>" not in cite["snippet"]
+    assert "midterm" in cite["snippet"]
 
     assert (await fx.search("APS105"))["results"][0]["page_from"] == 1
     chinese = (await fx.search("考试时间"))["results"]
@@ -257,6 +263,75 @@ async def test_search_scope_and_pending(fx: Fx):
     scoped = await fx.search("shared keyword", course_ids=[other])
     assert {h["course_id"] for h in scoped["results"]} == {other}
     assert (await fx.search("shared keyword", top_k=1))["results"].__len__() == 1
+
+
+async def test_search_reports_wrong_courses_and_unreadable_files(fx: Fx):
+    await fx.upload_ready("a.docx", make_docx([("Normal", "shared keyword alpha")]))
+    await fx.upload_ready("broken.pdf", b"%PDF-1.7 this is not really a pdf")
+    result = await fx.search("shared keyword")
+    [unreadable] = result["unreadable_items"]
+    assert unreadable["display_name"] == "broken.pdf"
+    assert unreadable["doc_error_code"] == "files.parse_failed"
+
+    # A mistyped id, or a course of another term, is an error, not an empty result.
+    error = await fx.call(
+        "POST",
+        f"/programs/{fx.program_id}/files:search",
+        json={"query": "shared", "course_ids": [fx.course_id, "nope"]},
+        status=422,
+    )
+    assert error["error"]["params"]["errors"] == [
+        {"loc": ["course_ids"], "code": "not_in_scope", "ids": ["nope"]}
+    ]
+
+
+async def test_agent_reads_stop_at_a_page_boundary_and_carry_citations(
+    fx: Fx, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.core.capability import registry
+    from semestra.core.context import system_ctx
+    from semestra.modules.agent.tools import serialize
+    from semestra.modules.files import documents
+
+    budget = 1500
+    monkeypatch.setattr(documents, "READ_RESULT_BUDGET", budget)
+    # About 600 characters of markdown and 200 of snippet each: one page per read.
+    long_page = "\n".join(["word " * 10] * 12)
+    item = await fx.upload_ready("long.pdf", make_pdf([long_page] * 4))
+    full = await fx.call("GET", f"/files/{item['id']}/document")
+    assert len(full["pages"]) == 4  # the app reads its whole window
+    assert full["citations"][3]["id"] == f"{item['id']}:p4-4"
+
+    async with system_ctx(fx.app.state, fx.user.id) as ctx:
+        out = await registry.invoke(ctx, "files.document.read", {"item_id": item["id"]}, "agent")
+    assert isinstance(out, dict)  # agent output is trimmed JSON
+    assert len(out["pages"]) == 1
+    assert len(serialize(out)) <= budget
+    assert out["next_page"] == 2
+    assert [c["id"] for c in out["citations"]] == [p["citation_id"] for p in out["pages"]]
+
+    await fx.call(
+        "GET",
+        f"/files/{item['id']}/document",
+        params={"page_from": 3, "page_to": 2},
+        status=422,
+    )
+
+
+async def test_agent_reads_of_many_short_pages_fit_one_result(fx: Fx):
+    """Citations add a snippet per page: the budget counts them, not just the markdown."""
+    from semestra.core.capability import registry
+    from semestra.core.context import system_ctx
+    from semestra.modules.agent.tools import RESULT_LIMIT, serialize
+
+    page = "\n".join([f"line {n} of a short slide" for n in range(6)])
+    item = await fx.upload_ready("slides.pdf", make_pdf([page] * 30))
+    async with system_ctx(fx.app.state, fx.user.id) as ctx:
+        out = await registry.invoke(ctx, "files.document.read", {"item_id": item["id"]}, "agent")
+    assert isinstance(out, dict)
+    assert len(serialize(out)) <= RESULT_LIMIT
+    assert out["next_page"] is not None
+    assert out["next_page"] == out["pages"][-1]["page_no"] + 1
 
 
 async def test_other_users_files_are_invisible(fx: Fx, make_user: MakeUser, login_as: LoginAs):
@@ -497,13 +572,14 @@ async def test_other_users_cannot_touch_files_folders_or_search_scope(
         assert r.status_code == 404, (method, url, r.text)
     await fx.upload("x.txt", b"hello", course_id=fx.course_id, status=404)
 
-    # In their own Program, naming someone else's course or file finds nothing.
+    # In their own Program, naming someone else's course is the same error as a mistyped id,
+    # and naming someone else's file finds nothing.
     program = await fx.call("POST", "/programs", json={"name": "Mine", "timezone": "UTC"})
     for scope in ({"course_ids": [fx.course_id]}, {"item_ids": [item["id"]]}):
         r = await fx.client.post(
             f"/programs/{program['id']}/files:search", json={"query": "midterm", **scope}
         )
-        assert r.status_code == 404 or r.json()["results"] == [], r.text
+        assert r.status_code == 422 or r.json()["results"] == [], r.text
 
 
 async def test_files_cannot_go_into_another_courses_folder(fx: Fx):

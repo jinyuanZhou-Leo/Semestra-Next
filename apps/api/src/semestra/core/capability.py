@@ -134,7 +134,12 @@ class Registry:
         except ValidationError as exc:
             raise validation_error(exc) from exc
         if cap.check is not None:
-            await cap.check(ctx, inp)
+            # The check reads the surface like the handler does (rules for agents only).
+            outer, ctx.surface = ctx.surface, surface
+            try:
+                await cap.check(ctx, inp)
+            finally:
+                ctx.surface = outer
         return inp
 
     def set_plugin_gate(self, gate: PluginGate | None) -> None:

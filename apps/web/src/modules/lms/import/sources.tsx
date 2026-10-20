@@ -1,4 +1,4 @@
-import { lmsCourseApplyUpdates } from '@semestra/api-client'
+import { lmsCourseQueueUpdates } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
 import type { CommandContribution } from '@/app/extensions'
@@ -94,7 +94,7 @@ export const assignmentSource: AssessmentImportSource = {
 
 /** The review of changed assignments: the session already exists when the dialog opens. */
 export async function reviewUpdates(programId: string, courseId: string) {
-  const { data } = await lmsCourseApplyUpdates({
+  const { data } = await lmsCourseQueueUpdates({
     path: { course_id: courseId },
     throwOnError: true,
   })

@@ -317,10 +317,25 @@ async def test_disabled_and_biweekly_and_conflicts(api: Api):
         f"/courses/{course_id}/meetings:enabled",
         json={"meeting_ids": [tut1["id"]], "enabled": False},
     )
-    assert {m["id"]: m["enabled"] for m in listed["items"]}[tut1["id"]] is False
+    # Only what changed comes back; asking again changes nothing.
+    assert [(m["id"], m["enabled"]) for m in listed["items"]] == [(tut1["id"], False)]
+    again = await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={"meeting_ids": [tut1["id"], lec["id"]], "enabled": True},
+    )
+    assert [m["id"] for m in again["items"]] == [tut1["id"]]
+    await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={"meeting_ids": [tut1["id"]], "enabled": False},
+    )
     week = await api.calendar(program_id, "2026-01-11", "2026-01-18")
     assert tut1["id"] not in {o["meta"]["meeting_id"] for o in classes(week)}
     assert (await api.call("GET", f"/terms/{term_id}/schedule-conflicts"))["items"] == []
+    assert classes(await api.calendar(program_id, "2026-01-11", "2026-01-18", kinds=["class"]))
+    only_events = await api.calendar(program_id, "2026-01-11", "2026-01-18", kinds=["event"])
+    assert only_events["items"] == []
 
 
 async def test_create_many_dedupes_by_source(api: Api):

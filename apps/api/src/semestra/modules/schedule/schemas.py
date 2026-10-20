@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
-from semestra.modules.schedule.calendar import Occurrence
+from semestra.modules.schedule.calendar import Occurrence, OccurrenceKind
 
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 ShortText = Annotated[str, Field(max_length=200)]
@@ -322,6 +322,10 @@ class OccurrencesInput(BaseModel):
     )
     term_id: Id | None = Field(default=None, description="Only this term")
     course_ids: list[Id] | None = Field(default=None, description="Only these courses")
+    kinds: list[OccurrenceKind] | None = Field(
+        default=None,
+        description="Only these kinds: class, event, deadline, task; all by default",
+    )
 
 
 class CalendarWeek(BaseModel):

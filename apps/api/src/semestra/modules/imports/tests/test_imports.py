@@ -1,5 +1,6 @@
 """Import sessions over HTTP and the agent surface (M08 §9)."""
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -206,6 +207,48 @@ async def test_bad_uploads_and_sources(api: Api):
     assert err["error"]["code"] == "ai.not_configured"
 
 
+async def test_waiting_for_extraction_takes_one_call(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(service, "WAIT_POLL_SECONDS", 0.05)
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "term", "term_id": term_id},
+        text="APS105 syllabus ...",
+    )  # fmt: skip
+    url = f"/imports/{session['id']}"
+    # Nothing finishes it: the wait ends at the limit with the session still extracting.
+    timed_out = await api.call("GET", url, params={"wait_seconds": 1})
+    assert timed_out["status"] == "extracting"
+
+    async def finish_soon() -> None:
+        await asyncio.sleep(0.2)
+        await run_jobs()
+
+    waited, _ = await asyncio.gather(
+        api.call("GET", url, params={"wait_seconds": 20}), finish_soon()
+    )
+    assert waited["status"] == "ready"
+    assert waited["items"]
+    await api.call("GET", url, 422, params={"wait_seconds": 26})
+
+    # Discarding it while someone waits ends the wait with the new status.
+    other = await api.create(
+        program_id, source_kind="text", target={"kind": "term", "term_id": term_id},
+        text="MAT188 syllabus ...",
+    )  # fmt: skip
+
+    async def discard_soon() -> None:
+        await asyncio.sleep(0.2)
+        await api.call("POST", f"/imports/{other['id']}:discard")
+
+    waited, _ = await asyncio.gather(
+        api.call("GET", f"/imports/{other['id']}", params={"wait_seconds": 20}), discard_soon()
+    )
+    assert waited["status"] == "discarded"
+
+
 async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, Any]], run_jobs):
     program_id = await api.program()
     term_id = await api.term(program_id)
@@ -251,8 +294,28 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     meetings = by_type(session, "meeting")
     assert [m["data"]["type_code"] for m in meetings] == ["LEC", "PRA"]
 
-    # Fix the weights and the date by hand; the issues go away.
+    # A misspelt field is refused, not silently dropped.
     lab2 = assessments["Lab 2"]
+    err = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{lab2['id']}", 422,
+        json={"data": {"weigth": 20}},
+    )  # fmt: skip
+    errors = err["error"]["params"]["errors"]
+    assert errors == [{"loc": ["data", "weigth"], "code": "extra_forbidden"}]
+    err = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{lab2['id']}", 422,
+        json={"data": {"weigth": None}},
+    )  # fmt: skip
+    assert err["error"]["params"]["errors"] == [
+        {"loc": ["data", "weigth"], "code": "extra_forbidden"}
+    ]
+    # A bulk decision needs at least one filter.
+    err = await api.call(
+        "POST", f"/imports/{session['id']}/items:decide", 422, json={"decision": "reject"}
+    )
+    assert err["error"]["params"]["errors"][0]["code"] == "filter_required"
+
+    # Fix the weights and the date by hand; the issues go away.
     session = await api.call(
         "PATCH", f"/imports/{session['id']}/items/{lab2['id']}",
         json={"data": {"due_date": "2026-02-13"}},

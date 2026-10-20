@@ -12,6 +12,9 @@ SearchMode = Literal["hybrid", "keyword", "semantic"]
 
 MAX_FOLDER_DEPTH = 3
 MAX_READ_PAGES = 30
+# Agent/MCP reads stop before their JSON (pages and citations) grows past this many characters,
+# below the assistant's 12 000-character result pages (`agent/tools.py` RESULT_LIMIT).
+READ_RESULT_BUDGET = 9_000
 MAX_PAGES = 500
 
 
@@ -174,14 +177,27 @@ class DocumentReadInput(BaseModel):
     page_from: Annotated[int, Field(ge=1)] = Field(default=1, description="First page (1-based)")
     page_to: Annotated[int, Field(ge=1)] | None = Field(
         default=None,
-        description=f"Last page; at most {MAX_READ_PAGES} pages are returned per call",
+        description=f"Last page; at most {MAX_READ_PAGES} pages, and for the assistant about "
+        f"{READ_RESULT_BUDGET} characters, are returned per call",
     )
+
+
+class Citation(BaseModel):
+    """What the assistant's `[[cite:<id>]]` markers point at (M12 §6.1)."""
+
+    id: str = Field(description="`<item_id>:p<page_from>-<page_to>`")
+    title: str = Field(description="File name")
+    item_id: str
+    page_from: int
+    page_to: int
+    snippet: str = Field(description="The quoted words, plain text")
 
 
 class DocumentPage(BaseModel):
     page_no: int
     markdown: str
     ocr_used: bool
+    citation_id: str = Field(description="`<item_id>:p<page_no>-<page_no>`")
 
 
 class DocumentRead(BaseModel):
@@ -190,6 +206,7 @@ class DocumentRead(BaseModel):
     page_count: int
     pages: list[DocumentPage]
     next_page: int | None = Field(description="Call again from this page for the rest")
+    citations: list[Citation] = Field(description="One per page; cite a page by its citation_id")
 
 
 class OutlineEntry(BaseModel):
@@ -242,12 +259,24 @@ class PendingItem(BaseModel):
     course_id: str
 
 
+class UnreadableItem(BaseModel):
+    item_id: str
+    display_name: str
+    course_id: str
+    doc_status: Literal["failed", "unsupported"]
+    doc_error_code: str | None = Field(description="Why the text could not be read")
+
+
 class SearchResult(BaseModel):
     results: list[SearchHit]
     pending_items: list[PendingItem] = Field(
         description="Files in scope that are still being processed and are not searchable yet"
     )
+    unreadable_items: list[UnreadableItem] = Field(
+        description="Files in scope whose text could not be read; search never covers them"
+    )
     mode_used: SearchMode
+    citations: list[Citation] = Field(description="One per result, by its citation_id")
 
 
 # --- misc -----------------------------------------------------------------------------------
