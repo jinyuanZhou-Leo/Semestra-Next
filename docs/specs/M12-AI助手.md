@@ -208,3 +208,12 @@ agent_preferences
 - **步骤行与卡片用名字说话**（Sem 最新 trace 分析 PR 2，2026-10-20）：`agent/display.py` 按参数名（`term_id`、`course_ids`、`attachment_id`，导入的 `session_id`/`item_id` 等，可按模块区分）把 id 换成用户自己的名字，再加上读到几项、导入各类型数量、`changed`/`created`/`failed` 等计数，作为工具结果块和 `tool_result` 事件的 `display`（模型看不到；只在 agent 入口计算，解析失败只是少显示，不影响调用）。前端步骤行是「标题 + 名字 + 简短事实」，成功的步骤不再加「已执行：」，展开后是去掉 id 的参数列表，不再显示原始 JSON；思考块摘要加上「改动 N 处」。确认卡片：没有自带 `target` 的预览由同一套解析补上 `target`，通用预览去掉 `*_id`/`*_ids` 和只剩 id 的对象；值按列表、名称（带日期范围）和错误码文案显示。`imports.session.commit` 的预览改为「文件 → 学期」加将新建的课程代码、各类型数量、已排除、待决定和待确认数。
 - **步骤按模型的一句话分组**（Sem 最新 trace 分析 PR 3，2026-10-20）：系统提示要求模型在每次调用工具前先说一句不超过 15 词的话（做什么、为什么）。前端把同一条助手消息里的工具调用折叠在这句话下面，标题行是这句话（去掉成对的 Markdown 标记）加「N 步」，整轮回答进行中保持展开、回答开始后随思考块一起折叠；这句话之外的文字照常以 Markdown 显示在组内；没说这句话的步骤照旧平铺。只多一句固定提示（不影响缓存）和每批调用十几个输出 token。
 - **模型只看到一种工具名**（2026-10-20）：工具名是能力名把点换成 `__`（OpenAI、Anthropic 的工具名都不允许点）。工具描述、skill 正文（`load_capability` 与 MCP prompt）和附件提示里写的能力名，在发给模型前由 `tools.for_model` 换成工具名，模型不用自己换算。
+- **运行时与注册表**（工具排查 PR-A，2026-10-20）：
+  - `search_tools` 用 SQLite FTS5 的 BM25 排序（`tools.search`，porter 词干，名称权重 4 倍，最多 10 个），不用库自带的关键词计数，也不新增依赖；描述改成"用英文动作词和对象词搜，找不到换个词再试一次"。
+  - 核心工具加上 `tasks.item.create/find/complete/update` 与 `files.document.search`，去掉 `imports.session.get`（导入 skill 会打开它）。
+  - 发给模型的输入 schema 去掉 Pydantic 的 `title`（字段名为 `title` 的属性保留），字段描述里的能力名换成工具名。
+  - `registry.set_context_default`：agent/MCP 调用可以省略必填的 `program_id`，由 M02 的 `default_program_id` 填成当前 Program（或唯一的 Program）；schema 里它变成可选并注明这一点（agent 看到“省略即当前 Program”，MCP 客户端看到“只有一个 Program 时可省略”）。HTTP 仍然必填。写操作在出卡片前就补全，提案里存的是补全后的参数，所以用户切换范围后再批准仍写入出卡片时的 Program；补全不算用户修改。
+  - `@capability(check=...)`：handler 会拒绝的输入在 `registry.validate` 里先检查，agent 的写操作在出确认卡片之前就报错，而不是用户批准之后。同一个函数同时用于卡片前和执行时。
+  - `@capability(untrusted=True)` 同时决定结果的不可信包装和描述里的提示（原来是 `tools.UNTRUSTED_RESULTS` 加各自描述两处，`lms.quiz.list` 漏了包装）。
+  - 错误：`not_found(kind, id)` 带上找不到的是什么、哪个 id；校验错误带 Pydantic 的 `msg` 与 `ctx`（如 `ge`、允许的值），不带输入值。
+

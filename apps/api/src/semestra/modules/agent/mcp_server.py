@@ -68,7 +68,7 @@ async def _tools_for(ctx: Ctx, ident: McpIdentity) -> list[Capability]:
 
 
 def _tool(cap: Capability) -> types.Tool:
-    schema = tools.input_schema(cap)
+    schema = tools.input_schema(cap, "mcp")
     return types.Tool(
         name=tools.tool_name(cap.name),
         description=tools.description(cap),

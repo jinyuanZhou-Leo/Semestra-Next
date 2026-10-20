@@ -147,7 +147,7 @@ async def list_event_types(ctx: Ctx, program_id: str) -> list[EventType]:
 async def _type_row(ctx: Ctx, type_id: str) -> ScheduleEventType:
     row = await ctx.db.get(ScheduleEventType, type_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("type", type_id)
     return row
 
 
@@ -293,7 +293,7 @@ async def _term_info(ctx: Ctx, term: AcademicsTerm) -> TermInfo:
 async def _meeting_row(ctx: Ctx, meeting_id: str) -> ScheduleMeeting:
     row = await ctx.db.get(ScheduleMeeting, meeting_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("meeting", meeting_id)
     return row
 
 
@@ -638,7 +638,7 @@ async def delete_exception(ctx: Ctx, meeting_id: str, original_date: date) -> Me
         )
     )
     if not getattr(result, "rowcount", 0):
-        raise not_found()
+        raise not_found("exception", str(original_date))
     await ctx.db.flush()
     await _changed(
         ctx,
@@ -687,7 +687,7 @@ async def conflicts(ctx: Ctx, term_id: str) -> list[ConflictPair]:
 async def _event_row(ctx: Ctx, event_id: str) -> ScheduleEvent:
     row = await ctx.db.get(ScheduleEvent, event_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("event", event_id)
     return row
 
 
@@ -1164,7 +1164,7 @@ async def create_feed(ctx: Ctx, inp: FeedCreateInput) -> FeedCreated:
 async def revoke_feed(ctx: Ctx, feed_id: str) -> Feed:
     row = await ctx.db.get(ScheduleFeed, feed_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("feed", feed_id)
     if row.revoked_at is None:
         row.revoked_at = ctx.now
         await ctx.db.flush()
