@@ -7,7 +7,7 @@ import re
 from semestra.core.capability import registry
 from semestra.main import create_app
 
-# Entity words that end in "s" but are singular.
+# Entity words that end in "s" but are singular (add new ones such as "class" here).
 SINGULAR = {"status", "syllabus"}
 # The account itself is the entity.
 EXCEPTIONS = {"account.delete"}

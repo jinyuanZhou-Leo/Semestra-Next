@@ -516,16 +516,23 @@ async def get_preferences(ctx: Ctx) -> AgentPreferencesOut:
     row = await preferences_row(ctx)
     if row is None:
         return AgentPreferencesOut(auto_approve=[], mcp_allow_destructive=False)
+    # A name saved before a capability was renamed or removed is dropped, so it neither blocks
+    # saving the list again nor shows up in the settings.
     return AgentPreferencesOut(
-        auto_approve=list(row.auto_approve), mcp_allow_destructive=row.mcp_allow_destructive
+        auto_approve=[n for n in row.auto_approve if _auto_approvable(n)],
+        mcp_allow_destructive=row.mcp_allow_destructive,
     )
+
+
+def _auto_approvable(name: str) -> bool:
+    cap = capability(name)
+    return cap is not None and "agent" in cap.expose and cap.effect == "write"
 
 
 def _check_auto_approve(names: Sequence[str]) -> list[str]:
     """Only write capabilities offered to the agent can skip the confirmation card."""
     for name in names:
-        cap = capability(name)
-        if cap is None or "agent" not in cap.expose or cap.effect != "write":
+        if not _auto_approvable(name):
             raise AppError(
                 "common.validation",
                 422,
