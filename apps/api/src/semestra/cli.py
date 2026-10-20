@@ -24,6 +24,10 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("openapi", help="print the OpenAPI schema as JSON")
 
+    check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
+    check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
+    check.add_argument("--since", help="only sessions updated at or after this ISO date")
+
     args = parser.parse_args(argv)
     match args.command:
         case "dev":
@@ -70,6 +74,15 @@ def main(argv: list[str] | None = None) -> None:
 
             json.dump(create_app().openapi(), sys.stdout, indent=2, ensure_ascii=False)
             sys.stdout.write("\n")
+        case "check-sessions":
+            from pathlib import Path
+
+            from semestra.core.config import get_settings
+            from semestra.modules.agent import session_check
+
+            db = args.db or get_settings().database_url.split(":///", 1)[1]
+            report = session_check.check(Path(db), since=args.since)
+            sys.stdout.write(session_check.render(report) + "\n")
 
 
 if __name__ == "__main__":

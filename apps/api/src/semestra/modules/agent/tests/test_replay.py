@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from semestra.core.config import Settings
+from semestra.modules.agent import loop, session_check
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, Reply, events_named, say
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
 
@@ -50,10 +54,8 @@ def _replies(trace: dict[str, Any], ids: dict[str, str]) -> list[Reply]:
     ]
 
 
-async def test_ics_two_terms_approved_writes_reach_the_model(agent: Agent, model: FakeModel):
-    """2026-10-20: both terms were created on approval, but the resumed run told the model
-    the tool was "not available yet" (the skill's reveal was not stored), so it made them
-    again."""
+async def _run_ics_two_terms(agent: Agent, model: FakeModel) -> tuple[dict[str, Any], list[Any]]:
+    """Sends the recorded message, approves both term cards; returns the program and results."""
     trace = json.loads((TRACES / "ics_two_terms.json").read_text())
     program = await agent.program()
     session = await agent.session({"program_id": program["id"]})
@@ -70,15 +72,55 @@ async def test_ics_two_terms_approved_writes_reach_the_model(agent: Agent, model
     assert [c["capability"] for c in cards] == ["academics.term.create"] * 2
 
     model.then(say("Both terms are there."))
-    for card in cards[:-1]:
-        await agent.decide(session["id"], card["id"])
-    events = await agent.decide(session["id"], cards[-1]["id"])
-
+    events = [e for card in cards for e in await agent.decide(session["id"], card["id"])]
     results = {r["call_id"]: r for r in events_named(events, "tool_result")}
-    created = [results[c["call_id"]] for c in cards]
+    return program, [results[c["call_id"]] for c in cards]
+
+
+def _db(settings: Settings) -> Path:
+    return Path(settings.database_url.split(":///", 1)[1])
+
+
+@pytest.mark.parametrize("stored_reveals", [True, False])
+async def test_ics_two_terms_approved_writes_reach_the_model(
+    agent: Agent,
+    model: FakeModel,
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    stored_reveals: bool,
+):
+    """2026-10-20: both terms were created on approval, but the resumed run told the model
+    the tool was "not available yet" (the skill's reveal was not stored), so it made them
+    again. `stored_reveals=False` is a history stored before reveals were kept: the cards
+    being resumed still reach the model."""
+    if not stored_reveals:
+        monkeypatch.setattr(loop, "_reveals", lambda message, results: [])
+        model.may_lose_tools = {"*"}
+    program, created = await _run_ics_two_terms(agent, model)
+
     assert all(r["ok"] for r in created), created
+    assert "not available yet" not in model.last_text()
     sent = [str(p.content) for p in model.results(-1)]
-    assert not any("not available yet" in s for s in sent)
     assert sum('"name":"2026Fall"' in s or '"name":"2027Winter"' in s for s in sent) == 2
     terms = await agent.call("GET", f"/programs/{program['id']}/terms")
     assert sorted(t["name"] for t in terms["items"]) == ["2026Fall", "2027Winter"]
+
+    kinds = {f.kind for f in session_check.check(_db(settings)).findings}
+    assert kinds == (set() if stored_reveals else {"reveal_not_stored"})
+
+
+async def test_the_session_check_finds_the_recorded_failure(
+    agent: Agent, model: FakeModel, settings: Settings, monkeypatch: pytest.MonkeyPatch
+):
+    """With neither fix the run fails as it did on 2026-10-20, and `semestra check-sessions`
+    says so."""
+    monkeypatch.setattr(loop, "_reveals", lambda message, results: [])
+    monkeypatch.setattr(loop, "_keep_callable", lambda messages, calls: None)
+    model.may_lose_tools = {"*"}
+    await _run_ics_two_terms(agent, model)
+
+    report = session_check.check(_db(settings))
+    kinds = [f.kind for f in report.findings]
+    assert kinds.count("executed_but_model_saw_error") == 2, kinds
+    assert "tool_refused" in kinds
+    assert "No problems" not in session_check.render(report)

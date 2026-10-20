@@ -89,7 +89,7 @@ class FakeModel:
         self.source = "test:instance:fake-model"
         self.script: list[Step] = []
         self.requests: list[tuple[list[ModelMessage], AgentInfo]] = []
-        # Tools a test makes disappear on purpose (memory turned off mid-conversation, say).
+        # Tools a test makes disappear on purpose ("*": any).
         self.may_lose_tools: set[str] = set()
         # Like Chat Completions: no native tool search, so a revealed tool becomes an ordinary one.
         self.model = FunctionModel(
@@ -132,7 +132,8 @@ class FakeModel:
         if earlier is None:
             return
         lost = {t.name for t in earlier.function_tools} - {t.name for t in info.function_tools}
-        assert not lost - self.may_lose_tools, f"tools lost between requests: {sorted(lost)}"
+        if "*" not in self.may_lose_tools:
+            assert not lost - self.may_lose_tools, f"tools lost between requests: {sorted(lost)}"
 
     def tools_of(self, index: int = -1) -> set[str]:
         """The tools the model could call in a request."""

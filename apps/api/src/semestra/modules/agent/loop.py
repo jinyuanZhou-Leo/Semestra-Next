@@ -42,6 +42,7 @@ from pydantic_ai.messages import (
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
+    ToolAvailabilityDeltaPart,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -84,14 +85,16 @@ TITLE_MAX_CHARS = 20
 PauseReason = Literal["tool_limit", "loop"]
 PAUSE_NOTES: dict[str, str] = {
     "tool_limit": (
-        "You reached the limit of tool calls for this message; the calls after it were not run. "
-        "Do not call tools now. Tell the user in a few sentences what is done and what is left. "
-        "They can press Continue to let you go on."
+        "You reached the limit of tool calls for this message; your last batch of calls was "
+        "not run. Do not call tools now. Going only by the tool results above, tell the user in "
+        "a few sentences what is saved (changes that succeeded), what is still a draft or not "
+        "done, and what you are unsure of. They can press Continue to let you go on."
     ),
     "loop": (
         "You repeated the same tool call several times without progress, so the turn was paused. "
-        "Do not call tools now. Tell the user in a few sentences what is done, what is left and "
-        "what went wrong. They can press Continue to let you try again."
+        "Do not call tools now. Going only by the tool results above, tell the user in a few "
+        "sentences what is saved, what is left and what went wrong. They can press Continue to "
+        "let you try again."
     ),
 }
 CONTINUE_NOTE = "The user pressed Continue: carry on from where you stopped."
@@ -365,11 +368,9 @@ class _Hooks(AbstractCapability[Turn]):
             return args  # counted when it was proposed
         counters = turn.counters
         if counters.pause is not None:
-            raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT)
+            left = max(0, TOOL_CALL_LIMIT - counters.tool_calls)
+            raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT, left=left)
         counters.tool_calls += 1
-        if counters.tool_calls > TOOL_CALL_LIMIT:
-            counters.pause = "tool_limit"
-            raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT)
         key = f"{call.tool_name} {history.args_json(args)}"
         counters.repeats = counters.repeats + 1 if key == counters.last_call else 1
         counters.last_call = key
@@ -407,6 +408,21 @@ class _Hooks(AbstractCapability[Turn]):
                 names = [*(result.tools or []), *(tools.tool_name(t) for t in skill.tools)]
                 result.tools = list(dict.fromkeys(names))
         return result
+
+    async def after_model_request(
+        self,
+        ctx: RunContext[Turn],
+        *,
+        request_context: ModelRequestContext,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        # A batch that does not fit in what is left of the limit runs not at all rather than in
+        # part: half a batch done is hard for the model (and the user) to tell apart.
+        counters = ctx.deps.counters
+        batch = sum(isinstance(p, ToolCallPart) for p in response.parts)
+        if counters.pause is None and counters.tool_calls + batch > TOOL_CALL_LIMIT:
+            counters.pause = "tool_limit"
+        return response
 
     async def before_model_request(
         self, ctx: RunContext[Turn], request_context: ModelRequestContext
@@ -600,6 +616,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
             else:
                 text = _proposal_outcome(prop).content
                 resume.approvals[c.tool_call_id] = ToolDenied(text)
+        _keep_callable(messages, calls)
     remembered = await memory.snapshot(ctx, session)
     available = await registry.available(ctx, "agent")
     if not remembered:  # a temporary conversation, or memory turned off
@@ -627,6 +644,20 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
         edited=edited,
     )
     return Prepared(turn, _agent(turn, available, visible), messages, resume)
+
+
+def _keep_callable(messages: list[ModelMessage], calls: Sequence[ToolCallPart]) -> None:
+    """The cards being resumed already ran (`decide`), so their tools must still count as
+    shown, or Pydantic AI refuses the calls and the model never sees what they did. A history
+    stored before the reveals were kept lacks them: say they were shown just before the calls."""
+    shown = set(history.revealed_tools(messages))
+    missing = sorted({c.tool_name for c in calls} - shown)
+    at = next(
+        (i for i in reversed(range(len(messages))) if isinstance(messages[i], ModelResponse)), 0
+    )
+    if not missing or not at or not isinstance(before := messages[at - 1], ModelRequest):
+        return
+    before.parts = [*before.parts, ToolAvailabilityDeltaPart(tools_added=missing)]
 
 
 def close_calls(
@@ -844,7 +875,8 @@ class _Store:
             session = await service.get_session_row(ctx, self.turn.session_id)
             for m, parts in new:
                 self.answered.update(id(p) for p in parts)
-                request = replace(m, parts=list(parts)) if len(parts) != len(m.parts) else m
+                kept = [*parts, *_reveals(m, parts)]
+                request = replace(m, parts=kept) if len(kept) != len(m.parts) else m
                 blocks = history.request_blocks(request)
                 history.strip_full(request)
                 row = service.add_message(
@@ -853,6 +885,20 @@ class _Store:
                 m.metadata = {**(m.metadata or {}), "row_id": row.id}
             _save_state(session, self.turn)
             await ctx.db.commit()
+
+
+def _reveals(
+    message: ModelRequest, results: Sequence[ToolReturnPart | RetryPromptPart]
+) -> list[ToolAvailabilityDeltaPart]:
+    """The tools these results revealed (a loaded skill's, say). Pydantic AI keeps them next to
+    the result in the same request; without them a history loaded back from the rows no longer
+    shows those tools and refuses calls to them."""
+    ids = {r.tool_call_id for r in results}
+    return [
+        p
+        for p in message.parts
+        if isinstance(p, ToolAvailabilityDeltaPart) and p.tool_call_id in ids
+    ]
 
 
 def _save_state(session: AgentSession, turn: Turn) -> None:
