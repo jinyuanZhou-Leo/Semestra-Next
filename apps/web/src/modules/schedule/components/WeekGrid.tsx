@@ -100,15 +100,27 @@ export function WeekGrid({
   const from = Math.floor(Math.min(dayStart, ...shown.map((i) => i.start)) / 60) * 60
   const to = Math.ceil(Math.max(dayEnd, ...shown.map((i) => i.end)) / 60) * 60
   const hours = Array.from({ length: Math.max(1, (to - from) / 60) }, (_, i) => from / 60 + i)
-  const height = hours.length * hourHeight
-  const top = (value: number) => ((value - from) / (to - from)) * height
+  // Room above the first hour line so its label can sit centered on the line like the others.
+  const inset = 8
+  const span = hours.length * hourHeight
+  const height = span + inset
+  const top = (value: number) => inset + ((value - from) / (to - from)) * span
 
   return (
     <div
       className={cn('grid text-xs', className)}
-      style={{ gridTemplateColumns: `3rem repeat(${days.length}, minmax(0, 1fr))`, ...style }}
+      style={{
+        gridTemplateColumns: `max-content repeat(${days.length}, minmax(0, 1fr))`,
+        ...style,
+      }}
     >
-      <div />
+      {/* Sizes the hour column to the widest label of the locale's time format. */}
+      <div
+        aria-hidden
+        className="invisible h-0 px-1.5 text-[0.7rem] whitespace-nowrap tabular-nums"
+      >
+        {formatTime('22:00')}
+      </div>
       {days.map((day) => (
         <div key={day.weekday} className="truncate px-1 pb-1 text-center font-medium">
           {day.label}
@@ -121,10 +133,10 @@ export function WeekGrid({
         {hours.map((h) => (
           <span
             key={h}
-            className="absolute right-1 -translate-y-1/2 text-[0.7rem] text-muted-foreground tabular-nums"
+            className="absolute right-1.5 -translate-y-1/2 text-[0.7rem] whitespace-nowrap text-muted-foreground tabular-nums"
             style={{ top: top(h * 60) }}
           >
-            {h === from / 60 ? '' : formatTime(`${String(h % 24).padStart(2, '0')}:00`)}
+            {formatTime(`${String(h % 24).padStart(2, '0')}:00`)}
           </span>
         ))}
       </div>
@@ -156,7 +168,7 @@ export function WeekGrid({
                   onClick={item.onClick}
                   data-testid="grid-item"
                   className={cn(
-                    'absolute overflow-hidden rounded-md border-l-4 px-1 py-0.5 text-left leading-tight',
+                    'absolute flex flex-col justify-start overflow-hidden rounded-md border-l-4 px-1 py-0.5 text-left leading-tight',
                     item.onClick && 'cursor-pointer hover:brightness-95',
                     item.muted && 'opacity-50',
                   )}

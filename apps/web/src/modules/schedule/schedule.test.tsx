@@ -441,3 +441,18 @@ test('saving a multi-day all-day event keeps its last day', async () => {
     ),
   )
 })
+
+test('the course schedule shows a full-width week of class hours and one "Add" menu', async () => {
+  mount('/p/p1/c/c1/schedule')
+  const week = await screen.findByRole('region', { name: 'Week' }, { timeout: 10_000 })
+  // Only the hours with classes: the 10:00–11:00 lecture, titled by type and section.
+  expect(within(week).getByTestId('grid-item')).toHaveTextContent('LEC0101')
+  expect(within(week).queryByText('9:00 AM', { exact: false })).not.toBeInTheDocument()
+  expect(within(week).queryByText('Sat')).not.toBeInTheDocument()
+
+  expect(screen.getByText('No one-off events yet')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+  expect(await screen.findByRole('menuitem', { name: 'Meeting' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('menuitem', { name: 'One-off event' }))
+  expect(await screen.findByRole('dialog', { name: 'Add event' })).toBeInTheDocument()
+})
