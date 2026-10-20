@@ -76,6 +76,7 @@ async def _attachment(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[st
     return await _each(ids, label)
 
 
+@resolver("item", module="files")
 @resolver("file_item")
 async def _file(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
     from semestra.modules.files import service as files
@@ -121,7 +122,7 @@ async def _import_item(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[s
     return out
 
 
-@resolver("item", module="tasks")
+@resolver("task")
 async def _task(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
     from semestra.modules.tasks import service as tasks
 
@@ -131,12 +132,78 @@ async def _task(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str
     return await _each(ids, label)
 
 
+@resolver("list")
+async def _task_list(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.tasks import service as tasks
+
+    async def label(id_: str) -> str:
+        return (await tasks.get_list_row(ctx, id_)).name
+
+    return await _each(ids, label)
+
+
+@resolver("folder")
+async def _folder(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.files import service as files
+
+    async def label(id_: str) -> str:
+        return (await files.get_folder(ctx, id_)).name
+
+    return await _each(ids, label)
+
+
+async def _owned(
+    ctx: Ctx, model: type[Any], ids: list[str], name: Callable[[Any], str | None]
+) -> dict[str, str]:
+    """Labels read straight from the user's own rows (modules without a public getter)."""
+
+    async def label(id_: str) -> str | None:
+        row = await ctx.db.get(model, id_)
+        return name(row) if row is not None and row.user_id == ctx.user_id else None
+
+    return await _each(ids, label)
+
+
+@resolver("assessment")
+async def _assessment(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.grading.models import GradingAssessment
+
+    return await _owned(ctx, GradingAssessment, ids, lambda row: row.title)
+
+
+@resolver("category")
+async def _category(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.grading.models import GradingCategory
+
+    return await _owned(ctx, GradingCategory, ids, lambda row: row.name)
+
+
+@resolver("meeting")
+async def _meeting(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.schedule.models import ScheduleMeeting
+
+    return await _owned(
+        ctx, ScheduleMeeting, ids, lambda row: row.title or row.section_code or row.type_code
+    )
+
+
+@resolver("event")
+async def _event(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    from semestra.modules.schedule.models import ScheduleEvent
+
+    return await _owned(ctx, ScheduleEvent, ids, lambda row: row.title)
+
+
 def _id_fields(args: dict[str, Any]) -> list[tuple[str, list[str]]]:
     """(argument name without `_id`/`_ids`, ids) for every id argument, nested ones included, in
     argument order."""
     found: list[tuple[str, list[str]]] = []
 
     def walk(value: Any) -> None:
+        if isinstance(value, list):
+            for each in value:  # pyright: ignore[reportUnknownVariableType]
+                walk(each)
+            return
         if not isinstance(value, dict):
             return
         for key, inner in value.items():  # pyright: ignore[reportUnknownVariableType]

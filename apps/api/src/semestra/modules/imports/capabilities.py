@@ -167,7 +167,7 @@ items that have not been written. The assistant gets the counts and the items th
         "session.id",
         "session.status",
         "session.summary",
-        "session.items",
+        *(f"session.items.{f}" for f in ("id", *service.AGENT_ITEM_FIELDS)),
     ),
 )
 async def session_commit(ctx: Ctx, inp: CommitInput) -> CommitResult:

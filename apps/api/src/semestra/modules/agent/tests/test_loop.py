@@ -1239,3 +1239,26 @@ async def test_steps_and_cards_name_things_instead_of_ids(agent: Agent, model: F
     fields = [c["field"] for c in card["preview"]["changes"]]
     assert fields == ["name", "start_date", "end_date", "breaks"]
     assert program["id"] not in str(card["preview"])
+
+
+async def test_task_and_list_ids_are_named(agent: Agent):
+    from semestra.core.context import system_ctx
+    from semestra.modules.agent import display
+
+    program = await agent.program()
+    pid = program["id"]
+    todo = await agent.call("POST", f"/programs/{pid}/task-lists", json={"name": "Errands"})
+    task = await agent.call(
+        "POST", f"/programs/{pid}/tasks", json={"title": "Buy a calculator", "list_id": todo["id"]}
+    )
+    me = await agent.call("GET", "/account/me")
+    async with system_ctx(agent.app.state, me["id"]) as ctx:
+        names = await display.labels(
+            ctx, "tasks.item.update", {"task_id": task["id"], "list_id": todo["id"]}
+        )
+        # Ids nested in lists of objects are named too.
+        nested = await display.labels(
+            ctx, "tasks.item.move", {"items": [{"task_id": task["id"]}, {"list_id": "nope"}]}
+        )
+    assert names == ["Buy a calculator", "Errands"]
+    assert nested == ["Buy a calculator"]

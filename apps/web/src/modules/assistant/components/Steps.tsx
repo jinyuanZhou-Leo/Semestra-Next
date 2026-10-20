@@ -61,7 +61,7 @@ function ArgList({ args }: { args: [string, unknown][] }) {
       {args.map(([key, value]) => (
         <div key={key} className="flex flex-wrap items-baseline gap-x-2">
           <dt className="text-muted-foreground">{fieldLabel(key)}</dt>
-          <dd className="min-w-0">{formatValue(value)}</dd>
+          <dd className="min-w-0">{formatValue(value, key)}</dd>
         </div>
       ))}
     </dl>
