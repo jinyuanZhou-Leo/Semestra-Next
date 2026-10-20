@@ -1,6 +1,6 @@
 import type { Task, TaskList } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
-import { CalendarClock, CircleCheck, CircleDashed, ListTodo, Star, Sun } from 'lucide-react'
+import { CalendarClock, CircleCheck, CircleDashed, Flag, ListTodo, Sun } from 'lucide-react'
 import type { Message } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
@@ -37,7 +37,7 @@ export const SMART_VIEWS: readonly {
   { view: 'today', title: m.tasks_view_today, icon: Sun },
   { view: 'scheduled', title: m.tasks_view_scheduled, icon: CalendarClock },
   { view: 'all', title: m.tasks_view_all, icon: ListTodo },
-  { view: 'flagged', title: m.tasks_view_flagged, icon: Star },
+  { view: 'flagged', title: m.tasks_view_flagged, icon: Flag },
   { view: 'completed', title: m.tasks_view_completed, icon: CircleCheck },
 ]
 /** Tasks in no list. Kept as `inbox` in keys and the API; shown as "Unsorted". */

@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
-import { Check, Flag, GripVertical, MoreHorizontal, PanelRight, Star, Trash2 } from 'lucide-react'
+import { Check, Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -27,7 +28,7 @@ import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES, PriorityFlag } from './priority'
+import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
 import { TaskChips } from './TaskChips'
 
 /** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
@@ -77,7 +78,8 @@ function RowEditor({
   focus: EditFocus
   rowRef: RefObject<HTMLLIElement | null>
   actions: TaskActions
-  onClose: () => void
+  /** `refocus`: closed from the keyboard, so focus goes back to the row's title. */
+  onClose: (refocus: boolean) => void
 }) {
   const today = useProgramToday(task.program_id)
   const [title, setTitle] = useState(task.title)
@@ -89,21 +91,48 @@ function RowEditor({
   useEffect(() => {
     focusAt(focus.field === 'title' ? titleRef.current : notesRef.current, focus.caret)
   }, [focus.field, focus.caret])
-  const finish = (save: boolean) => {
+  /** The title and notes edits; an empty title is left out (closing deletes instead). */
+  const draftBody = () => {
+    const body: TaskUpdateInputBody = {}
+    const nextTitle = title.trim()
+    if (nextTitle && nextTitle !== task.title) body.title = nextTitle
+    if (notes !== task.notes) body.notes = notes
+    return body
+  }
+  const finish = (save: boolean, refocus = false) => {
     if (closed.current) return
     closed.current = true
-    onClose()
+    onClose(refocus)
     if (!save) return
-    const nextTitle = title.trim()
-    if (!nextTitle) {
+    if (!title.trim()) {
       void actions.remove(task.id)
       return
     }
-    const body: TaskUpdateInputBody = {}
-    if (nextTitle !== task.title) body.title = nextTitle
-    if (notes !== task.notes) body.notes = notes
+    const body = draftBody()
     if (Object.keys(body).length > 0) void actions.update(task.id, body)
   }
+  // The row can go away while open: checked off, or moved out of a filtered list by a chip.
+  // What was typed is saved then too (never a delete: the user did not close it), and the row
+  // stops being the open one, so it does not open by itself if it comes back.
+  const saveOnUnmount = useEffectEvent(() => {
+    if (closed.current) return
+    const body = draftBody()
+    if (Object.keys(body).length > 0) void actions.update(task.id, body)
+    // Strict Mode runs this cleanup once on mount too; only a row that really left (its node
+    // detached) stops being open.
+    queueMicrotask(() => {
+      if (!rowRef.current) onClose(false)
+    })
+  })
+  useEffect(() => () => saveOnUnmount(), [])
+  // Esc anywhere in the row (a chip included) throws the edits away; a popup takes its own Esc
+  // first, and the time field uses Esc to undo just the time.
+  const escape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || event.isComposing || event.defaultPrevented) return
+    if (event.target instanceof HTMLInputElement && event.target.type === 'time') return
+    event.preventDefault()
+    finish(false, true)
+  })
   const leave = useEffectEvent((target: EventTarget | null, row: HTMLElement) => {
     if (target instanceof Node && row.contains(target)) return
     if (target instanceof Element && target.closest(POPUPS)) return
@@ -136,7 +165,9 @@ function RowEditor({
     document.addEventListener('pointerup', onPointerUp, true)
     document.addEventListener('click', onClick, true)
     row.addEventListener('focusout', onFocusOut)
+    row.addEventListener('keydown', escape)
     return () => {
+      row.removeEventListener('keydown', escape)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('pointerup', onPointerUp, true)
       document.removeEventListener('click', onClick, true)
@@ -146,10 +177,9 @@ function RowEditor({
 
   const keys = (event: React.KeyboardEvent, enterSaves: boolean) => {
     if (event.nativeEvent.isComposing) return
-    const save = event.key === 'Enter' && (enterSaves || event.metaKey || event.ctrlKey)
-    if (save || event.key === 'Escape') {
+    if (event.key === 'Enter' && (enterSaves || event.metaKey || event.ctrlKey)) {
       event.preventDefault()
-      finish(save)
+      finish(true, true)
     }
   }
   return (
@@ -224,24 +254,26 @@ function CourseTag({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-        <DropdownMenuItem onClick={() => void actions.update(task.id, { course_id: null })}>
-          {m.tasks_course_none()}
-          {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
-        </DropdownMenuItem>
-        {courses.map((c) => (
-          <DropdownMenuItem
-            key={c.id}
-            onClick={() => void actions.update(task.id, { course_id: c.id })}
-          >
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ backgroundColor: courseColor(c) }}
-            />
-            <span className="truncate">{courseLabel(c)}</span>
-            {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => void actions.update(task.id, { course_id: null })}>
+            {m.tasks_course_none()}
+            {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
           </DropdownMenuItem>
-        ))}
+          {courses.map((c) => (
+            <DropdownMenuItem
+              key={c.id}
+              onClick={() => void actions.update(task.id, { course_id: c.id })}
+            >
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: courseColor(c) }}
+              />
+              <span className="truncate">{courseLabel(c)}</span>
+              {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -295,6 +327,8 @@ export function TaskRow({
 }: Props) {
   const today = useProgramToday(task.program_id)
   const rowRef = useRef<HTMLLIElement | null>(null)
+  // Set when the editor closes from the keyboard; the title button takes focus as it returns.
+  const refocusTitle = useRef(false)
   const done = task.completed_at !== null
   const course = courses.find((c) => c.id === task.course_id)
   const note = task.notes.split('\n')[0]?.trim()
@@ -326,7 +360,11 @@ export function TaskRow({
         aria-label={m.tasks_complete({ title: task.title })}
         className="mt-0.5 size-5 rounded-full"
         onClick={(event) => event.stopPropagation()}
-        onCheckedChange={(checked) => void actions.complete(task.id, checked)}
+        onCheckedChange={(checked) => {
+          // The row leaves the list; the editor saves what was typed as it goes.
+          if (editing) onStopEdit()
+          void actions.complete(task.id, checked)
+        }}
       />
       <div className="min-w-0 flex-1 space-y-0.5">
         {editing ? (
@@ -337,12 +375,22 @@ export function TaskRow({
             focus={editing}
             rowRef={rowRef}
             actions={actions}
-            onClose={onStopEdit}
+            onClose={(refocus) => {
+              refocusTitle.current = refocus
+              onStopEdit()
+            }}
           />
         ) : (
           <>
             <div className="flex min-w-0 items-center gap-1.5">
+              <TaskPriority priority={task.priority} />
               <button
+                ref={(el) => {
+                  if (el && refocusTitle.current) {
+                    refocusTitle.current = false
+                    el.focus()
+                  }
+                }}
                 type="button"
                 aria-label={m.tasks_edit_title({ title: task.title })}
                 className={cn(
@@ -353,9 +401,8 @@ export function TaskRow({
               >
                 {task.title}
               </button>
-              <PriorityFlag priority={task.priority} />
               {task.flagged ? (
-                <Star
+                <Flag
                   aria-label={m.tasks_flagged()}
                   className="size-3.5 shrink-0 fill-current text-primary"
                 />
@@ -405,7 +452,7 @@ export function TaskRow({
                 />
               }
             >
-              <Star aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
+              <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
             </TooltipTrigger>
             <TooltipContent>{task.flagged ? m.tasks_unflag() : m.tasks_flag()}</TooltipContent>
           </Tooltip>
@@ -528,42 +575,43 @@ function RowMenu({
         <TooltipContent>{m.tasks_more()}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={onEdit}>
-          <PanelRight aria-hidden />
-          {m.tasks_edit_details()}
-        </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Flag aria-hidden />
-            {m.tasks_priority_field()}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup
-              value={shownPriority(task.priority)}
-              onValueChange={(value) => {
-                const next = value as ShownPriority
-                if (next !== shownPriority(task.priority)) {
-                  void actions.update(task.id, { priority: next })
-                }
-              }}
-            >
-              {PRIORITIES.map((p) => (
-                <DropdownMenuRadioItem key={p} value={p}>
-                  <Flag
-                    aria-hidden
-                    className={cn(p !== 'none' && 'fill-current', PRIORITY_COLORS[p])}
-                  />
-                  {PRIORITY_NAMES[p]()}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={onEdit}>
+            <PanelRight aria-hidden />
+            {m.tasks_edit_details()}
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <PriorityMarks level={shownPriority(task.priority)} placeholder />
+              {m.tasks_priority_field()}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={shownPriority(task.priority)}
+                onValueChange={(value) => {
+                  const next = value as ShownPriority
+                  if (next !== shownPriority(task.priority)) {
+                    void actions.update(task.id, { priority: next })
+                  }
+                }}
+              >
+                {PRIORITIES.map((p) => (
+                  <DropdownMenuRadioItem key={p} value={p}>
+                    <PriorityMarks level={p} />
+                    {PRIORITY_NAMES[p]()}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}>
-          <Trash2 aria-hidden />
-          {m.common_delete()}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            <Trash2 aria-hidden />
+            {m.common_delete()}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

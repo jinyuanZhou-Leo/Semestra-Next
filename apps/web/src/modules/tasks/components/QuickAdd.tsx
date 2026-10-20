@@ -1,6 +1,5 @@
-import { CalendarDays, Flag, Plus, X } from 'lucide-react'
+import { CalendarDays, Plus, X } from 'lucide-react'
 import { type Ref, useState } from 'react'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Badge } from '@/ui/badge'
@@ -9,7 +8,7 @@ import { Input } from '@/ui/input'
 import { dueLabel, localDate } from '../due'
 import { parseQuickAdd } from '../parse'
 import { type Priority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES } from './priority'
+import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
 export type NewTask = {
   title: string
@@ -117,12 +116,10 @@ export function QuickAdd({
                     : PRIORITY_NAMES[shownPriority(first.priority ?? 'none')]()
                 }
                 icon={
-                  <Flag
-                    aria-hidden
-                    className={cn(
-                      !ignorePriority && 'fill-current',
-                      !ignorePriority && PRIORITY_COLORS[shownPriority(first.priority ?? 'none')],
-                    )}
+                  <PriorityMarks
+                    level={ignorePriority ? 'none' : shownPriority(first.priority ?? 'none')}
+                    placeholder
+                    className="min-w-0"
                   />
                 }
                 undoLabel={m.tasks_quick_add_undo({ text: parsed.priorityText })}

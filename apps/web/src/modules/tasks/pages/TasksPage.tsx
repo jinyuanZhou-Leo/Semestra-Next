@@ -134,6 +134,8 @@ export default function TasksPage({ scope }: PageProps) {
     onStartEdit: (focus: EditFocus) => setEditing({ id: task.id, focus }),
     onStopEdit: () => stopEditing(task.id),
     onEdit: () => {
+      // The side panel takes over: the open row closes (saving what was typed) first.
+      stopEditing(task.id)
       setSelectedId(task.id)
       setDetailId(task.id)
     },
@@ -411,6 +413,7 @@ export default function TasksPage({ scope }: PageProps) {
           if (id) {
             if (id === selectedId) setSelectedId(null)
             if (id === detailId) setDetailId(null)
+            stopEditing(id)
             void actions.remove(id)
           }
         }}

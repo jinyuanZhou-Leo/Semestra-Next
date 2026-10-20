@@ -232,6 +232,31 @@ test('clicking outside saves; a title left empty deletes the task without asking
   expect(log.updates).toHaveLength(0)
 })
 
+test('checking off a row being edited keeps what was typed', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(log.completes).toHaveLength(1)
+})
+
+test('Esc on a chip closes the row, and focus goes back to its title', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  screen.getByRole('button', { name: 'Date' }).focus()
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'Edit title: Lab report' }),
+  )
+  // Enter on the title opens it again; Enter in the field saves and gives focus back.
+  await userEvent.keyboard('{Enter}')
+  await userEvent.keyboard('{End} v2{Enter}')
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(document.activeElement?.getAttribute('aria-label')).toMatch(/^Edit title: Lab report/)
+})
+
 test('the empty row at the end adds tasks one after another', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   await userEvent.click(await screen.findByRole('button', { name: 'New task' }))

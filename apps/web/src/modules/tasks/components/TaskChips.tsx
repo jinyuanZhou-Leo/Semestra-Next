@@ -1,5 +1,5 @@
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
-import { CalendarDays, Check, Clock, Flag, GraduationCap, Star } from 'lucide-react'
+import { CalendarDays, Check, Clock, Flag, GraduationCap } from 'lucide-react'
 import { useState } from 'react'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { Calendar } from '@/ui/calendar'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -19,7 +20,7 @@ import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { dueLabel, localDate } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES } from './priority'
+import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
 function toIso(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -113,10 +114,7 @@ export function TaskChips({
             />
           }
         >
-          <Flag
-            aria-hidden
-            className={cn(shown !== 'none' && 'fill-current', PRIORITY_COLORS[shown])}
-          />
+          <PriorityMarks level={shown} placeholder />
           {shown === 'none' ? m.tasks_priority_field() : PRIORITY_NAMES[shown]()}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-40">
@@ -130,10 +128,7 @@ export function TaskChips({
           >
             {PRIORITIES.map((p) => (
               <DropdownMenuRadioItem key={p} value={p}>
-                <Flag
-                  aria-hidden
-                  className={cn(p !== 'none' && 'fill-current', PRIORITY_COLORS[p])}
-                />
+                <PriorityMarks level={p} />
                 {PRIORITY_NAMES[p]()}
               </DropdownMenuRadioItem>
             ))}
@@ -166,21 +161,23 @@ export function TaskChips({
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-            <DropdownMenuItem onClick={() => onChange({ course_id: null })}>
-              {m.tasks_course_none()}
-              {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
-            </DropdownMenuItem>
-            {courses.map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => onChange({ course_id: c.id })}>
-                <span
-                  aria-hidden
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: courseColor(c) }}
-                />
-                <span className="truncate">{courseLabel(c)}</span>
-                {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={() => onChange({ course_id: null })}>
+                {m.tasks_course_none()}
+                {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
               </DropdownMenuItem>
-            ))}
+              {courses.map((c) => (
+                <DropdownMenuItem key={c.id} onClick={() => onChange({ course_id: c.id })}>
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: courseColor(c) }}
+                  />
+                  <span className="truncate">{courseLabel(c)}</span>
+                  {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
@@ -192,7 +189,7 @@ export function TaskChips({
         className={chipClass(task.flagged)}
         onClick={() => onChange({ flagged: !task.flagged })}
       >
-        <Star aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
+        <Flag aria-hidden className={cn(task.flagged && 'fill-current text-primary')} />
         {task.flagged ? m.tasks_flagged() : m.tasks_flag()}
       </Button>
     </div>
