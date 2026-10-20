@@ -29,10 +29,14 @@ create capabilities one by one.
    meeting times, dates) and every open issue from `summary.issues` in plain words: dates that
    could not be worked out, weights that don't add up to 100, courses or assessments that already
    exist. Offer to fix what they tell you with `imports.item.update` (`data` for fields,
-   `decision: "reject"` to leave an item out; `imports.items.bulk_decide` for many).
-5. **Commit only after the user agrees.** `imports.session.commit`. Report `created`, `updated`
-   and `failed`; for failed items say why (`result.error_code`) and offer to fix and commit again
-   (only the failed items are retried).
+   `decision: "reject"` to leave an item out; `imports.items.bulk_decide` for many: rejecting a
+   course rejects what belongs to it). A course item's `term_ids` decide which term it goes into,
+   and its meetings follow it, so courses of several terms can share one session.
+5. **Commit.** In the same reply, say what the commit will write (courses, meetings, assessments
+   per term, and what you left out), then call `imports.session.commit`: the user confirms on its
+   card, so do not ask a separate question first. Report `created`, `updated` and `failed`; for
+   failed items say why (`result.error_code`) and offer to fix and commit again (only the failed
+   items are retried).
 6. **Your own findings.** Only for what no importer reads (the user's own words, a format the
    importers refuse): create a session with `source_kind: "agent"`, add items with
    `imports.items.add` (each type has its own fields, see the tool; a meeting's cancelled dates go

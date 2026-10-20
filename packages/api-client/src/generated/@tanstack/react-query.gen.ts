@@ -2826,8 +2826,10 @@ export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemU
 /**
  * Accept or reject many import items at once, by type, issue or id.
  *
- * E.g. reject every item with `import.duplicate_assessment`. The assistant gets
- * `changed` and the session's `summary`, without its items.
+ * E.g. reject every item with `import.duplicate_assessment`. The filters combine
+ * (an item must match all given). Rejecting a course item also rejects the items that belong to it
+ * (its meetings, assessments, categories, events and tasks), so leaving a course out takes only its
+ * id. The assistant gets `changed` and the session's `summary`, without its items.
  */
 export const importsItemsBulkDecideMutation = (options?: Partial<Options<ImportsItemsBulkDecideData>>): UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> => {
     const mutationOptions: UseMutationOptions<ImportsItemsBulkDecideResponse, ImportsItemsBulkDecideError, Options<ImportsItemsBulkDecideData>> = {

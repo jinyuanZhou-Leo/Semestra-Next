@@ -21,6 +21,9 @@ from semestra.modules.imports.schemas import (
 
 TAGS = ("imports",)
 
+# What an assistant or MCP client gets of a session: enough to go on, without the bookkeeping.
+AGENT_SESSION = ("id", "status", "error_code", "source_refs", "summary", "items", "next_cursor")
+
 
 @capability(
     name="imports.session.create",
@@ -36,6 +39,7 @@ first {service.AGENT_PAGE} items; read the rest with imports.session.get.""",
     http=Http("POST", "/programs/{program_id}/imports"),
     tags=TAGS,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
+    agent_output_fields=AGENT_SESSION,
 )
 async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDetail:
     return await service.create_session(ctx, inp)
@@ -53,6 +57,7 @@ and `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` fo
     tags=TAGS,
     agent_core=True,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
+    agent_output_fields=AGENT_SESSION,
 )
 async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
     limit = inp.limit or (service.AGENT_PAGE if service.for_agent(ctx) else None)
@@ -87,6 +92,7 @@ are checked again afterwards. The assistant gets the session's `summary` and the
     http=Http("PATCH", "/imports/{session_id}/items/{item_id}"),
     tags=TAGS,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
+    agent_output_fields=AGENT_SESSION,
 )
 async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     return await service.update_item(ctx, inp)
@@ -95,11 +101,14 @@ async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
 @capability(
     name="imports.items.bulk_decide",
     summary="Accept or reject many import items at once, by type, issue or id.",
-    description="""E.g. reject every item with `import.duplicate_assessment`. The assistant gets
-`changed` and the session's `summary`, without its items.""",
+    description="""E.g. reject every item with `import.duplicate_assessment`. The filters combine
+(an item must match all given). Rejecting a course item also rejects the items that belong to it
+(its meetings, assessments, categories, events and tasks), so leaving a course out takes only its
+id. The assistant gets `changed` and the session's `summary`, without its items.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}/items:decide"),
     tags=TAGS,
+    agent_output_fields=("changed", "session.id", "session.summary"),
 )
 async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
     changed, session = await service.bulk_decide(ctx, inp)
@@ -118,6 +127,7 @@ Returns the session's `summary` and the added items.""",
     expose=("agent", "mcp"),
     tags=TAGS,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
+    agent_output_fields=AGENT_SESSION,
 )
 async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
     new = [
@@ -148,6 +158,15 @@ items that have not been written. The assistant gets the counts and the items th
     http=Http("POST", "/imports/{session_id}:commit"),
     tags=TAGS,
     preview=_commit_preview,
+    agent_output_fields=(
+        "created",
+        "updated",
+        "failed",
+        "session.id",
+        "session.status",
+        "session.summary",
+        *(f"session.items.{f}" for f in ("id", *service.AGENT_ITEM_FIELDS)),
+    ),
 )
 async def session_commit(ctx: Ctx, inp: CommitInput) -> CommitResult:
     session, counts = await service.commit(ctx, inp)

@@ -43,7 +43,8 @@ class Capability:
     agent_core: bool
     public: bool
     plugin_id: str | None
-    # Agent/MCP callers get only these output fields (HTTP callers get everything).
+    # Agent/MCP callers get only these output fields (HTTP callers get everything); `a.b` keeps
+    # field `b` of the object in field `a`.
     agent_output_fields: tuple[str, ...] | None
     # The `fields` agent/MCP callers get when they ask for none (list items keep only these).
     agent_default_fields: tuple[str, ...] | None
@@ -148,12 +149,14 @@ class Registry:
             ctx.surface = outer
         if surface == "http":
             return out
-        if cap.agent_output_fields is not None:
-            return out.model_dump(include=set(cap.agent_output_fields), mode="json")
         fields: object = getattr(inp, "fields", None) or cap.agent_default_fields
+        picked: dict[str, Any] | None = None
         if isinstance(fields, list | tuple) and fields:
-            return _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        return out
+            picked = _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        if cap.agent_output_fields is not None:
+            dumped = picked if picked is not None else out.model_dump(mode="json")
+            return _keep_paths(dumped, cap.agent_output_fields)
+        return picked if picked is not None else out
 
 
 def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
@@ -169,6 +172,34 @@ def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
         ]
         return dumped
     return {k: v for k, v in dumped.items() if k in keep}
+
+
+def _keep_paths(dumped: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any]:
+    """Only these output fields; `a.b` keeps field `b` of the object in field `a`, or of each
+    object in the list in field `a`."""
+    nested: dict[str, list[str]] = {}  # an empty list keeps the whole field
+    for path in paths:
+        head, _, rest = path.partition(".")
+        kept = nested.setdefault(head, [rest] if rest else [])
+        if not rest:
+            kept.clear()
+        elif kept and rest not in kept:
+            kept.append(rest)
+    out: dict[str, Any] = {}
+    for head, rests in nested.items():
+        if head not in dumped:
+            continue
+        value = dumped[head]
+        if rests and isinstance(value, dict):
+            out[head] = _keep_paths(value, tuple(rests))  # pyright: ignore[reportUnknownArgumentType]
+        elif rests and isinstance(value, list):
+            out[head] = [
+                _keep_paths(item, tuple(rests)) if isinstance(item, dict) else item  # pyright: ignore[reportUnknownArgumentType]
+                for item in value  # pyright: ignore[reportUnknownVariableType]
+            ]
+        else:
+            out[head] = value
+    return out
 
 
 registry = Registry()

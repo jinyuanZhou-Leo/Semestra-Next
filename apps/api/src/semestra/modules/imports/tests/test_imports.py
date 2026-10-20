@@ -805,6 +805,98 @@ async def test_meeting_outside_its_term_fails_instead_of_landing_in_week_one(
     assert failed["result"]["error_code"] == "import.outside_term"
 
 
+FALL = {"name": "Fall 2026", "start_date": "2026-09-07", "end_date": "2026-12-31", "breaks": []}
+
+
+async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, api: Api):
+    # One session for a file covering two terms: the course item's `term_ids` decide where it
+    # goes, and its meetings are checked against that term, as the commit places them.
+    program_id = await api.program()
+    winter = await api.term(program_id)
+    fall = (await api.call("POST", f"/programs/{program_id}/terms", json=FALL))["term"]["id"]
+    me = await api.call("GET", "/account/me")
+
+    async def agent(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        async with system_ctx(app.state, me["id"]) as ctx:
+            ctx.actor = "agent"
+            out = await registry.invoke(ctx, name, args, "agent")
+            await ctx.db.commit()
+        return out.model_dump(mode="json") if isinstance(out, BaseModel) else out
+
+    session = await agent(
+        "imports.session.create",
+        {"program_id": program_id, "source_kind": "agent",
+         "target": {"kind": "term", "term_id": winter}},
+    )  # fmt: skip
+    session_id = session["id"]
+    added = await agent(
+        "imports.items.add",
+        {"session_id": session_id, "ready": True, "items": [
+            {"key": "w", "type": "course", "data": {"title": "Calculus", "code": "MAT194H1"}},
+            {"type": "meeting", "data": {"course_ref": "item:w", "weekday": 2,
+                                          "start_time": "09:00", "end_time": "10:00",
+                                          "first_date": "2026-01-06", "last_date": "2026-04-07"}},
+            {"key": "f", "type": "course", "data": {"title": "Linear Algebra",
+                                                      "code": "MAT188H1"}},
+            {"type": "meeting", "data": {"course_ref": "item:f", "weekday": 1,
+                                          "start_time": "09:00", "end_time": "10:00",
+                                          "first_date": "2026-09-14", "last_date": "2026-12-07"}},
+            # A full-year course's fall meeting goes to fall, though the target is winter.
+            {"key": "y", "type": "course", "data": {"title": "Analysis", "code": "MAT157Y1",
+                                                      "term_ids": [fall, winter]}},
+            {"type": "meeting", "data": {"course_ref": "item:y", "weekday": 3,
+                                          "start_time": "11:00", "end_time": "12:00",
+                                          "first_date": "2026-09-16", "last_date": "2026-12-02"}},
+        ]},
+    )  # fmt: skip
+    assert added["summary"]["issues"] == {"import.outside_term": 1}
+    fall_course = next(i for i in added["items"] if i["data"].get("code") == "MAT188H1")
+
+    moved = await agent(
+        "imports.item.update",
+        {"session_id": session_id, "item_id": fall_course["id"], "data": {"term_ids": [fall]}},
+    )
+    assert moved["summary"]["issues"] == {}
+
+    done = await api.commit(session_id)
+    assert (done["created"], done["failed"]) == (6, 0)
+    courses = await api.call("GET", f"/programs/{program_id}/courses")
+    terms = {c["code"]: sorted(c["term_ids"]) for c in courses["items"]}
+    assert terms == {"MAT194H1": [winter], "MAT188H1": [fall], "MAT157Y1": sorted([fall, winter])}
+
+
+@pytest.mark.parametrize("tool", ["imports.items.bulk_decide", "imports.item.update"])
+async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: Api, tool: str):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    course = by_type(session, "course")[0]
+    own = [
+        i["id"] for i in session["items"] if i["data"].get("course_ref") == f"item:{course['id']}"
+    ]
+    assert own
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        args: dict[str, Any] = {"session_id": session["id"], "decision": "reject"}
+        if tool == "imports.item.update":
+            args["item_id"] = course["id"]
+        else:
+            args["item_ids"] = [course["id"]]
+        out = await registry.invoke(ctx, tool, args, "agent")
+        await ctx.db.commit()
+    if tool == "imports.items.bulk_decide":
+        assert isinstance(out, dict)
+        assert out["changed"] == 1 + len(own)
+    after = await api.call("GET", f"/imports/{session['id']}")
+    rejected = {i["id"] for i in after["items"] if i["decision"] == "reject"}
+    assert rejected == {course["id"], *own}
+
+
 async def test_agent_cannot_start_the_term_wizard(app: FastAPI, api: Api):
     program_id = await api.program()
     me = await api.call("GET", "/account/me")
@@ -870,7 +962,12 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
         {"session_id": session["id"], "decision": "reject", "types": ["event"]},
     )
     assert bulk["changed"] == 2
-    assert bulk["session"]["items"] == []
+    assert set(bulk["session"]) == {"id", "summary"}
+
+    # The session itself comes without bookkeeping, and items without their source refs.
+    assert set(page) == {"id", "status", "error_code", "source_refs", "summary", "items",
+                         "next_cursor"}  # fmt: skip
+    assert all("source_ref" not in i["data"] for i in page["items"] + rest["items"])
 
     # The app still gets the whole session.
     full = await api.call("GET", f"/imports/{session['id']}")
@@ -901,3 +998,17 @@ async def test_http_with_a_token_gets_the_whole_session(app: FastAPI, api: Api):
         )  # fmt: skip
         assert patched.status_code == 200, patched.text
         assert len(patched.json()["items"]) == len(session["items"])
+
+
+def test_agent_output_paths_reach_into_lists():
+    from semestra.core.capability import _keep_paths  # pyright: ignore[reportPrivateUsage]
+
+    dumped = {
+        "failed": 1,
+        "session": {
+            "id": "s",
+            "items": [{"id": "i", "type": "course", "evidence": "long", "position": 3}],
+        },
+    }
+    kept = _keep_paths(dumped, ("failed", "session.id", "session.items.id", "session.items.type"))
+    assert kept == {"failed": 1, "session": {"id": "s", "items": [{"id": "i", "type": "course"}]}}

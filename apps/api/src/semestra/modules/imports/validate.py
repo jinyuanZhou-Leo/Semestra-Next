@@ -2,13 +2,13 @@
 that editing an item clears what it fixed."""
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
 from semestra.modules.imports.build import norm_title
-from semestra.modules.imports.dates import TermWeekSpan, meeting_weeks
+from semestra.modules.imports.dates import TermDates, TermWeekSpan, meeting_weeks, pick_term
 from semestra.modules.imports.models import ImportsItem
 
 WEIGHT_TOLERANCE = 0.01
@@ -25,6 +25,11 @@ class ValidationContext:
     course_term_counts: dict[str, int] = field(default_factory=lambda: {})
     # Weeks of the target term (or wizard dates); None when the target has no single term.
     target_weeks: Sequence[TermWeekSpan] | None = None
+    # Existing course id → its term ids.
+    course_terms: dict[str, list[str]] = field(default_factory=lambda: {})
+    # Dates and weeks of every term a meeting may land in (target, course items' `term_ids`,
+    # existing courses' terms).
+    terms: Mapping[str, TermDates] = field(default_factory=lambda: {})
 
 
 def _issue(code: str, **params: Any) -> dict[str, Any]:
@@ -40,6 +45,36 @@ def _day(value: Any) -> date | None:
 
 def _live(item: ImportsItem | None) -> bool:
     return item is not None and item.decision != "reject"
+
+
+def course_term_ids(
+    ref: object, by_id: Mapping[str, ImportsItem], ctx: ValidationContext
+) -> list[str] | None:
+    """The terms the course a ref points to runs in, as the commit will see them: an existing
+    course's terms, or a course item's `term_ids` (the target term when it has none). None for no
+    course."""
+    if not isinstance(ref, str):
+        return None
+    if ref.startswith("course:"):
+        return ctx.course_terms.get(ref.removeprefix("course:"))
+    course = by_id.get(ref.removeprefix("item:")) if ref.startswith("item:") else None
+    if course is None:
+        return None
+    own = [str(t) for t in course.data.get("term_ids") or []]
+    if own:
+        return own
+    return [ctx.target_term_id] if ctx.target_term_id else []
+
+
+def _meeting_term_weeks(
+    item: ImportsItem, by_id: Mapping[str, ImportsItem], ctx: ValidationContext
+) -> Sequence[TermWeekSpan] | None:
+    """Weeks of the term the commit will put this meeting in; the target's (or the wizard's)
+    weeks when no term is known."""
+    terms = course_term_ids(item.data.get("course_ref"), by_id, ctx)
+    term_id = pick_term(ctx.target_term_id, terms, _day(item.data.get("first_date")), ctx.terms)
+    span = ctx.terms.get(term_id) if term_id else None
+    return span.weeks if span is not None else ctx.target_weeks
 
 
 def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
@@ -88,17 +123,19 @@ def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
             many = course_id is None or ctx.course_term_counts.get(course_id, 0) > 1
             if many and not data.get("first_date"):
                 found.append(_issue("import.term_unresolved"))
-        if item.type == "meeting" and not data.get("term_ref") and ctx.target_weeks:
-            # The same check the commit makes, so the review shows it before confirming.
-            *_, problem = meeting_weeks(
-                _day(data.get("first_date")),
-                _day(data.get("last_date")),
-                data.get("start_week"),
-                data.get("end_week"),
-                ctx.target_weeks,
-            )
-            if problem:
-                found.append(_issue(problem))
+        if item.type == "meeting" and not data.get("term_ref"):
+            weeks = _meeting_term_weeks(item, by_id, ctx)
+            if weeks:
+                # The same check the commit makes, so the review shows it before confirming.
+                *_, problem = meeting_weeks(
+                    _day(data.get("first_date")),
+                    _day(data.get("last_date")),
+                    data.get("start_week"),
+                    data.get("end_week"),
+                    weeks,
+                )
+                if problem:
+                    found.append(_issue(problem))
 
     # Weights of a course's assessments should add up to 100; categories to their stated total.
     for ref, members in groups.items():
