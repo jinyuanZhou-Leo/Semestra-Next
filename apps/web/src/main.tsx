@@ -9,8 +9,19 @@ import { routeTree } from './routeTree.gen'
 
 void initSentry()
 
-const queryClient = new QueryClient()
-const router = createRouter({ routeTree, context: { queryClient } })
+const queryClient = new QueryClient({
+  // Changes made elsewhere (another tab, the agent, a job) arrive over SSE and refetch what they
+  // touch (app/realtime.ts), so data a page just loaded or prefetched is not fetched again on mount.
+  defaultOptions: { queries: { staleTime: 30_000 } },
+})
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  // Hovering or focusing a link loads the next page's code (see `preloadPage`); the query cache
+  // decides what is fresh, so the router keeps no copy of its own.
+  defaultPreload: 'intent',
+  defaultPreloadStaleTime: 0,
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

@@ -1,8 +1,7 @@
 import type { CourseLinkState } from '@semestra/api-client'
 import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { ExternalLink, School } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule, type Scope } from '@/app/extensions'
+import { defineModule, type Scope, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { openLinkedCourse } from './open-in-canvas'
 
@@ -34,7 +33,7 @@ export default defineModule({
       availabilityQuery: linkQuery,
       isAvailable: (_scope, data) =>
         (data as CourseLinkState | undefined)?.link?.provider === 'canvas',
-      component: lazy(() => import('./CanvasCoursePage')),
+      component: preloadable(() => import('./CanvasCoursePage')),
     },
   ],
   commands: [

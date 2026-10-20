@@ -1,6 +1,6 @@
 import { CalendarClock, ChartLine, GraduationCap, NotebookPen, Percent, Sigma } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import {
   COURSE_COLUMNS,
   PROGRAM_SETUP_FIELDS,
@@ -61,7 +61,7 @@ export default defineModule({
       scopes: ['course', 'term'],
       title: m.grading_nav_grades,
       icon: NotebookPen,
-      component: lazy(() => import('./pages/GradesPage')),
+      component: preloadable(() => import('./pages/GradesPage')),
       order: 20,
     },
   ],

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { preloadPage } from '@/app/registry'
 import { CourseView } from '@/modules/academics/shell/ScopeView'
 
 /** Other string search params belong to the page itself (e.g. the Canvas tab's location, M16). */
@@ -9,6 +10,7 @@ export const Route = createFileRoute('/_authed/p/$programId/c/$courseId/$page')(
         (entry): entry is [string, string] => typeof entry[1] === 'string',
       ),
     ),
+  loader: ({ params }) => preloadPage('course', params.page),
   component: CoursePage,
 })
 

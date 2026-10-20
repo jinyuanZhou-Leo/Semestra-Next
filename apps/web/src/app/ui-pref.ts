@@ -23,6 +23,10 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'commands.',
   'canvas-tab.',
   'files.',
+  'grading.',
+  'ai.',
+  'portability.',
+  'pomodoro.',
 ] as const
 
 type Entry = { found: boolean; value: unknown }

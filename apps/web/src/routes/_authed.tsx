@@ -13,14 +13,15 @@ import { prefetchUiPrefs } from '@/app/ui-pref'
 
 /** Everything below requires a signed-in user; others are sent to /login?redirect=… */
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: async ({ context, location }) => {
+  beforeLoad: async ({ context, location, preload }) => {
     try {
       await context.queryClient.ensureQueryData({
         ...accountProfileGetOptions(),
         revalidateIfStale: false,
       })
-      // Not awaited: pages that read UI state wait for it themselves (see `useUiPref`).
-      void prefetchUiPrefs(context.queryClient)
+      // Not awaited: pages that read UI state wait for it themselves (see `useUiPref`). Not on a
+      // link preload (hover), which would read it again for every link.
+      if (!preload) void prefetchUiPrefs(context.queryClient)
       // Which plugins are installed decides the pages, cards and commands shown (M10).
       void context.queryClient.prefetchQuery(pluginsCatalogListOptions())
     } catch (err) {

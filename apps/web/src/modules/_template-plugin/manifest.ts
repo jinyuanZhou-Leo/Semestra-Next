@@ -1,6 +1,6 @@
 import { NotebookPen } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { helloNoteCardSchema } from './schema'
 
@@ -22,7 +22,7 @@ export default defineModule({
       scopes: ['course'],
       title: m.hello_page_title,
       icon: NotebookPen,
-      component: lazy(() => import('./HelloPage')),
+      component: preloadable(() => import('./HelloPage')),
       // Pages sort by `order` in the tab bar; plugins start at 1000 so core pages come first.
       order: 1000,
     },
