@@ -58,7 +58,7 @@ async def get_item(ctx: Ctx, item_id: str) -> FilesItem:
         select(FilesItem).where(FilesItem.id == item_id, FilesItem.user_id == ctx.user_id)
     )
     if row is None:
-        raise not_found()
+        raise not_found("item", item_id)
     return row
 
 
@@ -70,7 +70,7 @@ async def get_folder(ctx: Ctx, folder_id: str, course_id: str | None = None) -> 
         stmt = stmt.where(FilesFolder.course_id == course_id)
     row = await ctx.db.scalar(stmt)
     if row is None:
-        raise not_found()
+        raise not_found("folder", folder_id)
     return row
 
 
@@ -349,7 +349,7 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
     if parent_id is not None:
         parent = by_id.get(parent_id)
         if parent is None:
-            raise not_found()
+            raise not_found("folder", parent_id)
         if _depth(parent, by_id) >= MAX_FOLDER_DEPTH:
             raise AppError("files.folder_depth", 422, max=MAX_FOLDER_DEPTH)
     await _check_free_name(ctx, course_id, parent_id, name)
@@ -375,6 +375,15 @@ def _refuse_none(fields: list[str]) -> None:
     if fields:
         errors = [{"loc": [f], "code": "none_not_allowed"} for f in fields]
         raise AppError("common.validation", 422, errors=errors)
+
+
+async def check_item_update(ctx: Ctx, inp: ItemUpdateInput) -> None:
+    sent = inp.model_fields_set
+    _refuse_none([f for f in ("display_name", "pinned") if f in sent and getattr(inp, f) is None])
+
+
+async def check_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> None:
+    await _folder_contents(ctx, await get_folder(ctx, inp.folder_id), inp.recursive)
 
 
 async def update_folder(
@@ -657,8 +666,8 @@ async def create_link(
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
+    await check_item_update(ctx, inp)
     sent = inp.model_fields_set
-    _refuse_none([f for f in ("display_name", "pinned") if f in sent and getattr(inp, f) is None])
     row = await get_item(ctx, inp.item_id)
     if "display_name" in sent and inp.display_name is not None:
         row.display_name = _clean_name(inp.display_name)

@@ -121,7 +121,7 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
 async def get_owned(ctx: Ctx, attachment_id: str) -> AgentAttachment:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("attachment", attachment_id)
     return row
 
 
@@ -237,6 +237,7 @@ class AttachmentRead(BaseModel):
 
 @capability(
     name="agent.attachment.read",
+    untrusted=True,
     summary="Read pages of a file the user attached to the conversation.",
     description=f"""Returns the text of up to {READ_MAX_PAGES} pages as markdown, starting at
 page_from; when next_page is set, call again from there for more. Use the attachment id from the

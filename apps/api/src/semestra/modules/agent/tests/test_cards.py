@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.modules.agent.loop import make_preview
@@ -203,11 +205,9 @@ async def test_a_folder_with_files_is_refused_without_its_contents(agent: Agent)
         f"/courses/{course['id']}/file-links",
         json={"url": "https://example.com/a", "display_name": "Week 1", "folder_id": folder["id"]},
     )
-    try:
+    with pytest.raises(AppError) as exc:
         await _card(agent, "files.folder.delete", {"folder_id": folder["id"]})
-        raise AssertionError("expected files.folder_not_empty")
-    except AppError as exc:
-        assert exc.code == "files.folder_not_empty"
+    assert exc.value.code == "files.folder_not_empty"
     card = await _card(agent, "files.folder.delete", {"folder_id": folder["id"], "recursive": True})
     assert card["changes"] == [{"field": "files", "before": ["Week 1"], "after": None, "count": 1}]
 

@@ -106,7 +106,7 @@ async def _own(ctx: Ctx, archive_id: str, kind: str) -> PortabilityArchive:
         )
     )
     if row is None:
-        raise not_found()
+        raise not_found("archive", archive_id)
     return row
 
 
@@ -206,7 +206,7 @@ async def build_export(ctx: JobCtx, archive_id: str) -> int:
 async def export_download(ctx: Ctx, archive_id: str) -> tuple[AsyncIterator[bytes], str, int]:
     row = await _own(ctx, archive_id, "export")
     if row.status != "ready" or row.storage_key is None or row.expires_at <= ctx.now:
-        raise not_found()
+        raise not_found("archive", archive_id)
     filename = f"semestra-backup-{row.created_at.date().isoformat()}.zip"
     return get_storage(ctx).open(row.storage_key), filename, row.size_bytes or 0
 

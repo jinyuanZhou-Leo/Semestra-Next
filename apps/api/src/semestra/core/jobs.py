@@ -590,7 +590,7 @@ async def _own_job(ctx: Ctx, job_id: str) -> CoreJob:
         select(CoreJob).where(CoreJob.id == job_id, CoreJob.user_id == ctx.user_id)
     )
     if job is None:
-        raise not_found()
+        raise not_found("job", job_id)
     return job
 
 

@@ -56,7 +56,6 @@ and `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` fo
     effect="read",
     http=Http("GET", "/imports/{session_id}"),
     tags=TAGS,
-    agent_core=True,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
     agent_output_fields=AGENT_SESSION,
 )
