@@ -37,7 +37,7 @@ function Dot({ color, large }: { color: string; large?: boolean }) {
       aria-hidden
       className={cn(
         'inline-block shrink-0 self-center rounded-full',
-        large ? 'size-5 ring-1 ring-foreground/10' : 'size-2.5',
+        large ? 'size-4 ring-1 ring-foreground/10' : 'size-2.5',
       )}
       style={{ backgroundColor: categoryColor(color) }}
     />
@@ -63,11 +63,8 @@ export function CategoryColorSelect({
       <Tooltip>
         <TooltipTrigger
           render={
-            <SelectTrigger
-              aria-label={label}
-              // Only the dot, like `ColorDotPicker`: the list shows the names.
-              className="size-8 justify-center bg-transparent p-0 hover:bg-muted [&>svg:last-child]:hidden"
-            />
+            // The dot and a chevron, like `ColorDotPicker`: the list shows the names.
+            <SelectTrigger size="sm" aria-label={label} className="px-2.5" />
           }
         >
           <SelectValue>{(selected: string) => <Dot color={selected} large />}</SelectValue>
