@@ -11,6 +11,7 @@
     "format": "oxfmt src",
     "typecheck": "pnpm i18n:compile && tsc --noEmit",
     "test": "pnpm i18n:compile && vitest run",
+    "test:related": "pnpm i18n:compile && vitest related --run --passWithNoTests",
     "i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --emit-ts-declarations",
     "i18n:lint": "node scripts/check-messages.mjs",
     "compiler:check": "node scripts/check-react-compiler.mjs",

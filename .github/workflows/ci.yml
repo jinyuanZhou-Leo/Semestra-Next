@@ -31,6 +31,7 @@ jobs:
           filters: |
             ci: &ci
               - .github/workflows/ci.yml
+              - .github/scripts/affected_tests.py
             api:
               - *ci
               - apps/api/**
@@ -55,11 +56,25 @@ jobs:
     defaults: { run: { working-directory: apps/api } }
     steps:
       - uses: actions/checkout@v6
+        # The PR merge commit and its base, so affected_tests.py can diff them.
+        with: { fetch-depth: 2 }
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --locked
       - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run pyright
-      - run: uv run pytest -q -n auto
+      # PRs run the tests of the modules they touch (see the script); main runs everything.
+      - name: pytest
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          tests=all
+          if [ "$EVENT" = pull_request ]; then
+            tests=$(uv run python ../../.github/scripts/affected_tests.py api --base HEAD^1) || tests=all
+          fi
+          echo "Selected: $tests"
+          if [ "$tests" = all ]; then uv run pytest -q -n auto
+          elif [ "$tests" != none ]; then uv run pytest -q -n auto $tests
+          fi
       - run: test "$(uv run alembic heads | grep -c '(head)')" -le 1
       - run: uv run alembic upgrade head && uv run alembic check
 
@@ -69,13 +84,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with: { fetch-depth: 2 }
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with: { node-version: 26, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @semestra/web lint
       - run: pnpm --filter @semestra/web typecheck
-      - run: pnpm --filter @semestra/web test
+      # PRs run the tests that import the changed files (`vitest related`); main runs everything.
+      - name: vitest
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          tests=all
+          if [ "$EVENT" = pull_request ]; then
+            tests=$(python3 .github/scripts/affected_tests.py web --base HEAD^1) || tests=all
+          fi
+          echo "Selected: $tests"
+          if [ "$tests" = all ]; then pnpm --filter @semestra/web test
+          elif [ "$tests" != none ]; then pnpm --filter @semestra/web test:related $tests
+          fi
 
   contract:
     needs: changes
