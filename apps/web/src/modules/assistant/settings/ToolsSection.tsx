@@ -20,6 +20,14 @@ function effectSummary(tools: readonly AgentToolInfo[]): string {
     .join(' · ')
 }
 
+function effectBadge(tool: AgentToolInfo) {
+  return (
+    <Badge variant={tool.effect === 'destructive' ? 'destructive' : 'secondary'}>
+      {EFFECT_TITLES[tool.effect]()}
+    </Badge>
+  )
+}
+
 function ModuleTools({ group }: { group: ToolGroup }) {
   const titleId = `${useId()}-title`
   return (
@@ -35,14 +43,7 @@ function ModuleTools({ group }: { group: ToolGroup }) {
       </Item>
       <CollapsibleContent>
         <div className="border-t bg-muted/30 px-4 py-3">
-          <ToolItems
-            tools={group.tools}
-            action={(tool) => (
-              <Badge variant={tool.effect === 'destructive' ? 'destructive' : 'secondary'}>
-                {EFFECT_TITLES[tool.effect]()}
-              </Badge>
-            )}
-          />
+          <ToolItems tools={group.tools} action={effectBadge} />
         </div>
       </CollapsibleContent>
     </Collapsible>
