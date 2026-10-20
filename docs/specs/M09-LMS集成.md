@@ -148,7 +148,7 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 | `lms.import.assignments` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session（默认类型为考核；assignment group → 分类；权重按 group weight 推算，无法推算时留空由用户填写） |
 | `lms.import.syllabus` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
-| `lms.course.apply_updates` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session |
+| `lms.course.queue_updates` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session |
 
 - 课程级读取接口要求该课程已关联（否则 `lms.course_not_linked`），并检查 provider 功能标志（否则 `lms.feature_unsupported`）。
 - M08 提交时，item 的 `data.lms_ref` 带回外部引用。本模块订阅 `imports.session.committed`，写入 `lms_imported_refs`。导入课程时也在同一个提交里创建 `lms_course_links`（M08 的 course item 带 `data.lms_link`，本模块在 `imports.session.committing` 钩子里写入，保证在同一事务中）。

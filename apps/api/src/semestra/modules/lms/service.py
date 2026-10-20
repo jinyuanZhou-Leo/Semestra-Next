@@ -705,6 +705,22 @@ async def create_link(
 async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     course = await academics.get_course_row(ctx, inp.course_id)
     connection = await program_connection(ctx, course.program_id)
+    current = await link_row(ctx, inp.course_id)
+    if (
+        current is not None
+        and not inp.replace
+        and (
+            current.connection_id != connection.id
+            or current.external_course_id != inp.external_course_id
+        )
+    ):
+        # Replacing drops the tracking of what came through the old link: only on request.
+        raise lms_error(
+            "lms.course_link_exists",
+            external_course_id=current.external_course_id,
+            external_code=current.external_code,
+            external_name=current.external_name,
+        )
     b = await bound(ctx, connection)
     external, _ = await cached(
         ctx,

@@ -252,7 +252,11 @@ function CoursePicker({
     onError: (err) => (setConfirming(false), toastError(err)),
   })
   const submit = () =>
-    link.mutate({ path: { course_id: courseId }, body: { external_course_id: chosen } })
+    link.mutate({
+      path: { course_id: courseId },
+      // Changing an existing link was confirmed in the dialog below.
+      body: { external_course_id: chosen, replace: current !== null },
+    })
 
   return (
     <AsyncBoundary query={courses}>

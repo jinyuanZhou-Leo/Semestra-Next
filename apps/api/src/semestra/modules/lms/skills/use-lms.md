@@ -3,7 +3,7 @@ name: use-lms
 title: { en: "Use the LMS", zh-CN: "使用学习平台" }
 command: /lms
 description: Read announcements, assignments, pages and grades from the user's LMS (Canvas) and import assignments safely.
-tools: [lms.course.link.get, lms.course.overview, lms.announcement.list, lms.assignment.list, lms.grade.list, lms.module.list, lms.module_item.list, lms.page.list, lms.page.get, lms.quiz.list, lms.syllabus.get, lms.file.get, lms.course.list, lms.course.link.set, lms.assignment.import, lms.syllabus.import, lms.course.check_updates, lms.course.apply_updates, lms.file.save_to_course]
+tools: [lms.course.link.get, lms.course.overview, lms.announcement.list, lms.assignment.list, lms.grade.list, lms.module.list, lms.module_item.list, lms.page.list, lms.page.get, lms.quiz.list, lms.syllabus.get, lms.file.get, lms.course.list, lms.course.link.set, lms.assignment.import, lms.syllabus.import, lms.course.check_updates, lms.course.queue_updates, lms.file.save_to_course]
 ---
 
 # Using the LMS
@@ -28,7 +28,7 @@ an assessment and a task). Never create assessments or tasks from LMS data with 
 task capabilities directly, which would skip the review and the duplicate check.
 
 **Changed assignments.** `lms.course.check_updates` lists imported assignments whose title, due
-date or points changed; `lms.course.apply_updates` puts the changes up for review.
+date or points changed; `lms.course.queue_updates` puts the changes up for review.
 
 **Syllabus.** To get the grading scheme out of an LMS syllabus use `lms.syllabus.import` (AI
 extraction, reviewed by the user).
