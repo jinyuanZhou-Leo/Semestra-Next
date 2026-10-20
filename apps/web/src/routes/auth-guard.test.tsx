@@ -8,7 +8,7 @@ import { routeTree } from '@/routeTree.gen'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, apiError, newQueryClient, server, user } from '@/test-utils'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -45,8 +45,11 @@ test('signed-out visitors to a protected page are sent to /login?redirect=…', 
   expect(router.state.location.search).toEqual({ redirect: '/settings/account?tab=tokens' })
 })
 
-/** A new account: no Programs yet, so `/` leads to onboarding. */
-const noPrograms = () => academicsHandlers({ ...defaultWorld(), programs: [] })
+/** A new account: no Programs yet, so `/` leads to onboarding; no plugins in the catalog. */
+const noPrograms = () => [
+  ...academicsHandlers({ ...defaultWorld(), programs: [] }),
+  http.get(`${API}/plugins/catalog`, () => HttpResponse.json({ items: [] })),
+]
 
 test('signed-in users reach the protected page', async () => {
   server.use(signedIn, healthy, noGoogle, ...noPrograms())

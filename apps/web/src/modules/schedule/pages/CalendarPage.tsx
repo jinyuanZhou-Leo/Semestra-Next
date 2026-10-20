@@ -457,7 +457,7 @@ function TermCalendar({
                 }}
                 eventDrop={onChange}
                 eventResize={onChange}
-                eventContent={(arg) => <EventContent arg={arg} />}
+                eventContent={renderEventContent}
                 datesSet={(arg) => {
                   const start = isoDay(arg.start)
                   const end = isoDay(arg.end)
@@ -565,6 +565,8 @@ function TermCalendar({
     </div>
   )
 }
+
+const renderEventContent = (arg: EventContentArg) => <EventContent arg={arg} />
 
 function EventContent({ arg }: { arg: EventContentArg }) {
   const o = arg.event.extendedProps.occurrence as Occurrence | undefined

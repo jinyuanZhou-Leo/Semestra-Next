@@ -9,7 +9,15 @@ import { setLocale } from '@/paraglide/runtime'
 import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, server, user } from '@/test-utils'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
+// The AI sections are loaded on demand. Loading them once here, not inside a test's wait, keeps
+// a cold transform on a busy runner from timing a test out.
+beforeAll(async () => {
+  await Promise.all([
+    import('@/modules/ai/settings/sections'),
+    import('@/modules/assistant/settings/sections'),
+  ])
+}, 60_000)
 afterEach(() => {
   server.resetHandlers()
   localStorage.clear()
@@ -40,6 +48,12 @@ beforeEach(() => {
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/settings/schemas`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/plugins/catalog`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/ai/providers`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/agent/tools`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/agent/preferences`, () =>
+      HttpResponse.json({ auto_approve: [], mcp_allow_destructive: false }),
+    ),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.get(`${API}/me/preferences`, () => HttpResponse.json(current)),
     http.patch(`${API}/me/preferences`, async ({ request }) => {

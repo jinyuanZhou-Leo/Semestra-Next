@@ -15,7 +15,7 @@ import { ModelsSection } from './settings/ModelsSection'
 import { ProvidersSection } from './settings/ProvidersSection'
 import { UsageSection } from './settings/UsageSection'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

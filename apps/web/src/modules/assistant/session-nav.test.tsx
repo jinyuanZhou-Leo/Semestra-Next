@@ -7,7 +7,7 @@ import { API, renderWithRouter, server } from '@/test-utils'
 import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
 import { RECENT_SESSIONS, SessionNav } from './components/SessionNav'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

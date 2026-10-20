@@ -18,7 +18,7 @@ async function pickList(current: string, name: RegExp) {
   await userEvent.click(await screen.findByRole('menuitemradio', { name }))
 }
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
