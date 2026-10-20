@@ -1,10 +1,11 @@
 import type { Gradebook } from '@semestra/api-client'
+import { useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
-import { useUiPref } from '@/app/ui-pref'
+import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatCredits } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
@@ -40,6 +41,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   })
   const [grouped, setGrouped] = useUiPref('grading.group', false)
   const [adding, setAdding] = useState(false)
+  const queryClient = useQueryClient()
   const banners = useExtensions<CourseGradesBanner>(COURSE_GRADES_BANNERS)
   const { result, summary } = gradebook
   const canPlan = summary.weights_ok
@@ -66,11 +68,17 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
     setWhatIf({ ...whatIf, scores: percent === null ? rest : { ...rest, [assessmentId]: percent } })
   }
   const clearAssumptions = () => {
-    const before = whatIf
+    const before = whatIf.scores
     setWhatIf({ ...whatIf, scores: {} })
-    toast(m.grading_plan_cleared(), {
-      action: { label: m.common_undo(), onClick: () => setWhatIf(before) },
-    })
+    // Undo brings back only the scores, on top of whatever changed since (target, plan mode,
+    // assumptions typed after clearing).
+    const undo = () =>
+      void updateUiPref<WhatIf>(queryClient, `grading.whatif.${courseId}`, (current) => ({
+        ...DEFAULT_WHATIF,
+        ...current,
+        scores: { ...before, ...current?.scores },
+      }))
+    toast(m.grading_plan_cleared(), { action: { label: m.common_undo(), onClick: undo } })
   }
 
   return (
@@ -88,30 +96,31 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
         </Alert>
       )}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-3">
-          <GradebookToolbar
-            programId={programId}
-            result={result}
-            planning={planning}
-            canPlan={canPlan}
-            hasAssumptions={Object.keys(assumed).length > 0}
-            onPlanningChange={(plan) => setWhatIf({ ...whatIf, plan })}
-            onClearAssumptions={clearAssumptions}
-            grouped={grouped}
-            onGroupedChange={setGrouped}
-            onAdd={() => setAdding(true)}
-          />
-          <AssessmentTable
-            courseId={courseId}
-            assessments={gradebook.assessments}
-            categories={gradebook.categories}
-            whatIf={state}
-            onAssume={assume}
-            grouped={grouped}
-          />
-        </div>
-        {/* Lines up with the table, below the toolbar; on narrow screens it comes first. */}
-        <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:mt-11 lg:grid-cols-1">
+        <AssessmentTable
+          courseId={courseId}
+          assessments={gradebook.assessments}
+          categories={gradebook.categories}
+          whatIf={state}
+          onAssume={assume}
+          grouped={grouped}
+          toolbar={
+            <GradebookToolbar
+              programId={programId}
+              result={result}
+              count={gradebook.assessments.length}
+              planning={planning}
+              canPlan={canPlan}
+              hasAssumptions={Object.keys(assumed).length > 0}
+              onPlanningChange={(plan) => setWhatIf({ ...whatIf, plan })}
+              onClearAssumptions={clearAssumptions}
+              grouped={grouped}
+              onGroupedChange={setGrouped}
+              onAdd={() => setAdding(true)}
+            />
+          }
+        />
+        {/* On narrow screens the summary comes first. */}
+        <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:grid-cols-1">
           <GradeComposition
             gradebook={gradebook}
             planned={planned}

@@ -17,13 +17,17 @@ export function usePlanSimulation(gradebook: Gradebook, whatIf: WhatIf): Gradebo
   const scores = activeScores(gradebook.assessments, whatIf.scores)
   const target = whatIf.target
   const simulate = useMutation({ ...gradingSimulateCourseMutation(), onError: toastError })
-  const run = simulate.mutate
+  const { mutate: run, reset } = simulate
   // Refresh after the user stopped typing, and whenever the real gradebook changed under it.
   const fingerprint = JSON.stringify([scores, target])
   const version = gradebook.assessments.map((a) => a.updated_at).join('|')
   const planning = whatIf.plan
   useEffect(() => {
-    if (!planning) return
+    // Leaving plan mode drops the last answer, so coming back never shows a stale plan.
+    if (!planning) {
+      reset()
+      return
+    }
     const timer = setTimeout(
       () => run({ path: { course_id: courseId }, body: { scores, target } }),
       SIMULATE_DELAY_MS,
@@ -31,6 +35,6 @@ export function usePlanSimulation(gradebook: Gradebook, whatIf: WhatIf): Gradebo
     return () => clearTimeout(timer)
     // `fingerprint` stands for `scores` and `target`, which change identity on every render.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [courseId, run, fingerprint, version, planning])
+  }, [courseId, run, reset, fingerprint, version, planning])
   return planning ? (simulate.data ?? null) : null
 }

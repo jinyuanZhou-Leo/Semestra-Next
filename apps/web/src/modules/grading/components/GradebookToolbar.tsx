@@ -3,6 +3,7 @@ import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-qu
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calculator, Flag, ListTree, MoreHorizontal, Plus, X } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -21,12 +22,13 @@ import { ImportMenu } from './ImportMenu'
 import { OfficialGradeDialog } from './OfficialGradeDialog'
 
 /**
- * The row above the gradebook table. In plan mode the whole row is replaced by what plan mode
+ * The header bar of the gradebook table. In plan mode the whole bar is replaced by what plan mode
  * needs, the way a table's selection actions replace its filters; its height never changes.
  */
 export function GradebookToolbar({
   programId,
   result,
+  count,
   planning,
   canPlan,
   hasAssumptions,
@@ -38,6 +40,8 @@ export function GradebookToolbar({
 }: {
   programId: string
   result: CourseResult
+  /** How many assessments the table lists. */
+  count: number
   planning: boolean
   /** Plan mode needs weights that add up to 100%. */
   canPlan: boolean
@@ -51,9 +55,7 @@ export function GradebookToolbar({
   if (planning) {
     return (
       <div className="flex h-8 items-center gap-2">
-        <Badge variant="secondary" className="bg-primary/10 text-primary">
-          {m.grading_planning()}
-        </Badge>
+        <Badge>{m.grading_planning()}</Badge>
         <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {m.grading_plan_hint()}
         </p>
@@ -79,7 +81,11 @@ export function GradebookToolbar({
     </Button>
   )
   return (
-    <div className="flex h-8 items-center justify-end gap-2">
+    <div className="flex h-8 items-center gap-2">
+      <h2 className="flex-1 truncate text-sm font-medium">
+        {m.grading_assessments_heading()}{' '}
+        <span className="font-normal text-muted-foreground tabular-nums">{count}</span>
+      </h2>
       {canPlan ? (
         plan
       ) : (
@@ -113,6 +119,21 @@ function MoreMenu({ result }: { result: CourseResult }) {
     onSuccess: () => invalidateGrading(queryClient),
   })
   const hasOfficial = result.final_override_percentage !== null
+  const setOfficialValue = (value: number | null) =>
+    update.mutateAsync({
+      path: { course_id: result.course_id },
+      body: { final_override_percentage: value },
+    })
+  const removeOfficial = () => {
+    const before = result.final_override_percentage
+    void setOfficialValue(null).then(
+      () =>
+        toast(m.grading_official_removed(), {
+          action: { label: m.common_undo(), onClick: () => void setOfficialValue(before) },
+        }),
+      () => undefined,
+    )
+  }
   return (
     <>
       <DropdownMenu>
@@ -138,15 +159,7 @@ function MoreMenu({ result }: { result: CourseResult }) {
           {hasOfficial ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() =>
-                  update.mutate({
-                    path: { course_id: result.course_id },
-                    body: { final_override_percentage: null },
-                  })
-                }
-              >
+              <DropdownMenuItem variant="destructive" onClick={removeOfficial}>
                 <X aria-hidden />
                 {m.grading_official_remove()}
               </DropdownMenuItem>

@@ -46,6 +46,14 @@ beforeEach(() => {
   )
 })
 
+/** The Undo button of the newest toast saying `text` (sonner lists the newest first and keeps toasts of earlier tests). */
+const undoOf = async (text: string) => {
+  const toasts = await screen.findAllByText(text)
+  const item = toasts[0]?.closest('[data-sonner-toast]')
+  if (!(item instanceof HTMLElement)) throw new Error(`no toast "${text}"`)
+  return within(item).getByRole('button', { name: 'Undo' })
+}
+
 const mount = () =>
   renderWithRouter(
     <>
@@ -81,6 +89,26 @@ test('the breakdown lists each category with its graded weight and average', asy
   const row = within(breakdown).getByRole('row', { name: /Exam/ })
   expect(row).toHaveTextContent('40/100%')
   expect(row).toHaveTextContent('75%')
+})
+
+test('a breakdown row is reachable by keyboard and describes its category', async () => {
+  book = gradebook({
+    assessments: [
+      assessment({
+        id: 'a1',
+        title: 'Midterm',
+        weight: 40,
+        score_percentage: 75,
+        category_id: 'k1',
+      }),
+      assessment({ id: 'a2', title: 'Final exam', weight: 60, category_id: 'k1' }),
+    ],
+  })
+  mount()
+  const breakdown = await screen.findByRole('region', { name: 'Grade breakdown' })
+  const row = within(breakdown).getByRole('row', { name: /Exam/ })
+  expect(row).toHaveAttribute('tabindex', '0')
+  expect(row).toHaveAccessibleDescription(/Adds to grade: 30%/)
 })
 
 test('weights that do not add up to 100 warn and hold back the figures', async () => {
@@ -152,6 +180,23 @@ test('plan mode replaces the toolbar; clearing the assumptions can be undone', a
   expect(screen.queryByRole('textbox', { name: /Assumed score/ })).not.toBeInTheDocument()
 })
 
+test('undoing a clear brings back only the assumptions, not plan mode', async () => {
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  await userEvent.type(
+    await screen.findByRole('textbox', { name: 'Assumed score: Final exam' }),
+    '90',
+  )
+  await userEvent.tab()
+  await userEvent.click(screen.getByRole('button', { name: 'Clear assumptions' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Exit plan mode' }))
+  fireEvent.click(await undoOf('Assumptions cleared'))
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  expect(await screen.findByRole('textbox', { name: 'Assumed score: Final exam' })).toHaveValue(
+    '90',
+  )
+})
+
 test('the official grade is entered from the more menu', async () => {
   const results: unknown[] = []
   server.use(
@@ -169,6 +214,28 @@ test('the official grade is entered from the more menu', async () => {
   await waitFor(() => expect(results).toEqual([{ final_override_percentage: 86.5 }]))
 })
 
+test('clearing the official grade can be undone', async () => {
+  const results: unknown[] = []
+  book = gradebook()
+  book.result.final_override_percentage = 91
+  server.use(
+    http.patch(`${API}/courses/c1/grade`, async ({ request }) => {
+      results.push(await request.json())
+      return HttpResponse.json(book.result)
+    }),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Clear official grade' }))
+  fireEvent.click(await undoOf('Official grade cleared'))
+  await waitFor(() =>
+    expect(results).toEqual([
+      { final_override_percentage: null },
+      { final_override_percentage: 91 },
+    ]),
+  )
+})
+
 test('grouped view heads each category with its weight and average', async () => {
   book = gradebook({
     assessments: [
@@ -184,7 +251,7 @@ test('grouped view heads each category with its weight and average', async () =>
   })
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Group by category' }))
-  const heading = await screen.findByRole('button', { name: /2 items · 40\/100% graded/ })
+  const heading = await screen.findByRole('button', { name: /2 items · 40% graded/ })
   const row = heading.closest('tr')
   expect(row).toHaveTextContent('100')
   expect(row).toHaveTextContent('Average: 75%')

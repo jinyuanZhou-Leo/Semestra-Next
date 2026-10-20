@@ -5,7 +5,14 @@ import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { invalidateGrading } from '../queries'
@@ -81,11 +88,11 @@ function OfficialGradeForm({ result, onDone }: { result: CourseResult; onDone: (
             <FieldError id={`${id}-official-error`}>{m.grading_official_invalid()}</FieldError>
           ) : null}
         </Field>
-        <div className="flex justify-end">
+        <DialogFooter>
           <Button type="submit" disabled={update.isPending}>
             {update.isPending ? m.common_saving() : m.common_save()}
           </Button>
-        </div>
+        </DialogFooter>
       </FieldGroup>
     </form>
   )

@@ -1,11 +1,13 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { ChartContainer, ChartTooltip } from '@/ui/chart'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type CompositionSlice, composition } from '../composition'
 import { categoryColor, categoryName, percentText } from '../display'
 import { AnimatedPercent } from './AnimatedPercent'
@@ -79,17 +81,8 @@ function SliceShape({
   )
 }
 
-function SliceTooltip({
-  active,
-  payload,
-  planning,
-}: {
-  active?: boolean
-  payload?: readonly { payload?: unknown }[]
-  planning: boolean
-}) {
-  const datum = payload?.[0]?.payload as Datum | undefined
-  if (!active || !datum) return null
+/** A category's figures: the ring's tooltip, the legend row's tooltip and its screen reader text. */
+function sliceRows(datum: Datum, planning: boolean): [string, string][] {
   const rows: [string, string][] = [
     [m.grading_slice_weight(), `${formatCredits(datum.weight)}%`],
     [m.grading_slice_graded(), `${formatCredits(datum.graded)}%`],
@@ -100,23 +93,120 @@ function SliceTooltip({
     ],
   ]
   if (planning) rows.push([m.grading_planned_average(), percentText(datum.plannedAverage)])
+  return rows
+}
+
+function SliceDetails({
+  datum,
+  planning,
+  mutedClassName,
+}: {
+  datum: Datum
+  planning: boolean
+  mutedClassName: string
+}) {
   return (
-    <div className="grid min-w-40 gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+    <div className="grid min-w-40 gap-1.5">
       <div className="flex items-center gap-1.5 font-medium">
         <span
           aria-hidden
-          className="size-2.5 rounded-full"
+          className="size-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: datum.color }}
         />
         {datum.name}
       </div>
-      {rows.map(([label, value]) => (
+      {sliceRows(datum, planning).map(([label, value]) => (
         <div key={label} className="flex justify-between gap-4">
-          <span className="text-muted-foreground">{label}</span>
+          <span className={mutedClassName}>{label}</span>
           <span className="font-medium tabular-nums">{value}</span>
         </div>
       ))}
     </div>
+  )
+}
+
+function SliceTooltip({
+  active,
+  payload,
+  planning,
+}: {
+  active?: boolean
+  payload?: readonly { payload?: unknown }[]
+  planning: boolean
+}) {
+  const datum = payload?.[0]?.payload as Datum | undefined
+  if (!active || !datum?.color) return null
+  return (
+    <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+      <SliceDetails datum={datum} planning={planning} mutedClassName="text-muted-foreground" />
+    </div>
+  )
+}
+
+/**
+ * One category of the legend. It is the ring's text equivalent: focusable, with the same
+ * details as the ring's tooltip on hover or focus and as screen reader text.
+ */
+function LegendRow({
+  datum,
+  planning,
+  active,
+  onActiveChange,
+}: {
+  datum: Datum
+  planning: boolean
+  active: boolean
+  onActiveChange: (active: boolean) => void
+}) {
+  const detailsId = useId()
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <TableRow
+            tabIndex={0}
+            aria-describedby={detailsId}
+            data-active={active ? true : undefined}
+            onMouseEnter={() => onActiveChange(true)}
+            onMouseLeave={() => onActiveChange(false)}
+            onFocus={() => onActiveChange(true)}
+            onBlur={() => onActiveChange(false)}
+            className="h-8 border-0 outline-none hover:bg-transparent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset data-active:bg-muted/60"
+          />
+        }
+      >
+        <TableHead
+          scope="row"
+          className="h-8 w-full max-w-0 truncate rounded-l-md pr-0 pl-1.5 font-normal"
+        >
+          <span
+            aria-hidden
+            className="mr-2 inline-block size-2.5 rounded-full align-[-0.0625rem]"
+            style={{ backgroundColor: datum.color }}
+          />
+          {datum.name}
+          <span id={detailsId} className="sr-only">
+            {sliceRows(datum, planning)
+              .map(([label, value]) => `${label}: ${value}`)
+              .join(', ')}
+          </span>
+        </TableHead>
+        <TableCell className="py-0 pr-0 pl-2 text-right text-xs text-muted-foreground tabular-nums">
+          {formatCredits(datum.graded)}/{formatCredits(datum.weight)}%
+        </TableCell>
+        <TableCell
+          className={cn(
+            'rounded-r-md py-0 pr-1.5 pl-3 text-right font-medium tabular-nums',
+            planning && 'text-primary',
+          )}
+        >
+          {percentText(planning ? datum.plannedAverage : datum.average)}
+        </TableCell>
+      </TooltipTrigger>
+      <TooltipContent side="left">
+        <SliceDetails datum={datum} planning={planning} mutedClassName="text-background/70" />
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -230,75 +320,55 @@ export function GradeComposition({
               {shownLetter ? <span className="text-sm font-semibold">{shownLetter}</span> : null}
             </dd>
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{m.grading_forecast()}</dt>
-            <dd className="text-base font-semibold tabular-nums">
-              {s.forecast_percentage === null ? (
-                <span className="text-xs font-normal text-muted-foreground">
-                  {m.grading_forecast_hint()}
-                </span>
-              ) : (
-                <>
-                  {percentText(s.forecast_percentage)}
-                  {s.forecast_letter ? (
-                    <span className="ml-1.5 text-sm">{s.forecast_letter}</span>
-                  ) : null}
-                </>
-              )}
-            </dd>
-          </div>
+          {/* While planning the planned result is in the middle; the real forecast would read as part of it. */}
+          {planning ? null : (
+            <div>
+              <dt className="text-xs text-muted-foreground">{m.grading_forecast()}</dt>
+              <dd className="text-base font-semibold tabular-nums">
+                {s.forecast_percentage === null ? (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {m.grading_forecast_hint()}
+                  </span>
+                ) : (
+                  <>
+                    {percentText(s.forecast_percentage)}
+                    {s.forecast_letter ? (
+                      <span className="ml-1.5 text-sm">{s.forecast_letter}</span>
+                    ) : null}
+                  </>
+                )}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
       {data.length > 0 ? (
-        <table className="mt-3 w-full border-t border-border text-sm">
-          <thead>
-            <tr className="text-xs text-muted-foreground">
-              <th scope="col" className="h-8 pl-1.5 text-left font-normal">
+        <Table className="mt-3 border-t border-border">
+          <TableHeader className="[&_tr]:border-0">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-8 pl-1.5 text-xs font-normal text-muted-foreground">
                 {m.grading_assessment_category()}
-              </th>
-              <th scope="col" className="h-8 pl-2 text-right font-normal whitespace-nowrap">
+              </TableHead>
+              <TableHead className="h-8 pr-0 pl-2 text-right text-xs font-normal text-muted-foreground">
                 {m.grading_slice_graded_of_weight()}
-              </th>
-              <th scope="col" className="h-8 pr-1.5 pl-3 text-right font-normal whitespace-nowrap">
+              </TableHead>
+              <TableHead className="h-8 pr-1.5 pl-3 text-right text-xs font-normal text-muted-foreground">
                 {planning ? m.grading_planned_average() : m.grading_average()}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {data.map((d) => (
-              <tr
+              <LegendRow
                 key={d.key}
-                data-active={hovered === d.key ? true : undefined}
-                onMouseEnter={() => setHovered(d.key)}
-                onMouseLeave={() => setHovered(null)}
-                className="h-8 data-active:bg-muted/60"
-              >
-                <th
-                  scope="row"
-                  className="w-full max-w-0 truncate rounded-l-md pl-1.5 text-left font-normal"
-                >
-                  <span
-                    aria-hidden
-                    className="mr-2 inline-block size-2.5 rounded-full align-[-0.0625rem]"
-                    style={{ backgroundColor: d.color }}
-                  />
-                  {d.name}
-                </th>
-                <td className="pl-2 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                  {formatCredits(d.graded)}/{formatCredits(d.weight)}%
-                </td>
-                <td
-                  className={cn(
-                    'rounded-r-md pr-1.5 pl-3 text-right font-medium tabular-nums',
-                    planning && 'text-primary',
-                  )}
-                >
-                  {percentText(planning ? d.plannedAverage : d.average)}
-                </td>
-              </tr>
+                datum={d}
+                planning={planning}
+                active={hovered === d.key}
+                onActiveChange={(on) => setHovered(on ? d.key : null)}
+              />
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       ) : null}
     </section>
   )

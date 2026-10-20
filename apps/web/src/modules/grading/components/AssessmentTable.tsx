@@ -7,7 +7,7 @@ import {
 import { type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Plus } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -69,6 +69,7 @@ export function AssessmentTable({
   whatIf,
   onAssume,
   grouped,
+  toolbar,
 }: {
   courseId: string
   assessments: readonly Assessment[]
@@ -78,6 +79,8 @@ export function AssessmentTable({
   onAssume: (assessmentId: string, percent: number | null) => void
   /** Show the categories as collapsible groups. */
   grouped: boolean
+  /** The table's header bar (title and actions), inside its border. */
+  toolbar: ReactNode
 }) {
   const queryClient = useQueryClient()
   const [sort, setSort] = useUiPref<SortPref>('grading.sort', DEFAULT_SORT)
@@ -180,10 +183,18 @@ export function AssessmentTable({
       <>
         <div
           className={cn(
-            'rounded-2xl border border-border transition-colors',
+            'min-w-0 rounded-2xl border border-border transition-colors',
             whatIf.plan && 'border-primary/30',
           )}
         >
+          <div
+            className={cn(
+              'border-b border-border px-3 py-2 transition-colors',
+              whatIf.plan && 'border-primary/30',
+            )}
+          >
+            {toolbar}
+          </div>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
@@ -251,6 +262,7 @@ export function AssessmentTable({
                         category={group.category}
                         items={group.items.map((r) => r.original)}
                         collapsed={isCollapsed}
+                        planning={whatIf.plan}
                         onToggle={() => toggleGroup(groupId)}
                       />
                     ) : null}
@@ -325,11 +337,14 @@ function GroupRow({
   category,
   items,
   collapsed,
+  planning,
   onToggle,
 }: {
   category: AssessmentCategory | null
   items: readonly Assessment[]
   collapsed: boolean
+  /** In plan mode the rows show assumptions; the group's average stays the real one. */
+  planning: boolean
   onToggle: () => void
 }) {
   const figures = groupFigures(items)
@@ -353,7 +368,6 @@ function GroupRow({
             {m.grading_group_summary({
               count: items.length,
               graded: formatCredits(figures.graded),
-              weight: formatCredits(figures.weight),
             })}
           </span>
         </Button>
@@ -364,10 +378,16 @@ function GroupRow({
         </span>
       </TableCell>
       <TableCell className="py-1.5">
-        <span className="block pr-3 text-right font-medium tabular-nums">
-          <span className="sr-only">{m.grading_average()}: </span>
-          {percentText(figures.average)}
-        </span>
+        {planning ? (
+          <span className="block pr-3 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            {m.grading_actual({ value: percentText(figures.average) })}
+          </span>
+        ) : (
+          <span className="block pr-3 text-right font-medium tabular-nums">
+            <span className="sr-only">{m.grading_average()}: </span>
+            {percentText(figures.average)}
+          </span>
+        )}
       </TableCell>
       <TableCell className="py-1.5" />
     </TableRow>
