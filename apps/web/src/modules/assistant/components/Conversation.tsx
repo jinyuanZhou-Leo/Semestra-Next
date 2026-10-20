@@ -307,7 +307,9 @@ function AssistantMessage({
     <Message>
       <MessageContent className="gap-3">
         <Thinking item={item} active={active} showReasoning={showReasoning} />
-        {item.answer ? <Markdown text={item.answer} citations={citations} /> : null}
+        {item.answer ? (
+          <Markdown text={item.answer} citations={citations} streaming={active} />
+        ) : null}
         <Remembered steps={item.steps} />
         {pending.length > 1 ? (
           <div className="flex justify-end">

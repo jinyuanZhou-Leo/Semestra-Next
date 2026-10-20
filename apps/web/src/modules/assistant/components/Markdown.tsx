@@ -1,26 +1,9 @@
-import { useRouter } from '@tanstack/react-router'
-import type { ComponentProps, ReactNode } from 'react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { useHighlightedCode } from '@/hooks/use-highlighted-code'
+import { lazy, Suspense } from 'react'
 import { cn } from '@/lib/utils'
-import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/ui/hover-card'
-import {
-  CodeBlock,
-  CodeBlockActions,
-  CodeBlockContent,
-  CodeBlockCopyButton,
-  CodeBlockHeader,
-  CodeBlockLine,
-  CodeBlockTitle,
-} from '@/ui/code-block'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import type { Citation } from '../stream'
 
 const CITE = /\[\[cite:([^\]\s]+)\]\]/g
-const CITE_HREF = '#cite:'
+export const CITE_HREF = '#cite:'
 
 /** `[[cite:<id>]]` markers become numbered links the renderer turns into citation badges. */
 export function linkCitations(text: string, citations: ReadonlyMap<string, Citation>): string {
@@ -33,153 +16,37 @@ export function linkCitations(text: string, citations: ReadonlyMap<string, Citat
   })
 }
 
-function citationTitle(citation: Citation): string {
-  return citation.title ?? citation.name ?? m.assistant_citation_untitled()
-}
-
-/** A quoted file in the sentence (AI Elements "Inline Citation"): its title and words on hover. */
-function CitationBadge({ citation, children }: { citation: Citation; children: ReactNode }) {
-  const snippet = citation.snippet ?? citation.text
-  return (
-    <HoverCard>
-      <HoverCardTrigger
-        delay={10}
-        closeDelay={100}
-        render={
-          <Button
-            variant="secondary"
-            size="xs"
-            className="mx-0.5 h-4 min-w-4 px-1 align-text-top text-[10px] tabular-nums"
-            aria-label={citationTitle(citation)}
-          />
-        }
-      >
-        {children}
-      </HoverCardTrigger>
-      <HoverCardContent className="flex w-64 flex-col gap-1">
-        <div className="font-medium">{citationTitle(citation)}</div>
-        {snippet ? <p className="line-clamp-4 text-muted-foreground">{snippet}</p> : null}
-        {citation.url ? (
-          <a
-            href={citation.url}
-            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-          >
-            {m.assistant_citation_open()}
-          </a>
-        ) : null}
-      </HoverCardContent>
-    </HoverCard>
-  )
-}
-
-const LINK_CLASS = 'font-medium text-primary underline-offset-4 hover:underline'
-
-/** A link to a page of the app stays in the app. */
-function InternalLink({ href, children }: { href: string; children: ReactNode }) {
-  const router = useRouter()
-  return (
-    <a
-      href={href}
-      className={LINK_CLASS}
-      onClick={(event) => {
-        event.preventDefault()
-        router.history.push(href)
-      }}
-    >
-      {children}
-    </a>
-  )
-}
-
-/** A fenced block (AI Elements "Code Block"): its language and a copy button on top. */
-function Code({ code, language }: { code: string; language: string | null }) {
-  const lines = useHighlightedCode(code, language ?? 'text')
-  const copy = (
-    <CodeBlockActions>
-      <CodeBlockCopyButton value={code.replace(/\n$/, '')} />
-    </CodeBlockActions>
-  )
-  return (
-    <CodeBlock size="sm" className="my-2">
-      {language ? (
-        <CodeBlockHeader>
-          <CodeBlockTitle className="font-mono font-normal text-muted-foreground">
-            {language}
-          </CodeBlockTitle>
-          {copy}
-        </CodeBlockHeader>
-      ) : (
-        copy
-      )}
-      <CodeBlockContent>
-        {lines.map((line, index) => (
-          // oxlint-disable-next-line react/no-array-index-key -- lines have no identity
-          <CodeBlockLine key={index}>{line}</CodeBlockLine>
-        ))}
-      </CodeBlockContent>
-    </CodeBlock>
-  )
-}
-
-function components(citations: ReadonlyMap<string, Citation>): Components {
-  return {
-    a: ({ href, children }: ComponentProps<'a'>) => {
-      if (href?.startsWith(CITE_HREF)) {
-        const citation = citations.get(decodeURIComponent(href.slice(CITE_HREF.length)))
-        return citation ? <CitationBadge citation={citation}>{children}</CitationBadge> : null
-      }
-      if (href?.startsWith('/') && !href.startsWith('//')) {
-        return <InternalLink href={href}>{children}</InternalLink>
-      }
-      return (
-        <a href={href} className={LINK_CLASS} target="_blank" rel="noreferrer">
-          {children}
-        </a>
-      )
-    },
-    pre: ({ children }) => <>{children}</>,
-    code: ({ className, children }) => {
-      // Any fence word counts (`c++`, `objective-c`); unknown ones show as plain text.
-      const language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null
-      const text = String(children ?? '')
-      if (!language && !text.includes('\n')) {
-        return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{text}</code>
-      }
-      return <Code code={text} language={language} />
-    },
-    table: ({ children }) => (
-      <div className="my-2 overflow-x-auto rounded-xl border">
-        <Table>{children}</Table>
-      </div>
-    ),
-    thead: ({ children }) => <TableHeader>{children}</TableHeader>,
-    tbody: ({ children }) => <TableBody>{children}</TableBody>,
-    tr: ({ children }) => <TableRow>{children}</TableRow>,
-    th: ({ children }) => <TableHead>{children}</TableHead>,
-    td: ({ children }) => <TableCell className="whitespace-normal">{children}</TableCell>,
-  }
-}
-
-/** An answer: GFM Markdown with highlighted code, tables and citation badges (M12 §6.1). */
-export function Markdown({
-  text,
-  citations,
-  className,
-}: {
+export type MarkdownProps = {
   text: string
   citations: ReadonlyMap<string, Citation>
+  /** The answer is still being written. */
+  streaming?: boolean
   className?: string
-}) {
+}
+
+// The renderer (Streamdown with code, math and diagram plugins) is most of the Sem page's
+// weight, so it is its own chunk, fetched as soon as this module loads, while the
+// conversation itself is still being fetched.
+const load = () => import('./Response')
+const Response = lazy(load)
+void load()
+
+/**
+ * An answer (M12 §6.1), rendered by AI Elements' `MessageResponse` (Streamdown): GFM, code,
+ * math and diagrams, with citation badges and in-app links. Streamdown splits the text into
+ * blocks and redraws only the one still growing, so a long answer streams without re-parsing.
+ * Until the renderer arrives, the text shows as it is.
+ */
+export function Markdown(props: MarkdownProps) {
   return (
-    <div
-      className={cn(
-        'space-y-2 text-sm leading-relaxed wrap-break-word [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:font-medium [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
-        className,
-      )}
+    <Suspense
+      fallback={
+        <div className={cn('text-sm leading-relaxed whitespace-pre-wrap', props.className)}>
+          {props.text.replace(CITE, '')}
+        </div>
+      }
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(citations)}>
-        {linkCitations(text, citations)}
-      </ReactMarkdown>
-    </div>
+      <Response {...props} />
+    </Suspense>
   )
 }

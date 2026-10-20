@@ -3,6 +3,9 @@
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/figtree';
+/* AI Elements' MessageResponse (Streamdown) renders with Tailwind classes from its package. */
+@source '../../node_modules/streamdown/dist/*.js';
+@source '../../node_modules/@streamdown/*/dist/*.js';
 
 @custom-variant dark (&:is(.dark *));
 

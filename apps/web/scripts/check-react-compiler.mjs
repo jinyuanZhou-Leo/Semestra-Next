@@ -8,7 +8,7 @@ import { transformSync } from '@babel/core'
 import reactCompiler from 'babel-plugin-react-compiler'
 
 const root = path.resolve(import.meta.dirname, '../src')
-const skip = new Set(['ui', 'paraglide', 'generated'])
+const skip = new Set(['ui', 'ai-elements', 'paraglide', 'generated'])
 
 // Functions that are meant to stay uncompiled. Keep each reason next to the entry.
 const allowed = [

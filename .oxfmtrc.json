@@ -9,6 +9,7 @@
     "**/.venv",
     "apps/api",
     "apps/web/src/ui",
+    "apps/web/src/components/ai-elements",
     "apps/web/src/hooks/use-mobile.ts",
     "apps/web/src/hooks/use-highlighted-code.ts",
     "apps/web/src/lib/highlighter.tsx",

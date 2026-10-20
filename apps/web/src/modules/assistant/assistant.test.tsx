@@ -374,7 +374,9 @@ test('a question streams in as Markdown', async () => {
   const view = renderConversation()
   const input = await messageInput()
   await userEvent.type(input, 'Hello{Enter}')
-  expect(await screen.findByText('there', { selector: 'strong' })).toBeInTheDocument()
+  expect(
+    await screen.findByText('there', { selector: '[data-streamdown=strong]' }),
+  ).toBeInTheDocument()
   expect(view.created()).toBe('s1')
   expect(srv.sent[0]).toMatchObject({
     path: '/agent/sessions/s1/messages',
@@ -916,9 +918,9 @@ test('code is highlighted under a header with its language and a copy button', a
   ]
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   const title = await screen.findByText('c++')
-  const block = title.closest('[data-slot=code-block]') as HTMLElement
+  const block = title.closest('[data-streamdown=code-block]') as HTMLElement
   expect(within(block).getByRole('button', { name: /copy/i })).toBeInTheDocument()
-  await waitFor(() => expect(block.querySelector('[style*="--shiki-light"]')).not.toBeNull())
+  await waitFor(() => expect(block.querySelector('[style*="--sdm-c"]')).not.toBeNull())
 })
 
 test('messages do not pin themselves to the top: the transcript follows the newest one', async () => {
@@ -1162,7 +1164,7 @@ test('the sentence the model said and its steps show in order, not folded into g
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   expect(await screen.findByText('Lab 3 is due Friday.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /Thought for/ }))
-  expect(screen.getByText('Lab 3', { selector: 'strong' })).toBeVisible()
+  expect(screen.getByText('Lab 3', { selector: '[data-streamdown=strong]' })).toBeVisible()
   expect(screen.getByText('Then I will check the due date.')).toBeVisible()
   expect(screen.queryByRole('button', { name: /Looking up/ })).not.toBeInTheDocument()
 })
@@ -1179,6 +1181,6 @@ test('a round whose only call waits on a card keeps the whole sentence the model
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   await screen.findByLabelText('Update an assessment')
   await userEvent.click(screen.getByRole('button', { name: /Thought/ }))
-  expect(screen.getByText('Lab_3', { selector: 'strong' })).toBeVisible()
+  expect(screen.getByText('Lab_3', { selector: '[data-streamdown=strong]' })).toBeVisible()
   expect(screen.getByText('Please confirm below.')).toBeVisible()
 })
