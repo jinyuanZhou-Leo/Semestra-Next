@@ -12,11 +12,14 @@
 
 The SDKs' own retries are off: `adapters/__init__.py` retries the M06 way (§5).
 
-The SDKs are imported on first use: importing them takes seconds, which every start of the API
-(and every reload of `semestra dev`, every test worker) would otherwise pay.
+The SDKs are imported on first use, each kind importing only its own: importing them takes
+seconds, which every start of the API (and every reload of `semestra dev`, every test worker)
+would otherwise pay. `warm_up()` imports them off the event loop after start, so the first
+request usually finds them loaded.
 """
 
 import functools
+import importlib
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -29,12 +32,30 @@ if TYPE_CHECKING:
     from anthropic import AsyncAnthropic
     from google.genai import Client as GoogleClient
     from openai import AsyncOpenAI
+    from pydantic_ai.models.openai import OpenAIChatModel
     from pydantic_ai.providers.google import GoogleProvider
 
 ANTHROPIC_KINDS = frozenset(("anthropic", "anthropic_compatible"))
 OPENAI_KINDS = frozenset(("openai", "openai_compatible", "openai_responses", "ollama"))
 # Only OpenAI's own API takes `reasoning_effort` (a compatible endpoint may reject it).
 REASONING_KINDS = frozenset(("openai", "openai_responses"))
+# What `chat_model()` imports across every kind (each SDK comes with its Pydantic AI model).
+_SDK_MODULES = (
+    "pydantic_ai.models.anthropic",
+    "pydantic_ai.models.google",
+    "pydantic_ai.models.openai",
+    "pydantic_ai.providers.anthropic",
+    "pydantic_ai.providers.google",
+    "pydantic_ai.providers.ollama",
+    "pydantic_ai.providers.openai",
+)
+
+
+def warm_up() -> None:
+    """Import every SDK. Blocking: run it in a thread (Python's import lock makes a request
+    importing the same module meanwhile wait for it, not import it twice)."""
+    for name in _SDK_MODULES:
+        importlib.import_module(name)
 
 
 def _strip(url: str, *suffixes: str) -> str:
@@ -90,7 +111,7 @@ def google_client(client: httpx.AsyncClient, ep: Endpoint) -> GoogleClient:
 
 
 @functools.cache
-def _compatible_chat_model() -> type[Any]:
+def _compatible_chat_model() -> type[OpenAIChatModel]:
     from openai import omit as OMIT
     from pydantic_ai.models.openai import OpenAIChatModel
 
@@ -105,20 +126,22 @@ def _compatible_chat_model() -> type[Any]:
 
 
 def chat_model(client: httpx.AsyncClient, ep: Endpoint, model: str) -> Model:
-    from pydantic_ai.models.anthropic import AnthropicModel
-    from pydantic_ai.models.google import GoogleModel
-    from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
-    from pydantic_ai.profiles.openai import OpenAIModelProfile
-    from pydantic_ai.providers.anthropic import AnthropicProvider
-    from pydantic_ai.providers.ollama import OllamaProvider
-    from pydantic_ai.providers.openai import OpenAIProvider
-
     if ep.kind in ANTHROPIC_KINDS:
+        from pydantic_ai.models.anthropic import AnthropicModel
+        from pydantic_ai.providers.anthropic import AnthropicProvider
+
         return AnthropicModel(
             model, provider=AnthropicProvider(anthropic_client=anthropic_client(client, ep))
         )
     if ep.kind == "gemini":
+        from pydantic_ai.models.google import GoogleModel
+
         return GoogleModel(model, provider=google_provider(client, ep))
+    from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+    from pydantic_ai.profiles.openai import OpenAIModelProfile
+    from pydantic_ai.providers.ollama import OllamaProvider
+    from pydantic_ai.providers.openai import OpenAIProvider
+
     oai = openai_client(client, ep)
     if ep.kind == "openai_responses":
         return OpenAIResponsesModel(model, provider=OpenAIProvider(openai_client=oai))

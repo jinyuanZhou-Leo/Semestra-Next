@@ -86,6 +86,22 @@ async def test_schemas_are_built_once_and_handed_out_as_copies(
     assert not tools.description(cap).startswith("Replaced.")
 
 
+async def test_schemas_are_rebuilt_when_the_registry_changes(
+    agent: Agent, monkeypatch: pytest.MonkeyPatch
+):
+    del agent
+    cap = registry.get("tasks.item.create")
+    assert "From" not in tools.input_schema(cap)["properties"]["title"]["description"]
+    assert tools.for_model("see demo.thing.get") == "see demo.thing.get"
+    # What a registry setter does: change what schemas read, then bump the generation.
+    monkeypatch.setitem(registry._id_sources, "title", "tasks.item.find")  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setitem(registry._items, "demo.thing.get", cap)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(registry, "_generation", registry.generation + 1)
+    title = tools.input_schema(cap)["properties"]["title"]["description"]
+    assert title.endswith("From tasks__item__find.")
+    assert tools.for_model("see demo.thing.get") == "see demo__thing__get"
+
+
 def _undescribed(node: Any, path: str) -> list[str]:
     if isinstance(node, list):
         return [m for v in node for m in _undescribed(v, path)]  # pyright: ignore[reportUnknownVariableType]

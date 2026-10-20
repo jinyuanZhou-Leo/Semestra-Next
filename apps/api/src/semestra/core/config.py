@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # drive the queue themselves.
     job_concurrency: int = 2
     jobs_autostart: bool = True
+    # Import the AI SDKs in a thread after start (seconds of work tests don't need).
+    ai_warm_up: bool = True
     # Outbound requests to user-chosen hosts may reach private networks (self-hosting only).
     allow_private_egress: bool = False
 

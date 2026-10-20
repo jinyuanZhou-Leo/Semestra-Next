@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -63,3 +65,21 @@ def test_ensure_sqlite_dir_creates_parent(tmp_path: Path) -> None:
     target = tmp_path / "nested" / "dir" / "x.db"
     ensure_sqlite_dir(f"sqlite+aiosqlite:///{target}")
     assert target.parent.is_dir()
+
+
+def test_starting_the_api_does_not_import_the_ai_sdks() -> None:
+    # They take seconds to import; `sdk.warm_up()` loads them in a thread after start instead.
+    code = (
+        "import sys\n"
+        "from semestra.main import create_app\n"
+        "create_app()\n"
+        "sdks = {'openai', 'anthropic', 'google.genai'}\n"
+        "print(sorted(sdks & set(sys.modules)))\n"
+        "from semestra.modules.ai.adapters import sdk\n"
+        "sdk.warm_up()\n"
+        "print(sorted(sdks & set(sys.modules)))\n"
+    )
+    out = subprocess.run(  # noqa: S603 (our own interpreter and code)
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=60
+    )
+    assert out.stdout.splitlines()[-2:] == ["[]", "['anthropic', 'google.genai', 'openai']"]
