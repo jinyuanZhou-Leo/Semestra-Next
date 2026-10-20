@@ -10270,7 +10270,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<string> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *
@@ -14583,6 +14583,12 @@ export type LmsAnnouncementListData = {
          * Only posted after this time
          */
         since?: string | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`
+         */
+        fields?: Array<'web_url' | 'title' | 'html' | 'author' | 'posted_at' | 'updated_at' | 'unread'> | null;
     };
     url: '/courses/{course_id}/lms/announcements';
 };
@@ -14654,6 +14660,12 @@ export type LmsAssignmentListData = {
          * Skip the 5-minute cache and ask again
          */
         refresh?: boolean;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`
+         */
+        fields?: Array<'web_url' | 'name' | 'html' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'imported_as'> | null;
     };
     url: '/courses/{course_id}/lms/assignments';
 };
@@ -15597,6 +15609,12 @@ export type LmsQuizListData = {
          * Skip the 5-minute cache and ask again
          */
         refresh?: boolean;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`
+         */
+        fields?: Array<'web_url' | 'title' | 'html' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'question_count'> | null;
     };
     url: '/courses/{course_id}/lms/quizzes';
 };

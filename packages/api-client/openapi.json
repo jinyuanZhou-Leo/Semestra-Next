@@ -726,6 +726,27 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                 {
                   "type": "array",
                   "items": {
+                    "enum": [
+                      "course_id",
+                      "folder_id",
+                      "kind",
+                      "display_name",
+                      "original_name",
+                      "mime_type",
+                      "size_bytes",
+                      "sha256",
+                      "url",
+                      "pinned",
+                      "source_kind",
+                      "source_ref",
+                      "doc_status",
+                      "doc_error_code",
+                      "page_count",
+                      "ocr_skipped_pages",
+                      "job_id",
+                      "created_at",
+                      "updated_at"
+                    ],
                     "type": "string"
                   }
                 },
@@ -7604,6 +7625,36 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Since"
             },
             "description": "Only posted after this time"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "web_url",
+                      "title",
+                      "html",
+                      "author",
+                      "posted_at",
+                      "updated_at",
+                      "unread"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`"
           }
         ],
         "responses": {
@@ -7716,6 +7767,44 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Refresh"
             },
             "description": "Skip the 5-minute cache and ask again"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "web_url",
+                      "name",
+                      "html",
+                      "due_at",
+                      "unlock_at",
+                      "lock_at",
+                      "points",
+                      "group_id",
+                      "group_name",
+                      "group_weight",
+                      "submission_types",
+                      "submission",
+                      "published",
+                      "updated_at",
+                      "imported_as"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`"
           }
         ],
         "responses": {
@@ -9133,6 +9222,37 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Refresh"
             },
             "description": "Skip the 5-minute cache and ask again"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "web_url",
+                      "title",
+                      "html",
+                      "due_at",
+                      "unlock_at",
+                      "lock_at",
+                      "points",
+                      "question_count"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`",
+              "title": "Fields"
+            },
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`"
           }
         ],
         "responses": {
