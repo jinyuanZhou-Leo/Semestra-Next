@@ -63,14 +63,15 @@ async def session_get(ctx: Ctx, inp: SessionIdInput) -> AgentSessionDetail:
 @capability(
     name="agent.session.create",
     summary="Start a new conversation.",
-    description="Where the assistant works: a Program or one of its terms.",
+    description="""Where the assistant works: a Program or one of its terms. Idempotent per
+`client_key`.""",
     effect="write",
     http=Http("POST", "/agent/sessions"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def session_create(ctx: Ctx, inp: AgentSessionCreateInput) -> AgentSessionOut:
-    return service.session_out(await service.create_session(ctx, inp.scope))
+    return service.session_out(await service.create_session(ctx, inp.scope, inp.client_key))
 
 
 @capability(

@@ -2963,7 +2963,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "agent"
         ],
         "summary": "Start a new conversation.",
-        "description": "Where the assistant works: a Program or one of its terms.",
+        "description": "Where the assistant works: a Program or one of its terms. Idempotent per\n`client_key`.",
         "operationId": "agentSessionCreate",
         "requestBody": {
           "required": true,
@@ -3745,13 +3745,68 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
+    "/agent/attachments/{id}:save": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Save a file attached to the conversation to a course's files.",
+        "description": "Use when the user wants to keep an attached document (a syllabus, notes) with\nthe course. The file is then processed like any course file (searchable, citable). Saving it to\nthe same course again returns the saved file.",
+        "operationId": "attachmentsSave",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Attachment id",
+              "title": "Id"
+            },
+            "description": "Attachment id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveToCourseInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/calendar": {
       "get": {
         "tags": [
           "schedule"
         ],
         "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
-        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 120 days after `start`. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today. Each class carries its term week in meta.week_number.",
+        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled\nclasses are included with status 'cancelled'.\nFor today alone prefer calendar.today. Each class carries its term week in meta.week_number.",
         "operationId": "calendarOccurrences",
         "parameters": [
           {
@@ -3784,10 +3839,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "schema": {
               "type": "string",
               "format": "date",
-              "description": "Day after the last day (exclusive); at most 120 days later",
+              "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)",
               "title": "End"
             },
-            "description": "Day after the last day (exclusive); at most 120 days later"
+            "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)"
           },
           {
             "name": "sources",
@@ -6339,7 +6394,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
+        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it.",
         "operationId": "importsSessionCreate",
         "parameters": [
           {
@@ -12165,6 +12220,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "file_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Item Id"
           }
         },
         "type": "object",
@@ -12490,6 +12556,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "description": "Page scope to start from."
+          },
+          "client_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Key",
+            "description": "Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing)."
           }
         },
         "type": "object",
@@ -20550,6 +20630,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "additionalProperties": true,
             "type": "object",
             "title": "Error Params"
+          },
+          "skipped_exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedException"
+            },
+            "type": "array",
+            "title": "Skipped Exceptions",
+            "description": "Cancelled dates of a meeting that were not written (a break week, a date outside the meeting's weeks); mention them when reporting the import"
           }
         },
         "type": "object",
@@ -24889,6 +24977,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "type": "object",
         "title": "RichText"
       },
+      "SaveToCourseInputBody": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id",
+            "description": "Course to save the file to"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id"
+        ],
+        "title": "SaveToCourseInputBody"
+      },
       "SavedFile": {
         "properties": {
           "file_item_id": {
@@ -25346,6 +25448,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "title": "File Item Ids",
             "description": "Existing course files (M07)"
           },
+          "attachment_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Attachment Ids",
+            "description": "Files the user attached to the assistant conversation (the id of an <attachment> block); the importer reads the original file"
+          },
           "text": {
             "anyOf": [
               {
@@ -25357,7 +25470,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Text",
-            "description": "Pasted text (source `text`)"
+            "description": "Only for source_kind `text`: text the user pasted"
           },
           "source_meta": {
             "additionalProperties": true,
@@ -25775,6 +25888,25 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "assessment_id"
         ],
         "title": "SkippedAssessment"
+      },
+      "SkippedException": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Why it was not written, e.g. schedule.not_a_class_day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "code"
+        ],
+        "title": "SkippedException"
       },
       "SourceRef": {
         "properties": {

@@ -139,3 +139,30 @@ def test_category_and_type_mapping():
     assert build.type_code("weird", ["LEC"]) == "LEC"
     assert build.year_long("MAT137Y1", None)
     assert not build.year_long("MAT137H1", "one_term")
+
+
+def test_exdates_and_missing_weeks_become_exceptions():
+    result = parse_ics(ACORN, TZ)
+    lec = result.courses[0].meetings
+    # The EXDATE is a Monday: only the Monday meeting of the MO,WE rule gets it.
+    assert [(m.weekday, m.exceptions) for m in lec[:2]] == [(1, [date(2026, 2, 16)]), (3, [])]
+
+    weeks = [5, 12, 26]  # one VEVENT per class; the 19th is missing
+    singles = ics(*(
+        vevent(uid=f":p{day}", summary=":ECE231H1 PRA0101",
+               dtstart=f";TZID=America/Toronto:202601{day:02d}T150000",
+               dtend=f";TZID=America/Toronto:202601{day:02d}T180000")
+        for day in weeks
+    ))  # fmt: skip
+    meeting = parse_ics(singles, TZ).courses[0].meetings[0]
+    assert (meeting.recurrence, meeting.exceptions) == ("weekly", [date(2026, 1, 19)])
+
+    # A full-year course as one VEVENT per class: the winter break is no cancellation.
+    days = [date(2025, 12, 1), date(2025, 12, 8), date(2026, 1, 5), date(2026, 1, 12)]
+    year = ics(*(
+        vevent(uid=f":y{d:%m%d}", summary=":MAT137Y1 LEC0101",
+               dtstart=f";TZID=America/Toronto:{d:%Y%m%d}T090000",
+               dtend=f";TZID=America/Toronto:{d:%Y%m%d}T100000")
+        for d in days
+    ))  # fmt: skip
+    assert parse_ics(year, TZ).courses[0].meetings[0].exceptions == []

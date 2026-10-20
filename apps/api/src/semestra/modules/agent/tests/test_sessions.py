@@ -81,7 +81,7 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
         "/agent/attachments",
         415,
         data={"session_id": session["id"]},
-        files={"file": ("a.zip", b"PK", "application/zip")},
+        files={"file": ("a.zip", b"PK\x03\x04 not office", "application/zip")},
     )
     assert err["error"]["code"] == "agent.attachment_unsupported"
 
@@ -91,10 +91,12 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     )
     [parts] = model.prompts(0)
     binary = [p for p in parts if isinstance(p, BinaryContent)]
-    assert [b.media_type for b in binary] == ["image/png", "application/pdf"]
+    # PDFs and documents go as text read on upload (this one cannot be read); see
+    # test_attachments.py for how each kind is given.
+    assert [b.media_type for b in binary] == ["image/png"]
     assert binary[0].data == png
     wrapped = next(p for p in parts if isinstance(p, str) and "notes.txt" in p)
-    assert wrapped.startswith("<untrusted_document")
+    assert '<untrusted_document label="notes.txt">' in wrapped
     usage = await agent.call("GET", "/storage/usage")
     assert usage["by_module"]["agent"] == len(png) + 29 + 13
 

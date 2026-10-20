@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from starlette.routing import Route
 
-from semestra.modules.agent import capabilities, models, portability  # noqa: F401  (registers on import)
+from semestra.modules.agent import attachments, capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.agent.mcp_server import McpEndpoint
 from semestra.modules.agent.routes import router
 from semestra.modules.agent.runtime import AgentRuntime

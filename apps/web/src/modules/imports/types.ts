@@ -37,6 +37,8 @@ export type MeetingData = {
   weeks_text?: string
   location?: string
   instructor?: string
+  /** Dates the class is cancelled (ICS EXDATE, missing weeks); written as cancellations. */
+  exceptions?: string[]
 }
 
 export type EventData = {

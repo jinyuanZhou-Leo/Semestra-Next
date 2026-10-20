@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 
 from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
@@ -92,19 +93,40 @@ async def list_sessions(ctx: Ctx, inp: AgentSessionListInput) -> list[AgentSessi
     return [session_out(r) for r in (await ctx.db.scalars(stmt)).all()]
 
 
-async def create_session(ctx: Ctx, scope: AgentScope | None) -> AgentSession:
+async def create_session(
+    ctx: Ctx, scope: AgentScope | None, client_key: str | None = None
+) -> AgentSession:
     await _check_scope(ctx, scope)
+    if client_key is not None and (existing := await _session_by_key(ctx, client_key)):
+        return existing
     row = AgentSession(
         user_id=ctx.user_id,
         program_id=scope.program_id if scope else None,
         scope=scope.model_dump() if scope else None,
         state={},
+        client_key=client_key,
         created_at=ctx.now,
         updated_at=ctx.now,
     )
-    ctx.db.add(row)
-    await ctx.db.flush()
+    try:
+        async with ctx.db.begin_nested():
+            ctx.db.add(row)
+            await ctx.db.flush()
+    except IntegrityError:
+        # A concurrent request with the same key won (unique per user): use its session.
+        existing = await _session_by_key(ctx, client_key or "")
+        if existing is None:
+            raise
+        return existing
     return row
+
+
+async def _session_by_key(ctx: Ctx, client_key: str) -> AgentSession | None:
+    return await ctx.db.scalar(
+        select(AgentSession).where(
+            AgentSession.user_id == ctx.user_id, AgentSession.client_key == client_key
+        )
+    )
 
 
 async def update_session(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSession:
@@ -416,6 +438,7 @@ def attachment_out(row: AgentAttachment) -> AgentAttachmentOut:
         mime=row.mime,
         size=row.size,
         created_at=row.created_at,
+        file_item_id=row.file_item_id,
     )
 
 

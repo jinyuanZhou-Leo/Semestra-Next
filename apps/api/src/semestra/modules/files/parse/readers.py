@@ -49,12 +49,39 @@ class ParsedDocument:
         return sum(len(p.markdown) for p in self.pages)
 
 
+def _split_long(block: str, size: int) -> list[str]:
+    """Cuts a paragraph longer than `size` at line ends, and lines longer than `size` at
+    whitespace (or anywhere), so no page grows past `size` (text without blank lines)."""
+    if len(block) <= size:
+        return [block]
+    parts: list[str] = []
+    current = ""
+    for line in block.split("\n"):
+        while len(line) > size:
+            cut = line.rfind(" ", size // 2, size)
+            cut = size if cut <= 0 else cut
+            if current:
+                parts.append(current)
+                current = ""
+            parts.append(line[:cut])
+            line = line[cut:].lstrip(" ")
+        if current and len(current) + 1 + len(line) > size:
+            parts.append(current)
+            current = line
+        else:
+            current = f"{current}\n{line}" if current else line
+    if current:
+        parts.append(current)
+    return parts
+
+
 def paginate(blocks: Sequence[str], size: int = LOGICAL_PAGE_CHARS) -> list[str]:
-    """Groups paragraphs into logical pages of about `size` characters."""
+    """Groups paragraphs into logical pages of about `size` characters; longer paragraphs are
+    cut so a page never exceeds it."""
     pages: list[str] = []
     current: list[str] = []
     length = 0
-    for block in blocks:
+    for block in (part for b in blocks for part in _split_long(b, size)):
         if current and length + len(block) > size:
             pages.append("\n\n".join(current))
             current, length = [], 0

@@ -11,6 +11,7 @@ from semestra.modules.imports.schemas import (
     ImportSessionPage,
     ItemsAddInput,
     ItemUpdateInput,
+    NewItem,
     SessionCreateInput,
     SessionListInput,
     SessionRef,
@@ -24,7 +25,8 @@ TAGS = ("imports",)
     name="imports.session.create",
     summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
     description="""Creates a draft the user reviews before anything is written. Upload files first
-(POST /imports/uploads) and pass their ids, or pass ids of existing course files, or `text`.
+(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
+the assistant conversation (`attachment_ids`), or `text`.
 ICS is parsed at once (status ready); the other sources are extracted in the background
 (status extracting → ready), poll imports.session.get. Never write a document's contents with
 the modules' own create capabilities instead of importing it.""",
@@ -91,14 +93,26 @@ async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
 @capability(
     name="imports.items.add",
     summary="Append items to an open import (LMS integration, assistant).",
-    description="""Items refer to each other with `item:<key>` in `course_ref` (a course item's
-`key`) or to existing courses with `course:<id>`. The user still reviews them before commit.""",
+    description="""For what you read yourself (source_kind `agent`); files the user attached go
+to imports.session.create with attachment_ids instead. Items refer to each other with `item:<key>`
+in `course_ref` (a course item's `key`) or to existing courses with `course:<id>`. Each type has
+its own fields; unknown fields are refused. The user still reviews the items before commit.""",
     effect="write",
     expose=("agent", "mcp"),
     tags=TAGS,
 )
 async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
-    return await service.add_items_capability(ctx, inp.session_id, inp.items, ready=inp.ready)
+    new = [
+        NewItem(
+            key=item.key,
+            type=item.type,
+            data=item.data.model_dump(mode="json", exclude_unset=True),
+            confidence=item.confidence,
+            decision=item.decision,
+        )
+        for item in inp.items
+    ]
+    return await service.add_items_capability(ctx, inp.session_id, new, ready=inp.ready)
 
 
 async def _commit_preview(ctx: Ctx, inp: CommitInput) -> SessionSummary:

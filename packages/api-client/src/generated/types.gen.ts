@@ -60,6 +60,10 @@ export type AgentAttachmentOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * File Item Id
+     */
+    file_item_id?: string | null;
 };
 
 /**
@@ -242,6 +246,12 @@ export type AgentSessionCreateInputBody = {
      * Page scope to start from.
      */
     scope?: AgentScope | null;
+    /**
+     * Client Key
+     *
+     * Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing).
+     */
+    client_key?: string | null;
 };
 
 /**
@@ -4771,6 +4781,12 @@ export type ItemResult = {
     error_params?: {
         [key: string]: unknown;
     };
+    /**
+     * Skipped Exceptions
+     *
+     * Cancelled dates of a meeting that were not written (a break week, a date outside the meeting's weeks); mention them when reporting the import
+     */
+    skipped_exceptions?: Array<SkippedException>;
 };
 
 /**
@@ -7178,6 +7194,18 @@ export type RichText = {
 };
 
 /**
+ * SaveToCourseInputBody
+ */
+export type SaveToCourseInputBody = {
+    /**
+     * Course Id
+     *
+     * Course to save the file to
+     */
+    course_id: string;
+};
+
+/**
  * SavedFile
  */
 export type SavedFile = {
@@ -7450,9 +7478,15 @@ export type SessionCreateInputBody = {
      */
     file_item_ids?: Array<string>;
     /**
+     * Attachment Ids
+     *
+     * Files the user attached to the assistant conversation (the id of an <attachment> block); the importer reads the original file
+     */
+    attachment_ids?: Array<string>;
+    /**
      * Text
      *
-     * Pasted text (source `text`)
+     * Only for source_kind `text`: text the user pasted
      */
     text?: string | null;
     /**
@@ -7723,6 +7757,22 @@ export type SkippedAssessment = {
      * The existing assessment with this source
      */
     assessment_id: string;
+};
+
+/**
+ * SkippedException
+ */
+export type SkippedException = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Code
+     *
+     * Why it was not written, e.g. schedule.not_a_class_day
+     */
+    code: string;
 };
 
 /**
@@ -12115,6 +12165,38 @@ export type AiUsageSummaryResponses = {
 
 export type AiUsageSummaryResponse = AiUsageSummaryResponses[keyof AiUsageSummaryResponses];
 
+export type AttachmentsSaveData = {
+    body: SaveToCourseInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Attachment id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/attachments/{id}:save';
+};
+
+export type AttachmentsSaveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AttachmentsSaveError = AttachmentsSaveErrors[keyof AttachmentsSaveErrors];
+
+export type AttachmentsSaveResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type AttachmentsSaveResponse = AttachmentsSaveResponses[keyof AttachmentsSaveResponses];
+
 export type CalendarOccurrencesData = {
     body?: never;
     path: {
@@ -12135,7 +12217,7 @@ export type CalendarOccurrencesData = {
         /**
          * End
          *
-         * Day after the last day (exclusive); at most 120 days later
+         * Day after the last day (exclusive); at most 400 days later (120 in the app)
          */
         end: string;
         /**

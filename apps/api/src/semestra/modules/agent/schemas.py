@@ -70,6 +70,8 @@ class AgentAttachmentOut(BaseModel):
     mime: str
     size: int
     created_at: datetime
+    # The course file it was saved as (`attachments.save`).
+    file_item_id: str | None = None
 
 
 class AgentSessionDetail(BaseModel):
@@ -96,6 +98,13 @@ class AttachmentIdInput(BaseModel):
 
 class AgentSessionCreateInput(BaseModel):
     scope: AgentScope | None = Field(default=None, description="Page scope to start from.")
+    client_key: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=64,
+        description="Random key of the new conversation in the client; creating again with "
+        "the same key returns the same conversation (double sends, upload and send racing).",
+    )
 
 
 class AgentSessionUpdateInput(BaseModel):

@@ -16,7 +16,6 @@ from datetime import datetime
 from typing import Any
 
 from pydantic_ai.messages import (
-    BinaryContent,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
@@ -38,13 +37,11 @@ from pydantic_ai.toolsets._tool_search import (  # pyright: ignore[reportPrivate
 from semestra.core.context import Ctx
 from semestra.modules.agent import tools
 from semestra.modules.agent.models import AgentAttachment, AgentMessage
-from semestra.modules.ai import wrap_untrusted
 
 PENDING = "Waiting for the user's decision on the confirmation card; not executed yet."
 EXPIRED = "The confirmation card expired without a decision; the action was not executed."
 CHARS_PER_TOKEN = 4
 IMAGE_TOKENS = 1_200
-TEXT_ATTACHMENT_LIMIT = 60_000
 
 
 # --- stored messages ------------------------------------------------------------------------
@@ -67,22 +64,12 @@ def load(row: AgentMessage) -> ModelMessage | None:
 # --- user messages --------------------------------------------------------------------------
 
 
-async def attachment_content(
-    ctx: Ctx, att: AgentAttachment, *, vision: bool, reads_pdf: bool
-) -> list[UserContent]:
+async def attachment_content(ctx: Ctx, att: AgentAttachment, *, vision: bool) -> list[UserContent]:
     """What the model gets for one attachment of a user message. Called on every request, so it
     must give the same result each time."""
-    from semestra.modules.agent import service
+    from semestra.modules.agent import attachment_context
 
-    if att.mime == "application/pdf" and not reads_pdf:
-        # No renderer yet for providers without PDF input: say so instead of failing the whole
-        # turn, so the model can ask for text or a screenshot.
-        return [f"[PDF {att.name} cannot be read by the current model]"]
-    data = await service.read_attachment(ctx, att)
-    if att.kind == "image" or att.mime == "application/pdf":
-        return [BinaryContent(data=data, media_type=att.mime)]
-    text = data.decode("utf-8", errors="replace")[:TEXT_ATTACHMENT_LIMIT]
-    return [wrap_untrusted(text, att.name)]
+    return await attachment_context.render(ctx, att, vision=vision)
 
 
 def is_typed(row: AgentMessage) -> bool:
@@ -97,7 +84,6 @@ async def user_request(
     attachments: dict[str, AgentAttachment],
     stamp: Callable[[datetime], str],
     vision: bool,
-    reads_pdf: bool,
 ) -> ModelRequest | None:
     """`stamp` turns the row's stored time into the `[Sent …]` note put before what the user
     wrote. A chosen skill brings its workflow and reveals its tools."""
@@ -119,7 +105,7 @@ async def user_request(
             if att is None:
                 content.append(f"[Attachment {block.get('name', '')} is no longer available]")
             else:
-                content += await attachment_content(ctx, att, vision=vision, reads_pdf=reads_pdf)
+                content += await attachment_content(ctx, att, vision=vision)
     if not content:
         return None
     if is_typed(row):

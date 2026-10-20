@@ -31,6 +31,7 @@ LOAD_CAPABILITY = "load_capability"
 # wrapped as untrusted content, like attachments, so instructions inside are not the user's.
 UNTRUSTED_RESULTS = frozenset(
     {
+        "attachments.read",
         "files.search",
         "files.document.read",
         "files.document.outline",

@@ -544,7 +544,6 @@ async def _messages(
                 attachments=atts,
                 stamp=lambda at: sent_note(at, tz),
                 vision=model.vision,
-                reads_pdf=model.reads_pdf,
             )
         else:
             msg = history.load(row)

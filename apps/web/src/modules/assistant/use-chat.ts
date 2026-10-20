@@ -73,6 +73,13 @@ export function sessionQueryOptions(sessionId: string | null) {
   }
 }
 
+/** Idempotency key of a new conversation. `crypto.randomUUID` needs a secure context, which a
+ * LAN address over http is not; `getRandomValues` does not. */
+function newClientKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 /**
  * One conversation: its transcript (the server copy, with streamed events applied as they
  * arrive) and the actions that start a turn. A new conversation is created on the first send.
@@ -82,6 +89,11 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ChatError | null>(null)
   const controller = useRef<AbortController | null>(null)
+  // The conversation this hook creates on the first upload or send: one request at a time,
+  // and the key makes the server return the same conversation if two get through anyway.
+  const creating = useRef<Promise<string> | null>(null)
+  const [clientKey] = useState(newClientKey)
+  const sending = useRef(false)
 
   const detail = useQuery({
     ...sessionQueryOptions(sessionId),
@@ -119,10 +131,9 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return result.started
   }
 
-  async function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
-    if (sessionId) return sessionId
+  async function createSession(scope: AgentScope | null | undefined): Promise<string> {
     const { data } = await agentSessionCreate({
-      body: scope ? { scope } : {},
+      body: { ...(scope ? { scope } : {}), client_key: clientKey },
       throwOnError: true,
     })
     queryClient.setQueryData(keyOf(data.id), emptyDetail(data))
@@ -130,13 +141,36 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return data.id
   }
 
+  function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
+    if (sessionId) return Promise.resolve(sessionId)
+    if (!creating.current) {
+      creating.current = createSession(scope).catch((err: unknown) => {
+        creating.current = null
+        throw err
+      })
+    }
+    return creating.current
+  }
+
   async function send(input: SendInput): Promise<boolean> {
-    let id: string
-    try {
-      id = await ensureSession(input.scope)
-    } catch (err) {
+    // A second Enter or click before the first send has started its turn.
+    if (sending.current) return false
+    sending.current = true
+    // `.finally` rather than try/finally, which the React Compiler cannot lower.
+    return sendOnce(input).finally(() => {
+      sending.current = false
+    })
+  }
+
+  async function sendOnce(input: SendInput): Promise<boolean> {
+    setBusy(true)
+    const id = await ensureSession(input.scope).catch((err: unknown) => {
       const apiError = toApiError(err)
       setError({ code: apiError.code, params: apiError.params })
+      return null
+    })
+    if (id === null) {
+      setBusy(false)
       return false
     }
     const blocks: Record<string, unknown>[] = []

@@ -137,6 +137,7 @@ export function Composer({
   const [dismissed, setDismissed] = useState<string | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const submitting = useRef(false)
   const skills = useQuery({ ...agentSkillsListOptions(), staleTime: 5 * 60_000 }).data?.items ?? []
   const { terms, courses } = useProgramEntities(programId)
 
@@ -205,12 +206,17 @@ export function Composer({
     (text.trim() !== '' || ready.length > 0 || skill !== null)
 
   async function submit() {
-    if (!canSend) return
+    // `canSend` is from the last render: a second Enter before it re-renders would send twice.
+    if (!canSend || submitting.current) return
+    submitting.current = true
     const sent = { text, skill }
     setText('')
     setSkill(null)
     setCaret(0)
-    if (!(await onSubmit(sent))) {
+    const ok = await onSubmit(sent).finally(() => {
+      submitting.current = false
+    })
+    if (!ok) {
       setText(sent.text)
       setSkill(sent.skill)
     }
@@ -370,7 +376,7 @@ export function Composer({
             type="file"
             multiple
             hidden
-            accept="image/*,application/pdf,text/*,.md,.csv,.json"
+            accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/*,.md,.csv,.json,.ics,.html,.docx,.pptx,.xlsx"
             onChange={(event) => {
               onFiles([...(event.target.files ?? [])])
               event.target.value = ''

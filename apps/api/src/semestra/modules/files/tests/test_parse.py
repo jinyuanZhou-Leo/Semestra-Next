@@ -5,7 +5,7 @@ import io
 import pytest
 
 from semestra.modules.files.parse import ParseError, detect, parse
-from semestra.modules.files.parse.readers import guess_language
+from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS, guess_language
 from semestra.modules.files.tests.conftest import SYLLABUS, make_docx, make_pdf, make_png
 
 
@@ -79,6 +79,16 @@ def test_docx_headings_and_paragraphs():
 def test_long_docx_is_split_into_logical_pages():
     data = make_docx([("Normal", "word " * 200) for _ in range(20)])
     assert len(parse(data, detect(data)).pages) >= 3
+
+
+def test_text_without_blank_lines_is_still_split_into_pages():
+    lines = "\n".join(f"DTSTART:2026091{n % 10}T100000 SUMMARY:Lecture {n}" for n in range(400))
+    one_line = "word " * 2000
+    for data in (lines.encode(), one_line.encode()):
+        doc = parse(data, detect(data, "notes.txt"))
+        assert len(doc.pages) > 1
+        assert max(len(p.markdown) for p in doc.pages) <= LOGICAL_PAGE_CHARS
+        assert " ".join(p.markdown for p in doc.pages).split() == data.decode().split()
 
 
 def test_pptx_has_one_page_per_slide_with_notes():

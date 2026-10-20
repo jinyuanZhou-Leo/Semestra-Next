@@ -65,7 +65,12 @@ export function itemDetail(item: ImportItem): string {
   switch (item.type) {
     case 'meeting': {
       const mt = data as MeetingData
-      return [`${hm(mt.start_time)}–${hm(mt.end_time)}`, mt.location].filter(Boolean).join(' · ')
+      const cancelled = mt.exceptions?.length
+        ? m.imports_meeting_cancelled({ count: mt.exceptions.length })
+        : null
+      return [`${hm(mt.start_time)}–${hm(mt.end_time)}`, mt.location, cancelled]
+        .filter(Boolean)
+        .join(' · ')
     }
     case 'assessment': {
       const a = data as AssessmentData

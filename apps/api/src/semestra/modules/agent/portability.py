@@ -8,6 +8,7 @@ The approval preferences are consent given on this account, so they do not trave
 
 from semestra.modules.agent.models import (
     AgentAttachment,
+    AgentAttachmentPage,
     AgentMessage,
     AgentPreferences,
     AgentProposal,
@@ -23,6 +24,7 @@ ADAPTER = table_adapter(
         Table(AgentMessage, "messages", exported=False),
         Table(AgentProposal, "proposals", exported=False),
         Table(AgentAttachment, "attachments", exported=False),
+        Table(AgentAttachmentPage, "attachment_pages", id_column=None, exported=False),
         Table(AgentPreferences, "preferences", id_column=None, exported=False),
     ),
 )

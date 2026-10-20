@@ -8,7 +8,7 @@ item's `result.error_code` on commit.
 from datetime import date, datetime, time
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from semestra.modules.academics.schemas import Credits, Id, Instructor
 
@@ -109,6 +109,9 @@ class MeetingData(BaseModel):
     location: Text200 | None = None
     instructor: Text200 | None = None
     source_ref: Annotated[str, Field(max_length=500)] | None = None
+    # Dates the class is cancelled (holidays, irregular weeks); break weeks of the term are
+    # skipped anyway. Written as cancellations of the meeting on commit.
+    exceptions: list[date] = Field(default_factory=list, max_length=200)
 
 
 class EventData(BaseModel):
@@ -190,6 +193,11 @@ class Issue(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class SkippedException(BaseModel):
+    date: str
+    code: str = Field(description="Why it was not written, e.g. schedule.not_a_class_day")
+
+
 class ItemResult(BaseModel):
     created_id: str | None = None
     updated_id: str | None = None
@@ -197,6 +205,11 @@ class ItemResult(BaseModel):
     reused: bool = False
     error_code: str | None = None
     error_params: dict[str, Any] = Field(default_factory=dict)
+    skipped_exceptions: list[SkippedException] = Field(
+        default_factory=lambda: [],
+        description="Cancelled dates of a meeting that were not written (a break week, a date "
+        "outside the meeting's weeks); mention them when reporting the import",
+    )
 
 
 class ImportItem(BaseModel):
@@ -286,8 +299,16 @@ class SessionCreateInput(BaseModel):
     file_item_ids: list[Id] = Field(
         default_factory=list, max_length=20, description="Existing course files (M07)"
     )
+    attachment_ids: list[Id] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "Files the user attached to the assistant conversation (the id of an <attachment> "
+            "block); the importer reads the original file"
+        ),
+    )
     text: Annotated[str, Field(max_length=100_000)] | None = Field(
-        default=None, description="Pasted text (source `text`)"
+        default=None, description="Only for source_kind `text`: text the user pasted"
     )
     source_meta: dict[str, Any] = Field(
         default_factory=dict,
@@ -347,9 +368,108 @@ class NewItem(BaseModel):
     decision: Decision = Field(default="accept", description="Initial decision")
 
 
+# --- `imports.items.add`: one schema per item type, unknown fields refused ------------------
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CourseFields(CourseData, _Strict):
+    pass
+
+
+class CoursePatchFields(CoursePatchData, _Strict):
+    pass
+
+
+class MeetingFields(MeetingData, _Strict):
+    pass
+
+
+class EventFields(EventData, _Strict):
+    pass
+
+
+class CategoryFields(CategoryData, _Strict):
+    pass
+
+
+class AssessmentFields(AssessmentData, _Strict):
+    pass
+
+
+class TaskFields(TaskData, _Strict):
+    pass
+
+
+class _AddedItem(_Strict):
+    key: Annotated[str, Field(pattern=r"^[A-Za-z0-9-]{1,64}$")] | None = Field(
+        default=None,
+        description="Local key (letters, digits, -); other new items refer to it as "
+        "`item:<key>` in course_ref / category_ref",
+    )
+    confidence: dict[str, Confidence] = Field(
+        default_factory=dict, description="Per field; mark guesses low so the user checks them"
+    )
+    decision: Decision = Field(default="accept", description="Initial decision")
+
+
+class AddedCourse(_AddedItem):
+    type: Literal["course"] = Field(description="A new course")
+    data: CourseFields = Field(description="Course fields")
+
+
+class AddedCoursePatch(_AddedItem):
+    type: Literal["course_patch"] = Field(description="Changes to an existing course")
+    data: CoursePatchFields = Field(description="Course id and the changed fields")
+
+
+class AddedMeeting(_AddedItem):
+    type: Literal["meeting"] = Field(description="A weekly class time of a course section")
+    data: MeetingFields = Field(
+        description="weekday 1 = Monday; weeks as start_week/end_week or first_date/last_date; "
+        "exceptions = cancelled dates"
+    )
+
+
+class AddedEvent(_AddedItem):
+    type: Literal["event"] = Field(description="A one-off calendar event (exam, no class, ...)")
+    data: EventFields = Field(description="Event fields")
+
+
+class AddedCategory(_AddedItem):
+    type: Literal["category"] = Field(description="A grading category of a course")
+    data: CategoryFields = Field(description="Category fields")
+
+
+class AddedAssessment(_AddedItem):
+    type: Literal["assessment"] = Field(description="A graded assessment of a course")
+    data: AssessmentFields = Field(description="weight in percent of the course grade")
+
+
+class AddedTask(_AddedItem):
+    type: Literal["task"] = Field(description="A to-do item")
+    data: TaskFields = Field(description="Task fields")
+
+
+AddedItem = Annotated[
+    AddedCourse
+    | AddedCoursePatch
+    | AddedMeeting
+    | AddedEvent
+    | AddedCategory
+    | AddedAssessment
+    | AddedTask,
+    Field(discriminator="type"),
+]
+
+
 class ItemsAddInput(BaseModel):
     session_id: Id = Field(description="Import session id")
-    items: list[NewItem] = Field(min_length=1, max_length=500, description="Items to append")
+    items: list[AddedItem] = Field(
+        min_length=1, max_length=500, description="Items to append, each with its type's fields"
+    )
     ready: bool = Field(default=True, description="Mark the session ready for review")
 
 
