@@ -450,7 +450,12 @@ test('a write waits on a card: approving sends the decision and shows the result
   // changed and where.
   await waitFor(() => expect(card).not.toBeInTheDocument())
   await userEvent.click(await screen.findByRole('button', { name: /1 step/ }))
-  await userEvent.click(await screen.findByRole('button', { name: /Ran Update an assessment/ }))
+  const stepLine = await screen.findByRole('button', { name: /Update an assessment/ })
+  // The line names what the step was about, without the "Ran" prefix.
+  expect(stepLine).toHaveTextContent(
+    /^Update an assessment Lab 3 · APS105H1 Computer Fundamentals$/,
+  )
+  await userEvent.click(stepLine)
   expect(screen.getByText('90')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
 })
@@ -1108,6 +1113,8 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
     errorCode: null,
     proposal: null,
     memory,
+    display: null,
+    changed: true,
   })
   render(
     <QueryClientProvider client={newQueryClient()}>

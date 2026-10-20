@@ -1,3 +1,5 @@
+from typing import Any
+
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.imports import service
@@ -16,7 +18,6 @@ from semestra.modules.imports.schemas import (
     SessionGetInput,
     SessionListInput,
     SessionRef,
-    SessionSummary,
 )
 
 TAGS = ("imports",)
@@ -143,9 +144,10 @@ async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
     return await service.add_items_capability(ctx, inp.session_id, new, ready=inp.ready)
 
 
-async def _commit_preview(ctx: Ctx, inp: CommitInput) -> SessionSummary:
-    row = await service.get_session_row(ctx, inp.session_id)
-    return SessionSummary.model_validate(row.summary)
+async def _commit_preview(ctx: Ctx, inp: CommitInput) -> dict[str, Any]:
+    """The confirmation card (M12 §3.5): which files go where, and what gets written: the new
+    courses by code, how many of each other kind, what is left out and what is still open."""
+    return await service.commit_preview(ctx, inp.session_id)
 
 
 @capability(

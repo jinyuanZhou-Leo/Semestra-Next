@@ -1208,3 +1208,34 @@ def test_a_cut_falls_between_two_objects_of_a_list(monkeypatch: pytest.MonkeyPat
     assert first.startswith('{"items":[{"id":0,"name":"item 0"}\n[characters 0-34 of')
     assert "offset 34 for more" in first
     assert loop.tools.page(text, "c1", 34).startswith(',{"id":1,')
+
+
+async def test_steps_and_cards_name_things_instead_of_ids(agent: Agent, model: FakeModel):
+    # The chat's line for a call names what it was about and counts what it read; a card
+    # without its own preview names its target and lists the plain arguments, never ids.
+    program = await agent.program()
+    session = await agent.session()
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("None yet."))
+    events = await agent.send(session["id"], "Which terms do I have?")
+    [result] = events_named(events, "tool_result")
+    assert result["display"] == {"target": [program["name"]], "count": 0}
+    detail = await agent.detail(session["id"])
+    [stored] = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert stored["display"] == result["display"]
+
+    term = {
+        "program_id": program["id"],
+        "name": "Fall 2026",
+        "start_date": "2026-09-07",
+        "end_date": "2026-12-31",
+        "breaks": [{"name": "Reading week", "start_date": "2026-10-26", "end_date": "2026-10-30"}],
+    }
+    model.then(
+        call("load_capability", {"id": "manage-terms-and-courses"}),
+        call("academics.term.create", term),
+    )
+    [card] = events_named(await agent.send(session["id"], "Add the fall term"), "proposal")
+    assert card["preview"]["target"] == program["name"]
+    fields = [c["field"] for c in card["preview"]["changes"]]
+    assert fields == ["name", "start_date", "end_date", "breaks"]
+    assert program["id"] not in str(card["preview"])

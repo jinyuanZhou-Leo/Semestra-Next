@@ -852,6 +852,17 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     )
     assert moved["summary"]["issues"] == {}
 
+    # The confirmation card says what the commit writes, by name and count, without ids.
+    async with system_ctx(app.state, me["id"]) as ctx:
+        preview = await service.commit_preview(ctx, session_id)
+    assert preview == {
+        "target": "Winter 2026",
+        "changes": [
+            {"field": "import_course", "after": ["MAT194H1", "MAT188H1"]},
+            {"field": "import_meeting", "after": 2},
+        ],
+    }
+
     done = await api.commit(session_id)
     assert (done["created"], done["failed"]) == (4, 0)
     courses = await api.call("GET", f"/programs/{program_id}/courses")

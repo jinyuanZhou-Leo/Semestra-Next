@@ -1,5 +1,5 @@
 import type { AgentMessageOut, AgentProposalOut, AgentSessionDetail } from '@semestra/api-client'
-import type { AgentEvent, Citation, PauseReason, RememberedMemory } from './stream'
+import type { AgentEvent, Citation, PauseReason, RememberedMemory, StepDisplay } from './stream'
 
 type Block = Record<string, unknown>
 
@@ -21,6 +21,10 @@ export type Step = {
   proposal: AgentProposalOut | null
   /** What a memory call saved. */
   memory: RememberedMemory | null
+  /** Names and counts for its line, once it has run. */
+  display: StepDisplay | null
+  /** It changed the user's data. */
+  changed: boolean
 }
 
 export type AttachmentRef = { id: string; name: string; kind: 'image' | 'file' }
@@ -98,6 +102,8 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
       errorCode: result ? ((result.error_code as string | null) ?? null) : null,
       proposal: proposal ?? null,
       memory: (result?.memory as RememberedMemory | undefined) ?? null,
+      display: (result?.display as StepDisplay | undefined) ?? null,
+      changed: result?.changed === true,
     }
   }
 
@@ -316,6 +322,7 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
               error_code: event.data.error_code,
               changed: event.data.changed ?? false,
               ...(event.data.memory ? { memory: event.data.memory } : {}),
+              ...(event.data.display ? { display: event.data.display } : {}),
             },
           ]),
         ],
