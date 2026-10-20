@@ -302,6 +302,7 @@ async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingL
 meeting.""",
     effect="write",
     http=Http("PUT", "/meetings/{meeting_id}/exceptions/{original_date}"),
+    preview=service.preview_exception_upsert,
     tags=TAGS,
     agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )
@@ -315,6 +316,7 @@ async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     description="The class happens again as regularly scheduled.",
     effect="write",
     http=Http("DELETE", "/meetings/{meeting_id}/exceptions/{original_date}"),
+    preview=service.preview_exception_delete,
     tags=TAGS,
     agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )

@@ -695,10 +695,9 @@ def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
     return _validated_data("assessment", {**restored, **common, "held": held or None})
 
 
-async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
-    row = await get_session_row(ctx, inp.session_id)
-    _require_open(row)
-    items = await _items(ctx, row.id)
+def _decided(items: list[ImportsItem], inp: BulkDecideInput) -> list[ImportsItem]:
+    """The items `bulk_decide` changes: those matching every filter (a rejected course takes
+    its contents along), not written yet and not already decided that way."""
     chosen = [
         item
         for item in items
@@ -708,13 +707,103 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
     ]
     if inp.decision == "reject":
         chosen = _with_contents(items, chosen)
-    changed = 0
-    for item in chosen:
-        if _written(item):
+    return [i for i in chosen if not _written(i) and i.decision != inp.decision]
+
+
+def _label(data: dict[str, Any]) -> str | None:
+    found = data.get("code") or data.get("title") or data.get("name") or data.get("section_code")
+    return str(found) if found else None
+
+
+def _by_type(drafts: Sequence[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """How many items of each type (`import_<type>`), the courses by name."""
+    changes: list[dict[str, Any]] = []
+    courses = [n for t, data in drafts if t == "course" and (n := _label(data))]
+    if courses:
+        changes.append({"field": "import_course", "after": courses[:10], "count": len(courses)})
+    counts: dict[str, int] = {}
+    for t, _ in drafts:
+        if t != "course":
+            counts[t] = counts.get(t, 0) + 1
+    return changes + [{"field": f"import_{t}", "after": n} for t, n in counts.items()]
+
+
+async def preview_bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): how many items of each type it keeps or
+    leaves out (the same selection as `bulk_decide`)."""
+    row = await get_session_row(ctx, inp.session_id)
+    items = _decided(await _items(ctx, row.id), inp)
+    changes = [
+        {"field": "decision", "after": inp.decision},
+        *_by_type([(i.type, i.data) for i in items]),
+    ]
+    if not items:
+        changes.append({"field": "import_items", "after": 0})
+    return {"target": _files(row), "changes": changes}
+
+
+async def preview_update_item(ctx: Ctx, inp: ItemUpdateInput) -> dict[str, Any]:
+    """The item's fields before → after (null clears one), its type and its decision."""
+    row = await get_session_row(ctx, inp.session_id)
+    items = await _items(ctx, row.id)
+    item = next((i for i in items if i.id == inp.item_id), None)
+    if item is None:
+        raise not_found()
+    changes: list[dict[str, Any]] = []
+    if inp.type is not None and inp.type != item.type:
+        changes.append({"field": "type", "before": item.type, "after": inp.type})
+    for key, value in (inp.data or {}).items():
+        if key in ("source_ref", "held"):
             continue
-        if item.decision != inp.decision:
-            item.decision = inp.decision
-            changed += 1
+        before = item.data.get(key)
+        if key.endswith("_ref"):
+            key = key.removesuffix("_ref")
+            before, value = await _ref_name(ctx, items, before), await _ref_name(ctx, items, value)
+        if before != value:
+            changes.append({"field": key, "before": before, "after": value})
+    if inp.decision is not None and inp.decision != item.decision:
+        changes.append({"field": "decision", "before": item.decision, "after": inp.decision})
+    return {
+        "target": " · ".join(p for p in (_label(item.data), _files(row)) if p),
+        "changes": changes,
+    }
+
+
+async def preview_add_items(ctx: Ctx, session_id: str, new: Sequence[NewItem]) -> dict[str, Any]:
+    """Counts per type of what is added, new courses by name."""
+    row = await get_session_row(ctx, session_id)
+    return {"target": _files(row), "changes": _by_type([(n.type, n.data) for n in new])}
+
+
+def _files(row: ImportsSession) -> str | None:
+    return ", ".join(str(r["filename"]) for r in row.source_refs if r.get("filename")) or None
+
+
+async def _ref_name(ctx: Ctx, items: Sequence[ImportsItem], ref: Any) -> str | None:
+    """A `course_ref`/`category_ref` by name: an item of the session, a course or a term."""
+    if not isinstance(ref, str):
+        return None
+    kind, _, id_ = ref.partition(":")
+    with contextlib.suppress(AppError):
+        if kind == "item":
+            found = next((i for i in items if i.id == id_), None)
+            return _label(found.data) if found is not None else None
+        if kind == "course":
+            course = await academics.get_course_row(ctx, id_)
+            return course.code or course.title
+        if kind == "term":
+            return (await academics.get_term_row(ctx, id_)).name
+    return None
+
+
+async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
+    row = await get_session_row(ctx, inp.session_id)
+    _require_open(row)
+    items = await _items(ctx, row.id)
+    changed = 0
+    for item in _decided(items, inp):
+        item.decision = inp.decision
+        changed += 1
     await revalidate(ctx, row, items)
     return changed, await detail(ctx, row, item_ids=set() if for_agent(ctx) else None)
 
@@ -762,19 +851,7 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
         for i in items
         if i.decision == "accept" and not (i.result and not i.result.get("error_code"))
     ]
-    changes: list[dict[str, Any]] = []
-    courses = [
-        str(name)
-        for i in waiting
-        if i.type == "course" and (name := i.data.get("code") or i.data.get("title"))
-    ]
-    if courses:
-        changes.append({"field": "import_course", "after": courses})
-    counts: dict[str, int] = {}
-    for item in waiting:
-        if item.type != "course":
-            counts[item.type] = counts.get(item.type, 0) + 1
-    changes += [{"field": f"import_{t}", "after": n} for t, n in counts.items()]
+    changes = _by_type([(i.type, i.data) for i in waiting])
     rejected = sum(1 for i in items if i.decision == "reject")
     if rejected:
         changes.append({"field": "import_rejected", "after": rejected})
@@ -784,7 +861,6 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
     issues = sum(len(i.issues) for i in waiting)
     if issues:
         changes.append({"field": "import_issues", "after": issues})
-    files = [str(r["filename"]) for r in row.source_refs if r.get("filename")]
     target = target_of(row)
     into: str | None = None
     with contextlib.suppress(AppError):
@@ -793,7 +869,7 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
             into = course.code or course.title
         elif target.term_id is not None:
             into = (await academics.get_term_row(ctx, target.term_id)).name
-    target_text = " → ".join(p for p in (", ".join(files), into) if p)
+    target_text = " → ".join(p for p in (_files(row), into) if p)
     return {"target": target_text, "changes": changes}
 
 

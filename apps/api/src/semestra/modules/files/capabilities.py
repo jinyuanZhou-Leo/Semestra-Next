@@ -87,6 +87,7 @@ course (folder_id null = course root), or pin it for quick access. Only send the
 change.""",
     effect="write",
     http=Http("PATCH", "/files/{item_id}"),
+    check=service.check_item_update,
     tags=TAGS,
     agent_output_fields=("id", "display_name", CHANGED),
 )
@@ -160,6 +161,7 @@ unless recursive=true, which permanently deletes all its files, links and subfol
     effect="destructive",
     http=Http("DELETE", "/folders/{folder_id}"),
     preview=service.preview_folder_delete,
+    check=service.check_folder_delete,
     tags=TAGS,
 )
 async def folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> Deleted:

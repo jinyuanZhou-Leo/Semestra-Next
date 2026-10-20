@@ -798,3 +798,103 @@ async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: F
     assert len({c["data"]["key"] for c in categories}) == 2
     refs = [a["data"]["category_ref"] for a in by_type(session, "assessment")]
     assert refs[0] == refs[1] != refs[2]
+
+
+async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: FakeProvider):
+    # The confirmation cards (M12 §3.5) say which LMS course, assignments and connection, by
+    # name, from the cached reads only; never an external id, never a call to the LMS.
+    from semestra.core.capability import registry
+    from semestra.modules.agent.loop import make_preview
+
+    program_id, term_id, conn = await setup_program(api)
+    course_id = await api.course(program_id, term_id)
+    connection = await api.call("GET", f"/programs/{program_id}/lms-binding")
+    me = await api.call("GET", "/account/me")
+
+    async def card(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        async with system_ctx(app.state, me["id"]) as ctx:
+            ctx.actor = "agent"
+            return await make_preview(ctx, registry.get(name), args)
+
+    # Nothing read yet: the cards count, without asking the LMS.
+    fake.calls.clear()
+    imported = await card(
+        "lms.course.import",
+        {"program_id": program_id, "external_course_ids": ["101", "90"], "term_id": term_id},
+    )
+    assert imported["changes"] == [{"field": "lms_courses", "after": 2}]
+    assert fake.calls == []
+
+    await api.call("GET", f"/programs/{program_id}/lms/courses?include_past=true")
+    linked = await card(
+        "lms.course.link.set", {"course_id": course_id, "external_course_id": "101"}
+    )
+    assert linked["changes"][0] == {
+        "field": "lms_course",
+        "after": "APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026",
+    }
+    assert {"field": "connection", "after": connection["connection"]["display_name"]} in linked[
+        "changes"
+    ]
+    imported = await card(
+        "lms.course.import",
+        {"program_id": program_id, "external_course_ids": ["101", "90"], "term_id": term_id},
+    )
+    [courses] = imported["changes"]
+    assert courses["field"] == "lms_courses"
+    assert courses["count"] == 2
+    assert courses["after"][1] == "OLD100 · Old course · Fall 2025"  # a past course too
+    assert "'101'" not in str(imported)
+
+    link = (await api.link(course_id, "101"))["link"]
+    # A course already in the Program is skipped by the import, so the card leaves it out.
+    imported = await card(
+        "lms.course.import",
+        {"program_id": program_id, "external_course_ids": ["101", "90"], "term_id": term_id},
+    )
+    assert imported["changes"] == [
+        {"field": "lms_courses", "after": ["OLD100 · Old course · Fall 2025"], "count": 1}
+    ]
+
+    async with system_ctx(app.state) as ctx:
+        ctx.db.add(
+            LmsImportedRef(user_id=me["id"], link_id=link["id"], external_kind="assignment",
+                           external_id="a3", target_kind="assessment", target_id="x",
+                           snapshot={}, imported_at=datetime(2026, 1, 15, tzinfo=UTC))
+        )  # fmt: skip
+        await ctx.db.commit()
+    args = {"course_id": course_id, "external_ids": ["a1", "a3", "a2"]}
+    fake.calls.clear()
+    # Not read yet: how many are new (a3 was imported before).
+    assert (await card("lms.assignment.import", args))["changes"][0] == {
+        "field": "lms_assignments",
+        "after": 2,
+    }
+    assert fake.calls == []
+    await api.call("GET", f"/courses/{course_id}/lms/assignments")
+    assignments = await card("lms.assignment.import", args)
+    assert assignments["changes"][0] == {
+        "field": "lms_assignments",
+        "after": ["Lab 1", "Lab 2"],
+        "count": 2,
+    }
+    assert assignments["target"] == "APS105H1 Computer Fundamentals"
+    unlinked = await card("lms.course.link.delete", {"course_id": course_id})
+    assert unlinked["changes"] == [
+        {
+            "field": "lms_course",
+            "before": "APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026",
+            "after": None,
+        }
+    ]
+    saved = await card("lms.file.save_to_course", {"course_id": course_id, "file_id": "f9"})
+    assert saved["changes"] == [{"field": "folder", "after": None}]
+    await api.call("GET", f"/courses/{course_id}/lms/files/f9")
+    saved = await card("lms.file.save_to_course", {"course_id": course_id, "file_id": "f9"})
+    assert saved["changes"] == [
+        {"field": "lms_file", "after": "notes.txt"},
+        {"field": "folder", "after": None},
+    ]
+    cleared = await card("lms.program.binding.clear", {"program_id": program_id})
+    assert cleared["changes"][0]["before"] == connection["connection"]["display_name"]
+    assert conn not in str(cleared)

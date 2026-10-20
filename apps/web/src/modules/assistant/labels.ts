@@ -1,7 +1,7 @@
 import * as messages from '@/paraglide/messages'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
 import { TYPE_LABELS } from '@/modules/imports/labels'
 import type { ItemType } from '@/modules/imports/types'
 import type { Step } from './transcript'
@@ -68,15 +68,30 @@ export function fieldLabel(field: string, schemaTitle?: string): string {
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+const MOMENT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+/** Words for the fixed values of a few fields (an import decision, a class's change). */
+const VALUE_TEXT: Record<string, Record<string, () => string>> = {
+  decision: {
+    accept: m.assistant_value_accept,
+    reject: m.assistant_value_reject,
+    pending: m.assistant_value_pending,
+  },
+  exception: { cancelled: m.assistant_value_cancelled, moved: m.assistant_value_moved },
+  as_kind: TYPE_LABELS,
+  type: TYPE_LABELS,
+}
 
 /**
- * A string value in words: an import decision (only in the `decision` field), a date in the
- * UI's format, an error or issue code (`import.outside_term`), else the value itself.
+ * A string value in words: a fixed value of its field (an import decision), a date or a
+ * moment in the UI's format, an error or issue code (`import.outside_term`), else the value
+ * itself.
  */
 function stringText(value: string, field?: string): string {
-  if (field === 'decision' && value === 'accept') return m.assistant_value_accept()
-  if (field === 'decision' && value === 'reject') return m.assistant_value_reject()
+  const fixed = field ? VALUE_TEXT[field]?.[value] : undefined
+  if (fixed) return fixed()
   if (DAY.test(value)) return formatDate(value)
+  if (MOMENT.test(value) && !Number.isNaN(Date.parse(value))) return formatDateTime(value)
   if (!/^[a-z]+(\.[a-z_]+)+$/.test(value)) return value
   return byKey[`error_${value.replaceAll('.', '_')}`]?.() ?? value
 }
@@ -104,6 +119,8 @@ export function formatValue(value: unknown, field?: string): string {
   if (typeof value === 'string') return stringText(value, field)
   if (Array.isArray(value)) {
     const parts = value.map((each) => formatValue(each, field))
+    // Chinese "unit" lists have no separator at all ("Lab 1Lab 2").
+    if (getLocale().startsWith('zh')) return parts.join('、')
     return new Intl.ListFormat(getLocale(), { type: 'unit' }).format(parts)
   }
   if (typeof value === 'object') {

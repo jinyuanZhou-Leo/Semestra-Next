@@ -3,7 +3,7 @@ through agents or MCP clients."""
 
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
-from semestra.modules.lms import imports, reads, service
+from semestra.modules.lms import imports, previews, reads, service
 from semestra.modules.lms.schemas.dto import FileMeta, PageDetail, RichText
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
@@ -168,6 +168,7 @@ async def binding_get(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
     description="Refused while courses of the Program are linked (lms.program_has_links).",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/lms-binding"),
+    preview=previews.preview_binding_set,
     tags=TAGS,
     agent_output_fields=_BINDING_FIELDS,
 )
@@ -181,6 +182,7 @@ async def binding_set(ctx: Ctx, inp: BindingSetInput) -> ProgramBinding:
     description="Refused while courses of the Program are linked (lms.program_has_links).",
     effect="write",
     http=Http("DELETE", "/programs/{program_id}/lms-binding"),
+    preview=previews.preview_binding_clear,
     tags=TAGS,
     agent_output_fields=_BINDING_FIELDS,
 )
@@ -247,6 +249,7 @@ with lms.course_link_exists (naming that course) unless replace is true; replaci
 what was imported through the old link.""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/lms-link"),
+    preview=previews.preview_link_set,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
     check=service.check_link,
@@ -261,6 +264,7 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     description="Off: no calendar overlay and no update checks; reading still works.",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
+    preview=previews.preview_link_update,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -287,6 +291,7 @@ async def link_sync(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     description="Imported assessments, tasks and files stay.",
     effect="write",
     http=Http("DELETE", "/courses/{course_id}/lms-link"),
+    preview=previews.preview_link_delete,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -492,6 +497,7 @@ async def file_get(ctx: Ctx, inp: FileInput) -> FileMeta:
     description="It is then processed like an upload and can be searched and extracted.",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/files/{file_id}:save"),
+    preview=previews.preview_file_save,
     tags=TAGS,
 )
 async def file_save(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
@@ -510,6 +516,7 @@ async def file_save(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
 the courses and links them to the LMS in one go.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/lms/imports:courses"),
+    preview=previews.preview_course_import,
     tags=TAGS,
 )
 async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
@@ -523,6 +530,7 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
 assessment and a task there. Assignments imported before are left out.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:assignments"),
+    preview=previews.preview_assignment_import,
     tags=TAGS,
 )
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
@@ -560,6 +568,7 @@ async def check_updates(ctx: Ctx, inp: CourseReadInput) -> UpdatesOutput:
 when the import is committed (imports.session.commit) after the user reviewed it.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/updates:review"),
+    preview=previews.preview_apply_updates,
     tags=TAGS,
 )
 async def queue_updates(ctx: Ctx, inp: CourseRef) -> ImportStarted:

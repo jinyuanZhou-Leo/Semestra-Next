@@ -259,6 +259,7 @@ async def item_delete(ctx: Ctx, inp: TaskRef) -> TaskDeleted:
 or clean up completed tasks.""",
     effect="destructive",
     http=Http("POST", "/programs/{program_id}/tasks:clear-completed"),
+    preview=service.preview_clear_completed,
     tags=TAGS,
 )
 async def item_clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:

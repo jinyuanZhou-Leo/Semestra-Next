@@ -617,11 +617,11 @@ async def delete_task(ctx: Ctx, task_id: str) -> None:
     await _announce(ctx, "deleted", row, calendar=had_due)
 
 
-async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
-    program = await academics.get_program_row(ctx, inp.program_id)
+async def _completed_rows(ctx: Ctx, inp: TaskClearInput) -> list[TasksItem]:
+    """The completed tasks `clear_completed` deletes (its card counts the same rows)."""
     stmt = select(TasksItem).where(
         TasksItem.user_id == ctx.user_id,
-        TasksItem.program_id == program.id,
+        TasksItem.program_id == inp.program_id,
         TasksItem.completed_at.is_not(None),
     )
     if inp.list_id is not None:
@@ -630,7 +630,21 @@ async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
         stmt = stmt.where(_term_filter(inp.term_id))
     if inp.course_id is not None:
         stmt = stmt.where(TasksItem.course_id == inp.course_id)
-    rows = list(await ctx.db.scalars(stmt))
+    return list(await ctx.db.scalars(stmt.order_by(TasksItem.completed_at.desc())))
+
+
+async def preview_clear_completed(ctx: Ctx, inp: TaskClearInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): how many tasks go, the latest by title."""
+    await academics.get_program_row(ctx, inp.program_id)
+    titles = [r.title for r in await _completed_rows(ctx, inp)]
+    return {
+        "changes": [{"field": "tasks", "before": titles[:10], "after": None, "count": len(titles)}]
+    }
+
+
+async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
+    program = await academics.get_program_row(ctx, inp.program_id)
+    rows = await _completed_rows(ctx, inp)
     for row in rows:
         await ctx.db.delete(row)
     await ctx.db.flush()

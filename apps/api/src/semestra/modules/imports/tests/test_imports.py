@@ -933,7 +933,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     assert preview == {
         "target": "Winter 2026",
         "changes": [
-            {"field": "import_course", "after": ["MAT194H1", "MAT188H1", "MAT157Y1"]},
+            {"field": "import_course", "after": ["MAT194H1", "MAT188H1", "MAT157Y1"], "count": 3},
             {"field": "import_meeting", "after": 2},
             {"field": "import_pending", "after": 1},
         ],
@@ -1098,3 +1098,43 @@ def test_agent_output_paths_reach_into_lists():
     }
     kept = _keep_paths(dumped, ("failed", "session.id", "session.items.id", "session.items.type"))
     assert kept == {"failed": 1, "session": {"id": "s", "items": [{"id": "i", "type": "course"}]}}
+
+
+async def test_assistant_cards_count_what_a_decision_changes(app: FastAPI, api: Api):
+    # The cards of decide_many and item.update (M12 §3.5): the same selection the write makes,
+    # counted per type, and an item's fields before → after, refs by name.
+    from semestra.modules.agent.loop import make_preview
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    course = by_type(session, "course")[0]
+    own = [i for i in session["items"] if i["data"].get("course_ref") == f"item:{course['id']}"]
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        args = {"session_id": session["id"], "decision": "reject", "item_ids": [course["id"]]}
+        card = await make_preview(ctx, registry.get("imports.item.decide_many"), args)
+        meeting = own[0]
+        edit = await make_preview(
+            ctx,
+            registry.get("imports.item.update"),
+            {"session_id": session["id"], "item_id": meeting["id"],
+             "data": {"location": "BA1130"}},
+        )  # fmt: skip
+    assert card["changes"] == [
+        {"field": "decision", "after": "reject"},
+        {"field": "import_course", "after": [course["data"]["code"]], "count": 1},
+        *(
+            {"field": f"import_{t}", "after": sum(1 for i in own if i["type"] == t)}
+            for t in dict.fromkeys(i["type"] for i in own)
+        ),
+    ]
+    assert card["target"] == "acorn.ics"
+    assert edit["changes"] == [
+        {"field": "location", "before": meeting["data"].get("location"), "after": "BA1130"}
+    ]

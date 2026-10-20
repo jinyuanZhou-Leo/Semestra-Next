@@ -107,6 +107,7 @@ type does not have are refused. The item's issues are checked again afterwards. 
 the session's `summary` and the changed item.""",
     effect="write",
     http=Http("PATCH", "/imports/{session_id}/items/{item_id}"),
+    preview=service.preview_update_item,
     tags=TAGS,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
     agent_output_fields=AGENT_SESSION,
@@ -124,12 +125,31 @@ that belong to it (its meetings, assessments, categories, events and tasks), so 
 takes only its id. The assistant gets `changed` and the session's `summary`, without its items.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}/items:decide"),
+    preview=service.preview_bulk_decide,
     tags=TAGS,
     agent_output_fields=("changed", "session.id", "session.summary"),
 )
 async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
     changed, session = await service.bulk_decide(ctx, inp)
     return BulkDecideResult(changed=changed, session=session)
+
+
+def _new_items(inp: ItemsAddInput) -> list[NewItem]:
+    return [
+        NewItem(
+            key=item.key,
+            type=item.type,
+            data=item.data.model_dump(mode="json", exclude_unset=True),
+            confidence=item.confidence,
+            decision=item.decision,
+        )
+        for item in inp.items
+    ]
+
+
+async def _add_preview(ctx: Ctx, inp: ItemsAddInput) -> dict[str, Any]:
+    """The confirmation card: how many items of each type are added, new courses by name."""
+    return await service.preview_add_items(ctx, inp.session_id, _new_items(inp))
 
 
 @capability(
@@ -142,22 +162,13 @@ its own fields; unknown fields are refused. The user still reviews the items bef
 Returns the session's `summary` and the added items.""",
     effect="write",
     expose=("agent", "mcp"),
+    preview=_add_preview,
     tags=TAGS,
     agent_default_fields=service.AGENT_ITEM_FIELDS,
     agent_output_fields=AGENT_SESSION,
 )
 async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
-    new = [
-        NewItem(
-            key=item.key,
-            type=item.type,
-            data=item.data.model_dump(mode="json", exclude_unset=True),
-            confidence=item.confidence,
-            decision=item.decision,
-        )
-        for item in inp.items
-    ]
-    return await service.add_items_capability(ctx, inp.session_id, new, ready=inp.ready)
+    return await service.add_items_capability(ctx, inp.session_id, _new_items(inp), ready=inp.ready)
 
 
 async def _commit_preview(ctx: Ctx, inp: CommitInput) -> dict[str, Any]:
