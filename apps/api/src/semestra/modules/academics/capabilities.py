@@ -1,5 +1,6 @@
 """Academic structure capabilities (M02 §4)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.academics import service
@@ -37,6 +38,20 @@ from semestra.modules.academics.schemas import (
 
 TAGS = ("academics",)
 
+# What agents get back (M00 §3.6): no colors, sort keys or timestamps.
+_PROGRAM_FIELDS = (
+    "id", "name", "institution", "timezone", "default_course_credits", "credit_requirement",
+    "term_count", "course_count",
+)  # fmt: skip
+_TERM_FIELDS = (
+    "id", "name", "start_date", "end_date", "breaks", "count_break_weeks", "is_current",
+    "course_count",
+)  # fmt: skip
+_COURSE_FIELDS = (
+    "id", "code", "title", "alias", "subject_code", "credits", "include_in_gpa", "instructors",
+    "description", "website_url", "planned_terms", "term_ids", "end_term_id",
+)  # fmt: skip
+
 # --- programs -------------------------------------------------------------------------------
 
 
@@ -48,6 +63,7 @@ when no Program is given. Most users have exactly one Program.""",
     effect="read",
     http=Http("GET", "/programs"),
     tags=TAGS,
+    agent_output_fields=tuple(f"items.{f}" for f in _PROGRAM_FIELDS),
 )
 async def program_list(ctx: Ctx, inp: NoInput) -> ProgramList:
     return ProgramList(items=await service.list_programs(ctx))
@@ -60,6 +76,7 @@ async def program_list(ctx: Ctx, inp: NoInput) -> ProgramList:
     effect="read",
     http=Http("GET", "/programs/{program_id}"),
     tags=TAGS,
+    agent_output_fields=_PROGRAM_FIELDS,
 )
 async def program_get(ctx: Ctx, inp: ProgramRef) -> Program:
     return await service.program_out(ctx, await service.get_program_row(ctx, inp.program_id))
@@ -74,6 +91,7 @@ academics.course.create.""",
     effect="write",
     http=Http("POST", "/programs"),
     tags=TAGS,
+    agent_output_fields=("id", "name", "timezone"),
 )
 async def program_create(ctx: Ctx, inp: ProgramCreateInput) -> Program:
     return await service.create_program(ctx, inp)
@@ -86,6 +104,7 @@ async def program_create(ctx: Ctx, inp: ProgramCreateInput) -> Program:
     effect="write",
     http=Http("PATCH", "/programs/{program_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", CHANGED),
 )
 async def program_update(ctx: Ctx, inp: ProgramUpdateInput) -> Program:
     return await service.update_program(ctx, inp)
@@ -114,6 +133,7 @@ single course differently, use academics.course.update with `color`.""",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/subject-colors/{subject_code}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", "subject_colors"),
 )
 async def program_set_subject_color(ctx: Ctx, inp: SubjectColorInput) -> Program:
     return await service.set_subject_color(ctx, inp.program_id, inp.subject_code, inp.color)
@@ -131,6 +151,7 @@ courses or answering questions about a semester.""",
     http=Http("GET", "/programs/{program_id}/terms"),
     tags=TAGS,
     agent_core=True,
+    agent_output_fields=tuple(f"items.{f}" for f in _TERM_FIELDS),
 )
 async def term_list(ctx: Ctx, inp: ProgramRef) -> TermList:
     return TermList(items=await service.list_terms(ctx, inp.program_id))
@@ -143,6 +164,7 @@ async def term_list(ctx: Ctx, inp: ProgramRef) -> TermList:
     effect="read",
     http=Http("GET", "/terms/{term_id}"),
     tags=TAGS,
+    agent_output_fields=_TERM_FIELDS,
 )
 async def term_get(ctx: Ctx, inp: TermRef) -> Term:
     return await service.term_out(ctx, await service.get_term_row(ctx, inp.term_id))
@@ -170,6 +192,14 @@ extends year-long courses of the previous term into it.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/terms"),
     tags=TAGS,
+    agent_output_fields=(
+        "term.id",
+        "term.name",
+        "term.start_date",
+        "term.end_date",
+        "course_ids",
+        "continued_course_ids",
+    ),
 )
 async def term_create(ctx: Ctx, inp: TermCreateInput) -> TermCreateResult:
     return await service.create_term(ctx, inp)
@@ -184,6 +214,7 @@ a year-long course.""",
     effect="write",
     http=Http("PATCH", "/terms/{term_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", CHANGED),
 )
 async def term_update(ctx: Ctx, inp: TermUpdateInput) -> Term:
     return await service.update_term(ctx, inp)
@@ -226,6 +257,7 @@ described in words ("my programming course"), prefer academics.course.find.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/courses"),
     tags=TAGS,
+    agent_default_fields=("code", "title", "alias", "credits", "term_ids"),
 )
 async def course_list(ctx: Ctx, inp: CourseListInput) -> CoursePage:
     return await service.list_courses(ctx, inp)
@@ -238,6 +270,7 @@ async def course_list(ctx: Ctx, inp: CourseListInput) -> CoursePage:
     effect="read",
     http=Http("GET", "/courses/{course_id}"),
     tags=TAGS,
+    agent_output_fields=_COURSE_FIELDS,
 )
 async def course_get(ctx: Ctx, inp: CourseRef) -> Course:
     return await service.course_out(ctx, await service.get_course_row(ctx, inp.course_id))
@@ -253,6 +286,9 @@ the top candidates are close. Searches the current Program unless `program_id` i
     expose=("agent", "mcp"),
     tags=TAGS,
     agent_core=True,
+    agent_output_fields=tuple(
+        f"items.{f}" for f in ("course_id", "code", "title", "alias", "term_ids", "score")
+    ),
 )
 async def course_find(ctx: Ctx, inp: CourseFindInput) -> CourseCandidates:
     return await service.find_courses(ctx, inp.query, inp.program_id, inp.limit)
@@ -267,6 +303,7 @@ For a year-long course whose second term does not exist yet, link the current te
     effect="write",
     http=Http("POST", "/programs/{program_id}/courses"),
     tags=TAGS,
+    agent_output_fields=("id", "code", "title", "term_ids"),
 )
 async def course_create(ctx: Ctx, inp: CourseCreateInput) -> Course:
     return (await service.create_courses(ctx, inp.program_id, [(inp, inp.term_ids)]))[0]
@@ -279,6 +316,7 @@ async def course_create(ctx: Ctx, inp: CourseCreateInput) -> Course:
     effect="write",
     http=Http("POST", "/programs/{program_id}/courses:batch"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.code", "items.title", "items.term_ids"),
 )
 async def course_create_many(ctx: Ctx, inp: CourseCreateManyInput) -> CourseList:
     items = [(c, c.term_ids) for c in inp.courses]
@@ -293,6 +331,7 @@ terms or make it year-long, use academics.course.set_terms.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "code", "title", CHANGED),
 )
 async def course_update(ctx: Ctx, inp: CourseUpdateInput) -> Course:
     return await service.update_course(ctx, inp)
@@ -306,6 +345,7 @@ other in time.""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/terms"),
     tags=TAGS,
+    agent_output_fields=("id", "code", "term_ids", "end_term_id"),
 )
 async def course_set_terms(ctx: Ctx, inp: CourseSetTermsInput) -> Course:
     return await service.set_course_terms(ctx, inp.course_id, inp.term_ids)

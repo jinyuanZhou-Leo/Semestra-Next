@@ -594,6 +594,13 @@ async def _own_job(ctx: Ctx, job_id: str) -> CoreJob:
     return job
 
 
+# What agents get back (M00 §3.6): no retry bookkeeping or timestamps.
+_JOB_FIELDS = (
+    "id", "kind", "status", "progress", "step", "step_current", "step_total", "result",
+    "error_code", "error_params",
+)  # fmt: skip
+
+
 @capability(
     name="core.job.get",
     summary="Get the state and progress of a background job.",
@@ -602,6 +609,7 @@ another capability started and returned a job id for.""",
     effect="read",
     http=Http("GET", "/jobs/{job_id}"),
     tags=("jobs",),
+    agent_output_fields=_JOB_FIELDS,
 )
 async def job_get(ctx: Ctx, inp: JobRef) -> JobOut:
     return JobOut.of(await _own_job(ctx, inp.job_id))
@@ -615,6 +623,7 @@ Do not use to read the data a job produced; use the capability of the module tha
     effect="read",
     http=Http("GET", "/jobs"),
     tags=("jobs",),
+    agent_output_fields=(*(f"items.{f}" for f in _JOB_FIELDS), "next_cursor"),
 )
 async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
     query = select(CoreJob).where(CoreJob.user_id == ctx.user_id)
@@ -637,6 +646,7 @@ its next checkpoint, so it may still finish. Cancelling a finished job changes n
     effect="write",
     http=Http("POST", "/jobs/{job_id}/cancel"),
     tags=("jobs",),
+    agent_output_fields=("id", "kind", "status", "cancel_requested"),
 )
 async def job_cancel(ctx: Ctx, inp: JobRef) -> JobOut:
     job = await _own_job(ctx, inp.job_id)

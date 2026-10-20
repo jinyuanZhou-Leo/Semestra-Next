@@ -85,10 +85,10 @@ async def test_the_assistant_sets_a_day_idempotently(
 
     for _ in range(2):  # a repeated call does not undo the first
         done = await set_day(True)
-        assert (done.checked, done.stats.total) == (True, 1)
+        assert (done["checked"], done["stats"]["total"]) == (True, 1)
     for _ in range(2):
         undone = await set_day(False)
-        assert (undone.checked, undone.stats.total) == (False, 0)
+        assert (undone["checked"], undone["stats"]["total"]) == (False, 0)
     # The card's click stays a toggle, and only over HTTP.
     assert (await toggle(client, habit, "2026-01-15"))["checked"] is True
     async with system_ctx(app.state, user.id) as ctx:

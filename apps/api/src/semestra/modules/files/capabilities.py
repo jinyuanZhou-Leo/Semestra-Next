@@ -1,5 +1,6 @@
 """Course file capabilities (M07 §5, §7)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.files import documents, search, service
@@ -27,6 +28,12 @@ from semestra.modules.files.schemas import (
 
 TAGS = ("files",)
 
+# What agents get back (M00 §3.6): no hashes, storage names, import refs or timestamps.
+_FILE_FIELDS = (
+    "id", "course_id", "folder_id", "kind", "display_name", "mime_type", "size_bytes", "url",
+    "pinned", "doc_status", "doc_error_code", "page_count", "ocr_skipped_pages",
+)  # fmt: skip
+
 
 @capability(
     name="files.item.list",
@@ -37,6 +44,22 @@ say; use files.document.search for that.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/files"),
     tags=TAGS,
+    agent_default_fields=(
+        "display_name",
+        "kind",
+        "folder_id",
+        "doc_status",
+        "page_count",
+        "pinned",
+    ),
+    agent_output_fields=(
+        "folders.id",
+        "folders.parent_id",
+        "folders.name",
+        "folders.item_count",
+        "items",
+        "next_cursor",
+    ),
 )
 async def files_list(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     return await service.list_files(ctx, inp)
@@ -50,6 +73,7 @@ async def files_list(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     effect="read",
     http=Http("GET", "/files/{item_id}"),
     tags=TAGS,
+    agent_output_fields=_FILE_FIELDS,
 )
 async def item_get(ctx: Ctx, inp: ItemRef) -> ItemOut:
     return await service.item_out(ctx, await service.get_item(ctx, inp.item_id))
@@ -64,6 +88,7 @@ change.""",
     effect="write",
     http=Http("PATCH", "/files/{item_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "display_name", CHANGED),
 )
 async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
     return await service.update_item(ctx, inp)
@@ -92,6 +117,7 @@ the course files. Do not use to save a file; uploads are done by the user in the
     effect="write",
     http=Http("POST", "/courses/{course_id}/file-links"),
     tags=TAGS,
+    agent_output_fields=("id", "display_name", "url"),
 )
 async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
     return await service.create_link(ctx, inp.course_id, inp.url, inp.display_name, inp.folder_id)
@@ -104,6 +130,7 @@ async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
     effect="write",
     http=Http("POST", "/courses/{course_id}/folders"),
     tags=TAGS,
+    agent_output_fields=("id", "name", "parent_id"),
 )
 async def folder_create(ctx: Ctx, inp: FolderCreateInput) -> FolderOut:
     return await service.create_folder(ctx, inp.course_id, inp.name, inp.parent_id)

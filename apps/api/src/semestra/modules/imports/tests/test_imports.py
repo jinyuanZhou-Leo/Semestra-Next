@@ -1022,7 +1022,8 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
     assert page["summary"]["counts"] == {"course": 2, "meeting": 4, "event": 2}
     assert len(page["items"]) == 3
     assert page["next_cursor"] == "3"
-    assert set(page["items"][0]) == {"id", "type", "data", "decision", "issues", "result"}
+    # `result` is null until the commit, and list items leave out null fields.
+    assert set(page["items"][0]) == {"id", "type", "data", "decision", "issues"}
     rest = await agent("imports.session.get", {"session_id": session["id"], "cursor": "3"})
     assert len(rest["items"]) == 5
     assert rest["next_cursor"] is None
@@ -1086,7 +1087,7 @@ async def test_http_with_a_token_gets_the_whole_session(app: FastAPI, api: Api):
 
 
 def test_agent_output_paths_reach_into_lists():
-    from semestra.core.capability import _keep_paths  # pyright: ignore[reportPrivateUsage]
+    from semestra.core.agent_output import _keep_paths  # pyright: ignore[reportPrivateUsage]
 
     dumped = {
         "failed": 1,

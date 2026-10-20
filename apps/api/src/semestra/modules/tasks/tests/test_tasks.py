@@ -15,7 +15,7 @@ from semestra.core.errors import AppError
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, collect
 from semestra.modules.tasks import auto, service
 from semestra.modules.tasks.calendar import due_source
-from semestra.modules.tasks.schemas import Task, TaskCandidates, TaskFindInput
+from semestra.modules.tasks.schemas import Task, TaskFindInput
 from semestra.modules.tasks.settings import TasksSettings
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
@@ -582,7 +582,7 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
         found = await registry.invoke(
             ctx, "tasks.item.find", {"query": "lab report", "program_id": pid}, "agent"
         )
-        assert [c.title for c in cast("TaskCandidates", found).items] == ["Write lab report"]
+        assert [c["title"] for c in cast("dict[str, Any]", found)["items"]] == ["Write lab report"]
         slim = await registry.invoke(
             ctx, "tasks.item.query", {"program_id": pid, "fields": ["title"]}, "agent"
         )
@@ -594,7 +594,9 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
         made = await registry.invoke(
             ctx, "tasks.item.create", {"program_id": pid, "title": "Read ch. 3"}, "agent"
         )
-        assert cast("Task", made).source_kind == "agent"
+        made_id = cast("dict[str, Any]", made)["id"]
+        full = await registry.invoke(ctx, "tasks.item.get", {"task_id": made_id}, "http")
+        assert cast("Task", full).source_kind == "agent"
         # Refused in the check, so before the assistant's confirmation card.
         for kind in ("assessment", "lms"):
             with pytest.raises(AppError) as refused:

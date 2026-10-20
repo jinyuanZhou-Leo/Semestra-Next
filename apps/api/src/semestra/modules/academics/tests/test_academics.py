@@ -13,7 +13,6 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
 from semestra.modules.academics import service
-from semestra.modules.academics.schemas import CourseCandidates
 from semestra.modules.academics.scopes import resolve_scope
 from semestra.modules.settings import ScopeChain
 from semestra.testing import MakeUser, UserHandle, collect_events
@@ -399,11 +398,11 @@ async def test_agent_surface_find_and_field_selection(api: Api, app: FastAPI, ma
     user_id = (await api.call("GET", "/account/me"))["id"]
     async with system_ctx(app.state, user_id) as ctx:
         found = await registry.invoke(ctx, "academics.course.find", {"query": "aps 105"}, "agent")
-        assert isinstance(found, CourseCandidates)
-        assert [c.code for c in found.items] == ["APS105H1"]
+        assert isinstance(found, dict)
+        assert [c["code"] for c in found["items"]] == ["APS105H1"]
         nickname = await registry.invoke(ctx, "academics.course.find", {"query": "calc"}, "agent")
-        assert isinstance(nickname, CourseCandidates)
-        assert nickname.items[0].code == "MAT137"
+        assert isinstance(nickname, dict)
+        assert nickname["items"][0]["code"] == "MAT137"
         listed = await registry.invoke(
             ctx,
             "academics.course.list",

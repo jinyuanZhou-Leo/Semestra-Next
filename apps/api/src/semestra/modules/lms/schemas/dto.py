@@ -7,6 +7,12 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from semestra.core.agent_output import ForAgents
+from semestra.modules.lms.markdown import to_markdown
+
+# Cleaned HTML; agents and MCP clients get it as Markdown, under `markdown`.
+Html = Annotated[str | None, ForAgents(to_markdown, "markdown")]
+
 LmsFeature = Literal[
     "courses",
     "navigation",
@@ -96,7 +102,7 @@ class NavTab(Dto):
 
 class Announcement(Dto):
     title: str
-    html: str | None = None
+    html: Html = None
     author: str | None = None
     posted_at: datetime | None = None
     updated_at: datetime | None = None
@@ -115,7 +121,7 @@ class Submission(BaseModel):
 
 class Assignment(Dto):
     name: str
-    html: str | None = None
+    html: Html = None
     due_at: datetime | None = None
     unlock_at: datetime | None = None
     lock_at: datetime | None = None
@@ -187,13 +193,13 @@ class PageSummary(Dto):
 
 
 class PageDetail(PageSummary):
-    html: str | None = None
+    html: Html = None
     locked: bool = False
 
 
 class Quiz(Dto):
     title: str
-    html: str | None = None
+    html: Html = None
     due_at: datetime | None = None
     unlock_at: datetime | None = None
     lock_at: datetime | None = None
@@ -202,7 +208,7 @@ class Quiz(Dto):
 
 
 class RichText(BaseModel):
-    html: str | None = None
+    html: Html = None
     web_url: WebUrl = None
 
 
@@ -220,7 +226,7 @@ class LmsCalendarEvent(Dto):
     external_course_id: str
     kind: Literal["event", "assignment"]
     title: str
-    html: str | None = None
+    html: Html = None
     location: str | None = None
     start_at: datetime
     end_at: datetime | None = None

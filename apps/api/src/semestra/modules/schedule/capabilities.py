@@ -1,5 +1,6 @@
 """Schedule and calendar capabilities (M04 §4)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.schedule import service
@@ -44,6 +45,36 @@ from semestra.modules.schedule.schemas import (
 
 TAGS = ("schedule",)
 
+# What agents get back (M00 §3.6): no colors, import keys or timestamps. A class's meeting id is
+# its `ref.id`; `meta.conflicts_with` names other occurrences by `id`.
+_OCCURRENCE_FIELDS = (
+    "id", "ref", "kind", "title", "start_at", "end_at", "all_day", "course_id", "type_code",
+    "location", "status", "meta.original_date", "meta.original_start_at", "meta.week_number",
+    "meta.section_code", "meta.instructor", "meta.note", "meta.conflicts_with",
+)  # fmt: skip
+_EXCEPTION_FIELDS = tuple(
+    f"exceptions.{f}"
+    for f in (
+        "original_date", "kind", "new_date", "new_start_time", "new_end_time", "new_location",
+        "note",
+    )
+)  # fmt: skip
+_MEETING_FIELDS = (
+    "id", "term_id", "section_code", "type_code", "title", "instructor", "location", "weekday",
+    "start_time", "end_time", "recurrence", "anchor_week", "start_week", "end_week",
+    "skip_breaks", "enabled",
+    *_EXCEPTION_FIELDS,
+)  # fmt: skip
+_EVENT_FIELDS = (
+    "id", "term_id", "course_id", "type_code", "title", "start_at", "end_at", "all_day",
+    "location", "note",
+)  # fmt: skip
+
+
+def _occurrences(key: str) -> tuple[str, ...]:
+    return tuple(f"{key}.{f}" for f in _OCCURRENCE_FIELDS)
+
+
 # --- calendar -------------------------------------------------------------------------------
 
 
@@ -57,6 +88,14 @@ calendar.occurrence.list. Times are UTC; read them in the returned `timezone`.""
     http=Http("GET", "/programs/{program_id}/today"),
     tags=TAGS,
     agent_core=True,
+    agent_output_fields=(
+        "day",
+        "timezone",
+        "week",
+        *_occurrences("items"),
+        *_occurrences("upcoming"),
+        *_occurrences("tasks"),
+    ),
 )
 async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
     return await service.today(ctx, inp.program_id)
@@ -74,6 +113,7 @@ For today alone prefer calendar.today.get. Each class carries its term week in m
     http=Http("GET", "/programs/{program_id}/calendar"),
     tags=TAGS,
     agent_core=True,
+    agent_output_fields=("timezone", "start", "end", *_occurrences("items"), "weeks", "breaks"),
 )
 async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
     # The app pages by view; the assistant and MCP clients ask for whole terms.
@@ -92,6 +132,7 @@ async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
     effect="read",
     http=Http("GET", "/programs/{program_id}/event-types"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.code", "items.name", "items.builtin"),
 )
 async def event_type_list(ctx: Ctx, inp: ProgramRef) -> EventTypeList:
     return EventTypeList(items=await service.list_event_types(ctx, inp.program_id))
@@ -104,6 +145,7 @@ async def event_type_list(ctx: Ctx, inp: ProgramRef) -> EventTypeList:
     effect="write",
     http=Http("POST", "/programs/{program_id}/event-types"),
     tags=TAGS,
+    agent_output_fields=("id", "code", "name"),
 )
 async def event_type_create(ctx: Ctx, inp: EventTypeCreateInput) -> EventType:
     return await service.create_event_type(ctx, inp)
@@ -116,6 +158,7 @@ async def event_type_create(ctx: Ctx, inp: EventTypeCreateInput) -> EventType:
     effect="write",
     http=Http("PATCH", "/event-types/{event_type_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "code", "name", CHANGED),
 )
 async def event_type_update(ctx: Ctx, inp: EventTypeUpdateInput) -> EventType:
     return await service.update_event_type(ctx, inp)
@@ -142,6 +185,7 @@ async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
     effect="write",
     http=Http("PUT", "/programs/{program_id}/event-types:order"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.code"),
 )
 async def event_type_reorder(ctx: Ctx, inp: EventTypeOrderInput) -> EventTypeList:
     return EventTypeList(
@@ -160,6 +204,7 @@ changing or cancelling one class. Optionally only one term of a year-long course
     effect="read",
     http=Http("GET", "/courses/{course_id}/meetings"),
     tags=TAGS,
+    agent_output_fields=tuple(f"items.{f}" for f in _MEETING_FIELDS),
 )
 async def meeting_list(ctx: Ctx, inp: MeetingListInput) -> MeetingList:
     return MeetingList(items=await service.list_meetings(ctx, inp.course_id, inp.term_id))
@@ -174,6 +219,7 @@ class) use schedule.event.create instead.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/meetings"),
     tags=TAGS,
+    agent_output_fields=("id", "section_code", "type_code", "weekday", "start_time", "end_time"),
 )
 async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
     return await service.create_meeting(
@@ -189,6 +235,14 @@ existing meeting of the course updates it instead of adding a duplicate.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/meetings:batch"),
     tags=TAGS,
+    agent_output_fields=(
+        "created_ids",
+        "updated_ids",
+        "items.id",
+        "items.section_code",
+        "items.weekday",
+        "items.start_time",
+    ),
 )
 async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingCreateManyResult:
     return await service.create_meetings(ctx, inp.course_id, inp.meetings)
@@ -202,6 +256,7 @@ schedule.exception.upsert instead.""",
     effect="write",
     http=Http("PATCH", "/meetings/{meeting_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "section_code", CHANGED),
 )
 async def meeting_update(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
     return await service.update_meeting(ctx, inp)
@@ -231,6 +286,7 @@ only the sections whose state changed (empty when they already were as asked).""
     effect="write",
     http=Http("PUT", "/courses/{course_id}/meetings:enabled"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.section_code", "items.enabled"),
 )
 async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingList:
     return MeetingList(
@@ -247,6 +303,7 @@ meeting.""",
     effect="write",
     http=Http("PUT", "/meetings/{meeting_id}/exceptions/{original_date}"),
     tags=TAGS,
+    agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )
 async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     return await service.upsert_exception(ctx, inp)
@@ -259,6 +316,7 @@ async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     effect="write",
     http=Http("DELETE", "/meetings/{meeting_id}/exceptions/{original_date}"),
     tags=TAGS,
+    agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )
 async def exception_delete(ctx: Ctx, inp: ExceptionRef) -> Meeting:
     return await service.delete_exception(ctx, inp.meeting_id, inp.original_date)
@@ -288,6 +346,7 @@ calendar.occurrence.list.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/events"),
     tags=TAGS,
+    agent_output_fields=tuple(f"items.{f}" for f in _EVENT_FIELDS),
 )
 async def event_list(ctx: Ctx, inp: EventListInput) -> OneOffEventList:
     return OneOffEventList(items=await service.list_events(ctx, inp))
@@ -301,6 +360,7 @@ that repeats weekly use schedule.meeting.create.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/events"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "start_at", "end_at"),
 )
 async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     return await service.create_event(ctx, inp)
@@ -313,6 +373,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     effect="write",
     http=Http("PATCH", "/events/{event_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "title", CHANGED),
 )
 async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
     return await service.update_event(ctx, inp)

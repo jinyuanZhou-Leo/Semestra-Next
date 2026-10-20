@@ -228,8 +228,19 @@ class CourseOverview(BaseModel):
     truncated: bool
 
 
+_FIELDS = "Agent/MCP only: return just these fields of each item (and its external_id)"
+_BODY = "`markdown` (or `html`) is the body, as Markdown"
+
+AnnouncementField = Literal[
+    "web_url", "title", "html", "markdown", "author", "posted_at", "updated_at", "unread"
+]
+
+
 class AnnouncementsInput(CourseReadInput):
     since: datetime | None = Field(default=None, description="Only posted after this time")
+    fields: list[AnnouncementField] | None = Field(
+        default=None, description=f"{_FIELDS}; default title, author, posted_at, unread. {_BODY}"
+    )
 
 
 class AnnouncementList(BaseModel):
@@ -244,6 +255,21 @@ class ImportTarget(BaseModel):
 
 class AssignmentOut(Assignment):
     imported_as: list[ImportTarget] = Field(description="Where it was imported to, if anywhere")
+
+
+AssignmentField = Literal[
+    "web_url", "name", "html", "markdown", "due_at", "unlock_at", "lock_at", "points", "group_id",
+    "group_name", "group_weight", "submission_types", "submission", "published", "updated_at",
+    "imported_as",
+]  # fmt: skip
+
+
+class AssignmentsInput(CourseReadInput):
+    fields: list[AssignmentField] | None = Field(
+        default=None,
+        description=f"{_FIELDS}; default name, due_at, points, group_name, submission, "
+        f"imported_as. {_BODY}",
+    )
 
 
 class AssignmentList(BaseModel):
@@ -278,6 +304,25 @@ class PageList(BaseModel):
 class PageGetInput(CourseReadInput):
     ref: ExternalId = Field(
         description="Page ref from lms.page.list, or `@front` for the course's front page"
+    )
+
+
+QuizField = Literal[
+    "web_url",
+    "title",
+    "html",
+    "markdown",
+    "due_at",
+    "unlock_at",
+    "lock_at",
+    "points",
+    "question_count",
+]
+
+
+class QuizzesInput(CourseReadInput):
+    fields: list[QuizField] | None = Field(
+        default=None, description=f"{_FIELDS}; default all but web_url and html. {_BODY}"
     )
 
 

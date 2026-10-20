@@ -1,5 +1,6 @@
 """Task capabilities (M05 §4)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.tasks import service
@@ -33,6 +34,12 @@ from semestra.modules.tasks.schemas import (
 
 TAGS = ("tasks",)
 
+# What agents get back (M00 §3.6): no positions, import refs or timestamps.
+_TASK_FIELDS = (
+    "id", "term_id", "course_id", "list_id", "title", "notes", "due_date", "due_time",
+    "priority", "flagged", "completed_at", "overdue", "source_kind",
+)  # fmt: skip
+
 # --- lists ----------------------------------------------------------------------------------
 
 
@@ -44,6 +51,7 @@ in the inbox, which is not a list row.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/task-lists"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.term_id", "items.name"),
 )
 async def list_list(ctx: Ctx, inp: ProgramRef) -> TaskListOut:
     return await service.list_lists(ctx, inp.program_id)
@@ -58,6 +66,7 @@ tasks in the inbox unless the user names a list.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/task-lists"),
     tags=TAGS,
+    agent_output_fields=("id", "name", "term_id"),
 )
 async def list_create(ctx: Ctx, inp: TaskListCreateInput) -> TaskList:
     return await service.create_list(ctx, inp)
@@ -70,6 +79,7 @@ async def list_create(ctx: Ctx, inp: TaskListCreateInput) -> TaskList:
     effect="write",
     http=Http("PATCH", "/task-lists/{list_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", CHANGED),
 )
 async def list_update(ctx: Ctx, inp: TaskListUpdateInput) -> TaskList:
     return await service.update_list(ctx, inp)
@@ -96,6 +106,7 @@ async def list_delete(ctx: Ctx, inp: TaskListDeleteInput) -> TaskListDeleteResul
     effect="write",
     http=Http("PUT", "/programs/{program_id}/task-list-order"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.name"),
 )
 async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
     return await service.reorder_lists(ctx, inp.program_id, inp.list_ids)
@@ -115,6 +126,17 @@ completed tasks are hidden unless the view is `completed` or include_completed i
     http=Http("GET", "/programs/{program_id}/tasks"),
     tags=TAGS,
     agent_core=True,
+    agent_default_fields=(
+        "title",
+        "due_date",
+        "due_time",
+        "priority",
+        "flagged",
+        "list_id",
+        "course_id",
+        "overdue",
+        "completed_at",
+    ),
 )
 async def item_query(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     return await service.query_tasks(ctx, inp)
@@ -127,6 +149,7 @@ async def item_query(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     effect="read",
     http=Http("GET", "/tasks/{task_id}"),
     tags=TAGS,
+    agent_output_fields=_TASK_FIELDS,
 )
 async def item_get(ctx: Ctx, inp: TaskRef) -> Task:
     return await service.item_out(ctx, await service.get_item_row(ctx, inp.task_id))
@@ -143,6 +166,7 @@ for several tasks.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "due_date", "list_id", "course_id"),
     check=service.check_create,
 )
 async def item_create(ctx: Ctx, inp: TaskCreateInput) -> Task:
@@ -158,6 +182,7 @@ returned with the id of the task that already exists.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks:batch"),
     tags=TAGS,
+    agent_output_fields=("created.id", "created.title", "created.due_date", "skipped"),
     check=service.check_create_many,
 )
 async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateManyResult:
@@ -176,6 +201,7 @@ assessment instead.""",
     effect="write",
     http=Http("PATCH", "/tasks/{task_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "title", CHANGED),
     check=service.check_update,
 )
 async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
@@ -190,6 +216,7 @@ async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     effect="write",
     http=Http("POST", "/tasks/{task_id}:complete"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "completed_at"),
 )
 async def item_complete(ctx: Ctx, inp: TaskCompleteInput) -> Task:
     return await service.set_completed(ctx, inp.task_id, inp.completed)
@@ -203,6 +230,7 @@ current one. before_task_id places the task right before that task, otherwise it
     effect="write",
     http=Http("POST", "/tasks/{task_id}:move"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "term_id", "course_id", "list_id"),
 )
 async def item_move(ctx: Ctx, inp: TaskMoveInput) -> Task:
     return await service.move_task(ctx, inp)

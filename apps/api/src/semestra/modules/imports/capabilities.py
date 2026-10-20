@@ -84,6 +84,16 @@ async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
     effect="read",
     http=Http("GET", "/programs/{program_id}/imports"),
     tags=TAGS,
+    agent_output_fields=(
+        "items.id",
+        "items.status",
+        "items.source_kind",
+        "items.target",
+        "items.source_refs.filename",
+        "items.summary",
+        "items.created_at",
+        "next_cursor",
+    ),
 )
 async def session_list(ctx: Ctx, inp: SessionListInput) -> ImportSessionPage:
     return await service.list_sessions(ctx, inp.program_id, inp.cursor, inp.limit)
@@ -188,6 +198,7 @@ async def session_commit(ctx: Ctx, inp: CommitInput) -> CommitResult:
     effect="destructive",
     http=Http("POST", "/imports/{session_id}:discard"),
     tags=TAGS,
+    agent_output_fields=("id", "status"),
 )
 async def session_discard(ctx: Ctx, inp: SessionRef) -> ImportSession:
     return await service.discard(ctx, inp.session_id)

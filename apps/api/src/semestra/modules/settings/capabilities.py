@@ -88,6 +88,7 @@ Do not use to change language, theme or other personal preferences.""",
     effect="write",
     http=Http("PATCH", "/settings/{namespace}"),
     tags=("settings",),
+    agent_output_fields=("namespace", "scope_type", "scope_id", "values"),
 )
 async def values_update(ctx: Ctx, inp: ValuesUpdateInput) -> ResolvedSettings:
     return await service.update_values(ctx, inp.namespace, inp.scope_type, inp.scope_id, inp.values)

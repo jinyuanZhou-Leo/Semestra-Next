@@ -8,7 +8,6 @@ from httpx import AsyncClient
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
-from semestra.modules.layouts.schemas import CardInstanceList
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -227,10 +226,10 @@ async def test_cards_are_found_across_the_programs_boards(
         notes = await registry.invoke(
             ctx, "layouts.card.list", {"program_id": pid, "card_id": "sticky.note"}, "agent"
         )
-    assert isinstance(found, CardInstanceList)
-    assert isinstance(notes, CardInstanceList)
-    by_id = {c.instance_id: c for c in found.items}
-    assert (by_id[habit].board_name, by_id[habit].label) == ("BASc", "Reading")
-    assert [(c.instance_id, c.scope_type, c.board_name, c.label) for c in notes.items] == [
-        (note, "course", "APS105", "Midterm: ch. 1-4")
-    ]
+    assert isinstance(found, dict)  # agent output is trimmed JSON
+    assert isinstance(notes, dict)
+    by_id = {c["instance_id"]: c for c in found["items"]}
+    assert (by_id[habit]["board_name"], by_id[habit]["label"]) == ("BASc", "Reading")
+    assert [
+        (c["instance_id"], c["scope_type"], c["board_name"], c["label"]) for c in notes["items"]
+    ] == [(note, "course", "APS105", "Midterm: ch. 1-4")]
