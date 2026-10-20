@@ -57,6 +57,11 @@ def _chunk(event: object) -> Chunk | None:
     return None
 
 
+# Endpoints that rejected the Responses reasoning summary (OpenAI requires a verified
+# organization; some compatible gateways refuse the field): later calls go without it.
+_NO_SUMMARY: set[tuple[str, str | None]] = set()
+
+
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
 
@@ -80,20 +85,45 @@ class ProviderAdapter:
     def __init__(self, kind: str) -> None:
         self.kind = kind
 
+    async def _summary_fallback[T](
+        self, ep: Endpoint, req: ChatRequest, call: Callable[[bool], Awaitable[T]]
+    ) -> T:
+        """Calls with the reasoning summary when it applies; if the provider rejects the request,
+        tries once without it and, when that works, remembers to leave it out for the endpoint."""
+        key = (ep.base_url, ep.provider_id)
+        if (
+            self.kind != "openai_responses"
+            or req.params.reasoning_effort is None
+            or key in _NO_SUMMARY
+        ):
+            return await call(False)
+        try:
+            return await call(True)
+        except AppError as exc:
+            if exc.code != "ai.request_rejected":
+                raise
+        result = await call(False)
+        _NO_SUMMARY.add(key)
+        return result
+
     async def complete(
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> Completion:
         model = chat_model(client, ep, req.model)
         source = convert.source(ep, req)
-        response = await _retrying(
-            lambda: model_request(
-                model,
-                convert.to_messages(req, source),
-                model_settings=convert.settings(self.kind, req),
-                model_request_parameters=convert.parameters(self.kind, model, req),
-                instrument=False,
+        response = await self._summary_fallback(
+            ep,
+            req,
+            lambda summary: _retrying(
+                lambda: model_request(
+                    model,
+                    convert.to_messages(req, source),
+                    model_settings=convert.settings(self.kind, req, summary),
+                    model_request_parameters=convert.parameters(self.kind, model, req),
+                    instrument=False,
+                ),
+                req.model,
             ),
-            req.model,
         )
         return convert.completion(response, req, source)
 
@@ -104,19 +134,21 @@ class ProviderAdapter:
         source = convert.source(ep, req)
         async with AsyncExitStack() as stack:
 
-            async def start():
+            async def start(summary: bool):
                 return await stack.enter_async_context(
                     model_request_stream(
                         model,
                         convert.to_messages(req, source),
-                        model_settings=convert.settings(self.kind, req),
+                        model_settings=convert.settings(self.kind, req, summary),
                         model_request_parameters=convert.parameters(self.kind, model, req),
                         instrument=False,
                     )
                 )
 
             # Retried like a single call until the provider starts answering.
-            stream = await _retrying(start, req.model)
+            stream = await self._summary_fallback(
+                ep, req, lambda summary: _retrying(lambda: start(summary), req.model)
+            )
             try:
                 async for event in stream:
                     chunk = _chunk(event)

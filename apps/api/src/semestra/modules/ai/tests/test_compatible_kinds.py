@@ -3,11 +3,13 @@
 import json
 from typing import Any
 
+import pytest
 import respx
 from fastapi import FastAPI
 from httpx import Response
 from pydantic import BaseModel
 
+from semestra.core.errors import AppError
 from semestra.modules import ai as m06
 from semestra.modules.ai.adapters import convert
 from semestra.modules.ai.adapters.base import ChatRequest, ModelParams
@@ -430,3 +432,75 @@ def test_responses_ask_for_a_reasoning_summary_when_reasoning():
     assert "openai_reasoning_summary" not in convert.settings("openai", thinking)
     plain = ChatRequest("gpt-5", [])
     assert "openai_reasoning_summary" not in convert.settings("openai_responses", plain)
+
+
+async def test_responses_without_summary_after_the_provider_refuses_it(
+    ai: Ai, mock: respx.MockRouter
+):
+    # Unverified OpenAI organizations get a 400 for reasoning summaries: answer without one.
+    provider = await responses_provider(ai, mock)
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={
+            "purpose": "chat",
+            "provider_id": provider["id"],
+            "model": "gpt-5",
+            "params": {"reasoning_effort": "low"},
+        },
+    )
+    refused = Response(
+        400,
+        json={
+            "error": {
+                "message": "Your organization must be verified to generate reasoning summaries.",
+                "param": "reasoning.summary",
+            }
+        },
+    )
+    route = mock.post(f"{RESPONSES}/responses").mock(
+        side_effect=[
+            refused,
+            responses_reply([message_item("ok")]),
+            responses_reply([message_item("again")]),
+        ]
+    )
+    async with ai.ctx() as ctx:
+        first = await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t")
+        second = await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t")
+    assert isinstance(first, m06.Completion)
+    assert isinstance(second, m06.Completion)
+    assert (first.text, second.text) == ("ok", "again")
+    sent = [json.loads(call.request.content)["reasoning"] for call in route.calls]
+    assert [r.get("summary") for r in sent] == ["auto", None, None]
+    assert all(r["effort"] == "low" for r in sent)
+
+
+async def test_responses_other_rejections_are_not_blamed_on_the_summary(
+    ai: Ai, mock: respx.MockRouter
+):
+    provider = await responses_provider(ai, mock)
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={
+            "purpose": "chat",
+            "provider_id": provider["id"],
+            "model": "gpt-5",
+            "params": {"reasoning_effort": "low"},
+        },
+    )
+    route = mock.post(f"{RESPONSES}/responses").mock(
+        side_effect=[
+            Response(400, json={"error": {"message": "bad input"}}),
+            Response(400, json={"error": {"message": "bad input"}}),
+            responses_reply([message_item("ok")]),
+        ]
+    )
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as rejected:
+            await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t")
+        assert rejected.value.code == "ai.request_rejected"
+        await m06.complete(ctx, "chat", [Message.user("hi")], source_module="t")
+    # Still asked for the summary next time: dropping it did not help.
+    assert json.loads(route.calls.last.request.content)["reasoning"]["summary"] == "auto"

@@ -20,7 +20,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
-import { type DragEvent, useEffect, useRef, useState } from 'react'
+import { type DragEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
@@ -360,10 +360,10 @@ function useShowReasoning(): boolean {
  */
 function ScrollToEndOnSend({ sent }: { sent: number }) {
   const scroller = useMessageScroller()
+  // Only a new message scrolls; the scroller's functions are not stable.
+  const toEnd = useEffectEvent(() => scroller.scrollToEnd())
   useEffect(() => {
-    if (sent > 0) scroller.scrollToEnd()
-    // Only a new message scrolls; the scroller's functions are not stable.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    if (sent > 0) toEnd()
   }, [sent])
   return null
 }

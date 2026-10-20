@@ -369,6 +369,7 @@ def _assistant_blocks(
     calls: Sequence[ToolCall],
     reasoning: Sequence[Reasoning] = (),
     thinking_ms: int | None = None,
+    thought: str = "",
 ) -> list[dict[str, Any]]:
     # Reasoning is sent back to the same model next turn (history.py); clients only see its
     # readable text (`service.message_out`).
@@ -384,6 +385,8 @@ def _assistant_blocks(
         }
         for r in reasoning
     ]
+    # The thinking streamed before a stop or an error: shown, never sent back (it is unsigned).
+    blocks += [{"type": "reasoning_text", "text": thought}] if thought and not reasoning else []
     blocks += [{"type": "text", "text": text}] if text else []
     blocks += [
         {"type": "tool_call", "id": c.id, "name": c.name, "args": c.arguments} for c in calls
@@ -459,6 +462,7 @@ async def generate(
         yield event("message_start", message_id=message_id)
         completion: Completion | None = None
         partial = ""
+        thought = ""
         started = time.monotonic()
         thinking_ms: int | None = None
         try:
@@ -468,29 +472,60 @@ async def generate(
                 elif isinstance(item, str):
                     partial = item
                 else:
+                    if item["event"] == "reasoning_delta":
+                        thought += item["data"]["text"]
                     if item["event"] == "text_delta":
                         partial += item["data"]["text"]
                         if thinking_ms is None:
                             thinking_ms = _elapsed_ms(started)
                     yield item
         except AppError as exc:
-            if partial:
-                await _save_assistant(
-                    state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
-                )
+            await _save_assistant(
+                state,
+                user_id,
+                session_id,
+                message_id,
+                partial,
+                [],
+                None,
+                None,
+                (),
+                thinking_ms or _elapsed_ms(started),
+                thought,
+            )
             yield event("error", code=exc.code, params=exc.params)
             return
         except asyncio.CancelledError:  # the client went away: keep what was said
             await asyncio.shield(
                 _save_assistant(
-                    state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
+                    state,
+                    user_id,
+                    session_id,
+                    message_id,
+                    partial,
+                    [],
+                    None,
+                    None,
+                    (),
+                    thinking_ms or _elapsed_ms(started),
+                    thought,
                 )
             )
             raise
 
         if completion is None:  # stopped
             await _save_assistant(
-                state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
+                state,
+                user_id,
+                session_id,
+                message_id,
+                partial,
+                [],
+                None,
+                None,
+                (),
+                thinking_ms or _elapsed_ms(started),
+                thought,
             )
             yield event("message_end", message_id=message_id, stopped=True)
             return
@@ -550,8 +585,9 @@ async def _save_assistant(
     usage: Any,
     reasoning: Sequence[Reasoning] = (),
     thinking_ms: int | None = None,
+    thought: str = "",
 ) -> None:
-    if not text and not calls:
+    if not text and not calls and not thought:
         return
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
@@ -559,7 +595,7 @@ async def _save_assistant(
             ctx,
             session,
             "assistant",
-            _assistant_blocks(text, calls, reasoning, thinking_ms),
+            _assistant_blocks(text, calls, reasoning, thinking_ms, thought),
             message_id=message_id,
             model=model,
             input_tokens=usage.input_tokens if usage else None,

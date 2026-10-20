@@ -616,6 +616,42 @@ async def test_stop_while_the_model_is_silent(app: FastAPI, agent: Agent):
     assert detail["messages"][-1]["content"][0] == {"type": "text", "text": "Thinking"}
 
 
+async def test_stop_while_thinking_keeps_the_thought_for_display(app: FastAPI, agent: Agent):
+    # Unsigned partial thinking is shown again after a refresh but never replayed to the model.
+    session = await agent.session()
+    user = (await agent.call("GET", "/account/me"))["id"]
+    cancel = asyncio.Event()
+
+    async def thinking(messages: object, tools: object = None) -> AsyncIterator[Chunk]:
+        yield Chunk(thinking="Weighing ")
+        yield Chunk(thinking="the options")
+        await asyncio.Event().wait()
+        yield Chunk(text="never")
+
+    agent.model.stream = thinking  # type: ignore[method-assign]
+    from semestra.modules.agent import service
+    from semestra.modules.agent.runtime import agent_ctx
+
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        service.add_message(ctx, row, "user", [{"type": "text", "text": "hi"}])
+        await ctx.db.commit()
+
+    async def run() -> None:
+        async for item in loop.generate(app.state, user, session["id"], cancel):
+            if item["event"] == "reasoning_delta" and item["data"]["text"] == "the options":
+                cancel.set()
+
+    await asyncio.wait_for(run(), timeout=5)
+    detail = await agent.detail(session["id"])
+    content = detail["messages"][-1]["content"]
+    assert content[0] == {"type": "reasoning", "text": "Weighing the options"}
+    assert content[1]["type"] == "timing"
+    async with agent_ctx(app.state, user, scope=None) as ctx:
+        rows = await service.messages(ctx, session["id"])
+    assert rows[-1].content[0] == {"type": "reasoning_text", "text": "Weighing the options"}
+
+
 async def test_one_generation_per_session_and_two_per_user(app: FastAPI):
     rt = app.state.agent
     with rt.slot("u", "s1"):

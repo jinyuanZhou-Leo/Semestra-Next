@@ -1,4 +1,3 @@
-import { agentSessionGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { SquarePen } from 'lucide-react'
 import { useState } from 'react'
@@ -6,6 +5,7 @@ import { PageHeader } from '@/app/host/PageHeader'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { programScope } from '../scope'
+import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
 import { SessionList, sessionTitle } from './SessionList'
 
@@ -23,13 +23,7 @@ export function AssistantPage({
   onNavigate: (sessionId: string | null, options?: { replace?: boolean }) => void
 }) {
   const [fresh, setFresh] = useState({ count: 0, createdId: null as string | null })
-  const session = useQuery({
-    ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
-    enabled: sessionId !== null,
-    // Shares the conversation's cache entry: a refetch here would drop an answer mid-stream.
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  }).data?.session
+  const session = useQuery(sessionQueryOptions(sessionId)).data?.session
   // A conversation created here keeps its component (and its running answer) when the URL
   // changes to its id.
   const key = sessionId && sessionId !== fresh.createdId ? sessionId : `new-${fresh.count}`

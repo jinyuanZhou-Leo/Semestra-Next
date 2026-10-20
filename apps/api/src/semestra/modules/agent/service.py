@@ -196,8 +196,11 @@ def _is_public(block: dict[str, Any]) -> bool:
 def _public_block(block: dict[str, Any]) -> dict[str, Any]:
     # A reasoning block is kept as the provider sent it so it can go back to the same model
     # (signatures, possibly encrypted details); the transcript shows only its readable text.
+    # `reasoning_text` is the thinking streamed before a stop: shown the same way, never replayed.
     if block.get("type") == "reasoning":
         return {"type": "reasoning", "text": block["content"]}
+    if block.get("type") == "reasoning_text":
+        return {"type": "reasoning", "text": block["text"]}
     return block
 
 
