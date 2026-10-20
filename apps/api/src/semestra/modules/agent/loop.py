@@ -315,7 +315,7 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
             action = "forgot" if name == memory.FORGET else "remembered"
             meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
     if outcome.ok and name in tools.UNTRUSTED_RESULTS:
-        shown = wrap_untrusted(shown, name)
+        shown = wrap_untrusted(shown, tools.tool_name(name))
     return ToolReturn(return_value=shown, metadata=meta)
 
 
@@ -371,7 +371,9 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
         return tools.serialize({"error": {"code": "common.not_found", "params": {}}})
     name, text = found
     shown = tools.page(text, call_id, max(0, offset))
-    return wrap_untrusted(shown, name) if name in tools.UNTRUSTED_RESULTS else shown
+    return (
+        wrap_untrusted(shown, tools.tool_name(name)) if name in tools.UNTRUSTED_RESULTS else shown
+    )
 
 
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
