@@ -17,286 +17,90 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Course, TaskCounts, TaskList } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
-import { ChevronRight, GripVertical, List, MoreHorizontal, Plus } from 'lucide-react'
-import { useState } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  List,
+  MoreHorizontal,
+  Plus,
+} from 'lucide-react'
+import { type ReactNode, useState } from 'react'
+import type { SidebarNavProps } from '@/app/extensions'
+import { SUB_ACTION } from '@/app/host/sidebar-classes'
+import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { courseColor, courseLabel } from '@/modules/academics/color'
+import { useCourses } from '@/modules/academics/queries'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Field, FieldLabel } from '@/ui/field'
+import {
+  SidebarMenuAction,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+} from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import type { TaskActions } from '../actions'
-import { INBOX, type Selection, SMART_VIEWS, orderLists, selectionKey } from '../types'
+import { type TaskActions, useTaskActions } from '../actions'
+import { useTaskCounts, useTaskLists } from '../queries'
+import {
+  INBOX,
+  type Selection,
+  SMART_VIEWS,
+  orderLists,
+  parseSelection,
+  selectionKey,
+} from '../types'
 import { ListDialog } from './ListDialog'
 
-function NavItem({
-  icon: Icon,
-  label,
-  count,
-  active,
-  dot,
-  onClick,
-}: {
-  icon?: LucideIcon
-  label: string
-  count?: number
-  active: boolean
-  dot?: string
-  onClick: () => void
-}) {
-  return (
-    <Button
-      variant={active ? 'secondary' : 'ghost'}
-      aria-current={active ? 'true' : undefined}
-      className="w-full justify-start gap-2 font-normal"
-      onClick={onClick}
-    >
-      {Icon ? <Icon aria-hidden className="text-muted-foreground" /> : null}
-      {dot ? (
-        <span
-          aria-hidden
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: dot }}
-        />
-      ) : null}
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-      {count ? <span className="text-xs text-muted-foreground tabular-nums">{count}</span> : null}
-    </Button>
-  )
+/** Which list a tasks page shows, remembered per Program, term or course, shared with the sidebar. */
+export function useTaskSelection(scopeId: string) {
+  const [pref, setPref] = useUiPref('tasks.selection', 'all', { scope: scopeId })
+  const selection = parseSelection(pref)
+  return [selection, (next: Selection) => setPref(selectionKey(next))] as const
 }
 
-function ListItem({
-  list,
-  active,
-  count,
-  onSelect,
-  onRename,
-  onDelete,
-}: {
-  list: TaskList
-  active: boolean
-  count: number
-  onSelect: () => void
-  onRename: () => void
-  onDelete: () => void
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: list.id })
-  return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(
-        'group/list relative flex items-center',
-        isDragging && 'z-10 rounded-lg bg-card shadow-md',
-      )}
-    >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              ref={setActivatorNodeRef}
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={m.tasks_list_move({ name: list.name })}
-              className="absolute left-0 z-10 cursor-grab touch-none text-muted-foreground opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
-              {...attributes}
-              {...listeners}
-            />
-          }
-        >
-          <GripVertical aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent>{m.tasks_drag()}</TooltipContent>
-      </Tooltip>
-      <div className="min-w-0 flex-1">
-        <NavItem icon={List} label={list.name} count={count} active={active} onClick={onSelect} />
-      </div>
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={m.tasks_list_menu({ name: list.name })}
-                    className="absolute right-1 opacity-0 group-hover/list:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
-                  />
-                }
-              />
-            }
-          >
-            <MoreHorizontal aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent>{m.tasks_list_menu({ name: list.name })}</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onRename}>{m.tasks_list_rename()}</DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            {m.common_delete()}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </li>
-  )
+/** Lists of a term page: its own and the Program-wide ones; the Program page shows all. */
+function visibleLists(lists: readonly TaskList[], termId: string | undefined): TaskList[] {
+  return orderLists(lists.filter((l) => !termId || l.term_id === null || l.term_id === termId))
 }
 
-/**
- * The left column of the tasks page (M05 §5.1): smart lists, Unsorted, the user's lists (term lists
- * first) and the term's courses. Lists can be dragged into a new order.
- */
-export function TasksSidebar({
+/** New list, rename and delete, with their dialogs; shared by the sidebar and the page's menu. */
+function useListEditing({
   programId,
   termId,
   selection,
   onSelect,
-  counts,
-  lists,
-  courses,
   actions,
 }: {
   programId: string
   termId?: string
   selection: Selection
   onSelect: (selection: Selection) => void
-  counts: TaskCounts | undefined
-  lists: readonly TaskList[]
-  courses: readonly Course[]
   actions: TaskActions
 }) {
   const [creating, setCreating] = useState(false)
   const [renaming, setRenaming] = useState<TaskList | null>(null)
   const [deleting, setDeleting] = useState<TaskList | null>(null)
   const [alsoTasks, setAlsoTasks] = useState(false)
-  const [coursesOpen, setCoursesOpen] = useState(true)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
-  // A term page shows its own lists and the Program-wide ones; the Program page shows all.
-  const visible = orderLists(
-    lists.filter((l) => !termId || l.term_id === null || l.term_id === termId),
-  )
-  const ids = visible.map((l) => l.id)
-  const active = selectionKey(selection)
-  const countOf: Record<string, number | undefined> = {
-    today: counts?.today,
-    scheduled: counts?.scheduled,
-    all: counts?.all,
-    flagged: counts?.flagged,
-    completed: counts?.completed,
-  }
-
-  const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
-    if (!over || dragged.id === over.id) return
-    const from = ids.indexOf(String(dragged.id))
-    const to = ids.indexOf(String(over.id))
-    // Lists of other terms keep their place after the visible ones.
-    const rest = lists.filter((l) => !ids.includes(l.id)).map((l) => l.id)
-    void actions.reorderLists(programId, [...arrayMove(ids, from, to), ...rest])
-  }
-
-  return (
-    <nav aria-label={m.tasks_name()} className="space-y-4">
-      <div className="space-y-0.5">
-        {SMART_VIEWS.map((v) => (
-          <NavItem
-            key={v.view}
-            icon={v.icon}
-            label={v.title()}
-            count={v.view === 'completed' ? undefined : countOf[v.view]}
-            active={active === v.view}
-            onClick={() => onSelect({ kind: 'smart', view: v.view })}
-          />
-        ))}
-      </div>
-      <div className="space-y-0.5">
-        <NavItem
-          icon={INBOX.icon}
-          label={INBOX.title()}
-          count={counts?.inbox}
-          active={active === 'inbox'}
-          onClick={() => onSelect({ kind: 'inbox' })}
-        />
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-0.5">
-              {visible.map((list) => (
-                <ListItem
-                  key={list.id}
-                  list={list}
-                  active={active === `list:${list.id}`}
-                  count={counts?.lists[list.id] ?? 0}
-                  onSelect={() => onSelect({ kind: 'list', listId: list.id })}
-                  onRename={() => setRenaming(list)}
-                  onDelete={() => {
-                    setAlsoTasks(false)
-                    setDeleting(list)
-                  }}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 font-normal text-muted-foreground"
-          onClick={() => setCreating(true)}
-        >
-          <Plus aria-hidden />
-          {m.tasks_list_new()}
-        </Button>
-      </div>
-      {courses.length > 0 ? (
-        <Collapsible open={coursesOpen} onOpenChange={setCoursesOpen}>
-          <CollapsibleTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start gap-1 text-xs font-medium text-muted-foreground"
-              />
-            }
-          >
-            <ChevronRight
-              aria-hidden
-              className={cn('transition-transform', coursesOpen && 'rotate-90')}
-            />
-            {m.tasks_by_course()}
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-0.5">
-            {courses.map((c) => (
-              <NavItem
-                key={c.id}
-                label={courseLabel(c)}
-                dot={courseColor(c)}
-                count={counts?.courses[c.id]}
-                active={active === `course:${c.id}`}
-                onClick={() => onSelect({ kind: 'course', courseId: c.id })}
-              />
-            ))}
-          </CollapsibleContent>
-        </Collapsible>
-      ) : null}
+  const dialogs = (
+    <>
       {creating ? (
         <ListDialog
           open
@@ -343,6 +147,439 @@ export function TasksSidebar({
           void actions.deleteList(list.id, alsoTasks)
         }}
       />
-    </nav>
+    </>
+  )
+  return {
+    create: () => setCreating(true),
+    rename: setRenaming,
+    remove: (list: TaskList) => {
+      setAlsoTasks(false)
+      setDeleting(list)
+    },
+    dialogs,
+  }
+}
+
+/** Moves one list in the order; lists of other terms keep their place after the visible ones. */
+function reorder(
+  actions: TaskActions,
+  programId: string,
+  lists: readonly TaskList[],
+  ids: string[],
+  from: number,
+  to: number,
+) {
+  const rest = lists.filter((l) => !ids.includes(l.id)).map((l) => l.id)
+  void actions.reorderLists(programId, [...arrayMove(ids, from, to), ...rest])
+}
+
+function smartCount(counts: TaskCounts | undefined, view: string): number | undefined {
+  if (view === 'today') return counts?.today
+  if (view === 'scheduled') return counts?.scheduled
+  if (view === 'all') return counts?.all
+  if (view === 'flagged') return counts?.flagged
+  return undefined
+}
+
+function SubEntry({
+  icon: Icon,
+  dot,
+  label,
+  count,
+  active,
+  muted,
+  hasAction,
+  onClick,
+}: {
+  icon?: LucideIcon
+  dot?: string
+  label: string
+  count?: number
+  active?: boolean
+  muted?: boolean
+  /** The count makes room for the entry's ⋯ button while it shows. */
+  hasAction?: boolean
+  onClick: () => void
+}) {
+  return (
+    <SidebarMenuSubButton
+      isActive={active}
+      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by its children
+      render={<button type="button" />}
+      aria-current={active ? 'true' : undefined}
+      className={cn('w-full', muted && 'text-muted-foreground')}
+      onClick={onClick}
+    >
+      {Icon ? <Icon aria-hidden className="text-muted-foreground!" /> : null}
+      {dot ? (
+        <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
+          <span className="size-2 rounded-full" style={{ backgroundColor: dot }} />
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {count ? (
+        <span
+          className={cn(
+            'text-xs text-muted-foreground tabular-nums',
+            hasAction &&
+              'group-focus-within/menu-sub-item:invisible group-hover/menu-sub-item:invisible',
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+    </SidebarMenuSubButton>
+  )
+}
+
+function SidebarListEntry({
+  list,
+  active,
+  count,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  list: TaskList
+  active: boolean
+  count: number
+  onSelect: () => void
+  onRename: () => void
+  onDelete: () => void
+}) {
+  const {
+    attributes,
+    listeners: dragListeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: list.id })
+  return (
+    <SidebarMenuSubItem
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(isDragging && 'z-10 rounded-xl bg-sidebar shadow-md')}
+    >
+      <SubEntry
+        icon={List}
+        label={list.name}
+        count={count}
+        active={active}
+        hasAction
+        onClick={onSelect}
+      />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              ref={setActivatorNodeRef}
+              type="button"
+              aria-label={m.tasks_list_move({ name: list.name })}
+              className="absolute top-1 left-2 flex size-5 cursor-grab touch-none items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden group-hover/menu-sub-item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing [&>svg]:size-4"
+              {...attributes}
+              {...dragListeners}
+            />
+          }
+        >
+          <GripVertical aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent side="right">{m.tasks_drag()}</TooltipContent>
+      </Tooltip>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <SidebarMenuAction
+              className={SUB_ACTION}
+              aria-label={m.tasks_list_menu({ name: list.name })}
+            />
+          }
+        >
+          <MoreHorizontal aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start">
+          <DropdownMenuItem onClick={onRename}>{m.tasks_list_rename()}</DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            {m.common_delete()}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuSubItem>
+  )
+}
+
+/**
+ * The Program's tasks page lists under "Tasks" in the app sidebar (M05 §5.1): smart lists,
+ * Unsorted, the user's lists (draggable into a new order) and, folded, the courses.
+ */
+export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
+  const programId = scope.programId
+  const [selection, select] = useTaskSelection(programId)
+  const lists = useTaskLists(programId).data?.items ?? []
+  const counts = useTaskCounts({ programId }).data
+  const courses = useCourses(programId).data?.items ?? []
+  const actions = useTaskActions()
+  const [coursesOpen, setCoursesOpen] = useUiPref('tasks.sidebar_courses_open', false)
+  const onSelect = (next: Selection) => {
+    select(next)
+    onNavigate()
+  }
+  const editing = useListEditing({ programId, selection, onSelect, actions })
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const shown = visibleLists(lists, undefined)
+  const ids = shown.map((l) => l.id)
+  const active = selectionKey(selection)
+
+  const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
+    if (!over || dragged.id === over.id) return
+    const from = ids.indexOf(String(dragged.id))
+    reorder(actions, programId, lists, ids, from, ids.indexOf(String(over.id)))
+  }
+
+  return (
+    <SidebarMenuSub aria-label={m.tasks_name()}>
+      {SMART_VIEWS.map((v) => (
+        <SidebarMenuSubItem key={v.view}>
+          <SubEntry
+            icon={v.icon}
+            label={v.title()}
+            count={smartCount(counts, v.view)}
+            active={active === v.view}
+            onClick={() => onSelect({ kind: 'smart', view: v.view })}
+          />
+        </SidebarMenuSubItem>
+      ))}
+      <SidebarMenuSubItem className="mt-2">
+        <SubEntry
+          icon={INBOX.icon}
+          label={INBOX.title()}
+          count={counts?.inbox}
+          active={active === 'inbox'}
+          onClick={() => onSelect({ kind: 'inbox' })}
+        />
+      </SidebarMenuSubItem>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          {shown.map((list) => (
+            <SidebarListEntry
+              key={list.id}
+              list={list}
+              active={active === `list:${list.id}`}
+              count={counts?.lists[list.id] ?? 0}
+              onSelect={() => onSelect({ kind: 'list', listId: list.id })}
+              onRename={() => editing.rename(list)}
+              onDelete={() => editing.remove(list)}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+      <SidebarMenuSubItem>
+        <SubEntry icon={Plus} label={m.tasks_list_new()} muted onClick={editing.create} />
+      </SidebarMenuSubItem>
+      {courses.length > 0 ? (
+        <SidebarMenuSubItem className="mt-2">
+          <SidebarMenuSubButton
+            size="sm"
+            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by its children
+            render={<button type="button" />}
+            aria-expanded={coursesOpen}
+            className="w-full font-medium text-muted-foreground"
+            onClick={() => setCoursesOpen(!coursesOpen)}
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn(
+                'text-muted-foreground! transition-transform motion-reduce:transition-none',
+                coursesOpen && 'rotate-90',
+              )}
+            />
+            <span>{m.tasks_by_course()}</span>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      ) : null}
+      {coursesOpen
+        ? courses.map((c) => (
+            <SidebarMenuSubItem key={c.id}>
+              <SubEntry
+                dot={courseColor(c)}
+                label={courseLabel(c)}
+                count={counts?.courses[c.id]}
+                active={active === `course:${c.id}`}
+                onClick={() => onSelect({ kind: 'course', courseId: c.id })}
+              />
+            </SidebarMenuSubItem>
+          ))
+        : null}
+      {editing.dialogs}
+    </SidebarMenuSub>
+  )
+}
+
+function MenuEntry({ lead, label, count }: { lead: ReactNode; label: string; count?: number }) {
+  return (
+    <>
+      {lead}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {count ? <span className="text-xs text-muted-foreground tabular-nums">{count}</span> : null}
+    </>
+  )
+}
+
+/**
+ * The page title as a menu of the lists, where the app sidebar does not show them (a term's
+ * tasks, or the sidebar folded to icons); the list shown also gets rename, move and delete.
+ */
+export function TasksViewMenu({
+  programId,
+  termId,
+  title,
+  selection,
+  onSelect,
+  counts,
+  lists,
+  courses,
+  actions,
+}: {
+  programId: string
+  termId?: string
+  title: string | undefined
+  selection: Selection
+  onSelect: (selection: Selection) => void
+  counts: TaskCounts | undefined
+  lists: readonly TaskList[]
+  courses: readonly Course[]
+  actions: TaskActions
+}) {
+  const editing = useListEditing({ programId, termId, selection, onSelect, actions })
+  const shown = visibleLists(lists, termId)
+  const ids = shown.map((l) => l.id)
+  const current =
+    selection.kind === 'list' ? shown.find((l) => l.id === selection.listId) : undefined
+  const at = current ? ids.indexOf(current.id) : -1
+
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" className="-ml-2 h-auto min-w-0 gap-1 px-2 py-1" />}
+        >
+          <h2 className="truncate font-heading text-xl font-semibold tracking-tight">{title}</h2>
+          <ChevronDown aria-hidden className="text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuRadioGroup
+            value={selectionKey(selection)}
+            onValueChange={(value) => onSelect(parseSelection(String(value)))}
+          >
+            {SMART_VIEWS.map((v) => (
+              <DropdownMenuRadioItem key={v.view} value={v.view}>
+                <MenuEntry
+                  lead={<v.icon aria-hidden />}
+                  label={v.title()}
+                  count={smartCount(counts, v.view)}
+                />
+              </DropdownMenuRadioItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioItem value="inbox">
+              <MenuEntry
+                lead={<INBOX.icon aria-hidden />}
+                label={INBOX.title()}
+                count={counts?.inbox}
+              />
+            </DropdownMenuRadioItem>
+            {shown.map((list) => (
+              <DropdownMenuRadioItem key={list.id} value={`list:${list.id}`}>
+                <MenuEntry
+                  lead={<List aria-hidden />}
+                  label={list.name}
+                  count={counts?.lists[list.id]}
+                />
+              </DropdownMenuRadioItem>
+            ))}
+            {courses.length > 0 ? (
+              <DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>{m.tasks_by_course()}</DropdownMenuLabel>
+                {courses.map((c) => (
+                  <DropdownMenuRadioItem key={c.id} value={`course:${c.id}`}>
+                    <MenuEntry
+                      lead={
+                        <span
+                          aria-hidden
+                          className="flex size-4 shrink-0 items-center justify-center"
+                        >
+                          <span
+                            className="size-2 rounded-full"
+                            style={{ backgroundColor: courseColor(c) }}
+                          />
+                        </span>
+                      }
+                      label={courseLabel(c)}
+                      count={counts?.courses[c.id]}
+                    />
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuGroup>
+            ) : null}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={editing.create}>
+            <Plus aria-hidden />
+            {m.tasks_list_new()}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {current ? (
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={m.tasks_list_menu({ name: current.name })}
+                    />
+                  }
+                />
+              }
+            >
+              <MoreHorizontal aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.tasks_list_menu({ name: current.name })}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => editing.rename(current)}>
+              {m.tasks_list_rename()}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={at <= 0}
+              onClick={() => reorder(actions, programId, lists, ids, at, at - 1)}
+            >
+              <ArrowUp aria-hidden />
+              {m.tasks_list_move_up()}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={at >= ids.length - 1}
+              onClick={() => reorder(actions, programId, lists, ids, at, at + 1)}
+            >
+              <ArrowDown aria-hidden />
+              {m.tasks_list_move_down()}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => editing.remove(current)}>
+              {m.common_delete()}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      {editing.dialogs}
+    </div>
   )
 }

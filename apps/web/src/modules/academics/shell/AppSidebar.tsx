@@ -10,20 +10,23 @@ import {
   Plus,
   Search,
   MessageCircle,
-  PanelRight,
+  PictureInPicture2,
   Settings,
 } from 'lucide-react'
-import { useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useState, useSyncExternalStore } from 'react'
 import { openCommandPalette, useHostAction } from '@/app/commands'
 import { useCommandContext } from '@/app/commands/context'
 import { type AssistantContribution, scopePath } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
 import { ManagePagesDialog } from '@/app/host/ManagePagesDialog'
 import { OVERVIEW_PAGE, useScopePages } from '@/app/host/nav'
+import { PluginBoundary } from '@/app/host/PluginBoundary'
+import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
+import { cn } from '@/lib/utils'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
@@ -63,19 +66,24 @@ import { SidebarTerms } from './SidebarTerms'
 
 const ASSISTANT_PAGE = /\/assistant(\/|$)/
 
-/** One link of the main navigation; on the icon rail it shows its label as a tooltip. */
+/**
+ * One link of the main navigation; on the icon rail it shows its label as a tooltip. `children`
+ * is the open page's own navigation, shown under it (hidden on the icon rail).
+ */
 function NavItem({
   href,
   icon: Icon,
   label,
   active,
   onNavigate,
+  children,
 }: {
   href: string
   icon: typeof BookOpen
   label: string
   active: boolean
   onNavigate: () => void
+  children?: ReactNode
 }) {
   return (
     <SidebarMenuItem>
@@ -93,6 +101,7 @@ function NavItem({
         <Icon aria-hidden />
         <span>{label}</span>
       </SidebarMenuButton>
+      {children}
     </SidebarMenuItem>
   )
 }
@@ -215,8 +224,9 @@ function AccountMenu() {
 }
 
 /**
- * The assistant (M12): the row opens its full page; the small button on its right opens or closes
- * the side panel (also `Cmd/Ctrl + J`). The interface tour points at the row.
+ * The assistant (M12): the row opens its full page; the small button on its right, shown on hover
+ * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). On the full
+ * page the recent conversations are listed under it. The interface tour points at the row.
  */
 function AssistantNavItem({
   assistant,
@@ -258,18 +268,26 @@ function AssistantNavItem({
               <SidebarMenuAction
                 aria-label={panelLabel}
                 aria-pressed={open}
-                className="aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground"
+                className={cn(
+                  ENTRY_ACTION_ON_HOVER,
+                  'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
+                )}
                 onClick={() => assistant.open(ctx)}
               />
             }
           >
-            <PanelRight aria-hidden />
+            <PictureInPicture2 aria-hidden />
           </TooltipTrigger>
           <TooltipContent side="right">
             {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
           </TooltipContent>
         </Tooltip>
       )}
+      {active && assistant.SidebarNav ? (
+        <PluginBoundary silent>
+          <assistant.SidebarNav programId={programId} onNavigate={onNavigate} />
+        </PluginBoundary>
+      ) : null}
     </SidebarMenuItem>
   )
 }
@@ -334,7 +352,9 @@ export function AppSidebar({ programId }: { programId: string }) {
           )}
 
           <SidebarGroup>
-            <SidebarGroupLabel>{m.academics_sidebar_pages()}</SidebarGroupLabel>
+            <SidebarGroupLabel className={GROUP_LABEL}>
+              {m.academics_sidebar_pages()}
+            </SidebarGroupLabel>
             {isMobile ? null : (
               <DropdownMenu>
                 <Tooltip>
@@ -363,17 +383,24 @@ export function AppSidebar({ programId }: { programId: string }) {
                   .map((page) => {
                     const href = scopePath(programScope, page.id)
                     const isOverview = page.id === OVERVIEW_PAGE
+                    const active =
+                      pathname === href || (isOverview && pathname === scopePath(programScope))
+                    const SubNav = active && !isMobile ? page.sidebarNav : undefined
                     return (
                       <NavItem
                         key={page.id}
                         href={isOverview ? scopePath(programScope) : href}
                         icon={page.icon}
                         label={page.title()}
-                        active={
-                          pathname === href || (isOverview && pathname === scopePath(programScope))
-                        }
+                        active={active}
                         onNavigate={onNavigate}
-                      />
+                      >
+                        {SubNav ? (
+                          <PluginBoundary key={page.id} silent>
+                            <SubNav scope={programScope} onNavigate={onNavigate} />
+                          </PluginBoundary>
+                        ) : null}
+                      </NavItem>
                     )
                   })}
                 {isMobile ? null : (
@@ -395,7 +422,11 @@ export function AppSidebar({ programId }: { programId: string }) {
       <SidebarFooter>
         <SidebarSeparator className="mx-0" />
         <SidebarGroup className="p-0">
-          {isMobile ? null : <SidebarGroupLabel>{m.academics_sidebar_system()}</SidebarGroupLabel>}
+          {isMobile ? null : (
+            <SidebarGroupLabel className={GROUP_LABEL}>
+              {m.academics_sidebar_system()}
+            </SidebarGroupLabel>
+          )}
           <StatusBar />
           {isMobile ? null : (
             <SidebarMenu>
