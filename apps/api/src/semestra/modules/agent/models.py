@@ -12,7 +12,10 @@ class AgentSession(Base, OwnedMixin):
     the summary of compacted turns and the tool-call counts of the current user message."""
 
     __tablename__ = "agent_sessions"
-    __table_args__ = (Index("ix_agent_sessions_user_updated", "user_id", "updated_at"),)
+    __table_args__ = (
+        Index("ix_agent_sessions_user_updated", "user_id", "updated_at"),
+        Index("ux_agent_sessions_user_client_key", "user_id", "client_key", unique=True),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str | None] = mapped_column(String, default=None)
@@ -26,6 +29,8 @@ class AgentSession(Base, OwnedMixin):
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
     archived_at: Mapped[datetime | None] = mapped_column(default=None)
+    # The client's key for the new conversation: creating it twice returns this one (M12 §4).
+    client_key: Mapped[str | None] = mapped_column(String, default=None)
 
 
 class AgentMessage(Base, OwnedMixin):

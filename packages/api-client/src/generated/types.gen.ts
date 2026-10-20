@@ -60,6 +60,10 @@ export type AgentAttachmentOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * File Item Id
+     */
+    file_item_id?: string | null;
 };
 
 /**
@@ -242,6 +246,12 @@ export type AgentSessionCreateInputBody = {
      * Page scope to start from.
      */
     scope?: AgentScope | null;
+    /**
+     * Client Key
+     *
+     * Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing).
+     */
+    client_key?: string | null;
 };
 
 /**
@@ -7178,6 +7188,18 @@ export type RichText = {
 };
 
 /**
+ * SaveToCourseInputBody
+ */
+export type SaveToCourseInputBody = {
+    /**
+     * Course Id
+     *
+     * Course to save the file to
+     */
+    course_id: string;
+};
+
+/**
  * SavedFile
  */
 export type SavedFile = {
@@ -12120,6 +12142,38 @@ export type AiUsageSummaryResponses = {
 };
 
 export type AiUsageSummaryResponse = AiUsageSummaryResponses[keyof AiUsageSummaryResponses];
+
+export type AttachmentsSaveData = {
+    body: SaveToCourseInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Attachment id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/attachments/{id}:save';
+};
+
+export type AttachmentsSaveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AttachmentsSaveError = AttachmentsSaveErrors[keyof AttachmentsSaveErrors];
+
+export type AttachmentsSaveResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type AttachmentsSaveResponse = AttachmentsSaveResponses[keyof AttachmentsSaveResponses];
 
 export type CalendarOccurrencesData = {
     body?: never;

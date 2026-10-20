@@ -198,3 +198,5 @@ agent_preferences
 - 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
 - 设置分区（账户设置「AI」小标题，第三轮拆页）：`assistant-approvals` 在「权限」页（按 effect 分组 + 总开关，见 §6.2），`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）与 `assistant-tools`（工具目录）在「MCP 与工具」页。
 - 附件解析（Sem 重构 PR 2）：上传时用 M07 的解析器（`files.parse`，PDF/Office 在限时限内存的子进程里）按内容识别类型并读成按页 markdown，存 `agent_attachment_pages`（附件 id、页码、markdown、`needs_ocr`），附件行记下 `doc_kind`、`page_count`、`parse_error`；不切块、不建索引，读不了的文件照样保存并记下原因。agent 专用的只读 capability `attachments.read(attachment_id, page_from, page_to)` 一次最多 10 页、约 4 万字符，返回 `next_page`。代码在 `agent/attachments.py`。
+- 附件保存与清理（Sem 重构 PR 4）：`attachments.save`（`POST /agent/attachments/{id}:save`，也给 agent）把附件存成课程文件（`save_bytes_as_file`，`source_kind: agent`，记在 `file_item_id`，同一课程再存一次返回同一文件）；聊天里已发送消息的附件右侧有「保存到课程文件」按钮，列出会话所在学期的课程。没被任何消息引用、超过 24 小时的附件由 `@periodic("agent.attachments.cleanup")` 每小时删除，连同文件，释放配额。
+- 一次发送只建一个会话：`agent.session.create` 收 `client_key`（同一用户唯一，同一 key 再建返回同一会话，并发时靠唯一索引兜底）；前端每个对话组件一个 key，`ensureSession` 复用进行中的请求，发送有 pending 锁（输入框也有，防止上一帧的 `canSend` 让两次 Enter 都发出去）。

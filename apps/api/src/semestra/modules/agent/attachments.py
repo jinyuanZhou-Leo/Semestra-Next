@@ -6,21 +6,26 @@ Pages are not chunked or indexed; saving the attachment to a course's files does
 """
 
 import re
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 import anyio.to_thread
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 
-from semestra.core.capability import capability
+from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
-from semestra.core.errors import not_found
+from semestra.core.errors import AppError, not_found
+from semestra.core.jobs import periodic
 from semestra.core.storage import get_storage
-from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
+from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentMessage
+from semestra.modules.files import service as files
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, detect, parse
 from semestra.modules.files.parse.detect import Detected
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES
+from semestra.modules.files.schemas import ItemOut
 
 # Formats whose readers run third-party C code or inflate archives: parsed in a child process
 # with time and memory limits (M07 `parse/isolated.py`). Text formats are read in-process.
@@ -28,6 +33,9 @@ ISOLATED_KINDS = ("pdf", "docx", "pptx", "xlsx")
 PARSE_TIME_LIMIT = 60.0
 READ_MAX_PAGES = 10
 READ_MAX_CHARS = 40_000
+# Uploads no message refers to (removed from the composer, the page closed before sending) are
+# deleted after this long, with their file, so they stop counting against the storage quota.
+UNSENT_RETENTION = timedelta(hours=24)
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
 
@@ -139,6 +147,34 @@ async def open_original(ctx: Ctx, attachment_id: str) -> tuple[AgentAttachment, 
     return row, data
 
 
+@periodic("agent.attachments.cleanup", every=timedelta(hours=1))
+async def cleanup_unsent(ctx: Ctx) -> None:
+    blocks = func.json_each(AgentMessage.content).table_valued("value")
+    referenced = (
+        select(1)
+        .select_from(AgentMessage)
+        .join(blocks, func.json_extract(blocks.c.value, "$.attachment_id") == AgentAttachment.id)
+        .where(AgentMessage.session_id == AgentAttachment.session_id)
+    )
+    rows = (
+        await ctx.db.scalars(
+            select(AgentAttachment).where(
+                AgentAttachment.created_at < ctx.now - UNSENT_RETENTION, ~exists(referenced)
+            )
+        )
+    ).all()
+    keys = [row.storage_key for row in rows]
+    for row in rows:
+        await ctx.db.delete(row)
+    storage = get_storage(ctx)
+
+    async def _remove_files() -> None:
+        for key in keys:
+            await storage.delete(key)
+
+    ctx.after_commit.append(_remove_files)
+
+
 # --- capability -----------------------------------------------------------------------------
 
 
@@ -204,3 +240,39 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
         next_page=last + 1 if last < total else None,
         error_code=row.parse_error,
     )
+
+
+class SaveToCourseInput(BaseModel):
+    id: str = Field(description="Attachment id")
+    course_id: str = Field(description="Course to save the file to")
+
+
+@capability(
+    name="attachments.save",
+    summary="Save a file attached to the conversation to a course's files.",
+    description="""Use when the user wants to keep an attached document (a syllabus, notes) with
+the course. The file is then processed like any course file (searchable, citable). Saving it to
+the same course again returns the saved file.""",
+    effect="write",
+    http=Http("POST", "/agent/attachments/{id}:save"),
+    expose=("http", "agent"),
+    tags=("agent",),
+)
+async def save_to_course(ctx: Ctx, inp: SaveToCourseInput) -> ItemOut:
+    row, data = await open_original(ctx, inp.id)
+    if row.file_item_id is not None:
+        try:
+            saved = await files.get_item(ctx, row.file_item_id)
+        except AppError:
+            saved = None  # deleted from the course since
+        if saved is not None and saved.course_id == inp.course_id:
+            return await files.item_out(ctx, saved)
+
+    async def chunks() -> AsyncIterator[bytes]:
+        yield data
+
+    item = await files.save_bytes_as_file(
+        ctx, inp.course_id, row.name, chunks(), source_kind="agent", source_ref=row.id
+    )
+    row.file_item_id = item.id
+    return item

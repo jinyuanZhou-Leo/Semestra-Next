@@ -67,6 +67,7 @@ import { scopeKind } from '../scope'
 import { buildItems, canRegenerate, citationsOf, pausedReason, type ViewItem } from '../transcript'
 import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
+import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown } from './Markdown'
 import { ProposalCard } from './ProposalCard'
@@ -154,10 +155,13 @@ const hoverActions =
 
 function UserMessage({
   item,
+  scope,
   canEdit,
   onEdit,
 }: {
   item: Extract<ViewItem, { kind: 'user' }>
+  /** Where the conversation works: the courses its attachments can be saved to. */
+  scope: AgentScope | null
   canEdit: boolean
   /** Resolves false when the edit could not be sent; the editor stays open. */
   onEdit: (text: string) => Promise<boolean>
@@ -205,6 +209,7 @@ function UserMessage({
                 <AttachmentContent>
                   <AttachmentTitle>{att.name}</AttachmentTitle>
                 </AttachmentContent>
+                <AttachmentSaveMenu attachmentId={att.id} name={att.name} scope={scope} />
               </Attachment>
             ))}
           </AttachmentGroup>
@@ -623,6 +628,7 @@ export function Conversation({
                     {item.kind === 'user' ? (
                       <UserMessage
                         item={item}
+                        scope={scope}
                         canEdit={!chat.generating && !item.id.startsWith('pending-')}
                         onEdit={(text) => {
                           setSent((n) => n + 1)

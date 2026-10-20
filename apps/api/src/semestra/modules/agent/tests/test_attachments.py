@@ -11,9 +11,11 @@ from pydantic import BaseModel
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
+from semestra.core.jobs import run_periodic
+from semestra.modules.agent.models import AgentMessage
 from semestra.modules.files.tests.conftest import make_pdf
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
-from semestra.testing import MakeUser, UserHandle
+from semestra.testing import Clock, MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
 
@@ -157,3 +159,70 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     assert cancelled == [("2026-10-12", "cancelled")]
     # The attachment stays with the conversation; the import keeps its own copy.
     assert (await chat.tool("attachments.read", {"attachment_id": att["id"]}))["page_count"] == 1
+
+
+async def test_creating_a_conversation_twice_with_one_key_returns_it(chat: Chat):
+    program_id = await chat.program()
+    body = {"scope": {"program_id": program_id}, "client_key": "draft-1234"}
+    first = await chat.call("POST", "/agent/sessions", json=body)
+    again = await chat.call("POST", "/agent/sessions", json=body)
+    assert again["id"] == first["id"]
+    other = await chat.call("POST", "/agent/sessions", json={**body, "client_key": "draft-5678"})
+    assert other["id"] != first["id"]
+    listed = await chat.call("GET", "/agent/sessions")
+    assert len(listed["items"]) == 2
+
+
+async def test_unsent_attachments_are_removed_after_a_day(app: FastAPI, chat: Chat, clock: Clock):
+    session_id = await session_of(chat, await chat.program())
+    sent = await chat.attach(session_id, "sent.txt", b"kept", "text/plain")
+    unsent = await chat.attach(session_id, "unsent.txt", b"dropped", "text/plain")
+    async with system_ctx(app.state, chat.user_id) as ctx:
+        ctx.db.add(
+            AgentMessage(
+                user_id=chat.user_id,
+                session_id=session_id,
+                role="user",
+                content=[{"type": "file_ref", "attachment_id": sent["id"], "name": "sent.txt"}],
+                created_at=clock.now,
+            )
+        )
+        await ctx.db.commit()
+
+    clock.advance(hours=23)
+    await run_periodic(app.state, "agent.attachments.cleanup")
+    ids = {
+        a["id"] for a in (await chat.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
+    }
+    assert ids == {sent["id"], unsent["id"]}
+
+    clock.advance(hours=2)
+    await run_periodic(app.state, "agent.attachments.cleanup")
+    ids = {
+        a["id"] for a in (await chat.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
+    }
+    assert ids == {sent["id"]}
+    usage = await chat.call("GET", "/storage/usage")
+    assert usage["by_module"]["agent"] == len(b"kept")
+
+
+async def test_an_attachment_can_be_saved_to_a_course(chat: Chat):
+    program_id = await chat.program()
+    term = await chat.call("POST", f"/programs/{program_id}/terms", json=FALL)
+    course = await chat.call(
+        "POST",
+        f"/programs/{program_id}/courses",
+        json={"title": "Circuits", "code": "ECE201H1", "term_ids": [term["term"]["id"]]},
+    )
+    session_id = await session_of(chat, program_id)
+    att = await chat.attach(session_id, "syllabus.txt", b"Midterm 30%", "text/plain")
+    saved = await chat.call(
+        "POST", f"/agent/attachments/{att['id']}:save", json={"course_id": course["id"]}
+    )
+    assert (saved["course_id"], saved["display_name"]) == (course["id"], "syllabus.txt")
+    again = await chat.call(
+        "POST", f"/agent/attachments/{att['id']}:save", json={"course_id": course["id"]}
+    )
+    assert again["id"] == saved["id"]
+    detail = await chat.call("GET", f"/agent/sessions/{session_id}")
+    assert detail["attachments"][0]["file_item_id"] == saved["id"]

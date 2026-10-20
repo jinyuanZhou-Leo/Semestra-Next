@@ -2963,7 +2963,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "agent"
         ],
         "summary": "Start a new conversation.",
-        "description": "Where the assistant works: a Program or one of its terms.",
+        "description": "Where the assistant works: a Program or one of its terms. Idempotent per\n`client_key`.",
         "operationId": "agentSessionCreate",
         "requestBody": {
           "required": true,
@@ -3728,6 +3728,61 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UsageSummary"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/agent/attachments/{id}:save": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Save a file attached to the conversation to a course's files.",
+        "description": "Use when the user wants to keep an attached document (a syllabus, notes) with\nthe course. The file is then processed like any course file (searchable, citable). Saving it to\nthe same course again returns the saved file.",
+        "operationId": "attachmentsSave",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Attachment id",
+              "title": "Id"
+            },
+            "description": "Attachment id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveToCourseInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
                 }
               }
             }
@@ -12165,6 +12220,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "file_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Item Id"
           }
         },
         "type": "object",
@@ -12490,6 +12556,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "description": "Page scope to start from."
+          },
+          "client_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Key",
+            "description": "Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing)."
           }
         },
         "type": "object",
@@ -24888,6 +24968,20 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         },
         "type": "object",
         "title": "RichText"
+      },
+      "SaveToCourseInputBody": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id",
+            "description": "Course to save the file to"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id"
+        ],
+        "title": "SaveToCourseInputBody"
       },
       "SavedFile": {
         "properties": {

@@ -82,6 +82,11 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ChatError | null>(null)
   const controller = useRef<AbortController | null>(null)
+  // The conversation this hook creates on the first upload or send: one request at a time,
+  // and the key makes the server return the same conversation if two get through anyway.
+  const creating = useRef<Promise<string> | null>(null)
+  const clientKey = useRef(crypto.randomUUID())
+  const sending = useRef(false)
 
   const detail = useQuery({
     ...sessionQueryOptions(sessionId),
@@ -119,10 +124,9 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return result.started
   }
 
-  async function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
-    if (sessionId) return sessionId
+  async function createSession(scope: AgentScope | null | undefined): Promise<string> {
     const { data } = await agentSessionCreate({
-      body: scope ? { scope } : {},
+      body: { ...(scope ? { scope } : {}), client_key: clientKey.current },
       throwOnError: true,
     })
     queryClient.setQueryData(keyOf(data.id), emptyDetail(data))
@@ -130,13 +134,30 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return data.id
   }
 
+  function ensureSession(scope: AgentScope | null | undefined): Promise<string> {
+    if (sessionId) return Promise.resolve(sessionId)
+    if (!creating.current) {
+      creating.current = createSession(scope).catch((err: unknown) => {
+        creating.current = null
+        throw err
+      })
+    }
+    return creating.current
+  }
+
   async function send(input: SendInput): Promise<boolean> {
-    let id: string
-    try {
-      id = await ensureSession(input.scope)
-    } catch (err) {
+    // A second Enter or click before the first send has started its turn.
+    if (sending.current) return false
+    sending.current = true
+    setBusy(true)
+    const id = await ensureSession(input.scope).catch((err: unknown) => {
       const apiError = toApiError(err)
       setError({ code: apiError.code, params: apiError.params })
+      return null
+    })
+    if (id === null) {
+      sending.current = false
+      setBusy(false)
       return false
     }
     const blocks: Record<string, unknown>[] = []
@@ -155,12 +176,14 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
       current ? withUserMessage(current, `pending-${Date.now()}`, blocks) : current,
     )
-    return run(id, `/agent/sessions/${id}/messages`, {
+    const started = await run(id, `/agent/sessions/${id}/messages`, {
       text: input.text,
       attachment_ids: input.attachmentIds ?? [],
       scope: input.scope ?? null,
       skill: input.skill?.name ?? null,
     })
+    sending.current = false
+    return started
   }
 
   function decide(decisions: Decision[]) {

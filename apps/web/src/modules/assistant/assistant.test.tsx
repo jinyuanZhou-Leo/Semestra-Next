@@ -979,3 +979,66 @@ test('on the page, attaching a file to a new conversation keeps the text being t
   expect(await screen.findByText('notes.txt')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Look at this')
 })
+
+test('files dropped in quick succession into a new conversation create it once', async () => {
+  const creates: unknown[] = []
+  let uploads = 0
+  server.use(
+    http.post(`${API}/agent/sessions`, async ({ request }) => {
+      creates.push(await request.json())
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return HttpResponse.json(srv.detail.session)
+    }),
+    http.post(`${API}/agent/attachments`, () => {
+      uploads += 1
+      return HttpResponse.json({
+        id: `f${uploads}`,
+        session_id: 's1',
+        kind: 'file',
+        name: `notes${uploads}.txt`,
+        mime: 'text/plain',
+        size: 5,
+        created_at: NOW,
+      })
+    }),
+  )
+  const view = renderConversation()
+  await messageInput()
+  const picker = document.querySelector('input[type=file]') as HTMLInputElement
+  fireEvent.change(picker, {
+    target: { files: [new File(['a'], 'a.txt', { type: 'text/plain' })] },
+  })
+  fireEvent.change(picker, {
+    target: { files: [new File(['b'], 'b.txt', { type: 'text/plain' })] },
+  })
+  await waitFor(() => expect(uploads).toBe(2))
+  expect(creates).toHaveLength(1)
+  expect(creates[0]).toMatchObject({ client_key: expect.any(String) })
+  expect(view.created()).toBe('s1')
+})
+
+test('an attachment of a sent message can be saved to a course of the term', async () => {
+  const saved: { path: string; body: unknown }[] = []
+  server.use(
+    http.post(`${API}/agent/attachments/:id`, async ({ request }) => {
+      saved.push({ path: new URL(request.url).pathname, body: await request.json() })
+      return HttpResponse.json({ id: 'fi1', course_id: 'c2', display_name: 'notes.txt' })
+    }),
+  )
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  srv.detail.messages = [
+    msg('u1', 'user', [
+      { type: 'text', text: 'Keep this' },
+      { type: 'file_ref', attachment_id: 'f1', name: 'notes.txt' },
+    ]),
+  ]
+  renderWithRouter(
+    <Conversation sessionId="s1" pageScope={{ program_id: 'p1' }} onCreated={() => {}} />,
+  )
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Save notes.txt to course files' }),
+  )
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'MAT188H1' }))
+  await waitFor(() => expect(saved).toHaveLength(1))
+  expect(saved[0]).toEqual({ path: '/agent/attachments/f1:save', body: { course_id: 'c2' } })
+})
