@@ -9,7 +9,7 @@ import { setLocale } from '@/paraglide/runtime'
 import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, server, user } from '@/test-utils'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 // The AI sections are loaded on demand. Loading them once here, not inside a test's wait, keeps
 // a cold transform on a busy runner from timing a test out.
 beforeAll(async () => {

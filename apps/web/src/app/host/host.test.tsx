@@ -17,7 +17,7 @@ import { ScopeNav } from './ScopeNav'
 import { ScopePage } from './ScopePage'
 import { PluginSettingsSections, SettingsSections } from '../settings/SettingsSections'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

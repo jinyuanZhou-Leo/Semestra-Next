@@ -14,7 +14,7 @@ import { API, newQueryClient, server, user } from '@/test-utils'
 import academics from './manifest'
 import { type World, academicsHandlers, defaultWorld } from './test-data'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   sessionStorage.clear()

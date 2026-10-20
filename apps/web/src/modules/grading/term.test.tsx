@@ -8,7 +8,7 @@ import UpcomingCard from './cards/UpcomingCard'
 import TermGradesPage from './pages/TermGradesPage'
 import { assessment, gradebook } from './test-data'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

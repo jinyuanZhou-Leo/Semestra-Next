@@ -10,7 +10,7 @@ import { AuthContext } from '../useAuth'
 import { SignInMethodsSection } from './SignInMethodsSection'
 import { mcpConfig } from './TokensSection'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

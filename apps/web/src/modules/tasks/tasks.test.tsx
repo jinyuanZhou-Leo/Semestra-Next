@@ -9,7 +9,7 @@ import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
 import TasksPage from './pages/TasksPage'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

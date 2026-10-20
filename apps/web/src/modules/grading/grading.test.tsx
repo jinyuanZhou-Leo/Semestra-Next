@@ -7,7 +7,7 @@ import { API, renderWithRouter, server } from '@/test-utils'
 import CourseGradesPage from './pages/CourseGradesPage'
 import { assessment, gradebook, summary } from './test-data'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

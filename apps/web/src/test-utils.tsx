@@ -51,8 +51,9 @@ export function renderWithRouter(ui: ReactElement, queryClient = newQueryClient(
   const router = createRouter({
     routeTree: root.addChildren([index]),
     history: createMemoryHistory({ initialEntries: ['/'] }),
-    // Only `/` exists here; a navigation elsewhere (sign-out to /login, say) shows nothing.
-    defaultNotFoundComponent: () => null,
+    // Only `/` exists here; a navigation elsewhere (sign-out to /login, say) leaves this marker,
+    // so a test that ends up somewhere unexpected can see it.
+    defaultNotFoundComponent: () => <p data-testid="not-found">Not found</p>,
   })
   return {
     queryClient,

@@ -8,7 +8,7 @@ import { routeTree } from '@/routeTree.gen'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, apiError, newQueryClient, server, user } from '@/test-utils'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

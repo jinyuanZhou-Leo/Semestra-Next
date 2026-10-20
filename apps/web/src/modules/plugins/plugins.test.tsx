@@ -9,7 +9,7 @@ import { API, renderWithRouter, server } from '@/test-utils'
 import PluginCatalog from './PluginCatalog'
 import plugins from './manifest'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

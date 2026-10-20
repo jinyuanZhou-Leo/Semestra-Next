@@ -6,7 +6,7 @@ import { API, renderWithRouter, server } from '@/test-utils'
 import { category, gradebook } from '../test-data'
 import { CourseGradingSection } from './CourseGradingSection'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
