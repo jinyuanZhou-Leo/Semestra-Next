@@ -26,7 +26,7 @@ import {
   skillTitle,
   stepLine,
 } from '../labels'
-import type { Step, StepStatus, ViewItem } from '../transcript'
+import type { ProcessEntry, Step, StepStatus, ViewItem } from '../transcript'
 import { Markdown } from './Markdown'
 import { ProposalChanges, proposalLink } from './ProposalCard'
 
@@ -136,6 +136,94 @@ function StepRow({
 
 const NO_CITATIONS = new Map()
 
+function Entry({
+  entry,
+  skillTitles,
+}: {
+  entry: ProcessEntry
+  skillTitles: ReadonlyMap<string, string>
+}) {
+  if (entry.kind === 'step') {
+    return (
+      <StepRow step={entry.step} status={entry.step.status as Shown} skillTitles={skillTitles} />
+    )
+  }
+  return <Markdown text={entry.text} citations={NO_CITATIONS} className="text-muted-foreground" />
+}
+
+/** What the model did in one step: the sentence it said first, and the calls it made then. */
+type Group = { key: string; title: string | null; entries: ProcessEntry[] }
+
+function groupBySteps(entries: ProcessEntry[]): Group[] {
+  const groups: Group[] = []
+  for (const entry of entries) {
+    const last = groups.at(-1)
+    const group =
+      last?.key === entry.message ? last : { key: entry.message, title: null, entries: [] }
+    if (group !== last) groups.push(group)
+    if (entry.kind === 'text' && group.title === null) group.title = headline(entry.text)
+    else group.entries.push(entry)
+  }
+  return groups
+}
+
+/** The sentence as a heading: its first line, without Markdown marks. */
+function headline(text: string): string {
+  return (text.trim().split('\n')[0] ?? '').replace(/[*_`#>]/g, '').trim()
+}
+
+/**
+ * One step of the model under the sentence it said before its tool calls ("Reading the file to
+ * find the term dates"): folded to that line with how many calls it made, open while it runs.
+ */
+function StepGroup({
+  group,
+  skillTitles,
+}: {
+  group: Group
+  skillTitles: ReadonlyMap<string, string>
+}) {
+  const [chosen, setChosen] = useState<boolean | null>(null)
+  const steps = group.entries.flatMap((entry) => (entry.kind === 'step' ? [entry.step] : []))
+  const running = steps.some((step) => step.status === 'running')
+  const failed = steps.some((step) => step.status === 'error')
+  if (steps.length === 0) {
+    return (
+      <>
+        <Markdown
+          text={group.title ?? ''}
+          citations={NO_CITATIONS}
+          className="text-muted-foreground"
+        />
+        {group.entries.map((entry) => (
+          <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
+        ))}
+      </>
+    )
+  }
+  const icon = running ? <Loader2 className="animate-spin" /> : failed ? <AlertCircle /> : <Check />
+  return (
+    <TraceCollapsible open={chosen ?? running} onOpenChange={setChosen}>
+      <TraceCollapsibleTrigger>
+        <TraceLine status={running ? 'running' : failed ? 'error' : undefined}>
+          <TraceIcon>{icon}</TraceIcon>
+          <TraceTitle className="text-foreground">{group.title}</TraceTitle>
+          <TraceDescription>
+            {steps.length === 1
+              ? m.assistant_thought_one_step()
+              : m.assistant_thought_steps({ count: steps.length })}
+          </TraceDescription>
+        </TraceLine>
+      </TraceCollapsibleTrigger>
+      <TraceCollapsibleContent className="flex flex-col gap-3 border-l pl-4">
+        {group.entries.map((entry) => (
+          <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
+        ))}
+      </TraceCollapsibleContent>
+    </TraceCollapsible>
+  )
+}
+
 function summary(thinkingMs: number | null, steps: number, changes: number): string {
   const parts: string[] = []
   if (thinkingMs !== null) {
@@ -200,21 +288,13 @@ export function Thinking({
         <TraceCollapsible open={chosen ?? thinking} onOpenChange={setChosen}>
           <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
           <TraceCollapsibleContent className="flex flex-col gap-3">
-            {entries.map((entry) =>
-              entry.kind === 'step' ? (
-                <StepRow
-                  key={entry.key}
-                  step={entry.step}
-                  status={entry.step.status as Shown}
-                  skillTitles={skillTitles}
-                />
+            {groupBySteps(entries).map((group) =>
+              group.title === null ? (
+                group.entries.map((entry) => (
+                  <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
+                ))
               ) : (
-                <Markdown
-                  key={entry.key}
-                  text={entry.text}
-                  citations={NO_CITATIONS}
-                  className="text-muted-foreground"
-                />
+                <StepGroup key={group.key} group={group} skillTitles={skillTitles} />
               ),
             )}
           </TraceCollapsibleContent>
