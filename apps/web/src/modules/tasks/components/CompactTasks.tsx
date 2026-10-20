@@ -7,7 +7,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
-import { PriorityFlag } from './TaskRow'
+import { TaskPriority } from './priority'
 
 /** The tasks of a board card: check them off, nothing else. */
 export function CompactTasks({
@@ -45,7 +45,7 @@ export function CompactTasks({
             onCheckedChange={(checked) => void actions.complete(task.id, checked)}
           />
           <span className="min-w-0 flex-1 truncate text-sm">{task.title}</span>
-          <PriorityFlag priority={task.priority} />
+          <TaskPriority priority={task.priority} />
           {task.due_date ? (
             <span
               className={cn(

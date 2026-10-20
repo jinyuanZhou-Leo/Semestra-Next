@@ -51,13 +51,14 @@ type Log = {
   creates: Record<string, unknown>[]
   completes: { id: string; body: unknown }[]
   updates: { id: string; body: Record<string, unknown> }[]
+  deletes: string[]
 }
 let log: Log
 let items: Task[]
 let lists: TaskList[]
 
 beforeEach(() => {
-  log = { creates: [], completes: [], updates: [] }
+  log = { creates: [], completes: [], updates: [], deletes: [] }
   items = [task({ id: 't1', title: 'Read chapter 3' }), task({ id: 't2', title: 'Lab report' })]
   lists = []
   server.use(
@@ -99,6 +100,11 @@ beforeEach(() => {
       const next = { ...current, ...body } as Task
       items = items.map((t) => (t.id === next.id ? next : t))
       return HttpResponse.json(next)
+    }),
+    http.delete(`${API}/tasks/:id`, ({ params }) => {
+      log.deletes.push(String(params.id))
+      items = items.filter((t) => t.id !== params.id)
+      return new HttpResponse(null, { status: 204 })
     }),
     http.post(`${API}/tasks/:id\\:complete`, async ({ params, request }) => {
       const body = await request.json()
@@ -192,6 +198,85 @@ test('clicking a title edits it in place without opening the side panel', async 
   await waitFor(() => expect(log.updates).toHaveLength(1))
   expect(log.updates[0]).toEqual({ id: 't2', body: { title: 'Lab report v2' } })
   expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull()
+})
+
+test('an open row shows notes and chips; opening another row saves it first', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Read chapter 3' }))
+  const notes = screen.getByRole('textbox', { name: 'Notes' })
+  expect(screen.getByRole('button', { name: 'Date' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Priority' })).toBeTruthy()
+  await userEvent.type(notes, 'Sections 3.1 to 3.4')
+  // Only one row is open: opening the next one closes and saves this one.
+  await userEvent.click(screen.getByRole('button', { name: 'Edit title: Lab report' }))
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't1', body: { notes: 'Sections 3.1 to 3.4' } })
+  expect(screen.getAllByRole('textbox', { name: 'Title' })).toHaveLength(1)
+  expect((screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement).value).toBe(
+    'Lab report',
+  )
+})
+
+test('Esc throws away the edit, and a chip saves right away', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  const input = screen.getByRole('textbox', { name: 'Title' })
+  await userEvent.type(input, ' draft')
+  const row = input.closest('li')!
+  await userEvent.click(within(row).getByRole('button', { name: 'Flag', pressed: false }))
+  await waitFor(() => expect(log.updates).toHaveLength(1))
+  expect(log.updates[0]).toEqual({ id: 't2', body: { flagged: true } })
+  await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), '{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(log.updates).toHaveLength(1)
+})
+
+test('clicking outside saves; a title left empty deletes the task without asking', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  await userEvent.clear(screen.getByRole('textbox', { name: 'Title' }))
+  await userEvent.click(document.body)
+  await waitFor(() => expect(log.deletes).toEqual(['t2']))
+  expect(screen.queryByRole('alertdialog')).toBeNull()
+  expect(log.updates).toHaveLength(0)
+})
+
+test('checking off a row being edited keeps what was typed', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(log.completes).toHaveLength(1)
+})
+
+test('Esc on a chip closes the row, and focus goes back to its title', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
+  screen.getByRole('button', { name: 'Date' }).focus()
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'Edit title: Lab report' }),
+  )
+  // Enter on the title opens it again; Enter in the field saves and gives focus back.
+  await userEvent.keyboard('{Enter}')
+  await userEvent.keyboard('{End} v2{Enter}')
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  expect(document.activeElement?.getAttribute('aria-label')).toMatch(/^Edit title: Lab report/)
+})
+
+test('the empty row at the end adds tasks one after another', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'New task' }))
+  const input = screen.getByRole('textbox', { name: 'New task' })
+  await userEvent.type(input, 'Problem set 4{Enter}')
+  await waitFor(() => expect(log.creates).toHaveLength(1))
+  expect(log.creates[0]).toMatchObject({ title: 'Problem set 4' })
+  // The field stays open for the next one; Esc drops what was typed.
+  await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Never mind{Escape}')
+  expect(screen.queryByRole('textbox', { name: 'New task' })).toBeNull()
+  expect(log.creates).toHaveLength(1)
 })
 
 test('"Edit details" opens the side panel, and saving closes it', async () => {
