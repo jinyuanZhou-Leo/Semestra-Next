@@ -6,9 +6,10 @@ item's `result.error_code` on commit.
 """
 
 from datetime import date, datetime, time
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from semestra.modules.academics.schemas import Credits, Id, Instructor
 
@@ -28,6 +29,7 @@ ItemType = Literal[
 Decision = Literal["accept", "reject", "pending"]
 Confidence = Literal["high", "medium", "low"]
 TargetKind = Literal["term_wizard", "term", "course"]
+MAX_WAIT_SECONDS = 25
 
 # `item:<id>` (a course item of the same session) or `course:<id>` (an existing course).
 CourseRef = Annotated[str, Field(pattern=r"^(item|course):[A-Za-z0-9-]{1,64}$")]
@@ -352,6 +354,11 @@ class SessionGetInput(BaseModel):
     limit: Annotated[int, Field(ge=1, le=500)] | None = Field(
         default=None, description="Items per page (agent/MCP default 25; HTTP: all)"
     )
+    wait_seconds: Annotated[int, Field(ge=0, le=MAX_WAIT_SECONDS)] = Field(
+        default=0,
+        description="While the import is still extracting, wait up to this long for it to "
+        "finish before answering",
+    )
 
 
 class SessionListInput(BaseModel):
@@ -380,6 +387,13 @@ class BulkDecideInput(BaseModel):
         default=None, description="Only items with one of these issues"
     )
     item_ids: list[Id] | None = Field(default=None, description="Only these items")
+
+    @model_validator(mode="after")
+    def _some_filter(self) -> Self:
+        # Without a filter every item of the import would change at once.
+        if self.types is None and self.issue_codes is None and self.item_ids is None:
+            raise PydanticCustomError("filter_required", "Give types, issue_codes or item_ids")
+        return self
 
 
 class BulkDecideResult(BaseModel):
@@ -432,6 +446,28 @@ class AssessmentFields(AssessmentData, _Strict):
 
 class TaskFields(TaskData, _Strict):
     pass
+
+
+class AssessmentPatchFields(AssessmentPatchData, _Strict):
+    pass
+
+
+class TaskPatchFields(TaskPatchData, _Strict):
+    pass
+
+
+# What `imports.item.update` checks a changed item against: the same strict models as add_many.
+STRICT_MODELS: dict[str, type[BaseModel]] = {
+    "course": CourseFields,
+    "course_patch": CoursePatchFields,
+    "assessment_patch": AssessmentPatchFields,
+    "task_patch": TaskPatchFields,
+    "meeting": MeetingFields,
+    "event": EventFields,
+    "category": CategoryFields,
+    "assessment": AssessmentFields,
+    "task": TaskFields,
+}
 
 
 class _AddedItem(_Strict):
