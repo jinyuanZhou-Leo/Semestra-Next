@@ -1,6 +1,7 @@
 import {
   DndContext,
   type DragEndEvent,
+  type DragStartEvent,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -41,6 +42,7 @@ import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TasksViewMenu, useTaskSelection } from '../components/TasksSidebar'
+import { VirtualTaskList } from '../components/VirtualTaskList'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
@@ -103,6 +105,7 @@ export default function TasksPage({ scope }: PageProps) {
   // The one row open for editing in place; `new` is the empty row at the end of the list.
   const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
   const quickAdd = useRef<HTMLInputElement>(null)
   const sensors = useSensors(
@@ -217,7 +220,9 @@ export default function TasksPage({ scope }: PageProps) {
       />
     ) : null
 
+  const onDragStart = ({ active }: DragStartEvent) => setDraggingId(String(active.id))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDraggingId(null)
     if (!over || active.id === over.id) return
     const ids = open.map((t) => t.id)
     const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
@@ -332,30 +337,42 @@ export default function TasksPage({ scope }: PageProps) {
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
+                  onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
+                  onDragCancel={() => setDraggingId(null)}
                 >
                   <SortableContext
                     items={open.map((t) => t.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <ul>
-                      {open.map((task) => (
-                        <SortableTaskRow key={task.id} {...rowProps(task)} />
-                      ))}
-                      {newRow}
-                    </ul>
+                    <VirtualTaskList
+                      tasks={open}
+                      keepId={draggingId ?? editing?.id}
+                      scrollToId={selectedId}
+                      renderRow={(task, row) => (
+                        <SortableTaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                      )}
+                    />
                   </SortableContext>
                 </DndContext>
-              ) : (
-                <ul>
-                  {(completedView ? [] : open).map((task) => (
-                    <TaskRow key={task.id} {...rowProps(task)} />
-                  ))}
-                  {completedView ? null : newRow}
-                </ul>
+              ) : completedView ? null : (
+                <VirtualTaskList
+                  tasks={open}
+                  keepId={editing?.id}
+                  scrollToId={selectedId}
+                  renderRow={(task, row) => (
+                    <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                  )}
+                />
               )}
+              {completedView || !newRow ? null : <ul>{newRow}</ul>}
               {completedView ? (
-                <CompletedRows rows={done} rowProps={rowProps} onClear={() => setClearing(true)} />
+                <CompletedRows
+                  rows={done}
+                  rowProps={rowProps}
+                  editingId={editing?.id}
+                  onClear={() => setClearing(true)}
+                />
               ) : completedView || done.length === 0 ? null : (
                 <Collapsible
                   open={doneOpen}
@@ -380,11 +397,13 @@ export default function TasksPage({ scope }: PageProps) {
                     ) : null}
                   </div>
                   <CollapsibleContent>
-                    <ul>
-                      {done.map((task) => (
-                        <TaskRow key={task.id} {...rowProps(task)} />
-                      ))}
-                    </ul>
+                    <VirtualTaskList
+                      tasks={done}
+                      keepId={editing?.id}
+                      renderRow={(task, row) => (
+                        <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                      )}
+                    />
                   </CollapsibleContent>
                 </Collapsible>
               )}
@@ -439,10 +458,12 @@ export default function TasksPage({ scope }: PageProps) {
 function CompletedRows({
   rows,
   rowProps,
+  editingId,
   onClear,
 }: {
   rows: readonly Task[]
   rowProps: (task: Task) => React.ComponentProps<typeof TaskRow>
+  editingId: string | undefined
   onClear: () => void
 }) {
   if (rows.length === 0) {
@@ -459,11 +480,11 @@ function CompletedRows({
   }
   return (
     <>
-      <ul>
-        {rows.map((task) => (
-          <TaskRow key={task.id} {...rowProps(task)} />
-        ))}
-      </ul>
+      <VirtualTaskList
+        tasks={rows}
+        keepId={editingId}
+        renderRow={(task, row) => <TaskRow key={task.id} {...rowProps(task)} virtual={row} />}
+      />
       <div className="px-2">
         <Button variant="destructive" size="sm" onClick={onClear}>
           {m.tasks_clear_completed()}
