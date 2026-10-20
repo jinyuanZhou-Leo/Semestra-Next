@@ -733,7 +733,9 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
     ]
     changes: list[dict[str, Any]] = []
     courses = [
-        str(i.data.get("code") or i.data.get("title")) for i in waiting if i.type == "course"
+        str(name)
+        for i in waiting
+        if i.type == "course" and (name := i.data.get("code") or i.data.get("title"))
     ]
     if courses:
         changes.append({"field": "import_course", "after": courses})
@@ -745,6 +747,9 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
     rejected = sum(1 for i in items if i.decision == "reject")
     if rejected:
         changes.append({"field": "import_rejected", "after": rejected})
+    pending = sum(1 for i in items if i.decision == "pending")
+    if pending:
+        changes.append({"field": "import_pending", "after": pending})
     issues = sum(len(i.issues) for i in waiting)
     if issues:
         changes.append({"field": "import_issues", "after": issues})

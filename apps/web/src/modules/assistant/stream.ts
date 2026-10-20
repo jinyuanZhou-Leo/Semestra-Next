@@ -2,7 +2,6 @@ import type { AgentProposalOut } from '@semestra/api-client'
 import { csrfHeaders, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
-/** A file quoted by a tool result (M07); `[[cite:<id>]]` in the answer points at it. */
 /** What the server tells the chat about one tool call: names behind its ids, and counts. */
 export type StepDisplay = {
   /** What it was about, by name (a term, a course code, a file). */
@@ -18,6 +17,7 @@ export type StepDisplay = {
   issues?: number
 }
 
+/** A file quoted by a tool result (M07); `[[cite:<id>]]` in the answer points at it. */
 export type Citation = {
   id: string
   title?: string

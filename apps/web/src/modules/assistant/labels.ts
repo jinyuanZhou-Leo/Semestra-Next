@@ -1,6 +1,9 @@
 import * as messages from '@/paraglide/messages'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
+import { formatDate } from '@/lib/format'
+import { TYPE_LABELS } from '@/modules/imports/labels'
+import type { ItemType } from '@/modules/imports/types'
 import type { Step } from './transcript'
 
 const byKey = messages as unknown as Record<string, (() => string) | undefined>
@@ -29,6 +32,8 @@ export function skillTitle(
 }
 
 const ID_ARG = /(^id$|^fields$|_ids?$)/
+/** Paging arguments: pages are on the step's line, the rest is plumbing. */
+const PAGING_ARG = /^(page_from|page_to|cursor|limit|offset)$/
 
 /**
  * Arguments as people read them: without ids (the step names them) and without objects that
@@ -52,7 +57,7 @@ export function plainValue(value: unknown): unknown {
 
 export function plainArgs(args: Record<string, unknown>): [string, unknown][] {
   return Object.entries(args)
-    .filter(([key]) => !ID_ARG.test(key))
+    .filter(([key]) => !ID_ARG.test(key) && !PAGING_ARG.test(key))
     .map(([key, value]) => [key, plainValue(value)] as [string, unknown])
     .filter(([, value]) => value !== undefined)
 }
@@ -62,10 +67,16 @@ export function fieldLabel(field: string, schemaTitle?: string): string {
   return byKey[`assistant_field_${field}`]?.() ?? schemaTitle ?? field.replaceAll('_', ' ')
 }
 
-/** An error or issue code (`import.outside_term`) in words, else the value itself. */
-function codeText(value: string): string {
-  if (value === 'accept') return m.assistant_value_accept()
-  if (value === 'reject') return m.assistant_value_reject()
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * A string value in words: an import decision (only in the `decision` field), a date in the
+ * UI's format, an error or issue code (`import.outside_term`), else the value itself.
+ */
+function stringText(value: string, field?: string): string {
+  if (field === 'decision' && value === 'accept') return m.assistant_value_accept()
+  if (field === 'decision' && value === 'reject') return m.assistant_value_reject()
+  if (DAY.test(value)) return formatDate(value)
   if (!/^[a-z]+(\.[a-z_]+)+$/.test(value)) return value
   return byKey[`error_${value.replaceAll('.', '_')}`]?.() ?? value
 }
@@ -73,18 +84,26 @@ function codeText(value: string): string {
 function dateRange(record: Record<string, unknown>): string | null {
   const start = record.start_date ?? record.first_date
   const end = record.end_date ?? record.last_date
-  if (typeof start !== 'string') return null
-  return typeof end === 'string' && end !== start ? `${start} – ${end}` : start
+  if (typeof start !== 'string' || !DAY.test(start)) return null
+  if (typeof end !== 'string' || !DAY.test(end) || end === start) return formatDate(start)
+  // Calendar days: formatted in UTC so they keep their own day (as `formatDate` does).
+  return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeZone: 'UTC' }).formatRange(
+    new Date(start),
+    new Date(end),
+  )
 }
 
-/** A value on a card or step: lists as lists, named things by their name, codes in words. */
-export function formatValue(value: unknown): string {
+/**
+ * A value on a card or step: lists as lists, named things by their name, dates and codes in
+ * words. `field` is the name of the field the value is in.
+ */
+export function formatValue(value: unknown, field?: string): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? m.assistant_value_yes() : m.assistant_value_no()
   if (typeof value === 'number') return String(value)
-  if (typeof value === 'string') return codeText(value)
+  if (typeof value === 'string') return stringText(value, field)
   if (Array.isArray(value)) {
-    const parts = value.map(formatValue)
+    const parts = value.map((each) => formatValue(each, field))
     return new Intl.ListFormat(getLocale(), { type: 'unit' }).format(parts)
   }
   if (typeof value === 'object') {
@@ -94,7 +113,7 @@ export function formatValue(value: unknown): string {
     if (typeof name === 'string') return range ? `${name} (${range})` : name
     if (range) return range
     return Object.entries(record)
-      .map(([key, inner]) => `${fieldLabel(key)}: ${formatValue(inner)}`)
+      .map(([key, inner]) => `${fieldLabel(key)}: ${formatValue(inner, key)}`)
       .join('; ')
   }
   return String(value)
@@ -130,7 +149,7 @@ export function stepLine(step: Step, skillTitles: ReadonlyMap<string, string>): 
   }
   const accepted = Object.entries(shown.accepted ?? {}).filter(([, n]) => n > 0)
   for (const [type, count] of accepted) {
-    const label = byKey[`imports_type_${type}`]?.() ?? type
+    const label = type in TYPE_LABELS ? TYPE_LABELS[type as ItemType]() : type
     details.push(`${label} ${count}`)
   }
   if (shown.changed !== undefined) {

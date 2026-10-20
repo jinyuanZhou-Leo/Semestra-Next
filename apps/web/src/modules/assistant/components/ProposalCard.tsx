@@ -182,7 +182,7 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
             {'before' in change ? (
               <>
                 <span className="text-muted-foreground line-through">
-                  {formatValue(change.before)}
+                  {formatValue(change.before, change.field)}
                 </span>
                 <ArrowRight
                   aria-label={m.assistant_proposal_becomes()}
@@ -190,7 +190,7 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
                 />
               </>
             ) : null}
-            <span className="font-medium">{formatValue(change.after)}</span>
+            <span className="font-medium">{formatValue(change.after, change.field)}</span>
           </dd>
         </div>
       ))}
