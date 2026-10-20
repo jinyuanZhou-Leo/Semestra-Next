@@ -290,12 +290,14 @@ async def test_agent_reads_stop_at_a_page_boundary_and_carry_citations(
 ):
     from semestra.core.capability import registry
     from semestra.core.context import system_ctx
+    from semestra.modules.agent.tools import serialize
     from semestra.modules.files import documents
     from semestra.modules.files.schemas import DocumentRead
 
-    budget = 1000
-    monkeypatch.setattr(documents, "READ_CHAR_BUDGET", budget)
-    long_page = "\n".join(["word " * 10] * 12)  # about 600 characters: one page per read
+    budget = 1500
+    monkeypatch.setattr(documents, "READ_RESULT_BUDGET", budget)
+    # About 600 characters of markdown and 200 of snippet each: one page per read.
+    long_page = "\n".join(["word " * 10] * 12)
     item = await fx.upload_ready("long.pdf", make_pdf([long_page] * 4))
     full = await fx.call("GET", f"/files/{item['id']}/document")
     assert len(full["pages"]) == 4  # the app reads its whole window
@@ -304,7 +306,8 @@ async def test_agent_reads_stop_at_a_page_boundary_and_carry_citations(
     async with system_ctx(fx.app.state, fx.user.id) as ctx:
         out = await registry.invoke(ctx, "files.document.read", {"item_id": item["id"]}, "agent")
     assert isinstance(out, DocumentRead)
-    assert sum(len(p.markdown) for p in out.pages) <= budget
+    assert len(out.pages) == 1
+    assert len(serialize(out)) <= budget
     assert out.next_page == 2
     assert [c.id for c in out.citations] == [p.citation_id for p in out.pages]
 
@@ -314,6 +317,23 @@ async def test_agent_reads_stop_at_a_page_boundary_and_carry_citations(
         params={"page_from": 3, "page_to": 2},
         status=422,
     )
+
+
+async def test_agent_reads_of_many_short_pages_fit_one_result(fx: Fx):
+    """Citations add a snippet per page: the budget counts them, not just the markdown."""
+    from semestra.core.capability import registry
+    from semestra.core.context import system_ctx
+    from semestra.modules.agent.tools import RESULT_LIMIT, serialize
+    from semestra.modules.files.schemas import DocumentRead
+
+    page = "\n".join([f"line {n} of a short slide" for n in range(6)])
+    item = await fx.upload_ready("slides.pdf", make_pdf([page] * 30))
+    async with system_ctx(fx.app.state, fx.user.id) as ctx:
+        out = await registry.invoke(ctx, "files.document.read", {"item_id": item["id"]}, "agent")
+    assert isinstance(out, DocumentRead)
+    assert len(serialize(out)) <= RESULT_LIMIT
+    assert out.next_page is not None
+    assert out.next_page == out.pages[-1].page_no + 1
 
 
 async def test_other_users_files_are_invisible(fx: Fx, make_user: MakeUser, login_as: LoginAs):

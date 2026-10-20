@@ -1,7 +1,9 @@
 """Reading parsed documents (M07 §3.3), for M08's extraction and the agent."""
 
+import json
 import re
 
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
@@ -10,7 +12,7 @@ from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.schemas import (
     MAX_READ_PAGES,
-    READ_CHAR_BUDGET,
+    READ_RESULT_BUDGET,
     Citation,
     DocumentOutline,
     DocumentPage,
@@ -56,19 +58,6 @@ async def read_document(
             .order_by(FilesDocumentPage.page_no)
         )
     ).all()
-    if ctx.surface != "http":
-        # The assistant's results are cut at a fixed size: stop at a page boundary before that,
-        # so next_page is the only paging it needs. The first page always comes back.
-        kept: list[FilesDocumentPage] = []
-        used = 0
-        for row in rows:
-            if kept and used + len(row.markdown) > READ_CHAR_BUDGET:
-                break
-            kept.append(row)
-            used += len(row.markdown)
-        if len(kept) < len(rows):
-            last = kept[-1].page_no
-        rows = kept
     pages = [
         DocumentPage(
             page_no=r.page_no,
@@ -78,24 +67,44 @@ async def read_document(
         )
         for r in rows
     ]
-    return DocumentRead(
+    citations = [
+        Citation(
+            id=p.citation_id,
+            title=item.display_name,
+            item_id=item.id,
+            page_from=p.page_no,
+            page_to=p.page_no,
+            snippet=_snippet(p.markdown),
+        )
+        for p in pages
+    ]
+    result = DocumentRead(
         item_id=item.id,
         display_name=item.display_name,
         page_count=document.page_count,
         pages=pages,
         next_page=last + 1 if last < document.page_count else None,
-        citations=[
-            Citation(
-                id=p.citation_id,
-                title=item.display_name,
-                item_id=item.id,
-                page_from=p.page_no,
-                page_to=p.page_no,
-                snippet=_snippet(p.markdown),
-            )
-            for p in pages
-        ],
+        citations=citations,
     )
+    if ctx.surface != "http":
+        # The assistant's results are cut at a fixed size: stop at a page boundary before that,
+        # so next_page is the only paging it needs. The first page always comes back.
+        used = _size(result.model_copy(update={"pages": [], "citations": []}))
+        kept = 0
+        for page, cited in zip(pages, citations, strict=True):
+            used += _size(page) + _size(cited) + 2  # the two list separators
+            if kept and used > READ_RESULT_BUDGET:
+                break
+            kept += 1
+        if kept < len(pages):
+            result.pages, result.citations = pages[:kept], citations[:kept]
+            result.next_page = pages[kept].page_no
+    return result
+
+
+def _size(model: BaseModel) -> int:
+    """Characters of a result as the assistant gets it (`agent/tools.py` serialize)."""
+    return len(json.dumps(model.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")))
 
 
 def _snippet(markdown: str) -> str:

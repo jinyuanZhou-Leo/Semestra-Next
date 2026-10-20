@@ -815,6 +815,20 @@ async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastA
     )
     assert found[1].in_current_term is False
 
+    # One course asked for by id still says whether it is in the current term.
+    async with system_ctx(app.state, owner) as ctx:
+        ctx.scope = ScopeRef(program["id"], winter["id"], None)
+        for course, expected in ((new, True), (old, False)):
+            one = candidates(
+                await registry.invoke(
+                    ctx,
+                    "grading.assessment.find",
+                    {"query": "midterm", "course_id": course["id"]},
+                    "agent",
+                )
+            )
+            assert [c.in_current_term for c in one] == [expected]
+
 
 async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Api, app: FastAPI):
     names = {c.name for c in registry.list(expose="agent") if c.name.startswith("grading.")}

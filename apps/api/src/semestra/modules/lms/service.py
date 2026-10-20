@@ -709,12 +709,10 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     if (
         current is not None
         and not inp.replace
-        and (
-            current.connection_id != connection.id
-            or current.external_course_id != inp.external_course_id
-        )
+        and current.external_course_id != inp.external_course_id
     ):
-        # Replacing drops the tracking of what came through the old link: only on request.
+        # Replacing drops the tracking of what came through the old link: only on request. The
+        # same platform course through a new connection (reconnected) is not a replacement.
         raise lms_error(
             "lms.course_link_exists",
             external_course_id=current.external_course_id,

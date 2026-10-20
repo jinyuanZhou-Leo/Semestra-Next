@@ -860,8 +860,8 @@ export const aiUsageSummarize = <ThrowOnError extends boolean = false>(options?:
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
- * classes are included with status 'cancelled'.
+ * and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+ * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
 export const calendarOccurrenceList = <ThrowOnError extends boolean = false>(options: Options<CalendarOccurrenceListData, ThrowOnError>): RequestResult<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError> => (options.client ?? client).get<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError>({ url: '/programs/{program_id}/calendar', ...options });
@@ -2168,7 +2168,8 @@ export const scheduleMeetingUpdate = <ThrowOnError extends boolean = false>(opti
 /**
  * Show or hide class sections of a course, e.g. keep only the user's tutorial.
  *
- * Disabled sections stay in the course but are left out of the calendar.
+ * Disabled sections stay in the course but are left out of the calendar. Returns
+ * only the sections whose state changed (empty when they already were as asked).
  */
 export const scheduleMeetingSetEnabled = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingSetEnabledData, ThrowOnError>): RequestResult<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError> => (options.client ?? client).put<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError>({
     url: '/courses/{course_id}/meetings:enabled',
@@ -2289,9 +2290,9 @@ export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Op
  * Add to or replace the text of a sticky note.
  *
  * Use when the user asks to jot something down in a note ("note the midterm scope
- * in this course's sticky"): by default (mode append) the lines go after the note's text. To rewrite
- * or delete text, read the note first and send the whole new text with mode replace. At most 10 000
- * characters.
+ * in this course's sticky"): by default (mode append) the lines go after the note's text, so the
+ * same call made twice adds them twice. To rewrite or delete text, read the note first and send the
+ * whole new text with mode replace. At most 10 000 characters.
  */
 export const stickyNoteUpdate = <ThrowOnError extends boolean = false>(options: Options<StickyNoteUpdateData, ThrowOnError>): RequestResult<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError> => (options.client ?? client).put<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError>({
     url: '/sticky/notes/{instance_id}',

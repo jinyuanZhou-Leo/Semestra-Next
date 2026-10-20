@@ -31,9 +31,9 @@ async def note_list(ctx: Ctx, inp: NoteListInput) -> NoteList:
     name="sticky.note.update",
     summary="Add to or replace the text of a sticky note.",
     description="""Use when the user asks to jot something down in a note ("note the midterm scope
-in this course's sticky"): by default (mode append) the lines go after the note's text. To rewrite
-or delete text, read the note first and send the whole new text with mode replace. At most 10 000
-characters.""",
+in this course's sticky"): by default (mode append) the lines go after the note's text, so the
+same call made twice adds them twice. To rewrite or delete text, read the note first and send the
+whole new text with mode replace. At most 10 000 characters.""",
     effect="write",
     http=Http("PUT", "/sticky/notes/{instance_id}"),
     tags=TAGS,

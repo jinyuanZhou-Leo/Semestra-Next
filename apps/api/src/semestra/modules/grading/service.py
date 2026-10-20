@@ -826,8 +826,12 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
     names: dict[str, tuple[str | None, str]] = {}  # course id → (code, title)
     current: set[str] = set()  # courses of each searched Program's current term
     if inp.course_id is not None:
-        course = await academics.get_course_row(ctx, inp.course_id)
+        row = await academics.get_course_row(ctx, inp.course_id)
+        course = await academics.course_out(ctx, row)
         names[course.id] = (course.code, course.title)
+        program = await academics.get_program_row(ctx, course.program_id)
+        if await _current_term_id(ctx, program) in course.term_ids:
+            current.add(course.id)
     else:
         program_id = inp.program_id or (scope.program_id if scope else None)
         program_ids = (
@@ -839,13 +843,7 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
             program = await academics.get_program_row(ctx, pid)
             program_courses = await _program_courses(ctx, program.id)
             names |= {c.id: (c.code, c.title) for c in program_courses}
-            term_id = scope.term_id if scope and scope.program_id == program.id else None
-            if term_id is None:
-                term = academic_rules.current_term(
-                    await academics.program_terms(ctx, program.id),
-                    academics.program_today(ctx, program),
-                )
-                term_id = term.id if term else None
+            term_id = await _current_term_id(ctx, program)
             current |= {c.id for c in program_courses if term_id in c.term_ids}
     rows_by_course = await _assessment_rows(ctx, list(names))
     focus = scope.course_id if scope else None  # conversations from before scopes stopped at terms
@@ -858,7 +856,9 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
                     0.05 if course_id in current else 0.0
                 )
                 scored.append((score + boost, row))
-    # Ties: the current term first, then the deadline nearest to now (not an old term's).
+    # Ties: the current term first, then the deadline nearest to now, past or future: a deadline
+    # that just passed beats one months away, which suits "the midterm" asked about either side
+    # of it; the score boosts above already keep an old term's same-named assessment below.
     scored.sort(
         key=lambda pair: (
             -pair[0],
@@ -902,6 +902,17 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
             for s, r in top
         ]
     )
+
+
+async def _current_term_id(ctx: Ctx, program: AcademicsProgram) -> str | None:
+    """The term the conversation is in when it belongs to this Program, else the current one."""
+    scope = ctx.scope
+    if scope and scope.program_id == program.id and scope.term_id:
+        return scope.term_id
+    term = academic_rules.current_term(
+        await academics.program_terms(ctx, program.id), academics.program_today(ctx, program)
+    )
+    return term.id if term else None
 
 
 async def assessment_deadlines(

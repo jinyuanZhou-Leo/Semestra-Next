@@ -1817,8 +1817,8 @@ export const calendarOccurrenceListQueryKey = (options: Options<CalendarOccurren
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
- * classes are included with status 'cancelled'.
+ * and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+ * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
 export const calendarOccurrenceListOptions = (options: Options<CalendarOccurrenceListData>) => queryOptions<CalendarOccurrenceListResponse, CalendarOccurrenceListError, CalendarOccurrenceListResponse, ReturnType<typeof calendarOccurrenceListQueryKey>>({
@@ -1841,8 +1841,8 @@ export const calendarOccurrenceListInfiniteQueryKey = (options: Options<Calendar
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
- * classes are included with status 'cancelled'.
+ * and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+ * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
 export const calendarOccurrenceListInfiniteOptions = (options: Options<CalendarOccurrenceListData>) => {
@@ -4478,7 +4478,8 @@ export const scheduleMeetingUpdateMutation = (options?: Partial<Options<Schedule
 /**
  * Show or hide class sections of a course, e.g. keep only the user's tutorial.
  *
- * Disabled sections stay in the course but are left out of the calendar.
+ * Disabled sections stay in the course but are left out of the calendar. Returns
+ * only the sections whose state changed (empty when they already were as asked).
  */
 export const scheduleMeetingSetEnabledMutation = (options?: Partial<Options<ScheduleMeetingSetEnabledData>>): UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> => {
     const mutationOptions: UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> = {
@@ -4688,9 +4689,9 @@ export const stickyNoteListOptions = (options: Options<StickyNoteListData>) => q
  * Add to or replace the text of a sticky note.
  *
  * Use when the user asks to jot something down in a note ("note the midterm scope
- * in this course's sticky"): by default (mode append) the lines go after the note's text. To rewrite
- * or delete text, read the note first and send the whole new text with mode replace. At most 10 000
- * characters.
+ * in this course's sticky"): by default (mode append) the lines go after the note's text, so the
+ * same call made twice adds them twice. To rewrite or delete text, read the note first and send the
+ * whole new text with mode replace. At most 10 000 characters.
  */
 export const stickyNoteUpdateMutation = (options?: Partial<Options<StickyNoteUpdateData>>): UseMutationOptions<StickyNoteUpdateResponse, StickyNoteUpdateError, Options<StickyNoteUpdateData>> => {
     const mutationOptions: UseMutationOptions<StickyNoteUpdateResponse, StickyNoteUpdateError, Options<StickyNoteUpdateData>> = {

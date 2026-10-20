@@ -3,8 +3,10 @@ import { CalendarDays, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
+import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -108,6 +110,8 @@ export function TaskDetail({
   useHotkey('mod+enter', () => void save(), { allowInInputs: true })
 
   const source = task.source_kind && task.source_kind !== 'manual' ? task.source_kind : null
+  // An assessment's task follows it: its title, due date and course change in the gradebook.
+  const managed = task.source_kind === 'assessment'
   const listName = (list: TaskList) => list.name
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -123,6 +127,7 @@ export function TaskDetail({
             value={draft.title}
             maxLength={300}
             aria-invalid={!valid}
+            readOnly={managed}
             onChange={(event) => set('title', event.target.value)}
           />
           <Field>
@@ -141,6 +146,7 @@ export function TaskDetail({
             <div className="flex items-center gap-2">
               <Popover>
                 <PopoverTrigger
+                  disabled={managed}
                   render={<Button variant="outline" className="flex-1 justify-start font-normal" />}
                 >
                   <CalendarDays aria-hidden />
@@ -159,11 +165,11 @@ export function TaskDetail({
                 type="time"
                 aria-label={m.tasks_due_time_label()}
                 className="w-28"
-                disabled={!draft.due_date}
+                disabled={managed || !draft.due_date}
                 value={draft.due_time ?? ''}
                 onChange={(event) => set('due_time', event.target.value || null)}
               />
-              {draft.due_date ? (
+              {draft.due_date && !managed ? (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -240,6 +246,7 @@ export function TaskDetail({
             <FieldLabel htmlFor="task-course">{m.tasks_course_label()}</FieldLabel>
             <Select
               value={draft.course_id}
+              disabled={managed}
               onValueChange={(value) => set('course_id', value)}
               items={[
                 { value: null, label: m.tasks_course_none() },
@@ -266,7 +273,20 @@ export function TaskDetail({
               </SelectContent>
             </Select>
           </Field>
-          {source ? (
+          {managed ? (
+            <p className="text-xs text-muted-foreground">
+              {m.tasks_managed_note()}{' '}
+              {task.course_id ? (
+                <HistoryLink
+                  href={coursePath(task.program_id, task.course_id, 'grades')}
+                  onClick={onClose}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {m.tasks_managed_open()}
+                </HistoryLink>
+              ) : null}
+            </p>
+          ) : source ? (
             <p className="text-xs text-muted-foreground">
               {m.tasks_source({ source: SOURCE_NAMES[source]?.() ?? source })}
             </p>

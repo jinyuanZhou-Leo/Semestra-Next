@@ -536,6 +536,7 @@ async def delete_meeting(ctx: Ctx, meeting_id: str) -> None:
 async def set_enabled(
     ctx: Ctx, course_id: str, meeting_ids: Sequence[str], enabled: bool
 ) -> list[Meeting]:
+    """The sections whose state changed (none when they all already were)."""
     course = await academics.get_course_row(ctx, course_id)
     rows = (
         await ctx.db.scalars(
@@ -560,7 +561,8 @@ async def set_enabled(
             "schedule.meeting.updated",
             {"course_id": course.id, "meeting_ids": [r.id for r in changed], "fields": ["enabled"]},
         )
-    return await list_meetings(ctx, course.id, None)
+    ids = {r.id for r in changed}
+    return [m for m in await list_meetings(ctx, course.id, None) if m.id in ids]
 
 
 async def _meeting_dates(
@@ -1059,6 +1061,8 @@ async def occurrences(
             raise not_found()
     q = _query(program, inp.start, inp.end, inp.term_id, inp.course_ids, max_days=max_days)
     items = await collect(ctx, q, inp.sources)
+    if inp.kinds is not None:
+        items = [o for o in items if o.kind in inp.kinds]
     weeks, breaks = await _weeks_and_breaks(
         ctx, program.id, inp.start, inp.end - timedelta(days=1), inp.term_id
     )

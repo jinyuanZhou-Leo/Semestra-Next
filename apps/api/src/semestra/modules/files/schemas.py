@@ -12,7 +12,9 @@ SearchMode = Literal["hybrid", "keyword", "semantic"]
 
 MAX_FOLDER_DEPTH = 3
 MAX_READ_PAGES = 30
-READ_CHAR_BUDGET = 10_000  # agent/MCP reads stop before this many characters of markdown
+# Agent/MCP reads stop before their JSON (pages and citations) grows past this many characters,
+# below the assistant's 12 000-character result pages (`agent/tools.py` RESULT_LIMIT).
+READ_RESULT_BUDGET = 9_000
 MAX_PAGES = 500
 
 
@@ -153,7 +155,7 @@ class DocumentReadInput(BaseModel):
     page_to: Annotated[int, Field(ge=1)] | None = Field(
         default=None,
         description=f"Last page; at most {MAX_READ_PAGES} pages, and for the assistant about "
-        f"{READ_CHAR_BUDGET} characters, are returned per call",
+        f"{READ_RESULT_BUDGET} characters, are returned per call",
     )
 
 

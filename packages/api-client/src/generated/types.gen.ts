@@ -12754,6 +12754,12 @@ export type CalendarOccurrenceListData = {
          * Only these courses
          */
         course_ids?: Array<string> | null;
+        /**
+         * Kinds
+         *
+         * Only these kinds: class, event, deadline, task; all by default
+         */
+        kinds?: Array<'class' | 'event' | 'deadline' | 'task'> | null;
     };
     url: '/programs/{program_id}/calendar';
 };
@@ -12999,7 +13005,7 @@ export type FilesDocumentReadData = {
         /**
          * Page To
          *
-         * Last page; at most 30 pages, and for the assistant about 10000 characters, are returned per call
+         * Last page; at most 30 pages, and for the assistant about 9000 characters, are returned per call
          */
         page_to?: number | null;
     };

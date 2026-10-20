@@ -510,7 +510,9 @@ def _label(settings: dict[str, Any]) -> str | None:
 async def list_program_cards(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
     """Every card on the boards of a Program (its overview, Today, its terms and courses), so
     the assistant finds a card without guessing its board. Generated boards are read, not
-    stored."""
+    stored. Courses have no archived state, so every course of every term is searched: one board
+    read each (a few queries), fine for a Program's tens of courses; past terms are kept because
+    the user may name a card on one."""
     from semestra.modules.academics import service as academics
     from semestra.modules.academics.schemas import CourseListInput
 

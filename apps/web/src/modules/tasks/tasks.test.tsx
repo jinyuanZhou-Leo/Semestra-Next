@@ -291,6 +291,43 @@ test('"Edit details" opens the side panel, and saving closes it', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull())
 })
 
+test("an assessment's task keeps its title, date and course, and links to the gradebook", async () => {
+  items = [
+    task({
+      id: 't3',
+      title: 'APS105H1 · Midterm',
+      course_id: 'c1',
+      due_date: '2026-03-02',
+      source_kind: 'assessment',
+      source_ref: 'a1',
+    }),
+  ]
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Edit title: APS105H1 · Midterm' }),
+  )
+  const title = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
+  expect(title.readOnly).toBe(true)
+  const row = title.closest('li')!
+  expect(within(row).getByRole('button', { name: /Mar/ })).toHaveProperty('disabled', true)
+  expect(within(row).getByRole('button', { name: 'APS105H1' })).toHaveProperty('disabled', true)
+  // The rest still saves.
+  await userEvent.click(within(row).getByRole('button', { name: 'Flag', pressed: false }))
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't3', body: { flagged: true } }]))
+  await userEvent.type(title, '{Escape}')
+
+  await userEvent.click(screen.getByRole('button', { name: 'More actions for APS105H1 · Midterm' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
+  const sheet = await screen.findByRole('dialog', { name: 'Details' })
+  expect((within(sheet).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).readOnly).toBe(
+    true,
+  )
+  expect(within(sheet).getByRole('combobox', { name: 'Course' })).toHaveProperty('disabled', true)
+  expect(within(sheet).getByRole('link', { name: 'Open the gradebook' }).getAttribute('href')).toBe(
+    '/p/p1/c/c1/grades',
+  )
+})
+
 test('Enter opens the selected task, but a focused button keeps Enter for itself', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   const row = (await screen.findByText('Lab report')).closest('li')!

@@ -96,6 +96,8 @@ async def wait_while_extracting(ctx: Ctx, row: ImportsSession, seconds: int) -> 
                 select(ImportsSession.status).where(ImportsSession.id == row.id)
             )
     if status != row.status:
+        # No rollback first: the driver opens a transaction only for writes, so this read sees the
+        # job's commit, and a rollback would expire what the request already loaded (the user).
         await ctx.db.refresh(row)
 
 
@@ -625,6 +627,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         item.type, item.data = inp.type, _switched(item, inp.type)
         item.confidence = {}
     if inp.data is not None:
+        # Nulls are dropped before validation below, so a misspelt field set to null is caught here.
+        fields = STRICT_MODELS[item.type].model_fields
+        unknown = [name for name in inp.data if name not in fields]
+        if unknown:
+            errors = [{"loc": ["data", name], "code": "extra_forbidden"} for name in unknown]
+            raise AppError("common.validation", 422, errors=errors)
         merged = {**item.data, **inp.data}
         if item.type.endswith("_patch") and "changes" in inp.data:
             merged["changes"] = {**item.data.get("changes", {}), **inp.data["changes"]}

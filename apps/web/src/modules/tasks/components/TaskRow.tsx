@@ -190,6 +190,7 @@ function RowEditor({
         className="block w-full bg-transparent p-0 text-base font-medium outline-none"
         value={title}
         maxLength={300}
+        readOnly={task.source_kind === 'assessment'}
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => keys(event, true)}
       />
@@ -228,6 +229,19 @@ function CourseTag({
 }) {
   const course = courses.find((c) => c.id === task.course_id)
   if (!course) return null
+  // An assessment's task stays in the assessment's course.
+  if (task.source_kind === 'assessment') {
+    return (
+      <Badge variant="outline" className="max-w-40 shrink-0 border-0 bg-muted/70">
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: courseColor(course) }}
+        />
+        <span className="truncate">{courseLabel(course)}</span>
+      </Badge>
+    )
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

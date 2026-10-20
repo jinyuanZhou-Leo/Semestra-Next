@@ -67,8 +67,8 @@ async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
     summary="Everything on the calendar in a date range: classes, events, deadlines, tasks.",
     description="""Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
 overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
-and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
-classes are included with status 'cancelled'.
+and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
 For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/calendar"),
@@ -226,7 +226,8 @@ async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
 @capability(
     name="schedule.meeting.set_enabled",
     summary="Show or hide class sections of a course, e.g. keep only the user's tutorial.",
-    description="Disabled sections stay in the course but are left out of the calendar.",
+    description="""Disabled sections stay in the course but are left out of the calendar. Returns
+only the sections whose state changed (empty when they already were as asked).""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/meetings:enabled"),
     tags=TAGS,
