@@ -1,10 +1,15 @@
 """Static knowledge about provider kinds: capabilities, endpoints, default models, prices."""
 
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal
+
+from genai_prices import Usage, calc_price
+from genai_prices.types import PriceCalculation
 
 from semestra.modules.ai.llm import ProviderCapability, Purpose
 
@@ -102,13 +107,47 @@ def context_window(model: str) -> int:
     return int(found) if found is not None else default
 
 
+# genai-prices provider ids for the first-party kinds; other kinds are matched by their base URL.
+_PRICE_PROVIDERS: dict[str, str] = {
+    "anthropic": "anthropic",
+    "openai": "openai",
+    "openai_responses": "openai",
+    "gemini": "google",
+}
+
+
 def estimate_cost(
-    kind: str, model: str, input_tokens: int, output_tokens: int, cached_tokens: int | None = None
+    kind: str,
+    base_url: str | None,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cached_tokens: int | None = None,
+    at: datetime | None = None,
 ) -> float | None:
-    """USD estimate, or None when the model has no price. Cached input is not discounted (the
-    discount differs per provider; an overestimate is the safer error)."""
-    del cached_tokens
-    price: dict[str, float] | None = _longest_prefix(_load("pricing.toml").get(kind, {}), model)
-    if price is None:
-        return None
-    return round((input_tokens * price["input"] + output_tokens * price["output"]) / 1_000_000, 6)
+    """USD estimate from genai-prices (cache reads at their own rate, the price in force at `at`),
+    or None when the provider or model has no known price. Local models (ollama) are free."""
+    if kind == "ollama":
+        return 0.0
+    usage = Usage(
+        input_tokens=input_tokens,
+        cache_read_tokens=min(cached_tokens or 0, input_tokens),
+        output_tokens=output_tokens,
+    )
+    # The endpoint's URL first (it names DeepSeek, OpenRouter and the like), then the kind's own
+    # provider for first-party kinds behind a proxy.
+    lookups: list[Callable[[], PriceCalculation]] = []
+    if base_url:
+        lookups.append(
+            lambda: calc_price(usage, model, provider_api_url=base_url, genai_request_timestamp=at)
+        )
+    if provider_id := _PRICE_PROVIDERS.get(kind):
+        lookups.append(
+            lambda: calc_price(usage, model, provider_id=provider_id, genai_request_timestamp=at)
+        )
+    for lookup in lookups:
+        try:
+            return round(float(lookup().total_price), 6)
+        except LookupError:
+            continue
+    return None

@@ -148,7 +148,18 @@ class AiStatus(BaseModel):
 
 
 class UsageInput(BaseModel):
-    days: int = Field(default=30, ge=1, le=365, description="How many days back to summarise.")
+    days: int | None = Field(
+        default=None,
+        ge=1,
+        le=3660,
+        description="How many days back to summarise, today included; omit for all time.",
+    )
+    start: date | None = Field(
+        default=None, description="First local day to summarise; overrides `days`."
+    )
+    end: date | None = Field(
+        default=None, description="Last local day to summarise (inclusive); defaults to today."
+    )
     tz: str = Field(default="UTC", max_length=64, description="IANA time zone for day buckets.")
 
 
@@ -165,6 +176,7 @@ class UsageTotals(BaseModel):
 class UsageDay(BaseModel):
     date: date
     purpose: Purpose
+    calls: int
     input_tokens: int
     output_tokens: int
     cost_usd: float | None
@@ -175,7 +187,10 @@ class UsageRow(UsageTotals):
 
 
 class UsageSummary(BaseModel):
+    # Start of the first local day covered (for all time: the day of the first call, else today).
     since: datetime
+    # The last local day covered (inclusive).
+    until: date
     totals: UsageTotals
     # False when some calls used a model without a known price (the cost is a lower bound).
     cost_complete: bool

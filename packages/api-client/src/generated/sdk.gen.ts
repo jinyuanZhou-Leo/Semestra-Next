@@ -800,7 +800,7 @@ export const aiStatus = <ThrowOnError extends boolean = false>(options?: Options
 /**
  * Token use and estimated cost by day, purpose, module and model.
  *
- * Defaults to the last 30 days. Not for agents.
+ * Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.
  */
 export const aiUsageSummary = <ThrowOnError extends boolean = false>(options?: Options<AiUsageSummaryData, ThrowOnError>): RequestResult<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError> => (options?.client ?? client).get<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError>({ url: '/ai/usage', ...options });
 

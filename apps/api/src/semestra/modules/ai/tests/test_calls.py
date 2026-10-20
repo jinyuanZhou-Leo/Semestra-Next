@@ -181,7 +181,8 @@ async def test_anthropic_message_conversion_and_usage(ai: Ai, app: FastAPI, mock
         "test",
     )
     assert (row.input_tokens, row.output_tokens, row.cached_tokens) == (20, 3, 8)
-    assert row.cost_usd_estimate == pytest.approx((20 * 3 + 3 * 15) / 1_000_000)
+    # genai-prices: 12 fresh input tokens at $2/M, 8 cache reads at $0.1/M, 3 output at $10/M.
+    assert row.cost_usd_estimate == pytest.approx(round((12 * 2 + 8 * 0.1 + 3 * 10) / 1_000_000, 6))
 
 
 async def test_retries_rate_limits_then_succeeds(ai: Ai, mock: respx.MockRouter):

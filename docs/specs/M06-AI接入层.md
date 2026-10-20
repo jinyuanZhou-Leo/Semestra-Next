@@ -43,7 +43,7 @@ ai_usage_events
   input_tokens, output_tokens, cached_tokens?, cost_usd_estimate?, duration_ms,
   status ('ok'|'error'), error_code?, created_at
 ```
-- 模型价格表 `ai/pricing.toml`（按 provider+model 前缀匹配，每百万 token 输入/输出价格），只用于估算显示；缺失时 cost 为空。
+- 模型价格来自 Pydantic 维护的 `genai-prices` 库（按服务商与模型匹配，缓存读取单独计价，按调用时间取当时的价格），只用于估算显示；找不到价格时 cost 为空。
 - 模型列表：调用提供方的 list models 接口获取（Anthropic/OpenAI/Gemini/Ollama 都有），结果缓存 1 小时；兼容端点失败时允许手填模型名。
 
 ## 4. 解析规则（`resolve_provider(ctx, purpose)`）
@@ -82,7 +82,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 | `ai.provider.models` | read | GET /ai/providers/{id}/models | |
 | `ai.assignment.get/update` | read/write | /ai/assignments | 每个 purpose 的模型选择 |
 | `ai.status` | read | GET /ai/status | 每个 purpose 是否可用、当前使用的模型（前端据此显示/禁用 AI 功能） |
-| `ai.usage.summary` | read | GET /ai/usage | 按日/按用途/按模块汇总 token 与估算费用，默认最近 30 天 |
+| `ai.usage.summary` | read | GET /ai/usage | 按日/按用途/按模块汇总 token 与估算费用，默认全部时间，可用 `days` 或 `start`/`end` 限定 |
 
 以上 capability 全部 `expose=("http",)`：密钥管理不对 agent/MCP 开放。
 
@@ -92,7 +92,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 账户设置的「AI」小标题下各占一页（M11 §5.2）：服务商、模型、用量（以及 M12 的权限、MCP 与工具）。
   - 服务商表（TanStack Table）：每行只显示名称（类型图标、掩码 key、base_url 作副行）、类型、状态（徽标「正常 / 已停用 / 出错」，下面一行是错误原因或最后检查时间；测试中徽标换成 Spinner，两行结构不变，行高不跳；停用的行名称与类型变淡）；行尾一个 `⋯` 图标按钮（Tooltip「更多操作」）打开 DropdownMenu：编辑、测试连接、启用/停用、删除（红色，ConfirmDialog 确认）。表尾一行「添加服务商」；没有服务商时是带说明与主按钮的 `Empty`。添加对话框：选择类型 → 填 key（与 base_url）→ 验证 → 保存。说明文案：key 只用于你自己的请求，加密存储。
   - 用途模型选择：每个 purpose 一行（下拉选择提供方+模型，显示推荐默认值）。
-  - 用量：最近 30 天 token 与估算费用的柱状图（按用途堆叠）+ 明细表。
+  - 用量：右上角切换最近 7 天 / 30 天 / 全部；每日 token 柱状图（按用途堆叠，超过 90 天按周合并，悬停显示当天各用途 token、请求数与费用，点一根柱子明细表只看那一天或那一周）+ 明细表。
 - 全局 Hook：`useAiStatus(purpose)`；组件 `<AiRequired purpose="extraction">…</AiRequired>` 包裹 AI 触发入口：不可用时入口**保持可见但置灰**，悬停或聚焦时提示一句"在设置中连接 AI 后可用"并带"去设置"链接；不渲染大块引导卡片。只有用户主动打开 AI 相关页面（如导入中心的 AI 来源、助手面板）时，才显示完整的引导说明。
 - **UI 规则（所有模块的 AI 界面遵守）**：
   1. **入口在原有流程里**：例如学期向导“导入”菜单中的“从 syllabus 导入”、课程信息里的“从 syllabus 更新”、成绩页“添加考核”旁的“从 syllabus 导入”。不做浮动聊天气泡，不在首页放大号 AI 入口。
@@ -127,7 +127,8 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - **SSRF 防护**：各家 SDK 用的是 `httpx2`（httpx 的分支），`adapters/bridge.py` 给 SDK 一个 `httpx2.AsyncClient`，其传输层把每个请求交给 `safe_client`（`httpx`），所以地址检查、不跟随重定向、忽略代理变量都保持不变，测试也照样用 respx。SDK 自带的重试全部关闭（`max_retries=0`），由本模块统一重试 429、5xx 与连接失败。没有 key 的端点给 SDK 一个占位 key，再由 bridge 去掉鉴权头。
 - `pydantic-ai-slim` 精确锁版本（更新快，升级时跑一遍本模块测试）；`google-genai` 要求 `websockets<17`，所以 `websockets` 放宽到 `>=16`（只有 uvicorn 的 WebSocket 支持用到它）。
 - `get_chat_model()` 是 async 的，返回本模块的 `ChatModel`（`complete(messages, tools)`、`stream(...)`、`supports_tools`、`provider_kind`、`model`），不是 LangChain 的 `BaseChatModel`；M12 在 LangGraph 节点里调用它即可，需要 LangChain 接口时由 M12 写一个薄适配。
-- 默认模型与价格表用 TOML（`defaults.toml`、`pricing.toml`，标准库 `tomllib` 读取），不用 YAML，原因同上。价格与上下文窗口按模型名最长前缀匹配；未知模型上下文窗口按 32k 估算。
+- 默认模型与上下文窗口用 TOML（`defaults.toml`，标准库 `tomllib` 读取），不用 YAML，原因同上；上下文窗口按模型名最长前缀匹配，未知模型按 32k 估算。
+- 费用估算（`catalog.estimate_cost`，2026-10-20 起替换手写的 `pricing.toml`）用 `genai-prices`（pydantic-ai 本来就依赖它，这里显式列出）：先按端点 base URL 认服务商（DeepSeek、OpenRouter 等兼容端点），认不出时第一方 kind 退回到自己的服务商（anthropic/openai/google）；缓存读取的 token 按缓存价；`genai_request_timestamp` 取调用时间。Ollama 记 0；其它找不到价格的模型记空。价格数据随库版本更新，不在运行时联网拉取；旧记录保留写入时的估算。
 - **实例级提供方不入库**：直接由 `SEMESTRA_INSTANCE_AI_*` 环境变量在解析时构造（`resolve.instance_endpoint`），所以 `ai_providers.user_id` 不可为空。实例级提供方没有 id，不出现在提供方列表里，`ai.status` 的 `source` 为 `instance`。
 - 解析规则实现为 `try_resolve` / `resolve_provider`；用户的提供方关闭或不具备能力时跳过；`ai.status` 解析时不解密 key。付费 plan 的预留分支以注释形式在 `resolve.py`。
 - 能力：`anthropic`/`openai`/`gemini` 固定（`catalog.KIND_INFO`）；`anthropic_compatible`、`openai_compatible`、`openai_responses` 与 `ollama` 由用户勾选（默认分别为 chat+tools、chat+tools、chat+tools+structured、chat+tools+structured+embedding）。`capabilities_editable` 字段告诉前端能否修改。三种兼容 kind（`catalog.COMPATIBLE_KINDS`）没有推荐模型，模型列表取不到时允许手填。
@@ -140,13 +141,13 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 用量事件与提供方健康状态（`last_checked_at`、`last_error_code`）由 `AiRuntime`（`app.state.ai`）在后台任务里用独立会话写入，不受调用方事务回滚影响，SQLite 繁忙时重试 3 次；测试里用 `await app.state.ai.drain()` 等待。流式调用被中断时记 `ai.cancelled`。
 - 模型列表缓存 1 小时（进程内）；兼容端点不支持列出模型时 `manual_entry=true`，前端改为手填。
 - `ai.assignment.updated` 在某个用途的**实际生效模型**变化时发布（包括新增、删除、关闭提供方导致的变化），payload `{purpose}`；提供方事件 payload `{provider_id}`。
-- `ai.usage.summary` 参数 `days`（1–365，默认 30）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `totals`、`by_day`（日期×用途）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
+- `ai.usage.summary` 参数 `days`（1–3660，不填为全部时间）、`start`/`end`（本地日期，含两端，`start` 优先于 `days`，`end` 默认今天）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `since`（全部时间时为第一次调用那天）、`until`、`totals`、`by_day`（日期×用途，含请求数）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
 - 日志只记录长度与 token 数；`SEMESTRA_AI_DEBUG_LOG=true` 且非 prod 时把请求与输出写到 `DATA_DIR/ai-debug/`。
 - 新增环境变量已同步到 `deploy/.env.example` 与自部署 compose。
 
 **前端**
 - 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（不可用时入口置灰，外层可聚焦的包装在悬停或点击时显示一句提示和"去设置"链接）、`hooks/use-ai-fill.ts` + `components/AiFieldMark.tsx`（AI 回填表单：字段短暂高亮 2 秒、旁边的小标记显示出处页码与原文、一键恢复原值；用户改动字段后标记消失）。
 - 模块 `modules/ai/`：账户设置「AI」小标题下三个分组（页面）`ai-providers`、`ai-models`、`ai-usage`，各放同名分区；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
-- 用量明细表用 TanStack Table v9；图表是按用途堆叠的 CSS 柱状图，颜色用 `chart-1..5` 令牌。
+- 用量明细表用 TanStack Table v9；图表用 shadcn chart（Recharts）按用途堆叠的柱状图，悬停用 `ChartTooltipContent`，颜色用 `chart-1..5` 令牌。
 - `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。
 
