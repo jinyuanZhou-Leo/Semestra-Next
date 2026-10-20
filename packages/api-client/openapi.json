@@ -6593,7 +6593,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
-        "description": "Only after the user reviewed the import. Writes in dependency order; one item\nfailing does not undo the others (see each item's `result`). Repeating it only retries the\nitems that have not been written. The assistant gets the counts and the items that failed.",
+        "description": "The user reviews the import on its confirmation card; summarise it first.\nWrites in dependency order; one item failing does not undo the others (see each item's\n`result`). Repeating it only retries the items that have not been written. The assistant gets\nthe counts and the items that failed.",
         "operationId": "importsSessionCommit",
         "parameters": [
           {
@@ -7217,10 +7217,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Card instance id (from layouts.board.get)",
+              "description": "Card instance id",
               "title": "Instance Id"
             },
-            "description": "Card instance id (from layouts.board.get)"
+            "description": "Card instance id"
           }
         ],
         "responses": {
@@ -7315,10 +7315,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Card instance id (from layouts.board.get)",
+              "description": "Card instance id",
               "title": "Instance Id"
             },
-            "description": "Card instance id (from layouts.board.get)"
+            "description": "Card instance id"
           }
         ],
         "responses": {
@@ -15813,7 +15813,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Item Ids",
-            "description": "Retry only these items (failed ones); default: all accepted"
+            "description": "Retry only these items (failed ones, `items[].id` of imports.session.get); default: all accepted"
           }
         },
         "type": "object",
@@ -19363,7 +19363,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Parent Id",
-            "description": "Parent folder; null = course root"
+            "description": "Parent folder (from files.item.list); null = course root"
           }
         },
         "type": "object",

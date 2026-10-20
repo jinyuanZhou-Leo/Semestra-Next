@@ -2853,9 +2853,10 @@ export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemU
 /**
  * Write the accepted items of an import (courses, gradebook, schedule, tasks).
  *
- * Only after the user reviewed the import. Writes in dependency order; one item
- * failing does not undo the others (see each item's `result`). Repeating it only retries the
- * items that have not been written. The assistant gets the counts and the items that failed.
+ * The user reviews the import on its confirmation card; summarise it first.
+ * Writes in dependency order; one item failing does not undo the others (see each item's
+ * `result`). Repeating it only retries the items that have not been written. The assistant gets
+ * the counts and the items that failed.
  */
 export const importsSessionCommitMutation = (options?: Partial<Options<ImportsSessionCommitData>>): UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> => {
     const mutationOptions: UseMutationOptions<ImportsSessionCommitResponse, ImportsSessionCommitError, Options<ImportsSessionCommitData>> = {

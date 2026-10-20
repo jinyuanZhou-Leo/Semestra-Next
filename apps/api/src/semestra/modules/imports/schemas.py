@@ -640,7 +640,9 @@ class CommitInput(BaseModel):
         description="Term wizard: the courses it created from the session's course items",
     )
     item_ids: list[Id] | None = Field(
-        default=None, description="Retry only these items (failed ones); default: all accepted"
+        default=None,
+        description="Retry only these items (failed ones, `items[].id` of imports.session.get); "
+        "default: all accepted",
     )
 
 

@@ -234,7 +234,8 @@ def test_skills_list_every_tool_their_text_names():
     names = {c.name for c in available}
     core = {c.name for c in tools.core_capabilities(available)}
     for skill in skills.all_skills():
-        named = set(re.findall(r"`([a-z_]+(?:\.[a-z_]+){2,})`", skill.body)) & names
+        named = set(re.findall(r"`([a-z_]+(?:\.[a-z_]+){2,})`", skill.body))
+        assert named <= names, f"{skill.name} names unknown tools {sorted(named - names)}"
         missing = sorted(named - set(skill.tools) - core)
         assert not missing, f"{skill.name} names {missing} but does not list them"
         # The catalog shows only the description: it has to say when to load the skill.

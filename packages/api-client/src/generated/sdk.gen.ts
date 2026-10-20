@@ -1377,9 +1377,10 @@ export const importsItemUpdate = <ThrowOnError extends boolean = false>(options:
 /**
  * Write the accepted items of an import (courses, gradebook, schedule, tasks).
  *
- * Only after the user reviewed the import. Writes in dependency order; one item
- * failing does not undo the others (see each item's `result`). Repeating it only retries the
- * items that have not been written. The assistant gets the counts and the items that failed.
+ * The user reviews the import on its confirmation card; summarise it first.
+ * Writes in dependency order; one item failing does not undo the others (see each item's
+ * `result`). Repeating it only retries the items that have not been written. The assistant gets
+ * the counts and the items that failed.
  */
 export const importsSessionCommit = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCommitData, ThrowOnError>): RequestResult<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError>({
     url: '/imports/{session_id}:commit',

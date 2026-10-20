@@ -29,6 +29,7 @@ AGENT_SESSION = ("id", "status", "error_code", "source_refs", "summary", "items"
 
 @capability(
     name="imports.session.create",
+    untrusted=True,
     summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
     description=f"""Use when the user shares a syllabus, timetable, ICS file or other document to
 bring into the app ("import this", "set up my courses from this syllabus"). Creates a draft the user
@@ -52,6 +53,7 @@ async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
 
 @capability(
     name="imports.session.get",
+    untrusted=True,
     summary="An import with its items, their issues and the extraction progress.",
     description=f"""Use to see what an import found (courses, assessments, meetings...) and what
 needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
@@ -183,9 +185,10 @@ async def _commit_preview(ctx: Ctx, inp: CommitInput) -> dict[str, Any]:
 @capability(
     name="imports.session.commit",
     summary="Write the accepted items of an import (courses, gradebook, schedule, tasks).",
-    description="""Only after the user reviewed the import. Writes in dependency order; one item
-failing does not undo the others (see each item's `result`). Repeating it only retries the
-items that have not been written. The assistant gets the counts and the items that failed.""",
+    description="""The user reviews the import on its confirmation card; summarise it first.
+Writes in dependency order; one item failing does not undo the others (see each item's
+`result`). Repeating it only retries the items that have not been written. The assistant gets
+the counts and the items that failed.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}:commit"),
     tags=TAGS,

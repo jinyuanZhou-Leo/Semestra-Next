@@ -140,7 +140,9 @@ class LinkCreateInput(BaseModel):
 class FolderCreateInput(BaseModel):
     course_id: Id = Field(description="Course id")
     name: Annotated[str, Field(min_length=1, max_length=100)] = Field(description="Folder name")
-    parent_id: Id | None = Field(default=None, description="Parent folder; null = course root")
+    parent_id: Id | None = Field(
+        default=None, description="Parent folder (from files.item.list); null = course root"
+    )
 
 
 class FolderUpdateInput(BaseModel):

@@ -1817,7 +1817,7 @@ export type CommitInputBody = {
     /**
      * Item Ids
      *
-     * Retry only these items (failed ones); default: all accepted
+     * Retry only these items (failed ones, `items[].id` of imports.session.get); default: all accepted
      */
     item_ids?: Array<string> | null;
 };
@@ -3816,7 +3816,7 @@ export type FolderCreateInputBody = {
     /**
      * Parent Id
      *
-     * Parent folder; null = course root
+     * Parent folder (from files.item.list); null = course root
      */
     parent_id?: string | null;
 };
@@ -14602,7 +14602,7 @@ export type LayoutsCardGetSettingsData = {
         /**
          * Instance Id
          *
-         * Card instance id (from layouts.board.get)
+         * Card instance id
          */
         instance_id: string;
     };
@@ -14666,7 +14666,7 @@ export type LayoutsCardRemoveData = {
         /**
          * Instance Id
          *
-         * Card instance id (from layouts.board.get)
+         * Card instance id
          */
         instance_id: string;
     };

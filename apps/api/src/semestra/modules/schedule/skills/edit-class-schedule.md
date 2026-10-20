@@ -24,8 +24,10 @@ event, `ref.id` of its occurrence or `schedule.event.list`.
 `moved`. Never delete the meeting for this. `schedule.exception.delete` undoes it.
 
 **Every week.** "My lecture is in BA1130 now": `schedule.meeting.update` changes every week of
-the term, past weeks included. When the change starts partway through the term ("from next week
-on"), tell the user the past weeks would change too and ask whether that is fine.
+the term, past weeks included. When the change starts partway through the term ("from week 6
+on"), split the meeting instead: set the old meeting's `end_week` to the week before, and
+`schedule.meeting.create` a copy with the change from that week on (`start_week`; same
+section, weekday, times and repeat).
 
 **New meetings.** `schedule.meeting.create` with the term (a year-long course has a term per
 half), type code (see `schedule.event_type.list`; LEC, PRA, TUT are built in, add others with

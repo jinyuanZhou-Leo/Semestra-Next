@@ -19,7 +19,8 @@ imported instead (`import-from-documents`).
 then act on the best candidate; if two are close, name both and ask.
 
 **The task list itself.** `tasks.item.query` answers "what is flagged", "what is overdue" or
-"what is in the inbox" (tasks in no list); `tasks.item.count` answers "how many" cheaply. For
+"what is in the inbox" (tasks in no list); `tasks.item.count` answers "how many" cheaply. The
+user sees the inbox as "Unsorted" (未归类); call it that, never "inbox". For
 "what is due this week" across tasks, deadlines and classes, use `calendar.occurrence.list`.
 
 **Changing.** Complete with `tasks.item.complete`; to undo, call it with `completed: false`.

@@ -37,10 +37,13 @@ tools one by one.
    (`data` for fields, `decision: "reject"` to leave an item out) or `imports.item.decide_many`
    for many (rejecting a course rejects what belongs to it). A course item's `term_ids` decide
    which existing term it goes into, and its class times follow it.
-5. **Commit.** If issues the user has to decide are still open, ask about them and stop.
-   Otherwise, in the same reply, say what the commit will write (courses, class times,
-   assessments per term, and what you left out) and call `imports.session.commit`; the user
-   confirms on its card. Report `created`, `updated` and `failed`; for failed items say why
+5. **Commit.** These issues make their items fail: `import.date_unresolved`,
+   `import.course_ref_missing`, `import.term_unresolved`, `import.outside_term`,
+   `import.no_teaching_weeks`. Fix them from what you know, reject the item, or ask the user
+   about them and stop. The others (`import.duplicate_*`, weights that do not add up) only need
+   mentioning. Then, in the same reply,
+   say what the commit will write (courses, class times, assessments per term, and what you left
+   out) and call `imports.session.commit`; the user confirms on its card. Report `created`, `updated` and `failed`; for failed items say why
    (`result.error_code`) and offer to fix and commit again (only the failed items are retried).
 6. **Your own findings.** Only for what no importer reads (the user's own words, a format the
    importers refuse): create an import with `source_kind: "agent"`, add items with

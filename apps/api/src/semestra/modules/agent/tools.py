@@ -130,7 +130,9 @@ def input_schema(cap: Capability, surface: Surface = "agent") -> dict[str, Any]:
 
 
 def _name_id_sources(node: Any, own: str, sources: dict[str, str]) -> None:
-    """Adds where an id comes from to every id field whose description does not name a tool."""
+    """Adds where an id comes from to every id field whose description does not name a tool.
+    Runs on descriptions `for_model` already rewrote, so a named tool shows up as `a__b__c`; a
+    dotted name that is not a real capability stays dotted and does not count."""
     if isinstance(node, list):
         for v in node:  # pyright: ignore[reportUnknownVariableType]
             _name_id_sources(v, own, sources)
