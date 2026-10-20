@@ -23,7 +23,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
-import { type DragEvent, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, Suspense, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
@@ -424,6 +424,15 @@ function ThinkingPlaceholder() {
  * Shared by the side panel and the full page. `sessionId` null is a new conversation, created
  * when the first message (or file) is sent.
  */
+function ConversationSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="ml-auto h-9 w-2/3 rounded-3xl" />
+      <Skeleton className="h-16 w-full rounded-2xl" />
+    </div>
+  )
+}
+
 export function Conversation({
   sessionId,
   pageScope,
@@ -628,10 +637,7 @@ export function Conversation({
           <MessageScrollerViewport aria-label={m.assistant_messages_label()}>
             <MessageScrollerContent className="gap-6 px-4 py-4">
               {chat.loading ? (
-                <div className="space-y-3">
-                  <Skeleton className="ml-auto h-9 w-2/3 rounded-3xl" />
-                  <Skeleton className="h-16 w-full rounded-2xl" />
-                </div>
+                <ConversationSkeleton />
               ) : items.length === 0 ? (
                 <Empty className="my-auto border-0">
                   <EmptyHeader>
@@ -643,64 +649,67 @@ export function Conversation({
                   </EmptyHeader>
                 </Empty>
               ) : (
-                items.map((item) => (
-                  <MessageScrollerItem key={item.id} messageId={item.id}>
-                    {item.kind === 'user' ? (
-                      <UserMessage
-                        item={item}
-                        scope={scope}
-                        savedFiles={savedFiles}
-                        canEdit={!chat.generating && !item.id.startsWith('pending-')}
-                        onEdit={(text) => {
-                          setSent((n) => n + 1)
-                          return chat.edit(item.id, text)
-                        }}
-                      />
-                    ) : (
-                      <AssistantMessage
-                        item={item}
-                        citations={citations}
-                        busy={chat.generating}
-                        active={item === lastAssistant && chat.generating}
-                        showReasoning={showReasoning}
-                        onDecide={(decisions) => void chat.decide(decisions)}
-                        latest={item === lastAssistant}
-                        footer={
-                          item.answer ||
-                          regenerateId === item.id ||
-                          (paused && item === lastAssistant) ? (
-                            // Kept in the layout while the answer streams, so nothing jumps.
-                            <div
-                              className={cn(
-                                'flex gap-0.5',
-                                item === lastAssistant && chat.generating && 'invisible',
-                              )}
-                            >
-                              {item.answer ? <CopyAction text={item.answer} /> : null}
-                              {regenerateId === item.id ? (
-                                <IconAction
-                                  label={m.assistant_regenerate()}
-                                  onClick={() => void chat.regenerate(item.id)}
-                                >
-                                  <RotateCcw />
-                                </IconAction>
-                              ) : null}
-                              {paused && item === lastAssistant ? (
-                                <PausedNotice
-                                  reason={paused}
-                                  onContinue={() => {
-                                    setSent((n) => n + 1)
-                                    void chat.resume()
-                                  }}
-                                />
-                              ) : null}
-                            </div>
-                          ) : null
-                        }
-                      />
-                    )}
-                  </MessageScrollerItem>
-                ))
+                // Answers wait for their renderer together (see `Markdown`).
+                <Suspense fallback={<ConversationSkeleton />}>
+                  {items.map((item) => (
+                    <MessageScrollerItem key={item.id} messageId={item.id}>
+                      {item.kind === 'user' ? (
+                        <UserMessage
+                          item={item}
+                          scope={scope}
+                          savedFiles={savedFiles}
+                          canEdit={!chat.generating && !item.id.startsWith('pending-')}
+                          onEdit={(text) => {
+                            setSent((n) => n + 1)
+                            return chat.edit(item.id, text)
+                          }}
+                        />
+                      ) : (
+                        <AssistantMessage
+                          item={item}
+                          citations={citations}
+                          busy={chat.generating}
+                          active={item === lastAssistant && chat.generating}
+                          showReasoning={showReasoning}
+                          onDecide={(decisions) => void chat.decide(decisions)}
+                          latest={item === lastAssistant}
+                          footer={
+                            item.answer ||
+                            regenerateId === item.id ||
+                            (paused && item === lastAssistant) ? (
+                              // Kept in the layout while the answer streams, so nothing jumps.
+                              <div
+                                className={cn(
+                                  'flex gap-0.5',
+                                  item === lastAssistant && chat.generating && 'invisible',
+                                )}
+                              >
+                                {item.answer ? <CopyAction text={item.answer} /> : null}
+                                {regenerateId === item.id ? (
+                                  <IconAction
+                                    label={m.assistant_regenerate()}
+                                    onClick={() => void chat.regenerate(item.id)}
+                                  >
+                                    <RotateCcw />
+                                  </IconAction>
+                                ) : null}
+                                {paused && item === lastAssistant ? (
+                                  <PausedNotice
+                                    reason={paused}
+                                    onContinue={() => {
+                                      setSent((n) => n + 1)
+                                      void chat.resume()
+                                    }}
+                                  />
+                                ) : null}
+                              </div>
+                            ) : null
+                          }
+                        />
+                      )}
+                    </MessageScrollerItem>
+                  ))}
+                </Suspense>
               )}
               {chat.generating && items.at(-1)?.kind === 'user' ? <ThinkingPlaceholder /> : null}
             </MessageScrollerContent>

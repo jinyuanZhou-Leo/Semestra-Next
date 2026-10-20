@@ -1,5 +1,4 @@
-import { lazy, Suspense } from 'react'
-import { cn } from '@/lib/utils'
+import { lazy } from 'react'
 import type { Citation } from '../stream'
 
 const CITE = /\[\[cite:([^\]\s]+)\]\]/g
@@ -35,18 +34,9 @@ void load()
  * An answer (M12 §6.1), rendered by AI Elements' `MessageResponse` (Streamdown): GFM, code,
  * math and diagrams, with citation badges and in-app links. Streamdown splits the text into
  * blocks and redraws only the one still growing, so a long answer streams without re-parsing.
- * Until the renderer arrives, the text shows as it is.
+ * While the renderer loads it suspends: the conversation keeps its loading state for all
+ * answers at once, instead of showing raw text that then reflows.
  */
 export function Markdown(props: MarkdownProps) {
-  return (
-    <Suspense
-      fallback={
-        <div className={cn('text-sm leading-relaxed whitespace-pre-wrap', props.className)}>
-          {props.text.replace(CITE, '')}
-        </div>
-      }
-    >
-      <Response {...props} />
-    </Suspense>
-  )
+  return <Response {...props} />
 }

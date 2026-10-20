@@ -1,7 +1,12 @@
 import { useRouter } from '@tanstack/react-router'
 import 'katex/dist/katex.min.css'
 import { type ComponentProps, createContext, type ReactNode, useContext } from 'react'
-import type { Components, StreamdownTranslations } from 'streamdown'
+import {
+  type Components,
+  defaultRehypePlugins,
+  type StreamdownProps,
+  type StreamdownTranslations,
+} from 'streamdown'
 import { MessageResponse } from '@/components/ai-elements/message'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -88,8 +93,40 @@ function Link({ href, children }: ComponentProps<'a'>) {
   )
 }
 
+/**
+ * Only images from this app load by themselves. Any other address could carry data out (an
+ * instruction planted in a page or file asking for "an image" with the user's grades in its URL),
+ * so it shows as a link named by its description instead.
+ */
+function Image({ src, alt }: ComponentProps<'img'>) {
+  const url = typeof src === 'string' ? src : ''
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return <img src={url} alt={alt ?? ''} className="my-2 max-w-full rounded-lg" />
+  }
+  return (
+    <a href={url} className={LINK_CLASS} target="_blank" rel="noreferrer">
+      {alt || url}
+    </a>
+  )
+}
+
 // `Components`' string index signature rejects any typed override; `a` gets real anchor props.
-const COMPONENTS = { a: Link } as Components
+const COMPONENTS = { a: Link, img: Image } as Components
+// HTML in an answer shows as text, as quoted pages and files may carry it (no `raw`); links and
+// images the hardening step refuses keep their text, without an English "[blocked]" note.
+const [harden, hardenOptions] = defaultRehypePlugins.harden as [never, object]
+const REHYPE_PLUGINS: StreamdownProps['rehypePlugins'] = [
+  defaultRehypePlugins.sanitize!,
+  [harden, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }],
+]
+// Copying code and diagrams is the one tool an answer offers: no table toolbar, downloads, full
+// screen or line numbers, as before Streamdown.
+const CONTROLS = {
+  table: false,
+  code: { copy: true, download: false },
+  mermaid: { copy: true, download: false, fullscreen: false, panZoom: false },
+  image: false,
+}
 // Links are handled by `Link` (in the app, citations, or a new tab), without a warning dialog.
 const LINK_SAFETY = { enabled: false }
 
@@ -137,8 +174,15 @@ export default function Response({ text, citations, streaming, className }: Mark
   return (
     <Citations value={citations}>
       <MessageResponse
-        className={cn('text-sm leading-relaxed wrap-break-word', className)}
+        // Headings stay at the answer's size, as they did before Streamdown.
+        className={cn(
+          'space-y-2 text-sm leading-relaxed wrap-break-word [&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-base [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-sm [&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_li]:py-0.5',
+          className,
+        )}
         components={COMPONENTS}
+        rehypePlugins={REHYPE_PLUGINS}
+        controls={CONTROLS}
+        lineNumbers={false}
         linkSafety={LINK_SAFETY}
         translations={translations()}
         isAnimating={streaming}
