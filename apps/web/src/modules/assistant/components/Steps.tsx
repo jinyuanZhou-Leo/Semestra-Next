@@ -151,85 +151,6 @@ function Entry({
   return <Markdown text={entry.text} citations={NO_CITATIONS} className="text-muted-foreground" />
 }
 
-/**
- * What the model did in one step: the sentence it said first, and the calls it made then. The
- * text stays among the entries; `title` only names the group.
- */
-type Group = { key: string; title: string | null; entries: ProcessEntry[] }
-
-function groupBySteps(entries: ProcessEntry[]): Group[] {
-  const groups: Group[] = []
-  for (const entry of entries) {
-    const last = groups.at(-1)
-    const group =
-      last?.key === entry.message ? last : { key: entry.message, title: null, entries: [] }
-    if (group !== last) groups.push(group)
-    if (entry.kind === 'text' && group.title === null) group.title = headline(entry.text)
-    group.entries.push(entry)
-  }
-  return groups
-}
-
-/** The sentence as a heading: its first line, without the Markdown marks around words. */
-function headline(text: string): string {
-  return (text.trim().split('\n')[0] ?? '')
-    .replace(/^\s*(#+|>)\s*/, '')
-    .replace(/(\*\*|__|\*|`)(.+?)\1/g, '$2')
-    .trim()
-}
-
-/**
- * One step of the model under the sentence it said before its tool calls ("Reading the file to
- * find the term dates"): folded to that line with how many calls it made. It stays open while the
- * turn runs, so finished rounds don't fold under the reader; the whole block folds once the
- * answer starts. Text longer than its heading is still shown in full inside.
- */
-function StepGroup({
-  group,
-  thinking,
-  skillTitles,
-}: {
-  group: Group
-  thinking: boolean
-  skillTitles: ReadonlyMap<string, string>
-}) {
-  const [chosen, setChosen] = useState<boolean | null>(null)
-  const steps = group.entries.flatMap((entry) => (entry.kind === 'step' ? [entry.step] : []))
-  const running = steps.some((step) => step.status === 'running')
-  const failed = steps.some((step) => step.status === 'error')
-  if (steps.length === 0) {
-    return group.entries.map((entry) => (
-      <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
-    ))
-  }
-  const inside = group.entries.filter(
-    (entry) => entry.kind !== 'text' || entry.text.trim() !== group.title,
-  )
-  const icon = running ? <Loader2 className="animate-spin" /> : failed ? <AlertCircle /> : <Check />
-  return (
-    <TraceCollapsible open={chosen ?? (thinking || running)} onOpenChange={setChosen}>
-      <TraceCollapsibleTrigger>
-        <TraceLine status={running ? 'running' : failed ? 'error' : undefined}>
-          <TraceIcon>{icon}</TraceIcon>
-          <TraceTitle className="text-foreground" title={group.title ?? undefined}>
-            {group.title}
-          </TraceTitle>
-          <TraceDescription>
-            {steps.length === 1
-              ? m.assistant_thought_one_step()
-              : m.assistant_thought_steps({ count: steps.length })}
-          </TraceDescription>
-        </TraceLine>
-      </TraceCollapsibleTrigger>
-      <TraceCollapsibleContent className="flex flex-col gap-3 border-l pl-4">
-        {inside.map((entry) => (
-          <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
-        ))}
-      </TraceCollapsibleContent>
-    </TraceCollapsible>
-  )
-}
-
 function summary(thinkingMs: number | null, steps: number, changes: number): string {
   const parts: string[] = []
   if (thinkingMs !== null) {
@@ -294,20 +215,9 @@ export function Thinking({
         <TraceCollapsible open={chosen ?? thinking} onOpenChange={setChosen}>
           <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
           <TraceCollapsibleContent className="flex flex-col gap-3">
-            {groupBySteps(entries).map((group) =>
-              group.title === null ? (
-                group.entries.map((entry) => (
-                  <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
-                ))
-              ) : (
-                <StepGroup
-                  key={group.key}
-                  group={group}
-                  thinking={thinking}
-                  skillTitles={skillTitles}
-                />
-              ),
-            )}
+            {entries.map((entry) => (
+              <Entry key={entry.key} entry={entry} skillTitles={skillTitles} />
+            ))}
           </TraceCollapsibleContent>
         </TraceCollapsible>
       )}
