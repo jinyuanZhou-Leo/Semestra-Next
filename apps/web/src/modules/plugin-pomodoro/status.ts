@@ -40,7 +40,7 @@ export function usePomodoroStatus(): StatusItem | null {
   })
   const watching = running && active?.runtime !== undefined
   useEffect(() => {
-    if (!watching) return
+    if (!watching || state.endsAt === null) return
     const check = () => {
       const { active: a, state: s } = latest.current
       const t = Date.now()

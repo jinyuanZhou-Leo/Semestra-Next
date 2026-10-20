@@ -6,7 +6,7 @@ import type { UserOut } from '@semestra/api-client'
 import { API, apiError, renderWithRouter, server, user } from '@/test-utils'
 import { LoginFlow } from './LoginFlow'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

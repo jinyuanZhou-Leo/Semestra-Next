@@ -7,7 +7,7 @@ import type { SettingsSectionContribution } from '../extensions'
 import { NamespaceForm } from './NamespaceForm'
 import { SectionFrame } from './SettingsSections'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()
   server.resetHandlers()

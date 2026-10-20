@@ -10,7 +10,7 @@ import { AuthContext } from '../useAuth'
 import { SignInMethodsSection } from './SignInMethodsSection'
 import { mcpConfig } from './TokensSection'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -175,10 +175,10 @@ test('setting a name saves the profile', async () => {
 
 test('mcpConfig points Claude Desktop at the API and passes the token via env', () => {
   const parsed = JSON.parse(mcpConfig('spat_x', 'https://api.example.com/'))
-  const server = parsed.mcpServers.semestra
-  expect(server.args).toContain('https://api.example.com/mcp')
-  expect(server.env.SEMESTRA_TOKEN).toBe('spat_x')
-  expect(JSON.stringify(server.args)).not.toContain('spat_x')
+  const entry = parsed.mcpServers.semestra
+  expect(entry.args).toContain('https://api.example.com/mcp')
+  expect(entry.env.SEMESTRA_TOKEN).toBe('spat_x')
+  expect(JSON.stringify(entry.args)).not.toContain('spat_x')
 })
 
 const googleIdentity = {

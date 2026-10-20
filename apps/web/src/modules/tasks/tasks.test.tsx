@@ -4,12 +4,21 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
+import { ShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
+import { TasksSidebarNav } from './components/TasksSidebar'
 import TasksPage from './pages/TasksPage'
 
-beforeAll(() => server.listen())
+/** Without the app sidebar the page title is the menu of lists. */
+async function pickList(current: string, name: RegExp) {
+  await userEvent.click(await screen.findByRole('button', { name: current }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name }))
+}
+
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -161,7 +170,7 @@ test('the counter card shows the open count', async () => {
 
 test('the completed view has one empty state and no add box', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  await userEvent.click(await screen.findByRole('button', { name: /^Completed/ }))
+  await pickList('All', /^Completed/)
   expect(await screen.findByText('Nothing completed yet')).toBeTruthy()
   expect(screen.queryByText('No tasks here')).toBeNull()
   expect(screen.queryByLabelText('Add a task')).toBeNull()
@@ -176,7 +185,7 @@ test('clearing completed tasks is offered only where it deletes what is listed',
   await screen.findByText('Open')
   await screen.findByRole('button', { name: /1 completed/ })
   expect(screen.queryByRole('button', { name: 'Clear completed' })).toBeNull()
-  await userEvent.click(screen.getByRole('button', { name: /^Completed/ }))
+  await pickList('All', /^Completed/)
   expect(await screen.findByRole('button', { name: 'Clear completed' })).toBeTruthy()
 })
 
@@ -307,6 +316,44 @@ test('an urgent task shows as high and stays urgent unless changed', async () =>
 
 test('tasks in no list are called Unsorted', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  expect(await screen.findByRole('button', { name: /^Unsorted/ })).toBeTruthy()
+  await userEvent.click(await screen.findByRole('button', { name: 'All' }))
+  expect(await screen.findByRole('menuitemradio', { name: /^Unsorted/ })).toBeTruthy()
   expect(screen.queryByText('Inbox')).toBeNull()
+})
+
+test('in the app sidebar the lists sit under Tasks, and the page drops its own switcher', async () => {
+  lists = [
+    {
+      id: 'l1',
+      program_id: 'p1',
+      term_id: null,
+      name: 'Personal',
+      color: null,
+      icon: null,
+      position: 1,
+      created_at: stamp,
+      updated_at: stamp,
+    } as TaskList,
+  ]
+  renderWithRouter(
+    <SidebarProvider>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} onNavigate={() => {}} />
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <ShellSidebarOpen value>
+        <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+      </ShellSidebarOpen>
+    </SidebarProvider>,
+  )
+  const nav = await screen.findByRole('list', { name: 'Tasks' })
+  await userEvent.click(await within(nav).findByRole('button', { name: 'Personal' }))
+  expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()
+  expect(within(nav).getByRole('button', { name: 'Personal' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  // No menu of lists on the page while the sidebar shows them.
+  expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
 })

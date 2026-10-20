@@ -119,6 +119,7 @@ function NoPreview({ item }: { item: ItemOut }) {
       </EmptyHeader>
       <EmptyContent>
         <Button
+          nativeButton={false}
           // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
           render={(props) => <a {...props} href={contentUrl(item.id, 'attachment')} download />}
         >
@@ -188,6 +189,7 @@ export function PreviewDialog({
                 <TooltipTrigger
                   render={
                     <Button
+                      nativeButton={false}
                       variant="ghost"
                       size="icon-sm"
                       aria-label={m.files_open_new_tab()}
@@ -211,6 +213,7 @@ export function PreviewDialog({
                 <TooltipTrigger
                   render={
                     <Button
+                      nativeButton={false}
                       variant="ghost"
                       size="icon-sm"
                       aria-label={m.files_download()}

@@ -11,7 +11,7 @@ import { habitSettingsSchema } from './schema'
 const success = vi.hoisted(() => vi.fn<(message: string) => void>())
 vi.mock('sonner', () => ({ toast: { success, error: vi.fn<(message: string) => void>() } }))
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

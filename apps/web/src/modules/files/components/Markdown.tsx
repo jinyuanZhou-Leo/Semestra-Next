@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react'
+import { type ComponentProps, createContext, use } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
@@ -11,6 +11,29 @@ function NoImage({ alt }: ComponentProps<'img'>) {
   return alt ? <span className="text-muted-foreground">[{alt}]</span> : null
 }
 
+/** Opens a web link after the leaving-Semestra check of the `Markdown` that renders it. */
+const OpenLinkContext = createContext<(href: string) => void>(() => {})
+
+function MarkdownLink({ href, children }: ComponentProps<'a'>) {
+  const open = use(OpenLinkContext)
+  return href && /^https?:\/\//i.test(href) ? (
+    <a
+      href={href}
+      rel="noopener noreferrer"
+      onClick={(event) => {
+        event.preventDefault()
+        open(href)
+      }}
+    >
+      {children}
+    </a>
+  ) : (
+    <span>{children}</span>
+  )
+}
+
+const COMPONENTS: Components = { img: NoImage, a: MarkdownLink }
+
 /**
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
  * rendered (react-markdown's default), so file content cannot inject markup. Web links open in a
@@ -18,24 +41,6 @@ function NoImage({ alt }: ComponentProps<'img'>) {
  */
 export function Markdown({ children, className }: { children: string; className?: string }) {
   const link = useExternalLink()
-  const components: Components = {
-    img: NoImage,
-    a: ({ href, children: text }) =>
-      href && /^https?:\/\//i.test(href) ? (
-        <a
-          href={href}
-          rel="noopener noreferrer"
-          onClick={(event) => {
-            event.preventDefault()
-            link.open(href)
-          }}
-        >
-          {text}
-        </a>
-      ) : (
-        <span>{text}</span>
-      ),
-  }
   return (
     <div
       className={cn(
@@ -52,9 +57,11 @@ export function Markdown({ children, className }: { children: string; className?
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-        {children}
-      </ReactMarkdown>
+      <OpenLinkContext value={link.open}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={COMPONENTS}>
+          {children}
+        </ReactMarkdown>
+      </OpenLinkContext>
       {link.dialog}
     </div>
   )

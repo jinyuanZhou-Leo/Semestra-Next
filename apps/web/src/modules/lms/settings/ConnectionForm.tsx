@@ -77,11 +77,11 @@ export function ConnectionForm({
             credentials: filled,
           },
         })
-    const saved = await save.catch(() => null) // the error is shown below the form
-    if (!saved) return
+    const result = await save.catch(() => null) // the error is shown below the form
+    if (!result) return
     setCredentials({})
     await invalidateLms(queryClient)
-    onSaved(saved)
+    onSaved(result)
   }
 
   const Form = ui?.ConfigForm
