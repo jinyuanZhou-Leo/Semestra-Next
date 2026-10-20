@@ -17,6 +17,13 @@ always installed.""",
     effect="read",
     http=Http("GET", "/plugins/catalog"),
     tags=TAGS,
+    agent_output_fields=(
+        "items.id",
+        "items.kind",
+        "items.summary",
+        "items.installed",
+        "items.provides",
+    ),
 )
 async def catalog_list(ctx: Ctx, inp: NoInput) -> PluginCatalog:
     return await service.list_catalog(ctx)

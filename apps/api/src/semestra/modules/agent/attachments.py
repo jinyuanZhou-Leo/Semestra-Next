@@ -317,6 +317,7 @@ the same course again returns the saved file.""",
     http=Http("POST", "/agent/attachments/{id}:save"),
     expose=("http", "agent"),
     tags=("agent",),
+    agent_output_fields=("id", "display_name", "course_id", "folder_id", "doc_status"),
 )
 async def save_to_course(ctx: Ctx, inp: SaveToCourseInput) -> ItemOut:
     row, data = await open_original(ctx, inp.id)

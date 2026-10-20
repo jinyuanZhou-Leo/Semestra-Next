@@ -64,6 +64,14 @@ sticky notes or habit trackers a course has, before calling a card-specific tool
     effect="read",
     http=Http("GET", "/layouts/boards/{scope_type}/{scope_id}"),
     tags=TAGS,
+    agent_output_fields=(
+        "scope_type",
+        "scope_id",
+        "customized",
+        "cards.instance_id",
+        "cards.card_id",
+        "cards.settings",
+    ),
 )
 async def board_get(ctx: Ctx, inp: BoardRef) -> Board:
     return await service.get_board(ctx, inp)
@@ -91,6 +99,7 @@ with plugins.catalog.list that its plugin is installed.""",
     effect="write",
     http=Http("POST", "/layouts/boards/{scope_type}/{scope_id}/cards"),
     tags=TAGS,
+    agent_output_fields=("instance_id", "card_id", "settings"),
 )
 async def card_add(ctx: Ctx, inp: CardAddInput) -> BoardCard:
     return await service.add_card(ctx, inp)

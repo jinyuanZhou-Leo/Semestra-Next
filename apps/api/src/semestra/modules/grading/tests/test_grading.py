@@ -13,7 +13,6 @@ from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.grading import models, service
-from semestra.modules.grading.schemas import AssessmentCandidates
 from semestra.testing import MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -738,9 +737,9 @@ async def test_other_peoples_data_is_not_found(
         assert candidates(found) == []
 
 
-def candidates(out: Any) -> list[Any]:
-    assert isinstance(out, AssessmentCandidates)
-    return out.items
+def candidates(out: Any) -> list[dict[str, Any]]:
+    assert isinstance(out, dict)  # agent output is trimmed JSON
+    return out["items"]
 
 
 # --- agent surface --------------------------------------------------------------------------
@@ -764,12 +763,12 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         got = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "lab3", "course_id": course["id"]}, "agent"
         )
-        assert [i.id for i in candidates(got)][:1] == [lab3["id"]]
-        assert candidates(got)[0].score == 1.0
+        assert [i["id"] for i in candidates(got)][:1] == [lab3["id"]]
+        assert candidates(got)[0]["score"] == 1.0
         mid = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "midterm", "course_id": course["id"]}, "agent"
         )
-        assert candidates(mid)[0].id == midterm["id"]
+        assert candidates(mid)[0]["id"] == midterm["id"]
         nothing = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "zzzz", "course_id": course["id"]}, "agent"
         )
@@ -778,7 +777,7 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         # Program-wide, the course on screen comes first.
         ctx.scope = ScopeRef(program["id"], None, other["id"])
         wide = await registry.invoke(ctx, "grading.assessment.find", {"query": "lab 3"}, "agent")
-        assert [i.id for i in candidates(wide)][:2] == [other_lab["id"], lab3["id"]]
+        assert [i["id"] for i in candidates(wide)][:2] == [other_lab["id"], lab3["id"]]
 
 
 async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Api, app: FastAPI):

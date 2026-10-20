@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal, get_type_hints
 from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
 
+from semestra.core import agent_output
 from semestra.core.context import Ctx, get_capability_ctx, run_after_commit
 from semestra.core.errors import AppError
 
@@ -149,57 +150,7 @@ class Registry:
             ctx.surface = outer
         if surface == "http":
             return out
-        fields: object = getattr(inp, "fields", None) or cap.agent_default_fields
-        picked: dict[str, Any] | None = None
-        if isinstance(fields, list | tuple) and fields:
-            picked = _select_fields(out, {str(f) for f in fields} | {"id"})  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        if cap.agent_output_fields is not None:
-            dumped = picked if picked is not None else out.model_dump(mode="json")
-            return _keep_paths(dumped, cap.agent_output_fields)
-        return picked if picked is not None else out
-
-
-def _select_fields(out: BaseModel, keep: set[str]) -> dict[str, Any]:
-    """Field selection of list capabilities (M00 §3.6): agents and MCP clients get only the
-    requested fields of each item, to keep their context small. HTTP callers get everything."""
-    dumped = out.model_dump(mode="json")
-    items: object = dumped.get("items")
-    if isinstance(items, list):
-        dumped["items"] = [
-            {k: v for k, v in item.items() if k in keep}  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-            for item in items  # pyright: ignore[reportUnknownVariableType]
-            if isinstance(item, dict)
-        ]
-        return dumped
-    return {k: v for k, v in dumped.items() if k in keep}
-
-
-def _keep_paths(dumped: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any]:
-    """Only these output fields; `a.b` keeps field `b` of the object in field `a`, or of each
-    object in the list in field `a`."""
-    nested: dict[str, list[str]] = {}  # an empty list keeps the whole field
-    for path in paths:
-        head, _, rest = path.partition(".")
-        kept = nested.setdefault(head, [rest] if rest else [])
-        if not rest:
-            kept.clear()
-        elif kept and rest not in kept:
-            kept.append(rest)
-    out: dict[str, Any] = {}
-    for head, rests in nested.items():
-        if head not in dumped:
-            continue
-        value = dumped[head]
-        if rests and isinstance(value, dict):
-            out[head] = _keep_paths(value, tuple(rests))  # pyright: ignore[reportUnknownArgumentType]
-        elif rests and isinstance(value, list):
-            out[head] = [
-                _keep_paths(item, tuple(rests)) if isinstance(item, dict) else item  # pyright: ignore[reportUnknownArgumentType]
-                for item in value  # pyright: ignore[reportUnknownVariableType]
-            ]
-        else:
-            out[head] = value
-    return out
+        return await agent_output.shape(ctx, cap, inp, out)
 
 
 registry = Registry()

@@ -12,7 +12,6 @@ from sqlalchemy import func, select
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.modules.auth.models import AuthRateLimit
-from semestra.modules.schedule.schemas import Occurrences
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -614,8 +613,14 @@ async def test_agent_surface(
             {"program_id": program_id, "start": "2026-01-05", "end": "2026-01-06"},
             "agent",
         )
-    assert isinstance(result, Occurrences)
-    assert len(result.items) == 1
+    assert isinstance(result, dict)
+    assert result["timezone"] == "America/Toronto"
+    (item,) = result["items"]
+    # Trimmed for the model, and in the Program's time zone with its offset (EST in January).
+    assert not {"id", "source", "color_ref"} & set(item)
+    assert item["start_at"].startswith("2026-01-05T")
+    assert item["start_at"].endswith("-05:00")
+    assert item["ref"]["entity"] == "schedule.meeting"
     # The assistant reads a whole term in one call (the app is limited to 120 days).
     async with system_ctx(app.state, user.id) as ctx:
         ctx.actor = "agent"
@@ -625,8 +630,8 @@ async def test_agent_surface(
             {"program_id": program_id, "start": "2026-01-01", "end": "2026-06-01"},
             "agent",
         )
-    assert isinstance(term, Occurrences)
-    assert len(term.items) > 1
+    assert isinstance(term, dict)
+    assert len(term["items"]) > 1
 
 
 async def test_feed_window_moves_with_today(api: Api, clock: Clock):

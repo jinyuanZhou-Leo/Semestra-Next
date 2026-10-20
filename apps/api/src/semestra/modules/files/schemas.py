@@ -54,6 +54,29 @@ class ItemOut(BaseModel):
 # --- list -----------------------------------------------------------------------------------
 
 
+ItemField = Literal[
+    "course_id",
+    "folder_id",
+    "kind",
+    "display_name",
+    "original_name",
+    "mime_type",
+    "size_bytes",
+    "sha256",
+    "url",
+    "pinned",
+    "source_kind",
+    "source_ref",
+    "doc_status",
+    "doc_error_code",
+    "page_count",
+    "ocr_skipped_pages",
+    "job_id",
+    "created_at",
+    "updated_at",
+]
+
+
 class FilesItemListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     folder_id: Id | None = Field(
@@ -69,7 +92,7 @@ class FilesItemListInput(BaseModel):
     )
     sort: SortKey = Field(default="name", description="Sort key")
     descending: bool = Field(default=False, description="Reverse the sort order")
-    fields: list[str] | None = Field(
+    fields: list[ItemField] | None = Field(
         default=None,
         description="Agent/MCP only: return just these fields of each item (and its id)",
     )

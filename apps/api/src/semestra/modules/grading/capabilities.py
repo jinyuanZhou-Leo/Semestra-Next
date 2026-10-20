@@ -1,5 +1,6 @@
 """Grading capabilities (M03 §4)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.academics.schemas import CourseRef, Deleted, ProgramRef
@@ -44,6 +45,24 @@ from semestra.modules.grading.schemas import (
 
 TAGS = ("grading",)
 
+# What agents get back (M00 §3.6): local due dates (not `due_at`), no import keys, positions,
+# colors or timestamps, and no per-assessment predictions.
+_ASSESSMENT_FIELDS = (
+    "id", "category_id", "title", "due_date", "due_time", "weight", "score_percentage",
+    "points_earned", "points_possible", "dropped", "note", "status",
+)  # fmt: skip
+_RESULT_FIELDS = (
+    "basis", "manual_percentage", "final_override_percentage", "pass_fail_result",
+    "target_points", "forecast_model", "gradebook_enabled",
+)  # fmt: skip
+_SUMMARY_FIELDS = (
+    "status", "weight_total", "weight_gap", "weights_ok", "graded_count", "remaining_count",
+    "graded_weight", "remaining_weight", "locked_contribution", "current_percentage",
+    "current_points", "current_letter", "final_percentage", "final_points", "final_letter",
+    "final_source", "overridden", "forecast_percentage", "forecast_points", "forecast_letter",
+    "target_points", "target_percentage", "required_average", "reachable",
+)  # fmt: skip
+
 # --- scale ----------------------------------------------------------------------------------
 
 
@@ -55,6 +74,15 @@ grading defaults (how year-long courses count, default categories, hidden GPA)."
     effect="read",
     http=Http("GET", "/programs/{program_id}/grading-scale"),
     tags=TAGS,
+    agent_output_fields=(
+        "bands",
+        "max_points",
+        "year_course_attribution",
+        "default_forecast_model",
+        "default_categories.key",
+        "default_categories.name",
+        "hide_gpa",
+    ),
 )
 async def scale_get(ctx: Ctx, inp: ProgramRef) -> GradingScale:
     return service.scale_out(await service.get_scale_row(ctx, inp.program_id))
@@ -69,6 +97,7 @@ table; the ranges must not overlap and must reach from 0 to 100, with points of 
     effect="write",
     http=Http("PUT", "/programs/{program_id}/grading-scale"),
     tags=TAGS,
+    agent_output_fields=("program_id", CHANGED),
 )
 async def scale_update(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
     return await service.update_scale(ctx, inp)
@@ -101,6 +130,16 @@ grade, the forecast, or what the remaining assessments must average to reach a t
     http=Http("GET", "/courses/{course_id}/gradebook"),
     tags=TAGS,
     agent_core=True,
+    agent_output_fields=(
+        "course_id",
+        "scale",
+        *(f"result.{f}" for f in _RESULT_FIELDS),
+        "categories.id",
+        "categories.name",
+        "categories.archived",
+        *(f"assessments.{f}" for f in _ASSESSMENT_FIELDS),
+        *(f"summary.{f}" for f in _SUMMARY_FIELDS),
+    ),
 )
 async def gradebook_get(ctx: Ctx, inp: CourseRef) -> Gradebook:
     return await service.get_gradebook(ctx, inp.course_id)
@@ -117,6 +156,7 @@ grading.assessment.update.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/grade"),
     tags=TAGS,
+    agent_output_fields=("course_id", CHANGED),
 )
 async def course_result_update(ctx: Ctx, inp: CourseResultUpdateInput) -> CourseResult:
     return await service.update_result(ctx, inp)
@@ -129,6 +169,7 @@ async def course_result_update(ctx: Ctx, inp: CourseResultUpdateInput) -> Course
     effect="write",
     http=Http("POST", "/courses/{course_id}/grading-categories"),
     tags=TAGS,
+    agent_output_fields=("id", "key", "name"),
 )
 async def category_create(ctx: Ctx, inp: CategoryCreateInput) -> AssessmentCategory:
     return await service.create_category(ctx, inp)
@@ -141,6 +182,7 @@ async def category_create(ctx: Ctx, inp: CategoryCreateInput) -> AssessmentCateg
     effect="write",
     http=Http("PATCH", "/grading-categories/{category_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", CHANGED),
 )
 async def category_update(ctx: Ctx, inp: CategoryUpdateInput) -> AssessmentCategory:
     return await service.update_category(ctx, inp)
@@ -167,6 +209,7 @@ async def category_delete(ctx: Ctx, inp: CategoryRef) -> Deleted:
     effect="write",
     http=Http("PUT", "/courses/{course_id}/grading-category-order"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.name"),
 )
 async def category_reorder(ctx: Ctx, inp: CategoryOrderInput) -> CategoryList:
     return CategoryList(
@@ -185,6 +228,14 @@ assessment the user named in words ("Lab 3", "the midterm"), prefer grading.asse
     effect="read",
     http=Http("GET", "/courses/{course_id}/assessments"),
     tags=TAGS,
+    agent_default_fields=(
+        "title",
+        "category_id",
+        "due_date",
+        "weight",
+        "score_percentage",
+        "status",
+    ),
 )
 async def assessment_list(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
     return await service.list_assessments(ctx, inp)
@@ -215,6 +266,7 @@ assessment; use grading.assessment.update.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/assessments"),
     tags=TAGS,
+    agent_output_fields=("id", "course_id", "title", "due_date", "weight"),
 )
 async def assessment_create(ctx: Ctx, inp: AssessmentCreateInput) -> Assessment:
     result = await service.create_assessments(ctx, inp.course_id, [inp], dedupe=False)
@@ -229,6 +281,7 @@ already has an assessment from the same source, so repeating an import creates n
     effect="write",
     http=Http("POST", "/courses/{course_id}/assessments:batch"),
     tags=TAGS,
+    agent_output_fields=("created.id", "created.title", "skipped"),
 )
 async def assessment_create_many(
     ctx: Ctx, inp: AssessmentCreateManyInput
@@ -248,6 +301,7 @@ change.""",
     tags=TAGS,
     agent_core=True,
     preview=service.preview_assessment_update,
+    agent_output_fields=("id", "title", "status", CHANGED),
 )
 async def assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     return await service.update_assessment(ctx, inp)
@@ -290,6 +344,7 @@ real scores to simulate. Fails with grading.weights_not_100 while the weights do
     effect="read",
     http=Http("POST", "/courses/{course_id}/gradebook:simulate"),
     tags=TAGS,
+    agent_output_fields=_SUMMARY_FIELDS,
 )
 async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> GradebookSummary:
     return await service.simulate_course(ctx, inp)

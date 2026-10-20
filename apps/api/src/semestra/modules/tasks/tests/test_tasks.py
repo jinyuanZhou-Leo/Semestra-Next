@@ -15,7 +15,7 @@ from semestra.core.errors import AppError
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, collect
 from semestra.modules.tasks import auto, service
 from semestra.modules.tasks.calendar import due_source
-from semestra.modules.tasks.schemas import TaskCandidates, TaskFindInput
+from semestra.modules.tasks.schemas import TaskFindInput
 from semestra.modules.tasks.settings import TasksSettings
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
@@ -582,7 +582,7 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
         found = await registry.invoke(
             ctx, "tasks.item.find", {"query": "lab report", "program_id": pid}, "agent"
         )
-        assert [c.title for c in cast("TaskCandidates", found).items] == ["Write lab report"]
+        assert [c["title"] for c in cast("dict[str, Any]", found)["items"]] == ["Write lab report"]
         slim = await registry.invoke(
             ctx, "tasks.item.query", {"program_id": pid, "fields": ["title"]}, "agent"
         )
