@@ -73,7 +73,7 @@ jobs:
           fi
           echo "Selected: $tests"
           if [ "$tests" = all ]; then uv run pytest -q -n auto
-          elif [ "$tests" != none ]; then uv run pytest -q -n auto $tests
+          elif [ "$tests" != none ]; then read -ra paths <<< "$tests"; uv run pytest -q -n auto "${paths[@]}"
           fi
       - run: test "$(uv run alembic heads | grep -c '(head)')" -le 1
       - run: uv run alembic upgrade head && uv run alembic check
@@ -102,7 +102,7 @@ jobs:
           fi
           echo "Selected: $tests"
           if [ "$tests" = all ]; then pnpm --filter @semestra/web test
-          elif [ "$tests" != none ]; then pnpm --filter @semestra/web test:related $tests
+          elif [ "$tests" != none ]; then read -ra paths <<< "$tests"; pnpm --filter @semestra/web test:related "${paths[@]}"
           fi
 
   contract:
