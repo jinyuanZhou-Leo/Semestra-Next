@@ -8,7 +8,7 @@ import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { GpaValue } from './GpaValue'
 import { InlineInput } from './InlineInput'
-import { Stat } from './SummaryStrip'
+import { Stat } from './Stat'
 
 /**
  * The course has no gradebook (M03 §2): a Pass/Fail course takes a result, any other course just

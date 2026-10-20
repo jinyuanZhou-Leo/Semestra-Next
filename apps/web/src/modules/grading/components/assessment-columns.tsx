@@ -68,13 +68,15 @@ function CategoryCell({ a }: { a: Assessment }) {
 function WeightCell({ a }: { a: Assessment }) {
   const { saveWeight } = useActions()
   return (
-    <InlineInput
-      key={`w-${a.id}-${a.weight}`}
-      label={`${m.grading_assessment_weight()}: ${a.title}`}
-      value={String(a.weight)}
-      onCommit={(text) => saveWeight(a, text)}
-      className="ml-auto w-16"
-    />
+    <div className="flex justify-end">
+      <InlineInput
+        key={`w-${a.id}-${a.weight}`}
+        label={`${m.grading_assessment_weight()}: ${a.title}`}
+        value={String(a.weight)}
+        onCommit={(text) => saveWeight(a, text)}
+        className="w-16"
+      />
+    </div>
   )
 }
 

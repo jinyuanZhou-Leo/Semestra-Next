@@ -50,7 +50,8 @@ export function InlineInput({
       onKeyDown={onKeyDown}
       className={cn(
         'h-8 w-24 border-transparent bg-transparent text-right shadow-none tabular-nums hover:border-input',
-        tone === 'assumed' && 'bg-primary/10 hover:border-primary/40',
+        tone === 'assumed' &&
+          'border-dashed border-primary/40 bg-primary/10 text-primary placeholder:text-primary/50 hover:border-primary/60',
         className,
       )}
     />

@@ -7,17 +7,18 @@ import {
 import { type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Plus } from 'lucide-react'
-import { Fragment, type ReactNode, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
+import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { Toggle } from '@/ui/toggle'
+import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
@@ -40,10 +41,26 @@ function fromSorting(sorting: SortingState): SortPref {
   return first ? { key: first.id as SortKey, dir: first.desc ? 'desc' : 'asc' } : DEFAULT_SORT
 }
 
+/** Weight of the items that count, and the weighted average of their real scores. */
+function groupFigures(items: readonly Assessment[]) {
+  const counted = items.filter((a) => !a.dropped)
+  const graded = counted.filter((a) => a.score_percentage !== null)
+  const gradedWeight = graded.reduce((sum, a) => sum + a.weight, 0)
+  return {
+    weight: counted.reduce((sum, a) => sum + a.weight, 0),
+    graded: gradedWeight,
+    average:
+      gradedWeight === 0
+        ? null
+        : graded.reduce((sum, a) => sum + a.weight * (a.score_percentage ?? 0), 0) / gradedWeight,
+  }
+}
+
 /**
  * The gradebook table (M03 §5.1): scores and weights are typed in the cells (`18/20` is read as
  * points), columns sort, and categories can be shown as collapsible groups. In plan mode the
- * score of an ungraded item takes an assumed value that is never saved as a grade.
+ * score of an ungraded item takes an assumed value that is never saved as a grade. The last row
+ * adds an assessment by its title.
  */
 export function AssessmentTable({
   courseId,
@@ -51,7 +68,7 @@ export function AssessmentTable({
   categories,
   whatIf,
   onAssume,
-  actions,
+  grouped,
 }: {
   courseId: string
   assessments: readonly Assessment[]
@@ -59,15 +76,13 @@ export function AssessmentTable({
   whatIf: WhatIf
   /** Set (percent) or clear (null) the assumed score of one assessment. */
   onAssume: (assessmentId: string, percent: number | null) => void
-  /** Extra controls next to "Add", e.g. the import menu. */
-  actions?: ReactNode
+  /** Show the categories as collapsible groups. */
+  grouped: boolean
 }) {
   const queryClient = useQueryClient()
   const [sort, setSort] = useUiPref<SortPref>('grading.sort', DEFAULT_SORT)
-  const [grouped, setGrouped] = useUiPref('grading.group', false)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [editing, setEditing] = useState<Assessment | null>(null)
-  const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Assessment | null>(null)
   const [quickTitle, setQuickTitle] = useState('')
 
@@ -162,34 +177,13 @@ export function AssessmentTable({
 
   return (
     <TableActionsContext value={actionsValue}>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <form
-            className="flex min-w-60 flex-1 items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              addQuick()
-            }}
-          >
-            <Input
-              aria-label={m.grading_quick_add()}
-              placeholder={m.grading_quick_add()}
-              value={quickTitle}
-              onChange={(event) => setQuickTitle(event.target.value)}
-              className="max-w-sm"
-            />
-          </form>
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-            <Plus aria-hidden />
-            {m.grading_assessment_add()}
-          </Button>
-          {actions}
-          <Toggle variant="outline" size="sm" pressed={grouped} onPressedChange={setGrouped}>
-            {m.grading_group_by_category()}
-          </Toggle>
-        </div>
-
-        <div className="rounded-2xl border border-border">
+      <>
+        <div
+          className={cn(
+            'rounded-2xl border border-border transition-colors',
+            whatIf.plan && 'border-primary/30',
+          )}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
@@ -253,31 +247,12 @@ export function AssessmentTable({
                 return (
                   <Fragment key={groupId}>
                     {grouped ? (
-                      <TableRow className="bg-muted/40 hover:bg-muted/40">
-                        <TableCell colSpan={columnCount} className="py-1.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto px-1 font-medium"
-                            aria-expanded={!isCollapsed}
-                            onClick={() => toggleGroup(groupId)}
-                          >
-                            {isCollapsed ? (
-                              <ChevronRight aria-hidden className="size-4" />
-                            ) : (
-                              <ChevronDown aria-hidden className="size-4" />
-                            )}
-                            <CategoryBadge category={group.category} />
-                            <span className="text-xs text-muted-foreground">
-                              {group.items.reduce(
-                                (sum, r) => sum + (r.original.dropped ? 0 : r.original.weight),
-                                0,
-                              )}
-                              %
-                            </span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      <GroupRow
+                        category={group.category}
+                        items={group.items.map((r) => r.original)}
+                        collapsed={isCollapsed}
+                        onToggle={() => toggleGroup(groupId)}
+                      />
                     ) : null}
                     {isCollapsed
                       ? null
@@ -300,16 +275,30 @@ export function AssessmentTable({
                   </Fragment>
                 )
               })}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount} className="py-1.5">
+                  <form
+                    className="flex items-center gap-1 text-muted-foreground"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      addQuick()
+                    }}
+                  >
+                    <Plus aria-hidden className="size-4 shrink-0" />
+                    <Input
+                      aria-label={m.grading_quick_add()}
+                      placeholder={m.grading_quick_add()}
+                      value={quickTitle}
+                      onChange={(event) => setQuickTitle(event.target.value)}
+                      className="h-8 border-transparent bg-transparent px-2 shadow-none focus-visible:bg-input/50"
+                    />
+                  </form>
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </div>
 
-        <AssessmentDialog
-          courseId={courseId}
-          categories={categories}
-          open={adding}
-          onOpenChange={setAdding}
-        />
         <AssessmentDialog
           courseId={courseId}
           categories={categories}
@@ -326,7 +315,61 @@ export function AssessmentTable({
           pending={remove.isPending}
           onConfirm={() => deleting && remove.mutate({ path: { assessment_id: deleting.id } })}
         />
-      </div>
+      </>
     </TableActionsContext>
+  )
+}
+
+/** A category's heading row in grouped view: its weight and the average of its real scores. */
+function GroupRow({
+  category,
+  items,
+  collapsed,
+  onToggle,
+}: {
+  category: AssessmentCategory | null
+  items: readonly Assessment[]
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  const figures = groupFigures(items)
+  return (
+    <TableRow className="bg-muted/40 hover:bg-muted/40">
+      <TableCell colSpan={3} className="py-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+          aria-expanded={!collapsed}
+          onClick={onToggle}
+        >
+          {collapsed ? (
+            <ChevronRight aria-hidden className="size-4" />
+          ) : (
+            <ChevronDown aria-hidden className="size-4" />
+          )}
+          <CategoryBadge category={category} />
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+            {m.grading_group_summary({
+              count: items.length,
+              graded: formatCredits(figures.graded),
+              weight: formatCredits(figures.weight),
+            })}
+          </span>
+        </Button>
+      </TableCell>
+      <TableCell className="py-1.5">
+        <span className="block pr-3 text-right font-medium tabular-nums">
+          {formatCredits(figures.weight)}
+        </span>
+      </TableCell>
+      <TableCell className="py-1.5">
+        <span className="block pr-3 text-right font-medium tabular-nums">
+          <span className="sr-only">{m.grading_average()}: </span>
+          {percentText(figures.average)}
+        </span>
+      </TableCell>
+      <TableCell className="py-1.5" />
+    </TableRow>
   )
 }
