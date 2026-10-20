@@ -15,6 +15,7 @@ and the model's abilities: the same attachment renders the same way each time (p
 import re
 from collections import OrderedDict
 from datetime import date
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import anyio.to_thread
@@ -29,6 +30,9 @@ from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, 
 from semestra.modules.ai import wrap_untrusted
 from semestra.modules.files.parse import PageRenderer
 
+if TYPE_CHECKING:
+    from semestra.modules.imports.ics import IcsResult
+
 # About 6k tokens: documents up to this size are given whole.
 FULL_TEXT_CHARS = 24_000
 PREVIEW_PAGES = 2
@@ -38,6 +42,8 @@ SCANNED_IMAGES_MAX = 5
 _CACHE_MAX = 32
 # Rendered page images by (attachment id, page): every request of a turn sends them again.
 _images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
+# Calendar summaries by (attachment id, time zone).
+_summaries: OrderedDict[tuple[str, str], str] = OrderedDict()
 
 _UNREADABLE = {
     "files.encrypted_pdf": "it is a password-protected PDF",
@@ -65,12 +71,9 @@ def manifest(att: AgentAttachment, *, chars: int | None = None) -> str:
     return f"<attachment {' '.join(parts)}>"
 
 
-async def render(
-    ctx: Ctx, att: AgentAttachment, *, vision: bool, reads_pdf: bool
-) -> list[UserContent]:
-    # `reads_pdf` is not needed: PDFs are given as text and page images, which every provider
-    # takes, rather than as a document block.
-    del reads_pdf
+async def render(ctx: Ctx, att: AgentAttachment, *, vision: bool) -> list[UserContent]:
+    """PDFs are given as text and page images, which every provider takes, rather than as a
+    document block, so whether the model reads PDFs does not matter here."""
     if att.doc_kind == "image" or (att.doc_kind is None and att.kind == "image"):
         if not vision:
             return [f"{manifest(att)}\n{NO_VISION}"]
@@ -90,32 +93,39 @@ async def render(
     text = "\n\n".join(_page_text(r) for r in shown)
     content: list[UserContent] = [f"{head}\n{wrap_untrusted(text, att.name)}"]
     if rest:
-        content.append(_outline_and_hint(att, rows))
+        content += _outline_and_hint(att, rows)
     content += await _scanned(ctx, att, shown, vision=vision)
     return content
 
 
 def _page_text(row: AgentAttachmentPage) -> str:
     body = row.markdown[: attachments.PAGE_MAX_CHARS].strip()
+    if len(row.markdown) > attachments.PAGE_MAX_CHARS:
+        body += f"\n[page cut at {attachments.PAGE_MAX_CHARS} characters]"
     if row.needs_ocr and not body:
         body = "[scanned page without a text layer]"
     return f"--- page {row.page_no} ---\n{body}"
 
 
-def _outline_and_hint(att: AgentAttachment, rows: list[AgentAttachmentPage]) -> str:
+def _outline_and_hint(att: AgentAttachment, rows: list[AgentAttachmentPage]) -> list[str]:
+    """The outline's headings are the document's own words: wrapped as untrusted, apart from
+    the instructions around them."""
     entries = attachments.outline(rows)
     lines = [
-        f"{'  ' * (level - 1)}- {_attr(title)[:120]} (p. {page})"
+        f"{'  ' * (level - 1)}- {title[:120]} (p. {page})"
         for level, page, title in entries[:OUTLINE_MAX]
     ]
     if len(entries) > OUTLINE_MAX:
         lines.append(f"- … {len(entries) - OUTLINE_MAX} more headings")
-    outline = "Outline:\n" + "\n".join(lines) if lines else "The document has no headings."
-    return (
-        f"Only pages 1-{PREVIEW_PAGES} of {att.page_count} are shown. {outline}\n"
+    shown = f"Only pages 1-{PREVIEW_PAGES} of {att.page_count} are shown."
+    hint = (
         f"Read other pages with attachments.read (attachment_id {att.id}, page_from) when the "
         "question needs them."
     )
+    if not lines:
+        return [f"{shown} The document has no headings. {hint}"]
+    outline = wrap_untrusted("\n".join(lines), f"{att.name} (outline)")
+    return [f"{shown} Its outline:\n{outline}\n{hint}"]
 
 
 async def _scanned(
@@ -176,13 +186,26 @@ def _unreadable(code: str) -> str:
 
 
 async def _calendar_summary(ctx: Ctx, att: AgentAttachment) -> str:
+    """Parsed once per (attachment, time zone) in a worker thread, then kept: a turn sends it
+    on every request, and a calendar can hold thousands of events."""
     from semestra.modules.imports.ics import parse_ics
 
-    data = await service.read_attachment(ctx, att)
-    try:
-        result = parse_ics(data, await _timezone(ctx, att))
-    except AppError:
-        return _unreadable("files.parse_failed")
+    tz = await _timezone(ctx, att)
+    key = (att.id, tz)
+    if key not in _summaries:
+        data = await service.read_attachment(ctx, att)
+        try:
+            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz))
+        except AppError:
+            return _unreadable("files.parse_failed")
+        _summaries[key] = _summary_text(att, result)
+        while len(_summaries) > _CACHE_MAX:
+            _summaries.popitem(last=False)
+    _summaries.move_to_end(key)
+    return _summaries[key]
+
+
+def _summary_text(att: AgentAttachment, result: IcsResult) -> str:
     days: list[date] = []
     meetings = events = 0
     for course in result.courses:

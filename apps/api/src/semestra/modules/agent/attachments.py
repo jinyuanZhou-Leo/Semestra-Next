@@ -44,6 +44,11 @@ ICS_NOTE = (
     "Calendar file: its text is not shown. To import its classes, pass this attachment id to "
     "imports.session.create with source_kind ics."
 )
+SCANNED_NOTE = (
+    "Scanned pages without text: {pages}. They cannot be read with this tool (the "
+    "first scanned pages are shown as pictures with the message, to models that see images). "
+    "Ask the user for the text of the part they need, or a screenshot of it."
+)
 # Uploads no message refers to (removed from the composer, the page closed before sending) are
 # deleted after this long, with their file, so they stop counting against the storage quota.
 UNSENT_RETENTION = timedelta(hours=24)
@@ -215,7 +220,9 @@ class AttachmentRead(BaseModel):
     pages: list[AttachmentPageOut]
     next_page: int | None = Field(description="Call again from this page for the rest")
     error_code: str | None = Field(description="Why the file could not be read, if it could not")
-    note: str | None = Field(default=None, description="How to use a file that has no pages")
+    note: str | None = Field(
+        default=None, description="How to use a file or pages that have no text"
+    )
 
 
 @capability(
@@ -251,6 +258,9 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
             )
         )
         size += len(text)
+    note = ICS_NOTE if row.doc_kind == "ics" else None
+    if scanned := [p.page_no for p in out if p.needs_ocr and not p.markdown.strip()]:
+        note = SCANNED_NOTE.format(pages=", ".join(map(str, scanned)))
     error = row.parse_error
     if row.doc_kind is None:
         error = "agent.attachment_not_read"  # uploaded before attachments were parsed
@@ -262,7 +272,7 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
         pages=out,
         next_page=last + 1 if last < total else None,
         error_code=error,
-        note=ICS_NOTE if row.doc_kind == "ics" else None,
+        note=note,
     )
 
 

@@ -64,14 +64,12 @@ def load(row: AgentMessage) -> ModelMessage | None:
 # --- user messages --------------------------------------------------------------------------
 
 
-async def attachment_content(
-    ctx: Ctx, att: AgentAttachment, *, vision: bool, reads_pdf: bool
-) -> list[UserContent]:
+async def attachment_content(ctx: Ctx, att: AgentAttachment, *, vision: bool) -> list[UserContent]:
     """What the model gets for one attachment of a user message. Called on every request, so it
     must give the same result each time."""
     from semestra.modules.agent import attachment_context
 
-    return await attachment_context.render(ctx, att, vision=vision, reads_pdf=reads_pdf)
+    return await attachment_context.render(ctx, att, vision=vision)
 
 
 def is_typed(row: AgentMessage) -> bool:
@@ -86,7 +84,6 @@ async def user_request(
     attachments: dict[str, AgentAttachment],
     stamp: Callable[[datetime], str],
     vision: bool,
-    reads_pdf: bool,
 ) -> ModelRequest | None:
     """`stamp` turns the row's stored time into the `[Sent …]` note put before what the user
     wrote. A chosen skill brings its workflow and reveals its tools."""
@@ -108,7 +105,7 @@ async def user_request(
             if att is None:
                 content.append(f"[Attachment {block.get('name', '')} is no longer available]")
             else:
-                content += await attachment_content(ctx, att, vision=vision, reads_pdf=reads_pdf)
+                content += await attachment_content(ctx, att, vision=vision)
     if not content:
         return None
     if is_typed(row):
