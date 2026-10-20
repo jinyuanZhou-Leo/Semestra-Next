@@ -93,7 +93,7 @@ class CardAddInput(BaseModel):
 
 
 class CardRef(BaseModel):
-    instance_id: Id = Field(description="Card instance id (from layouts.board.get)")
+    instance_id: Id = Field(description="Card instance id")
 
 
 class CardSettings(BaseModel):

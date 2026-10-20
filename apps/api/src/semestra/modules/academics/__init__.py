@@ -13,6 +13,8 @@ from semestra.modules.settings import set_scope_resolver
 
 def register(app: FastAPI) -> None:
     del app  # capabilities are mounted by the core
+    registry.set_id_source("term_id", "academics.term.list")
+    registry.set_id_source("course_id", "academics.course.find")
     set_scope_resolver(resolve_scope)
     set_zone_resolver(output_zone)
     registry.set_context_default(
@@ -20,6 +22,8 @@ def register(app: FastAPI) -> None:
         default_program_id,
         {
             "agent": "Leave it out for the Program the user is in.",
-            "mcp": "Leave it out when the user has only one Program.",
+            "mcp": (
+                "Leave it out when the user has only one Program; else from academics.program.list."
+            ),
         },
     )

@@ -1410,8 +1410,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "academics"
         ],
-        "summary": "Add several courses at once (imports).",
-        "description": "Use to create a batch of courses, e.g. from an imported timetable.",
+        "summary": "Add several courses at once.",
+        "description": "Use for a batch of courses the user typed or listed in the chat. Courses in a\ndocument or file (a timetable, a syllabus) go through imports.session.create instead.",
         "operationId": "academicsCourseCreateMany",
         "parameters": [
           {
@@ -4033,7 +4033,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "schedule"
         ],
         "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
-        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with\ncourse_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.",
+        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start`. A busy term is a large result: narrow it with\ncourse_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.",
         "operationId": "calendarOccurrenceList",
         "parameters": [
           {
@@ -4066,10 +4066,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "schema": {
               "type": "string",
               "format": "date",
-              "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)",
+              "description": "Day after the last day (exclusive); at most 400 days later",
               "title": "End"
             },
-            "description": "Day after the last day (exclusive); at most 400 days later (120 in the app)"
+            "description": "Day after the last day (exclusive); at most 400 days later"
           },
           {
             "name": "sources",
@@ -4195,7 +4195,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "schedule"
         ],
         "summary": "Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
-        "description": "Prefer this for questions about today (\"what do I have today?\", \"what's due this\nweek?\"). It also says which term week it is. For other days or longer ranges use\ncalendar.occurrence.list. Times are UTC; read them in the returned `timezone`.",
+        "description": "Prefer this for questions about today (\"what do I have today?\", \"what's due this\nweek?\"). It also says which term week it is. For other days or longer ranges use\ncalendar.occurrence.list. Times are local to the Program, with their UTC offset.",
         "operationId": "calendarTodayGet",
         "parameters": [
           {
@@ -4478,10 +4478,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File or link id",
+              "description": "File or link id, from files.item.list",
               "title": "Item Id"
             },
-            "description": "File or link id"
+            "description": "File or link id, from files.item.list"
           }
         ],
         "responses": {
@@ -4523,10 +4523,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File id",
+              "description": "File id, from files.item.list or files.document.search",
               "title": "Item Id"
             },
-            "description": "File id"
+            "description": "File id, from files.item.list or files.document.search"
           },
           {
             "name": "page_from",
@@ -4819,10 +4819,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File or link id",
+              "description": "File or link id, from files.item.list",
               "title": "Item Id"
             },
-            "description": "File or link id"
+            "description": "File or link id, from files.item.list"
           }
         ],
         "responses": {
@@ -4862,10 +4862,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File or link id",
+              "description": "File or link id, from files.item.list",
               "title": "Item Id"
             },
-            "description": "File or link id"
+            "description": "File or link id, from files.item.list"
           }
         ],
         "responses": {
@@ -4905,10 +4905,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File or link id",
+              "description": "File or link id, from files.item.list",
               "title": "Item Id"
             },
-            "description": "File or link id"
+            "description": "File or link id, from files.item.list"
           }
         ],
         "requestBody": {
@@ -5005,10 +5005,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "File or link id",
+              "description": "File or link id, from files.item.list",
               "title": "Item Id"
             },
-            "description": "File or link id"
+            "description": "File or link id, from files.item.list"
           }
         ],
         "responses": {
@@ -5320,8 +5320,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "grading"
         ],
-        "summary": "Add several assessments at once (imports from a syllabus or an LMS).",
-        "description": "Items that carry `source_kind` and `source_ref` are skipped when the course\nalready has an assessment from the same source, so repeating an import creates no duplicates.",
+        "summary": "Add several assessments at once.",
+        "description": "Use for assessments the user typed or listed in the chat. A grading scheme in a\nfile goes through imports.session.create, and LMS assignments through lms.assignment.import.\nItems that carry `source_kind` and `source_ref` are skipped when the course\nalready has an assessment from the same source, so repeating an import creates no duplicates.",
         "operationId": "gradingAssessmentCreateMany",
         "parameters": [
           {
@@ -5593,10 +5593,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "AssessmentCategory id",
+              "description": "Category id",
               "title": "Category Id"
             },
-            "description": "AssessmentCategory id"
+            "description": "Category id"
           }
         ],
         "responses": {
@@ -5636,10 +5636,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "AssessmentCategory id",
+              "description": "Category id",
               "title": "Category Id"
             },
-            "description": "AssessmentCategory id"
+            "description": "Category id"
           }
         ],
         "requestBody": {
@@ -6481,10 +6481,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Import session id",
+              "description": "Import id, from imports.session.create or imports.session.list",
               "title": "Session Id"
             },
-            "description": "Import session id"
+            "description": "Import id, from imports.session.create or imports.session.list"
           }
         ],
         "requestBody": {
@@ -6536,10 +6536,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Import session id",
+              "description": "Import id, from imports.session.create or imports.session.list",
               "title": "Session Id"
             },
-            "description": "Import session id"
+            "description": "Import id, from imports.session.create or imports.session.list"
           },
           {
             "name": "item_id",
@@ -6547,10 +6547,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Item id",
+              "description": "Item id (`items[].id` of imports.session.get)",
               "title": "Item Id"
             },
-            "description": "Item id"
+            "description": "Item id (`items[].id` of imports.session.get)"
           }
         ],
         "requestBody": {
@@ -6593,7 +6593,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
-        "description": "Only after the user reviewed the import. Writes in dependency order; one item\nfailing does not undo the others (see each item's `result`). Repeating it only retries the\nitems that have not been written. The assistant gets the counts and the items that failed.",
+        "description": "The user reviews the import on its confirmation card; summarise it first.\nWrites in dependency order; one item failing does not undo the others (see each item's\n`result`). Repeating it only retries the items that have not been written. The assistant gets\nthe counts and the items that failed.",
         "operationId": "importsSessionCommit",
         "parameters": [
           {
@@ -6602,10 +6602,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Import session id",
+              "description": "Import id, from imports.session.create or imports.session.list",
               "title": "Session Id"
             },
-            "description": "Import session id"
+            "description": "Import id, from imports.session.create or imports.session.list"
           }
         ],
         "requestBody": {
@@ -6648,7 +6648,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`. ICS is parsed at once (status ready); the\nother sources are extracted in the background (status extracting → ready): call imports.session.get\nwith wait_seconds to wait for it. Never write a document's contents with the modules' own create\ncapabilities instead of importing it. The assistant gets `summary` and the first\n25 items; read the rest with imports.session.get.",
+        "description": "Use when the user shares a syllabus, timetable, ICS file or other document to\nbring into the app (\"import this\", \"set up my courses from this syllabus\"). Creates a draft the user\nreviews before anything is written. Pass the files themselves: `attachment_ids` for files attached\nto the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.\nAn import never creates terms: the target term must exist (academics.term.create first). ICS is\nparsed at once (status ready); the other sources are extracted in the background (status\nextracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a\ndocument's contents with the modules' own create capabilities instead of importing it. The\nassistant gets `summary` and the first\n25 items; read the rest with imports.session.get.",
         "operationId": "importsSessionCreate",
         "parameters": [
           {
@@ -6785,10 +6785,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Import session id",
+              "description": "Import id, from imports.session.create or imports.session.list",
               "title": "Session Id"
             },
-            "description": "Import session id"
+            "description": "Import id, from imports.session.create or imports.session.list"
           }
         ],
         "responses": {
@@ -6830,10 +6830,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Import session id",
+              "description": "Import id, from imports.session.create or imports.session.list",
               "title": "Session Id"
             },
-            "description": "Import session id"
+            "description": "Import id, from imports.session.create or imports.session.list"
           },
           {
             "name": "item_ids",
@@ -6853,10 +6853,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                   "type": "null"
                 }
               ],
-              "description": "Only these items",
+              "description": "Only these items (`items[].id` of imports.session.get)",
               "title": "Item Ids"
             },
-            "description": "Only these items"
+            "description": "Only these items (`items[].id` of imports.session.get)"
           },
           {
             "name": "types",
@@ -7217,10 +7217,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Card instance id (from layouts.board.get)",
+              "description": "Card instance id",
               "title": "Instance Id"
             },
-            "description": "Card instance id (from layouts.board.get)"
+            "description": "Card instance id"
           }
         ],
         "responses": {
@@ -7315,10 +7315,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Card instance id (from layouts.board.get)",
+              "description": "Card instance id",
               "title": "Instance Id"
             },
-            "description": "Card instance id (from layouts.board.get)"
+            "description": "Card instance id"
           }
         ],
         "responses": {
@@ -7619,7 +7619,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "Recent announcements of a linked course, newest first.",
+        "summary": "Recent announcements of a linked course on Canvas or another LMS, newest first.",
         "operationId": "lmsAnnouncementList",
         "parameters": [
           {
@@ -7726,7 +7726,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "lms"
         ],
         "summary": "Start importing assignments of a linked course as assessments or tasks.",
-        "description": "Creates an import the user reviews; each item can be switched between an\nassessment and a task there. Assignments imported before are left out.",
+        "description": "Creates an import the user reviews; each item can be switched between an\nassessment and a task there. Assignments imported before are left out. Then commit it like\nany import (imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "parameters": [
           {
@@ -7780,7 +7780,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "Assignments of a linked course, each marked when already imported.",
+        "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
         "description": "To add them to the gradebook or tasks use lms.assignment.import (reviewed by\nthe user), never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "parameters": [
@@ -8298,7 +8298,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "Link a course to a course on its Program's LMS.",
+        "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
         "description": "Uses the Program's bound connection (lms.program_not_configured without one).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
         "operationId": "lmsCourseLinkSet",
         "parameters": [
@@ -8451,7 +8451,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "The user's courses on the LMS bound to a Program, marked when already linked.",
+        "summary": "The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
         "description": "Current-term courses by default; `include_past` for all of them.",
         "operationId": "lmsCourseList",
         "parameters": [
@@ -8521,7 +8521,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "lms"
         ],
         "summary": "A linked course on the LMS: details, navigation and supported features.",
-        "description": "Check `features` before using the other lms reads.",
+        "description": "A read the platform does not support fails with lms.feature_unsupported.",
         "operationId": "lmsCourseOverview",
         "parameters": [
           {
@@ -8623,7 +8623,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "lms"
         ],
         "summary": "Details of a file of a linked course.",
-        "description": "The content: GET /courses/{course_id}/lms/files/{file_id}/content.",
+        "description": "To read or search its text, save it with lms.file.save_to_course.",
         "operationId": "lmsFileGet",
         "parameters": [
           {
@@ -8643,10 +8643,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id",
+              "description": "External file id: `target.ref` of a file in lms.module_item.list",
               "title": "File Id"
             },
-            "description": "External file id"
+            "description": "External file id: `target.ref` of a file in lms.module_item.list"
           },
           {
             "name": "refresh",
@@ -8711,10 +8711,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id",
+              "description": "External file id: `target.ref` of a file in lms.module_item.list",
               "title": "File Id"
             },
-            "description": "External file id"
+            "description": "External file id: `target.ref` of a file in lms.module_item.list"
           }
         ],
         "requestBody": {
@@ -8756,7 +8756,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "The user's grades on the LMS for a linked course.",
+        "summary": "The user's grades on Canvas or another LMS for a linked course.",
         "description": "The course total first, then one row per assignment.",
         "operationId": "lmsGradeList",
         "parameters": [
@@ -8891,10 +8891,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External module id",
+              "description": "External module id, from lms.module.list",
               "title": "Module Id"
             },
-            "description": "External module id"
+            "description": "External module id, from lms.module.list"
           },
           {
             "name": "refresh",
@@ -8938,7 +8938,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "One page of a linked course, as cleaned HTML.",
+        "summary": "One page of a linked course; the assistant gets its body as Markdown.",
         "operationId": "lmsPageGet",
         "parameters": [
           {
@@ -9323,7 +9323,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "lms"
         ],
-        "summary": "The syllabus of a linked course, as cleaned HTML.",
+        "summary": "The syllabus of a linked course on Canvas or another LMS.",
         "description": "To extract its grading scheme use lms.syllabus.import.",
         "operationId": "lmsSyllabusGet",
         "parameters": [
@@ -9381,7 +9381,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "lms"
         ],
         "summary": "Extract the grading scheme and dates from a linked course's LMS syllabus.",
-        "description": "Starts an AI extraction (imports) the user reviews; needs an AI model.",
+        "description": "Starts an AI extraction the user reviews; needs an AI model. Then wait for it and\ncommit it like any import (imports.session.get, imports.session.commit).",
         "operationId": "lmsSyllabusImport",
         "parameters": [
           {
@@ -9922,8 +9922,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Class sections of a term that overlap each other.",
-        "description": "Use before or after adding meetings to warn about clashes. Only enabled sections\nthat share at least one date count.",
+        "summary": "Weekly class times of a term that overlap each other.",
+        "description": "Use after adding or moving meetings to warn about clashes. Only enabled meetings\nthat share at least one date count.",
         "operationId": "scheduleConflictList",
         "parameters": [
           {
@@ -10509,8 +10509,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Cancel or move one class of a section (one date only).",
-        "description": "Use for \"class is cancelled on Friday\" or \"Tuesday's lecture moves to room X\".\n`original_date` must be a date the section normally meets. Prefer this over deleting the\nmeeting.",
+        "summary": "Cancel or move one class (one date only).",
+        "description": "Use for \"class is cancelled on Friday\" or \"Tuesday's lecture moves to room X\".\n`original_date` must be a date the meeting normally happens on. Prefer this over deleting the\nmeeting.",
         "operationId": "scheduleExceptionUpsert",
         "parameters": [
           {
@@ -10719,7 +10719,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Add a weekly (or biweekly) class section to a course in one of its terms.",
+        "summary": "Add a weekly (or biweekly) class time to a course in one of its terms.",
         "description": "Times are wall-clock times in the Program's time zone. Check\nschedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up\nclass) use schedule.event.create instead.",
         "operationId": "scheduleMeetingCreate",
         "parameters": [
@@ -10772,7 +10772,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "List a course's weekly class sections, with their cancelled or moved dates.",
+        "summary": "List a course's weekly class times, with their cancelled or moved dates.",
         "description": "Use to see when a course meets each week, or to find the meeting id before\nchanging or cancelling one class. Optionally only one term of a year-long course.",
         "operationId": "scheduleMeetingList",
         "parameters": [
@@ -10837,7 +10837,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Add several class sections to a course at once (imports).",
+        "summary": "Add several weekly class times to a course at once (importers).",
         "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting meeting of the course updates it instead of adding a duplicate.",
         "operationId": "scheduleMeetingCreateMany",
         "parameters": [
@@ -10892,8 +10892,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Delete a class section with all its dates.",
-        "description": "Removes the section entirely. To cancel one class use\nschedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use\nschedule.meeting.set_enabled.",
+        "summary": "Delete a weekly class time with all its dates.",
+        "description": "Removes this weekly time entirely; a section that meets on two days has two.\nTo cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the\nuser does not attend use\nschedule.meeting.set_enabled.",
         "operationId": "scheduleMeetingDelete",
         "parameters": [
           {
@@ -10935,7 +10935,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Change a class section for the whole term (time, room, weeks, ...).",
+        "summary": "Change a weekly class time for the whole term (time, room, weeks, ...).",
         "description": "Changes every week. To change or cancel a single date use\nschedule.exception.upsert instead.",
         "operationId": "scheduleMeetingUpdate",
         "parameters": [
@@ -10990,8 +10990,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "schedule"
         ],
-        "summary": "Show or hide class sections of a course, e.g. keep only the user's tutorial.",
-        "description": "Disabled sections stay in the course but are left out of the calendar. Returns\nonly the sections whose state changed (empty when they already were as asked).",
+        "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
+        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). Disabled meetings stay in the course but are left out of the calendar.\nReturns only the meetings whose state changed (empty when they already were as asked).",
         "operationId": "scheduleMeetingSetEnabled",
         "parameters": [
           {
@@ -11784,7 +11784,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "tasks"
         ],
-        "summary": "Create a task, optionally with a due date, course, list and priority.",
+        "summary": "Create a task (a to-do or reminder), optionally with a due date, course and list.",
         "description": "Always pass the course and due date when the user's words or the current scope\ngive them. Dates are in the Program's time zone; a time needs a date. The term is inferred from\nthe course and due date. Omit list_id to put the task in the inbox. Use tasks.item.create_many\nfor several tasks.",
         "operationId": "tasksItemCreate",
         "parameters": [
@@ -12133,7 +12133,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "tasks"
         ],
         "summary": "Create several tasks at once; items with an already known source are skipped.",
-        "description": "Use for imports and for lists the user dictates. Set source_kind and source_ref\non imported items so that running the import again does not duplicate them; skipped items are\nreturned with the id of the task that already exists.",
+        "description": "Use for a list of tasks the user dictates or pastes; tasks in a document go\nthrough imports.session.create. Items whose source_kind and source_ref match an existing task\nare skipped and returned with that task's id, so repeating an import does not duplicate them.",
         "operationId": "tasksItemCreateMany",
         "parameters": [
           {
@@ -13810,7 +13810,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Category Id",
-            "description": "AssessmentCategory id, from the gradebook"
+            "description": "Category id"
           },
           "due_at": {
             "anyOf": [
@@ -14022,7 +14022,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Category Id",
-            "description": "AssessmentCategory id, from the gradebook"
+            "description": "Category id"
           },
           "due_at": {
             "anyOf": [
@@ -14267,7 +14267,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Category Id",
-            "description": "AssessmentCategory id, or null for none"
+            "description": "Category id, or null for none"
           },
           "due_at": {
             "anyOf": [
@@ -14723,7 +14723,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "maxItems": 200,
             "minItems": 1,
             "title": "External Ids",
-            "description": "Assignments to import"
+            "description": "Assignments to import (`external_id` of lms.assignment.list)"
           },
           "as_kind": {
             "type": "string",
@@ -14817,7 +14817,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "maxLength": 64,
             "minLength": 1,
             "title": "Connection Id",
-            "description": "Connection to bind"
+            "description": "Connection to bind (`connection.id` of lms.program.binding.get); the user adds connections in the settings"
           }
         },
         "type": "object",
@@ -15269,7 +15269,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Item Ids",
-            "description": "Only these items"
+            "description": "Only these items (`items[].id` of imports.session.get)"
           }
         },
         "type": "object",
@@ -15529,7 +15529,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "maxLength": 200,
             "minLength": 1,
             "title": "Name",
-            "description": "AssessmentCategory name, e.g. 'Midterm'"
+            "description": "Category name, e.g. 'Midterm'"
           },
           "color": {
             "type": "string",
@@ -15585,7 +15585,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "array",
             "maxItems": 50,
             "title": "Category Ids",
-            "description": "AssessmentCategory ids in display order"
+            "description": "Category ids in display order"
           }
         },
         "type": "object",
@@ -15813,7 +15813,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Item Ids",
-            "description": "Retry only these items (failed ones); default: all accepted"
+            "description": "Retry only these items (failed ones, `items[].id` of imports.session.get); default: all accepted"
           }
         },
         "type": "object",
@@ -17835,7 +17835,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "maxItems": 50,
             "minItems": 1,
             "title": "External Course Ids",
-            "description": "External courses to import"
+            "description": "External courses to import (`external_id` of lms.course.list)"
           },
           "term_id": {
             "anyOf": [
@@ -19268,7 +19268,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Folder Id",
-            "description": "Course folder (M07), default root"
+            "description": "Course folder, default root"
           }
         },
         "type": "object",
@@ -19363,7 +19363,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Parent Id",
-            "description": "Parent folder; null = course root"
+            "description": "Parent folder (from files.item.list); null = course root"
           }
         },
         "type": "object",
@@ -25939,7 +25939,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Default Categories",
-            "description": "AssessmentCategory template for new courses"
+            "description": "Category template for new courses"
           },
           "hide_gpa": {
             "anyOf": [
@@ -26108,7 +26108,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Item Ids",
-            "description": "Only these files"
+            "description": "Only these files (from files.item.list)"
           },
           "top_k": {
             "type": "integer",
@@ -26202,7 +26202,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "agent"
             ],
             "title": "Source Kind",
-            "description": "ics, syllabus, timetable_image or text"
+            "description": "ics, syllabus, timetable_image, text, or agent for items you add yourself with imports.item.add_many"
           },
           "target": {
             "$ref": "#/components/schemas/SessionTarget",
@@ -26217,7 +26217,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "array",
             "maxItems": 20,
             "title": "Upload Ids",
-            "description": "Files from POST /imports/uploads"
+            "description": "Files uploaded in the app; agents use attachment_ids or file_item_ids"
           },
           "file_item_ids": {
             "items": {
@@ -26228,7 +26228,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "array",
             "maxItems": 20,
             "title": "File Item Ids",
-            "description": "Existing course files (M07)"
+            "description": "Course files, from files.item.list"
           },
           "attachment_ids": {
             "items": {
@@ -28109,7 +28109,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Before Task Id",
-            "description": "Place the task before this one (same target list); else last"
+            "description": "Place the task before this one (same target list; from tasks.item.query); else last"
           }
         },
         "type": "object",
@@ -28502,7 +28502,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "array",
             "maxItems": 50,
             "title": "Continue Course Ids",
-            "description": "Year-long courses of the previous term that continue into the new term"
+            "description": "Year-long courses of the previous term that continue into the new term (from academics.course.list of that term)"
           }
         },
         "type": "object",

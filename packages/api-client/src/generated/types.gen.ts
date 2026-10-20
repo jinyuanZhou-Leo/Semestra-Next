@@ -675,7 +675,7 @@ export type AssessmentCreateInputBody = {
     /**
      * Category Id
      *
-     * AssessmentCategory id, from the gradebook
+     * Category id
      */
     category_id?: string | null;
     /**
@@ -789,7 +789,7 @@ export type AssessmentFields = {
     /**
      * Category Id
      *
-     * AssessmentCategory id, from the gradebook
+     * Category id
      */
     category_id?: string | null;
     /**
@@ -913,7 +913,7 @@ export type AssessmentUpdateInputBody = {
     /**
      * Category Id
      *
-     * AssessmentCategory id, or null for none
+     * Category id, or null for none
      */
     category_id?: string | null;
     /**
@@ -1127,7 +1127,7 @@ export type AssignmentsImportInputBody = {
     /**
      * External Ids
      *
-     * Assignments to import
+     * Assignments to import (`external_id` of lms.assignment.list)
      */
     external_ids: Array<string>;
     /**
@@ -1171,7 +1171,7 @@ export type BindingSetInputBody = {
     /**
      * Connection Id
      *
-     * Connection to bind
+     * Connection to bind (`connection.id` of lms.program.binding.get); the user adds connections in the settings
      */
     connection_id: string;
 };
@@ -1457,7 +1457,7 @@ export type BulkDecideInputBody = {
     /**
      * Item Ids
      *
-     * Only these items
+     * Only these items (`items[].id` of imports.session.get)
      */
     item_ids?: Array<string> | null;
 };
@@ -1628,7 +1628,7 @@ export type CategoryCreateInputBody = {
     /**
      * Name
      *
-     * AssessmentCategory name, e.g. 'Midterm'
+     * Category name, e.g. 'Midterm'
      */
     name: string;
     /**
@@ -1662,7 +1662,7 @@ export type CategoryOrderInputBody = {
     /**
      * Category Ids
      *
-     * AssessmentCategory ids in display order
+     * Category ids in display order
      */
     category_ids: Array<string>;
 };
@@ -1817,7 +1817,7 @@ export type CommitInputBody = {
     /**
      * Item Ids
      *
-     * Retry only these items (failed ones); default: all accepted
+     * Retry only these items (failed ones, `items[].id` of imports.session.get); default: all accepted
      */
     item_ids?: Array<string> | null;
 };
@@ -2906,7 +2906,7 @@ export type CoursesImportInputBody = {
     /**
      * External Course Ids
      *
-     * External courses to import
+     * External courses to import (`external_id` of lms.course.list)
      */
     external_course_ids: Array<string>;
     /**
@@ -3750,7 +3750,7 @@ export type FileSaveInputBody = {
     /**
      * Folder Id
      *
-     * Course folder (M07), default root
+     * Course folder, default root
      */
     folder_id?: string | null;
 };
@@ -3816,7 +3816,7 @@ export type FolderCreateInputBody = {
     /**
      * Parent Id
      *
-     * Parent folder; null = course root
+     * Parent folder (from files.item.list); null = course root
      */
     parent_id?: string | null;
 };
@@ -7498,7 +7498,7 @@ export type ScaleUpdateInputBody = {
     /**
      * Default Categories
      *
-     * AssessmentCategory template for new courses
+     * Category template for new courses
      */
     default_categories?: Array<CategoryTemplate> | null;
     /**
@@ -7602,7 +7602,7 @@ export type SearchInputBody = {
     /**
      * Item Ids
      *
-     * Only these files
+     * Only these files (from files.item.list)
      */
     item_ids?: Array<string> | null;
     /**
@@ -7658,7 +7658,7 @@ export type SessionCreateInputBody = {
     /**
      * Source Kind
      *
-     * ics, syllabus, timetable_image or text
+     * ics, syllabus, timetable_image, text, or agent for items you add yourself with imports.item.add_many
      */
     source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
     /**
@@ -7668,13 +7668,13 @@ export type SessionCreateInputBody = {
     /**
      * Upload Ids
      *
-     * Files from POST /imports/uploads
+     * Files uploaded in the app; agents use attachment_ids or file_item_ids
      */
     upload_ids?: Array<string>;
     /**
      * File Item Ids
      *
-     * Existing course files (M07)
+     * Course files, from files.item.list
      */
     file_item_ids?: Array<string>;
     /**
@@ -8748,7 +8748,7 @@ export type TaskMoveInputBody = {
     /**
      * Before Task Id
      *
-     * Place the task before this one (same target list); else last
+     * Place the task before this one (same target list; from tasks.item.query); else last
      */
     before_task_id?: string | null;
 };
@@ -8992,7 +8992,7 @@ export type TermCreateInputBody = {
     /**
      * Continue Course Ids
      *
-     * Year-long courses of the previous term that continue into the new term
+     * Year-long courses of the previous term that continue into the new term (from academics.course.list of that term)
      */
     continue_course_ids?: Array<string>;
 };
@@ -12733,7 +12733,7 @@ export type CalendarOccurrenceListData = {
         /**
          * End
          *
-         * Day after the last day (exclusive); at most 400 days later (120 in the app)
+         * Day after the last day (exclusive); at most 400 days later
          */
         end: string;
         /**
@@ -12959,7 +12959,7 @@ export type FilesDocumentOutlineData = {
         /**
          * Item Id
          *
-         * File or link id
+         * File or link id, from files.item.list
          */
         item_id: string;
     };
@@ -12991,7 +12991,7 @@ export type FilesDocumentReadData = {
         /**
          * Item Id
          *
-         * File id
+         * File id, from files.item.list or files.document.search
          */
         item_id: string;
     };
@@ -13171,7 +13171,7 @@ export type FilesItemDeleteData = {
         /**
          * Item Id
          *
-         * File or link id
+         * File or link id, from files.item.list
          */
         item_id: string;
     };
@@ -13203,7 +13203,7 @@ export type FilesItemGetData = {
         /**
          * Item Id
          *
-         * File or link id
+         * File or link id, from files.item.list
          */
         item_id: string;
     };
@@ -13235,7 +13235,7 @@ export type FilesItemUpdateData = {
         /**
          * Item Id
          *
-         * File or link id
+         * File or link id, from files.item.list
          */
         item_id: string;
     };
@@ -13299,7 +13299,7 @@ export type FilesItemReprocessData = {
         /**
          * Item Id
          *
-         * File or link id
+         * File or link id, from files.item.list
          */
         item_id: string;
     };
@@ -13637,7 +13637,7 @@ export type GradingCategoryDeleteData = {
         /**
          * Category Id
          *
-         * AssessmentCategory id
+         * Category id
          */
         category_id: string;
     };
@@ -13669,7 +13669,7 @@ export type GradingCategoryUpdateData = {
         /**
          * Category Id
          *
-         * AssessmentCategory id
+         * Category id
          */
         category_id: string;
     };
@@ -14208,7 +14208,7 @@ export type ImportsItemDecideManyData = {
         /**
          * Session Id
          *
-         * Import session id
+         * Import id, from imports.session.create or imports.session.list
          */
         session_id: string;
     };
@@ -14240,13 +14240,13 @@ export type ImportsItemUpdateData = {
         /**
          * Session Id
          *
-         * Import session id
+         * Import id, from imports.session.create or imports.session.list
          */
         session_id: string;
         /**
          * Item Id
          *
-         * Item id
+         * Item id (`items[].id` of imports.session.get)
          */
         item_id: string;
     };
@@ -14278,7 +14278,7 @@ export type ImportsSessionCommitData = {
         /**
          * Session Id
          *
-         * Import session id
+         * Import id, from imports.session.create or imports.session.list
          */
         session_id: string;
     };
@@ -14387,7 +14387,7 @@ export type ImportsSessionDiscardData = {
         /**
          * Session Id
          *
-         * Import session id
+         * Import id, from imports.session.create or imports.session.list
          */
         session_id: string;
     };
@@ -14419,7 +14419,7 @@ export type ImportsSessionGetData = {
         /**
          * Session Id
          *
-         * Import session id
+         * Import id, from imports.session.create or imports.session.list
          */
         session_id: string;
     };
@@ -14427,7 +14427,7 @@ export type ImportsSessionGetData = {
         /**
          * Item Ids
          *
-         * Only these items
+         * Only these items (`items[].id` of imports.session.get)
          */
         item_ids?: Array<string> | null;
         /**
@@ -14602,7 +14602,7 @@ export type LayoutsCardGetSettingsData = {
         /**
          * Instance Id
          *
-         * Card instance id (from layouts.board.get)
+         * Card instance id
          */
         instance_id: string;
     };
@@ -14666,7 +14666,7 @@ export type LayoutsCardRemoveData = {
         /**
          * Instance Id
          *
-         * Card instance id (from layouts.board.get)
+         * Card instance id
          */
         instance_id: string;
     };
@@ -15485,7 +15485,7 @@ export type LmsFileGetData = {
         /**
          * File Id
          *
-         * External file id
+         * External file id: `target.ref` of a file in lms.module_item.list
          */
         file_id: string;
     };
@@ -15530,7 +15530,7 @@ export type LmsFileSaveToCourseData = {
         /**
          * File Id
          *
-         * External file id
+         * External file id: `target.ref` of a file in lms.module_item.list
          */
         file_id: string;
     };
@@ -15646,7 +15646,7 @@ export type LmsModuleItemListData = {
         /**
          * Module Id
          *
-         * External module id
+         * External module id, from lms.module.list
          */
         module_id: string;
     };

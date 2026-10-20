@@ -195,7 +195,7 @@ async def binding_clear(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 
 @capability(
     name="lms.course.list",
-    summary="The user's courses on the LMS bound to a Program, marked when already linked.",
+    summary="The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
     description="Current-term courses by default; `include_past` for all of them.",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms/courses"),
@@ -241,7 +241,7 @@ async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 
 @capability(
     name="lms.course.link.set",
-    summary="Link a course to a course on its Program's LMS.",
+    summary="Link a course to its course on the Program's LMS (Canvas or another).",
     description="""Uses the Program's bound connection (lms.program_not_configured without one).
 An external course can be linked to only one course of the Program
 (lms.course_already_linked). If the course is already linked to another external course this fails
@@ -305,7 +305,7 @@ async def link_delete(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 @capability(
     name="lms.course.overview",
     summary="A linked course on the LMS: details, navigation and supported features.",
-    description="Check `features` before using the other lms reads.",
+    description="A read the platform does not support fails with lms.feature_unsupported.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms"),
     tags=TAGS,
@@ -332,7 +332,7 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
 @capability(
     name="lms.announcement.list",
     untrusted=True,
-    summary="Recent announcements of a linked course, newest first.",
+    summary="Recent announcements of a linked course on Canvas or another LMS, newest first.",
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
@@ -346,7 +346,7 @@ async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementL
 @capability(
     name="lms.assignment.list",
     untrusted=True,
-    summary="Assignments of a linked course, each marked when already imported.",
+    summary="Assignments of a linked course on Canvas or another LMS, marked when imported.",
     description="""To add them to the gradebook or tasks use lms.assignment.import (reviewed by
 the user), never the gradebook or task capabilities directly.""",
     effect="read",
@@ -360,7 +360,7 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
 
 @capability(
     name="lms.grade.list",
-    summary="The user's grades on the LMS for a linked course.",
+    summary="The user's grades on Canvas or another LMS for a linked course.",
     description="The course total first, then one row per assignment.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/grades"),
@@ -440,7 +440,7 @@ async def pages_list(ctx: Ctx, inp: CourseReadInput) -> PageList:
 @capability(
     name="lms.page.get",
     untrusted=True,
-    summary="One page of a linked course, as cleaned HTML.",
+    summary="One page of a linked course; the assistant gets its body as Markdown.",
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/pages/{ref}"),
@@ -468,7 +468,7 @@ async def quizzes_list(ctx: Ctx, inp: QuizzesInput) -> QuizList:
 @capability(
     name="lms.syllabus.get",
     untrusted=True,
-    summary="The syllabus of a linked course, as cleaned HTML.",
+    summary="The syllabus of a linked course on Canvas or another LMS.",
     description="To extract its grading scheme use lms.syllabus.import.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/syllabus"),
@@ -481,7 +481,7 @@ async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
 @capability(
     name="lms.file.get",
     summary="Details of a file of a linked course.",
-    description="The content: GET /courses/{course_id}/lms/files/{file_id}/content.",
+    description="To read or search its text, save it with lms.file.save_to_course.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}"),
     tags=TAGS,
@@ -527,7 +527,8 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     name="lms.assignment.import",
     summary="Start importing assignments of a linked course as assessments or tasks.",
     description="""Creates an import the user reviews; each item can be switched between an
-assessment and a task there. Assignments imported before are left out.""",
+assessment and a task there. Assignments imported before are left out. Then commit it like
+any import (imports.session.commit).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:assignments"),
     preview=previews.preview_assignment_import,
@@ -540,7 +541,8 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
 @capability(
     name="lms.syllabus.import",
     summary="Extract the grading scheme and dates from a linked course's LMS syllabus.",
-    description="Starts an AI extraction (imports) the user reviews; needs an AI model.",
+    description="""Starts an AI extraction the user reviews; needs an AI model. Then wait for it and
+commit it like any import (imports.session.get, imports.session.commit).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:syllabus"),
     tags=TAGS,

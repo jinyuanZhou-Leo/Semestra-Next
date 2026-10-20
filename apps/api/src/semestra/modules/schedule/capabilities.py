@@ -83,7 +83,7 @@ def _occurrences(key: str) -> tuple[str, ...]:
     summary="Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
     description="""Prefer this for questions about today ("what do I have today?", "what's due this
 week?"). It also says which term week it is. For other days or longer ranges use
-calendar.occurrence.list. Times are UTC; read them in the returned `timezone`.""",
+calendar.occurrence.list. Times are local to the Program, with their UTC offset.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/today"),
     tags=TAGS,
@@ -106,7 +106,7 @@ async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
     summary="Everything on the calendar in a date range: classes, events, deadlines, tasks.",
     description="""Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
 overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
-and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+and at most 400 days after `start`. A busy term is a large result: narrow it with
 course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
 For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.""",
     effect="read",
@@ -198,7 +198,7 @@ async def event_type_reorder(ctx: Ctx, inp: EventTypeOrderInput) -> EventTypeLis
 
 @capability(
     name="schedule.meeting.list",
-    summary="List a course's weekly class sections, with their cancelled or moved dates.",
+    summary="List a course's weekly class times, with their cancelled or moved dates.",
     description="""Use to see when a course meets each week, or to find the meeting id before
 changing or cancelling one class. Optionally only one term of a year-long course.""",
     effect="read",
@@ -212,7 +212,7 @@ async def meeting_list(ctx: Ctx, inp: MeetingListInput) -> MeetingList:
 
 @capability(
     name="schedule.meeting.create",
-    summary="Add a weekly (or biweekly) class section to a course in one of its terms.",
+    summary="Add a weekly (or biweekly) class time to a course in one of its terms.",
     description="""Times are wall-clock times in the Program's time zone. Check
 schedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up
 class) use schedule.event.create instead.""",
@@ -229,7 +229,7 @@ async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
 
 @capability(
     name="schedule.meeting.create_many",
-    summary="Add several class sections to a course at once (imports).",
+    summary="Add several weekly class times to a course at once (importers).",
     description="""Used by importers. An item with the same source_kind and source_ref as an
 existing meeting of the course updates it instead of adding a duplicate.""",
     effect="write",
@@ -250,7 +250,7 @@ async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingC
 
 @capability(
     name="schedule.meeting.update",
-    summary="Change a class section for the whole term (time, room, weeks, ...).",
+    summary="Change a weekly class time for the whole term (time, room, weeks, ...).",
     description="""Changes every week. To change or cancel a single date use
 schedule.exception.upsert instead.""",
     effect="write",
@@ -264,9 +264,10 @@ async def meeting_update(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
 
 @capability(
     name="schedule.meeting.delete",
-    summary="Delete a class section with all its dates.",
-    description="""Removes the section entirely. To cancel one class use
-schedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use
+    summary="Delete a weekly class time with all its dates.",
+    description="""Removes this weekly time entirely; a section that meets on two days has two.
+To cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the
+user does not attend use
 schedule.meeting.set_enabled.""",
     effect="destructive",
     http=Http("DELETE", "/meetings/{meeting_id}"),
@@ -280,9 +281,10 @@ async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
 
 @capability(
     name="schedule.meeting.set_enabled",
-    summary="Show or hide class sections of a course, e.g. keep only the user's tutorial.",
-    description="""Disabled sections stay in the course but are left out of the calendar. Returns
-only the sections whose state changed (empty when they already were as asked).""",
+    summary="Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
+    description="""To hide a whole section, pass every meeting with its section_code (a section
+can meet on several days). Disabled meetings stay in the course but are left out of the calendar.
+Returns only the meetings whose state changed (empty when they already were as asked).""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/meetings:enabled"),
     tags=TAGS,
@@ -296,9 +298,9 @@ async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingL
 
 @capability(
     name="schedule.exception.upsert",
-    summary="Cancel or move one class of a section (one date only).",
+    summary="Cancel or move one class (one date only).",
     description="""Use for "class is cancelled on Friday" or "Tuesday's lecture moves to room X".
-`original_date` must be a date the section normally meets. Prefer this over deleting the
+`original_date` must be a date the meeting normally happens on. Prefer this over deleting the
 meeting.""",
     effect="write",
     http=Http("PUT", "/meetings/{meeting_id}/exceptions/{original_date}"),
@@ -326,8 +328,8 @@ async def exception_delete(ctx: Ctx, inp: ExceptionRef) -> Meeting:
 
 @capability(
     name="schedule.conflict.list",
-    summary="Class sections of a term that overlap each other.",
-    description="""Use before or after adding meetings to warn about clashes. Only enabled sections
+    summary="Weekly class times of a term that overlap each other.",
+    description="""Use after adding or moving meetings to warn about clashes. Only enabled meetings
 that share at least one date count.""",
     effect="read",
     http=Http("GET", "/terms/{term_id}/schedule-conflicts"),

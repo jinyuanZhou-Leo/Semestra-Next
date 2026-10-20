@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from semestra.core.capability import registry
 from semestra.modules.schedule import capabilities, models, portability, subscribers  # noqa: F401
 from semestra.modules.schedule.routes import router
 from semestra.modules.schedule.settings import CalendarSettings
@@ -13,4 +14,7 @@ register_settings(
 
 
 def register(app: FastAPI) -> None:
+    registry.set_id_source("meeting_id", "schedule.meeting.list")
+    registry.set_id_source("event_id", "schedule.event.list")
+    registry.set_id_source("event_type_id", "schedule.event_type.list")
     app.include_router(router)

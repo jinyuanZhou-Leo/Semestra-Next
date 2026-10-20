@@ -198,7 +198,9 @@ class TaskMoveInput(BaseModel):
         default=None, description="Target list (null = inbox); if not sent the list is unchanged"
     )
     before_task_id: Id | None = Field(
-        default=None, description="Place the task before this one (same target list); else last"
+        default=None,
+        description="Place the task before this one (same target list; from tasks.item.query); "
+        "else last",
     )
 
 

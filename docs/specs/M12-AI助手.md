@@ -215,5 +215,7 @@ agent_preferences
   - `registry.set_context_default`：agent/MCP 调用可以省略必填的 `program_id`，由 M02 的 `default_program_id` 填成当前 Program（或唯一的 Program）；schema 里它变成可选并注明这一点（agent 看到“省略即当前 Program”，MCP 客户端看到“只有一个 Program 时可省略”）。HTTP 仍然必填。写操作在出卡片前就补全，提案里存的是补全后的参数，所以用户切换范围后再批准仍写入出卡片时的 Program；补全不算用户修改。
   - `@capability(check=...)`：handler 会拒绝的输入在 `registry.validate` 里先检查，agent 的写操作在出确认卡片之前就报错，而不是用户批准之后。同一个函数同时用于卡片前和执行时。
   - `@capability(untrusted=True)` 同时决定结果的不可信包装和描述里的提示（原来是 `tools.UNTRUSTED_RESULTS` 加各自描述两处，`lms.quiz.list` 漏了包装）。
+  - id 从哪来（工具排查 PR-E）：模块用 `registry.set_id_source("course_id", "academics.course.find")` 登记，发给 agent/MCP 的 schema 里同名字段（以及 `*_ids`）的描述末尾自动加上 "From <工具>."；描述里已经写了工具名的字段、以及来源工具自己不加。名字有歧义的 id（`item_id`、`session_id` 等）在字段描述里手写来源。
+  - skill：`description` 一律以 "Use when" 开头（目录里模型只看得到这一句）；正文里用反引号写到的工具必须列在 `tools:` 里（核心工具除外），两条都有测试。
   - 错误：`not_found(kind, id)` 带上找不到的是什么、哪个 id；校验错误带 Pydantic 的 `msg` 与 `ctx`（如 `ge`、允许的值），不带输入值。
 

@@ -7,6 +7,7 @@ cannot express.
 
 from fastapi import FastAPI
 
+from semestra.core.capability import registry
 from semestra.modules.layouts import capabilities, models, portability, subscribers  # noqa: F401
 from semestra.modules.layouts.service import (
     CardInstance,
@@ -26,3 +27,4 @@ __all__ = [
 
 def register(app: FastAPI) -> None:
     del app
+    registry.set_id_source("instance_id", "layouts.card.list")

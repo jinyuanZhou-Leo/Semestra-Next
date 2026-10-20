@@ -35,6 +35,11 @@ async def test_search_ranks_tools_by_what_the_words_mean(agent: Agent):
     # Stemming: "tasks" and "completed" find "task" and "complete".
     assert _search("completed tasks")[0] == "tasks__item__complete"
     assert _search("clash", "overlap")[0] == "schedule__conflict__list"
+    # Words users say that once matched nothing useful.
+    assert "tasks__item__create" in _search("remind me")[:3]
+    assert "imports__session__create" in _search("import syllabus")[:3]
+    assert "grading__gradebook__get" in _search("final grade needed")[:5]
+    assert "lms__course__link__set" in _search("link canvas course")[:5]
     assert len(_search("delete")) == tools.SEARCH_LIMIT
     with pytest.raises(ModelRetry):
         _search("成绩")
@@ -96,11 +101,25 @@ async def test_no_core_tool_is_cut_off_by_the_limit(agent: Agent):
     assert len([c for c in registry.list("agent") if c.agent_core]) <= tools.CORE_LIMIT
 
 
+async def test_id_fields_say_which_tool_gives_the_id(agent: Agent):
+    del agent
+    props = tools.input_schema(registry.get("grading.assessment.update"))["properties"]
+    assert props["assessment_id"]["description"].endswith("From grading__assessment__find.")
+    assert props["category_id"]["description"].endswith("From grading__gradebook__get.")
+    # Not on the tool the id comes from, and not when the text already names a tool.
+    find = tools.input_schema(registry.get("academics.course.find"))["properties"]
+    assert "From" not in find["query"]["description"]
+    item = tools.input_schema(registry.get("files.document.read"))["properties"]["item_id"]
+    assert item["description"].count("files__item__list") == 1
+
+
 async def test_mcp_clients_are_not_told_about_a_program_they_are_not_in(agent: Agent):
     del agent
     cap = registry.get("calendar.occurrence.list")
     note = tools.input_schema(cap, "mcp")["properties"]["program_id"]["description"]
-    assert note.endswith("Leave it out when the user has only one Program.")
+    assert note.endswith(
+        "Leave it out when the user has only one Program; else from academics__program__list."
+    )
 
 
 async def test_untrusted_results_say_so_in_the_description(agent: Agent):

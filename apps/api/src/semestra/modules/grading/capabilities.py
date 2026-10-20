@@ -247,7 +247,8 @@ async def assessment_list(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
     description="""Use first whenever the user refers to an assessment in words to get its id, then
 update it. Searches the given course; otherwise the Program, ranking the current term's courses
 first. Returns candidates with their course and a score; ask the user when the top candidates are
-close, and offer to create the assessment when none matches.""",
+close. When none matches, read the course's grading.assessment.list before creating one: the
+user may call it something else ("Q2" for "Quiz 2").""",
     effect="read",
     expose=("agent", "mcp"),
     tags=TAGS,
@@ -275,8 +276,10 @@ async def assessment_create(ctx: Ctx, inp: AssessmentCreateInput) -> Assessment:
 
 @capability(
     name="grading.assessment.create_many",
-    summary="Add several assessments at once (imports from a syllabus or an LMS).",
-    description="""Items that carry `source_kind` and `source_ref` are skipped when the course
+    summary="Add several assessments at once.",
+    description="""Use for assessments the user typed or listed in the chat. A grading scheme in a
+file goes through imports.session.create, and LMS assignments through lms.assignment.import.
+Items that carry `source_kind` and `source_ref` are skipped when the course
 already has an assessment from the same source, so repeating an import creates no duplicates.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/assessments:batch"),

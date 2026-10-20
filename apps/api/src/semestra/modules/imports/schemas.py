@@ -366,13 +366,18 @@ class Upload(BaseModel):
 
 class SessionCreateInput(BaseModel):
     program_id: Id = Field(description="Program id")
-    source_kind: SourceKind = Field(description="ics, syllabus, timetable_image or text")
+    source_kind: SourceKind = Field(
+        description="ics, syllabus, timetable_image, text, or agent for items you add yourself "
+        "with imports.item.add_many"
+    )
     target: SessionTarget = Field(description="A term or a course; agents cannot use the wizard")
     upload_ids: list[Id] = Field(
-        default_factory=list, max_length=20, description="Files from POST /imports/uploads"
+        default_factory=list,
+        max_length=20,
+        description="Files uploaded in the app; agents use attachment_ids or file_item_ids",
     )
     file_item_ids: list[Id] = Field(
-        default_factory=list, max_length=20, description="Existing course files (M07)"
+        default_factory=list, max_length=20, description="Course files, from files.item.list"
     )
     attachment_ids: list[Id] = Field(
         default_factory=list,
@@ -395,7 +400,9 @@ class SessionCreateInput(BaseModel):
 
 
 class SessionRef(BaseModel):
-    session_id: Id = Field(description="Import session id")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
 
 
 ItemField = Literal[
@@ -405,8 +412,14 @@ ItemField = Literal[
 
 
 class SessionGetInput(BaseModel):
-    session_id: Id = Field(description="Import session id")
-    item_ids: list[Id] | None = Field(default=None, max_length=500, description="Only these items")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
+    item_ids: list[Id] | None = Field(
+        default=None,
+        max_length=500,
+        description="Only these items (`items[].id` of imports.session.get)",
+    )
     types: list[ItemType] | None = Field(default=None, description="Only items of these types")
     fields: list[ItemField] | None = Field(
         default=None,
@@ -433,8 +446,10 @@ class SessionListInput(BaseModel):
 
 
 class ItemUpdateInput(BaseModel):
-    session_id: Id = Field(description="Import session id")
-    item_id: Id = Field(description="Item id")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
+    item_id: Id = Field(description="Item id (`items[].id` of imports.session.get)")
     data: dict[str, Any] | None = Field(
         default=None, description="Fields to change; merged into the item's data"
     )
@@ -445,13 +460,17 @@ class ItemUpdateInput(BaseModel):
 
 
 class BulkDecideInput(BaseModel):
-    session_id: Id = Field(description="Import session id")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
     decision: Literal["accept", "reject"] = Field(description="Decision to apply")
     types: list[ItemType] | None = Field(default=None, description="Only items of these types")
     issue_codes: list[str] | None = Field(
         default=None, description="Only items with one of these issues"
     )
-    item_ids: list[Id] | None = Field(default=None, description="Only these items")
+    item_ids: list[Id] | None = Field(
+        default=None, description="Only these items (`items[].id` of imports.session.get)"
+    )
 
     @model_validator(mode="after")
     def _some_filter(self) -> Self:
@@ -598,7 +617,9 @@ AddedItem = Annotated[
 
 
 class ItemsAddInput(BaseModel):
-    session_id: Id = Field(description="Import session id")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
     items: list[AddedItem] = Field(
         min_length=1, max_length=500, description="Items to append, each with its type's fields"
     )
@@ -611,13 +632,17 @@ class WizardCourse(BaseModel):
 
 
 class CommitInput(BaseModel):
-    session_id: Id = Field(description="Import session id")
+    session_id: Id = Field(
+        description="Import id, from imports.session.create or imports.session.list"
+    )
     wizard_courses: list[WizardCourse] | None = Field(
         default=None,
         description="Term wizard: the courses it created from the session's course items",
     )
     item_ids: list[Id] | None = Field(
-        default=None, description="Retry only these items (failed ones); default: all accepted"
+        default=None,
+        description="Retry only these items (failed ones, `items[].id` of imports.session.get); "
+        "default: all accepted",
     )
 
 
