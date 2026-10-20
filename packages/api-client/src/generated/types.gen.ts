@@ -1757,6 +1757,44 @@ export type CheckinToggleResult = {
 };
 
 /**
+ * Citation
+ *
+ * What the assistant's `[[cite:<id>]]` markers point at (M12 §6.1).
+ */
+export type Citation = {
+    /**
+     * Id
+     *
+     * `<item_id>:p<page_from>-<page_to>`
+     */
+    id: string;
+    /**
+     * Title
+     *
+     * File name
+     */
+    title: string;
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Page From
+     */
+    page_from: number;
+    /**
+     * Page To
+     */
+    page_to: number;
+    /**
+     * Snippet
+     *
+     * The quoted words, plain text
+     */
+    snippet: string;
+};
+
+/**
  * Cleared
  */
 export type Cleared = {
@@ -2963,6 +3001,12 @@ export type DocumentPage = {
      * Ocr Used
      */
     ocr_used: boolean;
+    /**
+     * Citation Id
+     *
+     * `<item_id>:p<page_no>-<page_no>`
+     */
+    citation_id: string;
 };
 
 /**
@@ -2991,6 +3035,12 @@ export type DocumentRead = {
      * Call again from this page for the rest
      */
     next_page: number | null;
+    /**
+     * Citations
+     *
+     * One per page; cite a page by its citation_id
+     */
+    citations: Array<Citation>;
 };
 
 /**
@@ -4271,6 +4321,38 @@ export type IdentityOut = {
 };
 
 /**
+ * IgnoredCourseScore
+ */
+export type IgnoredCourseScore = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Reason
+     *
+     * finished: the course already has its final grade (or is not graded by percentage); unknown: not a course of this term that counts towards its GPA
+     */
+    reason: 'finished' | 'unknown';
+};
+
+/**
+ * IgnoredScore
+ */
+export type IgnoredScore = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Reason
+     *
+     * graded: it already has a real score; unknown: not an assessment of this course
+     */
+    reason: 'graded' | 'unknown';
+};
+
+/**
  * ImportItem
  */
 export type ImportItem = {
@@ -4951,6 +5033,12 @@ export type LinkSetInputBody = {
      * Show in the calendar, check updates
      */
     sync_enabled?: boolean;
+    /**
+     * Replace
+     *
+     * Replace the course's link to another external course; only when the user asked to change it
+     */
+    replace?: boolean;
 };
 
 /**
@@ -5878,9 +5966,15 @@ export type NoteUpdateInputBody = {
     /**
      * Content
      *
-     * The new Markdown text of the note; replaces the old text
+     * Markdown text: the lines to add, or the whole new note with mode replace
      */
     content: string;
+    /**
+     * Mode
+     *
+     * append adds the text on a new line after the note; replace overwrites it
+     */
+    mode?: 'append' | 'replace';
 };
 
 /**
@@ -7540,9 +7634,21 @@ export type SearchResult = {
      */
     pending_items: Array<PendingItem>;
     /**
+     * Unreadable Items
+     *
+     * Files in scope whose text could not be read; search never covers them
+     */
+    unreadable_items: Array<UnreadableItem>;
+    /**
      * Mode Used
      */
     mode_used: 'hybrid' | 'keyword' | 'semantic';
+    /**
+     * Citations
+     *
+     * One per result, by its citation_id
+     */
+    citations: Array<Citation>;
 };
 
 /**
@@ -7831,6 +7937,146 @@ export type SimulateCourseInputBody = {
      * Goal; the course's own target when omitted
      */
     target?: GradeTarget | null;
+};
+
+/**
+ * SimulatedGradebook
+ */
+export type SimulatedGradebook = {
+    /**
+     * Status
+     */
+    status: 'completed' | 'in_progress' | 'passed' | 'failed';
+    /**
+     * Weight Total
+     */
+    weight_total: number;
+    /**
+     * Weight Gap
+     *
+     * 100 - weight_total; positive means weight is missing
+     */
+    weight_gap: number;
+    /**
+     * Weights Ok
+     *
+     * False: the weights do not add up to 100, so no figures
+     */
+    weights_ok: boolean;
+    /**
+     * Graded Count
+     */
+    graded_count: number;
+    /**
+     * Remaining Count
+     */
+    remaining_count: number;
+    /**
+     * Graded Weight
+     */
+    graded_weight: number;
+    /**
+     * Remaining Weight
+     */
+    remaining_weight: number;
+    /**
+     * Locked Contribution
+     *
+     * The final grade if everything still to come scored 0
+     */
+    locked_contribution: number | null;
+    /**
+     * Current Percentage
+     *
+     * Weighted average of the graded items
+     */
+    current_percentage: number | null;
+    /**
+     * Current Points
+     */
+    current_points: number | null;
+    /**
+     * Current Letter
+     */
+    current_letter: string | null;
+    /**
+     * Final Percentage
+     *
+     * Official or fully calculated final grade, null while the course is running
+     */
+    final_percentage: number | null;
+    /**
+     * Final Points
+     */
+    final_points: number | null;
+    /**
+     * Final Letter
+     */
+    final_letter: string | null;
+    /**
+     * Final Source
+     */
+    final_source: 'override' | 'computed' | 'manual' | null;
+    /**
+     * Overridden
+     */
+    overridden: boolean;
+    /**
+     * Forecast Percentage
+     *
+     * Predicted final grade ('auto' model)
+     */
+    forecast_percentage: number | null;
+    /**
+     * Forecast Points
+     */
+    forecast_points: number | null;
+    /**
+     * Forecast Letter
+     */
+    forecast_letter: string | null;
+    /**
+     * Predictions
+     *
+     * Predicted score per ungraded assessment id
+     */
+    predictions: {
+        [key: string]: number;
+    };
+    /**
+     * Missing History Category Ids
+     *
+     * Categories of ungraded items without any graded item to predict from
+     */
+    missing_history_category_ids: Array<string | null>;
+    /**
+     * Target Points
+     */
+    target_points: number;
+    /**
+     * Target Percentage
+     *
+     * Lowest percentage reaching the target
+     */
+    target_percentage: number | null;
+    /**
+     * Required Average
+     *
+     * Average the remaining items need to reach the target
+     */
+    required_average: number | null;
+    /**
+     * Reachable
+     *
+     * False when the target needs more than 100%
+     */
+    reachable: boolean | null;
+    /**
+     * Ignored
+     *
+     * Assumed scores that were not used
+     */
+    ignored: Array<IgnoredScore>;
 };
 
 /**
@@ -8236,7 +8482,7 @@ export type TaskCreateInputBody = {
     /**
      * Source Kind
      *
-     * Where the task came from
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
      */
     source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
@@ -8344,7 +8590,7 @@ export type TaskFields = {
     /**
      * Source Kind
      *
-     * Where the task came from
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
      */
     source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
@@ -8886,6 +9132,12 @@ export type TermGradeSimulation = {
      * One average for the courses left blank that reaches the target
      */
     required_percentage: number | null;
+    /**
+     * Ignored
+     *
+     * Assumed percentages that were not used
+     */
+    ignored: Array<IgnoredCourseScore>;
 };
 
 /**
@@ -9283,6 +9535,34 @@ export type UiStateSetInputBody = {
      * Any JSON value up to 16 KB
      */
     value: JsonValue;
+};
+
+/**
+ * UnreadableItem
+ */
+export type UnreadableItem = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Doc Status
+     */
+    doc_status: 'failed' | 'unsupported';
+    /**
+     * Doc Error Code
+     *
+     * Why the text could not be read
+     */
+    doc_error_code: string | null;
 };
 
 /**
@@ -12474,6 +12754,12 @@ export type CalendarOccurrenceListData = {
          * Only these courses
          */
         course_ids?: Array<string> | null;
+        /**
+         * Kinds
+         *
+         * Only these kinds: class, event, deadline, task; all by default
+         */
+        kinds?: Array<'class' | 'event' | 'deadline' | 'task'> | null;
     };
     url: '/programs/{program_id}/calendar';
 };
@@ -12719,7 +13005,7 @@ export type FilesDocumentReadData = {
         /**
          * Page To
          *
-         * Last page; at most 30 pages are returned per call
+         * Last page; at most 30 pages, and for the assistant about 9000 characters, are returned per call
          */
         page_to?: number | null;
     };
@@ -13692,7 +13978,7 @@ export type GradingSimulateCourseResponses = {
     /**
      * Successful Response
      */
-    200: GradebookSummary;
+    200: SimulatedGradebook;
 };
 
 export type GradingSimulateCourseResponse = GradingSimulateCourseResponses[keyof GradingSimulateCourseResponses];
@@ -14168,6 +14454,12 @@ export type ImportsSessionGetData = {
          * Items per page (agent/MCP default 25; HTTP: all)
          */
         limit?: number | null;
+        /**
+         * Wait Seconds
+         *
+         * While the import is still extracting, wait up to this long for it to finish before answering
+         */
+        wait_seconds?: number;
     };
     url: '/imports/{session_id}';
 };
@@ -14822,38 +15114,6 @@ export type LmsConnectionValidateResponses = {
 
 export type LmsConnectionValidateResponse = LmsConnectionValidateResponses[keyof LmsConnectionValidateResponses];
 
-export type LmsCourseApplyUpdatesData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms/updates:review';
-};
-
-export type LmsCourseApplyUpdatesErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsCourseApplyUpdatesError = LmsCourseApplyUpdatesErrors[keyof LmsCourseApplyUpdatesErrors];
-
-export type LmsCourseApplyUpdatesResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportStarted;
-};
-
-export type LmsCourseApplyUpdatesResponse = LmsCourseApplyUpdatesResponses[keyof LmsCourseApplyUpdatesResponses];
-
 export type LmsCourseCheckUpdatesData = {
     body?: never;
     path: {
@@ -15168,6 +15428,38 @@ export type LmsCourseOverviewResponses = {
 };
 
 export type LmsCourseOverviewResponse = LmsCourseOverviewResponses[keyof LmsCourseOverviewResponses];
+
+export type LmsCourseQueueUpdatesData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/updates:review';
+};
+
+export type LmsCourseQueueUpdatesErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseQueueUpdatesError = LmsCourseQueueUpdatesErrors[keyof LmsCourseQueueUpdatesErrors];
+
+export type LmsCourseQueueUpdatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsCourseQueueUpdatesResponse = LmsCourseQueueUpdatesResponses[keyof LmsCourseQueueUpdatesResponses];
 
 export type LmsFileGetData = {
     body?: never;
@@ -16978,9 +17270,9 @@ export type StickyNoteListData = {
         /**
          * Scope Type
          *
-         * Kind of board the note sits on
+         * Kind of board the note sits on; 'today' is the Program's Today page
          */
-        scope_type: 'program' | 'term' | 'course';
+        scope_type: 'program' | 'term' | 'course' | 'today';
         /**
          * Scope Id
          *

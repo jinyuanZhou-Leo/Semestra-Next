@@ -4012,7 +4012,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "schedule"
         ],
         "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
-        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled\nclasses are included with status 'cancelled'.\nFor today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.",
+        "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with\ncourse_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.",
         "operationId": "calendarOccurrenceList",
         "parameters": [
           {
@@ -4115,6 +4115,33 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Course Ids"
             },
             "description": "Only these courses"
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "class",
+                      "event",
+                      "deadline",
+                      "task"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these kinds: class, event, deadline, task; all by default",
+              "title": "Kinds"
+            },
+            "description": "Only these kinds: class, event, deadline, task; all by default"
           }
         ],
         "responses": {
@@ -4466,7 +4493,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "files"
         ],
         "summary": "Read the text of a processed file, page by page.",
-        "description": "Returns the markdown of up to 30 pages starting at page_from. When next_page is\nset, call again from there to continue. Use it to summarise or extract from a whole document; to\nfind something specific use files.document.search first.",
+        "description": "Returns the markdown of the pages from page_from (a few pages per call, each with\nits citation_id). When next_page is set, call again from there to continue. Use it to summarise or\nextract from a whole document; to find something specific use files.document.search first.",
         "operationId": "filesDocumentRead",
         "parameters": [
           {
@@ -4506,10 +4533,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                   "type": "null"
                 }
               ],
-              "description": "Last page; at most 30 pages are returned per call",
+              "description": "Last page; at most 30 pages, and for the assistant about 9000 characters, are returned per call",
               "title": "Page To"
             },
-            "description": "Last page; at most 30 pages are returned per call"
+            "description": "Last page; at most 30 pages, and for the assistant about 9000 characters, are returned per call"
           }
         ],
         "responses": {
@@ -4542,7 +4569,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "files"
         ],
         "summary": "Search what the course files say.",
-        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; tell the user the answer may be incomplete. Do not use to find a\nfile by its name; use files.item.list.",
+        "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; if unreadable_items is not empty, those files could not be read\nat all. In both cases tell the user the answer may be incomplete. Do not use to find a file by its\nname; use files.item.list.",
         "operationId": "filesDocumentSearch",
         "parameters": [
           {
@@ -6031,7 +6058,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "grading"
         ],
         "summary": "What-if: the course figures if ungraded assessments scored the given marks.",
-        "description": "Use to answer \"what if I get 80 on the final\". Nothing is saved: never change\nreal scores to simulate. Fails with grading.weights_not_100 while the weights do not add up.",
+        "description": "Use to answer \"what if I get 80 on the final\". Nothing is saved: never change\nreal scores to simulate. Scores it could not use (already graded, not of this course) come back in\n`ignored`. Fails with grading.weights_not_100 while the weights do not add up.",
         "operationId": "gradingSimulateCourse",
         "parameters": [
           {
@@ -6062,7 +6089,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GradebookSummary"
+                  "$ref": "#/components/schemas/SimulatedGradebook"
                 }
               }
             }
@@ -6086,7 +6113,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "grading"
         ],
         "summary": "What-if for a term: the term GPA if unfinished courses ended with given marks.",
-        "description": "Pass assumed final percentages per unfinished course in `scores`; with\n`target_gpa` the result says whether it is reachable and what average the other unfinished courses\nneed. Nothing is saved.",
+        "description": "Pass assumed final percentages per unfinished course in `scores`; with\n`target_gpa` the result says whether it is reachable and what average the other unfinished courses\nneed. Marks it could not use (finished or unknown courses) come back in `ignored`. Nothing is\nsaved.",
         "operationId": "gradingSimulateTerm",
         "parameters": [
           {
@@ -6324,7 +6351,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "habit"
         ],
         "summary": "Check or uncheck a habit for a day (today or the past 7 days).",
-        "description": "Use when the user says they did a habit (\"check in my reading habit\"). Find the\ninstance_id with layouts.board.get (the habit card of the course, term, Program or today board).\nCalling it on a day that is already checked removes the check-in, so read habit.checkin.list\nfirst when the user only wants it checked. Days older than 7 days or in the future are refused.",
+        "description": "The habit card's click: a checked day becomes unchecked and the other way\nround. Days older than 7 days or in the future are refused.",
         "operationId": "habitCheckinToggle",
         "parameters": [
           {
@@ -6424,7 +6451,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Accept or reject many import items at once, by type, issue or id.",
-        "description": "E.g. reject every item with `import.duplicate_assessment`. The filters combine\n(an item must match all given). Rejecting a course item also rejects the items that belong to it\n(its meetings, assessments, categories, events and tasks), so leaving a course out takes only its\nid. The assistant gets `changed` and the session's `summary`, without its items.",
+        "description": "E.g. reject every item with `import.duplicate_assessment`. Give at least one\nfilter; they combine (an item must match all given). Rejecting a course item also rejects the items\nthat belong to it (its meetings, assessments, categories, events and tasks), so leaving a course out\ntakes only its id. The assistant gets `changed` and the session's `summary`, without its items.",
         "operationId": "importsItemDecideMany",
         "parameters": [
           {
@@ -6479,7 +6506,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Edit an import item's fields or accept/reject it.",
-        "description": "`data` is merged into the item (send null to clear a field); the item's issues\nare checked again afterwards. The assistant gets the session's `summary` and the changed item.",
+        "description": "`data` is merged into the item (send null to clear a field); fields the item's\ntype does not have are refused. The item's issues are checked again afterwards. The assistant gets\nthe session's `summary` and the changed item.",
         "operationId": "importsItemUpdate",
         "parameters": [
           {
@@ -6600,7 +6627,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`.\nICS is parsed at once (status ready); the other sources are extracted in the background\n(status extracting → ready), poll imports.session.get. Never write a document's contents with\nthe modules' own create capabilities instead of importing it. The assistant gets `summary` and the\nfirst 25 items; read the rest with imports.session.get.",
+        "description": "Creates a draft the user reviews before anything is written. Upload files first\n(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to\nthe assistant conversation (`attachment_ids`), or `text`. ICS is parsed at once (status ready); the\nother sources are extracted in the background (status extracting → ready): call imports.session.get\nwith wait_seconds to wait for it. Never write a document's contents with the modules' own create\ncapabilities instead of importing it. The assistant gets `summary` and the first\n25 items; read the rest with imports.session.get.",
         "operationId": "importsSessionCreate",
         "parameters": [
           {
@@ -6728,7 +6755,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "Drop an import that has not been committed, with its uploaded files.",
-        "description": "Use when the user does not want the import.",
+        "description": "Use when the user does not want the import. Its uploaded files are deleted too.",
         "operationId": "importsSessionDiscard",
         "parameters": [
           {
@@ -6773,7 +6800,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "imports"
         ],
         "summary": "An import with its items, their issues and the extraction progress.",
-        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`\nand `fields`; items come 25 at a time, follow `next_cursor` for more.",
+        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and\n`fields`; items come 25 at a time, follow `next_cursor` for more. While it is\nextracting, pass wait_seconds (up to 25) to wait for the result in one call; if it\nis still extracting after that, tell the user and stop instead of calling again.",
         "operationId": "importsSessionGet",
         "parameters": [
           {
@@ -6912,6 +6939,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "title": "Limit"
             },
             "description": "Items per page (agent/MCP default 25; HTTP: all)"
+          },
+          {
+            "name": "wait_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "While the import is still extracting, wait up to this long for it to finish before answering",
+              "default": 0,
+              "title": "Wait Seconds"
+            },
+            "description": "While the import is still extracting, wait up to this long for it to finish before answering"
           }
         ],
         "responses": {
@@ -7965,58 +8004,13 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         }
       }
     },
-    "/courses/{course_id}/lms/updates:review": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Put the LMS changes of imported assignments up for review.",
-        "description": "Creates an import of changes; nothing changes before the user commits it.",
-        "operationId": "lmsCourseApplyUpdates",
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportStarted"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/courses/{course_id}/lms/updates": {
       "get": {
         "tags": [
           "lms"
         ],
         "summary": "Imported assignments whose title, due date or points changed on the LMS.",
-        "description": "Review them with lms.course.apply_updates.",
+        "description": "Put them up for the user's review with lms.course.queue_updates.",
         "operationId": "lmsCourseCheckUpdates",
         "parameters": [
           {
@@ -8214,7 +8208,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "lms"
         ],
         "summary": "Link a course to a course on its Program's LMS.",
-        "description": "Uses the Program's bound connection (lms.program_not_configured without one).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked).",
+        "description": "Uses the Program's bound connection (lms.program_not_configured without one).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
         "operationId": "lmsCourseLinkSet",
         "parameters": [
           {
@@ -8470,6 +8464,51 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CourseOverview"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/updates:review": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Put the LMS changes of imported assignments up for review.",
+        "description": "Creates an import of the changes and changes nothing itself: they are written\nwhen the import is committed (imports.session.commit) after the user reviewed it.",
+        "operationId": "lmsCourseQueueUpdates",
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStarted"
                 }
               }
             }
@@ -10829,7 +10868,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "schedule"
         ],
         "summary": "Show or hide class sections of a course, e.g. keep only the user's tutorial.",
-        "description": "Disabled sections stay in the course but are left out of the calendar.",
+        "description": "Disabled sections stay in the course but are left out of the calendar. Returns\nonly the sections whose state changed (empty when they already were as asked).",
         "operationId": "scheduleMeetingSetEnabled",
         "parameters": [
           {
@@ -11310,8 +11349,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "sticky"
         ],
-        "summary": "List the sticky notes on a Program, term or course board.",
-        "description": "Use to find a note before reading or changing it (\"what is in my note for this\ncourse\"). Returns each note's instance_id and Markdown text.",
+        "summary": "List the sticky notes on a Program, term, course or Today board.",
+        "description": "Use to read the notes of one board (\"what is in my note for this course\").\nReturns each note's instance_id and Markdown text. To find a note without knowing its board use\nlayouts.card.list.",
         "operationId": "stickyNoteList",
         "parameters": [
           {
@@ -11322,13 +11361,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "enum": [
                 "program",
                 "term",
-                "course"
+                "course",
+                "today"
               ],
               "type": "string",
-              "description": "Kind of board the note sits on",
+              "description": "Kind of board the note sits on; 'today' is the Program's Today page",
               "title": "Scope Type"
             },
-            "description": "Kind of board the note sits on"
+            "description": "Kind of board the note sits on; 'today' is the Program's Today page"
           },
           {
             "name": "scope_id",
@@ -11371,8 +11411,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "tags": [
           "sticky"
         ],
-        "summary": "Replace the text of a sticky note.",
-        "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"). It replaces the whole text, so call sticky.note.list first and send\nthe old text with the new lines added. At most 10 000 characters.",
+        "summary": "Add to or replace the text of a sticky note.",
+        "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"): by default (mode append) the lines go after the note's text, so the\nsame call made twice adds them twice. To rewrite or delete text, read the note first and send the\nwhole new text with mode replace. At most 10 000 characters.",
         "operationId": "stickyNoteUpdate",
         "parameters": [
           {
@@ -12025,7 +12065,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "tasks"
         ],
         "summary": "Delete a task for good.",
-        "description": "Irreversible. To finish a task use tasks.item.complete instead; delete only when\nthe user asks to remove it.",
+        "description": "Irreversible. To finish a task use tasks.item.complete instead; delete only when\nthe user asks to remove it. A task made from an assessment comes back when the assessment\nchanges.",
         "operationId": "tasksItemDelete",
         "parameters": [
           {
@@ -12111,7 +12151,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "tasks"
         ],
         "summary": "Change a task's title, notes, due date and time, priority, flag, list or course.",
-        "description": "Partial update: only the fields that are sent change; null clears the nullable\nones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task\nand tasks.item.move to reorder it.",
+        "description": "Partial update: only the fields that are sent change; null clears the nullable\nones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task\nand tasks.item.move to reorder it. A task with source_kind assessment takes its title, due date and\ncourse from the assessment: changing those is refused (tasks.managed_by_assessment); change the\nassessment instead.",
         "operationId": "tasksItemUpdate",
         "parameters": [
           {
@@ -15563,6 +15603,48 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "CheckinToggleResult"
       },
+      "Citation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "`<item_id>:p<page_from>-<page_to>`"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "File name"
+          },
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "page_from": {
+            "type": "integer",
+            "title": "Page From"
+          },
+          "page_to": {
+            "type": "integer",
+            "title": "Page To"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "The quoted words, plain text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "item_id",
+          "page_from",
+          "page_to",
+          "snippet"
+        ],
+        "title": "Citation",
+        "description": "What the assistant's `[[cite:<id>]]` markers point at (M12 §6.1)."
+      },
       "Cleared": {
         "properties": {
           "deleted": {
@@ -17766,13 +17848,19 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "ocr_used": {
             "type": "boolean",
             "title": "Ocr Used"
+          },
+          "citation_id": {
+            "type": "string",
+            "title": "Citation Id",
+            "description": "`<item_id>:p<page_no>-<page_no>`"
           }
         },
         "type": "object",
         "required": [
           "page_no",
           "markdown",
-          "ocr_used"
+          "ocr_used",
+          "citation_id"
         ],
         "title": "DocumentPage"
       },
@@ -17808,6 +17896,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             ],
             "title": "Next Page",
             "description": "Call again from this page for the rest"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "One per page; cite a page by its citation_id"
           }
         },
         "type": "object",
@@ -17816,7 +17912,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "display_name",
           "page_count",
           "pages",
-          "next_page"
+          "next_page",
+          "citations"
         ],
         "title": "DocumentRead"
       },
@@ -19984,6 +20081,52 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "title": "IdentityOut"
       },
+      "IgnoredCourseScore": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "finished",
+              "unknown"
+            ],
+            "title": "Reason",
+            "description": "finished: the course already has its final grade (or is not graded by percentage); unknown: not a course of this term that counts towards its GPA"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "IgnoredCourseScore"
+      },
+      "IgnoredScore": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "graded",
+              "unknown"
+            ],
+            "title": "Reason",
+            "description": "graded: it already has a real score; unknown: not an assessment of this course"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "IgnoredScore"
+      },
       "ImportItem": {
         "properties": {
           "id": {
@@ -21257,6 +21400,12 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "title": "Sync Enabled",
             "description": "Show in the calendar, check updates",
             "default": true
+          },
+          "replace": {
+            "type": "boolean",
+            "title": "Replace",
+            "description": "Replace the course's link to another external course; only when the user asked to change it",
+            "default": false
           }
         },
         "type": "object",
@@ -22913,7 +23062,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "maxLength": 10000,
             "title": "Content",
-            "description": "The new Markdown text of the note; replaces the old text"
+            "description": "Markdown text: the lines to add, or the whole new note with mode replace"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "append",
+              "replace"
+            ],
+            "title": "Mode",
+            "description": "append adds the text on a new line after the note; replace overwrites it",
+            "default": "append"
           }
         },
         "type": "object",
@@ -25871,6 +26030,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "title": "Pending Items",
             "description": "Files in scope that are still being processed and are not searchable yet"
           },
+          "unreadable_items": {
+            "items": {
+              "$ref": "#/components/schemas/UnreadableItem"
+            },
+            "type": "array",
+            "title": "Unreadable Items",
+            "description": "Files in scope whose text could not be read; search never covers them"
+          },
           "mode_used": {
             "type": "string",
             "enum": [
@@ -25879,13 +26046,23 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "semantic"
             ],
             "title": "Mode Used"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "One per result, by its citation_id"
           }
         },
         "type": "object",
         "required": [
           "results",
           "pending_items",
-          "mode_used"
+          "unreadable_items",
+          "mode_used",
+          "citations"
         ],
         "title": "SearchResult"
       },
@@ -26341,6 +26518,286 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         },
         "type": "object",
         "title": "SimulateCourseInputBody"
+      },
+      "SimulatedGradebook": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "in_progress",
+              "passed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "weight_total": {
+            "type": "number",
+            "title": "Weight Total"
+          },
+          "weight_gap": {
+            "type": "number",
+            "title": "Weight Gap",
+            "description": "100 - weight_total; positive means weight is missing"
+          },
+          "weights_ok": {
+            "type": "boolean",
+            "title": "Weights Ok",
+            "description": "False: the weights do not add up to 100, so no figures"
+          },
+          "graded_count": {
+            "type": "integer",
+            "title": "Graded Count"
+          },
+          "remaining_count": {
+            "type": "integer",
+            "title": "Remaining Count"
+          },
+          "graded_weight": {
+            "type": "number",
+            "title": "Graded Weight"
+          },
+          "remaining_weight": {
+            "type": "number",
+            "title": "Remaining Weight"
+          },
+          "locked_contribution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Contribution",
+            "description": "The final grade if everything still to come scored 0"
+          },
+          "current_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Percentage",
+            "description": "Weighted average of the graded items"
+          },
+          "current_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Points"
+          },
+          "current_letter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Letter"
+          },
+          "final_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Percentage",
+            "description": "Official or fully calculated final grade, null while the course is running"
+          },
+          "final_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Points"
+          },
+          "final_letter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Letter"
+          },
+          "final_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "override",
+                  "computed",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Source"
+          },
+          "overridden": {
+            "type": "boolean",
+            "title": "Overridden"
+          },
+          "forecast_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Percentage",
+            "description": "Predicted final grade ('auto' model)"
+          },
+          "forecast_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Points"
+          },
+          "forecast_letter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Letter"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Predictions",
+            "description": "Predicted score per ungraded assessment id"
+          },
+          "missing_history_category_ids": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Missing History Category Ids",
+            "description": "Categories of ungraded items without any graded item to predict from"
+          },
+          "target_points": {
+            "type": "number",
+            "title": "Target Points"
+          },
+          "target_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Percentage",
+            "description": "Lowest percentage reaching the target"
+          },
+          "required_average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Average",
+            "description": "Average the remaining items need to reach the target"
+          },
+          "reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reachable",
+            "description": "False when the target needs more than 100%"
+          },
+          "ignored": {
+            "items": {
+              "$ref": "#/components/schemas/IgnoredScore"
+            },
+            "type": "array",
+            "title": "Ignored",
+            "description": "Assumed scores that were not used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "weight_total",
+          "weight_gap",
+          "weights_ok",
+          "graded_count",
+          "remaining_count",
+          "graded_weight",
+          "remaining_weight",
+          "locked_contribution",
+          "current_percentage",
+          "current_points",
+          "current_letter",
+          "final_percentage",
+          "final_points",
+          "final_letter",
+          "final_source",
+          "overridden",
+          "forecast_percentage",
+          "forecast_points",
+          "forecast_letter",
+          "predictions",
+          "missing_history_category_ids",
+          "target_points",
+          "target_percentage",
+          "required_average",
+          "reachable",
+          "ignored"
+        ],
+        "title": "SimulatedGradebook"
       },
       "SkippedAssessment": {
         "properties": {
@@ -27049,7 +27506,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "manual"
             ],
             "title": "Source Kind",
-            "description": "Where the task came from",
+            "description": "Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself",
             "default": "manual"
           },
           "source_ref": {
@@ -27245,7 +27702,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "manual"
             ],
             "title": "Source Kind",
-            "description": "Where the task came from",
+            "description": "Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself",
             "default": "manual"
           },
           "source_ref": {
@@ -28162,6 +28619,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             ],
             "title": "Required Percentage",
             "description": "One average for the courses left blank that reaches the target"
+          },
+          "ignored": {
+            "items": {
+              "$ref": "#/components/schemas/IgnoredCourseScore"
+            },
+            "type": "array",
+            "title": "Ignored",
+            "description": "Assumed percentages that were not used"
           }
         },
         "type": "object",
@@ -28174,7 +28639,8 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "gap",
           "max_possible_gpa",
           "reachable",
-          "required_percentage"
+          "required_percentage",
+          "ignored"
         ],
         "title": "TermGradeSimulation"
       },
@@ -28835,6 +29301,51 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "value"
         ],
         "title": "UiStateSetInputBody"
+      },
+      "UnreadableItem": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "doc_status": {
+            "type": "string",
+            "enum": [
+              "failed",
+              "unsupported"
+            ],
+            "title": "Doc Status"
+          },
+          "doc_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Error Code",
+            "description": "Why the text could not be read"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "display_name",
+          "course_id",
+          "doc_status",
+          "doc_error_code"
+        ],
+        "title": "UnreadableItem"
       },
       "UpdatesOutput": {
         "properties": {

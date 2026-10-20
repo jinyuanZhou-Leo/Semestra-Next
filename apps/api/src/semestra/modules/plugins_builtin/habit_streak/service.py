@@ -93,6 +93,14 @@ async def list_checkins(ctx: Ctx, instance_id: str, from_date: date, to_date: da
 
 
 async def toggle(ctx: Ctx, instance_id: str, day: date) -> CheckinToggleResult:
+    return await set_checkin(ctx, instance_id, day, None)
+
+
+async def set_checkin(
+    ctx: Ctx, instance_id: str, day: date, checked: bool | None
+) -> CheckinToggleResult:
+    """Checks or unchecks a day; `checked=None` flips it (the card's click). Setting the state
+    it already has changes nothing, so a repeated call is safe."""
     instance, today = await _habit(ctx, instance_id)
     earliest = today - timedelta(days=BACKFILL_DAYS)
     if not earliest <= day <= today:
@@ -104,14 +112,15 @@ async def toggle(ctx: Ctx, instance_id: str, day: date) -> CheckinToggleResult:
             HabitCheckin.day == day,
         )
     )
-    if existing is not None:
+    want = existing is None if checked is None else checked
+    if existing is not None and not want:
         await ctx.db.delete(existing)
-    else:
+    elif existing is None and want:
         ctx.db.add(HabitCheckin(user_id=ctx.user_id, instance_id=instance_id, day=day))
     await ctx.db.flush()
     return CheckinToggleResult(
         date=day,
-        checked=existing is None,
+        checked=want,
         stats=await _stats(ctx, instance, today, await _days(ctx, instance_id)),
     )
 

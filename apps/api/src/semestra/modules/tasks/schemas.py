@@ -141,7 +141,11 @@ class TaskFields(BaseModel):
     )
     course_id: Id | None = Field(default=None, description="Course the task is for")
     list_id: Id | None = Field(default=None, description="List; omit for the inbox")
-    source_kind: SourceKind = Field(default="manual", description="Where the task came from")
+    source_kind: SourceKind = Field(
+        default="manual",
+        description="Where the task came from. The assistant may only use agent (its default), "
+        "syllabus or manual; assessment and lms tasks are made by the app itself",
+    )
     source_ref: Annotated[str, Field(max_length=200)] | None = Field(
         default=None, description="Id of the source item; makes batch imports idempotent"
     )
@@ -263,6 +267,9 @@ class TaskCandidate(BaseModel):
     course_id: str | None
     due_date: date | None
     completed: bool
+    source_kind: SourceKind | None = Field(
+        description="assessment: title, due date and course follow the assessment"
+    )
     score: float
 
 

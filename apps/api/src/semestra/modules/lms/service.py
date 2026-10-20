@@ -702,7 +702,27 @@ async def create_link(
     return link
 
 
+async def check_link(ctx: Ctx, inp: LinkSetInput) -> None:
+    """Refuses replacing an existing link unless asked to (also before the agent's card)."""
+    await academics.get_course_row(ctx, inp.course_id)
+    current = await link_row(ctx, inp.course_id)
+    if (
+        current is not None
+        and not inp.replace
+        and current.external_course_id != inp.external_course_id
+    ):
+        # Replacing drops the tracking of what came through the old link: only on request. The
+        # same platform course through a new connection (reconnected) is not a replacement.
+        raise lms_error(
+            "lms.course_link_exists",
+            external_course_id=current.external_course_id,
+            external_code=current.external_code,
+            external_name=current.external_name,
+        )
+
+
 async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
+    await check_link(ctx, inp)
     course = await academics.get_course_row(ctx, inp.course_id)
     connection = await program_connection(ctx, course.program_id)
     b = await bound(ctx, connection)

@@ -22,8 +22,9 @@ create capabilities one by one.
    documents, `timetable_image` for a screenshot of a timetable, `text` only for text the user
    pasted (`text`). Mixed files: one session per kind. `ai.not_configured`: tell the user AI needs
    a model in the settings; ICS files work without one.
-3. **Wait until it is ready.** AI sources start as `extracting`; poll `imports.session.get` a few
-   times, or tell the user it is still reading and come back later. `failed` with
+3. **Wait until it is ready.** AI sources start as `extracting`; call `imports.session.get` once
+   with `wait_seconds` (up to 25). If it is still extracting after that, tell the user it is still
+   reading and stop. `failed` with
    `import.no_content`: the document had nothing usable; say so.
 4. **Summarise and ask.** Tell the user what was found per course (assessments with weights,
    meeting times, dates) and every open issue from `summary.issues` in plain words: dates that

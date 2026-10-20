@@ -28,10 +28,14 @@ async def test_list_and_update_a_note(
     assert r.status_code == 200, r.text
     assert r.json()["items"] == [{"instance_id": a, "content": "old", "color": "subject-3"}]
 
-    r = await client.put(f"/sticky/notes/{a}", json={"content": "old\n- midterm: ch. 1-4"})
+    # By default the lines are added after the note, so nothing has to be copied back.
+    r = await client.put(f"/sticky/notes/{a}", json={"content": "- midterm: ch. 1-4"})
     assert r.status_code == 200, r.text
     assert r.json()["content"] == "old\n- midterm: ch. 1-4"
     assert cards.items[a].settings["color"] == "subject-3"
+
+    r = await client.put(f"/sticky/notes/{a}", json={"content": "new", "mode": "replace"})
+    assert r.json()["content"] == "new"
 
 
 async def test_update_refuses_other_cards_and_long_text(
@@ -45,3 +49,7 @@ async def test_update_refuses_other_cards_and_long_text(
 
     r = await client.put(f"/sticky/notes/{note}", json={"content": "x" * 10_001})
     assert r.status_code == 422
+    r = await client.put(f"/sticky/notes/{note}", json={"content": "x" * 6_000, "mode": "replace"})
+    assert r.status_code == 200, r.text
+    r = await client.put(f"/sticky/notes/{note}", json={"content": "x" * 6_000})
+    assert r.status_code == 422  # appending would pass the limit

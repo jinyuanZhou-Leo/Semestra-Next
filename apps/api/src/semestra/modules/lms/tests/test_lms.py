@@ -676,7 +676,13 @@ async def test_assignment_import_rolls_back_when_the_course_was_relinked(api: Ap
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
-    await api.link(course, "102")  # the session's link row is gone
+    # Replacing a link has to be asked for; the error names the current one.
+    err = await api.link(course, "102", 409)
+    assert err["error"]["code"] == "lms.course_link_exists"
+    assert err["error"]["params"]["external_course_id"] == "101"
+    assert err["error"]["params"]["external_name"] == "Computer Fundamentals"
+    await api.link(course, "101")  # the same link again is fine
+    await api.link(course, "102", replace=True)  # the session's link row is gone
     err = await api.commit(started["session_id"], 409)
     assert err["error"]["code"] == "lms.course_not_linked"
     assert (await api.call("GET", f"/courses/{course}/assessments"))["items"] == []

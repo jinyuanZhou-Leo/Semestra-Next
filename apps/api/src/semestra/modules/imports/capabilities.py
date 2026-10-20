@@ -4,6 +4,7 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.imports import service
 from semestra.modules.imports.schemas import (
+    MAX_WAIT_SECONDS,
     BulkDecideInput,
     BulkDecideResult,
     CommitInput,
@@ -31,11 +32,11 @@ AGENT_SESSION = ("id", "status", "error_code", "source_refs", "summary", "items"
     summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
     description=f"""Creates a draft the user reviews before anything is written. Upload files first
 (POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
-the assistant conversation (`attachment_ids`), or `text`.
-ICS is parsed at once (status ready); the other sources are extracted in the background
-(status extracting → ready), poll imports.session.get. Never write a document's contents with
-the modules' own create capabilities instead of importing it. The assistant gets `summary` and the
-first {service.AGENT_PAGE} items; read the rest with imports.session.get.""",
+the assistant conversation (`attachment_ids`), or `text`. ICS is parsed at once (status ready); the
+other sources are extracted in the background (status extracting → ready): call imports.session.get
+with wait_seconds to wait for it. Never write a document's contents with the modules' own create
+capabilities instead of importing it. The assistant gets `summary` and the first
+{service.AGENT_PAGE} items; read the rest with imports.session.get.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/imports"),
     tags=TAGS,
@@ -51,8 +52,10 @@ async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
     summary="An import with its items, their issues and the extraction progress.",
     description=f"""Use to see what an import found (courses, assessments, meetings...) and what
 needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
-counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`
-and `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` for more.""",
+counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and
+`fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` for more. While it is
+extracting, pass wait_seconds (up to {MAX_WAIT_SECONDS}) to wait for the result in one call; if it
+is still extracting after that, tell the user and stop instead of calling again.""",
     effect="read",
     http=Http("GET", "/imports/{session_id}"),
     tags=TAGS,
@@ -61,9 +64,12 @@ and `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` fo
 )
 async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
     limit = inp.limit or (service.AGENT_PAGE if service.for_agent(ctx) else None)
+    row = await service.get_session_row(ctx, inp.session_id)
+    if inp.wait_seconds:
+        await service.wait_while_extracting(ctx, row, inp.wait_seconds)
     return await service.detail(
         ctx,
-        await service.get_session_row(ctx, inp.session_id),
+        row,
         item_ids=inp.item_ids,
         types=inp.types,
         cursor=inp.cursor,
@@ -86,8 +92,9 @@ async def session_list(ctx: Ctx, inp: SessionListInput) -> ImportSessionPage:
 @capability(
     name="imports.item.update",
     summary="Edit an import item's fields or accept/reject it.",
-    description="""`data` is merged into the item (send null to clear a field); the item's issues
-are checked again afterwards. The assistant gets the session's `summary` and the changed item.""",
+    description="""`data` is merged into the item (send null to clear a field); fields the item's
+type does not have are refused. The item's issues are checked again afterwards. The assistant gets
+the session's `summary` and the changed item.""",
     effect="write",
     http=Http("PATCH", "/imports/{session_id}/items/{item_id}"),
     tags=TAGS,
@@ -101,10 +108,10 @@ async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
 @capability(
     name="imports.item.decide_many",
     summary="Accept or reject many import items at once, by type, issue or id.",
-    description="""E.g. reject every item with `import.duplicate_assessment`. The filters combine
-(an item must match all given). Rejecting a course item also rejects the items that belong to it
-(its meetings, assessments, categories, events and tasks), so leaving a course out takes only its
-id. The assistant gets `changed` and the session's `summary`, without its items.""",
+    description="""E.g. reject every item with `import.duplicate_assessment`. Give at least one
+filter; they combine (an item must match all given). Rejecting a course item also rejects the items
+that belong to it (its meetings, assessments, categories, events and tasks), so leaving a course out
+takes only its id. The assistant gets `changed` and the session's `summary`, without its items.""",
     effect="write",
     http=Http("POST", "/imports/{session_id}/items:decide"),
     tags=TAGS,
@@ -177,8 +184,8 @@ async def session_commit(ctx: Ctx, inp: CommitInput) -> CommitResult:
 @capability(
     name="imports.session.discard",
     summary="Drop an import that has not been committed, with its uploaded files.",
-    description="Use when the user does not want the import.",
-    effect="write",
+    description="Use when the user does not want the import. Its uploaded files are deleted too.",
+    effect="destructive",
     http=Http("POST", "/imports/{session_id}:discard"),
     tags=TAGS,
 )

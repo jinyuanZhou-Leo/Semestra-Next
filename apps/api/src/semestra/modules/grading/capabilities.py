@@ -27,7 +27,6 @@ from semestra.modules.grading.schemas import (
     CourseResult,
     CourseResultUpdateInput,
     Gradebook,
-    GradebookSummary,
     GradingScale,
     ProgramGrades,
     ProgramSummaryInput,
@@ -35,6 +34,7 @@ from semestra.modules.grading.schemas import (
     ScaleUpdateInput,
     ScoreSuggestion,
     SimulateCourseInput,
+    SimulatedGradebook,
     SuggestInput,
     TermGrades,
     TermGradeSimulation,
@@ -194,9 +194,9 @@ async def assessment_list(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
     name="grading.assessment.find",
     summary="Find assessments by how the user names them: 'Lab 3', 'midterm'.",
     description="""Use first whenever the user refers to an assessment in words to get its id, then
-update it. Searches the course on screen, or the given course or Program. Returns candidates with a
-score; ask the user when the top candidates are close, and offer to create the assessment when none
-matches.""",
+update it. Searches the given course; otherwise the Program, ranking the current term's courses
+first. Returns candidates with their course and a score; ask the user when the top candidates are
+close, and offer to create the assessment when none matches.""",
     effect="read",
     expose=("agent", "mcp"),
     tags=TAGS,
@@ -286,12 +286,13 @@ async def assessment_reorder(ctx: Ctx, inp: AssessmentOrderInput) -> AssessmentO
     name="grading.simulate.course",
     summary="What-if: the course figures if ungraded assessments scored the given marks.",
     description="""Use to answer "what if I get 80 on the final". Nothing is saved: never change
-real scores to simulate. Fails with grading.weights_not_100 while the weights do not add up.""",
+real scores to simulate. Scores it could not use (already graded, not of this course) come back in
+`ignored`. Fails with grading.weights_not_100 while the weights do not add up.""",
     effect="read",
     http=Http("POST", "/courses/{course_id}/gradebook:simulate"),
     tags=TAGS,
 )
-async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> GradebookSummary:
+async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradebook:
     return await service.simulate_course(ctx, inp)
 
 
@@ -330,7 +331,8 @@ async def summary_term(ctx: Ctx, inp: TermSummaryInput) -> TermGrades:
     summary="What-if for a term: the term GPA if unfinished courses ended with given marks.",
     description="""Pass assumed final percentages per unfinished course in `scores`; with
 `target_gpa` the result says whether it is reachable and what average the other unfinished courses
-need. Nothing is saved.""",
+need. Marks it could not use (finished or unknown courses) come back in `ignored`. Nothing is
+saved.""",
     effect="read",
     http=Http("POST", "/terms/{term_id}/grade-summary:simulate"),
     tags=TAGS,

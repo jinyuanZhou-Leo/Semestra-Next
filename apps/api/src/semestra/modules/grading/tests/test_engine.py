@@ -331,8 +331,11 @@ def test_term_what_if_unreachable_target() -> None:
 
 
 def test_term_what_if_ignores_marks_for_finished_courses() -> None:
-    result = engine.simulate_term(open_courses(), "t", "end_term", uoft(), {"done": 0})
+    result = engine.simulate_term(
+        open_courses(), "t", "end_term", uoft(), {"done": 0, "elsewhere": 50}
+    )
     assert result.aggregate.gpa == 4.0
+    assert result.ignored == (("done", "finished"), ("elsewhere", "unknown"))
 
 
 # --- properties -----------------------------------------------------------------------------

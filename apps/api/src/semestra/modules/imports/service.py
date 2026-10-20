@@ -1,6 +1,8 @@
 """Import sessions: create, review, commit, discard (M08 §2-§5)."""
 
+import asyncio
 import contextlib
+import time as time_
 from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Sequence
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -23,6 +25,7 @@ from semestra.modules.imports.ics import parse_ics
 from semestra.modules.imports.models import ImportsItem, ImportsSession, ImportsUpload
 from semestra.modules.imports.schemas import (
     DATA_MODELS,
+    STRICT_MODELS,
     BulkDecideInput,
     CommitInput,
     ImportItem,
@@ -43,6 +46,7 @@ RETENTION = timedelta(days=30)
 UPLOAD_RETENTION = timedelta(days=1)
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 OPEN = ("extracting", "ready")
+WAIT_POLL_SECONDS = 0.5
 CLOSED = ("committed", "discarded")
 # Commit order (M08 §2): courses first, then what hangs off them.
 TYPE_ORDER = {
@@ -77,6 +81,24 @@ async def get_session_row(ctx: Ctx, session_id: str) -> ImportsSession:
     if row is None or row.user_id != ctx.user_id:
         raise not_found("session", session_id)
     return row
+
+
+async def wait_while_extracting(ctx: Ctx, row: ImportsSession, seconds: int) -> None:
+    """Holds the call until the background extraction ends or `seconds` pass, so the assistant
+    can wait with one call instead of polling. Reads through its own session: the caller's
+    transaction may not see the job's commits."""
+    deadline = time_.monotonic() + seconds
+    status = row.status
+    while status == "extracting" and time_.monotonic() < deadline:
+        await asyncio.sleep(WAIT_POLL_SECONDS)
+        async with ctx.state.session_factory() as db:
+            status = await db.scalar(
+                select(ImportsSession.status).where(ImportsSession.id == row.id)
+            )
+    if status != row.status:
+        # No rollback first: the driver opens a transaction only for writes, so this read sees the
+        # job's commit, and a rollback would expire what the request already loaded (the user).
+        await ctx.db.refresh(row)
 
 
 async def _items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
@@ -453,8 +475,10 @@ def event_data(row: ImportsSession) -> dict[str, Any]:
     return {"session_id": row.id, "program_id": row.program_id, "status": row.status}
 
 
-def _validated_data(type_: str, data: dict[str, Any]) -> dict[str, Any]:
-    model = DATA_MODELS[type_]
+def _validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
+    """Drafts keep only known fields; `strict` refuses unknown ones instead of dropping them
+    (what a caller sends by hand: a misspelt field must not pass as a change)."""
+    model = (STRICT_MODELS if strict else DATA_MODELS)[type_]
     try:
         return model.model_validate(data).model_dump(mode="json", exclude_none=True)
     except ValidationError as exc:
@@ -602,6 +626,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         item.type, item.data = inp.type, _switched(item, inp.type)
         item.confidence = {}
     if inp.data is not None:
+        # Nulls are dropped before validation below, so a misspelt field set to null is caught here.
+        fields = STRICT_MODELS[item.type].model_fields
+        unknown = [name for name in inp.data if name not in fields]
+        if unknown:
+            errors = [{"loc": ["data", name], "code": "extra_forbidden"} for name in unknown]
+            raise AppError("common.validation", 422, errors=errors)
         merged = {**item.data, **inp.data}
         if item.type.endswith("_patch") and "changes" in inp.data:
             merged["changes"] = {**item.data.get("changes", {}), **inp.data["changes"]}
@@ -614,7 +644,9 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             ):
                 raise AppError("import.course_ref_missing", 422, ref=ref)
         # Fields set to null are dropped (the drafts store only what is known).
-        item.data = _validated_data(item.type, {k: v for k, v in merged.items() if v is not None})
+        item.data = _validated_data(
+            item.type, {k: v for k, v in merged.items() if v is not None}, strict=True
+        )
         # Edited by hand: the model's certainty no longer applies to those fields.
         item.confidence = {k: v for k, v in item.confidence.items() if k not in inp.data}
         if item.result and item.result.get("error_code"):

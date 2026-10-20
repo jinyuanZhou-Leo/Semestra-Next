@@ -197,6 +197,11 @@ class LinkSetInput(BaseModel):
     course_id: Id = Field(description="Course id")
     external_course_id: ExternalId = Field(description="External course id (lms.course.list)")
     sync_enabled: bool = Field(default=True, description="Show in the calendar, check updates")
+    replace: bool = Field(
+        default=False,
+        description="Replace the course's link to another external course; only when the user "
+        "asked to change it",
+    )
 
 
 class LinkUpdateInput(BaseModel):

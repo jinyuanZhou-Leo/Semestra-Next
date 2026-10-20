@@ -32,6 +32,28 @@ class Board(BaseModel):
     updated_at: datetime | None
 
 
+class CardInstanceListInput(BaseModel):
+    program_id: Id = Field(description="Program id; every board of it is searched")
+    card_id: CardId | None = Field(
+        default=None, description="Only this card, e.g. 'sticky.note' or 'habit.calendar'"
+    )
+
+
+class CardInstanceSummary(BaseModel):
+    instance_id: str = Field(description="Pass it to the card's own tools")
+    card_id: str
+    scope_type: BoardScopeType
+    scope_id: str
+    board_name: str = Field(description="The Program, term or course the board belongs to")
+    label: str | None = Field(
+        description="What the user named it: a habit's name, a note's first line"
+    )
+
+
+class CardInstanceList(BaseModel):
+    items: list[CardInstanceSummary]
+
+
 class BoardRef(BaseModel):
     scope_type: BoardScopeType = Field(
         description="program, term or course overview; 'today' is the Program's Today page"

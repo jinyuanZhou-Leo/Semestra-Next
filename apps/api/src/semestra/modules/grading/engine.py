@@ -546,6 +546,8 @@ class TermSimulation:
     max_possible_gpa: float | None
     reachable: bool | None
     required_percentage: float | None  # one average for the courses still blank that hits it
+    # Hypothetical marks that changed nothing: (course id, "finished" | "unknown").
+    ignored: tuple[tuple[str, str], ...] = ()
 
 
 def _as_if(g: GradedCourse, percentage: float, scale: Scale) -> GradedCourse:
@@ -610,4 +612,15 @@ def simulate_term(
                 if gpa is not None and gpa >= target_gpa - _EPS:
                     required = band_min
                     break
-    return TermSimulation(aggregate, target_gpa, gap, best, reachable, required)
+    in_term = {
+        g.course.course_id: _open(g)
+        for g in graded
+        if g.course.include_in_gpa
+        and attribute_credits(g.course.credits, g.course.term_ids, rule).get(term_id, 0) > 0
+    }
+    ignored = tuple(
+        (cid, "unknown" if cid not in in_term else "finished")
+        for cid in hypothetical
+        if not in_term.get(cid, False)
+    )
+    return TermSimulation(aggregate, target_gpa, gap, best, reachable, required, ignored)
