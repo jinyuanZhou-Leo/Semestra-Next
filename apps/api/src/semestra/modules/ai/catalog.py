@@ -148,6 +148,8 @@ def estimate_cost(
     for lookup in lookups:
         try:
             return round(float(lookup().total_price), 6)
-        except LookupError:
+        # No price for this provider or model, or price data the library rejects: the call still
+        # counts, it just has no estimate.
+        except LookupError, ValueError:
             continue
     return None

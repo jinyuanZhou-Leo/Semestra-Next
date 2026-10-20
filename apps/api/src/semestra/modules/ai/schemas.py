@@ -180,10 +180,14 @@ class UsageDay(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float | None
+    # False when some of these calls used a model without a known price (a lower bound).
+    cost_complete: bool
 
 
 class UsageRow(UsageTotals):
     key: str
+    # False when some of these calls used a model without a known price (a lower bound).
+    cost_complete: bool
 
 
 class UsageSummary(BaseModel):

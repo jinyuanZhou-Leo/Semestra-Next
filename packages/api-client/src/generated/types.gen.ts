@@ -9357,6 +9357,10 @@ export type UsageDay = {
      * Cost Usd
      */
     cost_usd: number | null;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**
@@ -9391,6 +9395,10 @@ export type UsageRow = {
      * Key
      */
     key: string;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**

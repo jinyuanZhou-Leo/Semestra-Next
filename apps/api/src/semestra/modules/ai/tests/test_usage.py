@@ -80,6 +80,12 @@ async def test_summary_groups_by_local_day_purpose_module_and_model(
         ("2026-01-15", "chat", 1, 1000),
         ("2026-01-15", "extraction", 1, 1000),
     ]
+    # The extraction call has no price; the error made no tokens and costs nothing.
+    assert [d["cost_complete"] for d in summary["by_day"]] == [True, True, False]
+    assert {r["key"]: r["cost_complete"] for r in summary["by_purpose"]} == {
+        "chat": True,
+        "extraction": False,
+    }
     assert [(r["key"], r["calls"]) for r in summary["by_purpose"]] == [
         ("chat", 3),
         ("extraction", 1),

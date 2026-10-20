@@ -408,6 +408,7 @@ const usage: UsageSummary = {
       input_tokens: 30_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       date: '2026-01-15',
@@ -416,6 +417,7 @@ const usage: UsageSummary = {
       input_tokens: 10_000,
       output_tokens: 1_000,
       cost_usd: null,
+      cost_complete: false,
     },
   ],
   by_purpose: [
@@ -427,6 +429,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       key: 'extraction',
@@ -436,6 +439,7 @@ const usage: UsageSummary = {
       cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: null,
+      cost_complete: false,
     },
   ],
   by_module: [
@@ -447,6 +451,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 5_000,
       cost_usd: 0.21,
+      cost_complete: false,
     },
   ],
   by_model: [
@@ -458,6 +463,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       key: 'ollama/qwen3:8b',
@@ -467,6 +473,7 @@ const usage: UsageSummary = {
       cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: 0,
+      cost_complete: true,
     },
   ],
 }
@@ -528,8 +535,13 @@ test('usage bars are days, or weeks over long ranges, with tokens per purpose', 
   expect(days.at(-1)).toMatchObject({ extraction: 11_000, cost: null, costComplete: false })
   expect(days[0]).not.toHaveProperty('chat')
 
+  // 2025-06-01 is a Sunday, the first day of the week in English.
   const weeks = buckets({ ...usage, since: '2025-06-01T00:00:00Z' })
   expect(weeks[0]).toMatchObject({ start: '2025-06-01', end: '2025-06-07' })
+  // A first call midweek: the first bar starts that day and ends with its week.
+  const midweek = buckets({ ...usage, since: '2025-06-04T00:00:00Z' })
+  expect(midweek[0]).toMatchObject({ start: '2025-06-04', end: '2025-06-07' })
+  expect(midweek[1]).toMatchObject({ start: '2025-06-08', end: '2025-06-14' })
   // Jan 14 and 15 fall in the last, partial week.
   expect(weeks.at(-1)).toMatchObject({ end: '2026-01-15', tokens: 45_000, calls: 12 })
 })

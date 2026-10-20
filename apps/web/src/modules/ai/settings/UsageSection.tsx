@@ -18,8 +18,9 @@ import { SettingsBlock, SettingsNote } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
-import { formatCount, formatDate, formatPercent, formatUsd } from '@/lib/format'
+import { firstDayOfWeek, formatCount, formatDate, formatPercent, formatUsd } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -43,6 +44,15 @@ const RANGE_TITLES: Record<UsageRange, () => string> = {
   '7': () => m.ai_usage_range_days({ days: 7 }),
   '30': () => m.ai_usage_range_days({ days: 30 }),
   all: m.ai_usage_range_all,
+}
+
+/** `--chart-N` per purpose: light and dark shades alternate up the stack so neighbours differ. */
+const PURPOSE_SHADES: Record<AiPurpose, number> = {
+  chat: 1,
+  extraction: 4,
+  vision: 2,
+  embedding: 5,
+  title: 3,
 }
 
 /** Longer ranges are drawn a week per bar. */
@@ -76,32 +86,43 @@ type Bucket = Partial<Record<AiPurpose, number>> & {
 
 /** Days covered by the summary. */
 function spanDays(summary: UsageSummary): number {
-  return (
-    Math.round((Date.parse(summary.until) - Date.parse(summary.since.slice(0, 10))) / 86_400_000) +
-    1
-  )
+  return daysBetween(summary.since.slice(0, 10), summary.until) + 1
+}
+
+/** Whole days from one `YYYY-MM-DD` to another. */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000)
 }
 
 export function buckets(summary: UsageSummary): Bucket[] {
   const first = summary.since.slice(0, 10)
-  const span = spanDays(summary)
-  const size = span > DAILY_BARS_MAX ? 7 : 1
+  const until = summary.until
+  const size = spanDays(summary) > DAILY_BARS_MAX ? 7 : 1
+  // Weeks start on the user's first day of the week; the first one is cut at the first day.
+  const weekday = new Date(`${first}T00:00:00Z`).getUTCDay()
+  const origin = size === 7 ? addDays(first, -((weekday - (firstDayOfWeek() % 7) + 7) % 7)) : first
   const bars: Bucket[] = []
-  for (let i = 0; i < span; i += size) {
-    const start = addDays(first, i)
-    const end = addDays(first, Math.min(i + size, span) - 1)
-    bars.push({ start, end, tokens: 0, calls: 0, cost: null, costComplete: true })
+  for (let i = 0; addDays(origin, i) <= until; i += size) {
+    const start = addDays(origin, i)
+    const end = addDays(origin, i + size - 1)
+    bars.push({
+      start: start < first ? first : start,
+      end: end > until ? until : end,
+      tokens: 0,
+      calls: 0,
+      cost: null,
+      costComplete: true,
+    })
   }
   for (const day of summary.by_day) {
-    const bar =
-      bars[Math.floor(Math.round((Date.parse(day.date) - Date.parse(first)) / 86_400_000) / size)]
+    const bar = bars[Math.floor(daysBetween(origin, day.date) / size)]
     if (!bar) continue
     const tokens = day.input_tokens + day.output_tokens
     bar[day.purpose] = (bar[day.purpose] ?? 0) + tokens
     bar.tokens += tokens
     bar.calls += day.calls
-    if (day.cost_usd === null) bar.costComplete = bar.costComplete && tokens === 0
-    else bar.cost = (bar.cost ?? 0) + day.cost_usd
+    bar.costComplete &&= day.cost_complete
+    if (day.cost_usd !== null) bar.cost = (bar.cost ?? 0) + day.cost_usd
   }
   return bars
 }
@@ -176,7 +197,7 @@ function UsageChart({
       purpose,
       {
         label: PURPOSE_TITLES[purpose](),
-        color: `var(--chart-${AI_PURPOSES.indexOf(purpose) + 1})`,
+        color: `var(--chart-${PURPOSE_SHADES[purpose]})`,
       },
     ]),
   )
@@ -211,6 +232,8 @@ function UsageChart({
           tickFormatter={(value: number) => formatCount(value, { compact: true })}
         />
         <ChartTooltip
+          // Above the legend, which Recharts draws later.
+          wrapperStyle={{ zIndex: 10 }}
           content={
             <ChartTooltipContent
               className="min-w-44"
@@ -229,7 +252,8 @@ function UsageChart({
             ))}
           </Bar>
         ))}
-        <ChartLegend content={<ChartLegendContent />} />
+        {/* Series order, as stacked; Recharts sorts the legend by key unless told not to. */}
+        <ChartLegend itemSorter={null} content={<ChartLegendContent />} />
       </BarChart>
     </ChartContainer>
   )
@@ -309,7 +333,7 @@ const columns = column.columns([
   column.accessor((r) => r.cost_usd ?? -1, {
     id: 'cost',
     header: () => m.ai_usage_cost(),
-    cell: ({ row }) => cost(row.original.cost_usd),
+    cell: ({ row }) => cost(row.original.cost_usd, row.original.cost_complete),
   }),
 ])
 
@@ -512,11 +536,10 @@ export function UsageSection() {
                         onValueChange={(next) => {
                           if (next[0]) setGrouping(next[0] as Grouping)
                         }}
-                        variant="outline"
-                        size="sm"
+                        className={SEGMENTED}
                       >
                         {GROUPINGS.map((value) => (
-                          <ToggleGroupItem key={value} value={value}>
+                          <ToggleGroupItem key={value} value={value} className={SEGMENT}>
                             {GROUP_TITLES[value]()}
                           </ToggleGroupItem>
                         ))}
@@ -524,7 +547,14 @@ export function UsageSection() {
                     </div>
                   }
                 >
-                  <div className="overflow-hidden rounded-2xl border">
+                  <div
+                    className={cn(
+                      'overflow-hidden rounded-2xl border transition-opacity',
+                      // The picked bar's rows are still loading: these are another range's.
+                      selection && (detail.isPending || detail.isPlaceholderData) && 'opacity-60',
+                    )}
+                    aria-busy={selection !== null && (detail.isPending || detail.isPlaceholderData)}
+                  >
                     <UsageTable
                       key={grouping}
                       grouping={grouping}

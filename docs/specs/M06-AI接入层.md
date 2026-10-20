@@ -141,13 +141,13 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 用量事件与提供方健康状态（`last_checked_at`、`last_error_code`）由 `AiRuntime`（`app.state.ai`）在后台任务里用独立会话写入，不受调用方事务回滚影响，SQLite 繁忙时重试 3 次；测试里用 `await app.state.ai.drain()` 等待。流式调用被中断时记 `ai.cancelled`。
 - 模型列表缓存 1 小时（进程内）；兼容端点不支持列出模型时 `manual_entry=true`，前端改为手填。
 - `ai.assignment.updated` 在某个用途的**实际生效模型**变化时发布（包括新增、删除、关闭提供方导致的变化），payload `{purpose}`；提供方事件 payload `{provider_id}`。
-- `ai.usage.summary` 参数 `days`（1–3660，不填为全部时间）、`start`/`end`（本地日期，含两端，`start` 优先于 `days`，`end` 默认今天）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `since`（全部时间时为第一次调用那天）、`until`、`totals`、`by_day`（日期×用途，含请求数）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
+- `ai.usage.summary` 参数 `days`（1–3660，不填为全部时间）、`start`/`end`（本地日期，含两端，`start` 优先于 `days`，`end` 默认今天）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `since`（全部时间时为第一次调用那天）、`until`、`totals`、`by_day`（日期×用途，含请求数与 `cost_complete`）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
 - 日志只记录长度与 token 数；`SEMESTRA_AI_DEBUG_LOG=true` 且非 prod 时把请求与输出写到 `DATA_DIR/ai-debug/`。
 - 新增环境变量已同步到 `deploy/.env.example` 与自部署 compose。
 
 **前端**
 - 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（不可用时入口置灰，外层可聚焦的包装在悬停或点击时显示一句提示和"去设置"链接）、`hooks/use-ai-fill.ts` + `components/AiFieldMark.tsx`（AI 回填表单：字段短暂高亮 2 秒、旁边的小标记显示出处页码与原文、一键恢复原值；用户改动字段后标记消失）。
 - 模块 `modules/ai/`：账户设置「AI」小标题下三个分组（页面）`ai-providers`、`ai-models`、`ai-usage`，各放同名分区；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
-- 用量明细表用 TanStack Table v9；图表用 shadcn chart（Recharts）按用途堆叠的柱状图，悬停用 `ChartTooltipContent`，颜色用 `chart-1..5` 令牌。
+- 用量明细表用 TanStack Table v9；图表用 shadcn chart（Recharts）按用途堆叠的柱状图，悬停用 `ChartTooltipContent`（`wrapperStyle` 的 z-index 让它压住图例），图例 `itemSorter={null}` 保持堆叠顺序，颜色用 `chart-1..5` 令牌并让相邻层深浅交替；按周的柱子从用户的每周第一天开始；`by_day` 与各分组行带 `cost_complete`，部分调用无价格时显示「至少」。
 - `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。
 
