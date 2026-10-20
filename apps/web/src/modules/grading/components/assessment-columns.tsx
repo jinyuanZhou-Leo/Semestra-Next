@@ -104,11 +104,12 @@ function ScoreCell({ a }: { a: Assessment }) {
           onCommit={(text) => saveScore(a, text)}
         />
       )}
-      {a.points_earned !== null && a.score_percentage !== null ? (
-        <span className="w-14 text-left text-xs text-muted-foreground tabular-nums">
-          {percentText(a.score_percentage)}
-        </span>
-      ) : null}
+      {/* Every row keeps this slot so scores line up whether typed as points or percent. */}
+      <span className="w-12 text-left text-xs text-muted-foreground tabular-nums">
+        {a.points_earned !== null && a.score_percentage !== null
+          ? percentText(a.score_percentage)
+          : null}
+      </span>
     </div>
   )
 }
@@ -177,7 +178,7 @@ export const assessmentColumns = column.columns([
   }),
   column.display({
     id: 'score',
-    header: () => <span className="block text-right">{m.grading_assessment_score()}</span>,
+    header: () => <span className="block pr-16 text-right">{m.grading_assessment_score()}</span>,
     cell: ({ row }) => <ScoreCell a={row.original} />,
     enableSorting: false,
   }),

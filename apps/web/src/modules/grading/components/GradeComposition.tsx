@@ -1,5 +1,6 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
-import { useId, useState } from 'react'
+import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import { type ReactNode, createContext, useContext, useId, useState } from 'react'
 import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -143,6 +144,76 @@ function SliceTooltip({
   )
 }
 
+/** What the legend's cells need from the card (column definitions live outside it). */
+const LegendContext = createContext({ planning: false, idPrefix: '' })
+
+const detailsIdOf = (idPrefix: string, datum: Datum) => `${idPrefix}-${datum.key}`
+
+function LegendName({ datum }: { datum: Datum }) {
+  const { planning, idPrefix } = useContext(LegendContext)
+  return (
+    <>
+      <span
+        aria-hidden
+        className="mr-2 inline-block size-2.5 rounded-full align-[-0.0625rem]"
+        style={{ backgroundColor: datum.color }}
+      />
+      {datum.name}
+      <span id={detailsIdOf(idPrefix, datum)} className="sr-only">
+        {sliceRows(datum, planning)
+          .map(([label, value]) => `${label}: ${value}`)
+          .join(', ')}
+      </span>
+    </>
+  )
+}
+
+function AverageHeader() {
+  const { planning } = useContext(LegendContext)
+  return planning ? m.grading_planned_average() : m.grading_average()
+}
+
+function AverageCell({ datum }: { datum: Datum }) {
+  const { planning } = useContext(LegendContext)
+  return (
+    <span className={cn(planning && 'text-primary')}>
+      {percentText(planning ? datum.plannedAverage : datum.average)}
+    </span>
+  )
+}
+
+const legendFeatures = tableFeatures({})
+const legendColumn = createColumnHelper<typeof legendFeatures, Datum>()
+
+const legendColumns = legendColumn.columns([
+  legendColumn.accessor((d) => d.name, {
+    id: 'name',
+    header: () => m.grading_assessment_category(),
+    cell: ({ row }) => <LegendName datum={row.original} />,
+  }),
+  legendColumn.accessor((d) => d.graded, {
+    id: 'graded',
+    header: () => m.grading_slice_graded_of_weight(),
+    cell: ({ row }) =>
+      `${formatCredits(row.original.graded)}/${formatCredits(row.original.weight)}%`,
+  }),
+  legendColumn.display({
+    id: 'average',
+    header: () => <AverageHeader />,
+    cell: ({ row }) => <AverageCell datum={row.original} />,
+  }),
+])
+
+const HEAD_CLASS: Record<string, string> = {
+  name: 'pl-1.5',
+  graded: 'pr-0 pl-2 text-right',
+  average: 'pr-1.5 pl-3 text-right',
+}
+const CELL_CLASS: Record<string, string> = {
+  graded: 'py-0 pr-0 pl-2 text-right text-xs text-muted-foreground tabular-nums',
+  average: 'rounded-r-md py-0 pr-1.5 pl-3 text-right font-medium tabular-nums',
+}
+
 /**
  * One category of the legend. It is the ring's text equivalent: focusable, with the same
  * details as the ring's tooltip on hover or focus and as screen reader text.
@@ -150,15 +221,18 @@ function SliceTooltip({
 function LegendRow({
   datum,
   planning,
+  detailsId,
   active,
   onActiveChange,
+  children,
 }: {
   datum: Datum
   planning: boolean
+  detailsId: string
   active: boolean
   onActiveChange: (active: boolean) => void
+  children: ReactNode
 }) {
-  const detailsId = useId()
   return (
     <Tooltip>
       <TooltipTrigger
@@ -175,33 +249,7 @@ function LegendRow({
           />
         }
       >
-        <TableHead
-          scope="row"
-          className="h-8 w-full max-w-0 truncate rounded-l-md pr-0 pl-1.5 font-normal"
-        >
-          <span
-            aria-hidden
-            className="mr-2 inline-block size-2.5 rounded-full align-[-0.0625rem]"
-            style={{ backgroundColor: datum.color }}
-          />
-          {datum.name}
-          <span id={detailsId} className="sr-only">
-            {sliceRows(datum, planning)
-              .map(([label, value]) => `${label}: ${value}`)
-              .join(', ')}
-          </span>
-        </TableHead>
-        <TableCell className="py-0 pr-0 pl-2 text-right text-xs text-muted-foreground tabular-nums">
-          {formatCredits(datum.graded)}/{formatCredits(datum.weight)}%
-        </TableCell>
-        <TableCell
-          className={cn(
-            'rounded-r-md py-0 pr-1.5 pl-3 text-right font-medium tabular-nums',
-            planning && 'text-primary',
-          )}
-        >
-          {percentText(planning ? datum.plannedAverage : datum.average)}
-        </TableCell>
+        {children}
       </TooltipTrigger>
       <TooltipContent side="left">
         <SliceDetails datum={datum} planning={planning} mutedClassName="text-background/70" />
@@ -229,6 +277,7 @@ export function GradeComposition({
   assumed: Readonly<Record<string, number>>
 }) {
   const [hovered, setHovered] = useState<string | null>(null)
+  const idPrefix = useId()
   const { summary: s, scale } = gradebook
   const data: Datum[] = composition(gradebook.assessments, gradebook.categories, assumed).map(
     (slice) => ({
@@ -238,6 +287,13 @@ export function GradeComposition({
       color: categoryColor(slice.category?.color ?? 'slate'),
     }),
   )
+
+  const legend = useTable({
+    features: legendFeatures,
+    columns: legendColumns,
+    data,
+    getRowId: (d) => d.key,
+  })
 
   const actual = s.weights_ok || s.overridden ? (s.final_percentage ?? s.current_percentage) : null
   const actualLetter = s.final_percentage === null ? s.current_letter : s.final_letter
@@ -343,32 +399,56 @@ export function GradeComposition({
         </dl>
       </div>
       {data.length > 0 ? (
-        <Table className="mt-3 border-t border-border">
-          <TableHeader className="[&_tr]:border-0">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="h-8 pl-1.5 text-xs font-normal text-muted-foreground">
-                {m.grading_assessment_category()}
-              </TableHead>
-              <TableHead className="h-8 pr-0 pl-2 text-right text-xs font-normal text-muted-foreground">
-                {m.grading_slice_graded_of_weight()}
-              </TableHead>
-              <TableHead className="h-8 pr-1.5 pl-3 text-right text-xs font-normal text-muted-foreground">
-                {planning ? m.grading_planned_average() : m.grading_average()}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((d) => (
-              <LegendRow
-                key={d.key}
-                datum={d}
-                planning={planning}
-                active={hovered === d.key}
-                onActiveChange={(on) => setHovered(on ? d.key : null)}
-              />
-            ))}
-          </TableBody>
-        </Table>
+        <LegendContext value={{ planning, idPrefix }}>
+          <Table className="mt-3 border-t border-border">
+            <TableHeader className="[&_tr]:border-0">
+              {legend.getHeaderGroups().map((group) => (
+                <TableRow key={group.id} className="hover:bg-transparent">
+                  {group.headers.map((h) => (
+                    <TableHead
+                      key={h.id}
+                      scope="col"
+                      className={cn(
+                        'h-8 text-xs font-normal text-muted-foreground',
+                        HEAD_CLASS[h.column.id],
+                      )}
+                    >
+                      <legend.FlexRender header={h} />
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {legend.getRowModel().rows.map((row) => (
+                <LegendRow
+                  key={row.id}
+                  datum={row.original}
+                  planning={planning}
+                  detailsId={detailsIdOf(idPrefix, row.original)}
+                  active={hovered === row.id}
+                  onActiveChange={(on) => setHovered(on ? row.id : null)}
+                >
+                  {row.getAllCells().map((cell) =>
+                    cell.column.id === 'name' ? (
+                      <TableHead
+                        key={cell.id}
+                        scope="row"
+                        className="h-8 w-full max-w-0 truncate rounded-l-md pr-0 pl-1.5 font-normal"
+                      >
+                        <legend.FlexRender cell={cell} />
+                      </TableHead>
+                    ) : (
+                      <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
+                        <legend.FlexRender cell={cell} />
+                      </TableCell>
+                    ),
+                  )}
+                </LegendRow>
+              ))}
+            </TableBody>
+          </Table>
+        </LegendContext>
       ) : null}
     </section>
   )

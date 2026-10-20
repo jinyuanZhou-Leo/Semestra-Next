@@ -379,11 +379,11 @@ function GroupRow({
       </TableCell>
       <TableCell className="py-1.5">
         {planning ? (
-          <span className="block pr-3 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+          <span className="block pr-16 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
             {m.grading_actual({ value: percentText(figures.average) })}
           </span>
         ) : (
-          <span className="block pr-3 text-right font-medium tabular-nums">
+          <span className="block pr-16 text-right font-medium tabular-nums">
             <span className="sr-only">{m.grading_average()}: </span>
             {percentText(figures.average)}
           </span>
