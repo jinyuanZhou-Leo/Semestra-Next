@@ -20,7 +20,7 @@ import { usePageScope } from './scope'
 import { parseSse } from './stream'
 import { applyEvent, buildItems, canRegenerate, withEditedMessage } from './transcript'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

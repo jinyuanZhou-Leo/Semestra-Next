@@ -172,8 +172,8 @@ function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   useEffect(() => {
-    if (hash) document.getElementById(hash)?.scrollIntoView()
-  }, [hash, current?.id])
+    if (hash && shownGroup !== undefined) document.getElementById(hash)?.scrollIntoView()
+  }, [hash, shownGroup])
 
   return (
     <>

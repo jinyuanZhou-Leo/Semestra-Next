@@ -8,7 +8,7 @@ import UpcomingCard from './cards/UpcomingCard'
 import TermGradesPage from './pages/TermGradesPage'
 import { assessment, gradebook } from './test-data'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -141,6 +141,12 @@ test('the Upcoming card reads the whole gradebook, so a late list position still
     ),
     http.get(`${API}/courses/c1`, () =>
       HttpResponse.json({ id: 'c1', program_id: 'p1', title: 'Course c1', code: 'C1' }),
+    ),
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({
+        items: [{ id: 'c1', program_id: 'p1', title: 'Course c1', code: 'C1' }],
+        next_cursor: null,
+      }),
     ),
   )
   renderWithRouter(

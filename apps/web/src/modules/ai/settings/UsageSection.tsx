@@ -2,6 +2,7 @@ import type { UsageDay, UsageRow, UsageSummary } from '@semestra/api-client'
 import { aiUsageSummaryOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import {
+  type CellContext,
   type SortingState,
   createColumnHelper,
   createSortedRowModel,
@@ -10,7 +11,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, BarChart3 } from 'lucide-react'
-import { useState } from 'react'
+import { createContext, use, useState } from 'react'
 import { useModules } from '@/app/registry'
 import { SettingsBlock, SettingsNote } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -137,55 +138,68 @@ function rowLabel(
 }
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
-const column = createColumnHelper<typeof features, UsageRow>()
+/** A usage row with the name shown for its key (a module, a model, a purpose or a day). */
+type LabeledRow = UsageRow & { label: string }
+
+const column = createColumnHelper<typeof features, LabeledRow>()
+
+/** The table's grouping, for the first column's header; the columns live outside the table. */
+const GroupingContext = createContext<Grouping>('purpose')
+
+function KeyHeader() {
+  return GROUP_TITLES[use(GroupingContext)]()
+}
+
+type CellProps = CellContext<typeof features, LabeledRow>
+
+const KeyCell = ({ row }: CellProps) => <span className="font-medium">{row.original.label}</span>
+
+const TokensCell = ({ row }: CellProps) => (
+  <span
+    title={m.ai_usage_tokens_split({
+      input: formatCount(row.original.input_tokens),
+      output: formatCount(row.original.output_tokens),
+    })}
+  >
+    {formatCount(row.original.input_tokens + row.original.output_tokens)}
+  </span>
+)
+
+const columns = column.columns([
+  column.accessor((r) => r.label, { id: 'key', header: KeyHeader, cell: KeyCell }),
+  column.accessor((r) => r.calls, {
+    id: 'calls',
+    header: () => m.ai_usage_calls(),
+    cell: ({ row }) =>
+      row.original.errors > 0
+        ? m.ai_usage_calls_with_errors({
+            calls: formatCount(row.original.calls),
+            errors: formatCount(row.original.errors),
+          })
+        : formatCount(row.original.calls),
+  }),
+  column.accessor((r) => r.input_tokens + r.output_tokens, {
+    id: 'tokens',
+    header: () => m.ai_usage_tokens(),
+    cell: TokensCell,
+  }),
+  column.accessor((r) => r.cost_usd ?? -1, {
+    id: 'cost',
+    header: () => m.ai_usage_cost(),
+    cell: ({ row }) => cost(row.original.cost_usd),
+  }),
+])
 
 function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'tokens', desc: true }])
   const modules = useModules()
   const moduleName = (id: string) => modules.find((mod) => mod.id === id)?.name()
-  const label = (key: string) => rowLabel(grouping, key, moduleName)
+  const labeled = rows.map((row) => ({ ...row, label: rowLabel(grouping, row.key, moduleName) }))
   const numeric = 'text-right tabular-nums'
-  const columns = column.columns([
-    column.accessor((r) => label(r.key), {
-      id: 'key',
-      header: () => GROUP_TITLES[grouping](),
-      cell: ({ row }) => <span className="font-medium">{label(row.original.key)}</span>,
-    }),
-    column.accessor((r) => r.calls, {
-      id: 'calls',
-      header: () => m.ai_usage_calls(),
-      cell: ({ row }) =>
-        row.original.errors > 0
-          ? m.ai_usage_calls_with_errors({
-              calls: formatCount(row.original.calls),
-              errors: formatCount(row.original.errors),
-            })
-          : formatCount(row.original.calls),
-    }),
-    column.accessor((r) => r.input_tokens + r.output_tokens, {
-      id: 'tokens',
-      header: () => m.ai_usage_tokens(),
-      cell: ({ row }) => (
-        <span
-          title={m.ai_usage_tokens_split({
-            input: formatCount(row.original.input_tokens),
-            output: formatCount(row.original.output_tokens),
-          })}
-        >
-          {formatCount(row.original.input_tokens + row.original.output_tokens)}
-        </span>
-      ),
-    }),
-    column.accessor((r) => r.cost_usd ?? -1, {
-      id: 'cost',
-      header: () => m.ai_usage_cost(),
-      cell: ({ row }) => cost(row.original.cost_usd),
-    }),
-  ])
   const table = useTable({
     features,
     columns,
-    data: rows,
+    data: labeled,
     getRowId: (row) => row.key,
     state: { sorting },
     onSortingChange: (updater) =>
@@ -193,46 +207,48 @@ function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }
   })
 
   return (
-    <Table>
-      <TableHeader>
-        {table.getHeaderGroups().map((group) => (
-          <TableRow key={group.id}>
-            {group.headers.map((h) => {
-              const sorted = h.column.getIsSorted()
-              return (
-                <TableHead
-                  key={h.id}
-                  className={h.column.id === 'key' ? undefined : numeric}
-                  aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="-ml-2 h-8 px-2 font-normal text-muted-foreground"
-                    onClick={h.column.getToggleSortingHandler()}
+    <GroupingContext value={grouping}>
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id}>
+              {group.headers.map((h) => {
+                const sorted = h.column.getIsSorted()
+                return (
+                  <TableHead
+                    key={h.id}
+                    className={h.column.id === 'key' ? undefined : numeric}
+                    aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
-                    <table.FlexRender header={h} />
-                    {sorted === 'asc' ? <ArrowUp aria-hidden className="size-3.5" /> : null}
-                    {sorted === 'desc' ? <ArrowDown aria-hidden className="size-3.5" /> : null}
-                  </Button>
-                </TableHead>
-              )
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id}>
-            {row.getAllCells().map((cell) => (
-              <TableCell key={cell.id} className={cell.column.id === 'key' ? undefined : numeric}>
-                <table.FlexRender cell={cell} />
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="-ml-2 h-8 px-2 font-normal text-muted-foreground"
+                      onClick={h.column.getToggleSortingHandler()}
+                    >
+                      <table.FlexRender header={h} />
+                      {sorted === 'asc' ? <ArrowUp aria-hidden className="size-3.5" /> : null}
+                      {sorted === 'desc' ? <ArrowDown aria-hidden className="size-3.5" /> : null}
+                    </Button>
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className={cell.column.id === 'key' ? undefined : numeric}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </GroupingContext>
   )
 }
 

@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest
 import { API, newQueryClient, server } from '@/test-utils'
 import { flushUiPrefs, prefetchUiPrefs, refreshUiPrefs, useUiPref } from './ui-pref'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

@@ -16,7 +16,7 @@ import { ScopeNav } from './host/ScopeNav'
 import { mergeJobs, StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   vi.restoreAllMocks()

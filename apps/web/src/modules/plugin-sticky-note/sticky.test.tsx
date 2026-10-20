@@ -6,7 +6,7 @@ import { API, renderWithQuery, server } from '@/test-utils'
 import StickyNoteCard from './StickyNoteCard'
 import { stickySettingsSchema } from './schema'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   saved.length = 0

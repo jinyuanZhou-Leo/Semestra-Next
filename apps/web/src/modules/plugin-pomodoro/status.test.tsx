@@ -6,7 +6,7 @@ import { API, newQueryClient, server } from '@/test-utils'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { usePomodoroStatus } from './status'
 
-beforeAll(() => server.listen())
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 beforeEach(() => {
