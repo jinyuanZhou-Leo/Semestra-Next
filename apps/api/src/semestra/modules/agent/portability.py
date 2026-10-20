@@ -4,11 +4,13 @@ Messages, tool calls and proposals embed ids of other modules' rows in free-form
 import cannot remap, so conversations are neither exported nor replaced; they are only purged with
 the account (attachments live under `users/<id>/agent/`, removed with the account's storage).
 The approval preferences are consent given on this account, so they do not travel either.
+Memories travel (they are the user's own words); the conversation they came from does not.
 """
 
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentAttachmentPage,
+    AgentMemory,
     AgentMessage,
     AgentPreferences,
     AgentProposal,
@@ -26,5 +28,6 @@ ADAPTER = table_adapter(
         Table(AgentAttachment, "attachments", exported=False),
         Table(AgentAttachmentPage, "attachment_pages", id_column=None, exported=False),
         Table(AgentPreferences, "preferences", id_column=None, exported=False),
+        Table(AgentMemory, "memories", exclude=("source_session_id",)),
     ),
 )

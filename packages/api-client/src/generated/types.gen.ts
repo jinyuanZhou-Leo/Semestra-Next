@@ -252,6 +252,12 @@ export type AgentSessionCreateInputBody = {
      * Random key of the new conversation in the client; creating again with the same key returns the same conversation (double sends, upload and send racing).
      */
     client_key?: string | null;
+    /**
+     * Temporary
+     *
+     * A temporary chat neither reads nor writes memories.
+     */
+    temporary?: boolean;
 };
 
 /**
@@ -310,6 +316,10 @@ export type AgentSessionOut = {
      * Pinned
      */
     pinned: boolean;
+    /**
+     * Temporary
+     */
+    temporary: boolean;
     /**
      * Created At
      */
@@ -446,6 +456,12 @@ export type AgentToolInfo = {
      * Also offered to MCP clients.
      */
     mcp: boolean;
+    /**
+     * Confirm
+     *
+     * Changes data behind a confirmation card (memory tools never ask).
+     */
+    confirm: boolean;
 };
 
 /**
@@ -1738,6 +1754,16 @@ export type CheckinToggleResult = {
      */
     checked: boolean;
     stats: HabitStats;
+};
+
+/**
+ * Cleared
+ */
+export type Cleared = {
+    /**
+     * Deleted
+     */
+    deleted: number;
 };
 
 /**
@@ -5501,6 +5527,68 @@ export type MeetingUpdateInputBody = {
      * Shown in the calendar
      */
     enabled?: boolean | null;
+};
+
+/**
+ * MemoryList
+ */
+export type MemoryList = {
+    /**
+     * Items
+     */
+    items: Array<MemoryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+};
+
+/**
+ * MemoryOut
+ */
+export type MemoryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Category
+     */
+    category: 'preference' | 'goal' | 'constraint' | 'context';
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Source Session Id
+     */
+    source_session_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * MemoryUpdateInputBody
+ */
+export type MemoryUpdateInputBody = {
+    /**
+     * Content
+     *
+     * New text.
+     */
+    content?: string | null;
+    /**
+     * Category
+     *
+     * New category.
+     */
+    category?: 'preference' | 'goal' | 'constraint' | 'context' | null;
 };
 
 /**
@@ -11576,6 +11664,120 @@ export type AgentAttachmentDeleteResponses = {
 };
 
 export type AgentAttachmentDeleteResponse = AgentAttachmentDeleteResponses[keyof AgentAttachmentDeleteResponses];
+
+export type AgentMemoryClearData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/memories:clear';
+};
+
+export type AgentMemoryClearErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentMemoryClearError = AgentMemoryClearErrors[keyof AgentMemoryClearErrors];
+
+export type AgentMemoryClearResponses = {
+    /**
+     * Successful Response
+     */
+    200: Cleared;
+};
+
+export type AgentMemoryClearResponse = AgentMemoryClearResponses[keyof AgentMemoryClearResponses];
+
+export type AgentMemoryDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         *
+         * Memory id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/memories/{id}';
+};
+
+export type AgentMemoryDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentMemoryDeleteError = AgentMemoryDeleteErrors[keyof AgentMemoryDeleteErrors];
+
+export type AgentMemoryDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryOut;
+};
+
+export type AgentMemoryDeleteResponse = AgentMemoryDeleteResponses[keyof AgentMemoryDeleteResponses];
+
+export type AgentMemoryUpdateData = {
+    body: MemoryUpdateInputBody;
+    path: {
+        /**
+         * Id
+         *
+         * Memory id.
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/agent/memories/{id}';
+};
+
+export type AgentMemoryUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentMemoryUpdateError = AgentMemoryUpdateErrors[keyof AgentMemoryUpdateErrors];
+
+export type AgentMemoryUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryOut;
+};
+
+export type AgentMemoryUpdateResponse = AgentMemoryUpdateResponses[keyof AgentMemoryUpdateResponses];
+
+export type AgentMemoryListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/memories';
+};
+
+export type AgentMemoryListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentMemoryListError = AgentMemoryListErrors[keyof AgentMemoryListErrors];
+
+export type AgentMemoryListResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryList;
+};
+
+export type AgentMemoryListResponse = AgentMemoryListResponses[keyof AgentMemoryListResponses];
 
 export type AgentPreferencesGetData = {
     body?: never;

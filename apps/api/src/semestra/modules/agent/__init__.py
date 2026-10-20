@@ -3,7 +3,13 @@
 from fastapi import FastAPI
 from starlette.routing import Route
 
-from semestra.modules.agent import attachments, capabilities, models, portability  # noqa: F401  (registers on import)
+from semestra.modules.agent import (  # noqa: F401  (registers on import)
+    attachments,
+    capabilities,
+    memory,
+    models,
+    portability,
+)
 from semestra.modules.agent.mcp_server import McpEndpoint
 from semestra.modules.agent.routes import router
 from semestra.modules.agent.runtime import AgentRuntime
@@ -11,6 +17,7 @@ from semestra.modules.agent.settings import AssistantSettings
 from semestra.modules.settings import register_settings
 
 register_settings(namespace="assistant", schema=AssistantSettings, levels=("account",))
+register_settings(namespace="memory", schema=memory.MemorySettings, levels=("account",))
 
 
 def register(app: FastAPI) -> None:

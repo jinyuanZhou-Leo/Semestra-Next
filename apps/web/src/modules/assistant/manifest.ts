@@ -1,4 +1,4 @@
-import { ListChecks, MessageCircle, Plug, Wrench } from 'lucide-react'
+import { Bookmark, ListChecks, MessageCircle, Plug, Trash2, Wrench } from 'lucide-react'
 import { lazy } from 'react'
 import { defineModule } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -46,6 +46,36 @@ export default defineModule({
       icon: ListChecks,
       order: 20,
       component: lazy(() => settings().then((s) => ({ default: s.ApprovalsSection }))),
+    },
+    {
+      id: 'assistant-memory-enabled',
+      level: 'account',
+      group: 'ai-memory',
+      title: m.assistant_settings_memory,
+      description: m.assistant_settings_memory_description,
+      icon: Bookmark,
+      order: 10,
+      namespace: 'memory',
+    },
+    {
+      id: 'assistant-memories',
+      level: 'account',
+      group: 'ai-memory',
+      title: m.assistant_settings_memories,
+      description: m.assistant_settings_memories_description,
+      icon: Bookmark,
+      order: 20,
+      component: lazy(() => settings().then((s) => ({ default: s.MemorySection }))),
+    },
+    {
+      id: 'assistant-memory-clear',
+      level: 'account',
+      group: 'ai-memory',
+      title: m.settings_danger_zone,
+      danger: true,
+      icon: Trash2,
+      order: 900,
+      component: lazy(() => settings().then((s) => ({ default: s.ClearMemoriesSection }))),
     },
     {
       id: 'assistant-mcp',

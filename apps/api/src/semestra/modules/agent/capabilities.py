@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from semestra.core.capability import Http, NoInput, capability, registry
 from semestra.core.context import Ctx
-from semestra.modules.agent import service, skills
+from semestra.modules.agent import memory, service, skills
 from semestra.modules.agent.schemas import (
     AgentPreferencesOut,
     AgentPreferencesUpdateInput,
@@ -71,7 +71,9 @@ async def session_get(ctx: Ctx, inp: SessionIdInput) -> AgentSessionDetail:
     tags=TAGS,
 )
 async def session_create(ctx: Ctx, inp: AgentSessionCreateInput) -> AgentSessionOut:
-    return service.session_out(await service.create_session(ctx, inp.scope, inp.client_key))
+    return service.session_out(
+        await service.create_session(ctx, inp.scope, inp.client_key, temporary=inp.temporary)
+    )
 
 
 @capability(
@@ -176,6 +178,7 @@ async def tools_catalog(ctx: Ctx, inp: NoInput) -> AgentToolCatalog:
                 plugin_id=c.plugin_id,
                 core=c.agent_core,
                 mcp="mcp" in c.expose,
+                confirm=c.effect != "read" and c.name not in memory.TOOLS,
             )
             for c in available
         ]

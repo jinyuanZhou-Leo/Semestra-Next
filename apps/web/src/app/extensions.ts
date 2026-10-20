@@ -118,6 +118,7 @@ export type SettingsGroup =
   | 'ai-models'
   | 'ai-usage'
   | 'ai-permissions'
+  | 'ai-memory'
   | 'ai-mcp'
   | 'calendar'
   | 'features'

@@ -44,6 +44,7 @@ def session_out(row: AgentSession) -> AgentSessionOut:
         program_id=row.program_id,
         scope=AgentScope.model_validate(row.scope) if row.scope else None,
         pinned=row.pinned,
+        temporary=row.temporary,
         created_at=row.created_at,
         updated_at=row.updated_at,
         archived_at=row.archived_at,
@@ -94,13 +95,18 @@ async def list_sessions(ctx: Ctx, inp: AgentSessionListInput) -> list[AgentSessi
 
 
 async def create_session(
-    ctx: Ctx, scope: AgentScope | None, client_key: str | None = None
+    ctx: Ctx,
+    scope: AgentScope | None,
+    client_key: str | None = None,
+    *,
+    temporary: bool = False,
 ) -> AgentSession:
     await _check_scope(ctx, scope)
     if client_key is not None and (existing := await _session_by_key(ctx, client_key)):
         return existing
     row = AgentSession(
         user_id=ctx.user_id,
+        temporary=temporary,
         program_id=scope.program_id if scope else None,
         scope=scope.model_dump() if scope else None,
         state={},
