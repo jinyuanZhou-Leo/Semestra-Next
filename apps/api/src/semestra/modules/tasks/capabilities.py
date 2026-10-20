@@ -143,6 +143,7 @@ for several tasks.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks"),
     tags=TAGS,
+    check=service.check_create,
 )
 async def item_create(ctx: Ctx, inp: TaskCreateInput) -> Task:
     return await service.create_task(ctx, inp.program_id, inp)
@@ -157,6 +158,7 @@ returned with the id of the task that already exists.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks:batch"),
     tags=TAGS,
+    check=service.check_create_many,
 )
 async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateManyResult:
     return await service.create_tasks(ctx, inp.program_id, inp.items)
@@ -174,6 +176,7 @@ assessment instead.""",
     effect="write",
     http=Http("PATCH", "/tasks/{task_id}"),
     tags=TAGS,
+    check=service.check_update,
 )
 async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     return await service.update_task(ctx, inp)

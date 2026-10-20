@@ -25,6 +25,8 @@ from semestra.modules.tasks.schemas import (
     TaskClearInput,
     TaskClearResult,
     TaskCounts,
+    TaskCreateInput,
+    TaskCreateManyInput,
     TaskCreateManyResult,
     TaskFields,
     TaskFindInput,
@@ -400,6 +402,19 @@ def _caller_source(ctx: Ctx, fields: TaskFields, loc: list[str | int]) -> TaskFi
     return fields
 
 
+async def check_create(ctx: Ctx, inp: TaskCreateInput) -> None:
+    _caller_source(ctx, inp, [])
+
+
+async def check_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> None:
+    for i, fields in enumerate(inp.items):
+        _caller_source(ctx, fields, ["items", i])
+
+
+async def check_update(ctx: Ctx, inp: TaskUpdateInput) -> None:
+    _guard_managed(await get_item_row(ctx, inp.task_id), inp)
+
+
 async def create_task(ctx: Ctx, program_id: str, fields: TaskFields) -> Task:
     fields = _caller_source(ctx, fields, [])
     program = await academics.get_program_row(ctx, program_id)
@@ -466,8 +481,7 @@ async def update_task(ctx: Ctx, inp: TaskUpdateInput) -> Task:
         due_time = None  # clearing the date clears the time with it
     _check_due(due_date, due_time)
     course_id = inp.course_id if "course_id" in sent else row.course_id
-    if row.source_kind == "assessment":
-        _check_managed(row, inp, sent, due=(due_date, due_time), course_id=course_id)
+    _guard_managed(row, inp)
     list_id = inp.list_id if "list_id" in sent else row.list_id
     term_id = inp.term_id if "term_id" in sent else row.term_id
     list_row = await _check_refs(
@@ -512,21 +526,23 @@ async def update_task(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     return task_out(row, _now_local(ctx, program))
 
 
-def _check_managed(
-    row: TasksItem,
-    inp: TaskUpdateInput,
-    sent: set[str],
-    *,
-    due: tuple[date | None, time | None],
-    course_id: str | None,
-) -> None:
+def _guard_managed(row: TasksItem, inp: TaskUpdateInput) -> None:
     """A task made from an assessment takes its title, due date and course from it (auto.py);
-    a change here would be overwritten by the next sync, so it is refused instead."""
+    a change here would be overwritten by the next sync, so it is refused instead. Sending the
+    values it already has is fine."""
+    if row.source_kind != "assessment":
+        return
+    sent = inp.model_fields_set - {"task_id"}
+    due_date = inp.due_date if "due_date" in sent else row.due_date
+    due_time = _clean_time(inp.due_time) if "due_time" in sent else row.due_time
+    if due_date is None and "due_time" not in sent:
+        due_time = None
+    course_id = inp.course_id if "course_id" in sent else row.course_id
     managed = [
         name
         for name, differs in (
             ("title", "title" in sent and inp.title != row.title),
-            ("due", (row.due_date, row.due_time) != due),
+            ("due", (row.due_date, row.due_time) != (due_date, due_time)),
             ("course_id", course_id != row.course_id),
         )
         if differs

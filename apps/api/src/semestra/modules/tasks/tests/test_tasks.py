@@ -595,11 +595,12 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
             ctx, "tasks.item.create", {"program_id": pid, "title": "Read ch. 3"}, "agent"
         )
         assert cast("Task", made).source_kind == "agent"
+        # Refused in the check, so before the assistant's confirmation card.
         for kind in ("assessment", "lms"):
             with pytest.raises(AppError) as refused:
-                await registry.invoke(
+                await registry.validate(
                     ctx,
-                    "tasks.item.create_many",
+                    registry.get("tasks.item.create_many"),
                     {"program_id": pid, "items": [{"title": "x", "source_kind": kind}]},
                     "agent",
                 )
@@ -652,7 +653,7 @@ async def test_assessments_become_tasks_only_when_the_switch_is_on(api: Api):
     assert len(await api.titles(pid)) == 2  # an update does not duplicate it
 
 
-async def test_assessment_changes_follow_through(api: Api):
+async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: UserHandle):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
     await enable_auto(api, pid)
@@ -673,6 +674,16 @@ async def test_assessment_changes_follow_through(api: Api):
     await api.call(
         "PATCH", f"/tasks/{task['id']}", json={"title": task["title"], "due_date": "2026-02-10"}
     )
+    # The assistant gets the same answer before its confirmation card.
+    async with system_ctx(app.state, user.id) as ctx:
+        with pytest.raises(AppError) as refused:
+            await registry.validate(
+                ctx,
+                registry.get("tasks.item.update"),
+                {"task_id": task["id"], "title": "Essay draft"},
+                "agent",
+            )
+    assert refused.value.code == "tasks.managed_by_assessment"
 
     await api.call(
         "PATCH", f"/assessments/{a['id']}", json={"due_date": "2026-02-14", "due_time": "23:00"}

@@ -702,9 +702,9 @@ async def create_link(
     return link
 
 
-async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
-    course = await academics.get_course_row(ctx, inp.course_id)
-    connection = await program_connection(ctx, course.program_id)
+async def check_link(ctx: Ctx, inp: LinkSetInput) -> None:
+    """Refuses replacing an existing link unless asked to (also before the agent's card)."""
+    await academics.get_course_row(ctx, inp.course_id)
     current = await link_row(ctx, inp.course_id)
     if (
         current is not None
@@ -719,6 +719,12 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
             external_code=current.external_code,
             external_name=current.external_name,
         )
+
+
+async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
+    await check_link(ctx, inp)
+    course = await academics.get_course_row(ctx, inp.course_id)
+    connection = await program_connection(ctx, course.program_id)
     b = await bound(ctx, connection)
     external, _ = await cached(
         ctx,

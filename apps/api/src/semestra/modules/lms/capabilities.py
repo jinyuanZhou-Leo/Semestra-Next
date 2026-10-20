@@ -209,6 +209,7 @@ what was imported through the old link.""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/lms-link"),
     tags=TAGS,
+    check=service.check_link,
 )
 async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     return await service.set_link(ctx, inp)

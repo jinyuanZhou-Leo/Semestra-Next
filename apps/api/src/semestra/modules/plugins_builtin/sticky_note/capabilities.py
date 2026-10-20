@@ -37,6 +37,7 @@ whole new text with mode replace. At most 10 000 characters.""",
     effect="write",
     http=Http("PUT", "/sticky/notes/{instance_id}"),
     tags=TAGS,
+    check=service.check_update,
     plugin_id=PLUGIN_ID,
 )
 async def note_update(ctx: Ctx, inp: NoteUpdateInput) -> Note:
