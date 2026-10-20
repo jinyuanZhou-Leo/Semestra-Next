@@ -12,6 +12,9 @@ SearchMode = Literal["hybrid", "keyword", "semantic"]
 
 MAX_FOLDER_DEPTH = 3
 MAX_READ_PAGES = 30
+# Agent/MCP reads stop before their JSON (pages and citations) grows past this many characters,
+# below the assistant's 12 000-character result pages (`agent/tools.py` RESULT_LIMIT).
+READ_RESULT_BUDGET = 9_000
 MAX_PAGES = 500
 
 
@@ -54,7 +57,30 @@ class ItemOut(BaseModel):
 # --- list -----------------------------------------------------------------------------------
 
 
-class FilesListInput(BaseModel):
+ItemField = Literal[
+    "course_id",
+    "folder_id",
+    "kind",
+    "display_name",
+    "original_name",
+    "mime_type",
+    "size_bytes",
+    "sha256",
+    "url",
+    "pinned",
+    "source_kind",
+    "source_ref",
+    "doc_status",
+    "doc_error_code",
+    "page_count",
+    "ocr_skipped_pages",
+    "job_id",
+    "created_at",
+    "updated_at",
+]
+
+
+class FilesItemListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     folder_id: Id | None = Field(
         default=None, description="Only items directly in this folder; omit for the course root"
@@ -65,11 +91,11 @@ class FilesListInput(BaseModel):
     search: Annotated[str, Field(max_length=200)] | None = Field(
         default=None,
         description="Keep items whose name contains this text (case-insensitive). To search "
-        "what the files say, use files.search instead.",
+        "what the files say, use files.document.search instead.",
     )
     sort: SortKey = Field(default="name", description="Sort key")
     descending: bool = Field(default=False, description="Reverse the sort order")
-    fields: list[str] | None = Field(
+    fields: list[ItemField] | None = Field(
         default=None,
         description="Agent/MCP only: return just these fields of each item (and its id)",
     )
@@ -77,7 +103,7 @@ class FilesListInput(BaseModel):
     limit: Annotated[int, Field(ge=1, le=500)] = Field(default=200, description="Page size")
 
 
-class FilesList(BaseModel):
+class FilesItemList(BaseModel):
     folders: list[FolderOut] = Field(description="Every folder of the course")
     items: list[ItemOut]
     next_cursor: str | None
@@ -151,14 +177,27 @@ class DocumentReadInput(BaseModel):
     page_from: Annotated[int, Field(ge=1)] = Field(default=1, description="First page (1-based)")
     page_to: Annotated[int, Field(ge=1)] | None = Field(
         default=None,
-        description=f"Last page; at most {MAX_READ_PAGES} pages are returned per call",
+        description=f"Last page; at most {MAX_READ_PAGES} pages, and for the assistant about "
+        f"{READ_RESULT_BUDGET} characters, are returned per call",
     )
+
+
+class Citation(BaseModel):
+    """What the assistant's `[[cite:<id>]]` markers point at (M12 §6.1)."""
+
+    id: str = Field(description="`<item_id>:p<page_from>-<page_to>`")
+    title: str = Field(description="File name")
+    item_id: str
+    page_from: int
+    page_to: int
+    snippet: str = Field(description="The quoted words, plain text")
 
 
 class DocumentPage(BaseModel):
     page_no: int
     markdown: str
     ocr_used: bool
+    citation_id: str = Field(description="`<item_id>:p<page_no>-<page_no>`")
 
 
 class DocumentRead(BaseModel):
@@ -167,6 +206,7 @@ class DocumentRead(BaseModel):
     page_count: int
     pages: list[DocumentPage]
     next_page: int | None = Field(description="Call again from this page for the rest")
+    citations: list[Citation] = Field(description="One per page; cite a page by its citation_id")
 
 
 class OutlineEntry(BaseModel):
@@ -219,12 +259,24 @@ class PendingItem(BaseModel):
     course_id: str
 
 
+class UnreadableItem(BaseModel):
+    item_id: str
+    display_name: str
+    course_id: str
+    doc_status: Literal["failed", "unsupported"]
+    doc_error_code: str | None = Field(description="Why the text could not be read")
+
+
 class SearchResult(BaseModel):
     results: list[SearchHit]
     pending_items: list[PendingItem] = Field(
         description="Files in scope that are still being processed and are not searchable yet"
     )
+    unreadable_items: list[UnreadableItem] = Field(
+        description="Files in scope whose text could not be read; search never covers them"
+    )
     mode_used: SearchMode
+    citations: list[Citation] = Field(description="One per result, by its citation_id")
 
 
 # --- misc -----------------------------------------------------------------------------------
@@ -238,7 +290,7 @@ class PinnedFiles(BaseModel):
     items: list[ItemOut]
 
 
-class FilesUsage(BaseModel):
+class FilesUsageGet(BaseModel):
     used_bytes: int = Field(description="All the user's stored files, every module")
     files_bytes: int = Field(description="Of which course files")
     quota_bytes: int = Field(description="0 means unlimited")

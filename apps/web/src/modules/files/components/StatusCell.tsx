@@ -1,5 +1,5 @@
 import type { ItemOut } from '@semestra/api-client'
-import { filesReprocessMutation } from '@semestra/api-client/react-query'
+import { filesItemReprocessMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, RotateCw, ScanText } from 'lucide-react'
 import { JobProgress } from '@/components/JobProgress'
@@ -17,7 +17,7 @@ import { invalidateFiles } from '../queries'
 export function StatusCell({ item }: { item: ItemOut }) {
   const queryClient = useQueryClient()
   const retry = useMutation({
-    ...filesReprocessMutation(),
+    ...filesItemReprocessMutation(),
     onError: toastError,
     onSuccess: () => invalidateFiles(queryClient),
   })

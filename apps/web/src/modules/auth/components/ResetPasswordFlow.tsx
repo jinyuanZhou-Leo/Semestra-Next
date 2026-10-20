@@ -1,6 +1,6 @@
 import type { UserOut } from '@semestra/api-client'
 import {
-  accountMeGetQueryKey,
+  accountProfileGetQueryKey,
   authEmailStartMutation,
   authPasswordResetMutation,
 } from '@semestra/api-client/react-query'
@@ -55,7 +55,7 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
       {
         onSuccess: (data) => {
           if (!data.user) return
-          queryClient.setQueryData(accountMeGetQueryKey(), data.user)
+          queryClient.setQueryData(accountProfileGetQueryKey(), data.user)
           onSignedIn(data.user)
         },
         onError: () => setCode(''),

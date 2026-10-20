@@ -1,6 +1,8 @@
 """Import sessions: create, review, commit, discard (M08 §2-§5)."""
 
+import asyncio
 import contextlib
+import time as time_
 from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Sequence
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -11,7 +13,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
-from semestra.core.errors import AppError, not_found
+from semestra.core.errors import AppError, not_found, validation_error
 from semestra.core.events import events
 from semestra.core.jobs import enqueue
 from semestra.core.storage import get_storage
@@ -23,6 +25,7 @@ from semestra.modules.imports.ics import parse_ics
 from semestra.modules.imports.models import ImportsItem, ImportsSession, ImportsUpload
 from semestra.modules.imports.schemas import (
     DATA_MODELS,
+    STRICT_MODELS,
     BulkDecideInput,
     CommitInput,
     ImportItem,
@@ -43,6 +46,7 @@ RETENTION = timedelta(days=30)
 UPLOAD_RETENTION = timedelta(days=1)
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 OPEN = ("extracting", "ready")
+WAIT_POLL_SECONDS = 0.5
 CLOSED = ("committed", "discarded")
 # Commit order (M08 §2): courses first, then what hangs off them.
 TYPE_ORDER = {
@@ -75,8 +79,26 @@ def register_commit_hook(source_kind: str, fn: CommitHook) -> CommitHook:
 async def get_session_row(ctx: Ctx, session_id: str) -> ImportsSession:
     row = await ctx.db.get(ImportsSession, session_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("session", session_id)
     return row
+
+
+async def wait_while_extracting(ctx: Ctx, row: ImportsSession, seconds: int) -> None:
+    """Holds the call until the background extraction ends or `seconds` pass, so the assistant
+    can wait with one call instead of polling. Reads through its own session: the caller's
+    transaction may not see the job's commits."""
+    deadline = time_.monotonic() + seconds
+    status = row.status
+    while status == "extracting" and time_.monotonic() < deadline:
+        await asyncio.sleep(WAIT_POLL_SECONDS)
+        async with ctx.state.session_factory() as db:
+            status = await db.scalar(
+                select(ImportsSession.status).where(ImportsSession.id == row.id)
+            )
+    if status != row.status:
+        # No rollback first: the driver opens a transaction only for writes, so this read sees the
+        # job's commit, and a rollback would expire what the request already loaded (the user).
+        await ctx.db.refresh(row)
 
 
 async def _items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
@@ -321,11 +343,11 @@ async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> Ses
     if target.term_id is not None:
         term = await academics.get_term_row(ctx, target.term_id)
         if term.program_id != program_id:
-            raise not_found()
+            raise not_found("term", target.term_id)
     if target.course_id is not None:
         course = await academics.get_course_row(ctx, target.course_id)
         if course.program_id != program_id:
-            raise not_found()
+            raise not_found("course", target.course_id)
     if target.kind != "term_wizard":
         target = target.model_copy(update={"start_date": None, "end_date": None})
     return target
@@ -453,13 +475,14 @@ def event_data(row: ImportsSession) -> dict[str, Any]:
     return {"session_id": row.id, "program_id": row.program_id, "status": row.status}
 
 
-def _validated_data(type_: str, data: dict[str, Any]) -> dict[str, Any]:
-    model = DATA_MODELS[type_]
+def _validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
+    """Drafts keep only known fields; `strict` refuses unknown ones instead of dropping them
+    (what a caller sends by hand: a misspelt field must not pass as a change)."""
+    model = (STRICT_MODELS if strict else DATA_MODELS)[type_]
     try:
         return model.model_validate(data).model_dump(mode="json", exclude_none=True)
     except ValidationError as exc:
-        errors = [{"loc": ["data", *e["loc"]], "code": e["type"]} for e in exc.errors()]
-        raise AppError("common.validation", 422, errors=errors) from exc
+        raise validation_error(exc, ("data",)) from exc
 
 
 async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> list[ImportsItem]:
@@ -557,7 +580,7 @@ async def store_upload(
 async def get_upload(ctx: Ctx, upload_id: str) -> ImportsUpload:
     upload = await ctx.db.get(ImportsUpload, upload_id)
     if upload is None or upload.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("upload", upload_id)
     return upload
 
 
@@ -603,6 +626,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         item.type, item.data = inp.type, _switched(item, inp.type)
         item.confidence = {}
     if inp.data is not None:
+        # Nulls are dropped before validation below, so a misspelt field set to null is caught here.
+        fields = STRICT_MODELS[item.type].model_fields
+        unknown = [name for name in inp.data if name not in fields]
+        if unknown:
+            errors = [{"loc": ["data", name], "code": "extra_forbidden"} for name in unknown]
+            raise AppError("common.validation", 422, errors=errors)
         merged = {**item.data, **inp.data}
         if item.type.endswith("_patch") and "changes" in inp.data:
             merged["changes"] = {**item.data.get("changes", {}), **inp.data["changes"]}
@@ -615,7 +644,9 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             ):
                 raise AppError("import.course_ref_missing", 422, ref=ref)
         # Fields set to null are dropped (the drafts store only what is known).
-        item.data = _validated_data(item.type, {k: v for k, v in merged.items() if v is not None})
+        item.data = _validated_data(
+            item.type, {k: v for k, v in merged.items() if v is not None}, strict=True
+        )
         # Edited by hand: the model's certainty no longer applies to those fields.
         item.confidence = {k: v for k, v in item.confidence.items() if k not in inp.data}
         if item.result and item.result.get("error_code"):
@@ -664,10 +695,9 @@ def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
     return _validated_data("assessment", {**restored, **common, "held": held or None})
 
 
-async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
-    row = await get_session_row(ctx, inp.session_id)
-    _require_open(row)
-    items = await _items(ctx, row.id)
+def _decided(items: list[ImportsItem], inp: BulkDecideInput) -> list[ImportsItem]:
+    """The items `bulk_decide` changes: those matching every filter (a rejected course takes
+    its contents along), not written yet and not already decided that way."""
     chosen = [
         item
         for item in items
@@ -677,13 +707,103 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
     ]
     if inp.decision == "reject":
         chosen = _with_contents(items, chosen)
-    changed = 0
-    for item in chosen:
-        if _written(item):
+    return [i for i in chosen if not _written(i) and i.decision != inp.decision]
+
+
+def _label(data: dict[str, Any]) -> str | None:
+    found = data.get("code") or data.get("title") or data.get("name") or data.get("section_code")
+    return str(found) if found else None
+
+
+def _by_type(drafts: Sequence[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """How many items of each type (`import_<type>`), the courses by name."""
+    changes: list[dict[str, Any]] = []
+    courses = [n for t, data in drafts if t == "course" and (n := _label(data))]
+    if courses:
+        changes.append({"field": "import_course", "after": courses[:10], "count": len(courses)})
+    counts: dict[str, int] = {}
+    for t, _ in drafts:
+        if t != "course":
+            counts[t] = counts.get(t, 0) + 1
+    return changes + [{"field": f"import_{t}", "after": n} for t, n in counts.items()]
+
+
+async def preview_bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): how many items of each type it keeps or
+    leaves out (the same selection as `bulk_decide`)."""
+    row = await get_session_row(ctx, inp.session_id)
+    items = _decided(await _items(ctx, row.id), inp)
+    changes = [
+        {"field": "decision", "after": inp.decision},
+        *_by_type([(i.type, i.data) for i in items]),
+    ]
+    if not items:
+        changes.append({"field": "import_items", "after": 0})
+    return {"target": _files(row), "changes": changes}
+
+
+async def preview_update_item(ctx: Ctx, inp: ItemUpdateInput) -> dict[str, Any]:
+    """The item's fields before → after (null clears one), its type and its decision."""
+    row = await get_session_row(ctx, inp.session_id)
+    items = await _items(ctx, row.id)
+    item = next((i for i in items if i.id == inp.item_id), None)
+    if item is None:
+        raise not_found()
+    changes: list[dict[str, Any]] = []
+    if inp.type is not None and inp.type != item.type:
+        changes.append({"field": "type", "before": item.type, "after": inp.type})
+    for key, value in (inp.data or {}).items():
+        if key in ("source_ref", "held"):
             continue
-        if item.decision != inp.decision:
-            item.decision = inp.decision
-            changed += 1
+        before = item.data.get(key)
+        if key.endswith("_ref"):
+            key = key.removesuffix("_ref")
+            before, value = await _ref_name(ctx, items, before), await _ref_name(ctx, items, value)
+        if before != value:
+            changes.append({"field": key, "before": before, "after": value})
+    if inp.decision is not None and inp.decision != item.decision:
+        changes.append({"field": "decision", "before": item.decision, "after": inp.decision})
+    return {
+        "target": " · ".join(p for p in (_label(item.data), _files(row)) if p),
+        "changes": changes,
+    }
+
+
+async def preview_add_items(ctx: Ctx, session_id: str, new: Sequence[NewItem]) -> dict[str, Any]:
+    """Counts per type of what is added, new courses by name."""
+    row = await get_session_row(ctx, session_id)
+    return {"target": _files(row), "changes": _by_type([(n.type, n.data) for n in new])}
+
+
+def _files(row: ImportsSession) -> str | None:
+    return ", ".join(str(r["filename"]) for r in row.source_refs if r.get("filename")) or None
+
+
+async def _ref_name(ctx: Ctx, items: Sequence[ImportsItem], ref: Any) -> str | None:
+    """A `course_ref`/`category_ref` by name: an item of the session, a course or a term."""
+    if not isinstance(ref, str):
+        return None
+    kind, _, id_ = ref.partition(":")
+    with contextlib.suppress(AppError):
+        if kind == "item":
+            found = next((i for i in items if i.id == id_), None)
+            return _label(found.data) if found is not None else None
+        if kind == "course":
+            course = await academics.get_course_row(ctx, id_)
+            return course.code or course.title
+        if kind == "term":
+            return (await academics.get_term_row(ctx, id_)).name
+    return None
+
+
+async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
+    row = await get_session_row(ctx, inp.session_id)
+    _require_open(row)
+    items = await _items(ctx, row.id)
+    changed = 0
+    for item in _decided(items, inp):
+        item.decision = inp.decision
+        changed += 1
     await revalidate(ctx, row, items)
     return changed, await detail(ctx, row, item_ids=set() if for_agent(ctx) else None)
 
@@ -731,19 +851,7 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
         for i in items
         if i.decision == "accept" and not (i.result and not i.result.get("error_code"))
     ]
-    changes: list[dict[str, Any]] = []
-    courses = [
-        str(name)
-        for i in waiting
-        if i.type == "course" and (name := i.data.get("code") or i.data.get("title"))
-    ]
-    if courses:
-        changes.append({"field": "import_course", "after": courses})
-    counts: dict[str, int] = {}
-    for item in waiting:
-        if item.type != "course":
-            counts[item.type] = counts.get(item.type, 0) + 1
-    changes += [{"field": f"import_{t}", "after": n} for t, n in counts.items()]
+    changes = _by_type([(i.type, i.data) for i in waiting])
     rejected = sum(1 for i in items if i.decision == "reject")
     if rejected:
         changes.append({"field": "import_rejected", "after": rejected})
@@ -753,7 +861,6 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
     issues = sum(len(i.issues) for i in waiting)
     if issues:
         changes.append({"field": "import_issues", "after": issues})
-    files = [str(r["filename"]) for r in row.source_refs if r.get("filename")]
     target = target_of(row)
     into: str | None = None
     with contextlib.suppress(AppError):
@@ -762,7 +869,7 @@ async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
             into = course.code or course.title
         elif target.term_id is not None:
             into = (await academics.get_term_row(ctx, target.term_id)).name
-    target_text = " → ".join(p for p in (", ".join(files), into) if p)
+    target_text = " → ".join(p for p in (_files(row), into) if p)
     return {"target": target_text, "changes": changes}
 
 

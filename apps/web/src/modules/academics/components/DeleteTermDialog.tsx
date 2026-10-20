@@ -1,7 +1,7 @@
 import type { Term } from '@semestra/api-client'
 import {
   academicsTermDeleteMutation,
-  academicsTermDeletePreviewOptions,
+  academicsTermPreviewDeleteOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
@@ -24,7 +24,7 @@ export function DeleteTermDialog({
   const queryClient = useQueryClient()
   const router = useRouter()
   const preview = useQuery({
-    ...academicsTermDeletePreviewOptions({ path: { term_id: term.id } }),
+    ...academicsTermPreviewDeleteOptions({ path: { term_id: term.id } }),
     enabled: open,
   })
   const remove = useMutation({

@@ -2,7 +2,7 @@ import type { Course, ItemOut } from '@semestra/api-client'
 import {
   academicsCourseGetOptions,
   academicsCourseListOptions,
-  filesListQueryKey,
+  filesItemListQueryKey,
 } from '@semestra/api-client/react-query'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
@@ -57,7 +57,10 @@ export function QuickOpenPicker({
     : coursesOfTerm(termList.data?.items ?? [], params.termId ?? '')
   const lists = useQueries({
     queries: courses.map((course) => ({
-      queryKey: filesListQueryKey({ path: { course_id: course.id }, query: { recursive: true } }),
+      queryKey: filesItemListQueryKey({
+        path: { course_id: course.id },
+        query: { recursive: true },
+      }),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
       staleTime: 30_000,
     })),

@@ -1,7 +1,7 @@
 import type { AgentPreferencesOut, AgentToolInfo } from '@semestra/api-client'
 import {
-  agentPreferencesGetQueryKey,
-  agentPreferencesUpdateMutation,
+  agentPreferenceGetQueryKey,
+  agentPreferenceUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useModules } from '@/app/registry'
@@ -50,9 +50,9 @@ export function useToolGroups(tools: readonly AgentToolInfo[]): ToolGroup[] {
 export function useUpdatePreferences() {
   const queryClient = useQueryClient()
   const report = useReportSectionStatus()
-  const key = agentPreferencesGetQueryKey()
+  const key = agentPreferenceGetQueryKey()
   const mutation = useMutation({
-    ...agentPreferencesUpdateMutation(),
+    ...agentPreferenceUpdateMutation(),
     onMutate: ({ body }) => {
       report({ status: 'saving' })
       const previous = queryClient.getQueryData<AgentPreferencesOut>(key)

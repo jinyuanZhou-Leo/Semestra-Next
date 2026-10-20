@@ -1,5 +1,5 @@
 import type { PurposeStatus } from '@semestra/api-client'
-import { aiStatusOptions } from '@semestra/api-client/react-query'
+import { aiStatusGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 
 export type AiPurpose = PurposeStatus['purpose']
@@ -12,7 +12,7 @@ export const AI_PURPOSES: readonly AiPurpose[] = [
   'title',
 ]
 
-export type AiStatusResult = {
+export type AiStatusGetResult = {
   /** True once the server says a model serves this purpose. */
   available: boolean
   /** Still loading: treat the feature as unavailable but say nothing yet. */
@@ -21,8 +21,8 @@ export type AiStatusResult = {
 }
 
 /** Whether AI features that need `purpose` can run now (M06 §7). Updates live via SSE. */
-export function useAiStatus(purpose: AiPurpose): AiStatusResult {
-  const query = useQuery({ ...aiStatusOptions(), staleTime: 60_000 })
+export function useAiStatus(purpose: AiPurpose): AiStatusGetResult {
+  const query = useQuery({ ...aiStatusGetOptions(), staleTime: 60_000 })
   const status = query.data?.items.find((item) => item.purpose === purpose)
   return { available: status?.available ?? false, pending: query.isPending, status }
 }

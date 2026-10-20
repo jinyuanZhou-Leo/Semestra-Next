@@ -26,7 +26,7 @@ from semestra.modules.ai.resolve import (
 )
 from semestra.modules.ai.runtime import runtime
 from semestra.modules.ai.schemas import (
-    AiStatus,
+    AiStatusGet,
     Assignment,
     AssignmentList,
     AssignmentUpdateInput,
@@ -72,7 +72,7 @@ def to_schema(row: AiProvider) -> Provider:
 async def _get_row(ctx: Ctx, provider_id: str) -> AiProvider:
     row = await ctx.db.get(AiProvider, provider_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("provider", provider_id)
     return row
 
 
@@ -343,7 +343,7 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 # --- status ---------------------------------------------------------------------------------
 
 
-async def status(ctx: Ctx) -> AiStatus:
+async def status(ctx: Ctx) -> AiStatusGet:
     items: list[PurposeStatus] = []
     for purpose in PURPOSES:
         resolved = await try_resolve(ctx, purpose, with_key=False)
@@ -372,7 +372,7 @@ async def status(ctx: Ctx) -> AiStatus:
                 model=resolved.model,
             )
         )
-    return AiStatus(items=items)
+    return AiStatusGet(items=items)
 
 
 # --- usage ----------------------------------------------------------------------------------

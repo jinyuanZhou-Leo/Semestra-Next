@@ -34,6 +34,9 @@ from semestra.modules.layouts.schemas import (
     BoardScopeType,
     BoardUpdateInput,
     CardAddInput,
+    CardInstanceList,
+    CardInstanceListInput,
+    CardInstanceSummary,
     CardRef,
     CardSettings,
     CardSettingsUpdateInput,
@@ -466,10 +469,60 @@ async def get_card_instance(ctx: Ctx, instance_id: str) -> CardInstance:
     return CardInstance(row.instance_id, row.card_id, row.scope_type, row.scope_id, row.settings)
 
 
+def card_name(settings: dict[str, Any] | None) -> str | None:
+    """What the user calls a card: a habit's or counter's name, else a note's first line."""
+    settings = settings or {}
+    for key in ("name", "label"):
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    content = settings.get("content")
+    if isinstance(content, str) and content.strip():
+        line = content.strip().splitlines()[0].strip()
+        return line if len(line) <= 40 else f"{line[:39]}…"
+    return None
+
+
+async def _scope_name(ctx: Ctx, scope_type: str, scope_id: str) -> str | None:
+    from semestra.modules.academics import service as academics
+
+    try:
+        if scope_type in ("program", "today"):
+            return (await academics.get_program_row(ctx, scope_id)).name
+        if scope_type == "term":
+            return (await academics.get_term_row(ctx, scope_id)).name
+        if scope_type == "course":
+            course = await academics.get_course_row(ctx, scope_id)
+            return course.code or course.title
+    except AppError:
+        return None
+    return None
+
+
 async def preview_card_remove(ctx: Ctx, inp: CardRef) -> dict[str, Any]:
-    """The assistant's confirmation card (M12 §3.5): the card by its id in the catalog."""
-    row = await _instance_row(ctx, inp.instance_id)
-    return {"target": row.card_id, "changes": []}
+    """The assistant's confirmation card (M12 §3.5): the card by its name and its board; the
+    UI names the kind of card (`card`) in its language."""
+    row = await ctx.db.get(LayoutsCardSetting, inp.instance_id)
+    if row is not None and row.user_id == ctx.user_id:
+        card_id, scope, settings = row.card_id, (row.scope_type, row.scope_id), row.settings
+    else:
+        # A card its board still generates from the template: read, not stored (the user may
+        # reject the card); the remove itself stores the board first.
+        scope = _parse_template_id(inp.instance_id)
+        if scope is None:
+            raise AppError("common.not_found", 404)
+        await check_scope(ctx, *scope)
+        every_module = {m.id for m in catalog.modules()}
+        placed = await _generated(ctx, *scope, every_module)
+        found = next((p for p in placed if p.instance_id == inp.instance_id), None)
+        if found is None:
+            raise AppError("common.not_found", 404)
+        card_id, settings = found.card_id, {}
+    names = (card_name(settings), await _scope_name(ctx, *scope))
+    return {
+        "target": " · ".join(n for n in names if n),
+        "changes": [{"field": "card", "before": card_id, "after": None}],
+    }
 
 
 async def list_card_instances(
@@ -487,6 +540,63 @@ async def list_card_instances(
     return [
         CardInstance(r.instance_id, r.card_id, r.scope_type, r.scope_id, r.settings) for r in rows
     ]
+
+
+LABEL_CHARS = 80
+
+
+def _label(settings: dict[str, Any]) -> str | None:
+    """How the user tells cards of one kind apart: a name, else the first line of the text."""
+    for key in ("name", "title", "label"):
+        value = settings.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:LABEL_CHARS]
+    content = settings.get("content")
+    if isinstance(content, str) and content.strip():
+        return content.strip().split("\n", 1)[0][:LABEL_CHARS]
+    return None
+
+
+async def list_program_cards(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
+    """Every card on the boards of a Program (its overview, Today, its terms and courses), so
+    the assistant finds a card without guessing its board. Generated boards are read, not
+    stored. Courses have no archived state, so every course of every term is searched: one board
+    read each (a few queries), fine for a Program's tens of courses; past terms are kept because
+    the user may name a card on one."""
+    from semestra.modules.academics import service as academics
+    from semestra.modules.academics.schemas import CourseListInput
+
+    program = await academics.get_program_row(ctx, inp.program_id)
+    boards: list[tuple[str, str, str]] = [
+        ("program", program.id, program.name),
+        ("today", program.id, program.name),
+    ]
+    boards += [("term", t.id, t.name) for t in await academics.program_terms(ctx, program.id)]
+    cursor: str | None = None
+    while True:
+        page = await academics.list_courses(
+            ctx, CourseListInput(program_id=program.id, cursor=cursor, limit=500)
+        )
+        boards += [("course", c.id, c.code or c.title) for c in page.items]
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    items: list[CardInstanceSummary] = []
+    for scope_type, scope_id, name in boards:
+        board = await get_board(ctx, BoardRef(scope_type=scope_type, scope_id=scope_id))  # pyright: ignore[reportArgumentType]
+        items += [
+            CardInstanceSummary(
+                instance_id=card.instance_id,
+                card_id=card.card_id,
+                scope_type=board.scope_type,
+                scope_id=scope_id,
+                board_name=name,
+                label=_label(card.settings),
+            )
+            for card in board.cards
+            if inp.card_id is None or card.card_id == inp.card_id
+        ]
+    return CardInstanceList(items=items)
 
 
 async def remove_card(ctx: Ctx, instance_id: str) -> Removed:

@@ -71,7 +71,7 @@ class AgentAttachmentOut(BaseModel):
     mime: str
     size: int
     created_at: datetime
-    # The course file it was saved as (`attachments.save`).
+    # The course file it was saved as (`agent.attachment.save`).
     file_item_id: str | None = None
 
 
@@ -126,7 +126,7 @@ class AgentPreferencesOut(BaseModel):
     mcp_allow_destructive: bool = Field(description="MCP clients may run delete actions.")
 
 
-class AgentPreferencesUpdateInput(BaseModel):
+class AgentPreferenceUpdateInput(BaseModel):
     auto_approve: list[str] | None = Field(
         default=None, description="Write capabilities that run without asking."
     )

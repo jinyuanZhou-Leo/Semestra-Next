@@ -1,4 +1,4 @@
-import { coreStorageUsageOptions } from '@semestra/api-client/react-query'
+import { coreStorageGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatBytes } from '@/lib/format'
@@ -6,7 +6,7 @@ import { m } from '@/paraglide/messages'
 
 /** Cards receive `CardProps` (scope, size, settings); this one needs none of them. */
 export default function StorageCard() {
-  const usage = useQuery(coreStorageUsageOptions())
+  const usage = useQuery(coreStorageGetOptions())
   return (
     <AsyncBoundary query={usage}>
       {(u) => (

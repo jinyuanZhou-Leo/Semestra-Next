@@ -54,10 +54,13 @@ export function TaskChips({
   const done = task.completed_at !== null
   const shown = shownPriority(task.priority)
   const course = courses.find((c) => c.id === task.course_id)
+  // An assessment's task follows it: date, time and course change in the gradebook.
+  const managed = task.source_kind === 'assessment'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Popover open={dateOpen} onOpenChange={setDateOpen}>
         <PopoverTrigger
+          disabled={managed}
           render={
             <Button
               type="button"
@@ -102,7 +105,7 @@ export function TaskChips({
           ) : null}
         </PopoverContent>
       </Popover>
-      {task.due_date ? <TimeChip task={task} onChange={onChange} /> : null}
+      {task.due_date ? <TimeChip task={task} disabled={managed} onChange={onChange} /> : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -138,6 +141,7 @@ export function TaskChips({
       {hideCourse ? null : (
         <DropdownMenu>
           <DropdownMenuTrigger
+            disabled={managed}
             render={
               <Button
                 type="button"
@@ -199,9 +203,11 @@ export function TaskChips({
 /** The time chip; a click turns it into a time field, saved on Enter or leaving it. */
 function TimeChip({
   task,
+  disabled,
   onChange,
 }: {
   task: Task
+  disabled: boolean
   onChange: (body: TaskUpdateInputBody) => void
 }) {
   const current = task.due_time?.slice(0, 5) ?? ''
@@ -242,6 +248,7 @@ function TimeChip({
       variant={current ? 'secondary' : 'outline'}
       size="xs"
       className={chipClass(current !== '')}
+      disabled={disabled}
       onClick={() => setDraft(current)}
     >
       <Clock aria-hidden />

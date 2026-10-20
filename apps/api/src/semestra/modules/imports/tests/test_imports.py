@@ -1,5 +1,6 @@
 """Import sessions over HTTP and the agent surface (M08 §9)."""
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -206,6 +207,48 @@ async def test_bad_uploads_and_sources(api: Api):
     assert err["error"]["code"] == "ai.not_configured"
 
 
+async def test_waiting_for_extraction_takes_one_call(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(service, "WAIT_POLL_SECONDS", 0.05)
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    session = await api.create(
+        program_id, source_kind="text", target={"kind": "term", "term_id": term_id},
+        text="APS105 syllabus ...",
+    )  # fmt: skip
+    url = f"/imports/{session['id']}"
+    # Nothing finishes it: the wait ends at the limit with the session still extracting.
+    timed_out = await api.call("GET", url, params={"wait_seconds": 1})
+    assert timed_out["status"] == "extracting"
+
+    async def finish_soon() -> None:
+        await asyncio.sleep(0.2)
+        await run_jobs()
+
+    waited, _ = await asyncio.gather(
+        api.call("GET", url, params={"wait_seconds": 20}), finish_soon()
+    )
+    assert waited["status"] == "ready"
+    assert waited["items"]
+    await api.call("GET", url, 422, params={"wait_seconds": 26})
+
+    # Discarding it while someone waits ends the wait with the new status.
+    other = await api.create(
+        program_id, source_kind="text", target={"kind": "term", "term_id": term_id},
+        text="MAT188 syllabus ...",
+    )  # fmt: skip
+
+    async def discard_soon() -> None:
+        await asyncio.sleep(0.2)
+        await api.call("POST", f"/imports/{other['id']}:discard")
+
+    waited, _ = await asyncio.gather(
+        api.call("GET", f"/imports/{other['id']}", params={"wait_seconds": 20}), discard_soon()
+    )
+    assert waited["status"] == "discarded"
+
+
 async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, Any]], run_jobs):
     program_id = await api.program()
     term_id = await api.term(program_id)
@@ -251,8 +294,28 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     meetings = by_type(session, "meeting")
     assert [m["data"]["type_code"] for m in meetings] == ["LEC", "PRA"]
 
-    # Fix the weights and the date by hand; the issues go away.
+    # A misspelt field is refused, not silently dropped.
     lab2 = assessments["Lab 2"]
+    err = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{lab2['id']}", 422,
+        json={"data": {"weigth": 20}},
+    )  # fmt: skip
+    errors = err["error"]["params"]["errors"]
+    assert errors == [{"loc": ["data", "weigth"], "code": "extra_forbidden"}]
+    err = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{lab2['id']}", 422,
+        json={"data": {"weigth": None}},
+    )  # fmt: skip
+    assert err["error"]["params"]["errors"] == [
+        {"loc": ["data", "weigth"], "code": "extra_forbidden"}
+    ]
+    # A bulk decision needs at least one filter.
+    err = await api.call(
+        "POST", f"/imports/{session['id']}/items:decide", 422, json={"decision": "reject"}
+    )
+    assert err["error"]["params"]["errors"][0]["code"] == "filter_required"
+
+    # Fix the weights and the date by hand; the issues go away.
     session = await api.call(
         "PATCH", f"/imports/{session['id']}/items/{lab2['id']}",
         json={"data": {"due_date": "2026-02-13"}},
@@ -439,7 +502,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         session_id = created["id"]
         await registry.invoke(
             ctx,
-            "imports.items.add",
+            "imports.item.add_many",
             {"session_id": session_id, "items": [
                 {"key": "c", "type": "course", "data": {"title": "Linear Algebra",
                                                           "code": "MAT188H1"}},
@@ -451,7 +514,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         with pytest.raises(AppError) as err:
             await registry.invoke(
                 ctx,
-                "imports.items.add",
+                "imports.item.add_many",
                 {"session_id": session_id, "items": [
                     {"type": "meeting", "data": {"course_ref": "item:nope", "weekday": 1,
                                                   "start_time": "09:00", "end_time": "10:00"}}
@@ -463,7 +526,7 @@ async def test_agent_adds_items_and_session_closes(app: FastAPI, api: Api):
         with pytest.raises(AppError) as err:
             await registry.invoke(
                 ctx,
-                "imports.items.add",
+                "imports.item.add_many",
                 {"session_id": session_id, "items": [
                     {"type": "meeting", "data": {"course_ref": "item:c", "weekday": 1,
                                                   "start_time": "09:00", "end_time": "10:00",
@@ -782,7 +845,7 @@ async def test_meeting_outside_its_term_fails_instead_of_landing_in_week_one(
         session_id = created["id"]
         await registry.invoke(
             ctx,
-            "imports.items.add",
+            "imports.item.add_many",
             {"session_id": session_id, "items": [
                 {"key": "c", "type": "course", "data": {"title": "Linear Algebra",
                                                           "code": "MAT188H1"}},
@@ -830,7 +893,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     )  # fmt: skip
     session_id = session["id"]
     added = await agent(
-        "imports.items.add",
+        "imports.item.add_many",
         {"session_id": session_id, "ready": True, "items": [
             {"key": "w", "type": "course", "data": {"title": "Calculus", "code": "MAT194H1"}},
             {"type": "meeting", "data": {"course_ref": "item:w", "weekday": 2,
@@ -870,7 +933,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     assert preview == {
         "target": "Winter 2026",
         "changes": [
-            {"field": "import_course", "after": ["MAT194H1", "MAT188H1", "MAT157Y1"]},
+            {"field": "import_course", "after": ["MAT194H1", "MAT188H1", "MAT157Y1"], "count": 3},
             {"field": "import_meeting", "after": 2},
             {"field": "import_pending", "after": 1},
         ],
@@ -887,7 +950,7 @@ async def test_a_course_item_takes_its_meetings_to_its_own_term(app: FastAPI, ap
     assert terms == {"MAT194H1": [winter], "MAT188H1": [fall], "MAT157Y1": sorted([fall, winter])}
 
 
-@pytest.mark.parametrize("tool", ["imports.items.bulk_decide", "imports.item.update"])
+@pytest.mark.parametrize("tool", ["imports.item.decide_many", "imports.item.update"])
 async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: Api, tool: str):
     program_id = await api.program()
     term_id = await api.term(program_id)
@@ -911,7 +974,7 @@ async def test_rejecting_a_course_rejects_what_belongs_to_it(app: FastAPI, api: 
             args["item_ids"] = [course["id"]]
         out = await registry.invoke(ctx, tool, args, "agent")
         await ctx.db.commit()
-    if tool == "imports.items.bulk_decide":
+    if tool == "imports.item.decide_many":
         assert isinstance(out, dict)
         assert out["changed"] == 1 + len(own)
     after = await api.call("GET", f"/imports/{session['id']}")
@@ -959,7 +1022,8 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
     assert page["summary"]["counts"] == {"course": 2, "meeting": 4, "event": 2}
     assert len(page["items"]) == 3
     assert page["next_cursor"] == "3"
-    assert set(page["items"][0]) == {"id", "type", "data", "decision", "issues", "result"}
+    # `result` is null until the commit, and list items leave out null fields.
+    assert set(page["items"][0]) == {"id", "type", "data", "decision", "issues"}
     rest = await agent("imports.session.get", {"session_id": session["id"], "cursor": "3"})
     assert len(rest["items"]) == 5
     assert rest["next_cursor"] is None
@@ -980,7 +1044,7 @@ async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api:
     assert [i["id"] for i in changed["items"]] == [meeting["id"]]
     assert changed["items"][0]["data"]["location"] == "BA 1"
     bulk = await agent(
-        "imports.items.bulk_decide",
+        "imports.item.decide_many",
         {"session_id": session["id"], "decision": "reject", "types": ["event"]},
     )
     assert bulk["changed"] == 2
@@ -1023,7 +1087,7 @@ async def test_http_with_a_token_gets_the_whole_session(app: FastAPI, api: Api):
 
 
 def test_agent_output_paths_reach_into_lists():
-    from semestra.core.capability import _keep_paths  # pyright: ignore[reportPrivateUsage]
+    from semestra.core.agent_output import _keep_paths  # pyright: ignore[reportPrivateUsage]
 
     dumped = {
         "failed": 1,
@@ -1034,3 +1098,43 @@ def test_agent_output_paths_reach_into_lists():
     }
     kept = _keep_paths(dumped, ("failed", "session.id", "session.items.id", "session.items.type"))
     assert kept == {"failed": 1, "session": {"id": "s", "items": [{"id": "i", "type": "course"}]}}
+
+
+async def test_assistant_cards_count_what_a_decision_changes(app: FastAPI, api: Api):
+    # The cards of decide_many and item.update (M12 §3.5): the same selection the write makes,
+    # counted per type, and an item's fields before → after, refs by name.
+    from semestra.modules.agent.loop import make_preview
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    course = by_type(session, "course")[0]
+    own = [i for i in session["items"] if i["data"].get("course_ref") == f"item:{course['id']}"]
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        args = {"session_id": session["id"], "decision": "reject", "item_ids": [course["id"]]}
+        card = await make_preview(ctx, registry.get("imports.item.decide_many"), args)
+        meeting = own[0]
+        edit = await make_preview(
+            ctx,
+            registry.get("imports.item.update"),
+            {"session_id": session["id"], "item_id": meeting["id"],
+             "data": {"location": "BA1130"}},
+        )  # fmt: skip
+    assert card["changes"] == [
+        {"field": "decision", "after": "reject"},
+        {"field": "import_course", "after": [course["data"]["code"]], "count": 1},
+        *(
+            {"field": f"import_{t}", "after": sum(1 for i in own if i["type"] == t)}
+            for t in dict.fromkeys(i["type"] for i in own)
+        ),
+    ]
+    assert card["target"] == "acorn.ics"
+    assert edit["changes"] == [
+        {"field": "location", "before": meeting["data"].get("location"), "after": "BA1130"}
+    ]

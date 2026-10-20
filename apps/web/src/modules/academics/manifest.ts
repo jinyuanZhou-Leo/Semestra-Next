@@ -19,8 +19,8 @@ const ACADEMICS_QUERIES = [
   'academicsProgramGet',
   'academicsTermList',
   'academicsTermGet',
-  'academicsTermCalendarInfo',
-  'academicsTermDeletePreview',
+  'academicsTermGetWeeks',
+  'academicsTermPreviewDelete',
   'academicsCourseList',
   'academicsCourseGet',
 ] as const

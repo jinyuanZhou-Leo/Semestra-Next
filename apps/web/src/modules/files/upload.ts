@@ -1,4 +1,4 @@
-import type { FilesUsage, ItemOut } from '@semestra/api-client'
+import type { FilesUsageGet, ItemOut } from '@semestra/api-client'
 
 export async function sha256Hex(file: Blob): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
@@ -16,7 +16,7 @@ export type UploadPlan = {
 }
 
 /** The checks the server makes again (M07 §4), done first so nothing is sent in vain. */
-export function planUpload(files: readonly File[], usage: FilesUsage | undefined): UploadPlan {
+export function planUpload(files: readonly File[], usage: FilesUsageGet | undefined): UploadPlan {
   const max = usage?.max_upload_bytes ?? Infinity
   const tooLarge = files.filter((f) => f.size > max)
   const accepted = files.filter((f) => f.size <= max)

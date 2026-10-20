@@ -5,8 +5,8 @@ import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { listCardSettingsSchema } from './cards/schema'
 
-const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksCounts'] as const
-const CALENDAR_QUERIES = ['calendarOccurrences', 'calendarToday'] as const
+const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
+const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 
 /**
  * M05 待办: task lists and tasks per Program, smart lists, a tasks page for every term and course,
@@ -107,8 +107,8 @@ export default defineModule({
     ].map((event) => [event, TASK_QUERIES]),
     ['calendar.changed', CALENDAR_QUERIES],
     ['academics.course.updated', ['tasksItemQuery']],
-    ['academics.course.deleted', ['tasksItemQuery', 'tasksCounts']],
+    ['academics.course.deleted', ['tasksItemQuery', 'tasksItemCount']],
     ['academics.term.deleted', [...TASK_QUERIES]],
-    ['settings.values.updated', ['tasksItemQuery', 'tasksCounts']],
+    ['settings.values.updated', ['tasksItemQuery', 'tasksItemCount']],
   ]),
 })

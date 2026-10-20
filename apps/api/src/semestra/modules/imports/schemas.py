@@ -6,9 +6,10 @@ item's `result.error_code` on commit.
 """
 
 from datetime import date, datetime, time
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from semestra.modules.academics.schemas import Credits, Id, Instructor
 
@@ -28,6 +29,7 @@ ItemType = Literal[
 Decision = Literal["accept", "reject", "pending"]
 Confidence = Literal["high", "medium", "low"]
 TargetKind = Literal["term_wizard", "term", "course"]
+MAX_WAIT_SECONDS = 25
 
 # `item:<id>` (a course item of the same session) or `course:<id>` (an existing course).
 CourseRef = Annotated[str, Field(pattern=r"^(item|course):[A-Za-z0-9-]{1,64}$")]
@@ -43,25 +45,50 @@ Day = date  # `EventData.date` shadows the type inside that class
 # --- item data, one model per type ----------------------------------------------------------
 
 
+HELD = "Set by the app while the user switches the item's kind; leave it out"
+SOURCE_REF = "Where the item came from (a UID, URL or page); repeats with the same value are merged"
+COURSE_REF = (
+    "`item:<key>` for a course item of this import, or `course:<id>` for an existing course"
+)
+TERM_REF = "`term:<id>`; leave it out for the import's term"
+
+
 class CourseData(BaseModel):
-    code: Annotated[str, Field(max_length=32)] | None = None
-    title: Title
-    alias: Annotated[str, Field(max_length=40)] | None = None
-    credits: Credits | None = None
-    instructors: list[Instructor] = Field(default_factory=list, max_length=20)
-    description: Annotated[str, Field(max_length=5000)] | None = None
-    website_url: Annotated[str, Field(max_length=500)] | None = None
-    planned_terms: Annotated[int, Field(ge=1, le=6)] = 1
-    # Terms to link; empty = the session's target term.
-    term_ids: list[Id] = Field(default_factory=list, max_length=6)
-    # An existing course with the same code (ICS imports point their meetings at it instead).
-    existing_course_id: Id | None = None
+    code: Annotated[str, Field(max_length=32)] | None = Field(
+        default=None, description="Course code as the school writes it, e.g. CSC108H1"
+    )
+    title: Title = Field(description="Course name")
+    alias: Annotated[str, Field(max_length=40)] | None = Field(
+        default=None, description="Short name the user calls it"
+    )
+    credits: Credits | None = Field(default=None, description="Credits or units")
+    instructors: list[Instructor] = Field(
+        default_factory=list, max_length=20, description="Instructors"
+    )
+    description: Annotated[str, Field(max_length=5000)] | None = Field(
+        default=None, description="Course description"
+    )
+    website_url: Annotated[str, Field(max_length=500)] | None = Field(
+        default=None, description="Course website"
+    )
+    planned_terms: Annotated[int, Field(ge=1, le=6)] = Field(
+        default=1, description="How many terms the course runs (2 for a full-year course)"
+    )
+    term_ids: list[Id] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Existing terms to link it to; empty means the import's term",
+    )
+    # ICS imports point their meetings at it instead.
+    existing_course_id: Id | None = Field(
+        default=None, description="An existing course with the same code, if any"
+    )
 
 
 class FieldChange(BaseModel):
-    old: Any = None
-    new: Any = None
-    apply: bool = True
+    old: Any = Field(default=None, description="Current value")
+    new: Any = Field(default=None, description="Proposed value")
+    apply: bool = Field(default=True, description="Whether the change is applied on commit")
 
 
 PatchField = Literal[
@@ -70,8 +97,8 @@ PatchField = Literal[
 
 
 class CoursePatchData(BaseModel):
-    course_id: Id
-    changes: dict[PatchField, FieldChange]
+    course_id: Id = Field(description="The existing course")
+    changes: dict[PatchField, FieldChange] = Field(description="Changed fields by name")
 
 
 class AssessmentPatchData(BaseModel):
@@ -91,78 +118,118 @@ class TaskPatchData(BaseModel):
 
 
 class MeetingData(BaseModel):
-    course_ref: CourseRef
-    term_ref: TermRef | None = None
-    section_code: Annotated[str, Field(max_length=32)] = ""
-    type_code: Annotated[str, Field(min_length=1, max_length=8)] = "LEC"
-    weekday: Annotated[int, Field(ge=1, le=7)]
-    start_time: time
-    end_time: time
-    recurrence: Literal["weekly", "biweekly"] = "weekly"
-    # Either term weeks or the dates of the first and last class (resolved to weeks on commit,
-    # when the term is known).
-    start_week: Annotated[int, Field(ge=1, le=60)] | None = None
-    end_week: Annotated[int, Field(ge=1, le=60)] | None = None
-    first_date: date | None = None
-    last_date: date | None = None
-    weeks_text: Text200 | None = None
-    location: Text200 | None = None
-    instructor: Text200 | None = None
-    source_ref: Annotated[str, Field(max_length=500)] | None = None
-    # Dates the class is cancelled (holidays, irregular weeks); break weeks of the term are
-    # skipped anyway. Written as cancellations of the meeting on commit.
-    exceptions: list[date] = Field(default_factory=list, max_length=200)
+    course_ref: CourseRef = Field(description=COURSE_REF)
+    term_ref: TermRef | None = Field(default=None, description=TERM_REF)
+    section_code: Annotated[str, Field(max_length=32)] = Field(
+        default="", description="Section, e.g. LEC0101"
+    )
+    type_code: Annotated[str, Field(min_length=1, max_length=8)] = Field(
+        default="LEC", description="Class type code, e.g. LEC, TUT, PRA"
+    )
+    weekday: Annotated[int, Field(ge=1, le=7)] = Field(description="1 = Monday ... 7 = Sunday")
+    start_time: time = Field(description="Local start time")
+    end_time: time = Field(description="Local end time")
+    recurrence: Literal["weekly", "biweekly"] = Field(default="weekly", description="Repeat")
+    # Weeks are resolved from the dates on commit, when the term is known.
+    start_week: Annotated[int, Field(ge=1, le=60)] | None = Field(
+        default=None, description="First term week; or give first_date"
+    )
+    end_week: Annotated[int, Field(ge=1, le=60)] | None = Field(
+        default=None, description="Last term week; or give last_date"
+    )
+    first_date: date | None = Field(default=None, description="Date of the first class")
+    last_date: date | None = Field(default=None, description="Date of the last class")
+    weeks_text: Text200 | None = Field(
+        default=None, description="The weeks as the source wrote them, when they are irregular"
+    )
+    location: Text200 | None = Field(default=None, description="Room or place")
+    instructor: Text200 | None = Field(default=None, description="Who teaches this section")
+    source_ref: Annotated[str, Field(max_length=500)] | None = Field(
+        default=None, description=SOURCE_REF
+    )
+    # Written as cancellations of the meeting on commit.
+    exceptions: list[date] = Field(
+        default_factory=list,
+        max_length=200,
+        description="Dates the class is cancelled; the term's break weeks are skipped anyway",
+    )
 
 
 class EventData(BaseModel):
-    course_ref: CourseRef | None = None
-    term_ref: TermRef | None = None
-    title: Title
-    date: Day | None = None
-    start_time: time | None = None
-    end_time: time | None = None
-    end_date: Day | None = None
-    all_day: bool = False
-    type_code: Annotated[str, Field(max_length=8)] | None = None
-    kind: Literal["exam", "deadline", "no_class", "other"] = "other"
-    date_text: Text200 | None = None
-    location: Text200 | None = None
-    source_ref: Annotated[str, Field(max_length=500)] | None = None
+    course_ref: CourseRef | None = Field(default=None, description=COURSE_REF)
+    term_ref: TermRef | None = Field(default=None, description=TERM_REF)
+    title: Title = Field(description="Event name")
+    date: Day | None = Field(default=None, description="Local date")
+    start_time: time | None = Field(default=None, description="Local start time")
+    end_time: time | None = Field(default=None, description="Local end time")
+    end_date: Day | None = Field(default=None, description="Last day, for events over several days")
+    all_day: bool = Field(default=False, description="Whether it has no times")
+    type_code: Annotated[str, Field(max_length=8)] | None = Field(
+        default=None, description="Event type code of the Program, e.g. EXAM"
+    )
+    kind: Literal["exam", "deadline", "no_class", "other"] = Field(
+        default="other", description="What the event is"
+    )
+    date_text: Text200 | None = Field(
+        default=None, description="The date as the source wrote it, when it could not be resolved"
+    )
+    location: Text200 | None = Field(default=None, description="Room or place")
+    source_ref: Annotated[str, Field(max_length=500)] | None = Field(
+        default=None, description=SOURCE_REF
+    )
 
 
 class CategoryData(BaseModel):
-    course_ref: CourseRef
-    name: Title
-    key: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")] | None = None
-    # Weight of the whole category in the syllabus; only used to check the assessments.
-    weight_total: Annotated[float, Field(ge=0, le=100)] | None = None
+    course_ref: CourseRef = Field(description=COURSE_REF)
+    name: Title = Field(description="Category name, e.g. Quizzes")
+    key: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")] | None = Field(
+        default=None, description="Short key assessments refer to as `key:<key>`"
+    )
+    # Only used to check the assessments.
+    weight_total: Annotated[float, Field(ge=0, le=100)] | None = Field(
+        default=None, description="Weight of the whole category in percent, per the syllabus"
+    )
 
 
 class AssessmentData(BaseModel):
-    course_ref: CourseRef
-    title: Title
-    category_ref: CategoryRef | None = None
-    weight: Annotated[float, Field(ge=0, le=100)] = 0
-    due_date: date | None = None
-    due_time: time | None = None
-    due_text: Text200 | None = None
-    note: Annotated[str, Field(max_length=2000)] | None = None
-    source_ref: Annotated[str, Field(max_length=200)] | None = None
-    # Fields of the other kind, kept while the user has switched the item (M09).
-    held: dict[str, Any] | None = None
+    course_ref: CourseRef = Field(description=COURSE_REF)
+    title: Title = Field(description="Assessment name")
+    category_ref: CategoryRef | None = Field(
+        default=None, description="`item:<key>` for a category item, or `key:<key>`"
+    )
+    weight: Annotated[float, Field(ge=0, le=100)] = Field(
+        default=0, description="Weight in percent of the course grade"
+    )
+    due_date: date | None = Field(default=None, description="Local due date")
+    due_time: time | None = Field(default=None, description="Local due time")
+    due_text: Text200 | None = Field(
+        default=None, description="The due date as the source wrote it, when it is unresolved"
+    )
+    note: Annotated[str, Field(max_length=2000)] | None = Field(default=None, description="Note")
+    source_ref: Annotated[str, Field(max_length=200)] | None = Field(
+        default=None, description=SOURCE_REF
+    )
+    # Fields of the other kind (M09).
+    held: dict[str, Any] | None = Field(default=None, description=HELD)
 
 
 class TaskData(BaseModel):
-    course_ref: CourseRef | None = None
-    title: Title
-    due_date: date | None = None
-    due_time: time | None = None
-    due_text: Text200 | None = None
-    priority: Literal["none", "low", "medium", "high"] = "none"
-    notes: Annotated[str, Field(max_length=2000)] | None = None
-    source_ref: Annotated[str, Field(max_length=500)] | None = None
-    # Fields of the other kind, kept while the user has switched the item (M09).
-    held: dict[str, Any] | None = None
+    course_ref: CourseRef | None = Field(default=None, description=COURSE_REF)
+    title: Title = Field(description="Task title")
+    due_date: date | None = Field(default=None, description="Local due date")
+    due_time: time | None = Field(default=None, description="Local due time")
+    due_text: Text200 | None = Field(
+        default=None, description="The due date as the source wrote it, when it is unresolved"
+    )
+    priority: Literal["none", "low", "medium", "high"] = Field(
+        default="none", description="Priority"
+    )
+    notes: Annotated[str, Field(max_length=2000)] | None = Field(default=None, description="Notes")
+    source_ref: Annotated[str, Field(max_length=500)] | None = Field(
+        default=None, description=SOURCE_REF
+    )
+    # Fields of the other kind (M09).
+    held: dict[str, Any] | None = Field(default=None, description=HELD)
 
 
 DATA_MODELS: dict[str, type[BaseModel]] = {
@@ -352,6 +419,11 @@ class SessionGetInput(BaseModel):
     limit: Annotated[int, Field(ge=1, le=500)] | None = Field(
         default=None, description="Items per page (agent/MCP default 25; HTTP: all)"
     )
+    wait_seconds: Annotated[int, Field(ge=0, le=MAX_WAIT_SECONDS)] = Field(
+        default=0,
+        description="While the import is still extracting, wait up to this long for it to "
+        "finish before answering",
+    )
 
 
 class SessionListInput(BaseModel):
@@ -381,6 +453,13 @@ class BulkDecideInput(BaseModel):
     )
     item_ids: list[Id] | None = Field(default=None, description="Only these items")
 
+    @model_validator(mode="after")
+    def _some_filter(self) -> Self:
+        # Without a filter every item of the import would change at once.
+        if self.types is None and self.issue_codes is None and self.item_ids is None:
+            raise PydanticCustomError("filter_required", "Give types, issue_codes or item_ids")
+        return self
+
 
 class BulkDecideResult(BaseModel):
     changed: int
@@ -399,7 +478,7 @@ class NewItem(BaseModel):
     decision: Decision = Field(default="accept", description="Initial decision")
 
 
-# --- `imports.items.add`: one schema per item type, unknown fields refused ------------------
+# --- `imports.item.add_many`: one schema per item type, unknown fields refused ------------------
 
 
 class _Strict(BaseModel):
@@ -432,6 +511,28 @@ class AssessmentFields(AssessmentData, _Strict):
 
 class TaskFields(TaskData, _Strict):
     pass
+
+
+class AssessmentPatchFields(AssessmentPatchData, _Strict):
+    pass
+
+
+class TaskPatchFields(TaskPatchData, _Strict):
+    pass
+
+
+# What `imports.item.update` checks a changed item against: the same strict models as add_many.
+STRICT_MODELS: dict[str, type[BaseModel]] = {
+    "course": CourseFields,
+    "course_patch": CoursePatchFields,
+    "assessment_patch": AssessmentPatchFields,
+    "task_patch": TaskPatchFields,
+    "meeting": MeetingFields,
+    "event": EventFields,
+    "category": CategoryFields,
+    "assessment": AssessmentFields,
+    "task": TaskFields,
+}
 
 
 class _AddedItem(_Strict):

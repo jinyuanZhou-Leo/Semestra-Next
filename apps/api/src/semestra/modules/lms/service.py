@@ -6,8 +6,9 @@ and, for reads, the cache (`cache.py`). Imports live in `imports.py`, the calend
 """
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -115,7 +116,7 @@ async def io(ctx: Ctx) -> AsyncIterator[Io]:
 async def get_connection_row(ctx: Ctx, connection_id: str) -> LmsConnection:
     row = await ctx.db.get(LmsConnection, connection_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("connection", connection_id)
     return row
 
 
@@ -422,6 +423,24 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
         raise
 
 
+class NotCached(Exception):
+    """A read under `cache_only()` that the cache can't answer."""
+
+
+_cache_only: ContextVar[bool] = ContextVar("lms_cache_only", default=False)
+
+
+@contextmanager
+def cache_only() -> Iterator[None]:
+    """Reads inside answer from the cache or raise `NotCached`, never calling the LMS: the
+    assistant's confirmation cards name what they can without waiting on the platform."""
+    token = _cache_only.set(True)
+    try:
+        yield
+    finally:
+        _cache_only.reset(token)
+
+
 async def cached(
     ctx: Ctx,
     b: Bound,
@@ -438,6 +457,8 @@ async def cached(
         hit = await cache.get(ctx, key)
         if hit is not None:
             return hit["data"], bool(hit["truncated"])
+    if _cache_only.get():
+        raise NotCached
     result, truncated = await call(ctx, b, fn)
     data = _dump(result)
     await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated})
@@ -702,7 +723,27 @@ async def create_link(
     return link
 
 
+async def check_link(ctx: Ctx, inp: LinkSetInput) -> None:
+    """Refuses replacing an existing link unless asked to (also before the agent's card)."""
+    await academics.get_course_row(ctx, inp.course_id)
+    current = await link_row(ctx, inp.course_id)
+    if (
+        current is not None
+        and not inp.replace
+        and current.external_course_id != inp.external_course_id
+    ):
+        # Replacing drops the tracking of what came through the old link: only on request. The
+        # same platform course through a new connection (reconnected) is not a replacement.
+        raise lms_error(
+            "lms.course_link_exists",
+            external_course_id=current.external_course_id,
+            external_code=current.external_code,
+            external_name=current.external_name,
+        )
+
+
 async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
+    await check_link(ctx, inp)
     course = await academics.get_course_row(ctx, inp.course_id)
     connection = await program_connection(ctx, course.program_id)
     b = await bound(ctx, connection)

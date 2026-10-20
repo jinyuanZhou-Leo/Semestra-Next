@@ -5,7 +5,7 @@ import {
   lmsCourseLinkSetMutation,
   lmsCourseLinkSyncMutation,
   lmsCourseLinkUpdateMutation,
-  lmsCoursesListOptions,
+  lmsCourseListOptions,
 } from '@semestra/api-client/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Link2, Link2Off, RefreshCw } from 'lucide-react'
@@ -238,7 +238,7 @@ function CoursePicker({
   const [confirming, setConfirming] = useState(false)
   // Keeps the list while "Show past courses" refetches, so the section does not jump.
   const courses = useQuery({
-    ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
+    ...lmsCourseListOptions({ path: { program_id: programId }, query: { include_past: past } }),
     placeholderData: keepPreviousData,
   })
   const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
@@ -252,7 +252,11 @@ function CoursePicker({
     onError: (err) => (setConfirming(false), toastError(err)),
   })
   const submit = () =>
-    link.mutate({ path: { course_id: courseId }, body: { external_course_id: chosen } })
+    link.mutate({
+      path: { course_id: courseId },
+      // Changing an existing link was confirmed in the dialog below.
+      body: { external_course_id: chosen, replace: current !== null },
+    })
 
   return (
     <AsyncBoundary query={courses}>

@@ -1,4 +1,4 @@
-"""`files.search` (M07 §3.2): keywords (FTS5), meaning (vectors) or both, fused with RRF."""
+"""`files.document.search` (M07 §3.2): keywords (FTS5), meaning (vectors) or both, with RRF."""
 
 import functools
 import operator
@@ -18,11 +18,13 @@ from semestra.modules.files import service
 from semestra.modules.files.embeddings import embed_texts
 from semestra.modules.files.models import FilesChunk, FilesItem
 from semestra.modules.files.schemas import (
+    Citation,
     PendingItem,
     SearchHit,
     SearchInput,
     SearchMode,
     SearchResult,
+    UnreadableItem,
 )
 from semestra.modules.files.vectors import MAX_K, get_vector_store
 
@@ -249,16 +251,77 @@ async def _pending(
     ]
 
 
+async def _unreadable(
+    ctx: Ctx, course_ids: Sequence[str], item_ids: Sequence[str] | None
+) -> list[UnreadableItem]:
+    """Files whose text could not be read and that have no earlier readable version."""
+    stmt = select(
+        FilesItem.id,
+        FilesItem.display_name,
+        FilesItem.course_id,
+        FilesItem.doc_status,
+        FilesItem.doc_error_code,
+    ).where(
+        FilesItem.user_id == ctx.user_id,
+        FilesItem.course_id.in_(course_ids),
+        FilesItem.doc_status.in_(("failed", "unsupported")),
+        FilesItem.active_document_id.is_(None),
+    )
+    if item_ids is not None:
+        stmt = stmt.where(FilesItem.id.in_(item_ids))
+    return [
+        UnreadableItem.model_validate(
+            {
+                "item_id": i,
+                "display_name": n,
+                "course_id": c,
+                "doc_status": st,
+                "doc_error_code": code,
+            }
+        )
+        for i, n, c, st, code in (await ctx.db.execute(stmt.order_by(FilesItem.display_name))).all()
+    ]
+
+
+def citation(hit: SearchHit) -> Citation:
+    return Citation(
+        id=hit.citation_id,
+        title=hit.display_name,
+        item_id=hit.item_id,
+        page_from=hit.page_from,
+        page_to=hit.page_to,
+        snippet=re.sub(r"</?mark>", "", hit.snippet),
+    )
+
+
+async def _scope(ctx: Ctx, inp: SearchInput) -> list[str]:
+    """The courses to search; course ids outside the Program (or term) are an error, not an
+    empty result."""
+    course_ids = await service.program_course_ids(ctx, inp.program_id, inp.term_id)
+    if inp.course_ids is None:
+        return course_ids
+    known = set(course_ids)
+    unknown = [c for c in inp.course_ids if c not in known]
+    if unknown:
+        raise AppError(
+            "common.validation",
+            422,
+            errors=[{"loc": ["course_ids"], "code": "not_in_scope", "ids": unknown}],
+        )
+    return [c for c in course_ids if c in set(inp.course_ids)]
+
+
 async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     await academics.get_program_row(ctx, inp.program_id)
-    course_ids = await service.program_course_ids(ctx, inp.program_id, inp.term_id)
-    if inp.course_ids is not None:
-        course_ids = [c for c in course_ids if c in set(inp.course_ids)]
+    course_ids = await _scope(ctx, inp)
     mode: SearchMode = inp.mode
     if not course_ids:
-        return SearchResult(results=[], pending_items=[], mode_used=mode)
+        return SearchResult(
+            results=[], pending_items=[], unreadable_items=[], mode_used=mode, citations=[]
+        )
     terms = query_terms(inp.query)
     pending = await _pending(ctx, course_ids, inp.item_ids)
+    unreadable = await _unreadable(ctx, course_ids, inp.item_ids)
 
     rankings: list[list[str]] = []
     mode_used: SearchMode = "keyword"
@@ -272,7 +335,13 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     scores = reciprocal_rank_fusion(rankings)
     top = sorted(scores, key=lambda c: -scores[c])[: inp.top_k * CANDIDATE_FACTOR]
     if not top:
-        return SearchResult(results=[], pending_items=pending, mode_used=mode_used)
+        return SearchResult(
+            results=[],
+            pending_items=pending,
+            unreadable_items=unreadable,
+            mode_used=mode_used,
+            citations=[],
+        )
 
     rows = (
         await ctx.db.execute(
@@ -283,7 +352,14 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     ).all()
     hits = merge_adjacent([(chunk, name, scores[chunk.id]) for chunk, name in rows], terms.needles)
     hits.sort(key=lambda h: -h.score)
-    return SearchResult(results=hits[: inp.top_k], pending_items=pending, mode_used=mode_used)
+    hits = hits[: inp.top_k]
+    return SearchResult(
+        results=hits,
+        pending_items=pending,
+        unreadable_items=unreadable,
+        mode_used=mode_used,
+        citations=[citation(h) for h in hits],
+    )
 
 
 def merge_adjacent(

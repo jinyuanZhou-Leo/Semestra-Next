@@ -1,4 +1,4 @@
-import { accountMeGetOptions } from '@semestra/api-client/react-query'
+import { accountProfileGetOptions } from '@semestra/api-client/react-query'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { AuthLayout } from '@/modules/auth/components/AuthLayout'
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/login')({
   beforeLoad: async ({ context, search }) => {
     // Already signed in: skip the form.
     const me = await context.queryClient
-      .fetchQuery({ ...accountMeGetOptions(), staleTime: 60_000 })
+      .fetchQuery({ ...accountProfileGetOptions(), staleTime: 60_000 })
       .catch(() => null)
     if (me) throw redirect({ href: safeRedirect(search.redirect) })
   },

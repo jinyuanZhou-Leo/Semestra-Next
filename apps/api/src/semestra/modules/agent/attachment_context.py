@@ -2,10 +2,10 @@
 
 Every attachment starts with a manifest line, `<attachment id name type pages chars>`, then:
 - a small document: its whole text, page by page;
-- a large one: the first pages and its outline, and how to read on (`attachments.read`);
+- a large one: the first pages and its outline, and how to read on (`agent.attachment.read`);
 - scanned pages (no text layer): page images when the model can see images, else a note;
 - an image: the image itself when the model can see images, else a note;
-- a calendar: what each course in it holds, in short; `attachments.read` gives all of it, as
+- a calendar: what each course in it holds, in short; `agent.attachment.read` gives all of it, as
   Semestra's calendar reader (the importer's) understands it;
 - a file the parser could not read: why, and what to do instead.
 
@@ -125,8 +125,8 @@ def _outline_and_hint(att: AgentAttachment, rows: list[AgentAttachmentPage]) -> 
         lines.append(f"- … {len(entries) - OUTLINE_MAX} more headings")
     shown = f"Only pages 1-{PREVIEW_PAGES} of {att.page_count} are shown."
     hint = (
-        f"Read other pages with attachments.read (attachment_id {att.id}, page_from) when the "
-        "question needs them."
+        f"Read other pages with agent__attachment__read (attachment_id {att.id}, page_from) when "
+        "the question needs them."
     )
     if not lines:
         return [f"{shown} The document has no headings. {hint}"]
@@ -199,9 +199,9 @@ class Calendar:
 
 async def calendar(ctx: Ctx, att: AgentAttachment) -> Calendar | None:
     """The calendar as the importer reads it, in the conversation's Program's time zone, as the
-    summary and the pages `attachments.read` serves. Parsed once per (attachment, time zone) in a
-    worker thread, then kept: a turn sends the summary on every request, and a calendar can hold
-    thousands of events."""
+    summary and the pages `agent.attachment.read` serves. Parsed once per (attachment, time zone)
+    in a worker thread, then kept: a turn sends the summary on every request, and a calendar can
+    hold thousands of events."""
     from semestra.modules.imports.ics import parse_ics
 
     tz = await _timezone(ctx, att)
@@ -235,7 +235,7 @@ def _course_days(course: IcsCourse) -> list[date]:
 
 def _summary_text(att: AgentAttachment, result: IcsResult) -> str:
     """Course codes, counts and dates only: what a course is called and where it meets come from
-    the file (other people's text) and are read with `attachments.read`, which wraps them."""
+    the file (other people's text) and are read with `agent.attachment.read`, which wraps them."""
     lines = ["Calendar file, read exactly by Semestra's calendar reader (no AI)."]
     for course in result.courses[:SUMMARY_COURSES]:
         days = _course_days(course)
@@ -251,9 +251,9 @@ def _summary_text(att: AgentAttachment, result: IcsResult) -> str:
         lines.append(f"- {len(result.events)} events without a course")
     lines.append(
         f"Read all of it (sections, times, rooms, instructors, dates without class) with "
-        f"attachments.read, attachment_id {att.id}: a page per course (many single events "
+        f"agent__attachment__read, attachment_id {att.id}: a page per course (many single events "
         "go on over more pages). To import its classes, pass the attachment id to "
-        "imports.session.create with source_kind ics."
+        "imports__session__create with source_kind ics."
     )
     return "\n".join(lines)
 
@@ -275,7 +275,7 @@ def _count(n: int, noun: str) -> str:
 
 def _course_pages(course: IcsCourse) -> list[str]:
     """The course's meetings and its first `EVENTS_PER_PAGE` single events, then the rest of its
-    events on pages of their own, so that no page outgrows what `attachments.read` returns."""
+    events on pages of their own, so that no page outgrows what `agent.attachment.read` returns."""
     head = course.code or course.title
     title = f"## {head}" + (f" ({course.title})" if course.title != head else "")
     lines = [title]
@@ -308,9 +308,9 @@ def _course_pages(course: IcsCourse) -> list[str]:
 
 
 def calendar_pages(result: IcsResult) -> list[str]:
-    """The calendar as pages for `attachments.read`: one per course (more for a course with many
-    single events), then the events without a course, `EVENTS_PER_PAGE` at a time. Times are the
-    Program's local wall-clock time."""
+    """The calendar as pages for `agent.attachment.read`: one per course (more for a course with
+    many single events), then the events without a course, `EVENTS_PER_PAGE` at a time. Times are
+    the Program's local wall-clock time."""
     pages = [page for c in result.courses for page in _course_pages(c)]
     for i in range(0, len(result.events), EVENTS_PER_PAGE):
         chunk = result.events[i : i + EVENTS_PER_PAGE]

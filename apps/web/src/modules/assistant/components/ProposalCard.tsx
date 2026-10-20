@@ -1,6 +1,7 @@
 import type { AgentProposalOut } from '@semestra/api-client'
 import { ArrowRight, PencilLine, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
+import { useAllModules } from '@/app/registry'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -33,7 +34,8 @@ type Schema = {
   $defs?: Record<string, Schema>
 }
 
-type Change = { field: string; before?: unknown; after?: unknown }
+/** `count`: how many there are in all when `after` (or `before`) lists only the first ones. */
+type Change = { field: string; before?: unknown; after?: unknown; count?: number }
 
 type Preview = {
   target?: string
@@ -165,35 +167,73 @@ function EditForm({
   )
 }
 
-/** A proposal's before → after list (M12 §3.5), on the card and later in its step. */
+/** What an empty value means for a field: a task without a list is in the inbox, a file
+ * without a folder at the course's root, a class without a change as scheduled. */
+function emptyText(field: string, after: boolean): string {
+  if (field === 'list') return m.tasks_view_inbox()
+  if (field === 'folder') return m.assistant_value_root_folder()
+  if (field === 'exception') return m.assistant_value_as_scheduled()
+  return after ? m.assistant_value_cleared() : formatValue(null)
+}
+
+function changeText(
+  change: Change,
+  side: 'before' | 'after',
+  cardTitles: ReadonlyMap<string, string>,
+): string {
+  const value = change[side]
+  if (value === null || value === undefined) return emptyText(change.field, side === 'after')
+  if (change.field === 'card' && typeof value === 'string') return cardTitles.get(value) ?? value
+  const text = formatValue(value, change.field)
+  const count = change.count
+  if (Array.isArray(value) && count !== undefined && count > value.length) {
+    return m.assistant_value_more({ items: text, more: count - value.length, total: count })
+  }
+  return text
+}
+
+/** A proposal's before → after list (M12 §3.5), on the card and later in its step. A value a
+ * delete removes is struck through, without a "cleared" after it. */
 export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
+  const modules = useAllModules()
   const preview = (proposal.preview ?? {}) as Preview
   const root = proposal.input_schema as Schema
   const changes = preview.changes ?? []
   if (changes.length === 0) return null
+  const cardTitles = new Map(
+    modules.flatMap((module) => (module.cards ?? []).map((card) => [card.id, card.title()])),
+  )
+  const destructive = proposal.effect === 'destructive'
   return (
     <dl className="space-y-1 text-sm">
-      {changes.map((change) => (
-        <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
-          <dt className="text-muted-foreground">
-            {fieldLabel(change.field, resolve(root.properties?.[change.field], root)?.title)}
-          </dt>
-          <dd className="flex min-w-0 items-baseline gap-1.5">
-            {'before' in change ? (
-              <>
-                <span className="text-muted-foreground line-through">
-                  {formatValue(change.before, change.field)}
-                </span>
-                <ArrowRight
-                  aria-label={m.assistant_proposal_becomes()}
-                  className="size-3 self-center"
-                />
-              </>
-            ) : null}
-            <span className="font-medium">{formatValue(change.after, change.field)}</span>
-          </dd>
-        </div>
-      ))}
+      {changes.map((change) => {
+        const removed = destructive && change.after === null && 'before' in change
+        return (
+          <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
+            <dt className="text-muted-foreground">
+              {fieldLabel(change.field, resolve(root.properties?.[change.field], root)?.title)}
+            </dt>
+            <dd className="flex min-w-0 items-baseline gap-1.5">
+              {'before' in change ? (
+                <>
+                  <span className="text-muted-foreground line-through">
+                    {changeText(change, 'before', cardTitles)}
+                  </span>
+                  {removed ? null : (
+                    <ArrowRight
+                      aria-label={m.assistant_proposal_becomes()}
+                      className="size-3 self-center"
+                    />
+                  )}
+                </>
+              ) : null}
+              {removed ? null : (
+                <span className="font-medium">{changeText(change, 'after', cardTitles)}</span>
+              )}
+            </dd>
+          </div>
+        )
+      })}
     </dl>
   )
 }

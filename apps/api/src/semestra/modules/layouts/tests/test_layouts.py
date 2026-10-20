@@ -78,6 +78,22 @@ async def stored_boards(app: FastAPI) -> int:
         return len((await ctx.db.scalars(LayoutsBoard.__table__.select())).all())
 
 
+async def test_the_remove_card_of_a_generated_card_stores_nothing(app: FastAPI, api: Api):
+    # The assistant's confirmation card only reads: the user may still reject it.
+    from semestra.modules.agent.loop import make_preview
+
+    _, _, course_id = await api.scopes()
+    note = (await api.board("course", course_id))["cards"][1]
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        card = await make_preview(
+            ctx, registry.get("layouts.card.remove"), {"instance_id": note["instance_id"]}
+        )
+    assert card["changes"] == [{"field": "card", "before": "notes.note", "after": None}]
+    assert card["target"] == "Course"
+    assert await stored_boards(app) == 0
+
+
 async def test_template_board_is_not_stored_until_changed(app: FastAPI, api: Api):
     _, term_id, course_id = await api.scopes()
     board = await api.board("course", course_id)
@@ -359,7 +375,7 @@ async def test_agent_surface(app: FastAPI, user: UserHandle):
         names = {c.name for c in await registry.available(ctx, "agent")}
     assert {"layouts.board.get", "layouts.card.add", "layouts.card.remove"} <= names
     assert {"plugins.catalog.list"} <= names
-    assert not {"layouts.board.update", "plugins.install", "layouts.nav.update"} & names
+    assert not {"layouts.board.update", "plugins.plugin.install", "layouts.nav.update"} & names
 
 
 def test_decimal_multiples_are_checked_as_written():

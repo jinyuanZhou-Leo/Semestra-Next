@@ -1,7 +1,7 @@
 """M08 导入中心与智能抽取: import drafts, review and commit; ICS, syllabus and timetable extraction.
 
 Other modules (M09 LMS, M12 assistant) write into imports with `imports.session.create` and
-`imports.items.add`, and hook into the commit with `register_commit_hook`.
+`imports.item.add_many`, and hook into the commit with `register_commit_hook`.
 """
 
 from datetime import timedelta

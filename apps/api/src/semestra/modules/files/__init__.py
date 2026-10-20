@@ -1,7 +1,7 @@
 """M07 文件与文档管线: course files, previews and the parse → index → search pipeline.
 
 Other modules save files with `save_bytes_as_file` and read parsed text through the
-`files.document.read` / `files.search` capabilities.
+`files.document.read` / `files.document.search` capabilities.
 """
 
 from fastapi import FastAPI

@@ -19,6 +19,7 @@ STATUS = {
     "lms.connection_in_use": 409,
     "lms.course_not_linked": 409,
     "lms.course_already_linked": 409,
+    "lms.course_link_exists": 409,
     "lms.assignment_already_imported": 409,
     "lms.credentials_missing": 409,
 }

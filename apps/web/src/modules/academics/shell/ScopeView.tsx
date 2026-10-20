@@ -1,4 +1,4 @@
-import { academicsTermCalendarInfoOptions } from '@semestra/api-client/react-query'
+import { academicsTermGetWeeksOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
@@ -77,7 +77,7 @@ export function ProgramView({
 }
 
 export function TermWeekLine({ termId }: { termId: string }) {
-  const info = useQuery(academicsTermCalendarInfoOptions({ path: { term_id: termId } })).data
+  const info = useQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } })).data
   if (!info) return null
   // `today_week` is already limited to the term's own dates (its first and last weeks reach past them).
   const week = info.today_week == null ? undefined : info.weeks[info.today_week]

@@ -3,7 +3,7 @@ from semestra.core.context import Ctx
 from semestra.modules.plugins_builtin.pomodoro import service
 from semestra.modules.plugins_builtin.pomodoro.schemas import (
     PLUGIN_ID,
-    PomodoroStats,
+    PomodoroSessionSummarize,
     SessionRecorded,
     SessionRecordInput,
     StatsInput,
@@ -28,7 +28,7 @@ async def session_record(ctx: Ctx, inp: SessionRecordInput) -> SessionRecorded:
 
 
 @capability(
-    name="pomodoro.stats",
+    name="pomodoro.session.summarize",
     summary="Focus time per day and per course from the pomodoro timer.",
     description="""Use to answer how long the user focused, e.g. "how long did I study APS105 this
 week". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the
@@ -38,5 +38,5 @@ last 7 days. Days follow the Program's time zone.""",
     tags=TAGS,
     plugin_id=PLUGIN_ID,
 )
-async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroStats:
+async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroSessionSummarize:
     return await service.stats(ctx, inp)

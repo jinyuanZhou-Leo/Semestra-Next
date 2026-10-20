@@ -26,9 +26,9 @@ from semestra.modules.files.models import (
 from semestra.modules.files.parse import detect
 from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
-    FilesList,
-    FilesListInput,
-    FilesUsage,
+    FilesItemList,
+    FilesItemListInput,
+    FilesUsageGet,
     FolderDeleteInput,
     FolderOut,
     ItemOut,
@@ -58,7 +58,7 @@ async def get_item(ctx: Ctx, item_id: str) -> FilesItem:
         select(FilesItem).where(FilesItem.id == item_id, FilesItem.user_id == ctx.user_id)
     )
     if row is None:
-        raise not_found()
+        raise not_found("item", item_id)
     return row
 
 
@@ -70,7 +70,7 @@ async def get_folder(ctx: Ctx, folder_id: str, course_id: str | None = None) -> 
         stmt = stmt.where(FilesFolder.course_id == course_id)
     row = await ctx.db.scalar(stmt)
     if row is None:
-        raise not_found()
+        raise not_found("folder", folder_id)
     return row
 
 
@@ -83,8 +83,16 @@ async def preview_item_delete(ctx: Ctx, inp: ItemRef) -> dict[str, Any]:
 
 
 async def preview_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> dict[str, Any]:
+    """What goes with the folder: its files (by name) and subfolders."""
     row = await get_folder(ctx, inp.folder_id)
-    return {"target": row.name, "changes": [{"field": "recursive", "after": inp.recursive}]}
+    tree, items = await _folder_contents(ctx, row, inp.recursive)
+    names = sorted((i.display_name for i in items), key=str.lower)
+    changes: list[dict[str, Any]] = []
+    if names:
+        changes.append({"field": "files", "before": names[:10], "after": None, "count": len(names)})
+    if len(tree) > 1:
+        changes.append({"field": "subfolders", "before": len(tree) - 1, "after": None})
+    return {"target": row.name, "changes": changes}
 
 
 async def _course_folders(ctx: Ctx, course_id: str) -> list[FilesFolder]:
@@ -231,7 +239,7 @@ async def _folder_counts(ctx: Ctx, course_id: str) -> dict[str, int]:
 # --- listing --------------------------------------------------------------------------------
 
 
-async def list_files(ctx: Ctx, inp: FilesListInput) -> FilesList:
+async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     await academics.get_course_row(ctx, inp.course_id)
     folders = await _course_folders(ctx, inp.course_id)
     if inp.folder_id is not None and inp.folder_id not in {f.id for f in folders}:
@@ -263,7 +271,7 @@ async def list_files(ctx: Ctx, inp: FilesListInput) -> FilesList:
     rows = list((await ctx.db.scalars(stmt.offset(offset).limit(inp.limit + 1))).all())
     more = len(rows) > inp.limit
     counts = await _folder_counts(ctx, inp.course_id)
-    return FilesList(
+    return FilesItemList(
         folders=[folder_out(f, counts) for f in folders],
         items=await item_outs(ctx, rows[: inp.limit]),
         next_cursor=str(offset + inp.limit) if more else None,
@@ -341,7 +349,7 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
     if parent_id is not None:
         parent = by_id.get(parent_id)
         if parent is None:
-            raise not_found()
+            raise not_found("folder", parent_id)
         if _depth(parent, by_id) >= MAX_FOLDER_DEPTH:
             raise AppError("files.folder_depth", 422, max=MAX_FOLDER_DEPTH)
     await _check_free_name(ctx, course_id, parent_id, name)
@@ -361,6 +369,23 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
     return folder_out(row, {})
 
 
+def _refuse_none(fields: list[str]) -> None:
+    """A name or a pin can't be cleared: null is refused rather than ignored, so a write never
+    looks like it changed something it left alone."""
+    if fields:
+        errors = [{"loc": [f], "code": "none_not_allowed"} for f in fields]
+        raise AppError("common.validation", 422, errors=errors)
+
+
+async def check_item_update(ctx: Ctx, inp: ItemUpdateInput) -> None:
+    sent = inp.model_fields_set
+    _refuse_none([f for f in ("display_name", "pinned") if f in sent and getattr(inp, f) is None])
+
+
+async def check_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> None:
+    await _folder_contents(ctx, await get_folder(ctx, inp.folder_id), inp.recursive)
+
+
 async def update_folder(
     ctx: Ctx,
     folder_id: str,
@@ -369,6 +394,8 @@ async def update_folder(
     parent_id: str | None,
     position: int | None,
 ) -> FolderOut:
+    if "name" in fields and name is None:
+        _refuse_none(["name"])
     row = await get_folder(ctx, folder_id)
     folders = await _course_folders(ctx, row.course_id)
     by_id = {f.id: f for f in folders}
@@ -397,8 +424,12 @@ async def update_folder(
     return folder_out(row, await _folder_counts(ctx, row.course_id))
 
 
-async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
-    row = await get_folder(ctx, folder_id)
+async def _folder_contents(
+    ctx: Ctx, row: FilesFolder, recursive: bool
+) -> tuple[set[str], list[FilesItem]]:
+    """(the folder and its subfolders, the files in any of them): what deleting it removes.
+    Without `recursive` only an empty folder can go (the assistant's card is refused the same
+    way, so it never shows files that a delete would keep)."""
     folders = await _course_folders(ctx, row.course_id)
     tree = {row.id} | _descendants(row.id, folders)
     items = list(
@@ -412,6 +443,12 @@ async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
     )
     if (items or len(tree) > 1) and not recursive:
         raise AppError("files.folder_not_empty", 409)
+    return tree, items
+
+
+async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
+    row = await get_folder(ctx, folder_id)
+    tree, items = await _folder_contents(ctx, row, recursive)
     await purge_items(ctx, items)
     await ctx.db.execute(delete(FilesFolder).where(FilesFolder.id.in_(tree)))
     await events.publish(
@@ -629,8 +666,9 @@ async def create_link(
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
-    row = await get_item(ctx, inp.item_id)
+    await check_item_update(ctx, inp)
     sent = inp.model_fields_set
+    row = await get_item(ctx, inp.item_id)
     if "display_name" in sent and inp.display_name is not None:
         row.display_name = _clean_name(inp.display_name)
     if "folder_id" in sent:
@@ -728,10 +766,10 @@ async def files_usage_bytes(ctx: Ctx) -> int:
     return int(total or 0)
 
 
-async def usage(ctx: Ctx) -> FilesUsage:
+async def usage(ctx: Ctx) -> FilesUsageGet:
 
     total = await core_usage(ctx)
-    return FilesUsage(
+    return FilesUsageGet(
         used_bytes=total.used_bytes,
         files_bytes=total.by_module.get("files", 0),
         quota_bytes=total.quota_bytes,

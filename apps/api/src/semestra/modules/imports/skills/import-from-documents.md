@@ -3,7 +3,7 @@ name: import-from-documents
 title: { en: "Import from documents", zh-CN: "从文档导入" }
 command: /import
 description: Import courses, grading schemes, meeting times and dates from a syllabus, timetable or ICS file the user shared ("import this", "set up my courses from these").
-tools: [academics.course.find, academics.term.list, imports.session.create, imports.session.get, imports.item.update, imports.items.bulk_decide, imports.items.add, imports.session.commit, imports.session.discard]
+tools: [academics.course.find, academics.term.list, imports.session.create, imports.session.get, imports.item.update, imports.item.decide_many, imports.item.add_many, imports.session.commit, imports.session.discard]
 ---
 
 # Importing from documents
@@ -22,14 +22,15 @@ create capabilities one by one.
    documents, `timetable_image` for a screenshot of a timetable, `text` only for text the user
    pasted (`text`). Mixed files: one session per kind. `ai.not_configured`: tell the user AI needs
    a model in the settings; ICS files work without one.
-3. **Wait until it is ready.** AI sources start as `extracting`; poll `imports.session.get` a few
-   times, or tell the user it is still reading and come back later. `failed` with
+3. **Wait until it is ready.** AI sources start as `extracting`; call `imports.session.get` once
+   with `wait_seconds` (up to 25). If it is still extracting after that, tell the user it is still
+   reading and stop. `failed` with
    `import.no_content`: the document had nothing usable; say so.
 4. **Summarise and ask.** Tell the user what was found per course (assessments with weights,
    meeting times, dates) and every open issue from `summary.issues` in plain words: dates that
    could not be worked out, weights that don't add up to 100, courses or assessments that already
    exist. Offer to fix what they tell you with `imports.item.update` (`data` for fields,
-   `decision: "reject"` to leave an item out; `imports.items.bulk_decide` for many: rejecting a
+   `decision: "reject"` to leave an item out; `imports.item.decide_many` for many: rejecting a
    course rejects what belongs to it). A course item's `term_ids` decide which term it goes into,
    and its meetings follow it, so courses of several terms can share one session.
 5. **Commit.** In the same reply, say what the commit will write (courses, meetings, assessments
@@ -39,7 +40,7 @@ create capabilities one by one.
    items are retried).
 6. **Your own findings.** Only for what no importer reads (the user's own words, a format the
    importers refuse): create a session with `source_kind: "agent"`, add items with
-   `imports.items.add` (each type has its own fields, see the tool; a meeting's cancelled dates go
+   `imports.item.add_many` (each type has its own fields, see the tool; a meeting's cancelled dates go
    in `exceptions`; `ready: true` when done) and go through steps 4–5.
 7. **Report what was left out.** When summarising or after the commit, name anything in the
    documents that the import did not cover (dates it could not place, sections you skipped), so

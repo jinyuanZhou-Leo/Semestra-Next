@@ -1,14 +1,14 @@
-import type { CalendarOccurrencesData, Meeting } from '@semestra/api-client'
+import type { CalendarOccurrenceListData, Meeting } from '@semestra/api-client'
 import {
-  academicsTermCalendarInfoOptions,
-  calendarOccurrencesOptions,
-  calendarTodayOptions,
-  scheduleConflictsOptions,
+  academicsTermGetWeeksOptions,
+  calendarOccurrenceListOptions,
+  calendarTodayGetOptions,
+  scheduleConflictListOptions,
   scheduleEventListOptions,
   scheduleEventTypeListOptions,
   scheduleFeedListOptions,
   scheduleMeetingListOptions,
-  settingsValuesGetOptions,
+  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 
@@ -46,7 +46,10 @@ export function useTermMeetings(courseIds: readonly string[], termId: string) {
 }
 
 export function useConflicts(termId: string) {
-  return useQuery({ ...scheduleConflictsOptions({ path: { term_id: termId } }), staleTime: STALE })
+  return useQuery({
+    ...scheduleConflictListOptions({ path: { term_id: termId } }),
+    staleTime: STALE,
+  })
 }
 
 export function useEvents(programId: string, query: { course_id?: string; term_id?: string }) {
@@ -66,25 +69,25 @@ export function useFeeds(programId: string) {
 /** The term's weeks (M02), for week pickers and labels. */
 export function useCalendarInfo(termId: string) {
   return useQuery({
-    ...academicsTermCalendarInfoOptions({ path: { term_id: termId } }),
+    ...academicsTermGetWeeksOptions({ path: { term_id: termId } }),
     staleTime: STALE,
   })
 }
 
 export function useToday(programId: string) {
   return useQuery({
-    ...calendarTodayOptions({ path: { program_id: programId } }),
+    ...calendarTodayGetOptions({ path: { program_id: programId } }),
     staleTime: STALE,
     // Keep "now" fresh on a page that stays open all day.
     refetchInterval: 5 * 60_000,
   })
 }
 
-export type OccurrenceParams = CalendarOccurrencesData['query']
+export type OccurrenceParams = CalendarOccurrenceListData['query']
 
 export function useOccurrences(programId: string, params: OccurrenceParams, enabled = true) {
   return useQuery({
-    ...calendarOccurrencesOptions({ path: { program_id: programId }, query: params }),
+    ...calendarOccurrenceListOptions({ path: { program_id: programId }, query: params }),
     staleTime: STALE,
     placeholderData: keepPreviousData,
     enabled,
@@ -112,7 +115,7 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
 /** The `calendar` namespace (M11), resolved for a term when given. */
 export function useCalendarSettings(termId?: string): CalendarSettings {
   const values = useQuery({
-    ...settingsValuesGetOptions({
+    ...settingsValueGetOptions({
       path: { namespace: 'calendar' },
       query: termId ? { scope_type: 'term', scope_id: termId } : { scope_type: 'account' },
     }),

@@ -96,7 +96,7 @@ grading_assessments
 |---|---|---|---|
 | `grading.scale.get` | read | GET /programs/{program_id}/grading-scale | |
 | `grading.scale.update` | write | PUT /programs/{program_id}/grading-scale | 校验区间不重叠、覆盖 0-100、points ≤ max_points、分数越高绩点不会更低 |
-| `grading.scale.presets` | read | GET /grading/scale-presets | |
+| `grading.scale.list_presets` | read | GET /grading/scale-presets | |
 | `grading.gradebook.get` | read | GET /courses/{course_id}/gradebook | 分类、考核、course_result、**计算摘要**（第 3 节全部指标） |
 | `grading.course_result.update` | write | PATCH /courses/{course_id}/grade | basis、manual、override、pass_fail、target、forecast_model、gradebook_enabled |
 | `grading.category.create/update/delete/reorder` | write | /courses/{course_id}/grading-categories... | 删除分类时其考核变为未分类 |
@@ -108,22 +108,22 @@ grading_assessments
 | `grading.assessment.reorder` | write | PUT /courses/{course_id}/assessment-order | |
 | `grading.assessment.find` | read | （agent/mcp） | 按课程 + 标题模糊查找（"Lab 3"、"期中"），跨课程查找时按 scope 优先 |
 | `grading.simulate.course` | read | POST /courses/{course_id}/gradebook:simulate | 输入 what-if 分数表与目标，返回摘要；计划模式每次改动调用（前端 200ms 防抖） |
-| `grading.suggest_scores` | read | POST /courses/{course_id}/gradebook:suggest | 第 3 节第 7 条 |
+| `grading.score.suggest` | read | POST /courses/{course_id}/gradebook:suggest | 第 3 节第 7 条 |
 | `grading.summary.term` | read | GET /terms/{term_id}/grade-summary | 学期 GPA、平均分、学分、每门课有效成绩与绩点 |
 | `grading.simulate.term` | read | POST /terms/{term_id}/grade-summary:simulate | 学期 What If |
 | `grading.summary.program` | read | GET /programs/{program_id}/grade-summary | 累计 GPA、已获学分、进度、按学期序列（图表用） |
-| `grading.course_summaries` | read | GET /programs/{program_id}/course-grades | 每门课的有效成绩、绩点、字母、状态（全部课程表格用） |
+| `grading.course_summary.list` | read | GET /programs/{program_id}/course-grades | 每门课的有效成绩、绩点、字母、状态（全部课程表格用） |
 
 事件：`grading.assessment.created|updated|deleted`（payload 含 course_id、due_at 变化标记，M04/M05 订阅）、`grading.course_result.updated`、`grading.scale.updated`。
 订阅：`academics.course.created` → 创建 course_result 与默认分类；`academics.course.deleting` → 删除本模块数据；`academics.program.created` → 按选择的预设创建 scale（默认 `uoft_4_0`）。
-前端失效：`grading.*` → `gradingGradebook*`、`gradingSummary*`、`gradingCourseSummaries*`。
+前端失效：`grading.*` → `gradingGradebook*`、`gradingSummary*`、`gradingCourseSummaryList*`。
 
 ## 5. 前端
 ### 5.1 课程 Page `grades`（课程作用域）
 - 顶部摘要条：最终/当前百分比与 GPA（字母）、权重合计（不足 100 时警告条显示差额，计算指标显示"—"）、目标绩点与所需平均分、预测值（auto 模式）、"录入官方成绩"按钮（覆盖值，显示"已覆盖"标记，可清除）。
 - 考核表格（TanStack Table）：分类徽章、标题、截止（相对时间 + 逾期高亮）、权重、得分（单元格内联编辑；输入 `18/20` 自动识别为分数制）、操作菜单。支持按截止/分类/权重/标题排序（偏好存 `useUiPref('grading.sort')`），按分类分组折叠。
 - 添加考核：行内快速添加（标题 + 回车，默认分类与权重 0）+ 完整对话框；"从…导入"菜单列出扩展点 **`grading.assessmentImportSources`**（M09 贡献 LMS 作业，M08 贡献 syllabus 成绩构成）。
-- **计划模式**开关：未出分的考核得分列变为假设输入（不同底色），顶部显示预测结果与目标达成情况；"自动填充"调用 `grading.suggest_scores`；目标输入可切换"绩点/百分比"；假设分数存 `useUiPref('grading.whatif.<courseId>')`。
+- **计划模式**开关：未出分的考核得分列变为假设输入（不同底色），顶部显示预测结果与目标达成情况；"自动填充"调用 `grading.score.suggest`；目标输入可切换"绩点/百分比"；假设分数存 `useUiPref('grading.whatif.<courseId>')`。
 - 课程设置分区（course 级）："成绩"：计分方式（百分比/Pass-Fail）、是否使用成绩簿（关闭则只填最终成绩）、预测模型、分类管理（增删改名、颜色、归档、排序）。
 
 ### 5.2 学期 Page `grades`（学期作用域）
@@ -185,7 +185,7 @@ grading_assessments
 - 页面 `grades`（`pages/GradesPage.tsx` 按作用域分发到课程页 / 学期页）；卡片 `grading.courseSummary`、`termSummary`、`programKpis`、`programCharts`（纯 SVG，颜色用 `--chart-*`）、`upcoming`；设置分区 `program-grading`（换算表编辑器、预设重置、年课规则、默认预测模型、隐藏 GPA、默认分类）与 `course-grading`（计分方式、是否用成绩簿、预测模型、分类管理）。
 - 考核表与学期课程表都用 TanStack Table v9。**列定义必须放在组件外**（单元格里是会输入的 `InlineInput`，列在渲染时重新创建会让单元格每次渲染都被重新挂载、丢掉正在输入的内容），单元格需要的回调通过 context 传入。
 - 分数单元格输入 `82` / `82%` 为百分比，`18/20` 为分数制（`score.ts` 的 `parseScore`），空为清除，无法识别时标红不发送。
-- 计划模式：假设分数存 `useUiPref('grading.whatif', …, { scope: courseId })`，只保留仍未出分的考核；200ms 防抖调用 `grading.simulate.course`，结果只显示不保存；目标默认用课程自己的目标，可单独切换"绩点/百分比"；"自动填充"调用 `grading.suggest_scores` 并把结果写进假设分数。权重不足 100 时计划模式不可用（服务端也会拒绝）。学期 What If 同理（`grading.term.whatif`，按学期保存）。
+- 计划模式：假设分数存 `useUiPref('grading.whatif', …, { scope: courseId })`，只保留仍未出分的考核；200ms 防抖调用 `grading.simulate.course`，结果只显示不保存；目标默认用课程自己的目标，可单独切换"绩点/百分比"；"自动填充"调用 `grading.score.suggest` 并把结果写进假设分数。权重不足 100 时计划模式不可用（服务端也会拒绝）。学期 What If 同理（`grading.term.whatif`，按学期保存）。
 - 课程成绩页布局（UI/UX 第五轮重新设计，替代 5.1 的"顶部摘要条"）：左边是考核表（工具栏是表格卡片的标题栏："考核 N" + 操作按钮），右边一列（窄屏移到表格上方）是"成绩构成"卡（环形图按分类权重分段，已出分部分实心；中间是当前/最终百分比，旁边是 GPA 与预测；下面每个分类一行，悬停环与行互相高亮并显示分类明细）和"目标"卡（目标绩点内联编辑 + 剩余部分所需平均分）。"录入官方成绩"放进工具栏的 ⋯ 菜单（对话框），清除也在菜单里（可撤销的 toast）；成绩构成的图例行可用键盘聚焦，明细同时作为提示和读屏描述；按分类分组是工具栏的开关，分组标题行显示该组权重与平均分；行内快速添加在表格最后一行。
 - 计划模式原地切换，不再有单独的面板：标题栏整行换成"规划中"+ 说明 +「清空假设」（可撤销的 toast，不弹确认）+「退出规划」（都是 destructive）；撤销清空只恢复假设分数，不动目标和规划状态；规划时不显示真实预测，分组行的平均标为「实际」；成绩构成卡显示模拟结果（环上假设部分用半透明，中间显示规划值和实际值）；目标卡换成本次规划的目标（不保存，可切换绩点/百分比，可回到课程目标）和"自动填充"。
 - `hide_gpa`：所有 GPA 数字通过 `GpaValue` 显示，开启时显示"•••"，点击后临时显示。

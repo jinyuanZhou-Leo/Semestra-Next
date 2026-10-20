@@ -19,6 +19,7 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
+from semestra.modules.academics import rules as academic_rules
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram
 from semestra.modules.academics.schemas import Course, CourseListInput, Term
@@ -49,11 +50,14 @@ from semestra.modules.grading.schemas import (
     GradeTarget,
     GradingScale,
     GradingScaleInfo,
+    IgnoredCourseScore,
+    IgnoredScore,
     ProgramGrades,
     ScalePreset,
     ScaleUpdateInput,
     ScoreSuggestion,
     SimulateCourseInput,
+    SimulatedGradebook,
     SkippedAssessment,
     SuggestedScore,
     SuggestInput,
@@ -335,7 +339,7 @@ async def _category_rows(ctx: Ctx, course_id: str) -> list[models.GradingCategor
 async def _get_category(ctx: Ctx, category_id: str) -> models.GradingCategory:
     row = await ctx.db.get(models.GradingCategory, category_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("category", category_id)
     return row
 
 
@@ -487,7 +491,7 @@ async def _assessment_rows(
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
     row = await ctx.db.get(models.GradingAssessment, assessment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("assessment", assessment_id)
     return row
 
 
@@ -513,7 +517,7 @@ async def _check_category(ctx: Ctx, course_id: str, category_id: str | None) -> 
         return
     row = await _get_category(ctx, category_id)
     if row.course_id != course_id:
-        raise not_found()
+        raise not_found("category", category_id)
 
 
 def _score_fields(
@@ -652,6 +656,16 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     for field in sorted(inp.model_fields_set - {"assessment_id"}):
         after = getattr(inp, field)
         before = getattr(current, field, None)
+        if field == "category_id":
+            # Categories by name, never their ids.
+            changes.append(
+                {
+                    "field": "category",
+                    "before": await _category_name(ctx, before),
+                    "after": await _category_name(ctx, after),
+                }
+            )
+            continue
         changes.append({"field": field, "before": _plain(before), "after": _plain(after)})
     label = f"{course.code} {course.title}" if course.code else course.title
     return {
@@ -661,18 +675,36 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     }
 
 
+async def _category_name(ctx: Ctx, category_id: str | None) -> str | None:
+    if category_id is None:
+        return None
+    row = await ctx.db.get(models.GradingCategory, category_id)
+    return row.name if row is not None and row.user_id == ctx.user_id else None
+
+
 async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
+    """What goes with the assessment: its weight and the score recorded for it."""
     row = await _get_assessment(ctx, inp.assessment_id)
     course, _ = await _course_and_program(ctx, row.course_id)
     label = f"{course.code} {course.title}" if course.code else course.title
-    return {"target": f"{row.title} · {label}", "changes": []}
+    changes: list[dict[str, Any]] = [{"field": "weight", "before": row.weight, "after": None}]
+    for field in ("score_percentage", "points_earned"):
+        if (value := getattr(row, field)) is not None:
+            changes.append({"field": field, "before": value, "after": None})
+    return {"target": f"{row.title} · {label}", "changes": changes}
 
 
 async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
+    """How many assessments lose their category (they stay, without one)."""
     row = await _get_category(ctx, inp.category_id)
     course, _ = await _course_and_program(ctx, row.course_id)
     label = f"{course.code} {course.title}" if course.code else course.title
-    return {"target": f"{row.name} · {label}", "changes": []}
+    rows = (await _assessment_rows(ctx, [row.course_id]))[row.course_id]
+    titles = [a.title for a in rows if a.category_id == row.id]
+    changes: list[dict[str, Any]] = []
+    if titles:
+        changes.append({"field": "uncategorized", "after": titles[:10], "count": len(titles)})
+    return {"target": f"{row.name} · {label}", "changes": changes}
 
 
 async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
@@ -819,43 +851,96 @@ def title_score(query: str, title: str) -> float:
 
 async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCandidates:
     scope = ctx.scope
-    course_ids: list[str]
-    focus = scope.course_id if scope else None
+    names: dict[str, tuple[str | None, str]] = {}  # course id → (code, title)
+    current: set[str] = set()  # courses of each searched Program's current term
     if inp.course_id is not None:
-        await academics.get_course_row(ctx, inp.course_id)
-        course_ids, focus = [inp.course_id], inp.course_id
+        row = await academics.get_course_row(ctx, inp.course_id)
+        course = await academics.course_out(ctx, row)
+        names[course.id] = (course.code, course.title)
+        program = await academics.get_program_row(ctx, course.program_id)
+        if await _current_term_id(ctx, program) in course.term_ids:
+            current.add(course.id)
     else:
         program_id = inp.program_id or (scope.program_id if scope else None)
-        if program_id is not None:
-            program_ids = [program_id]
-            await academics.get_program_row(ctx, program_id)
-        else:
-            program_ids = [p.id for p in await academics.list_programs(ctx)]
-        course_ids = [c.id for pid in program_ids for c in await _program_courses(ctx, pid)]
-    rows_by_course = await _assessment_rows(ctx, course_ids)
+        program_ids = (
+            [program_id]
+            if program_id is not None
+            else [p.id for p in await academics.list_programs(ctx)]
+        )
+        for pid in program_ids:
+            program = await academics.get_program_row(ctx, pid)
+            program_courses = await _program_courses(ctx, program.id)
+            names |= {c.id: (c.code, c.title) for c in program_courses}
+            term_id = await _current_term_id(ctx, program)
+            current |= {c.id for c in program_courses if term_id in c.term_ids}
+    rows_by_course = await _assessment_rows(ctx, list(names))
+    focus = scope.course_id if scope else None  # conversations from before scopes stopped at terms
     scored: list[tuple[float, models.GradingAssessment]] = []
     for course_id, rows in rows_by_course.items():
         for row in rows:
             score = title_score(inp.query, row.title)
             if score >= 0.35:
-                scored.append((score + (0.1 if course_id == focus else 0.0), row))
-    far = datetime.max.replace(tzinfo=UTC)
-    scored.sort(key=lambda pair: (-pair[0], pair[1].due_at or far, pair[1].title))
+                boost = (0.1 if course_id == focus else 0.0) + (
+                    0.05 if course_id in current else 0.0
+                )
+                scored.append((score + boost, row))
+    # Ties: the current term first, then the deadline nearest to now, past or future: a deadline
+    # that just passed beats one months away, which suits "the midterm" asked about either side
+    # of it; the score boosts above already keep an old term's same-named assessment below.
+    scored.sort(
+        key=lambda pair: (
+            -pair[0],
+            pair[1].course_id not in current,
+            abs((pair[1].due_at - ctx.now).total_seconds()) if pair[1].due_at else float("inf"),
+            pair[1].title,
+        )
+    )
+    top = scored[: inp.limit]
+    category_ids = {r.category_id for _, r in top if r.category_id}
+    categories = (
+        dict(
+            (
+                await ctx.db.execute(
+                    select(models.GradingCategory.id, models.GradingCategory.name).where(
+                        models.GradingCategory.user_id == ctx.user_id,
+                        models.GradingCategory.id.in_(category_ids),
+                    )
+                )
+            ).tuples()
+        )
+        if category_ids
+        else {}
+    )
     return AssessmentCandidates(
         items=[
             AssessmentCandidate(
                 id=r.id,
                 course_id=r.course_id,
+                course_code=names[r.course_id][0],
+                course_title=names[r.course_id][1],
+                in_current_term=r.course_id in current,
                 title=r.title,
                 category_id=r.category_id,
+                category_name=categories.get(r.category_id) if r.category_id else None,
                 due_at=r.due_at,
                 weight=r.weight,
                 score_percentage=r.score_percentage,
                 score=round(min(1.0, s), 3),
             )
-            for s, r in scored[: inp.limit]
+            for s, r in top
         ]
     )
+
+
+async def _current_term_id(ctx: Ctx, program: AcademicsProgram) -> str | None:
+    """The term the conversation is in when it belongs to this Program, else the current one."""
+    scope = ctx.scope
+    if scope and scope.program_id == program.id and scope.term_id:
+        return scope.term_id
+    term = academic_rules.current_term(
+        await academics.program_terms(ctx, program.id), academics.program_today(ctx, program)
+    )
+    return term.id if term else None
 
 
 async def assessment_deadlines(
@@ -1115,8 +1200,15 @@ def _require_complete_weights(calc: engine.CourseCalc) -> None:
         )
 
 
-async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> GradebookSummary:
+async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradebook:
     state = await _load_course(ctx, inp.course_id)
+    graded = {i.id for i in _items(state.rows) if i.score is not None}
+    known = {r.id for r in state.rows}
+    ignored = [
+        IgnoredScore(id=aid, reason="graded" if aid in graded else "unknown")
+        for aid in inp.scores
+        if aid not in known or aid in graded
+    ]
     items = tuple(
         engine.Item(
             i.id,
@@ -1141,7 +1233,7 @@ async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> GradebookSummar
         target_percentage,
     )
     _require_complete_weights(calc)
-    return summary
+    return SimulatedGradebook(**summary.model_dump(), ignored=ignored)
 
 
 async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
@@ -1297,6 +1389,7 @@ async def simulate_term(ctx: Ctx, inp: TermSimulateInput) -> TermGradeSimulation
         max_possible_gpa=result.max_possible_gpa,
         reachable=result.reachable,
         required_percentage=result.required_percentage,
+        ignored=[IgnoredCourseScore(id=cid, reason=r) for cid, r in result.ignored],  # pyright: ignore[reportArgumentType]
     )
 
 

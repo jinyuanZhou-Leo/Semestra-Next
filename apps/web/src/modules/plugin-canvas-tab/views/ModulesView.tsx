@@ -1,5 +1,5 @@
 import type { Module, ModuleItem } from '@semestra/api-client'
-import { lmsModuleItemsListOptions, lmsModulesListOptions } from '@semestra/api-client/react-query'
+import { lmsModuleItemListOptions, lmsModuleListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   ChevronDown,
@@ -42,7 +42,7 @@ export function ModulesView({ selected }: { selected?: string }) {
   const { courseId, query } = useCanvasPage()
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null)
   const list = useQuery({
-    ...lmsModulesListOptions({ path: { course_id: courseId }, query }),
+    ...lmsModuleListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -166,7 +166,7 @@ function ModuleItems({
 }) {
   const { courseId, query } = useCanvasPage()
   const items = useQuery({
-    ...lmsModuleItemsListOptions({ path: { course_id: courseId, module_id: moduleId }, query }),
+    ...lmsModuleItemListOptions({ path: { course_id: courseId, module_id: moduleId }, query }),
     placeholderData: keepPreviousData,
   })
   return (

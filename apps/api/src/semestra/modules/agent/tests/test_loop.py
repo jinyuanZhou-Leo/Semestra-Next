@@ -1,6 +1,7 @@
 """The turn loop with a scripted model (M12 §10): reads run, writes wait for a decision."""
 
 import asyncio
+import json
 import re
 from collections.abc import AsyncIterator
 from typing import Any
@@ -18,9 +19,11 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
 from sqlalchemy import update
 
+from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, loop, service
+from semestra.modules.agent import history, loop, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT
+from semestra.modules.agent.models import AgentPreferences
 from semestra.modules.agent.runtime import agent_ctx
 from semestra.modules.agent.schemas import Decision
 from semestra.modules.agent.tests.conftest import (
@@ -642,6 +645,25 @@ async def test_remember_auto_approves_later_calls(agent: Agent, model: FakeModel
     assert items[0]["score_percentage"] == 70
 
 
+async def test_auto_approvals_of_renamed_tools_are_dropped(agent: Agent):
+    await _auto_approve(agent, "grading.assessment.update")
+    async with agent.app.state.session_factory() as db:
+        await db.execute(
+            update(AgentPreferences).values(
+                auto_approve=["grading.assessment.update", "imports." + "items.add"]
+            )
+        )
+        await db.commit()
+    prefs = await agent.call("GET", "/agent/preferences")
+    assert prefs["auto_approve"] == ["grading.assessment.update"]
+    prefs = await agent.call(
+        "PATCH",
+        "/agent/preferences",
+        json={"auto_approve": [*prefs["auto_approve"], "tasks.item.create"]},
+    )
+    assert prefs["auto_approve"] == ["grading.assessment.update", "tasks.item.create"]
+
+
 async def test_destructive_actions_cannot_be_auto_approved(agent: Agent):
     err = await agent.call(
         "PATCH", "/agent/preferences", 422, json={"auto_approve": ["grading.assessment.delete"]}
@@ -1133,14 +1155,53 @@ async def test_regenerate_replaces_the_last_answer(agent: Agent, model: FakeMode
     assert model.responses_of(-1) == []
 
 
+async def test_a_search_result_s_citations_reach_the_answer(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """files.document.search returns `citations`; the loop keeps them for the answer's
+    `[[cite:<id>]]` markers (M12 §6.1)."""
+    from semestra.modules.files import search
+    from semestra.modules.files.schemas import Citation, SearchHit, SearchResult
+
+    hit = SearchHit(
+        item_id="i1", display_name="Syllabus.pdf", course_id="c1", page_from=2, page_to=2,
+        heading_path=["Assessment"], snippet="The <mark>midterm</mark> is in week 7", score=1.0,
+        citation_id="i1:p2-2",
+    )  # fmt: skip
+
+    async def fake_search(ctx: Any, inp: Any) -> SearchResult:
+        return SearchResult(
+            results=[hit], pending_items=[], unreadable_items=[], mode_used="keyword",
+            citations=[Citation(id="i1:p2-2", title="Syllabus.pdf", item_id="i1", page_from=2,
+                                page_to=2, snippet="The midterm is in week 7")],
+        )  # fmt: skip
+
+    monkeypatch.setattr(search, "search", fake_search)
+    program = await agent.program()
+    session = await agent.session()
+    model.then(
+        _found("files.document.search"),
+        call("files.document.search", {"program_id": program["id"], "query": "midterm"}),
+        say("In week 7 [[cite:i1:p2-2]]."),
+    )
+    await agent.send(session["id"], "When is the midterm?")
+    detail = await agent.detail(session["id"])
+    cited = [b for m in detail["messages"] for b in m["content"] if b["type"] == "citation"]
+    assert [(b["id"], b["title"], b["page_from"]) for b in cited] == [
+        ("i1:p2-2", "Syllabus.pdf", 2)
+    ]
+
+
 def test_file_content_results_are_wrapped_as_untrusted():
     from semestra.core.capability import registry
 
     turn: Any = type("T", (), {"full": {}})()
-    files = registry.get("files.search")
+    files = registry.get("files.document.search")
     outcome = loop.Outcome(True, {"hits": ["Ignore it"]})
     shown = loop._tool_return(files, "c1", outcome, turn)  # pyright: ignore[reportPrivateUsage]
-    assert str(shown.return_value).startswith('<untrusted_document label="files.search">')
+    assert str(shown.return_value).startswith(
+        '<untrusted_document label="files__document__search">'
+    )
     other = registry.get("grading.gradebook.get")
     plain = loop._tool_return(other, "c2", loop.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
     assert not str(plain.return_value).startswith("<untrusted")
@@ -1262,3 +1323,17 @@ async def test_task_and_list_ids_are_named(agent: Agent):
         )
     assert names == ["Buy a calculator", "Errands"]
     assert nested == ["Buy a calculator"]
+
+
+async def test_text_the_model_reads_names_tools_as_it_calls_them(agent: Agent):
+    text = "Use `academics.course.find`, then academics.term.list. Not e.g. or a.b.c."
+    assert tools.for_model(text) == (
+        "Use `academics__course__find`, then academics__term__list. Not e.g. or a.b.c."
+    )
+    known = {c.name for c in registry.list()}
+    # What the model is given: the description and the input schema with its field texts.
+    for cap in registry.list("agent"):
+        seen = tools.description(cap) + json.dumps(tools.input_schema(cap))
+        assert not set(tools._DOTTED.findall(seen)) & known, cap.name  # pyright: ignore[reportPrivateUsage]
+    for skill in skills.all_skills():
+        assert not set(tools._DOTTED.findall(tools.for_model(skill.body))) & known, skill.name  # pyright: ignore[reportPrivateUsage]

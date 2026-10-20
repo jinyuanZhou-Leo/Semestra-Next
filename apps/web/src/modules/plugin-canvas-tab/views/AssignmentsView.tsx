@@ -1,5 +1,5 @@
-import { type AssignmentOut, lmsImportAssignments } from '@semestra/api-client'
-import { lmsAssignmentsListOptions } from '@semestra/api-client/react-query'
+import { type AssignmentOut, lmsAssignmentImport } from '@semestra/api-client'
+import { lmsAssignmentListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -106,12 +106,12 @@ type Kind = 'assessment' | 'task'
 
 /**
  * Assignments by group (M16 §4): tick several and import them into the gradebook or the tasks
- * through the M08 review (`lms.import.assignments`); a row opens its description.
+ * through the M08 review (`lms.assignment.import`); a row opens its description.
  */
 export function AssignmentsView({ selected }: { selected?: string }) {
   const { courseId, query } = useCanvasPage()
   const list = useQuery({
-    ...lmsAssignmentsListOptions({ path: { course_id: courseId }, query }),
+    ...lmsAssignmentListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -181,7 +181,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
 
   const start = (kind: Kind) => {
     setStarting(kind)
-    lmsImportAssignments({
+    lmsAssignmentImport({
       path: { course_id: courseId },
       body: { external_ids: picked, as_kind: kind },
       throwOnError: true,

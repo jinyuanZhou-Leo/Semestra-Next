@@ -9,6 +9,8 @@ from semestra.modules.layouts.schemas import (
     BoardRef,
     BoardUpdateInput,
     CardAddInput,
+    CardInstanceList,
+    CardInstanceListInput,
     CardRef,
     CardSettings,
     CardSettingsUpdateInput,
@@ -64,9 +66,32 @@ sticky notes or habit trackers a course has, before calling a card-specific tool
     effect="read",
     http=Http("GET", "/layouts/boards/{scope_type}/{scope_id}"),
     tags=TAGS,
+    agent_output_fields=(
+        "scope_type",
+        "scope_id",
+        "customized",
+        "cards.instance_id",
+        "cards.card_id",
+        "cards.settings",
+    ),
 )
 async def board_get(ctx: Ctx, inp: BoardRef) -> Board:
     return await service.get_board(ctx, inp)
+
+
+@capability(
+    name="layouts.card.list",
+    summary="Find cards across a Program's boards: sticky notes, habit trackers and others.",
+    description="""Use to get a card's instance_id when the user names a card ("my reading habit",
+"the note on APS105") without saying which board it is on. Searches the Program overview, the
+Today page, and every term and course board; filter by card_id. Each card comes with its board's
+name and a label (a habit's name, a note's first line).""",
+    effect="read",
+    expose=("agent", "mcp"),
+    tags=TAGS,
+)
+async def card_list(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
+    return await service.list_program_cards(ctx, inp)
 
 
 @capability(
@@ -91,6 +116,7 @@ with plugins.catalog.list that its plugin is installed.""",
     effect="write",
     http=Http("POST", "/layouts/boards/{scope_type}/{scope_id}/cards"),
     tags=TAGS,
+    agent_output_fields=("instance_id", "card_id", "settings"),
 )
 async def card_add(ctx: Ctx, inp: CardAddInput) -> BoardCard:
     return await service.add_card(ctx, inp)
@@ -111,7 +137,7 @@ async def card_remove(ctx: Ctx, inp: CardRef) -> Removed:
 
 
 @capability(
-    name="layouts.card.settings.get",
+    name="layouts.card.get_settings",
     summary="Get the settings of a card instance.",
     description="layouts.board.get already includes every card's settings.",
     effect="read",
@@ -124,7 +150,7 @@ async def card_settings_get(ctx: Ctx, inp: CardRef) -> CardSettings:
 
 
 @capability(
-    name="layouts.card.settings.update",
+    name="layouts.card.update_settings",
     summary="Replace the settings of a card instance.",
     description="The settings are validated against the card's schema.",
     effect="write",

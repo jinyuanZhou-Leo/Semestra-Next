@@ -1,4 +1,4 @@
-import { settingsValuesGetOptions } from '@semestra/api-client/react-query'
+import { settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -19,7 +19,7 @@ export default function HelloNoteCard({
   // `update` changes the text at once and saves it after a short delay.
   const { value, update } = useCardSettings(instanceId, settings, 800)
   // Plugin configuration set on the settings page; courses can override it (see the backend).
-  const config = useQuery(settingsValuesGetOptions({ path: { namespace: 'plugin.hello-note' } }))
+  const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.hello-note' } }))
   const showCount = config.data?.values.show_count !== false
   const lines = value.text === '' ? 0 : value.text.split('\n').length
 

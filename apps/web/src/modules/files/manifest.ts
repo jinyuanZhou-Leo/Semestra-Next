@@ -7,10 +7,10 @@ import { quickOpenSchema } from './cards/quick-open'
 
 /** Queries that show files; any change to a file, a folder or the course behind them refetches them. */
 const FILES_QUERIES = [
-  'filesList',
+  'filesItemList',
   'filesItemGet',
-  'filesUsage',
-  'filesSearch',
+  'filesUsageGet',
+  'filesDocumentSearch',
   'filesDocumentRead',
   'filesDocumentOutline',
 ] as const

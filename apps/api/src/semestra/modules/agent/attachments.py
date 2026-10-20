@@ -1,6 +1,6 @@
 """Chat attachments as documents (M12 实现说明): read once on upload with M07's parser into
 per-page markdown (`agent_attachment_pages`), then referred to by id. The model reads further
-pages with `attachments.read`; imports take the original file by id (`open_original`).
+pages with `agent.attachment.read`; imports take the original file by id (`open_original`).
 
 Pages are not chunked or indexed; saving the attachment to a course's files does that (M07).
 """
@@ -43,7 +43,7 @@ PAGE_MAX_CHARS = 20_000
 ICS_NOTE = (
     "Calendar file, as Semestra's calendar reader understands it: one page per course, in the "
     "Program's local time. To import its classes, pass this attachment id to "
-    "imports.session.create with source_kind ics."
+    "imports__session__create with source_kind ics."
 )
 SCANNED_NOTE = (
     "Scanned pages without text: {pages}. They cannot be read with this tool (the "
@@ -121,7 +121,7 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
 async def get_owned(ctx: Ctx, attachment_id: str) -> AgentAttachment:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("attachment", attachment_id)
     return row
 
 
@@ -236,7 +236,8 @@ class AttachmentRead(BaseModel):
 
 
 @capability(
-    name="attachments.read",
+    name="agent.attachment.read",
+    untrusted=True,
     summary="Read pages of a file the user attached to the conversation.",
     description=f"""Returns the text of up to {READ_MAX_PAGES} pages as markdown, starting at
 page_from; when next_page is set, call again from there for more. Use the attachment id from the
@@ -308,7 +309,7 @@ class SaveToCourseInput(BaseModel):
 
 
 @capability(
-    name="attachments.save",
+    name="agent.attachment.save",
     summary="Save a file attached to the conversation to a course's files.",
     description="""Use when the user wants to keep an attached document (a syllabus, notes) with
 the course. The file is then processed like any course file (searchable, citable). Saving it to
@@ -317,6 +318,7 @@ the same course again returns the saved file.""",
     http=Http("POST", "/agent/attachments/{id}:save"),
     expose=("http", "agent"),
     tags=("agent",),
+    agent_output_fields=("id", "display_name", "course_id", "folder_id", "doc_status"),
 )
 async def save_to_course(ctx: Ctx, inp: SaveToCourseInput) -> ItemOut:
     row, data = await open_original(ctx, inp.id)

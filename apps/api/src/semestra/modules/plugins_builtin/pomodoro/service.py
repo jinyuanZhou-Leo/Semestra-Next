@@ -15,7 +15,7 @@ from semestra.modules.plugins_builtin.pomodoro.schemas import (
     MAX_STATS_DAYS,
     CourseFocus,
     DayFocus,
-    PomodoroStats,
+    PomodoroSessionSummarize,
     SessionRecorded,
     SessionRecordInput,
     StatsInput,
@@ -90,7 +90,7 @@ async def _timezone(ctx: Ctx, program_id: str | None) -> str:
     return programs[0].timezone if programs else "UTC"
 
 
-async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroStats:
+async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroSessionSummarize:
     if inp.program_id is not None:
         await academics.get_program_row(ctx, inp.program_id)
     program_id = inp.program_id
@@ -125,7 +125,7 @@ async def stats(ctx: Ctx, inp: StatsInput) -> PomodoroStats:
             entry = bucket.setdefault(key, [0, 0])  # pyright: ignore[reportArgumentType]
             entry[0] += row.duration_sec
             entry[1] += 1
-    return PomodoroStats(
+    return PomodoroSessionSummarize(
         from_date=from_date,
         to_date=to_date,
         today=today,

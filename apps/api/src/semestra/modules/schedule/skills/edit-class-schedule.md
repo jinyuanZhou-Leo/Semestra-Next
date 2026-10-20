@@ -3,7 +3,7 @@ name: edit-class-schedule
 title: { en: "Edit the timetable", zh-CN: "编辑课表" }
 command: /timetable
 description: Add, change, cancel or move classes, sections and one-off events in the user's timetable.
-tools: [academics.course.find, schedule.meeting.list, schedule.meeting.create, schedule.meeting.update, schedule.meeting.set_enabled, schedule.exception.upsert, schedule.exception.delete, schedule.event.create, schedule.event.update, schedule.event_type.list, schedule.conflicts]
+tools: [academics.course.find, schedule.meeting.list, schedule.meeting.create, schedule.meeting.update, schedule.meeting.set_enabled, schedule.exception.upsert, schedule.exception.delete, schedule.event.create, schedule.event.update, schedule.event_type.list, schedule.conflict.list]
 ---
 
 # Editing the class schedule
@@ -22,7 +22,7 @@ it.
 
 **New sections.** `schedule.meeting.create` with the term (a year-long course has a term per
 half), type code (see `schedule.event_type.list`; LEC, PRA, TUT are built in) and times. Before
-creating, run `schedule.conflicts` for the term (and again after) and tell the user about any
+creating, run `schedule.conflict.list` for the term (and again after) and tell the user about any
 overlap.
 
 **Sections the user does not attend.** Courses often list every tutorial section. Hide the ones

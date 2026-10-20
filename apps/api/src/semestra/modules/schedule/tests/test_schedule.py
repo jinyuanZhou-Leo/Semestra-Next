@@ -12,7 +12,6 @@ from sqlalchemy import func, select
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.modules.auth.models import AuthRateLimit
-from semestra.modules.schedule.schemas import Occurrences
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -318,10 +317,25 @@ async def test_disabled_and_biweekly_and_conflicts(api: Api):
         f"/courses/{course_id}/meetings:enabled",
         json={"meeting_ids": [tut1["id"]], "enabled": False},
     )
-    assert {m["id"]: m["enabled"] for m in listed["items"]}[tut1["id"]] is False
+    # Only what changed comes back; asking again changes nothing.
+    assert [(m["id"], m["enabled"]) for m in listed["items"]] == [(tut1["id"], False)]
+    again = await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={"meeting_ids": [tut1["id"], lec["id"]], "enabled": True},
+    )
+    assert [m["id"] for m in again["items"]] == [tut1["id"]]
+    await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={"meeting_ids": [tut1["id"]], "enabled": False},
+    )
     week = await api.calendar(program_id, "2026-01-11", "2026-01-18")
     assert tut1["id"] not in {o["meta"]["meeting_id"] for o in classes(week)}
     assert (await api.call("GET", f"/terms/{term_id}/schedule-conflicts"))["items"] == []
+    assert classes(await api.calendar(program_id, "2026-01-11", "2026-01-18", kinds=["class"]))
+    only_events = await api.calendar(program_id, "2026-01-11", "2026-01-18", kinds=["event"])
+    assert only_events["items"] == []
 
 
 async def test_create_many_dedupes_by_source(api: Api):
@@ -600,29 +614,79 @@ async def test_agent_surface(
     program_id, term_id, course_id = await api.setup()
     await api.meeting(course_id, term_id)
     agent_names = {c.name for c in registry.list(expose="agent")}
-    assert {"calendar.today", "calendar.occurrences", "schedule.exception.upsert"} <= agent_names
+    assert {
+        "calendar.today.get",
+        "calendar.occurrence.list",
+        "schedule.exception.upsert",
+    } <= agent_names
     assert "schedule.feed.create" not in agent_names  # the link is a secret
-    assert registry.get("calendar.today").agent_core
+    assert registry.get("calendar.today.get").agent_core
     async with system_ctx(app.state, user.id) as ctx:
         result = await registry.invoke(
             ctx,
-            "calendar.occurrences",
+            "calendar.occurrence.list",
             {"program_id": program_id, "start": "2026-01-05", "end": "2026-01-06"},
             "agent",
         )
-    assert isinstance(result, Occurrences)
-    assert len(result.items) == 1
+    assert isinstance(result, dict)
+    assert result["timezone"] == "America/Toronto"
+    (item,) = result["items"]
+    # Trimmed for the model, and in the Program's time zone with its offset (EST in January).
+    assert not {"source", "color_ref"} & set(item)
+    assert (item["start_at"], item["end_at"]) == (
+        "2026-01-05T10:00:00-05:00",
+        "2026-01-05T11:00:00-05:00",
+    )
+    assert item["ref"]["entity"] == "schedule.meeting"
+    assert "status" not in item  # null fields of list items are left out
+
+    # A whole day across the DST change stays local midnight to local midnight; a clash names
+    # the other occurrence by its id.
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Reading day",
+            "start_at": "2026-03-08T00:00:00-05:00",
+            "end_at": "2026-03-08T00:00:00-05:00",
+            "all_day": True,
+        },
+    )
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Dentist",
+            "start_at": "2026-03-09T10:30:00-04:00",
+            "end_at": "2026-03-09T11:30:00-04:00",
+        },
+    )
+    args = {"program_id": program_id, "start": "2026-03-08", "end": "2026-03-10"}
+    async with system_ctx(app.state, user.id) as ctx:
+        week = await registry.invoke(ctx, "calendar.occurrence.list", args, "agent")
+        mcp = await registry.invoke(ctx, "calendar.occurrence.list", args, "mcp")
+    assert week == mcp  # MCP clients get what the assistant gets
+    assert isinstance(week, dict)
+    by_title = {o["title"]: o for o in week["items"]}
+    reading = by_title["Reading day"]
+    assert (reading["start_at"], reading["end_at"]) == (
+        "2026-03-08T00:00:00-05:00",
+        "2026-03-09T00:00:00-04:00",
+    )
+    lecture = next(o for o in week["items"] if o["kind"] == "class")
+    assert lecture["start_at"] == "2026-03-09T10:00:00-04:00"
+    assert lecture["meta"]["conflicts_with"] == [by_title["Dentist"]["id"]]
     # The assistant reads a whole term in one call (the app is limited to 120 days).
     async with system_ctx(app.state, user.id) as ctx:
         ctx.actor = "agent"
         term = await registry.invoke(
             ctx,
-            "calendar.occurrences",
+            "calendar.occurrence.list",
             {"program_id": program_id, "start": "2026-01-01", "end": "2026-06-01"},
             "agent",
         )
-    assert isinstance(term, Occurrences)
-    assert len(term.items) > 1
+    assert isinstance(term, dict)
+    assert len(term["items"]) > 1
 
 
 async def test_feed_window_moves_with_today(api: Api, clock: Clock):

@@ -1,4 +1,4 @@
-import type { HabitStats } from '@semestra/api-client'
+import type { HabitStreakGet } from '@semestra/api-client'
 import { type ReactNode, useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -23,7 +23,7 @@ export function useCheckinFlow(
   // The streak as it was when the button was pressed, to tell a crossing from a repeat.
   const before = useRef<number | undefined>(undefined)
   const onToggled = useCallback(
-    (stats: HabitStats, checked: boolean) => {
+    (stats: HabitStreakGet, checked: boolean) => {
       const grew = before.current !== undefined && stats.current_streak > before.current
       const milestone = checked && grew ? milestoneAt(stats.current_streak) : null
       if (milestone === null) return

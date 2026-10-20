@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any, Literal
 
 import structlog
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from pydantic_ai import Agent, AgentRun, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability, Caching, ToolSearch
 from pydantic_ai.capabilities import Capability as Bundle
@@ -203,54 +203,30 @@ REJECTED = "The user rejected this action; it was not executed."
 # --- proposals ------------------------------------------------------------------------------
 
 
-def _is_ref(key: str) -> bool:
-    return key in ("id", "fields") or key.endswith(("_id", "_ids"))
-
-
-def _plain(value: Any) -> Any:
-    """A value as the card shows it: without ids (the card names them in `target`); None when
-    nothing is left (an object that only held ids and its `kind`)."""
-    if isinstance(value, dict):
-        kept = {
-            str(k): v  # pyright: ignore[reportUnknownArgumentType]
-            for k, v in ((k, _plain(v)) for k, v in value.items())  # pyright: ignore[reportUnknownVariableType]
-            if not _is_ref(str(k)) and v is not None  # pyright: ignore[reportUnknownArgumentType]
-        }
-        return kept if set(kept) - {"kind"} else None
-    if isinstance(value, list):
-        items = [p for p in (_plain(v) for v in value) if p is not None]  # pyright: ignore[reportUnknownVariableType]
-        return items if items or not value else None
-    return value
-
-
-def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
-    changes: list[dict[str, Any]] = []
-    for key, value in args.items():
-        shown = None if _is_ref(key) else _plain(value)
-        if shown is not None:
-            changes.append({"field": key, "after": shown})
-    return {"changes": changes}
-
-
-def _validation_error(exc: ValidationError) -> AppError:
-    errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
-    return AppError("common.validation", 422, errors=errors)
+async def _generic_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
+    """Each argument as a change, before → after for an update, ids by name (agent/display).
+    A failure here leaves the card without details, never without the card."""
+    try:
+        return await display.preview(ctx, cap.name, args)
+    except Exception:
+        log.exception("agent_display_failed", capability=cap.name)
+        return {"changes": []}
 
 
 async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
     """The capability's own `preview` (changes with before → after, a link), else the
-    arguments as a list. Raises `common.validation` for arguments the model got wrong."""
-    try:
-        inp = cap.input_model.model_validate(args)
-    except ValidationError as exc:
-        raise _validation_error(exc) from exc
-    out: dict[str, Any] = _generic_preview(args)
+    arguments as a list. Raises `common.validation` for arguments the model got wrong, and the
+    capability's own `check` errors, before the card is shown."""
+    inp = await registry.validate(ctx, cap, args, "agent")
+    out: dict[str, Any] = {"changes": []}
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)
         if isinstance(preview, BaseModel):
             out = preview.model_dump(mode="json")
         elif isinstance(preview, dict):
             out = dict(preview)  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        out = await _generic_preview(ctx, cap, args)
     if not out.get("target"):
         # What the card is about, by name: the ids in the arguments are never shown.
         try:
@@ -331,8 +307,8 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
         if name == memory.FORGET or saved.get("created"):
             action = "forgot" if name == memory.FORGET else "remembered"
             meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
-    if outcome.ok and name in tools.UNTRUSTED_RESULTS:
-        shown = wrap_untrusted(shown, name)
+    if outcome.ok and tools.is_untrusted(name):
+        shown = wrap_untrusted(shown, tools.tool_name(name))
     return ToolReturn(return_value=shown, metadata=meta)
 
 
@@ -385,10 +361,11 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
         if block is not None:
             found = (str(block.get("capability", "")), str(block["full"]))
     if found is None:
-        return tools.serialize({"error": {"code": "common.not_found", "params": {}}})
+        params = {"kind": "call", "id": call_id}
+        return tools.serialize({"error": {"code": "common.not_found", "params": params}})
     name, text = found
     shown = tools.page(text, call_id, max(0, offset))
-    return wrap_untrusted(shown, name) if name in tools.UNTRUSTED_RESULTS else shown
+    return wrap_untrusted(shown, tools.tool_name(name)) if tools.is_untrusted(name) else shown
 
 
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
@@ -432,11 +409,14 @@ class _Hooks(AbstractCapability[Turn]):
             return args
         try:
             async with agent_ctx(turn.state, turn.user_id, scope=turn.scope) as c:
-                preview = await make_preview(c, cap, args)
+                # The card keeps the arguments filled in from where the user is now (the
+                # Program), so approving it later, from elsewhere, does what it showed.
+                filled = await registry.with_context_args(c, cap, args)
+                preview = await make_preview(c, cap, filled)
         except AppError as exc:  # wrong arguments go back to the model without a card
             outcome = Outcome(False, _error_payload(exc), exc.code)
             raise SkipToolExecution(_tool_return(cap, call.tool_call_id, outcome, turn)) from None
-        raise ApprovalRequired(metadata={"preview": preview})
+        raise ApprovalRequired(metadata={"preview": preview, "args": filled})
 
     async def after_tool_execute(
         self,
@@ -571,7 +551,10 @@ def _skill(skill: skills.Skill) -> Bundle[Turn]:
     # The catalog (id and description) is in the instructions; `load_capability` returns the
     # workflow as a tool result, so loading one changes neither the prompt nor the tool list.
     return Bundle(
-        id=skill.name, description=skill.description, instructions=skill.body, defer_loading=True
+        id=skill.name,
+        description=tools.for_model(skill.description),
+        instructions=tools.for_model(skill.body),
+        defer_loading=True,
     )
 
 
@@ -583,7 +566,11 @@ def _agent(
     if turn.model.supports_tools:
         toolsets.append(tools.toolset(available, _tool, _read_result))
         capabilities = [
-            ToolSearch(strategy="keywords"),
+            ToolSearch(
+                strategy=tools.search,
+                max_results=tools.SEARCH_LIMIT,
+                tool_description=tools.SEARCH_DESCRIPTION,
+            ),
             *(_skill(s) for s in visible),
             *capabilities,
         ]
@@ -636,6 +623,18 @@ async def _messages(
     return out
 
 
+def _edited(prop: AgentProposal, called: dict[str, Any]) -> bool:
+    """Whether the user changed the arguments on the card; the ones filled in from the
+    conversation (the Program) do not count."""
+    try:
+        filled = registry.context_args(registry.get(prop.capability))
+    except AppError:
+        filled = {}
+    return any(
+        called.get(k) != v for k, v in prop.args.items() if k in called or k not in filled
+    ) or any(k not in prop.args for k in called)
+
+
 async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared:
     rows = await service.messages(ctx, session.id)
     props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
@@ -657,7 +656,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
             prop = props[c.tool_call_id]
             if prop.status in ("executed", "failed"):
                 resume.approvals[c.tool_call_id] = ToolApproved(override_args=prop.args)
-                if prop.args != history.args_of(c):
+                if _edited(prop, history.args_of(c)):
                     edited[c.tool_call_id] = prop.args
             else:
                 text = _proposal_outcome(prop).content
@@ -1183,7 +1182,7 @@ async def _propose(
                 message_id=owner.get(call.tool_call_id, ""),
                 call_id=call.tool_call_id,
                 capability=tools.capability_name(call.tool_name),
-                args=history.args_of(call),
+                args=meta.get("args") or history.args_of(call),
                 preview=meta.get("preview"),
                 status="pending",
                 created_at=ctx.now,

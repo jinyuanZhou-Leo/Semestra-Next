@@ -325,10 +325,10 @@ async def test_purge_only_touches_the_event_users_data(
 
 def test_agent_can_read_and_write_module_settings_only() -> None:
     agent = {c.name for c in registry.list(expose="agent")}
-    assert {"settings.values.get", "settings.values.update", "settings.schemas.list"} <= agent
+    assert {"settings.value.get", "settings.value.update", "settings.schema.list"} <= agent
     assert not any(n.startswith("settings.ui_state") for n in agent)
-    assert "settings.values.reset" not in agent
-    assert registry.get("settings.values.update").effect == "write"
+    assert "settings.value.reset" not in agent
+    assert registry.get("settings.value.update").effect == "write"
 
 
 async def test_an_uninstalled_plugins_settings_are_refused(

@@ -1,7 +1,7 @@
 import type { UserOut } from '@semestra/api-client'
 import {
   accountAvatarUploadMutation,
-  accountMeGetQueryKey,
+  accountProfileGetQueryKey,
   accountProfileUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -29,7 +29,7 @@ export function ProfileSection({ user, children }: { user: UserOut; children?: R
   const update = useMutation({
     ...accountProfileUpdateMutation(),
     onSuccess: (data) => {
-      queryClient.setQueryData(accountMeGetQueryKey(), data)
+      queryClient.setQueryData(accountProfileGetQueryKey(), data)
       toast.success(m.auth_account_saved())
     },
     onError: toastError,
@@ -37,7 +37,7 @@ export function ProfileSection({ user, children }: { user: UserOut; children?: R
   const upload = useMutation({
     ...accountAvatarUploadMutation(),
     onSuccess: (data) => {
-      queryClient.setQueryData(accountMeGetQueryKey(), data)
+      queryClient.setQueryData(accountProfileGetQueryKey(), data)
       toast.success(m.auth_account_avatar_updated())
     },
     onError: toastError,
@@ -45,7 +45,7 @@ export function ProfileSection({ user, children }: { user: UserOut; children?: R
   const removeAvatar = useMutation({
     ...accountProfileUpdateMutation(),
     onSuccess: (data) => {
-      queryClient.setQueryData(accountMeGetQueryKey(), data)
+      queryClient.setQueryData(accountProfileGetQueryKey(), data)
       setRemoving(false)
       toast.success(m.auth_account_avatar_removed())
     },

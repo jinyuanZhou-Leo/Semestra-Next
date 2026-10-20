@@ -1,4 +1,4 @@
-import { lmsImportSyllabus } from '@semestra/api-client'
+import { lmsSyllabusImport } from '@semestra/api-client'
 import { lmsSyllabusGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ScrollText } from 'lucide-react'
@@ -15,7 +15,7 @@ import { useCanvasPage } from '../context'
 import { OpenInCanvas, useInternalLinks } from './common'
 
 /**
- * "Smart import" of the Canvas syllabus (M09 `lms.import.syllabus`): an AI extraction of the
+ * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): an AI extraction of the
  * grading scheme and dates, reviewed in the import dialog (M08).
  */
 export function SyllabusImportButton() {
@@ -24,7 +24,7 @@ export function SyllabusImportButton() {
   const [error, setError] = useState<string | null>(null)
   const start = () => {
     setState('running')
-    lmsImportSyllabus({ path: { course_id: courseId }, throwOnError: true })
+    lmsSyllabusImport({ path: { course_id: courseId }, throwOnError: true })
       .then(({ data }) => {
         setState('idle')
         return openImport({

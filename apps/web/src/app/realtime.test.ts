@@ -14,7 +14,7 @@ test('refetches the queries mapped to an event type', async () => {
   const { queryClient, invalidate, source } = setup()
   expect(source.init).toEqual({ withCredentials: true })
   const jobs = [{ _id: 'coreJobList', baseUrl: 'x' }]
-  const other = [{ _id: 'accountMeGet', baseUrl: 'x' }]
+  const other = [{ _id: 'accountProfileGet', baseUrl: 'x' }]
   queryClient.setQueryData(jobs, 1)
   queryClient.setQueryData(other, 2)
 

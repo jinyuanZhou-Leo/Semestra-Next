@@ -1,5 +1,6 @@
 """Task capabilities (M05 §4)."""
 
+from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.tasks import service
@@ -33,6 +34,12 @@ from semestra.modules.tasks.schemas import (
 
 TAGS = ("tasks",)
 
+# What agents get back (M00 §3.6): no positions, import refs or timestamps.
+_TASK_FIELDS = (
+    "id", "term_id", "course_id", "list_id", "title", "notes", "due_date", "due_time",
+    "priority", "flagged", "completed_at", "overdue", "source_kind",
+)  # fmt: skip
+
 # --- lists ----------------------------------------------------------------------------------
 
 
@@ -44,6 +51,7 @@ in the inbox, which is not a list row.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/task-lists"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.term_id", "items.name"),
 )
 async def list_list(ctx: Ctx, inp: ProgramRef) -> TaskListOut:
     return await service.list_lists(ctx, inp.program_id)
@@ -58,6 +66,7 @@ tasks in the inbox unless the user names a list.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/task-lists"),
     tags=TAGS,
+    agent_output_fields=("id", "name", "term_id"),
 )
 async def list_create(ctx: Ctx, inp: TaskListCreateInput) -> TaskList:
     return await service.create_list(ctx, inp)
@@ -70,6 +79,7 @@ async def list_create(ctx: Ctx, inp: TaskListCreateInput) -> TaskList:
     effect="write",
     http=Http("PATCH", "/task-lists/{list_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "name", CHANGED),
 )
 async def list_update(ctx: Ctx, inp: TaskListUpdateInput) -> TaskList:
     return await service.update_list(ctx, inp)
@@ -96,6 +106,7 @@ async def list_delete(ctx: Ctx, inp: TaskListDeleteInput) -> TaskListDeleteResul
     effect="write",
     http=Http("PUT", "/programs/{program_id}/task-list-order"),
     tags=TAGS,
+    agent_output_fields=("items.id", "items.name"),
 )
 async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
     return await service.reorder_lists(ctx, inp.program_id, inp.list_ids)
@@ -108,13 +119,24 @@ async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
     name="tasks.item.query",
     summary="List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
     description="""Use for 'what do I have to do'. `today` includes overdue tasks. For questions
-about what is due this week prefer calendar.occurrences, which merges tasks with assessment
+about what is due this week prefer calendar.occurrence.list, which merges tasks with assessment
 deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
 completed tasks are hidden unless the view is `completed` or include_completed is set.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/tasks"),
     tags=TAGS,
     agent_core=True,
+    agent_default_fields=(
+        "title",
+        "due_date",
+        "due_time",
+        "priority",
+        "flagged",
+        "list_id",
+        "course_id",
+        "overdue",
+        "completed_at",
+    ),
 )
 async def item_query(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     return await service.query_tasks(ctx, inp)
@@ -127,6 +149,7 @@ async def item_query(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
     effect="read",
     http=Http("GET", "/tasks/{task_id}"),
     tags=TAGS,
+    agent_output_fields=_TASK_FIELDS,
 )
 async def item_get(ctx: Ctx, inp: TaskRef) -> Task:
     return await service.item_out(ctx, await service.get_item_row(ctx, inp.task_id))
@@ -134,6 +157,7 @@ async def item_get(ctx: Ctx, inp: TaskRef) -> Task:
 
 @capability(
     name="tasks.item.create",
+    agent_core=True,
     summary="Create a task, optionally with a due date, course, list and priority.",
     description="""Always pass the course and due date when the user's words or the current scope
 give them. Dates are in the Program's time zone; a time needs a date. The term is inferred from
@@ -142,6 +166,8 @@ for several tasks.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "due_date", "list_id", "course_id"),
+    check=service.check_create,
 )
 async def item_create(ctx: Ctx, inp: TaskCreateInput) -> Task:
     return await service.create_task(ctx, inp.program_id, inp)
@@ -156,6 +182,8 @@ returned with the id of the task that already exists.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks:batch"),
     tags=TAGS,
+    agent_output_fields=("created.id", "created.title", "created.due_date", "skipped"),
+    check=service.check_create_many,
 )
 async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateManyResult:
     return await service.create_tasks(ctx, inp.program_id, inp.items)
@@ -163,13 +191,18 @@ async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateMany
 
 @capability(
     name="tasks.item.update",
+    agent_core=True,
     summary="Change a task's title, notes, due date and time, priority, flag, list or course.",
     description="""Partial update: only the fields that are sent change; null clears the nullable
 ones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task
-and tasks.item.move to reorder it.""",
+and tasks.item.move to reorder it. A task with source_kind assessment takes its title, due date and
+course from the assessment: changing those is refused (tasks.managed_by_assessment); change the
+assessment instead.""",
     effect="write",
     http=Http("PATCH", "/tasks/{task_id}"),
     tags=TAGS,
+    agent_output_fields=("id", "title", CHANGED),
+    check=service.check_update,
 )
 async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     return await service.update_task(ctx, inp)
@@ -177,11 +210,13 @@ async def item_update(ctx: Ctx, inp: TaskUpdateInput) -> Task:
 
 @capability(
     name="tasks.item.complete",
+    agent_core=True,
     summary="Mark a task done, or reopen it with completed=false.",
     description="Completing a task never changes grades, even if it came from an assessment.",
     effect="write",
     http=Http("POST", "/tasks/{task_id}:complete"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "completed_at"),
 )
 async def item_complete(ctx: Ctx, inp: TaskCompleteInput) -> Task:
     return await service.set_completed(ctx, inp.task_id, inp.completed)
@@ -195,6 +230,7 @@ current one. before_task_id places the task right before that task, otherwise it
     effect="write",
     http=Http("POST", "/tasks/{task_id}:move"),
     tags=TAGS,
+    agent_output_fields=("id", "title", "term_id", "course_id", "list_id"),
 )
 async def item_move(ctx: Ctx, inp: TaskMoveInput) -> Task:
     return await service.move_task(ctx, inp)
@@ -204,7 +240,8 @@ async def item_move(ctx: Ctx, inp: TaskMoveInput) -> Task:
     name="tasks.item.delete",
     summary="Delete a task for good.",
     description="""Irreversible. To finish a task use tasks.item.complete instead; delete only when
-the user asks to remove it.""",
+the user asks to remove it. A task made from an assessment comes back when the assessment
+changes.""",
     effect="destructive",
     http=Http("DELETE", "/tasks/{task_id}"),
     preview=service.preview_item_delete,
@@ -222,6 +259,7 @@ async def item_delete(ctx: Ctx, inp: TaskRef) -> TaskDeleted:
 or clean up completed tasks.""",
     effect="destructive",
     http=Http("POST", "/programs/{program_id}/tasks:clear-completed"),
+    preview=service.preview_clear_completed,
     tags=TAGS,
 )
 async def item_clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
@@ -230,6 +268,7 @@ async def item_clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult
 
 @capability(
     name="tasks.item.find",
+    agent_core=True,
     summary="Find tasks by words of their title ('that lab report').",
     description="""Use whenever the user refers to a task in words and you need its id. If the two
 best candidates score similarly, ask which one is meant.""",
@@ -242,7 +281,7 @@ async def item_find(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
 
 
 @capability(
-    name="tasks.counts",
+    name="tasks.item.count",
     summary="Counts of unfinished tasks per smart list, list and course (sidebar badges).",
     description="Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.",
     effect="read",

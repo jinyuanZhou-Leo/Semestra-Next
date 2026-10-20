@@ -1,6 +1,6 @@
 import {
   academicsProgramListOptions,
-  settingsPreferencesGetOptions,
+  settingsPreferenceGetOptions,
 } from '@semestra/api-client/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { pickProgram } from '@/modules/academics/queries'
@@ -20,7 +20,7 @@ export const Route = createFileRoute('/_authed/')({
       throw redirect({ href: `/onboarding${carried}`, replace: true })
     }
     const preferences = await queryClient
-      .ensureQueryData(settingsPreferencesGetOptions())
+      .ensureQueryData(settingsPreferenceGetOptions())
       .catch(() => undefined)
     const program = pickProgram(programs.items, preferences?.active_program_id)
     throw redirect({ href: `/p/${program!.id}${carried}`, replace: true })

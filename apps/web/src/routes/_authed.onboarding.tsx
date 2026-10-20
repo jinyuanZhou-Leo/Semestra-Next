@@ -1,10 +1,13 @@
-import { accountMeGetOptions, academicsProgramListOptions } from '@semestra/api-client/react-query'
+import {
+  accountProfileGetOptions,
+  academicsProgramListOptions,
+} from '@semestra/api-client/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Onboarding, onboardingInProgress } from '@/modules/academics/onboarding/Onboarding'
 
 export const Route = createFileRoute('/_authed/onboarding')({
   beforeLoad: async ({ context }) => {
-    const me = await context.queryClient.ensureQueryData(accountMeGetOptions())
+    const me = await context.queryClient.ensureQueryData(accountProfileGetOptions())
     const programs = await context.queryClient.fetchQuery({
       ...academicsProgramListOptions(),
       staleTime: 0,

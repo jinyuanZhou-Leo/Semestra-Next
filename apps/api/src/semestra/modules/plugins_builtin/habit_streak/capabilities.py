@@ -5,9 +5,10 @@ from semestra.modules.plugins_builtin.habit_streak.schemas import (
     PLUGIN_ID,
     CheckinList,
     CheckinListInput,
+    CheckinSetInput,
     CheckinToggleInput,
     CheckinToggleResult,
-    HabitStats,
+    HabitStreakGet,
     StatsInput,
 )
 
@@ -17,12 +18,11 @@ TAGS = ("habit",)
 @capability(
     name="habit.checkin.toggle",
     summary="Check or uncheck a habit for a day (today or the past 7 days).",
-    description="""Use when the user says they did a habit ("check in my reading habit"). Find the
-instance_id with layouts.board.get (the habit card of the course, term, Program or today board).
-Calling it on a day that is already checked removes the check-in, so read habit.checkins.list
-first when the user only wants it checked. Days older than 7 days or in the future are refused.""",
+    description="""The habit card's click: a checked day becomes unchecked and the other way
+round. Days older than 7 days or in the future are refused.""",
     effect="write",
     http=Http("POST", "/habit/instances/{instance_id}/checkins/toggle"),
+    expose=("http",),
     tags=TAGS,
     plugin_id=PLUGIN_ID,
 )
@@ -31,7 +31,22 @@ async def checkin_toggle(ctx: Ctx, inp: CheckinToggleInput) -> CheckinToggleResu
 
 
 @capability(
-    name="habit.checkins.list",
+    name="habit.checkin.set",
+    summary="Mark a habit done (or not done) for a day: today or the past 7 days.",
+    description="""Use when the user says they did a habit ("check in my reading habit") or asks to
+undo a check-in (checked=false). Find the instance_id with layouts.card.list. Setting a day to the
+state it already has changes nothing. Days older than 7 days or in the future are refused.""",
+    effect="write",
+    expose=("agent", "mcp"),
+    tags=TAGS,
+    plugin_id=PLUGIN_ID,
+)
+async def checkin_set(ctx: Ctx, inp: CheckinSetInput) -> CheckinToggleResult:
+    return await service.set_checkin(ctx, inp.instance_id, inp.date, inp.checked)
+
+
+@capability(
+    name="habit.checkin.list",
     summary="List the checked days of a habit within a date range.",
     description="""Use to see which days a habit was done. The range is at most 400 days and in the
 Program's time zone.""",
@@ -45,7 +60,7 @@ async def checkins_list(ctx: Ctx, inp: CheckinListInput) -> CheckinList:
 
 
 @capability(
-    name="habit.stats",
+    name="habit.streak.get",
     summary="Current streak, longest streak and total check-ins of a habit.",
     description="""Use to answer how long the user's streak is or how often they did a habit. For a
 weekly goal the streaks count weeks that reached the weekly target; a streak stays alive while
@@ -55,5 +70,5 @@ the running day (or week) is still open. Also returns today's date in the Progra
     tags=TAGS,
     plugin_id=PLUGIN_ID,
 )
-async def stats(ctx: Ctx, inp: StatsInput) -> HabitStats:
+async def stats(ctx: Ctx, inp: StatsInput) -> HabitStreakGet:
     return await service.stats(ctx, inp.instance_id)

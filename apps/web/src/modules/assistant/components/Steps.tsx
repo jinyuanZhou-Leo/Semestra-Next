@@ -1,4 +1,4 @@
-import { agentSkillsListOptions } from '@semestra/api-client/react-query'
+import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { AlertCircle, ArrowRight, Brain, Check, CircleDashed, Loader2, X } from 'lucide-react'
@@ -183,7 +183,7 @@ export function Thinking({
   showReasoning: boolean
 }) {
   const [chosen, setChosen] = useState<boolean | null>(null)
-  const skills = useQuery({ ...agentSkillsListOptions(), staleTime: 5 * 60_000 }).data?.items
+  const skills = useQuery({ ...agentSkillListOptions(), staleTime: 5 * 60_000 }).data?.items
   const skillTitles = new Map((skills ?? []).map((s) => [s.name, skillTitle(s.title, s.name)]))
   const entries = item.process.filter((entry) =>
     entry.kind === 'reasoning'

@@ -13,7 +13,6 @@ from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.grading import models, service
-from semestra.modules.grading.schemas import AssessmentCandidates
 from semestra.testing import MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -282,10 +281,14 @@ async def test_what_if_and_suggestions_need_complete_weights(api: Api):
     sim = await api.call(
         "POST",
         f"/courses/{cid}/gradebook:simulate",
-        json={"scores": {final["id"]: 70, other["id"]: 90, quiz["id"]: 0}},
+        json={"scores": {final["id"]: 70, other["id"]: 90, quiz["id"]: 0, "nope": 50}},
     )
     # The graded quiz keeps 60: 30 + 21 + 18.
     assert (sim["final_percentage"], sim["status"]) == (69, "completed")
+    assert sim["ignored"] == [
+        {"id": quiz["id"], "reason": "graded"},
+        {"id": "nope", "reason": "unknown"},
+    ]
     # Nothing was saved.
     assert (await api.gradebook(cid))["summary"]["final_percentage"] is None
 
@@ -642,6 +645,11 @@ async def test_term_what_if_over_http(api: Api):
         "POST", f"/terms/{t3}/grade-summary:simulate", json={"scores": {c6: 86}, "target_gpa": 3.7}
     )
     assert (result["gpa"], result["gap"], result["reachable"]) == (4.0, -0.3, True)
+    assert result["ignored"] == []
+    result = await api.call(
+        "POST", f"/terms/{t3}/grade-summary:simulate", json={"scores": {"nope": 86}}
+    )
+    assert result["ignored"] == [{"id": "nope", "reason": "unknown"}]
     result = await api.call(
         "POST", f"/terms/{t3}/grade-summary:simulate", json={"scores": {}, "target_gpa": 3.7}
     )
@@ -738,9 +746,9 @@ async def test_other_peoples_data_is_not_found(
         assert candidates(found) == []
 
 
-def candidates(out: Any) -> list[Any]:
-    assert isinstance(out, AssessmentCandidates)
-    return out.items
+def candidates(out: Any) -> list[dict[str, Any]]:
+    assert isinstance(out, dict)  # agent output is trimmed JSON
+    return out["items"]
 
 
 # --- agent surface --------------------------------------------------------------------------
@@ -764,12 +772,12 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         got = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "lab3", "course_id": course["id"]}, "agent"
         )
-        assert [i.id for i in candidates(got)][:1] == [lab3["id"]]
-        assert candidates(got)[0].score == 1.0
+        assert [i["id"] for i in candidates(got)][:1] == [lab3["id"]]
+        assert candidates(got)[0]["score"] == 1.0
         mid = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "midterm", "course_id": course["id"]}, "agent"
         )
-        assert candidates(mid)[0].id == midterm["id"]
+        assert candidates(mid)[0]["id"] == midterm["id"]
         nothing = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "zzzz", "course_id": course["id"]}, "agent"
         )
@@ -778,7 +786,47 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         # Program-wide, the course on screen comes first.
         ctx.scope = ScopeRef(program["id"], None, other["id"])
         wide = await registry.invoke(ctx, "grading.assessment.find", {"query": "lab 3"}, "agent")
-        assert [i.id for i in candidates(wide)][:2] == [other_lab["id"], lab3["id"]]
+        assert [i["id"] for i in candidates(wide)][:2] == [other_lab["id"], lab3["id"]]
+
+
+async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastAPI):
+    program, old = await one_course(api, code="APS105", title="Computer Fundamentals")
+    winter = await api.term(program["id"], "Winter", "2027-01-04", "2027-04-30")
+    new = await api.course(program["id"], [winter["id"]], code="APS106", title="Programming")
+    old_mid = await api.assessment(old["id"], "Midterm", 20, due_date="2026-10-15")
+    new_mid = await api.assessment(new["id"], "Midterm", 20, due_date="2027-02-20")
+    async with app.state.session_factory() as db:
+        owner = await db.scalar(select(models.GradingScale.user_id))
+    assert owner
+
+    from semestra.core.context import ScopeRef
+
+    async with system_ctx(app.state, owner) as ctx:
+        ctx.scope = ScopeRef(program["id"], winter["id"], None)
+        found = candidates(
+            await registry.invoke(ctx, "grading.assessment.find", {"query": "midterm"}, "agent")
+        )
+    assert [c["id"] for c in found] == [new_mid["id"], old_mid["id"]]
+    assert (found[0]["course_code"], found[0]["course_title"], found[0]["in_current_term"]) == (
+        "APS106",
+        "Programming",
+        True,
+    )
+    assert found[1]["in_current_term"] is False
+
+    # One course asked for by id still says whether it is in the current term.
+    async with system_ctx(app.state, owner) as ctx:
+        ctx.scope = ScopeRef(program["id"], winter["id"], None)
+        for course, expected in ((new, True), (old, False)):
+            one = candidates(
+                await registry.invoke(
+                    ctx,
+                    "grading.assessment.find",
+                    {"query": "midterm", "course_id": course["id"]},
+                    "agent",
+                )
+            )
+            assert [c["in_current_term"] for c in one] == [expected]
 
 
 async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Api, app: FastAPI):
