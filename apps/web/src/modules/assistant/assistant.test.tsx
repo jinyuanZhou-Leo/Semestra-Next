@@ -5,13 +5,25 @@ import type {
   AgentSessionDetail,
   AgentSessionOut,
 } from '@semestra/api-client'
-import { screen, waitFor, within } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import {
+  Outlet,
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useNavigate,
+} from '@tanstack/react-router'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
-import { API, renderWithRouter, server } from '@/test-utils'
+import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
+import { SidebarProvider } from '@/ui/sidebar'
+import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
@@ -98,7 +110,10 @@ function msg(id: string, role: AgentMessageOut['role'], content: Record<string, 
   }
 }
 
+let assistantSettings: Record<string, unknown> = {}
+
 beforeEach(() => {
+  assistantSettings = {}
   srv = {
     detail: { session: session(), messages: [], proposals: [], attachments: [], generating: false },
     sent: [],
@@ -138,6 +153,9 @@ beforeEach(() => {
     http.post(`${API}/agent/sessions`, () => HttpResponse.json(srv.detail.session)),
     http.get(`${API}/agent/sessions`, () => HttpResponse.json({ items: [srv.detail.session] })),
     http.get(`${API}/agent/sessions/:id`, () => HttpResponse.json(srv.detail)),
+    http.get(`${API}/settings/assistant`, () =>
+      HttpResponse.json({ namespace: 'assistant', values: assistantSettings, inherited: {} }),
+    ),
     http.post(`${API}/agent/sessions/s1/*`, async ({ request }) => {
       const path = new URL(request.url).pathname
       const body = (await request.json()) as Record<string, unknown>
@@ -237,13 +255,77 @@ test('streamed events build the answer, its steps and the confirmation card', ()
   const items = buildItems(detail)
   expect(items.map((i) => i.kind)).toEqual(['user', 'assistant'])
   const answer = items[1]
-  expect(answer?.kind === 'assistant' && answer.text).toBe('Found it.')
+  // Words said before calling tools are part of the thinking, not the reply.
+  expect(answer?.kind === 'assistant' && answer.answer).toBe('')
+  expect(answer?.kind === 'assistant' && answer.process.map((e) => e.kind)).toEqual([
+    'text',
+    'step',
+    'step',
+  ])
   expect(answer?.kind === 'assistant' && answer.steps.map((s) => s.status)).toEqual([
     'done',
     'waiting',
   ])
   expect(answer?.kind === 'assistant' && answer.proposals).toHaveLength(1)
   expect(detail.session.title).toBe('Lab 3 score')
+})
+
+test('the messages of one answer form one item that sums how long the model worked', () => {
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: 'When is Lab 3 due?' }]),
+      msg('a1', 'assistant', [
+        { type: 'reasoning', text: 'Look it up.' },
+        { type: 'text', text: 'Let me check.' },
+        { type: 'tool_call', id: 'c1', name: 'grading__assessment__find', args: {} },
+        { type: 'timing', thinking_ms: 2400 },
+      ]),
+      msg('t1', 'tool', [{ type: 'tool_result', call_id: 'c1', name: 'x', is_error: false }]),
+      msg('a2', 'assistant', [
+        { type: 'reasoning', text: 'Friday.' },
+        { type: 'text', text: 'Lab 3 is due Friday.' },
+        { type: 'timing', thinking_ms: 600 },
+      ]),
+    ],
+    proposals: [],
+    attachments: [],
+    generating: false,
+  }
+  const [, answer] = buildItems(detail)
+  expect(answer).toMatchObject({
+    kind: 'assistant',
+    id: 'a1',
+    lastId: 'a2',
+    answer: 'Lab 3 is due Friday.',
+    thinkingMs: 3000,
+  })
+  expect(answer?.kind === 'assistant' && answer.process.map((e) => e.kind)).toEqual([
+    'reasoning',
+    'text',
+    'step',
+    'reasoning',
+  ])
+})
+
+test('an answer keeps streaming when the transcript is re-read mid-answer', () => {
+  // A refetch returns the server copy, which has no row for the answer being written yet.
+  const stored: AgentSessionDetail = {
+    session: session(),
+    messages: [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])],
+    proposals: [],
+    attachments: [],
+    generating: true,
+  }
+  const detail = applyEvent(stored, {
+    event: 'text_delta',
+    data: { message_id: 'a1', text: 'Hello' },
+  })
+  const [, answer] = buildItems(detail)
+  expect(answer?.kind === 'assistant' && answer.answer).toBe('Hello')
+  expect(
+    applyEvent(stored, { event: 'message_end', data: { message_id: 'a1' } }).messages,
+  ).toHaveLength(1)
 })
 
 test('an answer whose tools changed data cannot be regenerated', () => {
@@ -269,7 +351,7 @@ test('an answer whose tools changed data cannot be regenerated', () => {
     return detail
   }
   const read = turn(false)
-  expect(canRegenerate(read, buildItems(read))).toBe('a2')
+  expect(canRegenerate(read, buildItems(read))).toBe('a1')
   const wrote = turn(true)
   expect(canRegenerate(wrote, buildItems(wrote))).toBeNull()
 })
@@ -362,8 +444,10 @@ test('a write waits on a card: approving sends the decision and shows the result
     path: '/agent/sessions/s1/proposals/pr1:decide',
     body: { decision: 'approve', remember: true },
   })
-  // Answered, the card becomes a step line that opens to what changed and where.
+  // Answered, the card becomes a step line in the folded thinking block, which opens to what
+  // changed and where.
   await waitFor(() => expect(card).not.toBeInTheDocument())
+  await userEvent.click(await screen.findByRole('button', { name: /1 step/ }))
   await userEvent.click(await screen.findByRole('button', { name: /Ran Update an assessment/ }))
   expect(screen.getByText('90')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
@@ -707,4 +791,159 @@ test('assistant permissions group tools by effect, with a master switch for chan
   // Turning them off needs no confirmation.
   await userEvent.click(all)
   await waitFor(() => expect(patches.at(-1)).toEqual({ auto_approve: [] }))
+})
+
+function reasoningStream() {
+  let next: ((text: string) => void) | undefined
+  let finish: (() => void) | undefined
+  srv.reply = () => {
+    srv.detail.messages = [
+      msg('u1', 'user', [{ type: 'text', text: 'Is there a final?' }]),
+      msg('a1', 'assistant', [
+        { type: 'reasoning', text: 'Checking the syllabus.' },
+        { type: 'text', text: 'Yes, worth 40%. It is on Dec 12.' },
+        { type: 'timing', thinking_ms: 1200 },
+      ]),
+    ]
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encode = (name: string, data: unknown) =>
+          controller.enqueue(
+            new TextEncoder().encode(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`),
+          )
+        encode('message_start', { message_id: 'a1' })
+        encode('reasoning_delta', { message_id: 'a1', text: 'Checking the syllabus.' })
+        next = (text) => encode('text_delta', { message_id: 'a1', text })
+        finish = () => {
+          encode('message_end', { message_id: 'a1' })
+          controller.close()
+        }
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+  return { answer: (text: string) => next?.(text), finish: () => finish?.() }
+}
+
+test('the thinking block is open while the model thinks and folds once it answers', async () => {
+  const turn = reasoningStream()
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.type(await messageInput(), 'Is there a final?{Enter}')
+  const trigger = await screen.findByRole('button', { name: /Thinking/ })
+  expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByText('Checking the syllabus.')).toBeVisible()
+
+  turn.answer('Yes, worth 40%.')
+  expect(await screen.findByText('Yes, worth 40%.')).toBeInTheDocument()
+  const folded = screen.getByRole('button', { name: /Thought for/ })
+  expect(folded).toHaveAttribute('aria-expanded', 'false')
+
+  // Opened by hand, it stays open.
+  await userEvent.click(folded)
+  expect(folded).toHaveAttribute('aria-expanded', 'true')
+  turn.answer(' It is on Dec 12.')
+  turn.finish()
+  expect(await screen.findByRole('button', { name: 'Send' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Thought for/ })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+})
+
+test('with thinking text turned off, the block keeps only the steps and the time', async () => {
+  assistantSettings = { show_reasoning: false }
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Is there a final?' }]),
+    msg('a1', 'assistant', [
+      { type: 'reasoning', text: 'Checking the syllabus.' },
+      { type: 'text', text: 'Yes, worth 40%.' },
+      { type: 'timing', thinking_ms: 4200 },
+    ]),
+  ]
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Yes, worth 40%.')).toBeInTheDocument()
+  expect(await screen.findByText('Thought for 4s')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Thought for/ })).not.toBeInTheDocument()
+  expect(screen.queryByText('Checking the syllabus.')).not.toBeInTheDocument()
+})
+
+test('code is highlighted under a header with its language and a copy button', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Hello world in C++?' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: '```c++\nint main() { return 0; }\n```' }]),
+  ]
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const title = await screen.findByText('c++')
+  const block = title.closest('[data-slot=code-block]') as HTMLElement
+  expect(within(block).getByRole('button', { name: /copy/i })).toBeInTheDocument()
+  await waitFor(() => expect(block.querySelector('[style*="--shiki-light"]')).not.toBeNull())
+})
+
+test('messages do not pin themselves to the top: the transcript follows the newest one', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Lab 3.' }]),
+  ]
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await screen.findByText('Lab 3.')
+  // Scroll anchors moved the view whenever a sent message got its stored id (round 5, #13).
+  expect(document.querySelector('[data-scroll-anchor=true]')).toBeNull()
+})
+
+test('on the page, attaching a file to a new conversation keeps the text being typed', async () => {
+  server.use(
+    http.post(`${API}/agent/attachments`, () =>
+      HttpResponse.json({
+        id: 'f1',
+        session_id: 's1',
+        kind: 'file',
+        name: 'notes.txt',
+        mime: 'text/plain',
+        size: 5,
+        created_at: NOW,
+      }),
+    ),
+  )
+  const root = createRootRoute({ component: Outlet })
+  function Page() {
+    const { sessionId } = page.useParams()
+    const navigate = useNavigate()
+    return (
+      <AssistantPage
+        programId="p1"
+        sessionId={sessionId ?? null}
+        onNavigate={(id, options) =>
+          void navigate({
+            to: '/p/$programId/assistant/{-$sessionId}',
+            params: { programId: 'p1', sessionId: id ?? undefined },
+            replace: options?.replace,
+          })
+        }
+      />
+    )
+  }
+  const page = createRoute({
+    getParentRoute: () => root,
+    path: '/p/$programId/assistant/{-$sessionId}',
+    component: Page,
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([page]),
+    history: createMemoryHistory({ initialEntries: ['/p/p1/assistant'] }),
+  })
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <SidebarProvider>
+        <RouterProvider router={router} />
+      </SidebarProvider>
+    </QueryClientProvider>,
+  )
+  const input = await messageInput()
+  await userEvent.type(input, 'Look at this')
+  fireEvent.change(document.querySelector('input[type=file]') as HTMLInputElement, {
+    target: { files: [new File(['notes'], 'notes.txt', { type: 'text/plain' })] },
+  })
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/assistant/s1'))
+  expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Look at this')
 })

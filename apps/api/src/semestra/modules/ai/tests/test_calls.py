@@ -773,3 +773,62 @@ async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     body = json.loads(route.calls.last.request.content)
     assert body["requests"][0]["model"] == "models/gemini-embedding-001"
     assert body["requests"][0]["content"]["parts"] == [{"text": "a"}]
+
+
+async def test_anthropic_stream_passes_on_the_thinking_text(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+    events = [
+        {
+            "type": "message_start",
+            "message": {
+                "model": "claude-sonnet-5-5",
+                "usage": {"input_tokens": 9, "output_tokens": 0},
+            },
+        },
+        {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "thinking_delta", "thinking": "Two plus "},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "thinking_delta", "thinking": "two."},
+        },
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "signature_delta", "signature": "SIG"},
+        },
+        {"type": "content_block_stop", "index": 0},
+        {"type": "content_block_start", "index": 1, "content_block": {"type": "text"}},
+        {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": "4"}},
+        {"type": "content_block_stop", "index": 1},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {"output_tokens": 4},
+        },
+        {"type": "message_stop"},
+    ]
+    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+    mock.post(f"{ANTHROPIC}/v1/messages").mock(
+        return_value=Response(200, text=sse, headers={"content-type": "text/event-stream"})
+    )
+    async with ai.ctx() as ctx:
+        stream = await m06.complete(
+            ctx, "chat", [Message.user("2+2?")], stream=True, source_module="agent"
+        )
+        assert not isinstance(stream, m06.Completion)
+        chunks = [c async for c in stream]
+    assert [c.thinking for c in chunks if c.thinking] == ["Two plus ", "two."]
+    assert [c.text for c in chunks if c.text] == ["4"]
+    done = chunks[-1].done
+    assert done is not None
+    assert [(r.content, r.signature) for r in done.reasoning] == [("Two plus two.", "SIG")]

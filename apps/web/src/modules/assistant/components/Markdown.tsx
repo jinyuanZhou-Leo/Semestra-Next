@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useHighlightedCode } from '@/hooks/use-highlighted-code'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/ui/hover-card'
@@ -11,7 +12,9 @@ import {
   CodeBlockActions,
   CodeBlockContent,
   CodeBlockCopyButton,
+  CodeBlockHeader,
   CodeBlockLine,
+  CodeBlockTitle,
 } from '@/ui/code-block'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import type { Citation } from '../stream'
@@ -88,13 +91,26 @@ function InternalLink({ href, children }: { href: string; children: ReactNode })
   )
 }
 
-function Code({ code, language }: { code: string; language: string }) {
-  const lines = useHighlightedCode(code, language)
+/** A fenced block (AI Elements "Code Block"): its language and a copy button on top. */
+function Code({ code, language }: { code: string; language: string | null }) {
+  const lines = useHighlightedCode(code, language ?? 'text')
+  const copy = (
+    <CodeBlockActions>
+      <CodeBlockCopyButton value={code.replace(/\n$/, '')} />
+    </CodeBlockActions>
+  )
   return (
     <CodeBlock size="sm" className="my-2">
-      <CodeBlockActions>
-        <CodeBlockCopyButton value={code} />
-      </CodeBlockActions>
+      {language ? (
+        <CodeBlockHeader>
+          <CodeBlockTitle className="font-mono font-normal text-muted-foreground">
+            {language}
+          </CodeBlockTitle>
+          {copy}
+        </CodeBlockHeader>
+      ) : (
+        copy
+      )}
       <CodeBlockContent>
         {lines.map((line, index) => (
           // oxlint-disable-next-line react/no-array-index-key -- lines have no identity
@@ -123,12 +139,13 @@ function components(citations: ReadonlyMap<string, Citation>): Components {
     },
     pre: ({ children }) => <>{children}</>,
     code: ({ className, children }) => {
-      const language = /language-(\w+)/.exec(className ?? '')?.[1]
+      // Any fence word counts (`c++`, `objective-c`); unknown ones show as plain text.
+      const language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null
       const text = String(children ?? '')
       if (!language && !text.includes('\n')) {
         return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{text}</code>
       }
-      return <Code code={text} language={language ?? 'text'} />
+      return <Code code={text} language={language} />
     },
     table: ({ children }) => (
       <div className="my-2 overflow-x-auto rounded-xl border">
@@ -147,12 +164,19 @@ function components(citations: ReadonlyMap<string, Citation>): Components {
 export function Markdown({
   text,
   citations,
+  className,
 }: {
   text: string
   citations: ReadonlyMap<string, Citation>
+  className?: string
 }) {
   return (
-    <div className="space-y-2 text-sm leading-relaxed wrap-break-word [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:font-medium [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground">
+    <div
+      className={cn(
+        'space-y-2 text-sm leading-relaxed wrap-break-word [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:font-medium [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
+        className,
+      )}
+    >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components(citations)}>
         {linkCitations(text, citations)}
       </ReactMarkdown>

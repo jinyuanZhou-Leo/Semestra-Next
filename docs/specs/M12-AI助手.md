@@ -19,7 +19,7 @@
 agent_sessions
   id, user_id, program_id?, title?, scope JSON (创建时的作用域), pinned (bool), created_at, updated_at, archived_at?
 agent_messages
-  id, session_id, user_id, role ('user'|'assistant'|'tool'), content JSON (blocks: text | image_ref | file_ref | tool_call | tool_result | proposal_ref | citation | reasoning（只回放给同一模型，不返回前端）),
+  id, session_id, user_id, role ('user'|'assistant'|'tool'), content JSON (blocks: text | image_ref | file_ref | tool_call | tool_result | proposal_ref | citation | reasoning（完整内容只回放给同一模型；返回前端时只留可读文字 `{type, text}`）| reasoning_text（停止或出错前已流出的思考文字，只显示不回放，返回前端同样是 `{type: "reasoning", text}`）| timing（`thinking_ms`：开始回答前用了多久）),
   model?, input_tokens?, output_tokens?, created_at
 agent_proposals
   id, session_id, user_id, message_id, capability, args JSON, preview JSON,
@@ -90,7 +90,7 @@ agent_preferences
 | 路由/能力 | 说明 |
 |---|---|
 | `agent.session.list/get/create/update/delete` | 会话管理（http only） |
-| `POST /agent/sessions/{id}/messages` | 发送消息（text、attachments、scope、slash skill），返回 SSE 流：`message_start`、`text_delta`、`tool_call`（名称、参数摘要）、`tool_result`（摘要）、`proposal`、`citation`、`message_end`（tokens）、`error` |
+| `POST /agent/sessions/{id}/messages` | 发送消息（text、attachments、scope、slash skill），返回 SSE 流：`message_start`、`reasoning_delta`（思考摘要）、`text_delta`、`tool_call`（名称、参数摘要）、`tool_result`（摘要）、`proposal`、`citation`、`message_end`（tokens）、`error` |
 | `POST /agent/sessions/{id}/proposals/{pid}:decide` | `{decision: approve|reject|edit, args?, remember?}`，返回 SSE 流继续生成 |
 | `POST /agent/sessions/{id}:stop` | 中止当前生成 |
 | `POST /agent/sessions/{id}/messages/{mid}:regenerate` | 重新生成最后一条回答 |
@@ -116,6 +116,7 @@ agent_preferences
 - 右侧可停靠面板（宽度可拖拽 360–720px，记忆宽度），`Cmd/Ctrl+J` 开关；全屏页面 `/assistant/$sessionId?`（左侧会话列表：置顶、按时间分组、搜索、重命名、删除）。
 - 顶部：会话标题、新会话、历史、展开为全屏、上下文标签（显示当前作用域，如"APS105 · Fall 2026"，可点击移除或切换为 Program 级）。
 - 消息：Markdown（`react-markdown` + GFM，代码高亮，表格）；引用渲染为 `<Citation>`；工具调用以折叠的"步骤"行显示（图标 + 本地化的能力名 + 状态），展开查看参数与结果摘要。
+- 思考过程（AI Elements Chain of Thought，UI/UX 第五轮）：一次回答里开始作答之前的所有内容（模型的思考摘要、调用工具前说的话、工具步骤）收在回答上方一个可折叠块里，标题在思考时是「思考中…」，之后是「思考了 8 秒 · 3 个步骤」。模型在思考或调用工具时展开，正文开始输出时自动折叠；用户手动展开或收起后不再自动改变。账户设置「显示思考文字」（命名空间 `assistant.show_reasoning`，默认开）关闭时，块里只剩工具步骤和用时。这个设置只影响界面显示：服务器照常发送和返回思考文字，重新打开后之前的思考也能看到。
 - **提案卡片**：标题、预览（变更列表，before → after 对比）、参数编辑（展开表单）、批准 / 拒绝 / "以后不再询问"；多个提案时"全部批准"。执行后卡片变为结果状态（成功/失败原因），并提供跳转到相关页面的链接（如"打开成绩页"）。
 - 输入框：多行、`Enter` 发送/`Shift+Enter` 换行、`/` 斜杠命令（skill 列表，双语标题）、`@` 引用课程/学期/文件（插入作用域引用）、附件拖放与粘贴图片、停止生成按钮。
 - 空会话时显示建议问题（按当前作用域生成静态模板，如"这周有哪些截止？"、"我这门课期末需要考多少分才能拿 A？"、"从 syllabus 导入这门课"）。
@@ -184,8 +185,13 @@ agent_preferences
 - 面板由 app shell 通过新的 `assistant.Dock` 扩展点挂载（`AssistantContribution` 增加 `Dock` 与 `panel` 状态订阅），`react-resizable-panels` 实现 360–720px 拖拽，宽度存 `useUiPref('layout.assistant_width')`；手机上和助手页面上不显示面板。面板组件挂载时只读一次记忆宽度作 `defaultSize`：`defaultSize` 变化会让库重新注册面板，之前每次 `onResize` 写回宽度都会打断拖动（只能拖动一步），这是"拖不动"的原因。
 - **名字与入口**（第三轮）：界面上叫「Sem」（取自 Semestra，拟人化，不突出 AI；名字不翻译，中文界面也叫 Sem；模块 id 仍是 `assistant`），图标 `MessageCircle`。侧边栏"搜索"下方一行：点击进入全屏页 `/p/$programId/assistant`（在该页时高亮）；行尾 `SidebarMenuAction`（`PictureInPicture2`，悬停或面板打开时才显示，tooltip「在侧边栏打开 ⌘J」）开关右侧面板（在全屏页上不显示，那里没有面板）；`Cmd/Ctrl+J` 仍开关面板。界面导览仍指向这一行（`data-tour="assistant"`）。
 - **工作范围**（取代"上下文"标签）：输入框上方 `FolderOpen` + 范围名（"Fall 2026" 或 Program 名），菜单标题「Sem 在这里工作」，单选：整个学业项目 + 各学期（当前学期排第一并带「当前」标记，其余按开始日期倒序）。不能移除范围，也不再细到课程：在课程页打开时默认用课程所属学期（`usePageScope`，按 `courseTermId` 取当前学期），`@` 选课程时切换到该课程的学期。全屏页默认整个学业项目。
-- 回答的复制 / 重新生成在回答底部（`MessageFooter` 放进 `MessageContent`）；最后一条回答常显，其余悬停或键盘聚焦时显示；生成中保留占位（`invisible`），不跳动。用户消息悬停出现复制与「编辑」：原位变成输入框（Enter 发送、Esc 取消，提示"发送后，这条消息之后的对话会被删除"）。
+- 回答的复制 / 重新生成在回答底部（`MessageFooter` 放进 `MessageContent`）；最后一条回答常显，其余悬停或键盘聚焦时显示；生成中保留占位（`invisible`），不跳动。用户消息悬停出现复制与「编辑」：原位变成输入框（Enter 发送、Esc 取消）。第五轮去掉了"发送后，这条消息之后的对话会被删除"这行提示，发送也不弹确认（和 ChatGPT、Claude 一致）；那行不换行的提示还会把编辑框撑出消息区，导致右侧的 focus 外框被裁掉。
+- **一次回答是一项**（第五轮）：两条用户消息之间的所有助手消息合成一项（`transcript.ts` 的 `buildItems`）：最后一条不再调用工具的消息的文字是正文，之前的思考、文字和步骤进思考过程块；复制和重新生成针对整项。
+- **思考内容**（第五轮）：M06 的流式接口多了 `Chunk.thinking`（Pydantic AI 的 `ThinkingPart` 增量），agent 循环转成 SSE `reasoning_delta`；`reasoning` 块原样保存以便回放，`message_out` 只把非空的思考文字以 `{type: "reasoning", text}` 给前端（签名、加密内容不出服务器）。每条助手消息存一个 `{type: "timing", thinking_ms}`：从开始请求到第一段正文的毫秒数，只调用工具的步骤记整段时长；前端流式时按同样规则本地计时，回合结束后以服务器为准。OpenAI Responses 设了 `reasoning_effort` 时请求 `reasoning.summary = "auto"`，否则服务商不返回思考摘要；服务商拒绝这个请求时（OpenAI 要求组织已验证，部分兼容网关不认这个字段）去掉它重试一次，成功后本进程内对该服务商不再请求；停止、出错或断开时已流出的思考文字存成 `reasoning_text` 块，刷新后仍显示，但没有签名，不回放给模型；其它服务商返回什么就显示什么（Anthropic 的 thinking、DeepSeek 等兼容接口的 `reasoning_content`）。
+- **滚动**（第五轮）：去掉用户消息的 `scrollAnchor`。之前发送后先把用户消息滚到顶部，回合结束重新读取时这条消息换成服务器 id，被当成新的锚点又滚一次，表现为滚动条乱跳。现在只用 `MessageScroller` 的 `autoScroll`（贴底跟随，用户往上滚就停止跟随并出现回到底部按钮），发送或编辑后主动 `scrollToEnd`。另外全屏页标题的查询改为不主动重新读取：新会话第一条回答进行中它会把缓存换成服务器版本，之后的增量找不到那条消息，整段回答要等结束才出现；`applyEvent` 现在遇到不存在的消息会补建。
+- **代码块**（第五轮）：`lib/highlighter.tsx`（shadcn CLI 生成，按其注释在这里加语言）从 13 种扩到 50 多种（C/C++、Java、MATLAB、LaTeX、Verilog、Go、Rust、R 等，常见别名如 `c++`、`m`、`tex`、`sv`）；围栏语言名按原样匹配（以前 `language-(\w+)` 会把 `c++` 截成 `c`）；有语言的代码块顶部显示语言名和复制按钮（AI Elements Code Block），未知语言按纯文本显示但保留代码块样式。
 - （UI/UX 第五轮）全屏页没有自己的会话栏和大标题：最近 8 条对话（置顶在前）在应用侧边栏 Sem 项下展开，各带重命名/置顶/删除，末尾「全部对话…」打开可搜索的列表；对话标题（点击改名）、新对话、⋯ 菜单放在应用顶栏那一行（`app/host/ShellToolbar`）；侧边栏收成图标栏时顶栏多一个「历史对话」按钮。右侧面板顶栏 40px。
+- （第五轮补充）工作范围选择器放在输入框外、正上方的一行（之前在输入框内顶部）；拖入文件时的提示带 `FileUp` 图标。全屏页按同一次读取的地址（路径最后一段和历史记录的 key）决定对话组件的 key：路由先更新地址、后更新参数，之前单读历史 key 会在新对话拿到网址的那一帧换 key，组件重新挂载，输入框里的文字被清空（先加附件再发送时最明显）。
 - 全屏页路由为 `/p/$programId/assistant/{-$sessionId}`（放在 Program 外壳内，保留侧边栏），而不是 `/assistant/$sessionId?`；新会话创建后替换 URL，不打断正在进行的回答。
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
 - 工作范围：新会话默认用当前页面的范围，用户选过之后以选择为准；已有会话显示并修改会话自己的范围（`agent.session.update`）。

@@ -58,6 +58,9 @@ class FakeModel:
         assert self.script, "the model was called more often than scripted"
         step = self.script.pop(0)
         completion = step(list(messages)) if callable(step) else step
+        for thought in completion.reasoning:
+            if thought.content:
+                yield Chunk(thinking=thought.content)
         if completion.text:
             half = len(completion.text) // 2 or 1
             yield Chunk(text=completion.text[:half])

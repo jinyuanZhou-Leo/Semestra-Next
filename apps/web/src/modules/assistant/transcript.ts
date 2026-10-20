@@ -23,6 +23,12 @@ export type Step = {
 
 export type AttachmentRef = { id: string; name: string; kind: 'image' | 'file' }
 
+/** What the model did before it answered, in order: shown folded in the thinking block. */
+export type ProcessEntry =
+  | { kind: 'reasoning'; key: string; text: string }
+  | { kind: 'text'; key: string; text: string }
+  | { kind: 'step'; key: string; step: Step }
+
 export type ViewItem =
   | {
       kind: 'user'
@@ -32,14 +38,36 @@ export type ViewItem =
       attachments: AttachmentRef[]
     }
   | {
+      /** One answer: every assistant message between two user messages. */
       kind: 'assistant'
+      /** The first message of the answer (a stable key while more messages stream in). */
       id: string
-      text: string
+      /** The last message; regenerating any message of the last answer replaces all of it. */
+      lastId: string
+      process: ProcessEntry[]
+      /** The reply itself: the text of the last message once it no longer calls tools. */
+      answer: string
       steps: Step[]
       proposals: AgentProposalOut[]
+      /** How long the model worked before answering; null for answers stored without it. */
+      thinkingMs: number | null
     }
 
+type AssistantItem = Extract<ViewItem, { kind: 'assistant' }>
+
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+function textOf(message: AgentMessageOut): string {
+  return message.content
+    .filter((b) => b.type === 'text')
+    .map((b) => str(b.text))
+    .join('')
+}
+
+function timingOf(message: AgentMessageOut): number | null {
+  const ms = message.content.find((b) => b.type === 'timing')?.thinking_ms
+  return typeof ms === 'number' ? ms : null
+}
 
 /** The stored transcript as the conversation shows it: tool messages fold into their steps. */
 export function buildItems(detail: AgentSessionDetail, generating = false): ViewItem[] {
@@ -51,11 +79,36 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
     }
   }
   const proposalByCall = new Map(detail.proposals.map((p) => [p.call_id, p]))
+  const stepOf = (call: Block): Step => {
+    const callId = str(call.id)
+    const result = results.get(callId)
+    const proposal = proposalByCall.get(callId)
+    let status: StepStatus = generating ? 'running' : 'error'
+    if (result) status = result.is_error ? 'error' : 'done'
+    if (proposal?.status === 'pending') status = 'waiting'
+    else if (proposal?.status === 'rejected') status = 'rejected'
+    else if (proposal?.status === 'expired') status = 'expired'
+    return {
+      callId,
+      name: capabilityName(str(call.name)),
+      args: (call.args as Record<string, unknown> | undefined) ?? {},
+      status,
+      errorCode: result ? ((result.error_code as string | null) ?? null) : null,
+      proposal: proposal ?? null,
+    }
+  }
+
   const items: ViewItem[] = []
+  let turn: AgentMessageOut[] = []
+  const closeTurn = () => {
+    if (turn.length > 0) items.push(assistantItem(turn, detail.proposals, stepOf))
+    turn = []
+  }
   for (const message of detail.messages) {
     if (message.role === 'user') {
       const content = message.content
       if (content.every((b) => b.type === 'note')) continue
+      closeTurn()
       items.push({
         kind: 'user',
         id: message.id,
@@ -73,37 +126,54 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
           })),
       })
     } else if (message.role === 'assistant') {
-      const calls = message.content.filter((b) => b.type === 'tool_call')
-      items.push({
-        kind: 'assistant',
-        id: message.id,
-        text: message.content
-          .filter((b) => b.type === 'text')
-          .map((b) => str(b.text))
-          .join(''),
-        steps: calls.map((call) => {
-          const callId = str(call.id)
-          const result = results.get(callId)
-          const proposal = proposalByCall.get(callId)
-          let status: StepStatus = generating ? 'running' : 'error'
-          if (result) status = result.is_error ? 'error' : 'done'
-          if (proposal?.status === 'pending') status = 'waiting'
-          else if (proposal?.status === 'rejected') status = 'rejected'
-          else if (proposal?.status === 'expired') status = 'expired'
-          return {
-            callId,
-            name: capabilityName(str(call.name)),
-            args: (call.args as Record<string, unknown> | undefined) ?? {},
-            status,
-            errorCode: result ? ((result.error_code as string | null) ?? null) : null,
-            proposal: proposal ?? null,
-          }
-        }),
-        proposals: detail.proposals.filter((p) => p.message_id === message.id),
-      })
+      turn.push(message)
     }
   }
+  closeTurn()
   return items
+}
+
+function assistantItem(
+  messages: AgentMessageOut[],
+  proposals: readonly AgentProposalOut[],
+  stepOf: (call: Block) => Step,
+): AssistantItem {
+  const last = messages.at(-1) as AgentMessageOut
+  const lastCalls = last.content.some((b) => b.type === 'tool_call')
+  const process: ProcessEntry[] = []
+  const steps: Step[] = []
+  let thinkingMs: number | null = null
+  for (const message of messages) {
+    const calls = message.content.filter((b) => b.type === 'tool_call')
+    message.content.forEach((block, index) => {
+      if (block.type === 'reasoning' && str(block.text)) {
+        process.push({ kind: 'reasoning', key: `${message.id}-r${index}`, text: str(block.text) })
+      }
+    })
+    const text = textOf(message)
+    // Words said before calling tools ("Let me check your grades") belong to the process.
+    if (text && (message !== last || lastCalls)) {
+      process.push({ kind: 'text', key: `${message.id}-t`, text })
+    }
+    for (const call of calls) {
+      const step = stepOf(call)
+      steps.push(step)
+      process.push({ kind: 'step', key: step.callId, step })
+    }
+    const ms = timingOf(message)
+    if (ms !== null) thinkingMs = (thinkingMs ?? 0) + ms
+  }
+  const ids = new Set(messages.map((m) => m.id))
+  return {
+    kind: 'assistant',
+    id: (messages[0] as AgentMessageOut).id,
+    lastId: last.id,
+    process,
+    answer: lastCalls ? '' : textOf(last),
+    steps,
+    proposals: proposals.filter((p) => ids.has(p.message_id)),
+    thinkingMs,
+  }
 }
 
 /** Every file quoted in the conversation, by id. */
@@ -140,6 +210,10 @@ function updateMessage(
   id: string,
   change: (content: Block[]) => Block[],
 ): AgentSessionDetail {
+  if (!detail.messages.some((m) => m.id === id)) {
+    // The transcript was re-read after the answer began: keep streaming into a new copy.
+    return { ...detail, messages: [...detail.messages, newMessage(id, 'assistant', change([]))] }
+  }
   return {
     ...detail,
     messages: detail.messages.map((m) => (m.id === id ? { ...m, content: change(m.content) } : m)),
@@ -177,6 +251,24 @@ export function withEditedMessage(
   }
 }
 
+/** Adds streamed text to the last block of that type, or starts one. */
+function appendText(content: Block[], type: 'text' | 'reasoning', text: string): Block[] {
+  const last = content.at(-1)
+  if (last?.type === type) {
+    return [...content.slice(0, -1), { ...last, text: str(last.text) + text }]
+  }
+  return [...content, { type, text }]
+}
+
+/** Records how long the message has been worked on; `again` replaces an earlier stop. */
+function stopTimer(content: Block[], again: boolean): Block[] {
+  return content.map((block) => {
+    if (block.type !== 'timing' || typeof block.started !== 'number') return block
+    if (typeof block.thinking_ms === 'number' && !again) return block
+    return { ...block, thinking_ms: Date.now() - block.started }
+  })
+}
+
 /** Applies one streamed event to the cached transcript (the server copy is re-read after). */
 export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): AgentSessionDetail {
   switch (event.event) {
@@ -184,21 +276,29 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
       if (detail.messages.some((m) => m.id === event.data.message_id)) return detail
       return {
         ...detail,
-        messages: [...detail.messages, newMessage(event.data.message_id, 'assistant', [])],
+        messages: [
+          ...detail.messages,
+          // Times the model's work like the server does (`thinking_ms`) until it is re-read.
+          newMessage(event.data.message_id, 'assistant', [{ type: 'timing', started: Date.now() }]),
+        ],
       }
+    case 'reasoning_delta':
+      return updateMessage(detail, event.data.message_id, (content) =>
+        appendText(content, 'reasoning', event.data.text),
+      )
     case 'text_delta':
-      return updateMessage(detail, event.data.message_id, (content) => {
-        const last = content.at(-1)
-        if (last?.type === 'text') {
-          return [...content.slice(0, -1), { ...last, text: str(last.text) + event.data.text }]
-        }
-        return [...content, { type: 'text', text: event.data.text }]
-      })
+      return updateMessage(detail, event.data.message_id, (content) =>
+        appendText(stopTimer(content, false), 'text', event.data.text),
+      )
     case 'tool_call':
       return updateMessage(detail, event.data.message_id, (content) => [
-        ...content,
+        // A step that calls tools worked until its end, words before the call included.
+        ...stopTimer(content, true),
         { type: 'tool_call', id: event.data.call_id, name: event.data.name, args: event.data.args },
       ])
+    case 'message_end':
+      if (!detail.messages.some((m) => m.id === event.data.message_id)) return detail
+      return updateMessage(detail, event.data.message_id, (content) => stopTimer(content, false))
     case 'tool_result':
       return {
         ...detail,
@@ -239,11 +339,7 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
 export function canRegenerate(detail: AgentSessionDetail, items: ViewItem[]): string | null {
   const last = items.at(-1)
   if (last?.kind !== 'assistant') return null
-  const lastUser = items.findLastIndex((item) => item.kind === 'user')
-  const turn = items.slice(lastUser + 1).map((item) => item.id)
-  const decided = detail.proposals.some(
-    (p) => turn.includes(p.message_id) && (p.status === 'executed' || p.status === 'failed'),
-  )
+  const decided = last.proposals.some((p) => p.status === 'executed' || p.status === 'failed')
   // Auto-approved writes run without a proposal; their result says the data changed.
   const lastUserRow = detail.messages.findLastIndex((m) => m.role === 'user')
   const ran = detail.messages

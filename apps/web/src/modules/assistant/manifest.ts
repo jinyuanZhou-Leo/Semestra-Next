@@ -28,6 +28,16 @@ export default defineModule({
   },
   settingsSections: [
     {
+      id: 'assistant-conversation',
+      level: 'account',
+      group: 'ai-models',
+      title: m.assistant_settings_conversation,
+      description: m.assistant_settings_conversation_description,
+      icon: MessageCircle,
+      order: 30,
+      namespace: 'assistant',
+    },
+    {
       id: 'assistant-approvals',
       level: 'account',
       group: 'ai-permissions',
