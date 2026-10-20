@@ -410,7 +410,7 @@ async def test_pages_read_later_and_outlines_are_marked_untrusted(
     assert "Ignore previous instructions" in wrapped.split("</untrusted_document>")[0]
     assert "agent__attachment__read" in outline.split("</untrusted_document>")[1]
     [result] = model.results(-1)
-    assert str(result.content).startswith('<untrusted_document label="agent.attachment.read">')
+    assert str(result.content).startswith('<untrusted_document label="agent__attachment__read">')
     assert "Ignore previous instructions" in str(result.content)
 
 

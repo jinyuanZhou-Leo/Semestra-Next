@@ -7,7 +7,7 @@ import re
 from semestra.core.capability import registry
 from semestra.main import create_app
 
-# Entity words that end in "s" but are singular.
+# Entity words that end in "s" but are singular (add new ones such as "class" here).
 SINGULAR = {"status", "syllabus"}
 # The account itself is the entity.
 EXCEPTIONS = {"account.delete"}
@@ -20,8 +20,10 @@ def test_capability_names_are_module_entity_verb():
         parts = cap.name.split(".")
         if cap.name in EXCEPTIONS:
             continue
-        if len(parts) < 3 or not all(re.fullmatch(r"[a-z][a-z0-9_]*", p) for p in parts):
-            wrong.append(cap.name)
-        elif any(p.endswith("s") and p not in SINGULAR for p in parts[1:-1]):
+        if (
+            len(parts) < 3
+            or not all(re.fullmatch(r"[a-z][a-z0-9_]*", p) for p in parts)
+            or any(p.endswith("s") and p not in SINGULAR for p in parts[1:-1])
+        ):
             wrong.append(cap.name)
     assert wrong == []
