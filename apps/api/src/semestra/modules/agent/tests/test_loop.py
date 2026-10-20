@@ -7,12 +7,19 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from pydantic_ai.messages import ModelMessage, TextPart, ThinkingPart, ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
 from sqlalchemy import update
 
 from semestra.core.errors import AppError
-from semestra.modules.agent import loop, service
+from semestra.modules.agent import history, loop, service
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.runtime import agent_ctx
 from semestra.modules.agent.tests.conftest import (
@@ -23,6 +30,7 @@ from semestra.modules.agent.tests.conftest import (
     call,
     calls,
     events_named,
+    report_input_tokens,
     say,
 )
 from semestra.modules.auth.models import AuthUser
@@ -556,6 +564,22 @@ async def test_the_count_goes_on_across_an_approval(agent: Agent, model: FakeMod
     assert events_named(events, "paused")[0]["reason"] == "tool_limit"
 
 
+async def test_a_turn_paused_while_a_card_waits_stays_paused(agent: Agent, model: FakeModel):
+    # The limit was hit in the batch that proposed the card: after the decision the model only
+    # gives its closing answer.
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    write = ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 50})
+    reads = [("academics.term.list", {"program_id": f"p{i}"}) for i in range(loop.TOOL_CALL_LIMIT)]
+    model.then(calls([*reads[:-1], write, reads[-1]]))
+    [proposal] = events_named(await agent.send(session["id"], "go"), "proposal")
+    model.then(say("Stopping here."))
+    events = await agent.decide(session["id"], proposal["id"])
+    assert events_named(events, "paused")[0]["reason"] == "tool_limit"
+    assert texts(events) == "Stopping here."
+    assert (model.requests[-1][1].model_settings or {}).get("tool_choice") == "none"
+
+
 async def test_the_same_call_again_and_again_is_stopped(agent: Agent, model: FakeModel):
     program = await agent.program()
     session = await agent.session()
@@ -823,7 +847,11 @@ async def test_compaction_summarizes_old_turns(app: FastAPI, agent: Agent, model
     for i in range(1, 3):
         model.then(say(f"answer {i} " + "x" * 400))
         await agent.send(session["id"], f"question {i} " + "y" * 400)
-    model.context_window = 500
+    # The messages alone look small; the provider counted the whole prompt (instructions,
+    # tools, attachments) for the last answer.
+    model.context_window = 10_000
+    assert history.estimate_tokens(model.requests[-1][0]) < 0.7 * model.context_window
+    await report_input_tokens(app, session["id"], 7_500)
     model.then(say("fine"))
     await agent.send(session["id"], "question 3")
     sent = model.last_text()
@@ -841,13 +869,50 @@ async def test_compaction_summarizes_old_turns(app: FastAPI, agent: Agent, model
     assert "question 0" not in model.last_text()
 
 
-def test_attachment_only_messages_are_user_turns():
-    from pydantic_ai.messages import ModelRequest, UserPromptPart
+async def test_the_summary_still_applies_after_switching_models(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    """Dropping another model's reasoning keeps the answer's row id (the summary is tied to it)."""
+    summaries: list[str] = []
+    small = app.state.agent.small_complete
 
-    stamped = ModelRequest(parts=[UserPromptPart(["[Sent Mon 2026-10-19 10:00]", "x"])])
-    note = ModelRequest(parts=[UserPromptPart(["[Note] scope changed"])])
-    assert loop._typed(stamped)  # pyright: ignore[reportPrivateUsage]
-    assert not loop._typed(note)  # pyright: ignore[reportPrivateUsage]
+    async def counting(ctx: Any, messages: Any) -> str:
+        if "Summarize" in str(messages[0].content):  # not the title
+            summaries.append("x")
+        return await small(ctx, messages)
+
+    app.state.agent.small_complete = counting
+    session = await agent.session()
+    for i in range(3):
+        model.then(say(f"answer {i}", thinking=[Thought("Think.", signature="ENC")]))
+        await agent.send(session["id"], f"question {i}")
+    model.context_window = 10_000
+    await report_input_tokens(app, session["id"], 7_500)
+    model.then(say("fine", thinking=[Thought("Think.", signature="ENC")]))
+    await agent.send(session["id"], "question 3")
+    assert len(summaries) == 1
+
+    model.source = "test:instance:other-model"
+    for i in (4, 5):
+        model.then(say("ok"))
+        await agent.send(session["id"], f"question {i}")
+        sent = model.last_text()
+        assert "Summary of the earlier conversation" in sent
+        assert "question 0" not in sent
+    assert len(summaries) == 1
+    assert all(not isinstance(p, ThinkingPart) for r in model.responses_of(-1) for p in r.parts)
+
+
+def test_user_turns_are_rows_the_person_wrote():
+    from semestra.modules.agent.models import AgentMessage
+
+    attachment_only = AgentMessage(role="user", content=[{"type": "attachment", "id": "a1"}])
+    note = AgentMessage(role="user", content=[{"type": "note", "text": "scope changed"}])
+    assert history.is_typed(attachment_only)
+    assert not history.is_typed(note)
+    marked = ModelRequest(parts=[UserPromptPart("x")], metadata={"typed": True})
+    assert loop._typed(marked)  # pyright: ignore[reportPrivateUsage]
+    assert not loop._typed(ModelRequest(parts=[UserPromptPart("[Sent Mon] x")]))  # pyright: ignore[reportPrivateUsage]
 
 
 async def test_regenerate_replaces_the_last_answer(agent: Agent, model: FakeModel):

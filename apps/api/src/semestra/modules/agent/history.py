@@ -31,6 +31,9 @@ from pydantic_ai.messages import (
     UserContent,
     UserPromptPart,
 )
+from pydantic_ai.toolsets._tool_search import (  # pyright: ignore[reportPrivateImportUsage]
+    discovered_tool_names_in_order,
+)
 
 from semestra.core.context import Ctx
 from semestra.modules.agent import tools
@@ -262,6 +265,21 @@ def estimate_tokens(messages: Sequence[ModelMessage]) -> int:
     return chars // CHARS_PER_TOKEN + images * IMAGE_TOKENS
 
 
+def prompt_tokens(messages: Sequence[ModelMessage]) -> int:
+    """How big a request is: what the provider counted for the last answer (instructions, tools
+    and attachments included) plus that answer and an estimate of what came after it. Only
+    the estimate before the first answer."""
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, ModelResponse) and msg.usage.input_tokens:
+            return (
+                msg.usage.input_tokens
+                + msg.usage.output_tokens
+                + estimate_tokens(messages[i + 1 :])
+            )
+    return estimate_tokens(messages)
+
+
 def transcript_text(messages: Sequence[ModelMessage]) -> str:
     """Plain text of messages for the summarizer (attachments and tool payloads abbreviated)."""
     lines: list[str] = []
@@ -283,20 +301,10 @@ def transcript_text(messages: Sequence[ModelMessage]) -> str:
 
 
 def revealed_tools(messages: Sequence[ModelMessage]) -> list[str]:
-    """Tools that search or a skill revealed in these messages (kept visible after compaction)."""
-    names: dict[str, None] = {}
-    for msg in messages:
-        if not isinstance(msg, ModelRequest):
-            continue
-        for part in msg.parts:
-            if isinstance(part, ToolAvailabilityDeltaPart):
-                names.update(dict.fromkeys(part.tools_added))
-            elif isinstance(part, ToolReturnPart) and part.tool_name == tools.SEARCH_TOOLS:
-                content = part.content if isinstance(part.content, dict) else {}
-                for match in content.get("discovered_tools", []) or []:
-                    if isinstance(match, dict) and isinstance(match.get("name"), str):
-                        names[match["name"]] = None
-    return list(names)
+    """Tools that search or a skill revealed in these messages (kept visible after compaction),
+    in the order they were found. Pydantic AI's own reading of the history, so it follows the
+    library's search strategies and result shapes."""
+    return list(discovered_tool_names_in_order(messages))
 
 
 def summary_request(summary: str, revealed: list[str]) -> ModelRequest:

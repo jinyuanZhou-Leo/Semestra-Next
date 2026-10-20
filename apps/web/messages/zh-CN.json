@@ -950,7 +950,7 @@
   "ai_usage_tokens_split": "输入 {input}，输出 {output}",
   "ai_usage_cost": "费用",
   "ai_usage_cache_hit_rate": "缓存命中率",
-  "ai_usage_cache_hit_rate_hint": "输入 token 中由服务商从提示缓存读取的比例（计费更低）",
+  "ai_usage_cache_hit_rate_hint": "助手的输入 token 中由服务商从提示缓存读取的比例（计费更低）",
   "ai_usage_cost_estimate": "估算费用",
   "ai_usage_cost_partial": "至少 {cost}",
   "ai_usage_chart_title": "每日 token",

@@ -43,9 +43,10 @@ from pydantic_ai.messages import (
     ThinkingPartDelta,
     ToolCallPart,
     ToolReturnPart,
-    UserPromptPart,
 )
-from pydantic_ai.models import ModelRequestContext
+from pydantic_ai.models import Model, ModelRequestContext
+from pydantic_ai.native_tools import SUPPORTED_NATIVE_TOOLS
+from pydantic_ai.native_tools._tool_search import ToolSearchTool
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import (
     DeferredToolRequests,
@@ -221,6 +222,8 @@ class Counters:
     requests: int = 0
     last_call: str | None = None
     repeats: int = 0
+    # Set at the limit or on a loop: a run resumed after approvals goes straight to the answer.
+    pause: PauseReason | None = None
 
     @classmethod
     def load(cls, raw: Any) -> Counters:
@@ -251,7 +254,6 @@ class Turn:
     )  # args changed on the card
     full: dict[str, tuple[str, str]] = field(default_factory=lambda: {})  # uncut results
     sem: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(PARALLEL_READS))
-    pause: PauseReason | None = None
 
 
 def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: Turn) -> ToolReturn:
@@ -345,17 +347,17 @@ class _Hooks(AbstractCapability[Turn]):
         if ctx.tool_call_approved:
             return args  # counted when it was proposed
         counters = turn.counters
-        if turn.pause is not None:
+        if counters.pause is not None:
             raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT)
         counters.tool_calls += 1
         if counters.tool_calls > TOOL_CALL_LIMIT:
-            turn.pause = "tool_limit"
+            counters.pause = "tool_limit"
             raise _skipped(turn, call, "agent.tool_limit_reached", limit=TOOL_CALL_LIMIT)
         key = f"{call.tool_name} {history.args_json(args)}"
         counters.repeats = counters.repeats + 1 if key == counters.last_call else 1
         counters.last_call = key
         if counters.repeats >= REPEAT_PAUSE:
-            turn.pause = "loop"
+            counters.pause = "loop"
             raise _skipped(turn, call, "agent.repeated_call", times=counters.repeats)
         if counters.repeats >= REPEAT_BLOCK:
             raise _skipped(turn, call, "agent.repeated_call", times=counters.repeats)
@@ -395,14 +397,23 @@ class _Hooks(AbstractCapability[Turn]):
         turn = ctx.deps
         messages = [m for m in (_replayable(m, turn) for m in request_context.messages) if m]
         request_context.messages = await _compact(turn, messages)
-        params = request_context.model_request_parameters
-        params.function_tools = _tool_order(params.function_tools, request_context.messages)
+        if not _defers_tools(request_context.model):
+            params = request_context.model_request_parameters
+            params.function_tools = _tool_order(params.function_tools, request_context.messages)
         return request_context
 
 
+def _defers_tools(model: Model) -> bool:
+    """Providers with native tool search (Anthropic, OpenAI Responses) get every deferred tool on
+    every request, marked as deferred, and a reveal unlocks it in place: the list is already the
+    same on every request, so it is left in Pydantic AI's order."""
+    return ToolSearchTool in model.profile.get("supported_native_tools", SUPPORTED_NATIVE_TOOLS)
+
+
 def _tool_order(defs: list[ToolDefinition], messages: list[ModelMessage]) -> list[ToolDefinition]:
-    """Tools found later go after the ones the model already had, in the order they were found,
-    so the tool list only ever grows at its end (prompt caching, whatever the provider)."""
+    """Elsewhere a revealed tool becomes an ordinary one. Tools found later go after the ones the
+    model already had, in the order they were found, so the tool list only ever grows at its end
+    (prompt caching)."""
     found = {name: i for i, name in enumerate(history.revealed_tools(messages))}
     late = len(found)
     return sorted(defs, key=lambda d: found.get(d.name, late) if d.defer_loading else -1)
@@ -417,19 +428,12 @@ def _replayable(message: ModelMessage, turn: Turn) -> ModelMessage | None:
     if source == turn.model.source or not any(isinstance(p, ThinkingPart) for p in message.parts):
         return message
     parts = [p for p in message.parts if not isinstance(p, ThinkingPart)]
-    return ModelResponse(parts=parts, model_name=message.model_name) if parts else None
+    return replace(message, parts=parts) if parts else None
 
 
 def _typed(message: ModelMessage) -> bool:
-    """A request carrying something the user wrote (it starts with the `[Sent …]` note)."""
-    return isinstance(message, ModelRequest) and any(
-        isinstance(p, UserPromptPart)
-        and not isinstance(p.content, str)
-        and bool(p.content)
-        and isinstance(p.content[0], str)
-        and p.content[0].startswith("[Sent ")
-        for p in message.parts
-    )
+    """A request carrying something the user wrote (marked when the history is loaded)."""
+    return isinstance(message, ModelRequest) and (message.metadata or {}).get("typed") is True
 
 
 def _row_id(message: ModelMessage) -> str | None:
@@ -449,7 +453,7 @@ async def _compact(turn: Turn, messages: list[ModelMessage]) -> list[ModelMessag
         if at is not None:
             summary = history.summary_request(memo["summary"], list(memo.get("revealed", [])))
             messages = [summary, *messages[at + 1 :]]
-    if history.estimate_tokens(messages) <= COMPACT_RATIO * turn.model.context_window:
+    if history.prompt_tokens(messages) <= COMPACT_RATIO * turn.model.context_window:
         return messages
     starts = [i for i, m in enumerate(messages) if _typed(m)]
     if len(starts) <= KEEP_USER_TURNS:
@@ -545,7 +549,11 @@ async def _messages(
         else:
             msg = history.load(row)
         if msg is not None:
-            msg.metadata = {**(msg.metadata or {}), "row_id": row.id}
+            msg.metadata = {
+                **(msg.metadata or {}),
+                "row_id": row.id,
+                "typed": history.is_typed(row),
+            }
             out.append(msg)
     return out
 
@@ -867,8 +875,8 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
                     if cancel.is_set():
                         return
                     if turn.counters.requests >= REQUEST_LIMIT:
-                        turn.pause = "tool_limit"
-                    if turn.pause is not None:
+                        turn.counters.pause = "tool_limit"
+                    if turn.counters.pause is not None:
                         break
                     turn.counters.requests += 1
                     answer = _Answer(new_id())
@@ -950,7 +958,7 @@ async def _close(
     prepared: Prepared, messages: list[ModelMessage], cancel: asyncio.Event
 ) -> AsyncIterator[Event]:
     turn = prepared.turn
-    reason = turn.pause or "tool_limit"
+    reason = turn.counters.pause or "tool_limit"
     async with agent_ctx(turn.state, turn.user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, turn.session_id)
         row = service.add_message(

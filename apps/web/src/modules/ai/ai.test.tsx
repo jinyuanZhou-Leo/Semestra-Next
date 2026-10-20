@@ -479,8 +479,8 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
   const user = userEvent.setup()
   renderWithQuery(<UsageSection />)
   expect(await screen.findByText('at least $0.21')).toBeInTheDocument()
-  // 10k of the 40k input tokens came from the provider's prompt cache.
-  expect(screen.getByText('Cache hit rate').nextSibling).toHaveTextContent('25%')
+  // Over the chat calls only: 10k of their 30k input tokens came from the prompt cache.
+  expect(screen.getByText('Cache hit rate').nextSibling).toHaveTextContent('33.3%')
   expect(query?.get('days')).toBe('30')
   expect(query?.get('tz')).toBeTruthy()
   expect(

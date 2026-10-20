@@ -253,6 +253,12 @@ function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }
 }
 
 /** Account settings → AI → usage over the last 30 days (M06 §7). Costs are estimates. */
+/** Over the assistant's calls: other purposes rarely repeat a prompt prefix. */
+function chatCacheRate(summary: UsageSummary): string {
+  const chat = summary.by_purpose.find((row) => row.key === 'chat')
+  return chat && chat.input_tokens > 0 ? formatPercent(chat.cached_tokens / chat.input_tokens) : '—'
+}
+
 export function UsageSection() {
   const [grouping, setGrouping] = useState<Grouping>('purpose')
   const usage = useQuery(
@@ -284,9 +290,7 @@ export function UsageSection() {
                 className="text-lg font-semibold tabular-nums"
                 title={m.ai_usage_cache_hit_rate_hint()}
               >
-                {summary.totals.input_tokens > 0
-                  ? formatPercent(summary.totals.cached_tokens / summary.totals.input_tokens)
-                  : '—'}
+                {chatCacheRate(summary)}
               </dd>
             </div>
             <div>

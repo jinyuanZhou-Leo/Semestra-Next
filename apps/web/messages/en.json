@@ -950,7 +950,7 @@
   "ai_usage_tokens_split": "{input} in, {output} out",
   "ai_usage_cost": "Cost",
   "ai_usage_cache_hit_rate": "Cache hit rate",
-  "ai_usage_cache_hit_rate_hint": "The share of input tokens the provider read from its prompt cache (billed cheaper)",
+  "ai_usage_cache_hit_rate_hint": "The share of the assistant's input tokens the provider read from its prompt cache (billed cheaper)",
   "ai_usage_cost_estimate": "Estimated cost",
   "ai_usage_cost_partial": "at least {cost}",
   "ai_usage_chart_title": "Tokens per day",

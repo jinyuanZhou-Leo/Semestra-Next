@@ -25,8 +25,11 @@ from pydantic_ai.models.function import (
     DeltaToolCall,
     FunctionModel,
 )
+from pydantic_ai.profiles import ModelProfile
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
+from semestra.modules.agent.models import AgentMessage
 from semestra.modules.ai import Message
 from semestra.testing import MakeUser, UserHandle
 
@@ -86,7 +89,12 @@ class FakeModel:
         self.source = "test:instance:fake-model"
         self.script: list[Step] = []
         self.requests: list[tuple[list[ModelMessage], AgentInfo]] = []
-        self.model = FunctionModel(stream_function=self._stream, model_name=self.name)
+        # Like Chat Completions: no native tool search, so a revealed tool becomes an ordinary one.
+        self.model = FunctionModel(
+            stream_function=self._stream,
+            model_name=self.name,
+            profile=ModelProfile(supported_native_tools=frozenset()),
+        )
 
     def then(self, *steps: Step) -> FakeModel:
         self.script.extend(steps)
@@ -225,6 +233,24 @@ class Agent:
             "POST", f"/courses/{course['id']}/assessments", json={"title": "Lab 3", "weight": 10}
         )
         return program, course, lab
+
+
+async def report_input_tokens(app: FastAPI, session_id: str, input_tokens: int) -> None:
+    """Sets what the provider reported as the prompt size of the conversation's last answer
+    (`FunctionModel` reports a fixed guess)."""
+    async with app.state.session_factory() as db:
+        row = await db.scalar(
+            select(AgentMessage)
+            .where(AgentMessage.session_id == session_id, AgentMessage.role == "assistant")
+            .order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc())
+            .limit(1)
+        )
+        assert row is not None
+        assert row.model_parts
+        parts = [dict(p) for p in row.model_parts]
+        parts[0]["usage"] = {**parts[0].get("usage", {}), "input_tokens": input_tokens}
+        row.model_parts = parts
+        await db.commit()
 
 
 def events_named(events: list[tuple[str, Any]], name: str) -> list[Any]:
