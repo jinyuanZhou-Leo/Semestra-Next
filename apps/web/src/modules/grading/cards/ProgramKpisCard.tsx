@@ -4,7 +4,7 @@ import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Progress } from '@/ui/progress'
 import { GpaValue } from '../components/GpaValue'
-import { Stat } from '../components/SummaryStrip'
+import { Stat } from '../components/Stat'
 import { AnimatedPercent } from '../components/AnimatedPercent'
 import { useProgramGrades } from '../queries'
 

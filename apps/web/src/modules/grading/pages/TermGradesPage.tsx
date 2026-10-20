@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { coursePath } from '@/modules/academics/paths'
 import { GpaValue } from '../components/GpaValue'
 import { InlineInput } from '../components/InlineInput'
-import { Stat } from '../components/SummaryStrip'
+import { Stat } from '../components/Stat'
 import { GPA_MASK, percentText } from '../display'
 import { parseScore } from '../score'
 import { useTermGrades } from '../queries'
