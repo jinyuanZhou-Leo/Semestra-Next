@@ -1,0 +1,19 @@
+{
+  "about": "Tool calls deepseek-flash made on 2026-10-20 when asked to import an ICS spanning two terms (thread: Sem trace 评估). Ids are placeholders; arguments are verbatim. Replayed until the run would diverge from the recording.",
+  "message": "导入这个学期, 名字就叫2026Fall, 2027Winter",
+  "steps": [
+    [
+      {"name": "load_capability", "id": "call_00_cfSIEPYu7Qb3GgNKyO6O3007", "args": {"id": "import-from-documents"}},
+      {"name": "load_capability", "id": "call_01_7JSupkygX689aMRtTdIM3704", "args": {"id": "manage-terms-and-courses"}}
+    ],
+    [
+      {"name": "academics__term__list", "id": "call_00_yXr1t8FyixDUKXinJzTg4635", "args": {"program_id": "{program_id}"}},
+      {"name": "attachments__read", "id": "call_01_oL5s45akV9SvRbY4uG8o8437", "args": {"attachment_id": "{attachment_id}", "page_from": 1, "page_to": 10}}
+    ],
+    [
+      {"name": "attachments__read", "id": "call_00_P1r8Mhc1NtfDibx0YqjT6371", "args": {"attachment_id": "{attachment_id}", "page_from": 11, "page_to": 11}},
+      {"name": "academics__term__create", "id": "call_01_pTEb0uKiwqTdnxHXG5f23482", "args": {"program_id": "{program_id}", "name": "2026Fall", "start_date": "2026-09-08", "end_date": "2026-12-08", "breaks": [{"name": "Thanksgiving", "start_date": "2026-10-12", "end_date": "2026-10-12"}, {"name": "Reading week", "start_date": "2026-10-26", "end_date": "2026-10-30"}]}},
+      {"name": "academics__term__create", "id": "call_02_Y4JSXtk8PZ4h1iplYDja6231", "args": {"program_id": "{program_id}", "name": "2027Winter", "start_date": "2027-01-11", "end_date": "2027-04-13", "breaks": [{"name": "Reading week", "start_date": "2027-02-15", "end_date": "2027-02-19"}, {"name": "Good Friday", "start_date": "2027-03-26", "end_date": "2027-03-26"}]}}
+    ]
+  ]
+}

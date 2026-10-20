@@ -89,6 +89,8 @@ class FakeModel:
         self.source = "test:instance:fake-model"
         self.script: list[Step] = []
         self.requests: list[tuple[list[ModelMessage], AgentInfo]] = []
+        # Tools a test makes disappear on purpose (memory turned off mid-conversation, say).
+        self.may_lose_tools: set[str] = set()
         # Like Chat Completions: no native tool search, so a revealed tool becomes an ordinary one.
         self.model = FunctionModel(
             stream_function=self._stream,
@@ -101,6 +103,7 @@ class FakeModel:
         return self
 
     async def _stream(self, messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+        self._check_tools_kept(messages, info)
         self.requests.append((list(messages), info))
         assert self.script, "the model was called more often than scripted"
         step = self.script.pop(0)
@@ -117,6 +120,19 @@ class FakeModel:
                 i: DeltaToolCall(name, json.dumps(args), tool_call_id=call_id)
                 for i, (name, args, call_id) in enumerate(reply.calls)
             }
+
+    def _check_tools_kept(self, messages: list[ModelMessage], info: AgentInfo) -> None:
+        """A tool the model could call stays callable for the rest of the conversation, also
+        after the history is loaded back from the database (an approval, the next message,
+        Continue). Losing one means the stored history dropped what revealed it."""
+        first = _first_prompt(messages)
+        earlier = next(
+            (i for m, i in reversed(self.requests) if first and _first_prompt(m) == first), None
+        )
+        if earlier is None:
+            return
+        lost = {t.name for t in earlier.function_tools} - {t.name for t in info.function_tools}
+        assert not lost - self.may_lose_tools, f"tools lost between requests: {sorted(lost)}"
 
     def tools_of(self, index: int = -1) -> set[str]:
         """The tools the model could call in a request."""
@@ -156,6 +172,16 @@ class FakeModel:
             for p in m.parts
             if isinstance(p, ToolReturnPart)
         ]
+
+
+def _first_prompt(messages: list[ModelMessage]) -> str | None:
+    """The conversation's first user prompt, to tell requests of one conversation apart."""
+    for m in messages:
+        if isinstance(m, ModelRequest):
+            for p in m.parts:
+                if isinstance(p, UserPromptPart):
+                    return str(p.content)
+    return None
 
 
 class Agent:
