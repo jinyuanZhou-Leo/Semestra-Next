@@ -287,7 +287,9 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
                 >
                   <Sparkles aria-hidden />
                   <span className="min-w-0 truncate">{m.commands_ask({ question: text })}</span>
-                  <CornerDownLeft aria-hidden className="ml-auto" />
+                  <CommandShortcut>
+                    <CornerDownLeft aria-hidden />
+                  </CommandShortcut>
                 </CommandItem>
               </CommandGroup>
             ) : null}
