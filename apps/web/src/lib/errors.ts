@@ -1,9 +1,6 @@
 import { toast } from 'sonner'
 import { toApiError } from '@/app/api'
-import * as m from '@/paraglide/messages'
-
-type MessageFn = (params?: Record<string, unknown>) => string
-const messages = m as unknown as Record<string, MessageFn | undefined>
+import { errorMessages as messages } from './message-groups/errors.gen'
 
 function translateCode(code: string, params: Record<string, unknown>): string {
   const fn = messages[`error_${code.replaceAll('.', '_')}`] ?? messages.error_unknown

@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
@@ -7,8 +7,23 @@ import { scopePath } from '../extensions'
 import { formatHotkey, useHotkey, useListedHotkeys } from '../hotkeys'
 import { useModules, usePages } from '../registry'
 import { openCommandPalette, setPalette, usePaletteState, useHostAction } from './bus'
-import { CommandPalette } from './CommandPalette'
 import { useCommandContext } from './context'
+
+// The palette and its pinyin dictionary (~300 KB) stay out of the first bundle: they load the
+// first time the palette opens, or once the page has settled, whichever comes first.
+const CommandPalette = lazy(() =>
+  import('./CommandPalette').then((mod) => ({ default: mod.CommandPalette })),
+)
+const PALETTE_LOAD_DELAY_MS = 2000
+
+function useSettled(): boolean {
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(true), PALETTE_LOAD_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [])
+  return settled
+}
 
 function HotkeysHelp({
   open,
@@ -62,6 +77,7 @@ export function CommandCenter() {
   const assistant = useModules().find((module) => module.assistant)?.assistant
   const program = { kind: 'program', programId: ctx.programId ?? '' } as const
   const hasToday = usePages(program).some((page) => page.id === 'today') && !!ctx.programId
+  const settled = useSettled()
 
   useHotkey(
     'mod+k',
@@ -88,7 +104,11 @@ export function CommandCenter() {
 
   return (
     <>
-      <CommandPalette />
+      {palette.open || settled ? (
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      ) : null}
       <HotkeysHelp open={helpOpen} onOpenChange={setHelpOpen} />
     </>
   )

@@ -1,12 +1,12 @@
-import * as messages from '@/paraglide/messages'
+import { assistantFieldMessages } from '@/lib/message-groups/assistant-fields.gen'
+import { capabilityMessages } from '@/lib/message-groups/capabilities.gen'
+import { errorMessages } from '@/lib/message-groups/errors.gen'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { TYPE_LABELS } from '@/modules/imports/labels'
 import type { ItemType } from '@/modules/imports/types'
 import type { Step } from './transcript'
-
-const byKey = messages as unknown as Record<string, (() => string) | undefined>
 
 /** Pydantic AI's built-in tools and the loop's own (not capabilities). */
 const META_TITLES: Record<string, () => string> = {
@@ -19,7 +19,10 @@ const META_TITLES: Record<string, () => string> = {
 export function capabilityTitle(name: string): string {
   const meta = META_TITLES[name]
   if (meta) return meta()
-  return byKey[`capability_${name.replaceAll('.', '_').replaceAll('-', '_')}_title`]?.() ?? name
+  return (
+    capabilityMessages[`capability_${name.replaceAll('.', '_').replaceAll('-', '_')}_title`]?.() ??
+    name
+  )
 }
 
 /** A skill's title in the UI language (skill files carry `en` and `zh-CN`). */
@@ -64,7 +67,11 @@ export function plainArgs(args: Record<string, unknown>): [string, unknown][] {
 
 /** A field's name for people: a shared translation when there is one, else its words. */
 export function fieldLabel(field: string, schemaTitle?: string): string {
-  return byKey[`assistant_field_${field}`]?.() ?? schemaTitle ?? field.replaceAll('_', ' ')
+  return (
+    assistantFieldMessages[`assistant_field_${field}`]?.() ??
+    schemaTitle ??
+    field.replaceAll('_', ' ')
+  )
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -93,7 +100,7 @@ function stringText(value: string, field?: string): string {
   if (DAY.test(value)) return formatDate(value)
   if (MOMENT.test(value) && !Number.isNaN(Date.parse(value))) return formatDateTime(value)
   if (!/^[a-z]+(\.[a-z_]+)+$/.test(value)) return value
-  return byKey[`error_${value.replaceAll('.', '_')}`]?.() ?? value
+  return errorMessages[`error_${value.replaceAll('.', '_')}`]?.() ?? value
 }
 
 function dateRange(record: Record<string, unknown>): string | null {

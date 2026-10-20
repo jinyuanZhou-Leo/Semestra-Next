@@ -6,10 +6,8 @@ import {
 import type { JobOut } from '@semestra/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
-import * as m from '@/paraglide/messages'
-
-type MessageFn = (params?: Record<string, unknown>) => string
-const messages = m as unknown as Record<string, MessageFn | undefined>
+import { jobStepMessages } from '@/lib/message-groups/job-steps.gen'
+import { m } from '@/paraglide/messages'
 
 export type JobCount = { current: number; total: number }
 
@@ -22,7 +20,7 @@ export function jobStageLabel(
   job: Pick<JobOut, 'kind' | 'step' | 'step_current' | 'step_total' | 'attempts'>,
 ) {
   const key = job.step ? `job_step_${job.kind.replaceAll('.', '_')}_${job.step}` : null
-  let label = (key && messages[key]?.()) || m.job_running()
+  let label = (key && jobStepMessages[key]?.()) || m.job_running()
   if (job.step_current != null && job.step_total != null) {
     label = m.job_stage_count({ stage: label, current: job.step_current, total: job.step_total })
   }

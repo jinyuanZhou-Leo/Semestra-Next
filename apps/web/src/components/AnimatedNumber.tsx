@@ -1,5 +1,7 @@
-import { Calligraph } from 'calligraph'
-import { useReducedMotion } from 'motion/react'
+import { lazy, Suspense } from 'react'
+
+// Calligraph and motion (~130 KB) load with the first figure that rolls, not with the app.
+const RollingNumber = lazy(() => import('./RollingNumber'))
 
 /**
  * A headline figure whose digits roll when it first appears and whenever `value` changes. For
@@ -16,17 +18,11 @@ export function AnimatedNumber({
   className?: string
 }) {
   const text = format(value)
-  const reduced = useReducedMotion()
-  if (reduced || !Number.isFinite(value)) return <span className={className}>{text}</span>
-  // Calligraph hides its digits from assistive technology, so the value is also in plain text.
+  const plain = <span className={className}>{text}</span>
+  if (!Number.isFinite(value)) return plain
   return (
-    <span className={className}>
-      <span className="sr-only">{text}</span>
-      <span aria-hidden="true">
-        <Calligraph variant="number" animation="smooth" initial autoSize={false}>
-          {text}
-        </Calligraph>
-      </span>
-    </span>
+    <Suspense fallback={plain}>
+      <RollingNumber text={text} className={className} />
+    </Suspense>
   )
 }

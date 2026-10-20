@@ -1,0 +1,267 @@
+import { useLocation } from '@tanstack/react-router'
+import {
+  BarChart3,
+  Bookmark,
+  Boxes,
+  Cable,
+  CalendarDays,
+  Database,
+  GraduationCap,
+  Info,
+  KeyRound,
+  ListChecks,
+  Palette,
+  Plug,
+  Puzzle,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
+import { type CSSProperties, useEffect, useState } from 'react'
+import { courseLabel } from '@/modules/academics/color'
+import { m } from '@/paraglide/messages'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/ui/breadcrumb'
+import { DialogDescription, DialogTitle } from '@/ui/dialog'
+import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@/ui/native-select'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+} from '@/ui/sidebar'
+import type { SettingsGroup, SettingsLevel } from '../extensions'
+import { useSettingsSections } from '../registry'
+import {
+  CLUSTER_TITLES,
+  GROUP_ALIASES,
+  GROUP_TITLES,
+  buildNavigation,
+  clusterNavigation,
+} from './groups'
+import { type PathIds, type SettingsPath, scopeIdAt, useSettingsPath } from './scope-path'
+import { PATH_LEVEL_NAMES, ScopePath } from './ScopePath'
+import { SettingsSections } from './SettingsSections'
+import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
+
+const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
+  general: SlidersHorizontal,
+  grades: GraduationCap,
+  account: UserRound,
+  security: ShieldCheck,
+  preferences: Palette,
+  'ai-providers': KeyRound,
+  'ai-models': Boxes,
+  'ai-usage': BarChart3,
+  'ai-permissions': ListChecks,
+  'ai-memory': Bookmark,
+  'ai-mcp': Cable,
+  calendar: CalendarDays,
+  features: Wrench,
+  integrations: Plug,
+  plugins: Puzzle,
+  data: Database,
+  about: Info,
+}
+
+export type Params = { programId?: string; termId?: string; courseId?: string }
+
+/** The name shown above the groups: the Program, term or course being configured. */
+function scopeName(path: SettingsPath): string | undefined {
+  if (path.level === 'program') return path.program?.name
+  if (path.level === 'term') return path.term?.name
+  if (path.level === 'course') return path.course ? courseLabel(path.course) : undefined
+  return undefined
+}
+
+export function SettingsBody({ target, page }: { target: SettingsTarget; page: Params }) {
+  const { select, switchTo } = useSettingsDialog()
+  // What was picked on the level path; until then the path follows the page on screen.
+  const [picked, setPicked] = useState<PathIds | undefined>(undefined)
+  const path = useSettingsPath(target, picked ?? page)
+  const { level, scope } = path
+  const groupId = target.group
+  const name = scopeName(path)
+  const sections = useSettingsSections(level)
+  // Until the path is known the level is not either: show no groups rather than the wrong ones.
+  const groups = path.pending ? [] : buildNavigation(sections, level)
+  const runs = clusterNavigation(groups, level)
+  const hash = useLocation({ select: (location) => location.hash })
+  // Old links name a group that was split (`account/ai`): they open the page that replaced it.
+  const wanted = groupId ? (GROUP_ALIASES[groupId] ?? groupId) : undefined
+  // A link to a section that has since moved to another group still lands on that section.
+  const current =
+    groups.find((g) => g.id === wanted && g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.sections.some((s) => s.id === hash)) ??
+    groups.find((g) => g.id === wanted) ??
+    groups[0]
+  const title = name ?? m.settings_title()
+
+  // Another level keeps the group on screen when that level has one with the same name.
+  const goTo = (next: SettingsLevel, ids: PathIds) => {
+    setPicked(ids)
+    const id =
+      next === 'program'
+        ? ids.programId
+        : next === 'term'
+          ? ids.termId
+          : (ids.courseId ?? undefined)
+    switchTo({ level: next, group: current?.id, scope: id })
+  }
+  const levels = (['account', 'program', 'term', 'course'] as const).filter(
+    (l) => l === 'account' || scopeIdAt(l, path) !== undefined,
+  )
+
+  // The course, term or Program the URL names is gone (deleted from this dialog, say): show the
+  // nearest level above it and drop the stale id from the URL.
+  const stale =
+    target.scope !== undefined && !path.pending && scopeIdAt(target.level, path) !== target.scope
+  const shownScope = scopeIdAt(level, path)
+  const shownGroup = current?.id
+  useEffect(() => {
+    if (stale) switchTo({ level, group: shownGroup, scope: shownScope })
+  }, [stale, level, shownGroup, shownScope, switchTo])
+
+  // Jump to `#section` when the dialog opens with a hash or the group changes.
+  useEffect(() => {
+    if (hash && shownGroup !== undefined) document.getElementById(hash)?.scrollIntoView()
+  }, [hash, shownGroup])
+
+  return (
+    <>
+      <DialogTitle className="sr-only">{title}</DialogTitle>
+      <DialogDescription className="sr-only">{m.settings_dialog_description()}</DialogDescription>
+      <SidebarProvider
+        className="h-full min-h-0 items-start"
+        style={{ '--sidebar-width': '15rem' } as CSSProperties}
+      >
+        <Sidebar collapsible="none" className="hidden border-r md:flex">
+          <SidebarContent>
+            <ScopePath path={path} onSelect={goTo} />
+            {/* The Separator's `data-horizontal:w-full` outranks SidebarSeparator's `w-auto`, so with
+                side margins it ends up wider than the column and the sidebar scrolls sideways. */}
+            <SidebarSeparator className="mx-3 data-horizontal:w-auto" />
+            <nav aria-label={m.settings_title()}>
+              {runs.map((run) => (
+                <SidebarGroup key={run.cluster ?? 'all'}>
+                  {run.cluster ? (
+                    <SidebarGroupLabel>{CLUSTER_TITLES[run.cluster]()}</SidebarGroupLabel>
+                  ) : null}
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {run.groups.map((group) => {
+                        const Icon = GROUP_ICONS[group.id]
+                        return (
+                          <SidebarMenuItem key={group.id}>
+                            <SidebarMenuButton
+                              isActive={group.id === current?.id}
+                              aria-current={group.id === current?.id ? 'page' : undefined}
+                              onClick={() => select(group.id)}
+                            >
+                              <Icon aria-hidden />
+                              <span>{GROUP_TITLES[group.id]()}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
+            </nav>
+          </SidebarContent>
+        </Sidebar>
+        <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex h-14 shrink-0 items-center gap-3 pr-14 pl-4 md:pl-6">
+            <Breadcrumb className="min-w-0">
+              <BreadcrumbList className="flex-nowrap">
+                <BreadcrumbItem className="min-w-0 max-md:hidden">
+                  <span className="truncate">{title}</span>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="max-md:hidden" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="max-md:hidden">
+                    {current ? GROUP_TITLES[current.id]() : null}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            {/* Without the sidebar column, selects switch the level and the group. */}
+            <NativeSelect
+              aria-label={m.settings_path_label()}
+              className="md:hidden"
+              value={level}
+              onChange={(event) =>
+                goTo(event.target.value as SettingsLevel, {
+                  programId: path.program?.id,
+                  termId: path.term?.id,
+                  courseId: path.course?.id ?? null,
+                })
+              }
+            >
+              {levels.map((l) => (
+                <NativeSelectOption key={l} value={l}>
+                  {PATH_LEVEL_NAMES[l]()}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            {current ? (
+              <NativeSelect
+                aria-label={m.settings_title()}
+                className="md:hidden"
+                value={current.id}
+                onChange={(event) => select(event.target.value)}
+              >
+                {runs.map((run) => {
+                  const options = run.groups.map((group) => (
+                    <NativeSelectOption key={group.id} value={group.id}>
+                      {GROUP_TITLES[group.id]()}
+                    </NativeSelectOption>
+                  ))
+                  return run.cluster ? (
+                    <NativeSelectOptGroup key={run.cluster} label={CLUSTER_TITLES[run.cluster]()}>
+                      {options}
+                    </NativeSelectOptGroup>
+                  ) : (
+                    options
+                  )
+                })}
+              </NativeSelect>
+            ) : null}
+          </header>
+          {/* Keyed by scope and group: a new one opens at its top and its forms start fresh. */}
+          <div
+            key={`${level}:${scopeIdAt(level, path) ?? ''}:${current?.id ?? ''}`}
+            className="flex-1 overflow-y-auto px-4 pb-8 md:px-6"
+          >
+            {path.pending ? null : current ? (
+              <div className="mx-auto max-w-3xl">
+                <SettingsSections level={level} scope={scope} group={current.id} />
+              </div>
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>{m.settings_empty()}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+        </main>
+      </SidebarProvider>
+    </>
+  )
+}
