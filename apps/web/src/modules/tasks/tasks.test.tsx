@@ -1,5 +1,5 @@
 import type { Task, TaskList } from '@semestra/api-client'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
@@ -393,4 +393,40 @@ test('in the app sidebar the lists sit under Tasks, and the page drops its own s
   )
   // No menu of lists on the page while the sidebar shows them.
   expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
+})
+
+const many = () =>
+  Array.from({ length: 300 }, (_, i) =>
+    task({ id: `m${i}`, title: `Task ${String(i + 1).padStart(3, '0')}`, position: i + 1 }),
+  )
+
+test('a long list renders only the rows near the screen, and says how long it is', async () => {
+  items = many()
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  const first = (await screen.findByText('Task 001')).closest('li')!
+  expect(first.getAttribute('aria-posinset')).toBe('1')
+  expect(first.getAttribute('aria-setsize')).toBe('300')
+  const rendered = document.querySelectorAll('li[data-task-id]').length
+  expect(rendered).toBeGreaterThan(0)
+  expect(rendered).toBeLessThan(100)
+  expect(screen.queryByText('Task 300')).toBeNull()
+})
+
+test('the row being edited stays rendered when the list scrolls away from it', async () => {
+  items = many()
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Task 001' }))
+  expect(screen.getByRole('textbox', { name: 'Title' })).toBeTruthy()
+
+  // jsdom has no layout: scroll the page by hand, the list moving up with it.
+  const scroller = document.scrollingElement ?? document.documentElement
+  const list = screen.getByText('Task 002').closest('ul')!
+  const offset = 199 * 44
+  Object.defineProperty(scroller, 'scrollTop', { configurable: true, get: () => offset })
+  list.getBoundingClientRect = () => ({ top: -offset }) as DOMRect
+  act(() => scroller.dispatchEvent(new Event('scroll')))
+  expect(await screen.findByText('Task 200')).toBeTruthy()
+  expect(screen.getByRole('textbox', { name: 'Title' })).toBeTruthy()
+  // The rows in between are not rendered for it.
+  expect(screen.queryByText('Task 080')).toBeNull()
 })

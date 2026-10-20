@@ -365,6 +365,8 @@ export function TaskRow({
         virtual?.measure(node)
       }}
       data-index={virtual?.index}
+      aria-setsize={virtual?.count}
+      aria-posinset={virtual ? virtual.index + 1 : undefined}
       style={sortable?.style}
       data-selected={selected || undefined}
       data-editing={editing ? true : undefined}

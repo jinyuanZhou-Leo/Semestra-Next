@@ -42,7 +42,7 @@ import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TasksViewMenu, useTaskSelection } from '../components/TasksSidebar'
-import { VirtualTaskList } from '../components/VirtualTaskList'
+import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
@@ -106,6 +106,8 @@ export default function TasksPage({ scope }: PageProps) {
   const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  // Set by the arrow keys only, so a list that changes under the selection does not scroll.
+  const [scrollTo, setScrollTo] = useState<ScrollRequest | null>(null)
   const [clearing, setClearing] = useState(false)
   const quickAdd = useRef<HTMLInputElement>(null)
   const sensors = useSensors(
@@ -152,7 +154,9 @@ export default function TasksPage({ scope }: PageProps) {
   const step = (delta: number) => {
     const index = open.findIndex((t) => t.id === selectedId)
     const next = open[Math.min(open.length - 1, Math.max(0, index + delta))]
-    if (next) setSelectedId(next.id)
+    if (!next) return
+    setSelectedId(next.id)
+    setScrollTo({ id: next.id })
   }
   // Keys act on the list only when focus is on the page or in the list, not in a dialog or sheet.
   // They are skipped (`ignoreEventWhen`) rather than returned from, so a skipped key keeps its
@@ -333,39 +337,42 @@ export default function TasksPage({ scope }: PageProps) {
                   </EmptyHeader>
                 </Empty>
               ) : null}
-              {sortableRows ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={onDragStart}
-                  onDragEnd={onDragEnd}
-                  onDragCancel={() => setDraggingId(null)}
-                >
-                  <SortableContext
-                    items={open.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
+              {/* One block, so the section's spacing does not open a gap above the new row. */}
+              <div>
+                {sortableRows ? (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    onDragCancel={() => setDraggingId(null)}
                   >
-                    <VirtualTaskList
-                      tasks={open}
-                      keepId={draggingId ?? editing?.id}
-                      scrollToId={selectedId}
-                      renderRow={(task, row) => (
-                        <SortableTaskRow key={task.id} {...rowProps(task)} virtual={row} />
-                      )}
-                    />
-                  </SortableContext>
-                </DndContext>
-              ) : completedView ? null : (
-                <VirtualTaskList
-                  tasks={open}
-                  keepId={editing?.id}
-                  scrollToId={selectedId}
-                  renderRow={(task, row) => (
-                    <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
-                  )}
-                />
-              )}
-              {completedView || !newRow ? null : <ul>{newRow}</ul>}
+                    <SortableContext
+                      items={open.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <VirtualTaskList
+                        tasks={open}
+                        keepId={draggingId ?? editing?.id}
+                        scrollTo={scrollTo}
+                        renderRow={(task, row) => (
+                          <SortableTaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                        )}
+                      />
+                    </SortableContext>
+                  </DndContext>
+                ) : completedView ? null : (
+                  <VirtualTaskList
+                    tasks={open}
+                    keepId={editing?.id}
+                    scrollTo={scrollTo}
+                    renderRow={(task, row) => (
+                      <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                    )}
+                  />
+                )}
+                {completedView || !newRow ? null : <ul>{newRow}</ul>}
+              </div>
               {completedView ? (
                 <CompletedRows
                   rows={done}
