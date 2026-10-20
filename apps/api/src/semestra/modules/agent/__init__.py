@@ -7,6 +7,10 @@ from semestra.modules.agent import capabilities, models, portability  # noqa: F4
 from semestra.modules.agent.mcp_server import McpEndpoint
 from semestra.modules.agent.routes import router
 from semestra.modules.agent.runtime import AgentRuntime
+from semestra.modules.agent.settings import AssistantSettings
+from semestra.modules.settings import register_settings
+
+register_settings(namespace="assistant", schema=AssistantSettings, levels=("account",))
 
 
 def register(app: FastAPI) -> None:

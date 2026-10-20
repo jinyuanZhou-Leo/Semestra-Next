@@ -193,6 +193,9 @@ def settings(kind: str, req: ChatRequest) -> ModelSettings:
         out["temperature"] = req.params.temperature
     if req.params.reasoning_effort is not None and kind in REASONING_KINDS:
         out["openai_reasoning_effort"] = req.params.reasoning_effort
+        if kind == "openai_responses":
+            # Without it the Responses API keeps the reasoning to itself (M12 shows a summary).
+            out["openai_reasoning_summary"] = "auto"
     if kind == "openai_responses":
         out["openai_store"] = False  # the whole conversation is sent every time
     return cast(ModelSettings, out)

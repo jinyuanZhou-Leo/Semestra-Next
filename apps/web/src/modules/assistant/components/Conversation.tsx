@@ -6,9 +6,10 @@ import {
   agentAttachmentUpload,
   agentSessionUpdate,
 } from '@semestra/api-client'
-import { agentSessionGetQueryKey } from '@semestra/api-client/react-query'
-import { useQueryClient } from '@tanstack/react-query'
+import { agentSessionGetQueryKey, settingsValuesGetOptions } from '@semestra/api-client/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Brain,
   Check,
   Copy,
   FileText,
@@ -45,13 +46,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupText,
-  InputGroupTextarea,
-} from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/ui/input-group'
 import { Message, MessageContent, MessageFooter } from '@/ui/message'
 import {
   MessageScroller,
@@ -60,9 +55,11 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from '@/ui/message-scroller'
 import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
 import { buildItems, canRegenerate, citationsOf, type ViewItem } from '../transcript'
@@ -71,7 +68,7 @@ import { Composer, type ComposerSubmit, type PendingAttachment } from './Compose
 import { Markdown } from './Markdown'
 import { ProposalCard } from './ProposalCard'
 import { ScopeChip } from './ScopeChip'
-import { Steps } from './Steps'
+import { Thinking } from './Steps'
 
 const MAX_ATTACHMENTS = 10
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -228,21 +225,18 @@ function UserMessage({
                 }
               }}
             />
-            <InputGroupAddon align="block-end" className="justify-between gap-2">
-              <InputGroupText className="text-xs">{m.assistant_edit_hint()}</InputGroupText>
-              <div className="flex gap-1.5">
-                <InputGroupButton variant="ghost" size="sm" onClick={() => setDraft(null)}>
-                  {m.common_cancel()}
-                </InputGroupButton>
-                <InputGroupButton
-                  variant="default"
-                  size="sm"
-                  disabled={!canSave || !canEdit}
-                  onClick={() => void save()}
-                >
-                  {m.assistant_send()}
-                </InputGroupButton>
-              </div>
+            <InputGroupAddon align="block-end" className="justify-end gap-1.5">
+              <InputGroupButton variant="ghost" size="sm" onClick={() => setDraft(null)}>
+                {m.common_cancel()}
+              </InputGroupButton>
+              <InputGroupButton
+                variant="default"
+                size="sm"
+                disabled={!canSave || !canEdit}
+                onClick={() => void save()}
+              >
+                {m.assistant_send()}
+              </InputGroupButton>
             </InputGroupAddon>
           </InputGroup>
         ) : item.text ? (
@@ -271,6 +265,8 @@ function AssistantMessage({
   item,
   citations,
   busy,
+  active,
+  showReasoning,
   onDecide,
   footer,
   latest,
@@ -278,8 +274,11 @@ function AssistantMessage({
   item: Extract<ViewItem, { kind: 'assistant' }>
   citations: ReturnType<typeof citationsOf>
   busy: boolean
+  /** This answer is being written now. */
+  active: boolean
+  showReasoning: boolean
   onDecide: (decisions: Decision[]) => void
-  /** Copy and regenerate under the answer; `null` for a step without text. */
+  /** Copy and regenerate under the answer; `null` while there is nothing to act on. */
   footer: React.ReactNode
   /** The latest answer shows its actions without hovering. */
   latest: boolean
@@ -288,8 +287,8 @@ function AssistantMessage({
   return (
     <Message>
       <MessageContent className="gap-3">
-        {item.text ? <Markdown text={item.text} citations={citations} /> : null}
-        <Steps steps={item.steps} />
+        <Thinking item={item} active={active} showReasoning={showReasoning} />
+        {item.answer ? <Markdown text={item.answer} citations={citations} /> : null}
         {pending.length > 1 ? (
           <div className="flex justify-end">
             <Button
@@ -313,7 +312,7 @@ function AssistantMessage({
           />
         ))}
         {footer ? (
-          <MessageFooter className={cn('-mt-1 -ml-2 gap-0.5 px-0', latest ? null : hoverActions)}>
+          <MessageFooter className={cn('-mt-1 gap-0.5 px-0', latest ? null : hoverActions)}>
             {footer}
           </MessageFooter>
         ) : null}
@@ -346,6 +345,43 @@ function AiSetupNeeded() {
   )
 }
 
+/** The account setting `assistant.show_reasoning` (on unless turned off). */
+function useShowReasoning(): boolean {
+  const values = useQuery({
+    ...settingsValuesGetOptions({ path: { namespace: 'assistant' } }),
+    staleTime: 60_000,
+  }).data?.values as { show_reasoning?: boolean } | undefined
+  return values?.show_reasoning ?? true
+}
+
+/**
+ * Follows the newest message after the user sends one, even when they had scrolled up; while
+ * the answer streams the scroller keeps to the bottom until the user scrolls away.
+ */
+function ScrollToEndOnSend({ sent }: { sent: number }) {
+  const scroller = useMessageScroller()
+  useEffect(() => {
+    if (sent > 0) scroller.scrollToEnd()
+    // Only a new message scrolls; the scroller's functions are not stable.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [sent])
+  return null
+}
+
+/** The line shown between sending and the first word of the answer. */
+function ThinkingPlaceholder() {
+  return (
+    <Trace aria-live="polite">
+      <TraceLine status="running">
+        <TraceIcon>
+          <Brain />
+        </TraceIcon>
+        <TraceTitle>{m.assistant_thinking()}</TraceTitle>
+      </TraceLine>
+    </Trace>
+  )
+}
+
 /**
  * One conversation with the assistant: the transcript, confirmation cards and the input.
  * Shared by the side panel and the full page. `sessionId` null is a new conversation, created
@@ -373,6 +409,9 @@ export function Conversation({
   const queryClient = useQueryClient()
   const ai = useAiStatus('chat')
   const chat = useChat(sessionId, onCreated)
+  const showReasoning = useShowReasoning()
+  // Counts the messages sent from here, so the transcript can follow each one.
+  const [sent, setSent] = useState(0)
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
@@ -485,6 +524,7 @@ export function Conversation({
 
   async function submit(input: ComposerSubmit): Promise<boolean> {
     const ready = attachments.filter((a) => a.id !== null)
+    setSent((n) => n + 1)
     const ok = await chat.send({
       text: input.text,
       skill: input.skill ? { name: input.skill.name, title: input.skill.title } : null,
@@ -538,6 +578,7 @@ export function Conversation({
         </div>
       ) : null}
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+        <ScrollToEndOnSend sent={sent} />
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport aria-label={m.assistant_messages_label()}>
             <MessageScrollerContent className="gap-6 px-4 py-4">
@@ -558,26 +599,27 @@ export function Conversation({
                 </Empty>
               ) : (
                 items.map((item) => (
-                  <MessageScrollerItem
-                    key={item.id}
-                    messageId={item.id}
-                    scrollAnchor={item.kind === 'user'}
-                  >
+                  <MessageScrollerItem key={item.id} messageId={item.id}>
                     {item.kind === 'user' ? (
                       <UserMessage
                         item={item}
                         canEdit={!chat.generating && !item.id.startsWith('pending-')}
-                        onEdit={(text) => chat.edit(item.id, text)}
+                        onEdit={(text) => {
+                          setSent((n) => n + 1)
+                          return chat.edit(item.id, text)
+                        }}
                       />
                     ) : (
                       <AssistantMessage
                         item={item}
                         citations={citations}
                         busy={chat.generating}
+                        active={item === lastAssistant && chat.generating}
+                        showReasoning={showReasoning}
                         onDecide={(decisions) => void chat.decide(decisions)}
                         latest={item === lastAssistant}
                         footer={
-                          item.text || regenerateId === item.id ? (
+                          item.answer || regenerateId === item.id ? (
                             // Kept in the layout while the answer streams, so nothing jumps.
                             <div
                               className={cn(
@@ -585,7 +627,7 @@ export function Conversation({
                                 item === lastAssistant && chat.generating && 'invisible',
                               )}
                             >
-                              {item.text ? <CopyAction text={item.text} /> : null}
+                              {item.answer ? <CopyAction text={item.answer} /> : null}
                               {regenerateId === item.id ? (
                                 <IconAction
                                   label={m.assistant_regenerate()}
@@ -602,11 +644,7 @@ export function Conversation({
                   </MessageScrollerItem>
                 ))
               )}
-              {chat.generating && items.at(-1)?.kind === 'user' ? (
-                <p className="shimmer text-sm text-muted-foreground" aria-live="polite">
-                  {m.assistant_thinking()}
-                </p>
-              ) : null}
+              {chat.generating && items.at(-1)?.kind === 'user' ? <ThinkingPlaceholder /> : null}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
@@ -632,9 +670,10 @@ export function Conversation({
                 size="sm"
                 className="shrink-0"
                 disabled={chat.generating || !ai.available}
-                onClick={() =>
+                onClick={() => {
+                  setSent((n) => n + 1)
                   void chat.send({ text: suggest(), scope: sessionId ? null : newScope })
-                }
+                }}
               >
                 {suggest()}
               </Button>

@@ -11,6 +11,7 @@ short database session; the model stream runs outside any transaction.
 
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -344,6 +345,8 @@ async def _stream(
                 chunk = nxt.result()
             except StopAsyncIteration:
                 break
+            if chunk.thinking:
+                yield event("reasoning_delta", message_id=message_id, text=chunk.thinking)
             if chunk.text:
                 text += chunk.text
                 yield event("text_delta", message_id=message_id, text=chunk.text)
@@ -362,9 +365,13 @@ async def _stream(
 
 
 def _assistant_blocks(
-    text: str, calls: Sequence[ToolCall], reasoning: Sequence[Reasoning] = ()
+    text: str,
+    calls: Sequence[ToolCall],
+    reasoning: Sequence[Reasoning] = (),
+    thinking_ms: int | None = None,
 ) -> list[dict[str, Any]]:
-    # Reasoning is sent back to the same model next turn (history.py); clients never see it.
+    # Reasoning is sent back to the same model next turn (history.py); clients only see its
+    # readable text (`service.message_out`).
     blocks: list[dict[str, Any]] = [
         {
             "type": "reasoning",
@@ -381,6 +388,8 @@ def _assistant_blocks(
     blocks += [
         {"type": "tool_call", "id": c.id, "name": c.name, "args": c.arguments} for c in calls
     ]
+    # How long the model worked before it started to answer ("thought for 8 seconds").
+    blocks += [{"type": "timing", "thinking_ms": thinking_ms}] if thinking_ms is not None else []
     return blocks
 
 
@@ -424,6 +433,10 @@ def _tool_result_event(message_id: str, call: ToolCall, outcome: Outcome) -> Eve
     )
 
 
+def _elapsed_ms(started: float) -> int:
+    return round((time.monotonic() - started) * 1000)
+
+
 async def generate(
     state: State, user_id: str, session_id: str, cancel: asyncio.Event
 ) -> AsyncIterator[Event]:
@@ -446,6 +459,8 @@ async def generate(
         yield event("message_start", message_id=message_id)
         completion: Completion | None = None
         partial = ""
+        started = time.monotonic()
+        thinking_ms: int | None = None
         try:
             async for item in _stream(prepared, cancel, message_id):
                 if isinstance(item, Completion):
@@ -455,22 +470,28 @@ async def generate(
                 else:
                     if item["event"] == "text_delta":
                         partial += item["data"]["text"]
+                        if thinking_ms is None:
+                            thinking_ms = _elapsed_ms(started)
                     yield item
         except AppError as exc:
             if partial:
                 await _save_assistant(
-                    state, user_id, session_id, message_id, partial, [], None, None
+                    state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
                 )
             yield event("error", code=exc.code, params=exc.params)
             return
         except asyncio.CancelledError:  # the client went away: keep what was said
             await asyncio.shield(
-                _save_assistant(state, user_id, session_id, message_id, partial, [], None, None)
+                _save_assistant(
+                    state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
+                )
             )
             raise
 
         if completion is None:  # stopped
-            await _save_assistant(state, user_id, session_id, message_id, partial, [], None, None)
+            await _save_assistant(
+                state, user_id, session_id, message_id, partial, [], None, None, (), thinking_ms
+            )
             yield event("message_end", message_id=message_id, stopped=True)
             return
 
@@ -485,6 +506,8 @@ async def generate(
             prepared.model.model,
             completion.usage,
             completion.reasoning,
+            # A step that only called tools worked all the way to its end.
+            _elapsed_ms(started) if thinking_ms is None or calls else thinking_ms,
         )
         yield event(
             "message_end",
@@ -526,6 +549,7 @@ async def _save_assistant(
     model: str | None,
     usage: Any,
     reasoning: Sequence[Reasoning] = (),
+    thinking_ms: int | None = None,
 ) -> None:
     if not text and not calls:
         return
@@ -535,7 +559,7 @@ async def _save_assistant(
             ctx,
             session,
             "assistant",
-            _assistant_blocks(text, calls, reasoning),
+            _assistant_blocks(text, calls, reasoning, thinking_ms),
             message_id=message_id,
             model=model,
             input_tokens=usage.input_tokens if usage else None,

@@ -140,9 +140,12 @@ class Completion:
 
 @dataclass(frozen=True)
 class Chunk:
-    """One streamed piece: a text delta, a finished tool call, or (last) the whole completion."""
+    """One streamed piece: a text delta, a reasoning delta, a finished tool call, or (last) the
+    whole completion."""
 
     text: str | None = None
+    # The readable part of the model's reasoning (a summary for most providers), as it streams.
+    thinking: str | None = None
     tool_call: ToolCall | None = None
     done: Completion | None = None
 

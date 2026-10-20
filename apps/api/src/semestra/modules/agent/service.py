@@ -189,12 +189,23 @@ def add_message(
     return row
 
 
+def _is_public(block: dict[str, Any]) -> bool:
+    return block.get("type") != "reasoning" or bool(block.get("content"))
+
+
+def _public_block(block: dict[str, Any]) -> dict[str, Any]:
+    # A reasoning block is kept as the provider sent it so it can go back to the same model
+    # (signatures, possibly encrypted details); the transcript shows only its readable text.
+    if block.get("type") == "reasoning":
+        return {"type": "reasoning", "text": block["content"]}
+    return block
+
+
 def message_out(row: AgentMessage) -> AgentMessageOut:
     return AgentMessageOut(
         id=row.id,
         role=row.role,  # pyright: ignore[reportArgumentType]
-        # Reasoning is only for the model (possibly encrypted): not part of the transcript.
-        content=[b for b in row.content if b.get("type") != "reasoning"],
+        content=[_public_block(b) for b in row.content if _is_public(b)],
         model=row.model,
         input_tokens=row.input_tokens,
         output_tokens=row.output_tokens,

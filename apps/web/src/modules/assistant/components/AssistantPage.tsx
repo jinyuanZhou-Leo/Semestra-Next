@@ -26,6 +26,9 @@ export function AssistantPage({
   const session = useQuery({
     ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
     enabled: sessionId !== null,
+    // Shares the conversation's cache entry: a refetch here would drop an answer mid-stream.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   }).data?.session
   // A conversation created here keeps its component (and its running answer) when the URL
   // changes to its id.

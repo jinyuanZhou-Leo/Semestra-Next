@@ -9,6 +9,8 @@ from httpx import Response
 from pydantic import BaseModel
 
 from semestra.modules import ai as m06
+from semestra.modules.ai.adapters import convert
+from semestra.modules.ai.adapters.base import ChatRequest, ModelParams
 from semestra.modules.ai.llm import Message, Reasoning, Tool, ToolCall, ToolResult
 from semestra.modules.ai.tests.conftest import Ai
 from semestra.modules.ai.tests.test_calls import COMPAT, anthropic_reply, openai_reply, usage_rows
@@ -419,3 +421,12 @@ async def test_anthropic_compatible_json_fallback(ai: Ai, mock: respx.MockRouter
     body = json.loads(route.calls.last.request.content)
     assert "tools" not in body
     assert "JSON Schema" in body["system"]
+
+
+def test_responses_ask_for_a_reasoning_summary_when_reasoning():
+    # The assistant shows the summary in its thinking block (M12 §6.1).
+    thinking = ChatRequest("gpt-5", [], params=ModelParams(reasoning_effort="low"))
+    assert convert.settings("openai_responses", thinking).get("openai_reasoning_summary") == "auto"
+    assert "openai_reasoning_summary" not in convert.settings("openai", thinking)
+    plain = ChatRequest("gpt-5", [])
+    assert "openai_reasoning_summary" not in convert.settings("openai_responses", plain)

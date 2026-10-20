@@ -11,7 +11,14 @@ from contextlib import AsyncExitStack
 
 import httpx
 from pydantic_ai.direct import model_request, model_request_stream
-from pydantic_ai.messages import PartDeltaEvent, PartStartEvent, TextPart, TextPartDelta
+from pydantic_ai.messages import (
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ThinkingPartDelta,
+)
 
 from semestra.core.errors import AppError
 from semestra.modules.ai.adapters import convert
@@ -33,6 +40,22 @@ from semestra.modules.ai.adapters.sdk import (
     openai_client,
 )
 from semestra.modules.ai.llm import Chunk, Completion, Usage
+
+
+def _chunk(event: object) -> Chunk | None:
+    """A streamed text or reasoning delta; other events (tool call parts) wait for the end."""
+    if isinstance(event, PartStartEvent):
+        if isinstance(event.part, TextPart) and event.part.content:
+            return Chunk(text=event.part.content)
+        if isinstance(event.part, ThinkingPart) and event.part.content:
+            return Chunk(thinking=event.part.content)
+    elif isinstance(event, PartDeltaEvent):
+        if isinstance(event.delta, TextPartDelta) and event.delta.content_delta:
+            return Chunk(text=event.delta.content_delta)
+        if isinstance(event.delta, ThinkingPartDelta) and event.delta.content_delta:
+            return Chunk(thinking=event.delta.content_delta)
+    return None
+
 
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
@@ -96,15 +119,9 @@ class ProviderAdapter:
             stream = await _retrying(start, req.model)
             try:
                 async for event in stream:
-                    text = None
-                    if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
-                        text = event.part.content
-                    elif isinstance(event, PartDeltaEvent) and isinstance(
-                        event.delta, TextPartDelta
-                    ):
-                        text = event.delta.content_delta
-                    if text:
-                        yield Chunk(text=text)
+                    chunk = _chunk(event)
+                    if chunk is not None:
+                        yield chunk
                 response = stream.get()
             except AppError:
                 raise
