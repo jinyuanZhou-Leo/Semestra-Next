@@ -128,7 +128,7 @@ async def read_upload(
             else []
         )
     except parse.ParseError as exc:
-        raise AppError("import.file_unsupported", 422, filename=filename) from exc
+        raise _unreadable(exc, filename) from exc
     return texts, [ai.Image(png, "image/png") for png in pngs]
 
 
@@ -144,8 +144,14 @@ async def render_pages(settings: Settings, data: bytes, mime: str, filename: str
             data, pdf=True, pages=TIMETABLE_PAGES, **_limits(settings)
         )
     except parse.ParseError as exc:
-        raise AppError("import.file_unsupported", 422, filename=filename) from exc
+        raise _unreadable(exc, filename) from exc
     return [ai.Image(png, "image/png") for png in pngs]
+
+
+def _unreadable(exc: Exception, filename: str) -> AppError:
+    if getattr(exc, "code", None) == "files.too_complex":  # out of time or memory
+        return AppError("import.file_too_complex", 422, filename=filename)
+    return AppError("import.file_unsupported", 422, filename=filename)
 
 
 def _limits(settings: Settings) -> dict[str, Any]:

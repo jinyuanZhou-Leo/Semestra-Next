@@ -72,8 +72,13 @@ class _GuardedBackend(httpcore.AsyncNetworkBackend):
         await self._inner.sleep(seconds)
 
 
+# One pool for the whole app. Connections stay open 30 s between requests (httpx: 5 s), long
+# enough for an agent turn's tool calls between two model requests.
+POOL_LIMITS = httpx.Limits(max_connections=100, max_keepalive_connections=20, keepalive_expiry=30)
+
+
 def _new_transport(settings: Settings) -> httpx.AsyncHTTPTransport:
-    transport = httpx.AsyncHTTPTransport(trust_env=False)
+    transport = httpx.AsyncHTTPTransport(trust_env=False, limits=POOL_LIMITS)
     if not settings.allow_private_egress:
         pool: Any = transport._pool  # pyright: ignore[reportPrivateUsage]
         pool._network_backend = _GuardedBackend(pool._network_backend)

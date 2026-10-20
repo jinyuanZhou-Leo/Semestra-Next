@@ -1,11 +1,15 @@
+import asyncio
+
 import httpx
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
 
+from semestra.core import http
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.core.http import close_shared_transports, is_public_address, safe_client
 from semestra.core.security import decrypt, encrypt, mask
+from semestra.main import create_app
 
 
 def test_encrypt_round_trip_and_key_change() -> None:
@@ -66,12 +70,22 @@ async def test_safe_clients_share_one_pool_that_outlives_them() -> None:
     settings = Settings(env="test")
     async with safe_client(settings) as first:
         pass
-    second = safe_client(settings)
-    assert first._transport is second._transport  # pyright: ignore[reportPrivateUsage]
-    # Closing a client left the pool usable, and the egress guard still applies.
-    with pytest.raises(AppError):
-        await second.get("http://127.0.0.1:9/")
-    open_policy = safe_client(Settings(env="test", allow_private_egress=True))
-    assert open_policy._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
+    async with safe_client(settings) as second:
+        assert first._transport is second._transport  # pyright: ignore[reportPrivateUsage]
+        # Closing a client left the pool usable, and the egress guard still applies.
+        with pytest.raises(AppError):
+            await second.get("http://127.0.0.1:9/")
+    async with safe_client(Settings(env="test", allow_private_egress=True)) as open_policy:
+        assert open_policy._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
     await close_shared_transports()
-    assert safe_client(settings)._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
+    async with safe_client(settings) as third:
+        assert third._transport is not second._transport  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_the_app_closes_the_pool_when_it_stops(settings: Settings) -> None:
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        async with safe_client(settings):
+            pass
+        assert asyncio.get_running_loop() in http._shared  # pyright: ignore[reportPrivateUsage]
+    assert asyncio.get_running_loop() not in http._shared  # pyright: ignore[reportPrivateUsage]

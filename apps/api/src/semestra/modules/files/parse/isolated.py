@@ -2,17 +2,25 @@
 
 The readers and pdf.js-like renderers run third-party C code over untrusted bytes. In a child
 process they get an address-space limit and a deadline, and a stuck or exploding file is killed
-instead of tying up a job worker or the API's memory.
+instead of tying up a job worker or the API's memory. macOS does not enforce the address-space
+limit: there only the deadline applies.
+
+At most `MAX_CHILDREN` children run at once (per event loop), so the file pipeline, imports and
+chat attachments together cannot stack up their memory limits.
 """
 
+import asyncio
 import multiprocessing
 import time
+import traceback
+import weakref
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from multiprocessing.context import ForkServerContext, SpawnContext
 
+import anyio
 import anyio.to_thread
 
 from semestra.modules.files.parse.detect import Detected
@@ -20,6 +28,10 @@ from semestra.modules.files.parse.readers import ParsedDocument, ParseError, par
 from semestra.modules.files.parse.render import PageRenderer
 
 _POLL_SECONDS = 0.25
+MAX_CHILDREN = 3
+_limiters: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, anyio.CapacityLimiter] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 @dataclass(frozen=True)
@@ -77,7 +89,7 @@ def _child(
     try:
         document = parse(data, detected, max_pages=max_pages)
         conn.send(Parsed(document))
-        if detected.kind in ("pdf", "image"):
+        if thumbnail_pages and detected.kind in ("pdf", "image"):
             renderer = PageRenderer(data, pdf=detected.kind == "pdf")
             total = min(len(document.pages), thumbnail_pages)
             for index in range(total):
@@ -89,6 +101,7 @@ def _child(
     except MemoryError:
         conn.send(_Failed("files.too_complex", {}))
     except Exception:
+        traceback.print_exc()  # the child's stderr, for whoever runs the API
         conn.send(_Failed("files.parse_failed", {}))
     finally:
         conn.close()
@@ -109,6 +122,7 @@ def _render_child(
     except MemoryError:
         conn.send(_Failed("files.too_complex", {}))
     except Exception:
+        traceback.print_exc()
         conn.send(_Failed("files.parse_failed", {}))
     finally:
         conn.close()
@@ -151,6 +165,21 @@ async def _run(
     target: Callable[..., None], args: tuple[object, ...], time_limit: float
 ) -> AsyncGenerator[object]:
     """Runs `target(conn, *args)` in a child process and yields what it sends until `None`."""
+    async with _limiter(), aclosing(_child_messages(target, args, time_limit)) as messages:
+        async for message in messages:
+            yield message
+
+
+def _limiter() -> anyio.CapacityLimiter:
+    loop = asyncio.get_running_loop()
+    if (limiter := _limiters.get(loop)) is None:
+        limiter = _limiters[loop] = anyio.CapacityLimiter(MAX_CHILDREN)
+    return limiter
+
+
+async def _child_messages(
+    target: Callable[..., None], args: tuple[object, ...], time_limit: float
+) -> AsyncGenerator[object]:
     receiver, sender = multiprocessing.Pipe(duplex=False)
     process = _context().Process(target=target, args=(sender, *args), daemon=True)
     await anyio.to_thread.run_sync(process.start)
@@ -159,9 +188,9 @@ async def _run(
     try:
         while True:
             ready = await anyio.to_thread.run_sync(receiver.poll, _POLL_SECONDS)
+            if time.monotonic() > deadline:
+                raise ParseError("files.too_complex")
             if not ready:
-                if time.monotonic() > deadline:
-                    raise ParseError("files.too_complex")
                 continue
             try:
                 message = await anyio.to_thread.run_sync(receiver.recv)
