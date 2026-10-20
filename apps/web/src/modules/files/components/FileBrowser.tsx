@@ -1,5 +1,8 @@
 import type { FolderOut, ItemOut } from '@semestra/api-client'
-import { filesItemUpdateMutation, filesReprocessMutation } from '@semestra/api-client/react-query'
+import {
+  filesItemUpdateMutation,
+  filesItemReprocessMutation,
+} from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -200,7 +203,7 @@ function ReprocessItem({ item }: { item: ItemOut }) {
   const queryClient = useQueryClient()
   // The menu closes on click, so the mutation lives in the item and reports through toasts.
   const reprocess = useMutation({
-    ...filesReprocessMutation(),
+    ...filesItemReprocessMutation(),
     onError: toastError,
     onSuccess: () => invalidateFiles(queryClient),
   })

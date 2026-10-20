@@ -1,4 +1,4 @@
-"""Pure parts of `files.search`: query terms, fusion, snippets."""
+"""Pure parts of `files.document.search`: query terms, fusion, snippets."""
 
 from semestra.modules.files.search import make_snippet, query_terms, reciprocal_rank_fusion
 

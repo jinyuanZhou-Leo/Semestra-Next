@@ -11,7 +11,7 @@ DEFAULT_GOAL = "daily"
 DEFAULT_WEEKLY_TARGET = 3
 # Check-ins may be changed for today and the seven days before it.
 BACKFILL_DAYS = 7
-# `habit.checkins.list` never spans more than this many days.
+# `habit.checkin.list` never spans more than this many days.
 MAX_LIST_DAYS = 400
 
 InstanceId = Annotated[str, Field(min_length=1, max_length=64)]
@@ -37,14 +37,14 @@ class StatsInput(BaseModel):
 class CheckinToggleResult(BaseModel):
     date: dt.date
     checked: bool = Field(description="Whether the day is checked after the call")
-    stats: HabitStats
+    stats: HabitStreakGet
 
 
 class CheckinList(BaseModel):
     items: list[dt.date] = Field(description="Checked days, ascending")
 
 
-class HabitStats(BaseModel):
+class HabitStreakGet(BaseModel):
     goal: Literal["daily", "weekly"]
     weekly_target: int = Field(description="Check-ins needed per week (weekly goal)")
     current_streak: int = Field(description="Days (daily goal) or weeks (weekly goal) in a row")

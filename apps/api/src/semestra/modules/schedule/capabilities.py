@@ -48,11 +48,11 @@ TAGS = ("schedule",)
 
 
 @capability(
-    name="calendar.today",
+    name="calendar.today.get",
     summary="Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
     description="""Prefer this for questions about today ("what do I have today?", "what's due this
 week?"). It also says which term week it is. For other days or longer ranges use
-calendar.occurrences. Times are UTC; read them in the returned `timezone`.""",
+calendar.occurrence.list. Times are UTC; read them in the returned `timezone`.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/today"),
     tags=TAGS,
@@ -63,13 +63,13 @@ async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
 
 
 @capability(
-    name="calendar.occurrences",
+    name="calendar.occurrence.list",
     summary="Everything on the calendar in a date range: classes, events, deadlines, tasks.",
     description="""Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
 overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
 and at most 400 days after `start` (120 in the app), so a whole term fits in one call. Cancelled
 classes are included with status 'cancelled'.
-For today alone prefer calendar.today. Each class carries its term week in meta.week_number.""",
+For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/calendar"),
     tags=TAGS,
@@ -169,7 +169,7 @@ async def meeting_list(ctx: Ctx, inp: MeetingListInput) -> MeetingList:
     name="schedule.meeting.create",
     summary="Add a weekly (or biweekly) class section to a course in one of its terms.",
     description="""Times are wall-clock times in the Program's time zone. Check
-schedule.conflicts afterwards and mention any overlap. For a single extra session (exam, make-up
+schedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up
 class) use schedule.event.create instead.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/meetings"),
@@ -264,7 +264,7 @@ async def exception_delete(ctx: Ctx, inp: ExceptionRef) -> Meeting:
 
 
 @capability(
-    name="schedule.conflicts",
+    name="schedule.conflict.list",
     summary="Class sections of a term that overlap each other.",
     description="""Use before or after adding meetings to warn about clashes. Only enabled sections
 that share at least one date count.""",
@@ -283,7 +283,7 @@ async def schedule_conflicts(ctx: Ctx, inp: TermRef) -> ConflictList:
     name="schedule.event.list",
     summary="List one-off events (exams, office hours, make-up classes) of a Program.",
     description="""Optionally only one course's or one term's. For a date range use
-calendar.occurrences.""",
+calendar.occurrence.list.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/events"),
     tags=TAGS,

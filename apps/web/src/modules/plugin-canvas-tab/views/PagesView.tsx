@@ -1,4 +1,4 @@
-import { lmsPageGetOptions, lmsPagesListOptions } from '@semestra/api-client/react-query'
+import { lmsPageGetOptions, lmsPageListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { FileText, Lock } from 'lucide-react'
 import { SafeHtml } from '@/components/SafeHtml'
@@ -20,7 +20,7 @@ export function PagesView({ selected }: { selected?: string }) {
 function PageList() {
   const { courseId, query, go } = useCanvasPage()
   const list = useQuery({
-    ...lmsPagesListOptions({ path: { course_id: courseId }, query }),
+    ...lmsPageListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (

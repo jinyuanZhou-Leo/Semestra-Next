@@ -1,9 +1,9 @@
-import { client, filesList } from '@semestra/api-client'
-import type { FilesList } from '@semestra/api-client'
+import { client, filesItemList } from '@semestra/api-client'
+import type { FilesItemList } from '@semestra/api-client'
 import {
   filesItemGetOptions,
-  filesListQueryKey,
-  filesUsageOptions,
+  filesItemListQueryKey,
+  filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 
@@ -11,13 +11,16 @@ const STALE = 30_000
 const PAGE_SIZE = 500
 
 /** Every file and folder of a course, following the list's pages. */
-export async function fetchCourseFiles(courseId: string, signal?: AbortSignal): Promise<FilesList> {
-  const items: FilesList['items'] = []
-  let folders: FilesList['folders'] = []
+export async function fetchCourseFiles(
+  courseId: string,
+  signal?: AbortSignal,
+): Promise<FilesItemList> {
+  const items: FilesItemList['items'] = []
+  let folders: FilesItemList['folders'] = []
   let cursor: string | null = null
   do {
     // oxlint-disable-next-line no-await-in-loop -- each page needs the previous page's cursor
-    const { data }: { data: FilesList } = await filesList({
+    const { data }: { data: FilesItemList } = await filesItemList({
       path: { course_id: courseId },
       query: { recursive: true, limit: PAGE_SIZE, sort: 'name', cursor },
       signal,
@@ -36,7 +39,7 @@ export async function fetchCourseFiles(courseId: string, signal?: AbortSignal): 
  */
 export function useCourseFiles(courseId: string) {
   return useQuery({
-    queryKey: filesListQueryKey({ path: { course_id: courseId }, query: { recursive: true } }),
+    queryKey: filesItemListQueryKey({ path: { course_id: courseId }, query: { recursive: true } }),
     queryFn: ({ signal }) => fetchCourseFiles(courseId, signal),
     enabled: Boolean(courseId),
     staleTime: STALE,
@@ -52,7 +55,7 @@ export function useFileItem(itemId: string | null | undefined) {
 }
 
 export function useFilesUsage() {
-  return useQuery({ ...filesUsageOptions(), staleTime: STALE })
+  return useQuery({ ...filesUsageGetOptions(), staleTime: STALE })
 }
 
 function operationId(queryKey: readonly unknown[]): string {

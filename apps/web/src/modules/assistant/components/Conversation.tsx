@@ -6,7 +6,7 @@ import {
   agentAttachmentUpload,
   agentSessionUpdate,
 } from '@semestra/api-client'
-import { agentSessionGetQueryKey, settingsValuesGetOptions } from '@semestra/api-client/react-query'
+import { agentSessionGetQueryKey, settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Brain,
@@ -383,7 +383,7 @@ function AiSetupNeeded() {
 /** The account setting `assistant.show_reasoning` (on unless turned off). */
 function useShowReasoning(): boolean {
   const values = useQuery({
-    ...settingsValuesGetOptions({ path: { namespace: 'assistant' } }),
+    ...settingsValueGetOptions({ path: { namespace: 'assistant' } }),
     staleTime: 60_000,
   }).data?.values as { show_reasoning?: boolean } | undefined
   return values?.show_reasoning ?? true

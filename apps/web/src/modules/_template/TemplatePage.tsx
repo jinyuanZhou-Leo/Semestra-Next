@@ -1,7 +1,7 @@
 import {
   coreJobCancelMutation,
   coreJobListOptions,
-  settingsValuesGetOptions,
+  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Fragment } from 'react'
@@ -36,7 +36,7 @@ export default function TemplatePage() {
   const jobs = useQuery(coreJobListOptions())
   const cancel = useMutation({ ...coreJobCancelMutation(), onError: toastError })
   // Module configuration (M11 settings framework): the user sets it on the settings page.
-  const settings = useQuery(settingsValuesGetOptions({ path: { namespace: 'plugin.template' } }))
+  const settings = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.template' } }))
   const compact = settings.data?.values.compact === true
   // Interface state (M11 useUiPref): remembered per user, not shown on any settings page.
   const [hideFinished, setHideFinished] = useUiPref('template.hide_finished', false)

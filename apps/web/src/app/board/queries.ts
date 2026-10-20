@@ -1,5 +1,5 @@
 import type { Board, BoardCard } from '@semestra/api-client'
-import { layoutsCardSettingsUpdate } from '@semestra/api-client'
+import { layoutsCardUpdateSettings } from '@semestra/api-client'
 import { layoutsBoardGetOptions } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -67,7 +67,7 @@ export function useCardSettings<T extends object>(instanceId: string) {
     })
     setStatus('saving')
     const request = inOrder(`layouts.card_settings.${instanceId}`, () =>
-      layoutsCardSettingsUpdate({
+      layoutsCardUpdateSettings({
         path: { instance_id: instanceId },
         body: { settings: next as Record<string, never> },
         throwOnError: true,

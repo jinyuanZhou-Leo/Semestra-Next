@@ -100,7 +100,7 @@ async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
 
 
 @capability(
-    name="imports.items.bulk_decide",
+    name="imports.item.decide_many",
     summary="Accept or reject many import items at once, by type, issue or id.",
     description="""E.g. reject every item with `import.duplicate_assessment`. The filters combine
 (an item must match all given). Rejecting a course item also rejects the items that belong to it
@@ -117,7 +117,7 @@ async def items_decide(ctx: Ctx, inp: BulkDecideInput) -> BulkDecideResult:
 
 
 @capability(
-    name="imports.items.add",
+    name="imports.item.add_many",
     summary="Append items to an open import (LMS integration, assistant).",
     description="""For what you read yourself (source_kind `agent`); files the user attached go
 to imports.session.create with attachment_ids instead. Items refer to each other with `item:<key>`

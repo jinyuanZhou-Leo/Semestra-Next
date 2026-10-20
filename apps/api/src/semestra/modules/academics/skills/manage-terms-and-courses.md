@@ -3,7 +3,7 @@ name: manage-terms-and-courses
 title: { en: "Manage terms and courses", zh-CN: "管理学期与课程" }
 command: /terms
 description: Create terms, change their name, dates and breaks, add courses, make a course year-long, and delete terms or courses safely.
-tools: [academics.program.list, academics.term.list, academics.term.get, academics.term.calendar_info, academics.term.create, academics.term.update, academics.term.delete_preview, academics.term.delete, academics.course.find, academics.course.create, academics.course.set_terms, academics.course.update, academics.course.delete]
+tools: [academics.program.list, academics.term.list, academics.term.get, academics.term.get_weeks, academics.term.create, academics.term.update, academics.term.preview_delete, academics.term.delete, academics.course.find, academics.course.create, academics.course.set_terms, academics.course.update, academics.course.delete]
 ---
 
 # Managing terms and courses
@@ -39,7 +39,7 @@ e.g. "MAT137Y1" from fall to winter). There are no courses without a term.
   be consecutive terms of the same Program (`academics.course_terms_not_adjacent` otherwise).
 
 **Deleting** (cannot be undone).
-- Before `academics.term.delete`, call `academics.term.delete_preview` and tell the user how many
+- Before `academics.term.delete`, call `academics.term.preview_delete` and tell the user how many
   courses will be deleted and how many year-long courses are kept (they only lose this term).
 - Deleting a course or Program also deletes its grades, files and schedule. Say plainly what
   will be deleted along with it, then call the delete tool: the user confirms on the card, so do

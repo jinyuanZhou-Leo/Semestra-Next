@@ -1,5 +1,5 @@
 import type { Course, ItemOut } from '@semestra/api-client'
-import { filesListQueryKey } from '@semestra/api-client/react-query'
+import { filesItemListQueryKey } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, CircleAlert, FolderOpen, Search } from 'lucide-react'
 import { useState } from 'react'
@@ -61,7 +61,10 @@ function TermFiles({
   const contentSearch = useContentSearch(programId, query, { termId })
   const lists = useQueries({
     queries: courses.map((course) => ({
-      queryKey: filesListQueryKey({ path: { course_id: course.id }, query: { recursive: true } }),
+      queryKey: filesItemListQueryKey({
+        path: { course_id: course.id },
+        query: { recursive: true },
+      }),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
       staleTime: 30_000,
     })),

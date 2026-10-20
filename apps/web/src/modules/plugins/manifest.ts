@@ -74,7 +74,7 @@ export default defineModule({
     'plugins.uninstalled': ['pluginsCatalogList', 'layoutsBoardGet'],
     'layouts.board.updated': ['layoutsBoardGet'],
     'layouts.card.deleted': ['layoutsBoardGet'],
-    'layouts.card.settings_updated': ['layoutsBoardGet', 'layoutsCardSettingsGet'],
+    'layouts.card.settings_updated': ['layoutsBoardGet', 'layoutsCardGetSettings'],
     'layouts.nav.updated': ['layoutsNavGet'],
     'layouts.template.updated': ['layoutsTemplateGet', 'layoutsBoardGet'],
   },

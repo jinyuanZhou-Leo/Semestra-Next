@@ -1,6 +1,6 @@
 import { client, type ExportOut } from '@semestra/api-client'
 import {
-  coreStorageUsageOptions,
+  coreStorageGetOptions,
   portabilityExportListOptions,
   portabilityExportListQueryKey,
   portabilityExportStartMutation,
@@ -23,7 +23,7 @@ export function ExportSection() {
   const queryClient = useQueryClient()
   const id = useId()
   const [includeFiles, setIncludeFiles] = useState(false)
-  const usage = useQuery(coreStorageUsageOptions())
+  const usage = useQuery(coreStorageGetOptions())
   const exports = useQuery(portabilityExportListOptions())
   const start = useMutation({
     ...portabilityExportStartMutation(),

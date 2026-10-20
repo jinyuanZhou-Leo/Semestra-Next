@@ -1,4 +1,4 @@
-import type { FilesList, ItemOut } from '@semestra/api-client'
+import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import { FolderOpen, FolderPlus, LayoutGrid, Link2, List, Plus, Search, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
@@ -61,7 +61,7 @@ function CourseFiles({
   courseId,
   programId,
 }: {
-  list: FilesList
+  list: FilesItemList
   courseId: string
   programId: string
 }) {

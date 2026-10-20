@@ -539,7 +539,7 @@ async def test_a_second_account_cannot_invalidate_anothers_pending_email_change(
 async def test_only_me_get_is_exposed_to_agents_and_mcp() -> None:
     agent = {c.name for c in registry.list(expose="agent") if c.name.startswith("account.")}
     mcp = {c.name for c in registry.list(expose="mcp") if c.name.startswith("account.")}
-    assert agent == mcp == {"account.me.get"}
+    assert agent == mcp == {"account.profile.get"}
 
 
 async def test_agents_only_see_name_email_and_locale(
@@ -553,13 +553,18 @@ async def test_agents_only_see_name_email_and_locale(
     async with app.state.session_factory() as db:
         row = await db.get(AuthUser, user.id)
         ctx = Ctx(db, row, "en", app.state.now(), None, "mcp", "req", state=app.state)
-        out = await reg.invoke(ctx, "account.me.get", {}, "agent")
+        out = await reg.invoke(ctx, "account.profile.get", {}, "agent")
     assert out == {"display_name": "Agent Test", "email": "agent@example.com", "locale": "en"}
 
 
 async def test_capability_routes_have_camel_case_operation_ids(app: FastAPI) -> None:
     ops = {op["operationId"] for path in app.openapi()["paths"].values() for op in path.values()}
-    assert {"accountMeGet", "accountTokensCreate", "accountSessionsRevoke", "authEmailStart"} <= ops
+    assert {
+        "accountProfileGet",
+        "accountTokenCreate",
+        "accountSessionRevoke",
+        "authEmailStart",
+    } <= ops
 
 
 # --- uploaded avatars -------------------------------------------------------------------------

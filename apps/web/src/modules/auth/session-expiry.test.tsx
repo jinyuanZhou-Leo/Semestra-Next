@@ -1,4 +1,4 @@
-import { accountSessionsList } from '@semestra/api-client'
+import { accountSessionList } from '@semestra/api-client'
 import { act, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
@@ -30,7 +30,7 @@ test('a 401 while signed in waits for re-login, then the request is retried', as
   )
   setSignedIn(true)
 
-  const result = accountSessionsList({ throwOnError: true })
+  const result = accountSessionList({ throwOnError: true })
   await waitFor(() => expect(isReauthPending()).toBe(true))
   act(() => settleReauth(true))
 
@@ -43,7 +43,7 @@ test('giving up surfaces the original 401', async () => {
   server.use(http.get(`${API}/account/sessions`, () => unauthorized()))
   setSignedIn(true)
 
-  const result = accountSessionsList({ throwOnError: true }).catch((e: unknown) => e)
+  const result = accountSessionList({ throwOnError: true }).catch((e: unknown) => e)
   await waitFor(() => expect(isReauthPending()).toBe(true))
   act(() => settleReauth(false))
 
@@ -54,7 +54,7 @@ test('giving up surfaces the original 401', async () => {
 
 test('a 401 when nobody was signed in is just an error (no dialog)', async () => {
   server.use(http.get(`${API}/account/sessions`, () => unauthorized()))
-  await expect(accountSessionsList({ throwOnError: true })).rejects.toMatchObject({ status: 401 })
+  await expect(accountSessionList({ throwOnError: true })).rejects.toMatchObject({ status: 401 })
   expect(isReauthPending()).toBe(false)
 })
 
@@ -64,7 +64,7 @@ test('a 401 that is not a lapsed session (wrong password) is a plain error', asy
     http.get(`${API}/account/sessions`, () => HttpResponse.json(e.body, { status: e.status })),
   )
   setSignedIn(true)
-  await expect(accountSessionsList({ throwOnError: true })).rejects.toMatchObject({
+  await expect(accountSessionList({ throwOnError: true })).rejects.toMatchObject({
     status: 401,
     code: 'auth.invalid_credentials',
   })
@@ -96,7 +96,7 @@ test('the dialog shows over the page and offers sign-in with the same email', as
   )
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-  const { accountSessionsList: call } = await import('@semestra/api-client')
+  const { accountSessionList: call } = await import('@semestra/api-client')
   server.use(http.get(`${API}/account/sessions`, () => unauthorized()))
   const pending = call({ throwOnError: true }).catch(() => null)
 

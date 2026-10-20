@@ -8,7 +8,7 @@ from semestra.core.context import Ctx
 from semestra.modules.agent import memory, service, skills
 from semestra.modules.agent.schemas import (
     AgentPreferencesOut,
-    AgentPreferencesUpdateInput,
+    AgentPreferenceUpdateInput,
     AgentSessionCreateInput,
     AgentSessionDetail,
     AgentSessionList,
@@ -132,7 +132,7 @@ async def session_stop(ctx: Ctx, inp: SessionIdInput) -> AgentStopResult:
 
 
 @capability(
-    name="agent.preferences.get",
+    name="agent.preference.get",
     summary="Get the assistant preferences.",
     description="Which write actions run without a confirmation card; MCP delete permission.",
     effect="read",
@@ -145,7 +145,7 @@ async def preferences_get(ctx: Ctx, inp: NoInput) -> AgentPreferencesOut:
 
 
 @capability(
-    name="agent.preferences.update",
+    name="agent.preference.update",
     summary="Change the assistant preferences.",
     description="Only write actions can be auto-approved; delete actions always ask.",
     effect="write",
@@ -153,12 +153,12 @@ async def preferences_get(ctx: Ctx, inp: NoInput) -> AgentPreferencesOut:
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def preferences_update(ctx: Ctx, inp: AgentPreferencesUpdateInput) -> AgentPreferencesOut:
+async def preferences_update(ctx: Ctx, inp: AgentPreferenceUpdateInput) -> AgentPreferencesOut:
     return await service.update_preferences(ctx, inp)
 
 
 @capability(
-    name="agent.tools.catalog",
+    name="agent.tool.list",
     summary="List every tool the assistant can use for this user.",
     description="Plugin tools appear once the plugin is installed.",
     effect="read",
@@ -186,7 +186,7 @@ async def tools_catalog(ctx: Ctx, inp: NoInput) -> AgentToolCatalog:
 
 
 @capability(
-    name="agent.skills.list",
+    name="agent.skill.list",
     summary="List the skills the user can run as slash commands.",
     description="Titles are in both interface languages.",
     effect="read",

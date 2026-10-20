@@ -1,8 +1,5 @@
 import type { AgentToolInfo } from '@semestra/api-client'
-import {
-  agentPreferencesGetOptions,
-  agentToolsCatalogOptions,
-} from '@semestra/api-client/react-query'
+import { agentPreferenceGetOptions, agentToolListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Eye, type LucideIcon, PencilLine, Trash2 } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
@@ -153,8 +150,8 @@ type Bulk = { tools: readonly AgentToolInfo[]; module?: string }
  * changes at once asks first, since content Sem reads could then trigger all of them.
  */
 export function ApprovalsSection() {
-  const catalog = useQuery(agentToolsCatalogOptions())
-  const preferences = useQuery(agentPreferencesGetOptions())
+  const catalog = useQuery(agentToolListOptions())
+  const preferences = useQuery(agentPreferenceGetOptions())
   const update = useUpdatePreferences()
   const settings = useSettingsDialog()
   // Kept after closing so the dialog keeps its text while it animates out.

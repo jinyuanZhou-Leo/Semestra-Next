@@ -379,8 +379,8 @@ async def test_agent_capabilities_are_registered():
 
     names = {c.name for c in registry.list()}
     assert {
-        "files.list",
-        "files.search",
+        "files.item.list",
+        "files.document.search",
         "files.document.read",
         "files.document.outline",
         "files.link.create",

@@ -3,7 +3,7 @@ import {
   lmsConnectionDeleteMutation,
   lmsConnectionListOptions,
   lmsConnectionValidateMutation,
-  lmsProvidersListOptions,
+  lmsProviderListOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
@@ -260,7 +260,7 @@ export function ConnectionsSection() {
     setAdding(true)
   }
   // Fetched with the list, so the platform step opens with its rows already there.
-  useQuery(lmsProvidersListOptions())
+  useQuery(lmsProviderListOptions())
   const [editing, setEditing] = useState<Connection | null>(null)
   const [deleting, setDeleting] = useState<Connection | null>(null)
   const check = useMutation({

@@ -41,7 +41,7 @@ async def export_ics(
     course_ids: Annotated[list[str] | None, Query()] = None,
     exclude_course_ids: Annotated[list[str] | None, Query()] = None,
 ) -> Response:
-    """`schedule.export.ics`: the same parameters as `calendar.occurrences`, up to 400 days so
+    """`schedule.export.ics`: the same parameters as `calendar.occurrence.list`, up to 400 days so
     a whole year can be exported, plus `exclude_course_ids` for courses hidden in the calendar
     filters (items without a course stay)."""
     inp = OccurrencesInput(

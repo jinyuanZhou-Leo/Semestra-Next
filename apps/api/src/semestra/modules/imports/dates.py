@@ -1,7 +1,7 @@
 """Turning dates as a syllabus writes them into calendar dates (M08 §4.2 step 4).
 
 "Week 5, Friday", "第 5 周周五", "Oct 3", "10月3日": week numbers come from the target term's
-calendar (`academics.term.calendar_info`, or plain weeks from the wizard's start date), month and
+calendar (`academics.term.get_weeks`, or plain weeks from the wizard's start date), month and
 day without a year take the year that puts the date inside the term.
 """
 

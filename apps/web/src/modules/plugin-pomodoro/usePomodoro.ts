@@ -1,6 +1,6 @@
 import {
   pomodoroSessionRecordMutation,
-  pomodoroStatsOptions,
+  pomodoroSessionSummarizeOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -143,14 +143,15 @@ export function useRecordSession() {
     },
     retryDelay: (attempt) => Math.min(30_000, 1000 * 2 ** attempt),
     onError: toastError,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: [{ _id: 'pomodoroStats' }] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: [{ _id: 'pomodoroSessionSummarize' }] }),
   })
 }
 
 /** Focus sessions and focus seconds of today, from the backend (it knows the Program's day). */
 export function usePomodoroToday(programId: string) {
   const { data } = useQuery({
-    ...pomodoroStatsOptions({ query: { program_id: programId } }),
+    ...pomodoroSessionSummarizeOptions({ query: { program_id: programId } }),
     staleTime: 30_000,
     // "Today" is the Program's day: ask again now and then, so a card left open overnight starts
     // counting the new day.

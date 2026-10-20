@@ -1,8 +1,8 @@
 import {
-  gradingCourseSummariesOptions,
+  gradingCourseSummaryListOptions,
   gradingGradebookGetOptions,
   gradingScaleGetOptions,
-  gradingScalePresetsOptions,
+  gradingScaleListPresetsOptions,
   gradingSummaryProgramOptions,
   gradingSummaryTermOptions,
 } from '@semestra/api-client/react-query'
@@ -38,7 +38,7 @@ export function useProgramGrades(programId: string) {
 /** Every course's grade in a Program, for the all-courses columns. */
 export function useCourseGrades(programId: string) {
   return useQuery({
-    ...gradingCourseSummariesOptions({ path: { program_id: programId } }),
+    ...gradingCourseSummaryListOptions({ path: { program_id: programId } }),
     staleTime: STALE,
   })
 }
@@ -51,7 +51,7 @@ export function useGradingScale(programId: string) {
 }
 
 export function useScalePresets() {
-  return useQuery({ ...gradingScalePresetsOptions(), staleTime: Infinity })
+  return useQuery({ ...gradingScaleListPresetsOptions(), staleTime: Infinity })
 }
 
 function operationId(queryKey: readonly unknown[]): string {

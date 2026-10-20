@@ -1,5 +1,5 @@
 import type { Course, Meeting, Occurrence, TermWeek } from '@semestra/api-client'
-import { calendarOccurrencesOptions } from '@semestra/api-client/react-query'
+import { calendarOccurrenceListOptions } from '@semestra/api-client/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -108,7 +108,7 @@ export function ExportDialog({
     const start = selectedWeeks[0]?.start_date ?? first
     const end = plusDays(selectedWeeks.at(-1)?.end_date ?? first, 1)
     const data = await queryClient.fetchQuery(
-      calendarOccurrencesOptions({
+      calendarOccurrenceListOptions({
         path: { program_id: programId },
         query: { start, end, term_id: termId, sources: wanted },
       }),

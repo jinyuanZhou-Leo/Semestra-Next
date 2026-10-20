@@ -1,4 +1,4 @@
-"""Account capabilities (M01 §5). Only `account.me.get` is open to agents and MCP clients."""
+"""Account capabilities (M01 §5). Only `account.profile.get` is open to agents and MCP clients."""
 
 from pydantic import BaseModel, Field
 
@@ -27,7 +27,7 @@ def _meta(ctx: Ctx) -> service.RequestMeta:
 
 
 @capability(
-    name="account.me.get",
+    name="account.profile.get",
     summary="Get the signed-in user's account profile.",
     description="""Use when you need the user's name, email address or preferred language.
 Do not use to read academic data; use the academics, grading or schedule capabilities.""",
@@ -152,7 +152,7 @@ async def google_unlink(ctx: Ctx, inp: NoInput) -> UserOut:
 
 
 @capability(
-    name="account.sessions.list",
+    name="account.session.list",
     summary="List the signed-in devices.",
     description="Lists active sessions of the signed-in user. Not available to agents.",
     effect="read",
@@ -173,7 +173,7 @@ class Revoked(BaseModel):
 
 
 @capability(
-    name="account.sessions.revoke",
+    name="account.session.revoke",
     summary="Sign out one device.",
     description="Revokes a session. Revoking the current session signs this browser out.",
     effect="destructive",
@@ -187,7 +187,7 @@ async def sessions_revoke(ctx: Ctx, inp: SessionRevokeInput) -> Revoked:
 
 
 @capability(
-    name="account.sessions.revoke_others",
+    name="account.session.revoke_others",
     summary="Sign out all other devices.",
     description="Revokes every session except the current one.",
     effect="destructive",
@@ -201,7 +201,7 @@ async def sessions_revoke_others(ctx: Ctx, inp: NoInput) -> Revoked:
 
 
 @capability(
-    name="account.tokens.list",
+    name="account.token.list",
     summary="List personal access tokens.",
     description="Lists the user's non-revoked personal access tokens (never the secrets).",
     effect="read",
@@ -226,7 +226,7 @@ class TokenCreateInput(BaseModel):
 
 
 @capability(
-    name="account.tokens.create",
+    name="account.token.create",
     summary="Create a personal access token for an MCP client.",
     description="Creates a token. The plaintext is returned once and cannot be retrieved again.",
     effect="write",
@@ -243,7 +243,7 @@ class TokenRevokeInput(BaseModel):
 
 
 @capability(
-    name="account.tokens.revoke",
+    name="account.token.revoke",
     summary="Revoke a personal access token.",
     description="Revokes the token immediately.",
     effect="destructive",

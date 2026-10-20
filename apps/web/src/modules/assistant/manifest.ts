@@ -99,7 +99,7 @@ export default defineModule({
     },
   ],
   realtimeInvalidations: {
-    'plugins.installed': ['agentToolsCatalog', 'agentSkillsList'],
-    'plugins.uninstalled': ['agentToolsCatalog', 'agentSkillsList'],
+    'plugins.installed': ['agentToolList', 'agentSkillList'],
+    'plugins.uninstalled': ['agentToolList', 'agentSkillList'],
   },
 })

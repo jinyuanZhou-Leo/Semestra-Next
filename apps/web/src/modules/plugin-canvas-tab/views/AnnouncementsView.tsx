@@ -1,4 +1,4 @@
-import { lmsAnnouncementsListOptions } from '@semestra/api-client/react-query'
+import { lmsAnnouncementListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
 import { SafeHtml } from '@/components/SafeHtml'
@@ -15,7 +15,7 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
   const { courseId, query, go } = useCanvasPage()
   const onLink = useInternalLinks()
   const list = useQuery({
-    ...lmsAnnouncementsListOptions({ path: { course_id: courseId }, query }),
+    ...lmsAnnouncementListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (

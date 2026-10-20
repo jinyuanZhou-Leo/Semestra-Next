@@ -3,8 +3,8 @@ import {
   aiAssignmentGetOptions,
   aiAssignmentUpdateMutation,
   aiProviderListOptions,
-  aiProviderModelsOptions,
-  aiStatusOptions,
+  aiProviderListModelsOptions,
+  aiStatusGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
@@ -51,7 +51,7 @@ function ModelPicker({
   disabled: boolean
   onPick: (model: string) => void
 }) {
-  const models = useQuery(aiProviderModelsOptions({ path: { id: providerId } }))
+  const models = useQuery(aiProviderListModelsOptions({ path: { id: providerId } }))
   const [typed, setTyped] = useState(value ?? '')
 
   if (models.isPending) {
@@ -226,7 +226,7 @@ function PurposeRow({
 export function ModelsSection() {
   const assignments = useQuery(aiAssignmentGetOptions())
   const providers = useQuery(aiProviderListOptions())
-  const status = useQuery(aiStatusOptions())
+  const status = useQuery(aiStatusGetOptions())
 
   return (
     <AsyncBoundary query={assignments}>

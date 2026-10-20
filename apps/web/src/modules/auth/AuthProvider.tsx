@@ -1,4 +1,4 @@
-import { accountMeGetOptions, authLogoutMutation } from '@semestra/api-client/react-query'
+import { accountProfileGetOptions, authLogoutMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
@@ -13,7 +13,7 @@ import { AuthContext, type AuthState } from './useAuth'
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const me = useQuery({ ...accountMeGetOptions(), retry: false, staleTime: 60_000 })
+  const me = useQuery({ ...accountProfileGetOptions(), retry: false, staleTime: 60_000 })
   const { mutateAsync: logOut } = useMutation(authLogoutMutation())
 
   const user = me.data

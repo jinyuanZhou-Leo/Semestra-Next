@@ -1,4 +1,4 @@
-"""`files.search` (M07 §3.2): keywords (FTS5), meaning (vectors) or both, fused with RRF."""
+"""`files.document.search` (M07 §3.2): keywords (FTS5), meaning (vectors) or both, with RRF."""
 
 import functools
 import operator

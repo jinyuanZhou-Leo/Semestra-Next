@@ -6,9 +6,12 @@ Every capability offered to the agent is a Pydantic AI tool. The core set (`agen
 visible for the rest of the conversation (derived from the history, nothing is stored).
 
 Capability names use dots; tool names replace them with `__` because some providers reject dots.
+Text the model reads (descriptions, skills) names tools by their tool name (`for_model`), so the
+model never has to translate one into the other.
 """
 
 import json
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -17,7 +20,7 @@ from pydantic_ai import Tool
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
 
-from semestra.core.capability import Capability
+from semestra.core.capability import Capability, registry
 from semestra.modules.ai.calls import inline_refs
 
 CORE_LIMIT = 20
@@ -31,12 +34,12 @@ LOAD_CAPABILITY = "load_capability"
 # wrapped as untrusted content, like attachments, so instructions inside are not the user's.
 UNTRUSTED_RESULTS = frozenset(
     {
-        "attachments.read",
-        "files.search",
+        "agent.attachment.read",
+        "files.document.search",
         "files.document.read",
         "files.document.outline",
-        "lms.announcements.list",
-        "lms.assignments.list",
+        "lms.announcement.list",
+        "lms.assignment.list",
         "lms.page.get",
         "lms.syllabus.get",
     }
@@ -53,14 +56,40 @@ def capability_name(tool: str) -> str:
     return tool.replace("__", ".")
 
 
+_DOTTED = re.compile(r"(?<![\w.])[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+(?!\w)")
+
+
+def for_model(text: str) -> str:
+    """`text` with every capability name in it written as the tool the model calls."""
+    known = {c.name for c in registry.list()}
+    return _DOTTED.sub(lambda m: tool_name(m[0]) if m[0] in known else m[0], text)
+
+
+def description(cap: Capability) -> str:
+    return for_model(f"{cap.summary}\n\n{cap.description}".strip())
+
+
 def core_capabilities(available: list[Capability]) -> list[Capability]:
     return [c for c in available if c.agent_core][:CORE_LIMIT]
 
 
 def input_schema(cap: Capability) -> dict[str, Any]:
-    schema = inline_refs(cap.input_model.model_json_schema())
+    schema = _descriptions_for_model(inline_refs(cap.input_model.model_json_schema()))
     schema.pop("title", None)
     return schema
+
+
+def _descriptions_for_model(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {
+            k: for_model(v)
+            if k == "description" and isinstance(v, str)
+            else _descriptions_for_model(v)
+            for k, v in node.items()  # pyright: ignore[reportUnknownVariableType]
+        }
+    if isinstance(node, list):
+        return [_descriptions_for_model(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
+    return node
 
 
 def toolset(
@@ -78,7 +107,7 @@ def toolset(
         Tool.from_schema(
             run(cap),
             name=tool_name(cap.name),
-            description=f"{cap.summary}\n\n{cap.description}".strip(),
+            description=description(cap),
             json_schema=input_schema(cap),
             takes_ctx=True,
             sequential=cap.effect != "read",

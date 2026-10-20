@@ -4,7 +4,7 @@ import {
   accountEmailChangeStartMutation,
   accountGoogleLinkMutation,
   accountGoogleUnlinkMutation,
-  accountMeGetQueryKey,
+  accountProfileGetQueryKey,
   accountPasswordChangeMutation,
   authConfigOptions,
 } from '@semestra/api-client/react-query'
@@ -26,7 +26,7 @@ import { GoogleSignInButton } from '../components/GoogleSignInButton'
 
 function useUserCache() {
   const queryClient = useQueryClient()
-  return (user: UserOut) => queryClient.setQueryData(accountMeGetQueryKey(), user)
+  return (user: UserOut) => queryClient.setQueryData(accountProfileGetQueryKey(), user)
 }
 
 function EmailRow({ user }: { user: UserOut }) {

@@ -1,5 +1,5 @@
 import type { GradeItem } from '@semestra/api-client'
-import { lmsGradesListOptions } from '@semestra/api-client/react-query'
+import { lmsGradeListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -68,7 +68,7 @@ const columns = column.columns([
 export function GradesView() {
   const { programId, courseId, query } = useCanvasPage()
   const list = useQuery({
-    ...lmsGradesListOptions({ path: { course_id: courseId }, query }),
+    ...lmsGradeListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
   return (

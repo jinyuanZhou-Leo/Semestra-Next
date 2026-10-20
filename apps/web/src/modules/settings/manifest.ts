@@ -42,7 +42,7 @@ export default defineModule({
     },
   ],
   realtimeInvalidations: {
-    'settings.preferences.updated': ['settingsPreferencesGet'],
-    'settings.values.updated': ['settingsValuesGet'],
+    'settings.preferences.updated': ['settingsPreferenceGet'],
+    'settings.values.updated': ['settingsValueGet'],
   },
 })

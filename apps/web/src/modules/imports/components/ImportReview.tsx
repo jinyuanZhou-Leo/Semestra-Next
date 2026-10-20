@@ -1,6 +1,6 @@
 import type { ImportItem, ImportSessionDetail } from '@semestra/api-client'
 import {
-  importsItemsBulkDecideMutation,
+  importsItemDecideManyMutation,
   importsItemUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -111,7 +111,7 @@ export function ImportReview({
     onSuccess: (next) => storeSession(queryClient, next),
   })
   const bulk = useMutation({
-    ...importsItemsBulkDecideMutation(),
+    ...importsItemDecideManyMutation(),
     onError: toastError,
     onSuccess: (result) => storeSession(queryClient, result.session),
   })

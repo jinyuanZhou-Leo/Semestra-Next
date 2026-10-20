@@ -1,5 +1,5 @@
 import type { AgentToolInfo } from '@semestra/api-client'
-import { agentToolsCatalogOptions } from '@semestra/api-client/react-query'
+import { agentToolListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useId } from 'react'
 import { SettingsGroup } from '@/app/settings'
@@ -55,7 +55,7 @@ function ModuleTools({ group }: { group: ToolGroup }) {
  * what runs without asking is set under Permissions.
  */
 export function ToolsSection() {
-  const catalog = useQuery(agentToolsCatalogOptions())
+  const catalog = useQuery(agentToolListOptions())
   const groups = useToolGroups(catalog.data?.items ?? [])
   return (
     <AsyncBoundary query={catalog}>

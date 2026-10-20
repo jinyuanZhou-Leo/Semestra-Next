@@ -1,4 +1,4 @@
-import { agentPreferencesGetOptions } from '@semestra/api-client/react-query'
+import { agentPreferenceGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
@@ -49,7 +49,7 @@ export function mcpConfig(client: Client, url: string, token: string): string {
 
 /** The MCP server (M12 §5, §6.2): its address, client setups and whether deleting is allowed. */
 export function McpSection() {
-  const preferences = useQuery(agentPreferencesGetOptions())
+  const preferences = useQuery(agentPreferenceGetOptions())
   const update = useUpdatePreferences()
   const settings = useSettingsDialog()
   const [client, setClient] = useState<Client>('claude-desktop')

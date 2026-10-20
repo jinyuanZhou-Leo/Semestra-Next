@@ -1,5 +1,5 @@
 import type { UsageRow, UsageSummary } from '@semestra/api-client'
-import { aiUsageSummaryOptions } from '@semestra/api-client/react-query'
+import { aiUsageSummarizeOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -417,13 +417,13 @@ export function UsageSection() {
   const selection = picked?.range === range ? picked : null
   const tz = browserTimeZone()
   const usage = useQuery({
-    ...aiUsageSummaryOptions({
+    ...aiUsageSummarizeOptions({
       query: { ...(range === 'all' ? {} : { days: Number(range) }), tz },
     }),
     placeholderData: keepPreviousData,
   })
   const detail = useQuery({
-    ...aiUsageSummaryOptions({
+    ...aiUsageSummarizeOptions({
       query: { start: selection?.start ?? '', end: selection?.end ?? '', tz },
     }),
     enabled: selection !== null,

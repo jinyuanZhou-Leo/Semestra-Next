@@ -1,6 +1,6 @@
 import {
   lmsProgramBindingGetOptions,
-  lmsProvidersListOptions,
+  lmsProviderListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useExtensions } from '@/app/registry'
@@ -15,12 +15,12 @@ export function useProviderUis(): ReadonlyMap<string, LmsProviderUi> {
 }
 
 /**
- * The platforms a new connection can use: what the server offers (`lms.providers.list`) and the
+ * The platforms a new connection can use: what the server offers (`lms.provider.list`) and the
  * frontend has a form for, in the server's order.
  */
 export function useOfferedProviders(): { providers: LmsProviderUi[]; isPending: boolean } {
   const uis = useProviderUis()
-  const query = useQuery(lmsProvidersListOptions())
+  const query = useQuery(lmsProviderListOptions())
   const providers = (query.data?.items ?? []).flatMap((p) => {
     const ui = uis.get(p.kind)
     return ui ? [ui] : []
@@ -31,7 +31,7 @@ export function useOfferedProviders(): { providers: LmsProviderUi[]; isPending: 
 /** A provider kind's display name: its UI label, else the server's name, else the kind. */
 export function useProviderName(kind: string | null | undefined): string | null {
   const ui = useProviderUis().get(kind ?? '')
-  const offered = useQuery({ ...lmsProvidersListOptions(), enabled: Boolean(kind) && !ui }).data
+  const offered = useQuery({ ...lmsProviderListOptions(), enabled: Boolean(kind) && !ui }).data
   if (!kind) return null
   return ui?.label() ?? offered?.items.find((p) => p.kind === kind)?.display_name ?? kind
 }

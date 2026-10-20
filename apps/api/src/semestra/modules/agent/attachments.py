@@ -1,6 +1,6 @@
 """Chat attachments as documents (M12 实现说明): read once on upload with M07's parser into
 per-page markdown (`agent_attachment_pages`), then referred to by id. The model reads further
-pages with `attachments.read`; imports take the original file by id (`open_original`).
+pages with `agent.attachment.read`; imports take the original file by id (`open_original`).
 
 Pages are not chunked or indexed; saving the attachment to a course's files does that (M07).
 """
@@ -43,7 +43,7 @@ PAGE_MAX_CHARS = 20_000
 ICS_NOTE = (
     "Calendar file, as Semestra's calendar reader understands it: one page per course, in the "
     "Program's local time. To import its classes, pass this attachment id to "
-    "imports.session.create with source_kind ics."
+    "imports__session__create with source_kind ics."
 )
 SCANNED_NOTE = (
     "Scanned pages without text: {pages}. They cannot be read with this tool (the "
@@ -236,7 +236,7 @@ class AttachmentRead(BaseModel):
 
 
 @capability(
-    name="attachments.read",
+    name="agent.attachment.read",
     summary="Read pages of a file the user attached to the conversation.",
     description=f"""Returns the text of up to {READ_MAX_PAGES} pages as markdown, starting at
 page_from; when next_page is set, call again from there for more. Use the attachment id from the
@@ -308,7 +308,7 @@ class SaveToCourseInput(BaseModel):
 
 
 @capability(
-    name="attachments.save",
+    name="agent.attachment.save",
     summary="Save a file attached to the conversation to a course's files.",
     description="""Use when the user wants to keep an attached document (a syllabus, notes) with
 the course. The file is then processed like any course file (searchable, citable). Saving it to

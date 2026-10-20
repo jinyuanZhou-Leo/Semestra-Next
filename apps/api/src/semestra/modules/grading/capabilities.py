@@ -75,7 +75,7 @@ async def scale_update(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
 
 
 @capability(
-    name="grading.scale.presets",
+    name="grading.scale.list_presets",
     summary="List the built-in grading scales (UofT 4.0, US 4.0, China 100-point, custom).",
     description="Use to offer ready-made scales; apply one with grading.scale.update.",
     effect="read",
@@ -296,7 +296,7 @@ async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> GradebookSummar
 
 
 @capability(
-    name="grading.suggest_scores",
+    name="grading.score.suggest",
     summary="Suggest a score for every ungraded assessment that reaches the target grade.",
     description="""Scores follow the student's results so far in each category and land exactly on
 the target. Used to auto-fill a what-if plan. Fails with grading.weights_not_100 while the
@@ -353,7 +353,7 @@ async def summary_program(ctx: Ctx, inp: ProgramSummaryInput) -> ProgramGrades:
 
 
 @capability(
-    name="grading.course_summaries",
+    name="grading.course_summary.list",
     summary="The grade, grade points and status of every course in a Program.",
     description="Use to compare courses or list which are finished, in progress or pass/fail.",
     effect="read",

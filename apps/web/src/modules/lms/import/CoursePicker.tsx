@@ -1,8 +1,5 @@
-import { importsSessionGet, lmsImportCourses, type ImportSessionDetail } from '@semestra/api-client'
-import {
-  lmsCoursesListOptions,
-  lmsProgramBindingGetOptions,
-} from '@semestra/api-client/react-query'
+import { importsSessionGet, lmsCourseImport, type ImportSessionDetail } from '@semestra/api-client'
+import { lmsCourseListOptions, lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
@@ -101,7 +98,7 @@ function CourseList({
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
   const courses = useQuery({
-    ...lmsCoursesListOptions({ path: { program_id: programId }, query: { include_past: past } }),
+    ...lmsCourseListOptions({ path: { program_id: programId }, query: { include_past: past } }),
     placeholderData: keepPreviousData,
   })
   const provider = useProviderName(courses.data?.provider) ?? m.lms_name()
@@ -117,7 +114,7 @@ function CourseList({
             start_date: target.startDate ?? null,
             end_date: target.endDate ?? null,
           }
-    lmsImportCourses({ path: { program_id: programId }, body, throwOnError: true })
+    lmsCourseImport({ path: { program_id: programId }, body, throwOnError: true })
       .then(({ data }) => startedSession(data.session_id))
       .then(onStarted, (error: unknown) => {
         toastError(error)

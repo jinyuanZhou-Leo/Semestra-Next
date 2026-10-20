@@ -600,13 +600,17 @@ async def test_agent_surface(
     program_id, term_id, course_id = await api.setup()
     await api.meeting(course_id, term_id)
     agent_names = {c.name for c in registry.list(expose="agent")}
-    assert {"calendar.today", "calendar.occurrences", "schedule.exception.upsert"} <= agent_names
+    assert {
+        "calendar.today.get",
+        "calendar.occurrence.list",
+        "schedule.exception.upsert",
+    } <= agent_names
     assert "schedule.feed.create" not in agent_names  # the link is a secret
-    assert registry.get("calendar.today").agent_core
+    assert registry.get("calendar.today.get").agent_core
     async with system_ctx(app.state, user.id) as ctx:
         result = await registry.invoke(
             ctx,
-            "calendar.occurrences",
+            "calendar.occurrence.list",
             {"program_id": program_id, "start": "2026-01-05", "end": "2026-01-06"},
             "agent",
         )
@@ -617,7 +621,7 @@ async def test_agent_surface(
         ctx.actor = "agent"
         term = await registry.invoke(
             ctx,
-            "calendar.occurrences",
+            "calendar.occurrence.list",
             {"program_id": program_id, "start": "2026-01-01", "end": "2026-06-01"},
             "agent",
         )

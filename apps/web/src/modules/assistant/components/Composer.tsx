@@ -1,5 +1,5 @@
 import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-client'
-import { agentSkillsListOptions } from '@semestra/api-client/react-query'
+import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUp, BookOpen, CalendarRange, FileText, Plus, Sparkles, Square, X } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
@@ -138,7 +138,7 @@ export function Composer({
   const textarea = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const submitting = useRef(false)
-  const skills = useQuery({ ...agentSkillsListOptions(), staleTime: 5 * 60_000 }).data?.items ?? []
+  const skills = useQuery({ ...agentSkillListOptions(), staleTime: 5 * 60_000 }).data?.items ?? []
   const { terms, courses } = useProgramEntities(programId)
 
   // Opening the assistant means typing.
