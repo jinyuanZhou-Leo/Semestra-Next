@@ -80,6 +80,9 @@ def read_memo() -> Generator[None]:
     """Within the block, terms, course lists and the week start are read once and reused.
     Only for read-only work that asks for them again and again (the calendar's sources, grade
     summaries): nothing written inside the block would show."""
+    if _memo.get() is not None:  # nested: the outer block's memo stays
+        yield
+        return
     token = _memo.set({})
     try:
         yield
@@ -206,7 +209,9 @@ async def preview_course_delete(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
 
 async def program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     """The Program's terms in chronological order."""
-    return list(await _memoized(("terms", program_id), lambda: _program_terms(ctx, program_id)))
+    return list(
+        await _memoized(("terms", ctx.user_id, program_id), lambda: _program_terms(ctx, program_id))
+    )
 
 
 async def _program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
@@ -681,7 +686,7 @@ async def delete_term(ctx: Ctx, term_id: str) -> TermDeleteResult:
 
 async def week_start(ctx: Ctx) -> rules.WeekStart:
     """The user's first day of the week; 0 follows the language (zh: Monday, en: Sunday)."""
-    return await _memoized("week_start", lambda: _week_start(ctx))
+    return await _memoized(("week_start", ctx.user_id), lambda: _week_start(ctx))
 
 
 async def _week_start(ctx: Ctx) -> rules.WeekStart:
@@ -866,7 +871,9 @@ async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
 
 
 async def list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:
-    return await _memoized(("courses", inp.model_dump_json()), lambda: _list_courses(ctx, inp))
+    return await _memoized(
+        ("courses", ctx.user_id, inp.model_dump_json()), lambda: _list_courses(ctx, inp)
+    )
 
 
 async def _list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:

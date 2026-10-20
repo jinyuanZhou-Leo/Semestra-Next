@@ -39,8 +39,11 @@ async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     if not links:
         return []
     program = await academics.get_program_row(ctx, q.program_id)
-    rows = [await academics.get_course_row(ctx, li.course_id) for li in links]
+    rows = await academics.courses_by_id(ctx, [li.course_id for li in links])
     courses = {c.id: c for c in await academics.courses_out(ctx, program, rows)}
+    links = [li for li in links if li.course_id in courses]
+    if not links:
+        return []
     if q.term_id is not None:
         links = [li for li in links if q.term_id in courses[li.course_id].term_ids]
     imported = {

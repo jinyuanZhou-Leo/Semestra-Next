@@ -548,6 +548,30 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
     assert [o.title for o in merged] == ["in"]
 
 
+@pytest.mark.parametrize("zone_name", ["Pacific/Auckland", "Pacific/Pago_Pago"])
+async def test_the_calendar_source_keeps_the_local_days_far_from_utc(
+    app: FastAPI, api: Api, user: UserHandle, zone_name: str
+):
+    program = await api.call("POST", "/programs", json={"name": "Far", "timezone": zone_name})
+    pid = program["id"]
+    await api.task(pid, "day before", due_date="2026-01-14")
+    await api.task(pid, "late the day before", due_date="2026-01-14", due_time="23:30")
+    await api.task(pid, "early first day", due_date="2026-01-15", due_time="00:30")
+    await api.task(pid, "first day", due_date="2026-01-15")
+    await api.task(pid, "late last day", due_date="2026-01-31", due_time="23:30")
+    await api.task(pid, "day after", due_date="2026-02-01")
+    await api.task(pid, "early day after", due_date="2026-02-01", due_time="00:30")
+    zone = ZoneInfo(zone_name)
+    q = OccurrenceQuery(
+        program_id=pid,
+        range_start=datetime(2026, 1, 15, tzinfo=zone).astimezone(UTC),
+        range_end=datetime(2026, 2, 1, tzinfo=zone).astimezone(UTC),
+    )
+    async with system_ctx(app.state, user.id) as ctx:
+        titles = {o.title for o in await due_source(ctx, q)}
+    assert titles == {"early first day", "first day", "late last day"}
+
+
 async def test_the_calendar_reads_courses_once_however_many_have_tasks(app: FastAPI, api: Api):
     s = await api.setup()
     pid, terms = s["program"], s["terms"]
@@ -603,6 +627,18 @@ async def test_clear_completed_in_a_term_includes_tasks_without_a_term(api: Api)
     r = await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={"term_id": winter})
     assert r == {"deleted": 2}  # what the winter view shows: its own and the term-less ones
     assert await api.titles(pid, view="completed") == ["fall"]
+
+
+async def test_completed_count_in_a_term_includes_tasks_without_a_term(api: Api):
+    s = await api.setup()
+    pid, winter, fall = s["program"], s["terms"]["winter"], s["terms"]["fall"]
+    for title, term_id in (("no term", None), ("winter", winter), ("fall", fall)):
+        task = await api.task(pid, title, term_id=term_id)
+        await api.call("POST", f"/tasks/{task['id']}:complete", json={})
+    await api.task(pid, "open", term_id=winter)
+    counts = await api.call("GET", f"/programs/{pid}/task-counts", params={"term_id": winter})
+    assert counts["completed"] == 2
+    assert (await api.call("GET", f"/programs/{pid}/task-counts"))["completed"] == 3
 
 
 async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: UserHandle):
