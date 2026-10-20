@@ -5,7 +5,15 @@ import {
 } from '@semestra/api-client/react-query'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
+import {
+  CalendarClock,
+  CalendarPlus,
+  ChevronDown,
+  Download,
+  MoreHorizontal,
+  Plus,
+  RotateCcw,
+} from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
@@ -15,7 +23,14 @@ import { cn } from '@/lib/utils'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -134,29 +149,73 @@ function TermSchedule({
     .flatMap((mt) => mt.exceptions.map((exc) => ({ meeting: mt, exc })))
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
+  const enabled = meetings.filter((mt) => mt.enabled)
+  // Only the hours that have classes; the term's day range when nothing is enabled.
+  const gridStart = enabled.length
+    ? Math.min(...enabled.map((mt) => minutes(mt.start_time)))
+    : minutes(settings.day_start)
+  const gridEnd = enabled.length
+    ? Math.max(...enabled.map((mt) => minutes(mt.end_time)))
+    : minutes(settings.day_end)
+  const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing).map((item) => {
+    const mt = enabled.find((x) => x.id === item.id)
+    return mt
+      ? {
+          ...item,
+          // The section code usually starts with the type (LEC0101); avoid "LEC LEC0101".
+          title: mt.section_code.startsWith(mt.type_code)
+            ? mt.section_code
+            : `${mt.type_code} ${mt.section_code}`.trim(),
+          subtitle: mt.location ?? undefined,
+        }
+      : item
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={() => setEditing('new')}>
-          <Plus aria-hidden />
-          {m.schedule_meeting_add()}
-        </Button>
-        {importers.map((source) => (
-          <Button
-            key={source.id}
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              void source
-                .launch({ programId, courseId: course.id, termId })
-                .then(() => invalidateSchedule(queryClient))
-                .catch(toastError)
-            }
-          >
-            <source.icon aria-hidden />
-            {source.title()}
-          </Button>
-        ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button size="sm" />}>
+            <Plus aria-hidden />
+            {m.schedule_add()}
+            <ChevronDown aria-hidden data-icon="inline-end" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setEditing('new')}>
+              <CalendarClock aria-hidden />
+              {m.schedule_add_meeting()}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setEventEdit('new')}>
+              <CalendarPlus aria-hidden />
+              {m.schedule_add_event()}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {importers.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
+              <Download aria-hidden />
+              {m.schedule_import()}
+              <ChevronDown aria-hidden data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {importers.map((source) => (
+                <DropdownMenuItem
+                  key={source.id}
+                  onClick={() =>
+                    void source
+                      .launch({ programId, courseId: course.id, termId })
+                      .then(() => invalidateSchedule(queryClient))
+                      .catch(toastError)
+                  }
+                >
+                  <source.icon aria-hidden />
+                  {source.title()}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
 
       {meetings.length === 0 ? (
@@ -166,114 +225,114 @@ function TermSchedule({
               <CalendarClock aria-hidden />
             </EmptyMedia>
             <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
+            <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <Button size="sm" onClick={() => setEditing('new')}>
+              <Plus aria-hidden />
+              {m.schedule_meeting_add()}
+            </Button>
+          </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-5">
-            {typeCodes.map((code) => (
-              <MeetingGroup
-                key={code}
-                type={types.find((t) => t.code === code)}
-                code={code}
-                meetings={meetings.filter((mt) => mt.type_code === code)}
-                conflicting={conflicting}
-                busy={setEnabled.isPending}
-                onToggle={toggle}
-                onEdit={setEditing}
+        <>
+          <section aria-label={m.schedule_week_view()} className="space-y-2">
+            <h3 className="text-sm font-medium">{m.schedule_week_view()}</h3>
+            <div className="overflow-x-auto rounded-2xl border border-border p-3 pt-2">
+              <WeekGrid
+                className="min-w-xl"
+                days={weekDays(enabled.some((mt) => mt.weekday >= 6))}
+                items={gridItems}
+                dayStart={gridStart}
+                dayEnd={gridEnd}
+                hourHeight={44}
               />
-            ))}
-          </div>
-          <section aria-label={m.schedule_week_preview()} className="space-y-2">
-            <h3 className="text-sm font-medium">{m.schedule_week_preview()}</h3>
-            <WeekGrid
-              days={weekDays(settings.show_weekends || meetings.some((mt) => mt.weekday >= 6))}
-              items={meetingGridItems(meetings, [course], conflicting, setEditing)}
-              dayStart={minutes(settings.day_start)}
-              dayEnd={minutes(settings.day_end)}
-              hourHeight={28}
-              compact
-            />
+            </div>
           </section>
-        </div>
+          {typeCodes.map((code) => (
+            <MeetingGroup
+              key={code}
+              type={types.find((t) => t.code === code)}
+              code={code}
+              meetings={meetings.filter((mt) => mt.type_code === code)}
+              conflicting={conflicting}
+              busy={setEnabled.isPending}
+              onToggle={toggle}
+              onEdit={setEditing}
+            />
+          ))}
+        </>
       )}
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">{m.schedule_events()}</h3>
-          <Button size="xs" variant="ghost" onClick={() => setEventEdit('new')}>
-            <Plus aria-hidden />
-            {m.schedule_event_add()}
-          </Button>
-        </div>
+        <h3 className="text-sm font-medium">{m.schedule_events()}</h3>
         {events.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{m.schedule_events_empty()}</p>
+          <Empty className="rounded-2xl border border-border border-solid p-6">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CalendarPlus aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.schedule_events_empty_title()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" variant="link" onClick={() => setEventEdit('new')}>
+                {m.schedule_event_add()}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
-          <ul className="divide-y divide-border rounded-2xl border border-border text-sm">
-            {events.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted/40"
-                  onClick={() => setEventEdit(e)}
-                >
-                  <span className="w-36 shrink-0 text-muted-foreground">
-                    {dayLabel(wallDate(e.start_at, timezone))}
-                  </span>
-                  <span className="w-28 shrink-0 text-muted-foreground tabular-nums">
-                    {timeRange(e, timezone)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-medium">{e.title}</span>
-                  {e.location ? (
-                    <span className="truncate text-muted-foreground">{e.location}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
         )}
       </section>
 
       {exceptions.length > 0 ? (
         <section className="space-y-2">
           <h3 className="text-sm font-medium">{m.schedule_exceptions()}</h3>
-          <ul className="divide-y divide-border rounded-2xl border border-border text-sm">
-            {exceptions.map(({ meeting, exc }) => (
-              <li key={exc.id} className="flex items-center gap-3 px-3 py-2">
-                <span className="w-36 shrink-0">{dayLabel(exc.original_date)}</span>
-                <span className="w-28 shrink-0 text-muted-foreground">
-                  {meeting.type_code} {meeting.section_code}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {exc.kind === 'cancelled'
-                    ? m.schedule_status_cancelled()
-                    : m.schedule_moved_to({
-                        when: [
-                          exc.new_date ? dayLabel(exc.new_date) : null,
-                          exc.new_start_time ? formatTime(exc.new_start_time) : null,
-                          exc.new_location,
-                        ]
-                          .filter(Boolean)
-                          .join(' · '),
-                      })}
-                  {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
-                </span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={restore.isPending}
-                  onClick={() =>
-                    restore.mutate({
-                      path: { meeting_id: meeting.id, original_date: exc.original_date },
-                    })
-                  }
-                >
-                  <RotateCcw aria-hidden />
-                  {m.schedule_restore()}
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <div className="rounded-2xl border border-border">
+            <Table>
+              <TableBody>
+                {exceptions.map(({ meeting, exc }) => (
+                  <TableRow key={exc.id}>
+                    <TableCell className="w-40">{dayLabel(exc.original_date)}</TableCell>
+                    <TableCell className="w-32 text-muted-foreground">
+                      {meeting.type_code} {meeting.section_code}
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      {exc.kind === 'cancelled'
+                        ? m.schedule_status_cancelled()
+                        : m.schedule_moved_to({
+                            when: [
+                              exc.new_date ? dayLabel(exc.new_date) : null,
+                              exc.new_start_time ? formatTime(exc.new_start_time) : null,
+                              exc.new_location,
+                            ]
+                              .filter(Boolean)
+                              .join(' · '),
+                          })}
+                      {exc.note ? (
+                        <span className="text-muted-foreground"> · {exc.note}</span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="w-px text-right">
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={restore.isPending}
+                        onClick={() =>
+                          restore.mutate({
+                            path: { meeting_id: meeting.id, original_date: exc.original_date },
+                          })
+                        }
+                      >
+                        <RotateCcw aria-hidden />
+                        {m.schedule_restore()}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </section>
       ) : null}
 
@@ -471,5 +530,103 @@ function MeetingGroup({
         </Table>
       </div>
     </section>
+  )
+}
+
+const eventColumn = createColumnHelper<typeof features, OneOffEvent>()
+
+/** The course's one-off events (exams, extra sessions) in the same table style as meetings. */
+function EventsTable({
+  events,
+  types,
+  timezone,
+  onEdit,
+}: {
+  events: OneOffEvent[]
+  types: EventType[]
+  timezone: string
+  onEdit: (event: OneOffEvent) => void
+}) {
+  const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
+  const columns = eventColumn.columns([
+    eventColumn.accessor((e) => e.start_at, {
+      id: 'date',
+      header: () => m.schedule_date(),
+      cell: ({ row }) => dayLabel(wallDate(row.original.start_at, timezone)),
+    }),
+    eventColumn.display({
+      id: 'time',
+      header: () => m.schedule_time(),
+      cell: ({ row }) => <span className="tabular-nums">{timeRange(row.original, timezone)}</span>,
+    }),
+    eventColumn.accessor((e) => e.title, {
+      id: 'title',
+      header: () => m.schedule_event_title(),
+      cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
+    }),
+    eventColumn.accessor((e) => e.type_code ?? '', {
+      id: 'type',
+      header: () => m.schedule_type(),
+      cell: ({ row }) => {
+        const type = types.find((t) => t.code === row.original.type_code)
+        return type ? typeName(type) : (row.original.type_code ?? '—')
+      },
+    }),
+    eventColumn.accessor((e) => e.location ?? '', {
+      id: 'location',
+      header: () => m.schedule_location(),
+      cell: ({ row }) => row.original.location || '—',
+    }),
+    eventColumn.display({
+      id: 'actions',
+      header: () => <span className="sr-only">{m.schedule_actions()}</span>,
+      cell: ({ row }) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
+          >
+            <MoreHorizontal aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(row.original)}>
+              {m.schedule_event_edit()}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    }),
+  ])
+  const table = useTable({ features, columns, data: sorted, getRowId: (e) => e.id })
+  return (
+    <div className="rounded-2xl border border-border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id}>
+              {group.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  scope="col"
+                  className={cn(h.column.id === 'actions' && 'w-12')}
+                >
+                  <table.FlexRender header={h} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

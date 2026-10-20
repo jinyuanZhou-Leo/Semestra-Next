@@ -106,7 +106,7 @@ export function WeekGrid({
   return (
     <div
       className={cn('grid text-xs', className)}
-      style={{ gridTemplateColumns: `3rem repeat(${days.length}, minmax(0, 1fr))`, ...style }}
+      style={{ gridTemplateColumns: `4rem repeat(${days.length}, minmax(0, 1fr))`, ...style }}
     >
       <div />
       {days.map((day) => (
@@ -121,10 +121,14 @@ export function WeekGrid({
         {hours.map((h) => (
           <span
             key={h}
-            className="absolute right-1 -translate-y-1/2 text-[0.7rem] text-muted-foreground tabular-nums"
+            className={cn(
+              'absolute right-1.5 text-[0.7rem] whitespace-nowrap text-muted-foreground tabular-nums',
+              // The first label sits below the top line so it stays clear of the day names.
+              h === from / 60 ? 'translate-y-0' : '-translate-y-1/2',
+            )}
             style={{ top: top(h * 60) }}
           >
-            {h === from / 60 ? '' : formatTime(`${String(h % 24).padStart(2, '0')}:00`)}
+            {formatTime(`${String(h % 24).padStart(2, '0')}:00`)}
           </span>
         ))}
       </div>
