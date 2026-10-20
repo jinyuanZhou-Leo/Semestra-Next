@@ -50,7 +50,13 @@ async def call(ctx: Ctx, name: str, args: dict[str, Any]) -> dict[str, Any]:
     except ValidationError as exc:
         errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
         raise AppError("common.validation", 422, errors=errors) from exc
-    out: BaseModel = await cap.handler(ctx, inp)
+    # The target runs for the import, not for whoever started it: full output, and the
+    # import's own source kinds (lms, syllabus) are allowed.
+    outer, ctx.surface = ctx.surface, "http"
+    try:
+        out: BaseModel = await cap.handler(ctx, inp)
+    finally:
+        ctx.surface = outer
     return out.model_dump(mode="json")
 
 

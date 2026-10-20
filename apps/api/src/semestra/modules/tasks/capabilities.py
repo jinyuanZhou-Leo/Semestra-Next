@@ -166,7 +166,9 @@ async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateMany
     summary="Change a task's title, notes, due date and time, priority, flag, list or course.",
     description="""Partial update: only the fields that are sent change; null clears the nullable
 ones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task
-and tasks.item.move to reorder it.""",
+and tasks.item.move to reorder it. A task with source_kind assessment takes its title, due date and
+course from the assessment: changing those is refused (tasks.managed_by_assessment); change the
+assessment instead.""",
     effect="write",
     http=Http("PATCH", "/tasks/{task_id}"),
     tags=TAGS,
@@ -204,7 +206,8 @@ async def item_move(ctx: Ctx, inp: TaskMoveInput) -> Task:
     name="tasks.item.delete",
     summary="Delete a task for good.",
     description="""Irreversible. To finish a task use tasks.item.complete instead; delete only when
-the user asks to remove it.""",
+the user asks to remove it. A task made from an assessment comes back when the assessment
+changes.""",
     effect="destructive",
     http=Http("DELETE", "/tasks/{task_id}"),
     preview=service.preview_item_delete,

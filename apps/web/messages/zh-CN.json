@@ -2009,6 +2009,7 @@
   "error_tasks_list_name_conflict": "已有同名列表。",
   "error_tasks_course_not_in_program": "这门课程不在此学业项目中。",
   "error_tasks_invalid_due": "设置时间需要先选日期。",
+  "error_tasks_managed_by_assessment": "这条待办跟随对应的考核，请改考核的标题或截止日期。",
   "tasks_flagged": "已标记",
   "tasks_drag": "拖动排序",
   "tasks_empty_flagged": "没有已标记的任务",

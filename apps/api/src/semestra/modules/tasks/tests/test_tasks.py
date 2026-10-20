@@ -15,7 +15,7 @@ from semestra.core.errors import AppError
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, collect
 from semestra.modules.tasks import auto, service
 from semestra.modules.tasks.calendar import due_source
-from semestra.modules.tasks.schemas import TaskCandidates, TaskFindInput
+from semestra.modules.tasks.schemas import Task, TaskCandidates, TaskFindInput
 from semestra.modules.tasks.settings import TasksSettings
 from semestra.testing import Clock, MakeUser, UserHandle, collect_events
 
@@ -591,6 +591,21 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
             await registry.invoke(ctx, "tasks.item.find", {"query": "x"}, "agent")
         fuzzy = await service.find_tasks(ctx, TaskFindInput(query="milk", program_id=pid))
         assert fuzzy.items[0].title == "Buy milk"
+        made = await registry.invoke(
+            ctx, "tasks.item.create", {"program_id": pid, "title": "Read ch. 3"}, "agent"
+        )
+        assert cast("Task", made).source_kind == "agent"
+        for kind in ("assessment", "lms"):
+            with pytest.raises(AppError) as refused:
+                await registry.invoke(
+                    ctx,
+                    "tasks.item.create_many",
+                    {"program_id": pid, "items": [{"title": "x", "source_kind": kind}]},
+                    "agent",
+                )
+            assert refused.value.params["errors"] == [
+                {"loc": ["items", 0, "source_kind"], "code": "not_allowed"}
+            ]
     await api.call("GET", "/tasks/find", status=404)
 
 
@@ -645,6 +660,19 @@ async def test_assessment_changes_follow_through(api: Api):
     [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
     assert (task["due_date"], task["due_time"]) == ("2026-02-10", None)
     await api.call("PATCH", f"/tasks/{task['id']}", json={"priority": "urgent"})
+    # Title, date and course follow the assessment: changing them on the task is refused,
+    # sending them unchanged (a whole form) is fine.
+    err = await api.call(
+        "PATCH", f"/tasks/{task['id']}", 409, json={"due_date": "2026-02-12", "flagged": True}
+    )
+    assert err["error"] == {
+        "code": "tasks.managed_by_assessment",
+        "params": {"assessment_id": a["id"], "fields": ["due"]},
+        "request_id": err["error"]["request_id"],
+    }
+    await api.call(
+        "PATCH", f"/tasks/{task['id']}", json={"title": task["title"], "due_date": "2026-02-10"}
+    )
 
     await api.call(
         "PATCH", f"/assessments/{a['id']}", json={"due_date": "2026-02-14", "due_time": "23:00"}

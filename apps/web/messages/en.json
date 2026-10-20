@@ -2009,6 +2009,7 @@
   "error_tasks_list_name_conflict": "A list with this name already exists.",
   "error_tasks_course_not_in_program": "This course is not in this program.",
   "error_tasks_invalid_due": "A time needs a date.",
+  "error_tasks_managed_by_assessment": "This task follows its assessment. Change the assessment’s title or due date instead.",
   "tasks_flagged": "Flagged",
   "tasks_drag": "Drag to reorder",
   "tasks_empty_flagged": "No flagged tasks",
