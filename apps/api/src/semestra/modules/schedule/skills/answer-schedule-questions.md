@@ -27,7 +27,7 @@ back as local wall-clock times. Occurrence times are UTC.
   say so instead of leaving it out. `status: moved` means it was rescheduled
   (`meta.original_start_at` is the regular time).
 - Classes carry `meta.week_number`; mention the week when it helps ("week 5"). During a break
-  week `calendar.today.week.break_name` is set and there are usually no classes.
+  week `week.break_name` in the `calendar.today.get` result is set and there are usually no classes.
 - `meta.conflicts_with` lists overlapping classes or events; point clashes out.
 
 **Answering.** Lead with the answer ("Your next class is APS105 lecture at 10:00 in BA1130,

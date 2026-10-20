@@ -74,9 +74,22 @@ def core_capabilities(available: list[Capability]) -> list[Capability]:
 
 
 def input_schema(cap: Capability) -> dict[str, Any]:
-    schema = inline_refs(cap.input_model.model_json_schema())
+    schema = _descriptions_for_model(inline_refs(cap.input_model.model_json_schema()))
     schema.pop("title", None)
     return schema
+
+
+def _descriptions_for_model(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {
+            k: for_model(v)
+            if k == "description" and isinstance(v, str)
+            else _descriptions_for_model(v)
+            for k, v in node.items()  # pyright: ignore[reportUnknownVariableType]
+        }
+    if isinstance(node, list):
+        return [_descriptions_for_model(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
+    return node
 
 
 def toolset(
