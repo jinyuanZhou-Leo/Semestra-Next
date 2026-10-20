@@ -1,6 +1,6 @@
 """Pure parts of imports: ICS grouping, relative dates, category and type mapping (M08 §9)."""
 
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from semestra.modules.imports import build, dates
 from semestra.modules.imports.ics import parse_ics, section_of
@@ -166,3 +166,28 @@ def test_exdates_and_missing_weeks_become_exceptions():
         for d in days
     ))  # fmt: skip
     assert parse_ics(year, TZ).courses[0].meetings[0].exceptions == []
+
+
+def test_meeting_weeks_from_dates():
+    weeks = dates.plain_weeks(date(2026, 1, 5), date(2026, 4, 24))
+    assert dates.first_week_from(date(2026, 1, 7), weeks) == 1
+    assert dates.first_week_from(date(2025, 12, 1), weeks) == 1
+    assert dates.first_week_from(date(2026, 9, 8), weeks) is None
+    assert dates.last_week_until(date(2026, 4, 24), weeks) == len(weeks)
+    assert dates.last_week_until(date(2026, 12, 7), weeks) == len(weeks)
+    assert dates.last_week_until(date(2025, 12, 7), weeks) is None
+
+
+def test_meeting_weeks_name_what_went_wrong():
+    term = date(2026, 1, 5), date(2026, 4, 24)
+    weeks = dates.plain_weeks(*term)
+    reading = [w for w in weeks if w.number != 7]  # week 7 is a break
+    assert dates.meeting_weeks(date(2026, 1, 6), date(2026, 4, 21), None, None, weeks)[2] is None
+    assert dates.meeting_weeks(date(2026, 9, 8), date(2026, 12, 7), None, None, weeks) == (
+        None, len(weeks), "import.outside_term",
+    )  # fmt: skip
+    in_break = reading[5].end_date + timedelta(days=2)
+    assert dates.meeting_weeks(in_break, in_break, None, None, reading)[2] == (
+        "import.no_teaching_weeks"
+    )
+    assert dates.meeting_weeks(None, None, 5, 3, weeks)[2] == "import.no_teaching_weeks"

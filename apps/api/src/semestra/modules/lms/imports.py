@@ -94,6 +94,11 @@ async def _fill(
 
 async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     await academics.get_program_row(ctx, inp.program_id)
+    if inp.term_wizard and ctx.actor in ("agent", "mcp"):
+        # The app's wizard creates the term afterwards; an assistant creates it first.
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": ["term_wizard"], "code": "wizard_only"}]
+        )
     if inp.term_wizard:
         target = SessionTarget(kind="term_wizard", start_date=inp.start_date, end_date=inp.end_date)
     elif inp.term_id is not None:

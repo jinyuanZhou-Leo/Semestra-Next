@@ -4,9 +4,11 @@ that editing an item clears what it fixed."""
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from semestra.modules.imports.build import norm_title
+from semestra.modules.imports.dates import TermWeekSpan, meeting_weeks
 from semestra.modules.imports.models import ImportsItem
 
 WEIGHT_TOLERANCE = 0.01
@@ -21,10 +23,19 @@ class ValidationContext:
     existing_assessments: dict[str, set[str]] = field(default_factory=lambda: {})
     # Existing course id → how many terms it has.
     course_term_counts: dict[str, int] = field(default_factory=lambda: {})
+    # Weeks of the target term (or wizard dates); None when the target has no single term.
+    target_weeks: Sequence[TermWeekSpan] | None = None
 
 
 def _issue(code: str, **params: Any) -> dict[str, Any]:
     return {"code": code, "params": params}
+
+
+def _day(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(value) if isinstance(value, str) and value else None
+    except ValueError:
+        return None
 
 
 def _live(item: ImportsItem | None) -> bool:
@@ -77,6 +88,17 @@ def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
             many = course_id is None or ctx.course_term_counts.get(course_id, 0) > 1
             if many and not data.get("first_date"):
                 found.append(_issue("import.term_unresolved"))
+        if item.type == "meeting" and not data.get("term_ref") and ctx.target_weeks:
+            # The same check the commit makes, so the review shows it before confirming.
+            *_, problem = meeting_weeks(
+                _day(data.get("first_date")),
+                _day(data.get("last_date")),
+                data.get("start_week"),
+                data.get("end_week"),
+                ctx.target_weeks,
+            )
+            if problem:
+                found.append(_issue(problem))
 
     # Weights of a course's assessments should add up to 100; categories to their stated total.
     for ref, members in groups.items():

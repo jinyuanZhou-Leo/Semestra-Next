@@ -220,6 +220,21 @@ def test_skill_files_are_valid_and_their_tools_exist():
     assert len(commands) == len(set(commands))
 
 
+def test_skills_that_create_something_can_also_change_it():
+    """A skill's tool list is what the model takes for everything it can do: listing only
+    `academics.term.create` once made Sem tell a user that a term's dates cannot be changed."""
+    from semestra.main import create_app
+
+    create_app()
+    names = {c.name for c in registry.list("agent")}
+    for skill in skills.all_skills():
+        for tool in skill.tools:
+            for verb in ("create", "create_many"):
+                update = tool.removesuffix(f".{verb}") + ".update"
+                if tool.endswith(f".{verb}") and update in names:
+                    assert update in skill.tools, f"{skill.name} lists {tool} but not {update}"
+
+
 def test_frontmatter_parser():
     meta, body = skills.parse_frontmatter(
         '---\nname: x\ntitle: { en: "A, b", zh-CN: "甲" }\ncommand: /x   # comment\n'

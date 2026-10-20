@@ -2874,25 +2874,25 @@ export type CoursesImportInputBody = {
     /**
      * Term Id
      *
-     * Term the courses go into (not for the term wizard)
+     * Term the courses go into; agents create the term first
      */
     term_id?: string | null;
     /**
      * Term Wizard
      *
-     * For the new-term wizard: the term is created afterwards
+     * Only for the app's new-term wizard (the term is created afterwards); agents cannot use it
      */
     term_wizard?: boolean;
     /**
      * Start Date
      *
-     * Wizard: first day of the term
+     * App wizard only: first day of the term
      */
     start_date?: string | null;
     /**
      * End Date
      *
-     * Wizard: last day of the term
+     * App wizard only: last day of the term
      */
     end_date?: string | null;
 };
@@ -7556,7 +7556,7 @@ export type SessionCreateInputBody = {
      */
     source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
     /**
-     * Wizard, a term or a course
+     * A term or a course; agents cannot use the wizard
      */
     target: SessionTarget;
     /**
@@ -7748,7 +7748,7 @@ export type SessionTarget = {
     /**
      * Kind
      *
-     * Where the import goes
+     * Where the import goes: `term` or `course`; `term_wizard` is only for the app's new-term wizard
      */
     kind: 'term_wizard' | 'term' | 'course';
     /**

@@ -108,6 +108,8 @@ const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
   'import.duplicate_course': m.imports_issue_duplicates,
   'import.duplicate_assessment': m.imports_issue_duplicates,
   'import.term_unresolved': m.imports_issue_terms,
+  'import.outside_term': m.imports_issue_weeks,
+  'import.no_teaching_weeks': m.imports_issue_weeks,
   'import.course_ref_missing': m.imports_issue_refs,
 }
 

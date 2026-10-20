@@ -763,6 +763,65 @@ async def test_pdf_syllabus_with_a_task(api: Api, fake_ai: list[dict[str, Any]],
     )  # fmt: skip
 
 
+async def test_meeting_outside_its_term_fails_instead_of_landing_in_week_one(
+    app: FastAPI, api: Api
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        created = await registry.invoke(
+            ctx,
+            "imports.session.create",
+            {"program_id": program_id, "source_kind": "agent",
+             "target": {"kind": "term", "term_id": term_id}},
+            "agent",
+        )  # fmt: skip
+        assert isinstance(created, dict)
+        session_id = created["id"]
+        await registry.invoke(
+            ctx,
+            "imports.items.add",
+            {"session_id": session_id, "items": [
+                {"key": "c", "type": "course", "data": {"title": "Linear Algebra",
+                                                          "code": "MAT188H1"}},
+                # A fall meeting in a winter term.
+                {"type": "meeting", "data": {"course_ref": "item:c", "weekday": 1,
+                                              "start_time": "09:00", "end_time": "10:00",
+                                              "first_date": "2026-09-08",
+                                              "last_date": "2026-12-07"}},
+            ]},
+            "agent",
+        )  # fmt: skip
+        await ctx.db.commit()
+    # The review flags it before the commit; the commit still refuses it.
+    session = await api.call("GET", f"/imports/{session_id}")
+    meeting = by_type(session, "meeting")[0]
+    assert [i["code"] for i in meeting["issues"]] == ["import.outside_term"]
+    done = await api.commit(session_id)
+    assert (done["created"], done["failed"]) == (1, 1)
+    failed = next(i for i in done["session"]["items"] if i["type"] == "meeting")
+    assert failed["result"]["error_code"] == "import.outside_term"
+
+
+async def test_agent_cannot_start_the_term_wizard(app: FastAPI, api: Api):
+    program_id = await api.program()
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        with pytest.raises(AppError) as err:
+            await registry.invoke(
+                ctx,
+                "imports.session.create",
+                {"program_id": program_id, "source_kind": "agent",
+                 "target": {"kind": "term_wizard", "start_date": "2026-01-05",
+                            "end_date": "2026-04-24"}},
+                "agent",
+            )  # fmt: skip
+    assert err.value.code == "common.validation"
+
+
 async def test_the_assistant_reads_an_import_a_part_at_a_time(app: FastAPI, api: Api):
     program_id = await api.program()
     term_id = await api.term(program_id)

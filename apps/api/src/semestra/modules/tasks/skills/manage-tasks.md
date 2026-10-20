@@ -3,7 +3,7 @@ name: manage-tasks
 title: { en: "Manage tasks", zh-CN: "管理待办" }
 command: /task
 description: Create, find, complete and organise the student's tasks (to-dos), and answer "what is due" questions.
-tools: [tasks.item.find, tasks.item.query, tasks.item.create, tasks.item.create_many, tasks.item.update, tasks.item.complete, tasks.item.move, tasks.item.delete, tasks.item.clear_completed, tasks.list.list, tasks.list.create, tasks.counts, calendar.occurrences, academics.course.find]
+tools: [tasks.item.find, tasks.item.query, tasks.item.create, tasks.item.create_many, tasks.item.update, tasks.item.complete, tasks.item.move, tasks.item.delete, tasks.item.clear_completed, tasks.list.list, tasks.list.create, tasks.list.update, tasks.counts, calendar.occurrences, academics.course.find]
 ---
 
 # Managing tasks

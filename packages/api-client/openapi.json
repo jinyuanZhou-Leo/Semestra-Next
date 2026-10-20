@@ -17647,12 +17647,12 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Term Id",
-            "description": "Term the courses go into (not for the term wizard)"
+            "description": "Term the courses go into; agents create the term first"
           },
           "term_wizard": {
             "type": "boolean",
             "title": "Term Wizard",
-            "description": "For the new-term wizard: the term is created afterwards",
+            "description": "Only for the app's new-term wizard (the term is created afterwards); agents cannot use it",
             "default": false
           },
           "start_date": {
@@ -17666,7 +17666,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "Start Date",
-            "description": "Wizard: first day of the term"
+            "description": "App wizard only: first day of the term"
           },
           "end_date": {
             "anyOf": [
@@ -17679,7 +17679,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             ],
             "title": "End Date",
-            "description": "Wizard: last day of the term"
+            "description": "App wizard only: last day of the term"
           }
         },
         "type": "object",
@@ -25909,7 +25909,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           },
           "target": {
             "$ref": "#/components/schemas/SessionTarget",
-            "description": "Wizard, a term or a course"
+            "description": "A term or a course; agents cannot use the wizard"
           },
           "upload_ids": {
             "items": {
@@ -26192,7 +26192,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "course"
             ],
             "title": "Kind",
-            "description": "Where the import goes"
+            "description": "Where the import goes: `term` or `course`; `term_wizard` is only for the app's new-term wizard"
           },
           "term_id": {
             "anyOf": [

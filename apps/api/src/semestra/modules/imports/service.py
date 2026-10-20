@@ -268,11 +268,13 @@ async def _validation_context(
         except AppError:
             continue
         counts[course_id] = len(course.term_ids)
+    term = await _term_dates(ctx, target)
     return ValidationContext(
         target_kind=target.kind,
         target_term_id=target.term_id,
         existing_assessments=await _existing_assessments(ctx, course_ids),
         course_term_counts=counts,
+        target_weeks=term.weeks if term else None,
     )
 
 
@@ -287,6 +289,12 @@ async def revalidate(ctx: Ctx, row: ImportsSession, items: Sequence[ImportsItem]
 
 
 async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> SessionTarget:
+    if target.kind == "term_wizard" and ctx.actor in ("agent", "mcp"):
+        # The new-term wizard in the app creates the term and its courses before the commit;
+        # an assistant or MCP client cannot finish such an import.
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": ["target", "kind"], "code": "wizard_only"}]
+        )
     if target.kind == "term" and target.term_id is None:
         raise AppError("common.validation", 422, errors=[{"loc": ["target", "term_id"]}])
     if target.kind == "course" and target.course_id is None:
@@ -841,10 +849,12 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
         term_id = await c.term(data.get("term_ref"), course_id, first)
         weeks = (await c.term_dates(term_id)).weeks
-        start_week = data.get("start_week") or (dates.week_of(first, weeks) if first else None)
-        end_week = data.get("end_week") or (dates.week_of(last, weeks) if last else None)
-        if start_week and end_week and end_week < start_week:
-            end_week = None
+        start_week, end_week, problem = dates.meeting_weeks(
+            first, last, data.get("start_week"), data.get("end_week"), weeks
+        )
+        if problem:
+            # Never placed in the term's first week instead; validation flags most of these.
+            raise AppError(problem, 422, term_id=term_id)
         meeting = {
             "term_id": term_id,
             "section_code": data.get("section_code", ""),

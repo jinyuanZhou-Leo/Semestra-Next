@@ -15,6 +15,7 @@ from semestra.modules.lms import service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsConnection, LmsImportedRef
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent
+from semestra.modules.lms.schemas.io import CoursesImportInput
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 
 pytestmark = pytest.mark.usefixtures("fake")
@@ -240,6 +241,22 @@ async def test_import_courses_creates_links_in_the_commit(api: Api):
         json={"external_course_ids": ["101"], "term_id": term_id},
     )  # fmt: skip
     assert err["error"]["code"] == "import.no_content"
+
+
+async def test_agent_cannot_import_courses_for_the_wizard(api: Api, app: FastAPI):
+    program_id, _, _ = await setup_program(api)
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as ctx:
+        ctx.actor = "agent"
+        with pytest.raises(AppError) as err:
+            await lms_imports.import_courses(
+                ctx,
+                CoursesImportInput(
+                    program_id=program_id, external_course_ids=["101"], term_wizard=True
+                ),
+            )
+    assert err.value.code == "common.validation"
+    assert err.value.params["errors"] == [{"loc": ["term_wizard"], "code": "wizard_only"}]
 
 
 async def test_import_courses_rolls_back_with_its_links(api: Api, monkeypatch: pytest.MonkeyPatch):
