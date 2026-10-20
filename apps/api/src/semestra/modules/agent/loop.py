@@ -24,11 +24,12 @@ from typing import Any, Literal
 
 import structlog
 from pydantic import BaseModel, ValidationError
-from pydantic_ai import Agent, RunContext, ToolReturn
+from pydantic_ai import Agent, AgentRun, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability, Caching, ToolSearch
 from pydantic_ai.capabilities import Capability as Bundle
 from pydantic_ai.exceptions import ApprovalRequired, SkipToolExecution, UnexpectedModelBehavior
 from pydantic_ai.messages import (
+    SYNTHESIZED_TOOL_RETURN_METADATA_KEY,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
@@ -155,6 +156,11 @@ async def invoke(
         except AppError as exc:
             await ctx.db.rollback()
             return Outcome(False, _error_payload(exc), exc.code)
+        except Exception:
+            # A bug in one capability fails that call, not the whole turn.
+            log.exception("agent_capability_failed", capability=name)
+            await ctx.db.rollback()
+            return _error("common.internal")
     await run_after_commit(ctx)
     payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
     return Outcome(True, payload, citations=_citations(payload))
@@ -734,24 +740,25 @@ def _delta(item: Any, answer: _Answer) -> Event | None:
 
 
 class _Store:
-    """Writes the run's messages as they complete. A run starts from the stored history, whose
-    trailing requests Pydantic AI merges into one; everything after them is new."""
+    """Writes the run's messages as they complete. Tool results are told apart by their call id,
+    not by position: Pydantic AI merges every run of consecutive requests in the history (a tool
+    row followed by a note, say), so indexes into the stored history do not hold."""
 
     def __init__(self, prepared: Prepared) -> None:
         self.prepared = prepared
         self.turn = prepared.turn
-        messages = prepared.messages
-        trailing = 0
-        while trailing < len(messages) and isinstance(messages[-1 - trailing], ModelRequest):
-            trailing += 1
-        self.base = len(messages) - trailing + (1 if trailing else 0)
-        self.saved: set[int] = set()
+        self.answered: set[str] = {
+            p.tool_call_id
+            for m in prepared.messages
+            if isinstance(m, ModelRequest)
+            for p in m.parts
+            if isinstance(p, ToolReturnPart | RetryPromptPart)
+        }
 
     async def answer(
         self, response: ModelResponse, answer: _Answer, *, paused: str | None = None
     ) -> None:
         """An assistant row with the id announced in `message_start`."""
-        self.saved.add(id(response))
         blocks = history.response_blocks(response, answer.timing(response))
         if paused:
             blocks.append({"type": "paused", "reason": paused})
@@ -806,22 +813,40 @@ class _Store:
             _save_state(session, self.turn)
             await ctx.db.commit()
 
+    def _new_results(self, message: ModelRequest) -> list[ToolReturnPart | RetryPromptPart]:
+        """Results in `message` not stored yet. Returns Pydantic AI made up for calls an earlier
+        interruption left unanswered are not stored: it makes them again on every run."""
+        return [
+            p
+            for p in message.parts
+            if isinstance(p, ToolReturnPart | RetryPromptPart)
+            and p.tool_call_id not in self.answered
+            and not (
+                isinstance(p, ToolReturnPart)
+                and isinstance(p.metadata, dict)
+                and p.metadata.get(SYNTHESIZED_TOOL_RETURN_METADATA_KEY)
+            )
+        ]
+
     async def sync(self, messages: Sequence[ModelMessage]) -> None:
         """New tool results become tool rows."""
         new = [
-            m
-            for m in messages[self.base :]
-            if isinstance(m, ModelRequest)
-            and id(m) not in self.saved
-            and any(isinstance(p, ToolReturnPart | RetryPromptPart) for p in m.parts)
+            (m, parts)
+            for m in messages
+            if isinstance(m, ModelRequest) and (parts := self._new_results(m))
         ]
+        if not new:
+            return
         async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
             session = await service.get_session_row(ctx, self.turn.session_id)
-            for m in new:
-                self.saved.add(id(m))
-                blocks = history.request_blocks(m)
-                history.strip_full(m)
-                row = service.add_message(ctx, session, "tool", blocks, model_parts=history.dump(m))
+            for m, parts in new:
+                self.answered.update(p.tool_call_id for p in parts)
+                request = replace(m, parts=list(parts)) if len(parts) != len(m.parts) else m
+                blocks = history.request_blocks(request)
+                history.strip_full(request)
+                row = service.add_message(
+                    ctx, session, "tool", blocks, model_parts=history.dump(request)
+                )
                 m.metadata = {**(m.metadata or {}), "row_id": row.id}
             _save_state(session, self.turn)
             await ctx.db.commit()
@@ -874,6 +899,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
     store = _Store(prepared)
     answer: _Answer | None = None
     reported = set(prepared.resume.approvals) if prepared.resume else set()
+    current: AgentRun[Turn, Any] | None = None
     try:
         async with agent.iter(
             None,
@@ -883,6 +909,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
             instructions=turn.work,
             usage_limits=UsageLimits(request_limit=None),
         ) as run:
+            current = run
             async for node in run:
                 if Agent.is_model_request_node(node):
                     await store.sync([*run.all_messages(), node.request])
@@ -932,9 +959,8 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
                                     continue
                                 for out in _result_event(message_id, item.part):
                                     yield out
-                    if cancel.is_set():
-                        await store.sync(run.all_messages())
-                        return
+                    # Stopped while the tools ran: their results sit in the next request,
+                    # which the next node stores before it sees the stop.
             else:
                 # The run ended: an answer, or proposals waiting for the user.
                 await store.sync(run.all_messages())
@@ -954,18 +980,29 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
         async for item in _close(prepared, history_, cancel):
             yield item
     except AppError as exc:
-        if answer is not None:
-            await asyncio.shield(store.partial(answer))
+        await _keep(store, answer, current)
         yield event("error", code=exc.code, params=exc.params)
     except UnexpectedModelBehavior as exc:
         log.warning("agent_model_misbehaved", error=type(exc).__name__)
-        if answer is not None:
-            await asyncio.shield(store.partial(answer))
+        await _keep(store, answer, current)
         yield event("error", code="ai.output_invalid", params={})
-    except asyncio.CancelledError:  # the client went away: keep what was said
-        if answer is not None:
-            await asyncio.shield(store.partial(answer))
+    except asyncio.CancelledError:  # the client went away: keep what was said and done
+        await _keep(store, answer, current)
         raise
+    except Exception:
+        log.exception("agent_run_failed")
+        await _keep(store, answer, current)
+        yield event("error", code="common.internal", params={})
+
+
+async def _keep(store: _Store, answer: _Answer | None, run: AgentRun[Turn, Any] | None) -> None:
+    """After a stop, an error or a lost client: the words streamed so far and the result of every
+    tool that finished (Pydantic AI adds them to the run as an interrupted request), so a write
+    that went through is never reported as interrupted later."""
+    if answer is not None:
+        await asyncio.shield(store.partial(answer))
+    if run is not None:
+        await asyncio.shield(store.sync(run.all_messages()))
 
 
 async def _close(
@@ -1160,14 +1197,17 @@ async def decide(
             text = REJECTED
             if d.reason:
                 text += f" Their reason: {d.reason}"
-            results.append(
-                (row, Outcome(True, {"rejected": True, "message": text}, ran=False), "rejected")
-            )
+            outcome = Outcome(True, {"rejected": True, "message": text}, ran=False)
+            results.append((row, outcome, "rejected"))
+            await _record(state, user_id, session_id, row, outcome, "rejected", None)
             continue
         args = d.args if d.decision == "edit" and d.args is not None else row.args
         outcome = await invoke(state, user_id, scope, row.capability, args)
         row.args = args
-        results.append((row, outcome, "executed" if outcome.ok else "failed"))
+        status = "executed" if outcome.ok else "failed"
+        results.append((row, outcome, status))
+        # Stored at once: if anything stops the rest, this card still shows what it did.
+        await _record(state, user_id, session_id, row, outcome, status, edited_preview.get(row.id))
         if d.remember and cap.effect == "write" and outcome.ok:
             async with agent_ctx(state, user_id, scope=None) as ctx:
                 await service.remember_auto_approve(ctx, cap.name)
@@ -1177,17 +1217,8 @@ async def decide(
         session = await service.get_session_row(ctx, session_id)
         stored = [history.load(r) for r in await service.messages(ctx, session.id)]
         open_ids = {c.tool_call_id for c in history.open_calls([m for m in stored if m])}
-        for row, outcome, status in results:
+        for row, outcome, _status in results:
             fresh = await service.get_proposal(ctx, session.id, row.id)
-            fresh.status = status
-            fresh.args = row.args
-            if row.id in edited_preview:
-                fresh.preview = edited_preview[row.id]
-            fresh.decided_at = ctx.now
-            if status != "rejected":
-                fresh.executed_at = ctx.now
-            fresh.result = outcome.payload
-            fresh.error_code = outcome.error_code
             cap = cap_by_id[row.id]
             part = ToolReturnPart(
                 tools.tool_name(row.capability),
@@ -1216,6 +1247,30 @@ async def decide(
         ]
         await ctx.db.commit()
     return out, not still_pending
+
+
+async def _record(
+    state: State,
+    user_id: str,
+    session_id: str,
+    row: AgentProposal,
+    outcome: Outcome,
+    status: str,
+    preview: dict[str, Any] | None,
+) -> None:
+    """Stores a decided card's outcome in its own transaction."""
+    async with agent_ctx(state, user_id, scope=None) as ctx:
+        fresh = await service.get_proposal(ctx, session_id, row.id)
+        fresh.status = status
+        fresh.args = row.args
+        if preview is not None:
+            fresh.preview = preview
+        fresh.decided_at = ctx.now
+        if status != "rejected":
+            fresh.executed_at = ctx.now
+        fresh.result = outcome.payload
+        fresh.error_code = outcome.error_code
+        await ctx.db.commit()
 
 
 async def continue_turn(state: State, user_id: str, session_id: str) -> None:

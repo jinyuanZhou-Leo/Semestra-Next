@@ -22,6 +22,7 @@ from semestra.core.errors import AppError
 from semestra.modules.agent import history, loop, service
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.runtime import agent_ctx
+from semestra.modules.agent.schemas import Decision
 from semestra.modules.agent.tests.conftest import (
     Agent,
     FakeModel,
@@ -362,6 +363,115 @@ async def test_calls_cut_off_before_they_ran_get_a_result(
     assert "agent.interrupted" in str(result.content)
 
 
+async def _note(app: FastAPI, agent: Agent, session_id: str) -> None:
+    async with agent_ctx(app.state, await _me(agent), scope=None) as ctx:
+        row = await service.get_session_row(ctx, session_id)
+        service.add_message(ctx, row, "user", [{"type": "note", "text": "A note"}])
+        await ctx.db.commit()
+
+
+async def test_results_are_stored_after_merged_requests_in_the_history(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    """Pydantic AI merges consecutive requests anywhere in the history (notes before a message);
+    a result after them must still get its row, or the next turn sees the call "interrupted"."""
+    program = await agent.program()
+    session = await agent.session()
+    model.then(say("a"))
+    await agent.send(session["id"], "one")
+    await _note(app, agent, session["id"])
+    await _note(app, agent, session["id"])
+    model.then(say("b"))
+    await agent.send(session["id"], "two")
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("c"))
+    await agent.send(session["id"], "three")
+
+    roles = [m["role"] for m in (await agent.detail(session["id"]))["messages"]]
+    assert roles[-4:] == ["user", "assistant", "tool", "assistant"]
+    model.then(say("d"))
+    await agent.send(session["id"], "four")
+    assert "interrupted" not in model.last_text()
+
+
+async def _auto_approve(agent: Agent, name: str) -> None:
+    await agent.call("PATCH", "/agent/preferences", json={"auto_approve": [name]})
+
+
+async def test_a_write_done_before_the_client_left_keeps_its_result(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    _, course, lab = await agent.course_with_lab()
+    await _auto_approve(agent, "grading.assessment.update")
+    session = await agent.session()
+    model.then(
+        calls(
+            [
+                ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 60}),
+                ("grading.assessment.update", {"assessment_id": lab["id"], "note": "x"}),
+            ]
+        )
+    )
+    real_invoke = loop.invoke
+    ran: list[str] = []
+
+    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+        ran.append(args[3])
+        if len(ran) == 2:
+            raise asyncio.CancelledError
+        return await real_invoke(*args, **kwargs)
+
+    monkeypatch.setattr(loop, "invoke", invoke)
+    await agent.send(session["id"], "60, and a note")
+    monkeypatch.undo()
+    items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
+    assert items[0]["score_percentage"] == 60
+
+    model.then(say("The score is saved; the note is not."))
+    await agent.send(session["id"], "did it work?")
+    results = {r.tool_call_id: str(r.content) for r in model.results(-1)}
+    first, second = "call_grading.assessment.update_0", "call_grading.assessment.update_1"
+    assert "interrupted" not in results[first]
+    assert '"score_percentage":60' in results[first]
+    assert "interrupted" in results[second]
+
+
+async def test_stop_while_tools_run_keeps_their_results(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    program = await agent.program()
+    session = await agent.session()
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("never sent"))
+    user = await _add_user(app, agent, session["id"], "terms?")
+    cancel = asyncio.Event()
+    async for item in loop.generate(app.state, user, session["id"], cancel):
+        if item["event"] == "tool_call":
+            cancel.set()
+    roles = [m["role"] for m in (await agent.detail(session["id"]))["messages"]]
+    assert roles == ["user", "assistant", "tool"]
+    model.script.clear()
+    model.then(say("ok"))
+    await agent.send(session["id"], "go on")
+    [result] = model.results(-1)
+    assert '"items"' in str(result.content)
+
+
+async def test_a_failing_capability_fails_only_its_call(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    program = await agent.program()
+    session = await agent.session()
+
+    async def broken(*args: Any, **kwargs: Any) -> Any:
+        raise KeyError("a bug in the capability")
+
+    monkeypatch.setattr(loop.registry, "invoke", broken)
+    model.then(call("academics.term.list", {"program_id": program["id"]}), say("Sorry."))
+    events = await agent.send(session["id"], "terms?")
+    [result] = events_named(events, "tool_result")
+    assert (result["ok"], result["error_code"]) == (False, "common.internal")
+    assert texts(events) == "Sorry."
+
+
 async def test_a_batch_cannot_decide_one_proposal_twice(agent: Agent, model: FakeModel):
     _, _, lab = await agent.course_with_lab()
     session = await agent.session()
@@ -406,6 +516,42 @@ async def test_a_proposal_is_claimed_before_its_write_runs(
     assert seen == ["failed"]  # claimed (agent.interrupted) while the write ran
     [card] = (await agent.detail(session["id"]))["proposals"]
     assert (card["status"], card["error_code"]) == ("executed", None)
+
+
+async def test_each_approved_card_is_stored_as_soon_as_it_ran(
+    app: FastAPI, agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """If something stops "approve all" halfway, the cards that ran still say so."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        calls(
+            [
+                ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 60}),
+                ("grading.assessment.update", {"assessment_id": lab["id"], "note": "x"}),
+            ]
+        )
+    )
+    first, second = events_named(await agent.send(session["id"], "two edits"), "proposal")
+    real_invoke = loop.invoke
+    ran: list[str] = []
+
+    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+        ran.append(args[3])
+        if len(ran) == 2:
+            raise asyncio.CancelledError
+        return await real_invoke(*args, **kwargs)
+
+    monkeypatch.setattr(loop, "invoke", invoke)
+    decisions = [
+        Decision(proposal_id=first["id"], decision="approve"),
+        Decision(proposal_id=second["id"], decision="approve"),
+    ]
+    with pytest.raises(asyncio.CancelledError):
+        await loop.decide(app.state, await _me(agent), session["id"], decisions)
+    cards = {p["id"]: p for p in (await agent.detail(session["id"]))["proposals"]}
+    assert (cards[first["id"]]["status"], cards[first["id"]]["error_code"]) == ("executed", None)
+    assert cards[second["id"]]["error_code"] == "agent.interrupted"
 
 
 def _found(*names: str) -> Reply:
