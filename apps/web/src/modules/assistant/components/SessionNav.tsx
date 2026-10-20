@@ -17,6 +17,7 @@ import {
 import {
   SessionList,
   SessionMenuItems,
+  TemporaryMark,
   recentSessions,
   sessionTitle,
   useSessionEditing,
@@ -74,7 +75,10 @@ export function SessionNav({
                   />
                 }
               >
-                <span className="truncate">{title}</span>
+                <span className="truncate">
+                  {session.temporary ? <TemporaryMark /> : null}
+                  {title}
+                </span>
               </SidebarMenuSubButton>
               <DropdownMenu>
                 <DropdownMenuTrigger

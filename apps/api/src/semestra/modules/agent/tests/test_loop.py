@@ -99,7 +99,8 @@ async def _rename(agent: Agent, name: str) -> None:
 
 def _work(model: FakeModel) -> str:
     text = model.instructions_of(0)[len(STATIC_PROMPT) :]
-    return text[: text.index("The following capabilities")].strip()
+    text = text[: text.index("The following capabilities")]
+    return text.split("\n\n# Memory")[0].strip()
 
 
 async def test_the_users_name_cannot_break_out_of_its_line(agent: Agent, model: FakeModel):

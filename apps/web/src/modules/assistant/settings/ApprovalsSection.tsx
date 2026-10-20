@@ -162,7 +162,8 @@ export function ApprovalsSection() {
   const [confirming, setConfirming] = useState(false)
   const tools = catalog.data?.items ?? []
   const reads = tools.filter((tool) => tool.effect === 'read')
-  const writes = tools.filter((tool) => tool.effect === 'write')
+  // Memory tools never ask, so there is nothing to approve for them.
+  const writes = tools.filter((tool) => tool.effect === 'write' && tool.confirm)
   const deletes = tools.filter((tool) => tool.effect === 'destructive')
   const chosen = new Set(preferences.data?.auto_approve ?? [])
   const setTools = (subset: readonly AgentToolInfo[], on: boolean) =>

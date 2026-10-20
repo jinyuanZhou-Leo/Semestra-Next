@@ -23,8 +23,13 @@ class AgentSession(Base, OwnedMixin):
     # The page scope the session was started from: {program_id, term_id?, course_id?}.
     scope: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     pinned: Mapped[bool] = mapped_column(default=False)
+    # A temporary chat neither reads nor writes memories (M12 记忆).
+    temporary: Mapped[bool] = mapped_column(default=False)
+    # When the idle conversation was last read for memories (`memory.consolidate_idle`).
+    memory_processed_at: Mapped[datetime | None] = mapped_column(default=None)
     # {summary: str | None, summarized_until: message id | None,
-    #  turn: {tool_calls, requests, last_call, repeats} (see `loop.Counters`)}
+    #  turn: {tool_calls, requests, last_call, repeats} (see `loop.Counters`),
+    #  memory: the memories as the conversation started (`memory.snapshot`)}
     state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
@@ -127,4 +132,22 @@ class AgentPreferences(Base):
     )
     auto_approve: Mapped[list[str]] = mapped_column(JSON, default=list)
     mcp_allow_destructive: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column()
+
+
+class AgentMemory(Base, OwnedMixin):
+    """Something Sem remembers about the user across conversations (M12 记忆): a preference, a
+    goal, a constraint or background that the structured data cannot hold."""
+
+    __tablename__ = "agent_memories"
+    __table_args__ = (Index("ix_agent_memories_user_updated", "user_id", "updated_at"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    category: Mapped[str] = mapped_column(String)  # preference | goal | constraint | context
+    content: Mapped[str] = mapped_column(String)
+    # The conversation it came from; kept when that conversation is deleted.
+    source_session_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("agent_sessions.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()

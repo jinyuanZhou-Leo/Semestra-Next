@@ -16,6 +16,7 @@ from semestra.modules.academics.models import (
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentAttachmentPage,
+    AgentMemory,
     AgentMessage,
     AgentPreferences,
     AgentProposal,
@@ -297,6 +298,14 @@ async def populate(
                 capability="tasks.item.create",
                 args={"title": "Read chapter 3"},
                 created_at=NOW,
+            ),
+            AgentMemory(
+                **u,
+                category="preference",
+                content="Prefers short answers.",
+                source_session_id=chat.id,
+                created_at=NOW,
+                updated_at=NOW,
             ),
             AgentAttachment(
                 **u,

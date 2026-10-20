@@ -25,6 +25,7 @@ import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
 import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
+import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
 import { mcpConfig } from './settings/McpSection'
@@ -45,6 +46,7 @@ function session(overrides: Partial<AgentSessionOut> = {}): AgentSessionOut {
     program_id: 'p1',
     scope: { program_id: 'p1', term_id: null, course_id: null },
     pinned: false,
+    temporary: false,
     created_at: NOW,
     updated_at: NOW,
     archived_at: null,
@@ -746,7 +748,7 @@ test('MCP setups carry the address and the token', () => {
 })
 
 test('assistant permissions group tools by effect, with a master switch for changes', async () => {
-  const tool = (name: string, effect: string, module = 'grading') => ({
+  const tool = (name: string, effect: string, module = 'grading', confirm = effect !== 'read') => ({
     name,
     module,
     summary: name,
@@ -754,6 +756,7 @@ test('assistant permissions group tools by effect, with a master switch for chan
     plugin_id: null,
     core: true,
     mcp: true,
+    confirm,
   })
   let approved: string[] = []
   const patches: unknown[] = []
@@ -766,6 +769,8 @@ test('assistant permissions group tools by effect, with a master switch for chan
           tool('grading.assessment.create', 'write'),
           tool('grading.assessment.delete', 'destructive'),
           tool('layouts.card.add', 'write', 'layouts'),
+          // Memory tools run without a card: nothing to approve.
+          tool('agent.memory.remember', 'write', 'agent', false),
         ],
       }),
     ),
@@ -1071,4 +1076,53 @@ test('an attachment saved before shows where it went and opens the saved file', 
   await userEvent.click(await screen.findByRole('button', { name: 'Saved to MAT188H1' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Open the saved file' }))
   expect(await screen.findByRole('dialog')).toBeInTheDocument()
+})
+
+test('what Sem remembered shows under the answer and can be undone', async () => {
+  let memories = [
+    {
+      id: 'm1',
+      category: 'preference',
+      content: 'Likes bullet points',
+      created_at: NOW,
+      updated_at: NOW,
+    },
+  ]
+  const deleted: string[] = []
+  server.use(
+    http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: memories })),
+    http.delete(`${API}/agent/memories/:id`, ({ params }) => {
+      deleted.push(String(params.id))
+      memories = []
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const step = (callId: string, memory: { id: string; content: string } | null) => ({
+    callId,
+    name: 'agent.memory.remember',
+    args: {},
+    status: 'done' as const,
+    errorCode: null,
+    proposal: null,
+    memory,
+  })
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      {/* m2 was deleted elsewhere: it is not offered for undo. */}
+      <Remembered
+        steps={[
+          step('c1', { id: 'm1', content: 'Likes bullet points' }),
+          step('c2', { id: 'm2', content: 'Gone' }),
+          step('c3', null),
+        ]}
+      />
+    </QueryClientProvider>,
+  )
+  expect(await screen.findByText('Remembered: Likes bullet points')).toBeInTheDocument()
+  expect(screen.queryByText('Remembered: Gone')).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  await waitFor(() => expect(deleted).toEqual(['m1']))
+  await waitFor(() =>
+    expect(screen.queryByText('Remembered: Likes bullet points')).not.toBeInTheDocument(),
+  )
 })

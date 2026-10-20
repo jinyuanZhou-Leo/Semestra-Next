@@ -201,6 +201,8 @@ def result_block(part: ToolReturnPart | RetryPromptPart) -> dict[str, Any]:
     }
     if meta.get("full"):
         block["full"] = meta["full"]
+    if meta.get("memory"):
+        block["memory"] = meta["memory"]
     return block
 
 

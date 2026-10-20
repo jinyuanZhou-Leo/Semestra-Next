@@ -22,6 +22,7 @@ class AgentSessionOut(BaseModel):
     program_id: str | None
     scope: AgentScope | None
     pinned: bool
+    temporary: bool
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None
@@ -105,6 +106,9 @@ class AgentSessionCreateInput(BaseModel):
         description="Random key of the new conversation in the client; creating again with "
         "the same key returns the same conversation (double sends, upload and send racing).",
     )
+    temporary: bool = Field(
+        default=False, description="A temporary chat neither reads nor writes memories."
+    )
 
 
 class AgentSessionUpdateInput(BaseModel):
@@ -139,6 +143,9 @@ class AgentToolInfo(BaseModel):
     plugin_id: str | None
     core: bool = Field(description="Always bound in the assistant.")
     mcp: bool = Field(description="Also offered to MCP clients.")
+    confirm: bool = Field(
+        description="Changes data behind a confirmation card (memory tools never ask)."
+    )
 
 
 class AgentToolCatalog(BaseModel):

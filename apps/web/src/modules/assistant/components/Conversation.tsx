@@ -16,6 +16,7 @@ import {
   FileUp,
   ImageIcon,
   MessageCircle,
+  MessageCircleDashed,
   MessageSquareText,
   Pencil,
   Play,
@@ -71,6 +72,7 @@ import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown } from './Markdown'
 import { ProposalCard } from './ProposalCard'
+import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
 import { Thinking } from './Steps'
 
@@ -305,6 +307,7 @@ function AssistantMessage({
       <MessageContent className="gap-3">
         <Thinking item={item} active={active} showReasoning={showReasoning} />
         {item.answer ? <Markdown text={item.answer} citations={citations} /> : null}
+        <Remembered steps={item.steps} />
         {pending.length > 1 ? (
           <div className="flex justify-end">
             <Button
@@ -446,12 +449,14 @@ export function Conversation({
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
+  const [temporaryChoice, setTemporaryChoice] = useState(false)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
   const removed = useRef(new Set<string>())
   const detail = chat.detail
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
+  const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
   const savedFiles = new Map(
@@ -464,7 +469,7 @@ export function Conversation({
   useEffect(() => {
     if (!question || !ai.available) return
     onQuestionTaken?.()
-    void chat.send({ text: question.text, scope: sessionId ? null : newScope })
+    void chat.send({ text: question.text, scope: sessionId ? null : newScope, temporary })
     // Only a new question is sent; the rest of the state is read as it is now.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [questionKey, ai.available])
@@ -496,7 +501,7 @@ export function Conversation({
     setAttachments((current) => [...current, ...pending])
     let id: string
     try {
-      id = await chat.ensureSession(newScope)
+      id = await chat.ensureSession(newScope, temporary)
     } catch (err) {
       const message = errorMessage(err)
       setAttachments((current) =>
@@ -565,6 +570,7 @@ export function Conversation({
       skill: input.skill ? { name: input.skill.name, title: input.skill.title } : null,
       attachmentIds: ready.map((a) => a.id as string),
       scope: sessionId ? null : newScope,
+      temporary,
     })
     if (ok) {
       for (const a of attachments) if (a.preview) URL.revokeObjectURL(a.preview)
@@ -721,7 +727,7 @@ export function Conversation({
                 disabled={chat.generating || !ai.available}
                 onClick={() => {
                   setSent((n) => n + 1)
-                  void chat.send({ text: suggest(), scope: sessionId ? null : newScope })
+                  void chat.send({ text: suggest(), scope: sessionId ? null : newScope, temporary })
                 }}
               >
                 {suggest()}
@@ -729,12 +735,32 @@ export function Conversation({
             ))}
           </div>
         ) : null}
-        <div className="flex">
+        <div className="flex items-center justify-between gap-2">
           <ScopeChip
             scope={scope}
             programId={pageScope?.program_id}
             onChange={(next) => void changeScope(next)}
           />
+          {!sessionId || temporary ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    aria-pressed={temporary}
+                    disabled={sessionId !== null}
+                    className="shrink-0 text-muted-foreground aria-pressed:bg-muted aria-pressed:text-foreground"
+                    onClick={() => setTemporaryChoice((on) => !on)}
+                  />
+                }
+              >
+                <MessageCircleDashed data-icon="inline-start" aria-hidden />
+                {m.assistant_temporary_chat()}
+              </TooltipTrigger>
+              <TooltipContent>{m.assistant_temporary_chat_hint()}</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
         <Composer
           programId={scope?.program_id ?? pageScope?.program_id}
