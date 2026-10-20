@@ -7639,6 +7639,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                       "web_url",
                       "title",
                       "html",
+                      "markdown",
                       "author",
                       "posted_at",
                       "updated_at",
@@ -7651,10 +7652,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {
@@ -7781,6 +7782,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                       "web_url",
                       "name",
                       "html",
+                      "markdown",
                       "due_at",
                       "unlock_at",
                       "lock_at",
@@ -7801,10 +7803,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {
@@ -9236,6 +9238,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                       "web_url",
                       "title",
                       "html",
+                      "markdown",
                       "due_at",
                       "unlock_at",
                       "lock_at",
@@ -9249,10 +9252,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
                   "type": "null"
                 }
               ],
-              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`",
+              "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `markdown` (or `html`) is the body, as Markdown",
               "title": "Fields"
             },
-            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`"
+            "description": "Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `markdown` (or `html`) is the body, as Markdown"
           }
         ],
         "responses": {

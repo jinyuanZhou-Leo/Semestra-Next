@@ -224,10 +224,10 @@ class CourseOverview(BaseModel):
 
 
 _FIELDS = "Agent/MCP only: return just these fields of each item (and its external_id)"
-_BODY = "`html` is the body, returned as `markdown`"
+_BODY = "`markdown` (or `html`) is the body, as Markdown"
 
 AnnouncementField = Literal[
-    "web_url", "title", "html", "author", "posted_at", "updated_at", "unread"
+    "web_url", "title", "html", "markdown", "author", "posted_at", "updated_at", "unread"
 ]
 
 
@@ -253,7 +253,7 @@ class AssignmentOut(Assignment):
 
 
 AssignmentField = Literal[
-    "web_url", "name", "html", "due_at", "unlock_at", "lock_at", "points", "group_id",
+    "web_url", "name", "html", "markdown", "due_at", "unlock_at", "lock_at", "points", "group_id",
     "group_name", "group_weight", "submission_types", "submission", "published", "updated_at",
     "imported_as",
 ]  # fmt: skip
@@ -303,7 +303,15 @@ class PageGetInput(CourseReadInput):
 
 
 QuizField = Literal[
-    "web_url", "title", "html", "due_at", "unlock_at", "lock_at", "points", "question_count"
+    "web_url",
+    "title",
+    "html",
+    "markdown",
+    "due_at",
+    "unlock_at",
+    "lock_at",
+    "points",
+    "question_count",
 ]
 
 

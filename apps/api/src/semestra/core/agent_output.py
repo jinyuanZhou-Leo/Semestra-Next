@@ -6,17 +6,19 @@ model as is; agents and MCP clients get a trimmed JSON dict in which:
 - every datetime is in the Program's time zone with its offset (`2026-10-20T10:00:00-04:00`),
   so the model never converts UTC itself;
 - fields marked `ForAgents(...)` are converted (LMS HTML becomes Markdown);
-- objects in lists leave out their null fields (a term of classes is mostly nulls otherwise).
-  Top-level fields keep them: a write that cleared a field says so.
+- objects in lists leave out their null model fields (a term of classes is mostly nulls
+  otherwise). Top-level fields keep them, so a write that cleared a field says so, and so do
+  free-form dicts (an import draft's missing value stays visible).
 
 The Program comes from the resolver a module installs with `set_zone_resolver` (academics: the
-call's `program_id`, the conversation's scope, ...); with none, times stay UTC.
+call's `program_id`, `course_id` or `term_id`, the conversation's scope, the output's ...); it
+runs only when the output holds a datetime. With none, times stay UTC.
 """
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, get_args
 
 from pydantic import BaseModel
 
@@ -32,12 +34,12 @@ CHANGED = "<changed>"
 # Kept whatever `fields` says: what the next call needs (`external_id`: LMS items).
 _IDS = {"id", "external_id"}
 
-ZoneResolver = Callable[[Ctx, BaseModel], Awaitable[tzinfo | None]]
+ZoneResolver = Callable[[Ctx, BaseModel, BaseModel], Awaitable[tzinfo | None]]
 _zone_resolver: ZoneResolver | None = None
 
 
 def set_zone_resolver(fn: ZoneResolver | None) -> None:
-    """`fn(ctx, inp)` → the time zone agent output is shown in, or None for UTC."""
+    """`fn(ctx, inp, out)` → the time zone agent output is shown in, or None for UTC."""
     global _zone_resolver
     _zone_resolver = fn
 
@@ -55,15 +57,53 @@ async def shape(ctx: Ctx, cap: Capability, inp: BaseModel, out: BaseModel) -> di
     dumped = out.model_dump(mode="json")
     fields: object = getattr(inp, "fields", None) or cap.agent_default_fields
     if isinstance(fields, list | tuple) and fields:
-        dumped = _select_fields(dumped, {str(f) for f in fields} | _IDS)  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        renamed = _renamed(type(out))  # `fields` may name a field by what agents see
+        keep = {renamed.get(str(f), str(f)) for f in fields}  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        dumped = _select_fields(dumped, keep | _IDS)
     if cap.agent_output_fields is not None:
         paths = [p for p in cap.agent_output_fields if p != CHANGED]
         if len(paths) < len(cap.agent_output_fields):
             paths += [n for n in inp.model_fields_set if n in dumped and n not in paths]
         dumped = _keep_paths(dumped, tuple(paths))
-    zone = await _zone_resolver(ctx, inp) if _zone_resolver is not None else None
+    zone = None
+    if _zone_resolver is not None and _has_datetime(out):
+        zone = await _zone_resolver(ctx, inp, out)
     _localize(out, dumped, zone)
-    return _drop_nulls_in_lists(dumped)
+    return dumped
+
+
+def _renamed(model: type[BaseModel], seen: set[type[BaseModel]] | None = None) -> dict[str, str]:
+    """`ForAgents` names → field names, anywhere in the output model."""
+    seen = seen if seen is not None else set()
+    if model in seen:
+        return {}
+    seen.add(model)
+    out: dict[str, str] = {}
+    for name, info in model.model_fields.items():
+        for m in info.metadata:
+            if isinstance(m, ForAgents) and m.name:
+                out[m.name] = name
+        for sub in _models_in(info.annotation):
+            out.update(_renamed(sub, seen))
+    return out
+
+
+def _models_in(annotation: object) -> list[type[BaseModel]]:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return [annotation]
+    return [m for arg in get_args(annotation) for m in _models_in(arg)]
+
+
+def _has_datetime(value: object) -> bool:
+    if isinstance(value, datetime):
+        return True
+    if isinstance(value, BaseModel):
+        return any(_has_datetime(getattr(value, n)) for n in type(value).model_fields)
+    if isinstance(value, list | tuple):
+        return any(_has_datetime(v) for v in cast(list[object], value))
+    if isinstance(value, dict):
+        return any(_has_datetime(v) for v in cast(dict[object, object], value).values())
+    return False
 
 
 def _select_fields(dumped: dict[str, Any], keep: set[str]) -> dict[str, Any]:
@@ -108,9 +148,10 @@ def _keep_paths(dumped: dict[str, Any], paths: tuple[str, ...]) -> dict[str, Any
     return out
 
 
-def _localize(value: object, dumped: object, zone: tzinfo | None) -> object:
+def _localize(value: object, dumped: object, zone: tzinfo | None, in_list: bool = False) -> object:
     """Walks the output model next to its (trimmed) JSON dump and returns the dump's new value:
-    datetimes in `zone`, `ForAgents` fields converted. Containers are changed in place."""
+    datetimes in `zone`, `ForAgents` fields converted, null model fields of objects in lists left
+    out. Containers are changed in place."""
     if isinstance(value, datetime):
         if zone is None or not isinstance(dumped, str):
             return dumped
@@ -123,34 +164,25 @@ def _localize(value: object, dumped: object, zone: tzinfo | None) -> object:
                 continue
             marker = next((m for m in info.metadata if isinstance(m, ForAgents)), None)
             raw: object = getattr(value, name)
-            if marker is not None and isinstance(raw, str):
+            if marker is not None:
                 del fields[name]
-                fields[marker.name or name] = marker.convert(raw)
+                fields[marker.name or name] = marker.convert(raw) if isinstance(raw, str) else raw
             else:
-                fields[name] = _localize(raw, fields[name], zone)
+                fields[name] = _localize(raw, fields[name], zone, in_list)
+        if in_list:
+            for name in [n for n, v in fields.items() if v is None]:
+                del fields[name]
         return fields
     if isinstance(value, list | tuple) and isinstance(dumped, list):
         items = cast(list[object], dumped)
         for i, item in enumerate(cast(list[object] | tuple[object, ...], value)[: len(items)]):
-            items[i] = _localize(item, items[i], zone)
+            items[i] = _localize(item, items[i], zone, True)
         return items
     if isinstance(value, dict) and isinstance(dumped, dict):
+        # Free-form data: times converted, nothing left out.
         entries = cast(dict[str, object], dumped)
         for key, item in cast(dict[object, object], value).items():
             if isinstance(key, str) and key in entries:
                 entries[key] = _localize(item, entries[key], zone)
         return entries
     return dumped
-
-
-def _drop_nulls_in_lists(value: Any, in_list: bool = False) -> Any:
-    if isinstance(value, dict):
-        fields = cast(dict[str, object], value)
-        return {
-            k: _drop_nulls_in_lists(v, in_list)
-            for k, v in fields.items()
-            if v is not None or not in_list
-        }
-    if isinstance(value, list):
-        return [_drop_nulls_in_lists(v, True) for v in cast(list[object], value)]
-    return value

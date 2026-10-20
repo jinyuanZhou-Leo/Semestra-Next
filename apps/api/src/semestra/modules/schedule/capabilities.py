@@ -45,12 +45,12 @@ from semestra.modules.schedule.schemas import (
 
 TAGS = ("schedule",)
 
-# What agents get back (M00 §3.6): no occurrence ids, colors, import keys or timestamps. A
-# class's meeting id is its `ref.id`.
+# What agents get back (M00 §3.6): no colors, import keys or timestamps. A class's meeting id is
+# its `ref.id`; `meta.conflicts_with` names other occurrences by `id`.
 _OCCURRENCE_FIELDS = (
-    "ref", "kind", "title", "start_at", "end_at", "all_day", "course_id", "type_code",
+    "id", "ref", "kind", "title", "start_at", "end_at", "all_day", "course_id", "type_code",
     "location", "status", "meta.original_date", "meta.original_start_at", "meta.week_number",
-    "meta.section_code", "meta.instructor", "meta.note",
+    "meta.section_code", "meta.instructor", "meta.note", "meta.conflicts_with",
 )  # fmt: skip
 _EXCEPTION_FIELDS = tuple(
     f"exceptions.{f}"
@@ -61,7 +61,8 @@ _EXCEPTION_FIELDS = tuple(
 )  # fmt: skip
 _MEETING_FIELDS = (
     "id", "term_id", "section_code", "type_code", "title", "instructor", "location", "weekday",
-    "start_time", "end_time", "recurrence", "start_week", "end_week", "skip_breaks", "enabled",
+    "start_time", "end_time", "recurrence", "anchor_week", "start_week", "end_week",
+    "skip_breaks", "enabled",
     *_EXCEPTION_FIELDS,
 )  # fmt: skip
 _EVENT_FIELDS = (

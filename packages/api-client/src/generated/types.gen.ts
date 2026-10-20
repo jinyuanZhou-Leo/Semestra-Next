@@ -14586,9 +14586,9 @@ export type LmsAnnouncementListData = {
         /**
          * Fields
          *
-         * Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `html` is the body, returned as `markdown`
+         * Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'title' | 'html' | 'author' | 'posted_at' | 'updated_at' | 'unread'> | null;
+        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'author' | 'posted_at' | 'updated_at' | 'unread'> | null;
     };
     url: '/courses/{course_id}/lms/announcements';
 };
@@ -14663,9 +14663,9 @@ export type LmsAssignmentListData = {
         /**
          * Fields
          *
-         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `html` is the body, returned as `markdown`
+         * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'name' | 'html' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'imported_as'> | null;
+        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'imported_as'> | null;
     };
     url: '/courses/{course_id}/lms/assignments';
 };
@@ -15612,9 +15612,9 @@ export type LmsQuizListData = {
         /**
          * Fields
          *
-         * Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `html` is the body, returned as `markdown`
+         * Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'title' | 'html' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'question_count'> | null;
+        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'question_count'> | null;
     };
     url: '/courses/{course_id}/lms/quizzes';
 };

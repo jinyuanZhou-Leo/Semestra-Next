@@ -18,7 +18,15 @@ class _Converter(MarkdownConverter):
         return super().convert_a(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-_converter = _Converter(heading_style="ATX", bullets="-", escape_misc=False)
+# No escaping: the model reads this text, it is not rendered, and `lab\_3.pdf` would be copied
+# into searches and titles as is.
+_converter = _Converter(
+    heading_style="ATX",
+    bullets="-",
+    escape_asterisks=False,
+    escape_underscores=False,
+    escape_misc=False,
+)
 
 
 def to_markdown(html: str) -> str | None:

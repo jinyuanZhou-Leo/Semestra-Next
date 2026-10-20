@@ -617,10 +617,50 @@ async def test_agent_surface(
     assert result["timezone"] == "America/Toronto"
     (item,) = result["items"]
     # Trimmed for the model, and in the Program's time zone with its offset (EST in January).
-    assert not {"id", "source", "color_ref"} & set(item)
-    assert item["start_at"].startswith("2026-01-05T")
-    assert item["start_at"].endswith("-05:00")
+    assert not {"source", "color_ref"} & set(item)
+    assert (item["start_at"], item["end_at"]) == (
+        "2026-01-05T10:00:00-05:00",
+        "2026-01-05T11:00:00-05:00",
+    )
     assert item["ref"]["entity"] == "schedule.meeting"
+    assert "status" not in item  # null fields of list items are left out
+
+    # A whole day across the DST change stays local midnight to local midnight; a clash names
+    # the other occurrence by its id.
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Reading day",
+            "start_at": "2026-03-08T00:00:00-05:00",
+            "end_at": "2026-03-08T00:00:00-05:00",
+            "all_day": True,
+        },
+    )
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Dentist",
+            "start_at": "2026-03-09T10:30:00-04:00",
+            "end_at": "2026-03-09T11:30:00-04:00",
+        },
+    )
+    args = {"program_id": program_id, "start": "2026-03-08", "end": "2026-03-10"}
+    async with system_ctx(app.state, user.id) as ctx:
+        week = await registry.invoke(ctx, "calendar.occurrence.list", args, "agent")
+        mcp = await registry.invoke(ctx, "calendar.occurrence.list", args, "mcp")
+    assert week == mcp  # MCP clients get what the assistant gets
+    assert isinstance(week, dict)
+    by_title = {o["title"]: o for o in week["items"]}
+    reading = by_title["Reading day"]
+    assert (reading["start_at"], reading["end_at"]) == (
+        "2026-03-08T00:00:00-05:00",
+        "2026-03-09T00:00:00-04:00",
+    )
+    lecture = next(o for o in week["items"] if o["kind"] == "class")
+    assert lecture["start_at"] == "2026-03-09T10:00:00-04:00"
+    assert lecture["meta"]["conflicts_with"] == [by_title["Dentist"]["id"]]
     # The assistant reads a whole term in one call (the app is limited to 120 days).
     async with system_ctx(app.state, user.id) as ctx:
         ctx.actor = "agent"
