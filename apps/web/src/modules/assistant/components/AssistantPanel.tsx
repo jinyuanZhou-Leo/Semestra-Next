@@ -42,8 +42,8 @@ export function AssistantPanel() {
 
   return (
     <aside aria-label={m.assistant_name()} className="flex h-full min-w-0 flex-col bg-background">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
+      <header className="flex h-10 shrink-0 items-center gap-0.5 border-b px-2">
+        <h2 className="min-w-0 flex-1 truncate px-1.5 text-sm font-medium">{title}</h2>
         <HeaderButton label={m.assistant_new()} onClick={() => panel.show(null)}>
           <SquarePen />
         </HeaderButton>

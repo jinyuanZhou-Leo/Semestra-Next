@@ -22,6 +22,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { type CSSProperties, type MouseEvent, useState } from 'react'
+import { GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
@@ -503,7 +504,9 @@ export function SidebarTerms({
   return (
     <>
       <SidebarGroup>
-        <SidebarGroupLabel>{m.academics_sidebar_current_term()}</SidebarGroupLabel>
+        <SidebarGroupLabel className={GROUP_LABEL}>
+          {m.academics_sidebar_current_term()}
+        </SidebarGroupLabel>
         {isMobile || !terms || terms.length === 0 ? null : (
           <AddTermPicker terms={addable} onPick={(term) => toggle({ kind: 'term', id: term.id })} />
         )}
@@ -541,7 +544,7 @@ export function SidebarTerms({
 
       {entries.length > 0 ? (
         <SidebarGroup>
-          <SidebarGroupLabel>{m.academics_pinned()}</SidebarGroupLabel>
+          <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_pinned()}</SidebarGroupLabel>
           <SidebarGroupContent>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dropped}>
               <SortableContext

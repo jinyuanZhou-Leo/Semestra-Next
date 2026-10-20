@@ -406,7 +406,7 @@ const templateColumns = templateColumn.columns([
 ])
 
 const TEMPLATE_COLUMN_CLASS: Record<string, string> = {
-  color: 'w-16',
+  color: 'w-20',
   name: 'w-full max-w-0',
   actions: 'w-10',
 }
