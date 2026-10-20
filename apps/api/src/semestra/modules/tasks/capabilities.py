@@ -158,7 +158,7 @@ async def item_get(ctx: Ctx, inp: TaskRef) -> Task:
 @capability(
     name="tasks.item.create",
     agent_core=True,
-    summary="Create a task, optionally with a due date, course, list and priority.",
+    summary="Create a task (a to-do or reminder), optionally with a due date, course and list.",
     description="""Always pass the course and due date when the user's words or the current scope
 give them. Dates are in the Program's time zone; a time needs a date. The term is inferred from
 the course and due date. Omit list_id to put the task in the inbox. Use tasks.item.create_many
@@ -176,9 +176,9 @@ async def item_create(ctx: Ctx, inp: TaskCreateInput) -> Task:
 @capability(
     name="tasks.item.create_many",
     summary="Create several tasks at once; items with an already known source are skipped.",
-    description="""Use for imports and for lists the user dictates. Set source_kind and source_ref
-on imported items so that running the import again does not duplicate them; skipped items are
-returned with the id of the task that already exists.""",
+    description="""Use for a list of tasks the user dictates or pastes; tasks in a document go
+through imports.session.create. Items whose source_kind and source_ref match an existing task
+are skipped and returned with that task's id, so repeating an import does not duplicate them.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/tasks:batch"),
     tags=TAGS,

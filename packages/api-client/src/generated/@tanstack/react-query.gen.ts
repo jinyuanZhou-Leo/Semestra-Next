@@ -617,9 +617,10 @@ export const academicsCourseCreateMutation = (options?: Partial<Options<Academic
 };
 
 /**
- * Add several courses at once (imports).
+ * Add several courses at once.
  *
- * Use to create a batch of courses, e.g. from an imported timetable.
+ * Use for a batch of courses the user typed or listed in the chat. Courses in a
+ * document or file (a timetable, a syllabus) go through imports.session.create instead.
  */
 export const academicsCourseCreateManyMutation = (options?: Partial<Options<AcademicsCourseCreateManyData>>): UseMutationOptions<AcademicsCourseCreateManyResponse, AcademicsCourseCreateManyError, Options<AcademicsCourseCreateManyData>> => {
     const mutationOptions: UseMutationOptions<AcademicsCourseCreateManyResponse, AcademicsCourseCreateManyError, Options<AcademicsCourseCreateManyData>> = {
@@ -1817,7 +1818,7 @@ export const calendarOccurrenceListQueryKey = (options: Options<CalendarOccurren
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+ * and at most 400 days after `start`. A busy term is a large result: narrow it with
  * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
@@ -1841,7 +1842,7 @@ export const calendarOccurrenceListInfiniteQueryKey = (options: Options<Calendar
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
- * and at most 400 days after `start` (120 in the app). A busy term is a large result: narrow it with
+ * and at most 400 days after `start`. A busy term is a large result: narrow it with
  * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
@@ -1877,7 +1878,7 @@ export const calendarTodayGetQueryKey = (options: Options<CalendarTodayGetData>)
  *
  * Prefer this for questions about today ("what do I have today?", "what's due this
  * week?"). It also says which term week it is. For other days or longer ranges use
- * calendar.occurrence.list. Times are UTC; read them in the returned `timezone`.
+ * calendar.occurrence.list. Times are local to the Program, with their UTC offset.
  */
 export const calendarTodayGetOptions = (options: Options<CalendarTodayGetData>) => queryOptions<CalendarTodayGetResponse, CalendarTodayGetError, CalendarTodayGetResponse, ReturnType<typeof calendarTodayGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2352,8 +2353,10 @@ export const gradingAssessmentCreateMutation = (options?: Partial<Options<Gradin
 };
 
 /**
- * Add several assessments at once (imports from a syllabus or an LMS).
+ * Add several assessments at once.
  *
+ * Use for assessments the user typed or listed in the chat. A grading scheme in a
+ * file goes through imports.session.create, and LMS assignments through lms.assignment.import.
  * Items that carry `source_kind` and `source_ref` are skipped when the course
  * already has an assessment from the same source, so repeating an import creates no duplicates.
  */
@@ -2923,12 +2926,15 @@ export const importsSessionListInfiniteOptions = (options: Options<ImportsSessio
 /**
  * Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.
  *
- * Creates a draft the user reviews before anything is written. Upload files first
- * (POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
- * the assistant conversation (`attachment_ids`), or `text`. ICS is parsed at once (status ready); the
- * other sources are extracted in the background (status extracting → ready): call imports.session.get
- * with wait_seconds to wait for it. Never write a document's contents with the modules' own create
- * capabilities instead of importing it. The assistant gets `summary` and the first
+ * Use when the user shares a syllabus, timetable, ICS file or other document to
+ * bring into the app ("import this", "set up my courses from this syllabus"). Creates a draft the user
+ * reviews before anything is written. Pass the files themselves: `attachment_ids` for files attached
+ * to the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.
+ * An import never creates terms: the target term must exist (academics.term.create first). ICS is
+ * parsed at once (status ready); the other sources are extracted in the background (status
+ * extracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a
+ * document's contents with the modules' own create capabilities instead of importing it. The
+ * assistant gets `summary` and the first
  * 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreateMutation = (options?: Partial<Options<ImportsSessionCreateData>>): UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> => {
@@ -3246,7 +3252,7 @@ export const layoutsTemplateSaveFromBoardMutation = (options?: Partial<Options<L
 export const lmsAnnouncementListQueryKey = (options: Options<LmsAnnouncementListData>) => createQueryKey('lmsAnnouncementList', options);
 
 /**
- * Recent announcements of a linked course, newest first.
+ * Recent announcements of a linked course on Canvas or another LMS, newest first.
  */
 export const lmsAnnouncementListOptions = (options: Options<LmsAnnouncementListData>) => queryOptions<LmsAnnouncementListResponse, LmsAnnouncementListError, LmsAnnouncementListResponse, ReturnType<typeof lmsAnnouncementListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3265,7 +3271,8 @@ export const lmsAnnouncementListOptions = (options: Options<LmsAnnouncementListD
  * Start importing assignments of a linked course as assessments or tasks.
  *
  * Creates an import the user reviews; each item can be switched between an
- * assessment and a task there. Assignments imported before are left out.
+ * assessment and a task there. Assignments imported before are left out. Then commit it like
+ * any import (imports.session.commit).
  */
 export const lmsAssignmentImportMutation = (options?: Partial<Options<LmsAssignmentImportData>>): UseMutationOptions<LmsAssignmentImportResponse, LmsAssignmentImportError, Options<LmsAssignmentImportData>> => {
     const mutationOptions: UseMutationOptions<LmsAssignmentImportResponse, LmsAssignmentImportError, Options<LmsAssignmentImportData>> = {
@@ -3284,7 +3291,7 @@ export const lmsAssignmentImportMutation = (options?: Partial<Options<LmsAssignm
 export const lmsAssignmentListQueryKey = (options: Options<LmsAssignmentListData>) => createQueryKey('lmsAssignmentList', options);
 
 /**
- * Assignments of a linked course, each marked when already imported.
+ * Assignments of a linked course on Canvas or another LMS, marked when imported.
  *
  * To add them to the gradebook or tasks use lms.assignment.import (reviewed by
  * the user), never the gradebook or task capabilities directly.
@@ -3499,7 +3506,7 @@ export const lmsCourseLinkUpdateMutation = (options?: Partial<Options<LmsCourseL
 };
 
 /**
- * Link a course to a course on its Program's LMS.
+ * Link a course to its course on the Program's LMS (Canvas or another).
  *
  * Uses the Program's bound connection (lms.program_not_configured without one).
  * An external course can be linked to only one course of the Program
@@ -3543,7 +3550,7 @@ export const lmsCourseLinkSyncMutation = (options?: Partial<Options<LmsCourseLin
 export const lmsCourseListQueryKey = (options: Options<LmsCourseListData>) => createQueryKey('lmsCourseList', options);
 
 /**
- * The user's courses on the LMS bound to a Program, marked when already linked.
+ * The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.
  *
  * Current-term courses by default; `include_past` for all of them.
  */
@@ -3565,7 +3572,7 @@ export const lmsCourseOverviewQueryKey = (options: Options<LmsCourseOverviewData
 /**
  * A linked course on the LMS: details, navigation and supported features.
  *
- * Check `features` before using the other lms reads.
+ * A read the platform does not support fails with lms.feature_unsupported.
  */
 export const lmsCourseOverviewOptions = (options: Options<LmsCourseOverviewData>) => queryOptions<LmsCourseOverviewResponse, LmsCourseOverviewError, LmsCourseOverviewResponse, ReturnType<typeof lmsCourseOverviewQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3605,7 +3612,7 @@ export const lmsFileGetQueryKey = (options: Options<LmsFileGetData>) => createQu
 /**
  * Details of a file of a linked course.
  *
- * The content: GET /courses/{course_id}/lms/files/{file_id}/content.
+ * To read or search its text, save it with lms.file.save_to_course.
  */
 export const lmsFileGetOptions = (options: Options<LmsFileGetData>) => queryOptions<LmsFileGetResponse, LmsFileGetError, LmsFileGetResponse, ReturnType<typeof lmsFileGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3642,7 +3649,7 @@ export const lmsFileSaveToCourseMutation = (options?: Partial<Options<LmsFileSav
 export const lmsGradeListQueryKey = (options: Options<LmsGradeListData>) => createQueryKey('lmsGradeList', options);
 
 /**
- * The user's grades on the LMS for a linked course.
+ * The user's grades on Canvas or another LMS for a linked course.
  *
  * The course total first, then one row per assignment.
  */
@@ -3702,7 +3709,7 @@ export const lmsModuleItemListOptions = (options: Options<LmsModuleItemListData>
 export const lmsPageGetQueryKey = (options: Options<LmsPageGetData>) => createQueryKey('lmsPageGet', options);
 
 /**
- * One page of a linked course, as cleaned HTML.
+ * One page of a linked course; the assistant gets its body as Markdown.
  */
 export const lmsPageGetOptions = (options: Options<LmsPageGetData>) => queryOptions<LmsPageGetResponse, LmsPageGetError, LmsPageGetResponse, ReturnType<typeof lmsPageGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3836,7 +3843,7 @@ export const lmsQuizListOptions = (options: Options<LmsQuizListData>) => queryOp
 export const lmsSyllabusGetQueryKey = (options: Options<LmsSyllabusGetData>) => createQueryKey('lmsSyllabusGet', options);
 
 /**
- * The syllabus of a linked course, as cleaned HTML.
+ * The syllabus of a linked course on Canvas or another LMS.
  *
  * To extract its grading scheme use lms.syllabus.import.
  */
@@ -3856,7 +3863,8 @@ export const lmsSyllabusGetOptions = (options: Options<LmsSyllabusGetData>) => q
 /**
  * Extract the grading scheme and dates from a linked course's LMS syllabus.
  *
- * Starts an AI extraction (imports) the user reviews; needs an AI model.
+ * Starts an AI extraction the user reviews; needs an AI model. Then wait for it and
+ * commit it like any import (imports.session.get, imports.session.commit).
  */
 export const lmsSyllabusImportMutation = (options?: Partial<Options<LmsSyllabusImportData>>): UseMutationOptions<LmsSyllabusImportResponse, LmsSyllabusImportError, Options<LmsSyllabusImportData>> => {
     const mutationOptions: UseMutationOptions<LmsSyllabusImportResponse, LmsSyllabusImportError, Options<LmsSyllabusImportData>> = {
@@ -4075,9 +4083,9 @@ export const portabilityImportStartMutation = (options?: Partial<Options<Portabi
 export const scheduleConflictListQueryKey = (options: Options<ScheduleConflictListData>) => createQueryKey('scheduleConflictList', options);
 
 /**
- * Class sections of a term that overlap each other.
+ * Weekly class times of a term that overlap each other.
  *
- * Use before or after adding meetings to warn about clashes. Only enabled sections
+ * Use after adding or moving meetings to warn about clashes. Only enabled meetings
  * that share at least one date count.
  */
 export const scheduleConflictListOptions = (options: Options<ScheduleConflictListData>) => queryOptions<ScheduleConflictListResponse, ScheduleConflictListError, ScheduleConflictListResponse, ReturnType<typeof scheduleConflictListQueryKey>>({
@@ -4288,10 +4296,10 @@ export const scheduleExceptionDeleteMutation = (options?: Partial<Options<Schedu
 };
 
 /**
- * Cancel or move one class of a section (one date only).
+ * Cancel or move one class (one date only).
  *
  * Use for "class is cancelled on Friday" or "Tuesday's lecture moves to room X".
- * `original_date` must be a date the section normally meets. Prefer this over deleting the
+ * `original_date` must be a date the meeting normally happens on. Prefer this over deleting the
  * meeting.
  */
 export const scheduleExceptionUpsertMutation = (options?: Partial<Options<ScheduleExceptionUpsertData>>): UseMutationOptions<ScheduleExceptionUpsertResponse, ScheduleExceptionUpsertError, Options<ScheduleExceptionUpsertData>> => {
@@ -4369,7 +4377,7 @@ export const scheduleFeedRevokeMutation = (options?: Partial<Options<ScheduleFee
 export const scheduleMeetingListQueryKey = (options: Options<ScheduleMeetingListData>) => createQueryKey('scheduleMeetingList', options);
 
 /**
- * List a course's weekly class sections, with their cancelled or moved dates.
+ * List a course's weekly class times, with their cancelled or moved dates.
  *
  * Use to see when a course meets each week, or to find the meeting id before
  * changing or cancelling one class. Optionally only one term of a year-long course.
@@ -4388,7 +4396,7 @@ export const scheduleMeetingListOptions = (options: Options<ScheduleMeetingListD
 });
 
 /**
- * Add a weekly (or biweekly) class section to a course in one of its terms.
+ * Add a weekly (or biweekly) class time to a course in one of its terms.
  *
  * Times are wall-clock times in the Program's time zone. Check
  * schedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up
@@ -4409,7 +4417,7 @@ export const scheduleMeetingCreateMutation = (options?: Partial<Options<Schedule
 };
 
 /**
- * Add several class sections to a course at once (imports).
+ * Add several weekly class times to a course at once (importers).
  *
  * Used by importers. An item with the same source_kind and source_ref as an
  * existing meeting of the course updates it instead of adding a duplicate.
@@ -4429,10 +4437,11 @@ export const scheduleMeetingCreateManyMutation = (options?: Partial<Options<Sche
 };
 
 /**
- * Delete a class section with all its dates.
+ * Delete a weekly class time with all its dates.
  *
- * Removes the section entirely. To cancel one class use
- * schedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use
+ * Removes this weekly time entirely; a section that meets on two days has two.
+ * To cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the
+ * user does not attend use
  * schedule.meeting.set_enabled.
  */
 export const scheduleMeetingDeleteMutation = (options?: Partial<Options<ScheduleMeetingDeleteData>>): UseMutationOptions<ScheduleMeetingDeleteResponse, ScheduleMeetingDeleteError, Options<ScheduleMeetingDeleteData>> => {
@@ -4450,7 +4459,7 @@ export const scheduleMeetingDeleteMutation = (options?: Partial<Options<Schedule
 };
 
 /**
- * Change a class section for the whole term (time, room, weeks, ...).
+ * Change a weekly class time for the whole term (time, room, weeks, ...).
  *
  * Changes every week. To change or cancel a single date use
  * schedule.exception.upsert instead.
@@ -4470,10 +4479,11 @@ export const scheduleMeetingUpdateMutation = (options?: Partial<Options<Schedule
 };
 
 /**
- * Show or hide class sections of a course, e.g. keep only the user's tutorial.
+ * Show or hide weekly class times of a course, e.g. keep only the user's tutorial.
  *
- * Disabled sections stay in the course but are left out of the calendar. Returns
- * only the sections whose state changed (empty when they already were as asked).
+ * To hide a whole section, pass every meeting with its section_code (a section
+ * can meet on several days). Disabled meetings stay in the course but are left out of the calendar.
+ * Returns only the meetings whose state changed (empty when they already were as asked).
  */
 export const scheduleMeetingSetEnabledMutation = (options?: Partial<Options<ScheduleMeetingSetEnabledData>>): UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> => {
     const mutationOptions: UseMutationOptions<ScheduleMeetingSetEnabledResponse, ScheduleMeetingSetEnabledError, Options<ScheduleMeetingSetEnabledData>> = {
@@ -4819,7 +4829,7 @@ export const tasksItemQueryInfiniteOptions = (options: Options<TasksItemQueryDat
 };
 
 /**
- * Create a task, optionally with a due date, course, list and priority.
+ * Create a task (a to-do or reminder), optionally with a due date, course and list.
  *
  * Always pass the course and due date when the user's words or the current scope
  * give them. Dates are in the Program's time zone; a time needs a date. The term is inferred from
@@ -4843,9 +4853,9 @@ export const tasksItemCreateMutation = (options?: Partial<Options<TasksItemCreat
 /**
  * Create several tasks at once; items with an already known source are skipped.
  *
- * Use for imports and for lists the user dictates. Set source_kind and source_ref
- * on imported items so that running the import again does not duplicate them; skipped items are
- * returned with the id of the task that already exists.
+ * Use for a list of tasks the user dictates or pastes; tasks in a document go
+ * through imports.session.create. Items whose source_kind and source_ref match an existing task
+ * are skipped and returned with that task's id, so repeating an import does not duplicate them.
  */
 export const tasksItemCreateManyMutation = (options?: Partial<Options<TasksItemCreateManyData>>): UseMutationOptions<TasksItemCreateManyResponse, TasksItemCreateManyError, Options<TasksItemCreateManyData>> => {
     const mutationOptions: UseMutationOptions<TasksItemCreateManyResponse, TasksItemCreateManyError, Options<TasksItemCreateManyData>> = {

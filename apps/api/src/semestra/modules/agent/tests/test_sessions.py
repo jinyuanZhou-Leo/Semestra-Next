@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from httpx import AsyncClient
 from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
-from semestra.modules.agent import skills
+from semestra.modules.agent import skills, tools
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
 from semestra.testing import MakeUser
 
@@ -221,6 +222,23 @@ def test_skill_files_are_valid_and_their_tools_exist():
         assert not missing, f"{skill.name}: unknown tools {missing}"
     commands = [s.command for s in found if s.command]
     assert len(commands) == len(set(commands))
+
+
+def test_skills_list_every_tool_their_text_names():
+    """Loading a skill reveals its `tools:`; a tool the text names but the list leaves out costs
+    the model a search_tools round-trip (core tools are always there)."""
+    from semestra.main import create_app
+
+    create_app()
+    available = registry.list("agent")
+    names = {c.name for c in available}
+    core = {c.name for c in tools.core_capabilities(available)}
+    for skill in skills.all_skills():
+        named = set(re.findall(r"`([a-z_]+(?:\.[a-z_]+){2,})`", skill.body)) & names
+        missing = sorted(named - set(skill.tools) - core)
+        assert not missing, f"{skill.name} names {missing} but does not list them"
+        # The catalog shows only the description: it has to say when to load the skill.
+        assert skill.description.startswith("Use when"), skill.name
 
 
 def test_skills_that_create_something_can_also_change_it():

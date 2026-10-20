@@ -110,11 +110,11 @@ class FilesItemList(BaseModel):
 
 
 class ItemRef(BaseModel):
-    item_id: Id = Field(description="File or link id")
+    item_id: Id = Field(description="File or link id, from files.item.list")
 
 
 class ItemUpdateInput(BaseModel):
-    item_id: Id = Field(description="File or link id")
+    item_id: Id = Field(description="File or link id, from files.item.list")
     display_name: Annotated[str, Field(min_length=1, max_length=255)] | None = Field(
         default=None, description="New name"
     )
@@ -173,7 +173,7 @@ class UploadResult(BaseModel):
 
 
 class DocumentReadInput(BaseModel):
-    item_id: Id = Field(description="File id")
+    item_id: Id = Field(description="File id, from files.item.list or files.document.search")
     page_from: Annotated[int, Field(ge=1)] = Field(default=1, description="First page (1-based)")
     page_to: Annotated[int, Field(ge=1)] | None = Field(
         default=None,
@@ -232,7 +232,9 @@ class SearchInput(BaseModel):
     )
     term_id: Id | None = Field(default=None, description="Only the courses of this term")
     course_ids: list[Id] | None = Field(default=None, description="Only these courses")
-    item_ids: list[Id] | None = Field(default=None, description="Only these files")
+    item_ids: list[Id] | None = Field(
+        default=None, description="Only these files (from files.item.list)"
+    )
     top_k: Annotated[int, Field(ge=1, le=20)] = Field(default=8, description="Results to return")
     mode: SearchMode = Field(
         default="hybrid",

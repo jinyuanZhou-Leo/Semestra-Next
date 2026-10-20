@@ -140,7 +140,10 @@ class ProgramBinding(BaseModel):
 
 class BindingSetInput(BaseModel):
     program_id: Id = Field(description="Program id")
-    connection_id: Id = Field(description="Connection to bind")
+    connection_id: Id = Field(
+        description="Connection to bind (`connection.id` of lms.program.binding.get); the user "
+        "adds connections in the settings"
+    )
 
 
 # --- external courses and links -------------------------------------------------------------
@@ -288,7 +291,7 @@ class ModuleList(BaseModel):
 
 
 class ModuleItemsInput(CourseReadInput):
-    module_id: ExternalId = Field(description="External module id")
+    module_id: ExternalId = Field(description="External module id, from lms.module.list")
 
 
 class ModuleItemList(BaseModel):
@@ -332,13 +335,17 @@ class QuizList(BaseModel):
 
 
 class FileInput(CourseReadInput):
-    file_id: ExternalId = Field(description="External file id")
+    file_id: ExternalId = Field(
+        description="External file id: `target.ref` of a file in lms.module_item.list"
+    )
 
 
 class FileSaveInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
-    file_id: ExternalId = Field(description="External file id")
-    folder_id: Id | None = Field(default=None, description="Course folder (M07), default root")
+    file_id: ExternalId = Field(
+        description="External file id: `target.ref` of a file in lms.module_item.list"
+    )
+    folder_id: Id | None = Field(default=None, description="Course folder, default root")
 
 
 class SavedFile(BaseModel):
@@ -358,7 +365,9 @@ class ImportStarted(BaseModel):
 class CoursesImportInput(BaseModel):
     program_id: Id = Field(description="Program id (must have a bound connection)")
     external_course_ids: list[ExternalId] = Field(
-        min_length=1, max_length=50, description="External courses to import"
+        min_length=1,
+        max_length=50,
+        description="External courses to import (`external_id` of lms.course.list)",
     )
     term_id: Id | None = Field(
         default=None, description="Term the courses go into; agents create the term first"
@@ -377,7 +386,9 @@ class CoursesImportInput(BaseModel):
 class AssignmentsImportInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
     external_ids: list[ExternalId] = Field(
-        min_length=1, max_length=200, description="Assignments to import"
+        min_length=1,
+        max_length=200,
+        description="Assignments to import (`external_id` of lms.assignment.list)",
     )
     as_kind: Literal["assessment", "task"] = Field(
         default="assessment", description="Default type; switchable per item in the review"

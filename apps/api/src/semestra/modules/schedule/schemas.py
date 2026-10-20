@@ -312,9 +312,7 @@ class EventRef(BaseModel):
 class OccurrencesInput(BaseModel):
     program_id: Id = Field(description="Program id")
     start: date = Field(description="First day, in the Program's time zone")
-    end: date = Field(
-        description="Day after the last day (exclusive); at most 400 days later (120 in the app)"
-    )
+    end: date = Field(description="Day after the last day (exclusive); at most 400 days later")
     sources: list[SourceName] | None = Field(
         default=None,
         description="Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; "

@@ -120,12 +120,33 @@ def input_schema(cap: Capability, surface: Surface = "agent") -> dict[str, Any]:
     # Arguments the runtime fills from the conversation (the Program) are optional here.
     for name, arg in registry.context_args(cap).items():
         prop = schema["properties"][name]
-        note = arg.notes[surface]
+        note = for_model(arg.notes[surface])
         prop["description"] = f"{prop.get('description', '').rstrip('.')}. {note}".lstrip(". ")
         schema["required"] = [r for r in schema.get("required", []) if r != name]
     if not schema.get("required"):
         schema.pop("required", None)
+    _name_id_sources(schema, cap.name, registry.id_sources)
     return schema
+
+
+def _name_id_sources(node: Any, own: str, sources: dict[str, str]) -> None:
+    """Adds where an id comes from to every id field whose description does not name a tool."""
+    if isinstance(node, list):
+        for v in node:  # pyright: ignore[reportUnknownVariableType]
+            _name_id_sources(v, own, sources)
+        return
+    if not isinstance(node, dict):
+        return
+    for key, value in node.items():  # pyright: ignore[reportUnknownVariableType]
+        if key == "properties" and isinstance(value, dict):
+            for field, prop in value.items():  # pyright: ignore[reportUnknownVariableType]
+                source = sources.get(field) or sources.get(field.removesuffix("s"))
+                text = prop.get("description", "")
+                if source and source != own and "__" not in text:
+                    prop["description"] = f"{text.rstrip('.')}. From {tool_name(source)}.".lstrip(
+                        ". "
+                    )
+        _name_id_sources(value, own, sources)
 
 
 def _for_model_schema(node: Any, *, properties: bool = False) -> Any:

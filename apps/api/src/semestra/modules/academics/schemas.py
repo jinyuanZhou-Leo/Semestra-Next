@@ -220,7 +220,8 @@ class TermCreateInput(BaseModel):
     continue_course_ids: list[Id] = Field(
         default_factory=list,
         max_length=50,
-        description="Year-long courses of the previous term that continue into the new term",
+        description="Year-long courses of the previous term that continue into the new term "
+        "(from academics.course.list of that term)",
     )
 
 

@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from semestra.core.capability import registry
 from semestra.modules.settings import register_settings
 from semestra.modules.tasks import (  # noqa: F401  (registers)
     calendar,
@@ -17,3 +18,5 @@ register_settings(namespace="tasks", schema=TasksSettings, levels=("program",))
 
 def register(app: FastAPI) -> None:
     del app  # capabilities are mounted by the core
+    registry.set_id_source("task_id", "tasks.item.find")
+    registry.set_id_source("list_id", "tasks.list.list")

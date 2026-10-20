@@ -30,12 +30,15 @@ AGENT_SESSION = ("id", "status", "error_code", "source_refs", "summary", "items"
 @capability(
     name="imports.session.create",
     summary="Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-    description=f"""Creates a draft the user reviews before anything is written. Upload files first
-(POST /imports/uploads) and pass their ids, or pass ids of existing course files, files attached to
-the assistant conversation (`attachment_ids`), or `text`. ICS is parsed at once (status ready); the
-other sources are extracted in the background (status extracting → ready): call imports.session.get
-with wait_seconds to wait for it. Never write a document's contents with the modules' own create
-capabilities instead of importing it. The assistant gets `summary` and the first
+    description=f"""Use when the user shares a syllabus, timetable, ICS file or other document to
+bring into the app ("import this", "set up my courses from this syllabus"). Creates a draft the user
+reviews before anything is written. Pass the files themselves: `attachment_ids` for files attached
+to the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.
+An import never creates terms: the target term must exist (academics.term.create first). ICS is
+parsed at once (status ready); the other sources are extracted in the background (status
+extracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a
+document's contents with the modules' own create capabilities instead of importing it. The
+assistant gets `summary` and the first
 {service.AGENT_PAGE} items; read the rest with imports.session.get.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/imports"),
@@ -154,7 +157,7 @@ async def _add_preview(ctx: Ctx, inp: ItemsAddInput) -> dict[str, Any]:
 
 @capability(
     name="imports.item.add_many",
-    summary="Append items to an open import (LMS integration, assistant).",
+    summary="Add items you read yourself to an import draft.",
     description="""For what you read yourself (source_kind `agent`); files the user attached go
 to imports.session.create with attachment_ids instead. Items refer to each other with `item:<key>`
 in `course_ref` (a course item's `key`) or to existing courses with `course:<id>`. Each type has

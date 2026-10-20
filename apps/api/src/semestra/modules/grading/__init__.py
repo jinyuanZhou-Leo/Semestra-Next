@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from semestra.core.capability import registry
 from semestra.modules.grading import (  # noqa: F401  (registers on import)
     calendar,
     capabilities,
@@ -13,3 +14,5 @@ from semestra.modules.grading import (  # noqa: F401  (registers on import)
 
 def register(app: FastAPI) -> None:
     del app  # capabilities are mounted by the core; subscribers register on import
+    registry.set_id_source("assessment_id", "grading.assessment.find")
+    registry.set_id_source("category_id", "grading.gradebook.get")

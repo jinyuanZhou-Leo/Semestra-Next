@@ -95,6 +95,7 @@ class Registry:
         self._items: dict[str, Capability] = {}
         self._plugin_gate: PluginGate | None = None
         self._context_args: dict[str, ContextArg] = {}
+        self._id_sources: dict[str, str] = {}
 
     def set_context_default(
         self, field_name: str, fill: ContextDefault, notes: dict[Surface, str]
@@ -102,6 +103,18 @@ class Registry:
         """Agents and MCP clients may leave out a required `field_name`; it is filled from
         the call's context. HTTP callers still pass it."""
         self._context_args[field_name] = ContextArg(fill, notes)
+
+    def set_id_source(self, field_name: str, capability: str) -> None:
+        """The capability an agent gets `field_name` (and `<field_name>s`) from, e.g.
+        `course_id` from `academics.course.find`. Agent and MCP schemas name it in the field's
+        description, so a model never has to guess where an id comes from."""
+        if self._id_sources.get(field_name, capability) != capability:
+            raise ValueError(f"{field_name} already comes from {self._id_sources[field_name]}")
+        self._id_sources[field_name] = capability
+
+    @property
+    def id_sources(self) -> dict[str, str]:
+        return dict(self._id_sources)
 
     def context_args(self, cap: Capability) -> dict[str, ContextArg]:
         """The required inputs of `cap` an agent may leave out."""

@@ -311,8 +311,9 @@ async def course_create(ctx: Ctx, inp: CourseCreateInput) -> Course:
 
 @capability(
     name="academics.course.create_many",
-    summary="Add several courses at once (imports).",
-    description="Use to create a batch of courses, e.g. from an imported timetable.",
+    summary="Add several courses at once.",
+    description="""Use for a batch of courses the user typed or listed in the chat. Courses in a
+document or file (a timetable, a syllabus) go through imports.session.create instead.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/courses:batch"),
     tags=TAGS,

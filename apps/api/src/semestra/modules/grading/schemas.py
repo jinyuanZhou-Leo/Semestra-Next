@@ -77,7 +77,7 @@ class ScaleUpdateInput(BaseModel):
         default=None, description="Forecast model new courses start with"
     )
     default_categories: list[CategoryTemplate] | None = Field(
-        default=None, max_length=30, description="AssessmentCategory template for new courses"
+        default=None, max_length=30, description="Category template for new courses"
     )
     hide_gpa: bool | None = Field(default=None, description="Mask GPA figures in the interface")
 
@@ -110,12 +110,12 @@ class CategoryList(BaseModel):
 
 
 class CategoryRef(BaseModel):
-    category_id: Id = Field(description="AssessmentCategory id")
+    category_id: Id = Field(description="Category id")
 
 
 class CategoryCreateInput(BaseModel):
     course_id: Id = Field(description="Course id")
-    name: Name = Field(description="AssessmentCategory name, e.g. 'Midterm'")
+    name: Name = Field(description="Category name, e.g. 'Midterm'")
     color: CategoryColor = Field(default="slate", description="Color name or #rrggbb")
     key: CategoryKey | None = Field(
         default=None, description="Stable key; derived from the name when omitted"
@@ -123,7 +123,7 @@ class CategoryCreateInput(BaseModel):
 
 
 class CategoryUpdateInput(BaseModel):
-    category_id: Id = Field(description="AssessmentCategory id")
+    category_id: Id = Field(description="Category id")
     name: Name | None = Field(default=None, description="New name")
     color: CategoryColor | None = Field(default=None, description="New color")
     archived: bool | None = Field(
@@ -133,9 +133,7 @@ class CategoryUpdateInput(BaseModel):
 
 class CategoryOrderInput(BaseModel):
     course_id: Id = Field(description="Course id")
-    category_ids: list[Id] = Field(
-        max_length=50, description="AssessmentCategory ids in display order"
-    )
+    category_ids: list[Id] = Field(max_length=50, description="Category ids in display order")
 
 
 class Assessment(BaseModel):
@@ -188,9 +186,7 @@ class AssessmentFields(BaseModel):
     """Fields shared by the creation inputs."""
 
     title: Name = Field(description="Assessment title, e.g. 'Midterm 1'")
-    category_id: Id | None = Field(
-        default=None, description="AssessmentCategory id, from the gradebook"
-    )
+    category_id: Id | None = Field(default=None, description="Category id")
     due_at: datetime | None = Field(
         default=None, description="Exact deadline with time zone; wins over due_date/due_time"
     )
@@ -260,9 +256,7 @@ class AssessmentUpdateInput(BaseModel):
 
     assessment_id: Id = Field(description="Assessment id")
     title: Name | None = Field(default=None, description="Title")
-    category_id: Id | None = Field(
-        default=None, description="AssessmentCategory id, or null for none"
-    )
+    category_id: Id | None = Field(default=None, description="Category id, or null for none")
     due_at: datetime | None = Field(default=None, description="Exact deadline, or null to clear")
     due_date: date | None = Field(default=None, description="Deadline date, or null to clear")
     due_time: time | None = Field(default=None, description="Deadline time, or null for date only")
