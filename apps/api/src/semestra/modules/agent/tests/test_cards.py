@@ -178,3 +178,64 @@ async def test_refs_to_courses_are_named(agent: Agent):
     assert names == ["APS105H1"]
     # Bookkeeping refs are left out.
     assert shown["changes"] == [{"field": "title", "after": "Quiz"}]
+
+
+async def test_a_name_or_pin_cannot_be_cleared(agent: Agent):
+    # The write refuses null instead of ignoring it, so a card never shows "cleared" for a
+    # change that would not happen.
+    _, course, _ = await agent.course_with_lab()
+    item = await agent.call(
+        "POST", f"/courses/{course['id']}/file-links", json={"url": "https://example.com/a"}
+    )
+    folder = await agent.call("POST", f"/courses/{course['id']}/folders", json={"name": "Slides"})
+    for body in ({"display_name": None}, {"pinned": None}):
+        await agent.call("PATCH", f"/files/{item['id']}", 422, json=body)
+    await agent.call("PATCH", f"/folders/{folder['id']}", 422, json={"name": None})
+
+
+async def test_a_folder_with_files_is_refused_without_its_contents(agent: Agent):
+    from semestra.core.errors import AppError
+
+    _, course, _ = await agent.course_with_lab()
+    folder = await agent.call("POST", f"/courses/{course['id']}/folders", json={"name": "Slides"})
+    await agent.call(
+        "POST",
+        f"/courses/{course['id']}/file-links",
+        json={"url": "https://example.com/a", "display_name": "Week 1", "folder_id": folder["id"]},
+    )
+    try:
+        await _card(agent, "files.folder.delete", {"folder_id": folder["id"]})
+        raise AssertionError("expected files.folder_not_empty")
+    except AppError as exc:
+        assert exc.code == "files.folder_not_empty"
+    card = await _card(agent, "files.folder.delete", {"folder_id": folder["id"], "recursive": True})
+    assert card["changes"] == [{"field": "files", "before": ["Week 1"], "after": None, "count": 1}]
+
+
+async def test_an_update_is_about_its_own_record_not_a_parent(agent: Agent):
+    program = await agent.program()
+    card = await _card(
+        agent, "grading.scale.update", {"program_id": program["id"], "name": "Custom"}
+    )
+    assert card["target"] == program["name"]
+    # The Program's own fields are not read as the scale's "before".
+    assert all("before" not in c for c in card["changes"])
+
+
+async def test_the_same_moment_in_another_offset_is_no_change(agent: Agent):
+    program, course, _ = await agent.course_with_lab()
+    event = await agent.call(
+        "POST",
+        f"/programs/{program['id']}/events",
+        json={"title": "Midterm", "start_at": "2026-10-20T18:00:00Z",
+              "end_at": "2026-10-20T20:00:00Z", "course_id": course["id"]},
+    )  # fmt: skip
+    card = await _card(
+        agent,
+        "schedule.event.update",
+        {"event_id": event["id"], "start_at": "2026-10-20T14:00:00-04:00",
+         "end_at": "2026-10-20T17:00:00-04:00"},
+    )  # fmt: skip
+    by_field = {c["field"]: c for c in card["changes"]}
+    assert "before" not in by_field["start_at"]
+    assert by_field["end_at"]["before"].startswith("2026-10-20T20:00")

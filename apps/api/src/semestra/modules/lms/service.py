@@ -6,8 +6,9 @@ and, for reads, the cache (`cache.py`). Imports live in `imports.py`, the calend
 """
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -422,6 +423,24 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
         raise
 
 
+class NotCached(Exception):
+    """A read under `cache_only()` that the cache can't answer."""
+
+
+_cache_only: ContextVar[bool] = ContextVar("lms_cache_only", default=False)
+
+
+@contextmanager
+def cache_only() -> Iterator[None]:
+    """Reads inside answer from the cache or raise `NotCached`, never calling the LMS: the
+    assistant's confirmation cards name what they can without waiting on the platform."""
+    token = _cache_only.set(True)
+    try:
+        yield
+    finally:
+        _cache_only.reset(token)
+
+
 async def cached(
     ctx: Ctx,
     b: Bound,
@@ -438,6 +457,8 @@ async def cached(
         hit = await cache.get(ctx, key)
         if hit is not None:
             return hit["data"], bool(hit["truncated"])
+    if _cache_only.get():
+        raise NotCached
     result, truncated = await call(ctx, b, fn)
     data = _dump(result)
     await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated})

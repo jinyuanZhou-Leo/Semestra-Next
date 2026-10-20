@@ -1,9 +1,10 @@
 """The assistant's confirmation cards for LMS writes (M12 §3.5): which course on the LMS, which
 assignments, which connection, by name.
 
-Names come from the 5-minute read cache that the assistant's own reads filled
-(`lms.course.list`, `lms.assignment.list`). When the LMS cannot be reached the card shows
-fewer details; the write itself still checks everything when it runs.
+Names come only from the 5-minute read cache that the assistant's own reads filled
+(`lms.course.list`, `lms.assignment.list`): a card never waits on the platform. On a miss the
+card says how many instead of which; the write itself still checks everything when it runs.
+Imports count what they will actually create (`imports.new_courses` / `new_assignments`).
 """
 
 from contextlib import suppress
@@ -18,6 +19,7 @@ from semestra.modules.lms.schemas.io import (
     BindingSetInput,
     CourseRef,
     CoursesImportInput,
+    ExternalCourse,
     FileSaveInput,
     LinkSetInput,
     LinkUpdateInput,
@@ -37,23 +39,49 @@ async def _course(ctx: Ctx, course_id: str) -> str:
     return f"{row.code} {row.title}" if row.code else row.title
 
 
-async def external_course_labels(ctx: Ctx, program_id: str, ids: list[str]) -> dict[str, str]:
-    """Courses on the Program's LMS as "code · name · term", current ones first (the listing the
-    assistant most likely read), then past ones for the ids still missing."""
-    out: dict[str, str] = {}
-    for include_past in (False, True):
-        with suppress(AppError):
+async def _cached_courses(ctx: Ctx, program_id: str) -> tuple[dict[str, ExternalCourse], bool]:
+    """The Program's LMS courses the cache holds, and whether that is all of them (the listing
+    with past courses, which an import reads) or only the current ones."""
+    for include_past in (True, False):
+        with suppress(AppError, service.NotCached), service.cache_only():
             listing = await service.external_courses(ctx, program_id, include_past=include_past)
-            for c in listing.items:
-                if c.external_id in ids:
-                    out[c.external_id] = _external(c.code, c.name, c.term)
-        if all(i in out for i in ids):
-            break
-    return out
+            return {c.external_id: c for c in listing.items}, include_past
+    return {}, False
 
 
-def _listed(field: str, names: list[str]) -> dict[str, Any]:
-    return {"field": field, "after": names[:SHOWN], "count": len(names)}
+async def external_course_labels(ctx: Ctx, program_id: str, ids: list[str]) -> dict[str, str]:
+    """Courses on the Program's LMS as "code · name · term"."""
+    listed, _ = await _cached_courses(ctx, program_id)
+    return {i: _external(c.code, c.name, c.term) for i in ids if (c := listed.get(i))}
+
+
+async def _cached_assignments(ctx: Ctx, course_id: str) -> dict[str, dict[str, Any]] | None:
+    with suppress(AppError, service.NotCached), service.cache_only():
+        data, _ = await reads.raw_assignments(ctx, course_id, refresh=False)
+        return {str(a["external_id"]): a for a in data}
+    return None
+
+
+async def assignment_labels(ctx: Ctx, course_id: str, ids: list[str]) -> dict[str, str]:
+    listed = await _cached_assignments(ctx, course_id) or {}
+    return {i: str(listed[i]["name"]) for i in ids if i in listed}
+
+
+async def _file_name(ctx: Ctx, course_id: str, file_id: str) -> str | None:
+    with suppress(AppError, service.NotCached), service.cache_only():
+        return (await reads.file(ctx, course_id, file_id, refresh=False)).name
+    return None
+
+
+async def file_labels(ctx: Ctx, course_id: str, ids: list[str]) -> dict[str, str]:
+    return {i: name for i in ids if (name := await _file_name(ctx, course_id, i)) is not None}
+
+
+def _counted(field: str, names: list[str], total: int) -> dict[str, Any]:
+    """The first names and how many in all; just the number when no name could be read."""
+    if not names:
+        return {"field": field, "after": total}
+    return {"field": field, "after": names[:SHOWN], "count": total}
 
 
 async def _connection(ctx: Ctx, connection_id: str | None) -> str | None:
@@ -132,35 +160,43 @@ async def preview_binding_clear(ctx: Ctx, inp: ProgramRef) -> dict[str, Any]:
 async def preview_course_import(ctx: Ctx, inp: CoursesImportInput) -> dict[str, Any]:
     program = await academics.get_program_row(ctx, inp.program_id)
     ids = list(dict.fromkeys(inp.external_course_ids))
-    found = await external_course_labels(ctx, inp.program_id, ids)
-    names = [found[i] for i in ids if i in found]
+    listed, complete = await _cached_courses(ctx, inp.program_id)
+    names = [_external(c.code, c.name, c.term) for c in imports.new_courses(listed, ids)]
+    # Courses missing from a listing of current ones only may be past ones: counted, unnamed.
+    unknown = 0 if complete else sum(1 for i in ids if i not in listed)
     target = program.name
     if inp.term_id is not None:
         with suppress(AppError):
             target = f"{(await academics.get_term_row(ctx, inp.term_id)).name} · {program.name}"
-    return {"target": target, "changes": [_listed("lms_courses", names)] if names else []}
+    return {"target": target, "changes": [_counted("lms_courses", names, len(names) + unknown)]}
 
 
 async def preview_assignment_import(ctx: Ctx, inp: AssignmentsImportInput) -> dict[str, Any]:
     target = await _course(ctx, inp.course_id)
-    changes: list[dict[str, Any]] = []
-    with suppress(AppError):
-        data, _ = await reads.raw_assignments(ctx, inp.course_id, refresh=False)
-        by_id = {str(a["external_id"]): str(a["name"]) for a in data}
-        names = [by_id[i] for i in dict.fromkeys(inp.external_ids) if i in by_id]
-        if names:
-            changes.append(_listed("lms_assignments", names))
-    changes.append({"field": "as_kind", "after": inp.as_kind})
-    return {"target": target, "changes": changes}
+    link = await service.link_row(ctx, inp.course_id)
+    done = await reads.imported_targets(ctx, link.id) if link is not None else {}
+    ids = list(dict.fromkeys(inp.external_ids))
+    listed = await _cached_assignments(ctx, inp.course_id)
+    if listed is None:
+        names, total = [], sum(1 for i in ids if i not in done)
+    else:
+        names = [str(a["name"]) for a in imports.new_assignments(listed, ids, done)]
+        total = len(names)
+    return {
+        "target": target,
+        "changes": [
+            _counted("lms_assignments", names, total),
+            {"field": "as_kind", "after": inp.as_kind},
+        ],
+    }
 
 
 async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:
     from semestra.modules.files import service as files
 
     changes: list[dict[str, Any]] = []
-    with suppress(AppError):
-        meta = await reads.file(ctx, inp.course_id, inp.file_id, refresh=False)
-        changes.append({"field": "lms_file", "after": meta.name})
+    if (name := await _file_name(ctx, inp.course_id, inp.file_id)) is not None:
+        changes.append({"field": "lms_file", "after": name})
     folder = None
     if inp.folder_id is not None:
         with suppress(AppError):
@@ -171,7 +207,8 @@ async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:
 
 async def preview_apply_updates(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
     changes: list[dict[str, Any]] = []
-    with suppress(AppError):
+    with suppress(AppError, service.NotCached), service.cache_only():
         updates = await imports.check_updates(ctx, inp.course_id)
-        changes.append(_listed("lms_updates", [u.name for u in updates.items]))
+        names = [u.name for u in updates.items]
+        changes.append(_counted("lms_updates", names, len(names)))
     return {"target": await _course(ctx, inp.course_id), "changes": changes}

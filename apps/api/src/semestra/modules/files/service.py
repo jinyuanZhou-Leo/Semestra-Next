@@ -85,7 +85,7 @@ async def preview_item_delete(ctx: Ctx, inp: ItemRef) -> dict[str, Any]:
 async def preview_folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> dict[str, Any]:
     """What goes with the folder: its files (by name) and subfolders."""
     row = await get_folder(ctx, inp.folder_id)
-    tree, items = await _folder_contents(ctx, row)
+    tree, items = await _folder_contents(ctx, row, inp.recursive)
     names = sorted((i.display_name for i in items), key=str.lower)
     changes: list[dict[str, Any]] = []
     if names:
@@ -369,6 +369,14 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
     return folder_out(row, {})
 
 
+def _refuse_none(fields: list[str]) -> None:
+    """A name or a pin can't be cleared: null is refused rather than ignored, so a write never
+    looks like it changed something it left alone."""
+    if fields:
+        errors = [{"loc": [f], "code": "none_not_allowed"} for f in fields]
+        raise AppError("common.validation", 422, errors=errors)
+
+
 async def update_folder(
     ctx: Ctx,
     folder_id: str,
@@ -377,6 +385,8 @@ async def update_folder(
     parent_id: str | None,
     position: int | None,
 ) -> FolderOut:
+    if "name" in fields and name is None:
+        _refuse_none(["name"])
     row = await get_folder(ctx, folder_id)
     folders = await _course_folders(ctx, row.course_id)
     by_id = {f.id: f for f in folders}
@@ -405,8 +415,12 @@ async def update_folder(
     return folder_out(row, await _folder_counts(ctx, row.course_id))
 
 
-async def _folder_contents(ctx: Ctx, row: FilesFolder) -> tuple[set[str], list[FilesItem]]:
-    """(the folder and its subfolders, the files in any of them): what deleting it removes."""
+async def _folder_contents(
+    ctx: Ctx, row: FilesFolder, recursive: bool
+) -> tuple[set[str], list[FilesItem]]:
+    """(the folder and its subfolders, the files in any of them): what deleting it removes.
+    Without `recursive` only an empty folder can go (the assistant's card is refused the same
+    way, so it never shows files that a delete would keep)."""
     folders = await _course_folders(ctx, row.course_id)
     tree = {row.id} | _descendants(row.id, folders)
     items = list(
@@ -418,14 +432,14 @@ async def _folder_contents(ctx: Ctx, row: FilesFolder) -> tuple[set[str], list[F
             )
         ).all()
     )
+    if (items or len(tree) > 1) and not recursive:
+        raise AppError("files.folder_not_empty", 409)
     return tree, items
 
 
 async def delete_folder(ctx: Ctx, folder_id: str, recursive: bool) -> None:
     row = await get_folder(ctx, folder_id)
-    tree, items = await _folder_contents(ctx, row)
-    if (items or len(tree) > 1) and not recursive:
-        raise AppError("files.folder_not_empty", 409)
+    tree, items = await _folder_contents(ctx, row, recursive)
     await purge_items(ctx, items)
     await ctx.db.execute(delete(FilesFolder).where(FilesFolder.id.in_(tree)))
     await events.publish(
@@ -643,8 +657,9 @@ async def create_link(
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
-    row = await get_item(ctx, inp.item_id)
     sent = inp.model_fields_set
+    _refuse_none([f for f in ("display_name", "pinned") if f in sent and getattr(inp, f) is None])
+    row = await get_item(ctx, inp.item_id)
     if "display_name" in sent and inp.display_name is not None:
         row.display_name = _clean_name(inp.display_name)
     if "folder_id" in sent:

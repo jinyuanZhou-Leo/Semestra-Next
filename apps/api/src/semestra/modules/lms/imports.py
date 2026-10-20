@@ -7,6 +7,7 @@ by item id. The commit hook writes course links and imported refs in the commit'
 """
 
 import re
+from collections.abc import Collection
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -28,6 +29,7 @@ from semestra.modules.lms.schemas.io import (
     AssignmentsImportInput,
     AssignmentUpdate,
     CoursesImportInput,
+    ExternalCourse,
     FieldUpdate,
     ImportStarted,
     ImportTarget,
@@ -92,6 +94,17 @@ async def _fill(
 # --- courses --------------------------------------------------------------------------------
 
 
+def new_courses(listed: dict[str, ExternalCourse], external_ids: list[str]) -> list[ExternalCourse]:
+    """The requested courses an import creates: still on the LMS, not yet a course of this
+    Program. The assistant's card counts the same ones."""
+    out: list[ExternalCourse] = []
+    for external_id in dict.fromkeys(external_ids):
+        course = listed.get(external_id)
+        if course is not None and course.linked_course_id is None:
+            out.append(course)
+    return out
+
+
 async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     await academics.get_program_row(ctx, inp.program_id)
     if inp.term_wizard and ctx.actor in ("agent", "mcp"):
@@ -120,10 +133,7 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     new: list[NewItem] = []
     refs: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
-    for external_id in dict.fromkeys(inp.external_course_ids):
-        course = wanted.get(external_id)
-        if course is None or course.linked_course_id is not None:
-            continue  # gone, or already a course of this Program
+    for course in new_courses(wanted, inp.external_course_ids):
         key = f"c{len(new)}"
         data: dict[str, Any] = {"title": course.name[:200]}
         if code := course_code(course.code):
@@ -173,6 +183,14 @@ def _weights(assignments: list[dict[str, Any]]) -> dict[str, float]:
     return out
 
 
+def new_assignments(
+    listed: dict[str, dict[str, Any]], external_ids: list[str], done: Collection[str]
+) -> list[dict[str, Any]]:
+    """The requested assignments an import creates: still on the LMS and not imported before
+    (M09 §11: importing twice creates one). The assistant's card counts the same ones."""
+    return [listed[i] for i in dict.fromkeys(external_ids) if i in listed and i not in done]
+
+
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     link, b = await service.require_link(ctx, inp.course_id)
     service.require_feature(b, "assignments")
@@ -198,10 +216,8 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
     by_key: dict[str, dict[str, Any]] = {}
     groups: dict[str, str] = {}  # Canvas group id -> category item key
     slugs: set[str] = set()
-    for external_id in dict.fromkeys(inp.external_ids):
-        a = by_id.get(external_id)
-        if a is None or external_id in done:
-            continue  # gone, or imported before (M09 §11: importing twice creates one)
+    for a in new_assignments(by_id, inp.external_ids, done):
+        external_id = str(a["external_id"])
         due_date, due_time = _local(a.get("due_at"), tz)
         ref = source_ref(b.row.id, external_id)
         note = a.get("web_url")

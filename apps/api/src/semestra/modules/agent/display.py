@@ -279,31 +279,22 @@ async def _lms_course(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[st
 @resolver("external", module="lms.assignment")
 async def _lms_assignment(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
     """Assignments of a linked course, from the cached list (`lms.assignment.list`)."""
-    from semestra.modules.lms import reads
+    from semestra.modules.lms import previews
 
     course_id = args.get("course_id")
     if not isinstance(course_id, str):
         return {}
-    try:
-        data, _ = await reads.raw_assignments(ctx, course_id, refresh=False)
-    except AppError:
-        return {}
-    wanted = set(ids)
-    return {str(a["external_id"]): str(a["name"]) for a in data if a["external_id"] in wanted}
+    return await previews.assignment_labels(ctx, course_id, ids)
 
 
 @resolver("file", module="lms")
 async def _lms_file(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
-    from semestra.modules.lms import reads
+    from semestra.modules.lms import previews
 
     course_id = args.get("course_id")
     if not isinstance(course_id, str):
         return {}
-
-    async def label(id_: str) -> str:
-        return (await reads.file(ctx, course_id, id_, refresh=False)).name
-
-    return await _each(ids, label)
+    return await previews.file_labels(ctx, course_id, ids)
 
 
 # A `*_ref` value that points at a record: `course:<id>`, `term:<id>`, or an import's `item:<id>`.
@@ -398,20 +389,12 @@ async def describe(ctx: Ctx, capability: str, args: dict[str, Any], payload: Any
 
 # (ctx, id) → the record an update is about, as stored (None when it is not the user's).
 Loader = Callable[[Ctx, str], Awaitable[Any]]
-_CURRENT: dict[tuple[str | None, str], Loader] = {}
+# Capability → (the argument holding its own record's id, how that record is read). Named
+# explicitly: the first id of an input can be a parent (a scale's Program), not the record.
+_RECORDS: dict[str, tuple[str, Loader]] = {}
 
 # Writes that change one existing record: the card shows its values before → after.
 _CHANGES_ONE = ("update", "move")
-
-
-def current(field: str, module: str | None = None) -> Callable[[Loader], Loader]:
-    """Registers how an update's record is read, keyed like `resolver` (by its id argument)."""
-
-    def register(fn: Loader) -> Loader:
-        _CURRENT[(module, field)] = fn
-        return fn
-
-    return register
 
 
 def _owned_row(model: type[Any]) -> Loader:
@@ -422,7 +405,17 @@ def _owned_row(model: type[Any]) -> Loader:
     return load
 
 
-def _register_current() -> None:
+async def _card_settings(ctx: Ctx, instance_id: str) -> Any:
+    """A card instance's settings, as fields (a sticky note's `content`)."""
+    from types import SimpleNamespace
+
+    from semestra.modules.layouts.models import LayoutsCardSetting
+
+    row = await _owned_row(LayoutsCardSetting)(ctx, instance_id)
+    return SimpleNamespace(**row.settings) if row is not None else None
+
+
+def _register_records() -> None:
     from semestra.modules.academics.models import (
         AcademicsCourse,
         AcademicsProgram,
@@ -433,21 +426,23 @@ def _register_current() -> None:
     from semestra.modules.schedule.models import ScheduleEvent, ScheduleEventType, ScheduleMeeting
     from semestra.modules.tasks.models import TasksItem, TasksList
 
-    for field, module, model in (
-        ("program", None, AcademicsProgram),
-        ("term", None, AcademicsTerm),
-        ("course", None, AcademicsCourse),
-        ("course", "grading.course_result", GradingCourseResult),
-        ("task", None, TasksItem),
-        ("list", "tasks", TasksList),
-        ("item", "files", FilesItem),
-        ("folder", "files", FilesFolder),
-        ("category", "grading", GradingCategory),
-        ("meeting", "schedule", ScheduleMeeting),
-        ("event", "schedule", ScheduleEvent),
-        ("event_type", "schedule", ScheduleEventType),
+    for names, field, load in (
+        (("academics.program.update",), "program_id", _owned_row(AcademicsProgram)),
+        (("academics.term.update",), "term_id", _owned_row(AcademicsTerm)),
+        (("academics.course.update",), "course_id", _owned_row(AcademicsCourse)),
+        (("grading.course_result.update",), "course_id", _owned_row(GradingCourseResult)),
+        (("grading.category.update",), "category_id", _owned_row(GradingCategory)),
+        (("tasks.item.update", "tasks.item.move"), "task_id", _owned_row(TasksItem)),
+        (("tasks.list.update",), "list_id", _owned_row(TasksList)),
+        (("files.item.update",), "item_id", _owned_row(FilesItem)),
+        (("files.folder.update",), "folder_id", _owned_row(FilesFolder)),
+        (("schedule.meeting.update",), "meeting_id", _owned_row(ScheduleMeeting)),
+        (("schedule.event.update",), "event_id", _owned_row(ScheduleEvent)),
+        (("schedule.event_type.update",), "event_type_id", _owned_row(ScheduleEventType)),
+        (("sticky.note.update",), "instance_id", _card_settings),
     ):
-        current(field, module)(_owned_row(model))
+        for name in names:
+            _RECORDS[name] = (field, load)
 
 
 def _value(value: Any) -> Any:
@@ -461,6 +456,16 @@ def _value(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     return value
+
+
+def _same(before: Any, after: Any) -> bool:
+    """Whether a sent value is what is stored: the same moment in another offset is no change."""
+    if isinstance(before, str) and isinstance(after, str) and "T" in before and "T" in after:
+        try:
+            return datetime.fromisoformat(before) == datetime.fromisoformat(after)
+        except ValueError:
+            pass
+    return before == after
 
 
 # Ids of things in the app's catalog, not records: shown as values the UI names (a kind of card).
@@ -512,19 +517,13 @@ async def preview(ctx: Ctx, capability: str, args: dict[str, Any]) -> dict[str, 
     For an update (or move) of one record, each sent field shows its stored value before → the
     new one; null shows as cleared, and a changed id (`list_id`) as the names before → after.
     A reorder shows the new order by name. `target` names the remaining ids."""
-    if not _CURRENT:
-        _register_current()
-    from semestra.core.capability import registry
-
+    if not _RECORDS:
+        _register_records()
     verb = capability.rsplit(".", 1)[-1]
-    # The record an update is about: its first id argument, in the input's own order.
-    order = list(registry.get(capability).input_model.model_fields)
-    primary = next((k for k in order if k.endswith("_id") and k in args), None)
+    primary, load = _RECORDS.get(capability, (None, None))
     row: Any = None
-    if verb in _CHANGES_ONE and primary is not None:
-        load = _lookup(_CURRENT, capability, primary.removesuffix("_id"))
-        if load is not None and isinstance(args[primary], str):
-            row = await load(ctx, args[primary])
+    if verb in _CHANGES_ONE and primary and load and isinstance(args.get(primary), str):
+        row = await load(ctx, args[primary])
     changes: list[dict[str, Any]] = []
     named: set[str] = set()  # id arguments shown as changes, so not in `target`
     for key, value in args.items():
@@ -574,7 +573,7 @@ async def preview(ctx: Ctx, capability: str, args: dict[str, Any]) -> dict[str, 
         change = {"field": key, "after": shown}
         if row is not None and hasattr(row, key):
             before = _value(getattr(row, key))
-            if before != shown:
+            if not _same(before, shown):
                 change["before"] = before
         changes.append(change)
     out: dict[str, Any] = {"changes": changes}

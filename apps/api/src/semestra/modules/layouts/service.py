@@ -499,11 +499,26 @@ async def _scope_name(ctx: Ctx, scope_type: str, scope_id: str) -> str | None:
 async def preview_card_remove(ctx: Ctx, inp: CardRef) -> dict[str, Any]:
     """The assistant's confirmation card (M12 §3.5): the card by its name and its board; the
     UI names the kind of card (`card`) in its language."""
-    row = await _instance_row(ctx, inp.instance_id)
-    names = (card_name(row.settings), await _scope_name(ctx, row.scope_type, row.scope_id))
+    row = await ctx.db.get(LayoutsCardSetting, inp.instance_id)
+    if row is not None and row.user_id == ctx.user_id:
+        card_id, scope, settings = row.card_id, (row.scope_type, row.scope_id), row.settings
+    else:
+        # A card its board still generates from the template: read, not stored (the user may
+        # reject the card); the remove itself stores the board first.
+        scope = _parse_template_id(inp.instance_id)
+        if scope is None:
+            raise AppError("common.not_found", 404)
+        await check_scope(ctx, *scope)
+        every_module = {m.id for m in catalog.modules()}
+        placed = await _generated(ctx, *scope, every_module)
+        found = next((p for p in placed if p.instance_id == inp.instance_id), None)
+        if found is None:
+            raise AppError("common.not_found", 404)
+        card_id, settings = found.card_id, {}
+    names = (card_name(settings), await _scope_name(ctx, *scope))
     return {
         "target": " · ".join(n for n in names if n),
-        "changes": [{"field": "card", "before": row.card_id, "after": None}],
+        "changes": [{"field": "card", "before": card_id, "after": None}],
     }
 
 
