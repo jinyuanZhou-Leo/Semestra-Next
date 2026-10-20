@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
+import { ShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
@@ -256,7 +257,9 @@ test('in the app sidebar the lists sit under Tasks, and the page drops its own s
           <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} onNavigate={() => {}} />
         </SidebarMenuItem>
       </SidebarMenu>
-      <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+      <ShellSidebarOpen value>
+        <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+      </ShellSidebarOpen>
     </SidebarProvider>,
   )
   const nav = await screen.findByRole('list', { name: 'Tasks' })

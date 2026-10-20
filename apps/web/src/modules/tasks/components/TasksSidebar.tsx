@@ -27,8 +27,9 @@ import {
   MoreHorizontal,
   Plus,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { SidebarNavProps } from '@/app/extensions'
+import { SUB_ACTION } from '@/app/host/sidebar-classes'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { courseColor, courseLabel } from '@/modules/academics/color'
@@ -54,7 +55,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  useSidebar,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type TaskActions, useTaskActions } from '../actions'
@@ -74,28 +74,6 @@ export function useTaskSelection(scopeId: string) {
   const [pref, setPref] = useUiPref('tasks.selection', 'all', { scope: scopeId })
   const selection = parseSelection(pref)
   return [selection, (next: Selection) => setPref(selectionKey(next))] as const
-}
-
-// The scopes whose lists are on screen in the app sidebar right now (not on the icon rail), so
-// their page leaves out its own switcher.
-const shownInSidebar = new Set<string>()
-const listeners = new Set<() => void>()
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-function setShown(scopeId: string, shown: boolean) {
-  if (shown) shownInSidebar.add(scopeId)
-  else shownInSidebar.delete(scopeId)
-  for (const listener of listeners) listener()
-}
-
-/** Whether the app sidebar shows this scope's lists, so the page needs no switcher of its own. */
-export function useListsInSidebar(scopeId: string): boolean {
-  const has = () => shownInSidebar.has(scopeId)
-  return useSyncExternalStore(subscribe, has, has)
 }
 
 /** Lists of a term page: its own and the Program-wide ones; the Program page shows all. */
@@ -202,13 +180,6 @@ function smartCount(counts: TaskCounts | undefined, view: string): number | unde
   if (view === 'flagged') return counts?.flagged
   return undefined
 }
-
-/**
- * A sub-entry's ⋯ button, shown while that entry is hovered or focused (`showOnHover` follows
- * the whole "Tasks" entry, which holds every sub-entry).
- */
-const SUB_ACTION =
-  'top-1 right-0.5 group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 aria-expanded:bg-muted aria-expanded:opacity-100 md:opacity-0'
 
 function SubEntry({
   icon: Icon,
@@ -344,8 +315,6 @@ function SidebarListEntry({
  */
 export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
   const programId = scope.programId
-  const { state, isMobile } = useSidebar()
-  const visible = state === 'expanded' && !isMobile
   const [selection, select] = useTaskSelection(programId)
   const lists = useTaskLists(programId).data?.items ?? []
   const counts = useTaskCounts({ programId }).data
@@ -364,12 +333,6 @@ export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
   const shown = visibleLists(lists, undefined)
   const ids = shown.map((l) => l.id)
   const active = selectionKey(selection)
-
-  useEffect(() => {
-    if (!visible) return
-    setShown(programId, true)
-    return () => setShown(programId, false)
-  }, [visible, programId])
 
   const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
     if (!over || dragged.id === over.id) return

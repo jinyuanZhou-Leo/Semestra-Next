@@ -17,6 +17,7 @@ import type { Task } from '@semestra/api-client'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { useShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -39,7 +40,7 @@ import { useTaskActions } from '../actions'
 import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { SortableTaskRow, TaskRow } from '../components/TaskRow'
-import { TasksViewMenu, useListsInSidebar, useTaskSelection } from '../components/TasksSidebar'
+import { TasksViewMenu, useTaskSelection } from '../components/TasksSidebar'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
@@ -76,7 +77,8 @@ export default function TasksPage({ scope }: PageProps) {
   const taskScope = { programId, termId, courseId }
   const scopeId = courseId ?? termId ?? programId
   const [selection, setSelection] = useTaskSelection(scopeId)
-  const listsInSidebar = useListsInSidebar(scopeId)
+  // The Program's lists are under "Tasks" in the app sidebar while it is open wide.
+  const listsInSidebar = useShellSidebarOpen() && scope.kind === 'program'
   const key = selectionKey(selection)
   const [viewPref, setViewPref] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
     scope: `${scopeId}.${key}`,

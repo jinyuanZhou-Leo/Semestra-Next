@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation, useRouter } from '@tanstack/react-router'
 import { History, MoreHorizontal } from 'lucide-react'
 import { useState } from 'react'
+import { SUB_ACTION } from '@/app/host/sidebar-classes'
 import { HistoryLink } from '@/components/HistoryLink'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
@@ -25,13 +26,6 @@ import {
 export const RECENT_SESSIONS = 8
 
 const SESSION_IN_PATH = /\/assistant\/([^/]+)/
-
-/**
- * A sub-entry's ⋯ button, shown while that entry is hovered or focused (`showOnHover` would
- * follow the whole Sem entry, which holds every sub-entry).
- */
-export const SUB_ACTION =
-  'top-1 right-0.5 group-focus-within/menu-sub-item:opacity-100 group-hover/menu-sub-item:opacity-100 aria-expanded:bg-muted aria-expanded:opacity-100 md:opacity-0'
 
 /**
  * The recent conversations under Sem in the app sidebar while its page is open (pinned first),

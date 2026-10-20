@@ -22,6 +22,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { type CSSProperties, type MouseEvent, useState } from 'react'
+import { GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
@@ -58,12 +59,6 @@ import { useCurrentTerm } from '../current-term'
 import { newTermPath, coursePath, termPath } from '../paths'
 import { movePin, type Pin as PinRef, samePin, usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
-
-/**
- * A group label slides up behind the group above it on the icon rail (invisible but still
- * there), so it must not take the clicks meant for that group's last entry.
- */
-export const GROUP_LABEL = 'group-data-[collapsible=icon]:pointer-events-none'
 
 type Dragging = {
   ref: (node: HTMLElement | null) => void

@@ -66,6 +66,25 @@ const lists = defineModule({
   ],
 })
 
+/** An assistant whose page lists conversations under its sidebar entry. */
+const assistant = defineModule({
+  id: 'assistant',
+  kind: 'core',
+  name: () => 'Sem',
+  description: () => 'Sem',
+  icon: NotebookPen,
+  assistant: {
+    open: () => {},
+    panel: { subscribe: () => () => {}, isOpen: () => false },
+    Dock: ({ children }) => <>{children}</>,
+    SidebarNav: () => (
+      <ul aria-label="Recent chats">
+        <li>Chat one</li>
+      </ul>
+    ),
+  },
+})
+
 let world: World
 beforeEach(() => {
   world = defaultWorld()
@@ -102,7 +121,7 @@ function mount(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   const view = render(
-    <ModuleRegistry value={[auth, settings, academics, notes, lists]}>
+    <ModuleRegistry value={[auth, settings, academics, notes, lists, assistant]}>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
@@ -179,6 +198,14 @@ test("an open page's own navigation shows under its sidebar entry, and only then
   await waitFor(() =>
     expect(within(nav).queryByRole('list', { name: 'Lists views' })).not.toBeInTheDocument(),
   )
+})
+
+test("the side panel button shows on hovering Sem's own row, not its conversations", async () => {
+  mount('/p/p1')
+  const button = await screen.findByRole('button', { name: 'Open in side panel' })
+  // `showOnHover` would follow the whole entry, conversations included.
+  expect(button.className).not.toMatch(/group-hover\/menu-item/)
+  expect(button).toHaveClass('peer-hover/menu-button:opacity-100')
 })
 
 test('on the icon rail a hidden group label lets clicks through to the entry above it', async () => {

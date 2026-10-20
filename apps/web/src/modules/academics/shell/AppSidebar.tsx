@@ -21,10 +21,12 @@ import { formatHotkey } from '@/app/hotkeys'
 import { ManagePagesDialog } from '@/app/host/ManagePagesDialog'
 import { OVERVIEW_PAGE, useScopePages } from '@/app/host/nav'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
+import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings'
 import { HistoryLink } from '@/components/HistoryLink'
+import { cn } from '@/lib/utils'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
@@ -60,7 +62,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
 import { programPath, termsAndCoursesPath } from '../paths'
 import { usePrograms } from '../queries'
-import { GROUP_LABEL, SidebarTerms } from './SidebarTerms'
+import { SidebarTerms } from './SidebarTerms'
 
 const ASSISTANT_PAGE = /\/assistant(\/|$)/
 
@@ -264,10 +266,12 @@ function AssistantNavItem({
           <TooltipTrigger
             render={
               <SidebarMenuAction
-                showOnHover
                 aria-label={panelLabel}
                 aria-pressed={open}
-                className="aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground aria-pressed:opacity-100"
+                className={cn(
+                  ENTRY_ACTION_ON_HOVER,
+                  'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
+                )}
                 onClick={() => assistant.open(ctx)}
               />
             }
