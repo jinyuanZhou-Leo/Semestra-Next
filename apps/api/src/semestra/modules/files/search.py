@@ -270,7 +270,15 @@ async def _unreadable(
     if item_ids is not None:
         stmt = stmt.where(FilesItem.id.in_(item_ids))
     return [
-        UnreadableItem(item_id=i, display_name=n, course_id=c, doc_status=st, doc_error_code=code)
+        UnreadableItem.model_validate(
+            {
+                "item_id": i,
+                "display_name": n,
+                "course_id": c,
+                "doc_status": st,
+                "doc_error_code": code,
+            }
+        )
         for i, n, c, st, code in (await ctx.db.execute(stmt.order_by(FilesItem.display_name))).all()
     ]
 
