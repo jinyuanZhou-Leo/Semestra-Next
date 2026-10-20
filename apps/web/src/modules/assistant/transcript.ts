@@ -1,5 +1,5 @@
 import type { AgentMessageOut, AgentProposalOut, AgentSessionDetail } from '@semestra/api-client'
-import type { AgentEvent, Citation } from './stream'
+import type { AgentEvent, Citation, PauseReason } from './stream'
 
 type Block = Record<string, unknown>
 
@@ -330,9 +330,20 @@ export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): Agent
     }
     case 'title':
       return { ...detail, session: { ...detail.session, title: event.data.title } }
+    case 'paused':
+      return updateMessage(detail, event.data.message_id, (content) => [
+        ...content,
+        { type: 'paused', reason: event.data.reason },
+      ])
     default:
       return detail
   }
+}
+
+/** Why the conversation's last answer paused, when the turn can be continued. */
+export function pausedReason(detail: AgentSessionDetail): PauseReason | null {
+  const block = detail.messages.at(-1)?.content.find((b) => b.type === 'paused')
+  return block?.reason === 'loop' || block?.reason === 'tool_limit' ? block.reason : null
 }
 
 /** The last answer can be regenerated unless it already changed data. */

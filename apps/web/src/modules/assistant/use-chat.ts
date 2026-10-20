@@ -194,6 +194,12 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:regenerate`, {})
   }
 
+  /** Picks a paused turn up again, with a fresh tool-call budget. */
+  function resume() {
+    if (!sessionId) return Promise.resolve(false)
+    return run(sessionId, `/agent/sessions/${sessionId}:continue`, {})
+  }
+
   /** Replaces the text of a sent message; everything after it is dropped and answered again. */
   function edit(messageId: string, text: string) {
     if (!sessionId) return Promise.resolve(false)
@@ -226,6 +232,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     send,
     decide,
     regenerate,
+    resume,
     edit,
     stop,
   }

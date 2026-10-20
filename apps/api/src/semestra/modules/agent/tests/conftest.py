@@ -1,79 +1,153 @@
-"""A scripted chat model and helpers to talk to the assistant over HTTP and SSE."""
+"""A scripted chat model (Pydantic AI's `FunctionModel`) and helpers to talk to the assistant
+over HTTP and SSE."""
 
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    ModelResponse,
+    ToolReturnPart,
+    UserContent,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import (
+    AgentInfo,
+    DeltaThinkingPart,
+    DeltaToolCall,
+    FunctionModel,
+)
 
 from semestra.core.context import Ctx
-from semestra.modules.ai import Chunk, Completion, Message, Tool, ToolCall, Usage
+from semestra.modules.ai import Message
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
-Step = Completion | Callable[[list[Message]], Completion]
 
 
-def say(text: str) -> Completion:
-    return Completion(text=text, usage=Usage(10, 5), model="fake")
+@dataclass
+class Thought:
+    content: str
+    signature: str | None = None
+
+
+@dataclass
+class Reply:
+    """One scripted model response: thinking, then text, then tool calls."""
+
+    text: str = ""
+    calls: list[tuple[str, dict[str, Any], str]] = field(default_factory=lambda: [])
+    thinking: list[Thought] = field(default_factory=lambda: [])
+
+
+Step = Reply | Callable[[list[ModelMessage]], Reply]
+
+
+def say(text: str, *, thinking: Sequence[Thought] = ()) -> Reply:
+    return Reply(text=text, thinking=list(thinking))
 
 
 def call(
     name: str, args: dict[str, Any] | None = None, *, call_id: str | None = None, text: str = ""
-) -> Completion:
+) -> Reply:
     return calls([(name, args or {})], ids=[call_id] if call_id else None, text=text)
 
 
 def calls(
     items: Sequence[tuple[str, dict[str, Any]]], *, ids: list[str] | None = None, text: str = ""
-) -> Completion:
-    tool_calls = [
-        ToolCall((ids or [])[i] if ids else f"call_{name}_{i}", name.replace(".", "__"), args)
-        for i, (name, args) in enumerate(items)
-    ]
-    return Completion(text=text, tool_calls=tool_calls, stop_reason="tool_use", usage=Usage(10, 5))
+) -> Reply:
+    return Reply(
+        text=text,
+        calls=[
+            (name.replace(".", "__"), args, (ids or [])[i] if ids else f"call_{name}_{i}")
+            for i, (name, args) in enumerate(items)
+        ],
+    )
 
 
 class FakeModel:
-    """Plays back completions; records what it was sent."""
+    """Plays back replies through a `FunctionModel`; records every request it was sent."""
 
-    model = "fake-model"
+    name = "fake-model"
     supports_tools = True
+    vision = True
     reads_pdf = True
+    context_window = 128_000
 
     def __init__(self) -> None:
+        self.source = "test:instance:fake-model"
         self.script: list[Step] = []
-        self.requests: list[tuple[list[Message], list[Tool]]] = []
+        self.requests: list[tuple[list[ModelMessage], AgentInfo]] = []
+        self.model = FunctionModel(stream_function=self._stream, model_name=self.name)
 
     def then(self, *steps: Step) -> FakeModel:
         self.script.extend(steps)
         return self
 
-    async def stream(
-        self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
-    ) -> AsyncIterator[Chunk]:
-        self.requests.append((list(messages), list(tools or [])))
+    async def _stream(self, messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+        self.requests.append((list(messages), info))
         assert self.script, "the model was called more often than scripted"
         step = self.script.pop(0)
-        completion = step(list(messages)) if callable(step) else step
-        for thought in completion.reasoning:
-            if thought.content:
-                yield Chunk(thinking=thought.content)
-        if completion.text:
-            half = len(completion.text) // 2 or 1
-            yield Chunk(text=completion.text[:half])
-            if completion.text[half:]:
-                yield Chunk(text=completion.text[half:])
-        for tc in completion.tool_calls:
-            yield Chunk(tool_call=tc)
-        yield Chunk(done=completion)
+        reply = step(list(messages)) if callable(step) else step
+        for i, thought in enumerate(reply.thinking):
+            yield {100 + i: DeltaThinkingPart(content=thought.content, signature=thought.signature)}
+        if reply.text:
+            half = len(reply.text) // 2 or 1
+            yield reply.text[:half]
+            if reply.text[half:]:
+                yield reply.text[half:]
+        if reply.calls:
+            yield {
+                i: DeltaToolCall(name, json.dumps(args), tool_call_id=call_id)
+                for i, (name, args, call_id) in enumerate(reply.calls)
+            }
+
+    def tools_of(self, index: int = -1) -> set[str]:
+        """The tools the model could call in a request."""
+        return {t.name for t in self.requests[index][1].function_tools}
+
+    def instructions_of(self, index: int = -1) -> str:
+        return self.requests[index][1].instructions or ""
+
+    def text_of(self, index: int = -1) -> str:
+        """Everything the model was sent in a request, as text."""
+        messages, info = self.requests[index]
+        dumped = ModelMessagesTypeAdapter.dump_json(messages).decode()
+        return (info.instructions or "") + json.dumps(json.loads(dumped), ensure_ascii=False)
 
     def last_text(self) -> str:
-        """Everything the model was sent in its last request, as text."""
-        messages, _ = self.requests[-1]
-        return json.dumps([repr(m) for m in messages], ensure_ascii=False)
+        return self.text_of(-1)
+
+    def responses_of(self, index: int = -1) -> list[ModelResponse]:
+        return [m for m in self.requests[index][0] if isinstance(m, ModelResponse)]
+
+    def prompts(self, index: int = -1) -> list[list[UserContent]]:
+        """The user prompts of a request (one list of content items each)."""
+        return [
+            [p.content] if isinstance(p.content, str) else list(p.content)
+            for m in self.requests[index][0]
+            if isinstance(m, ModelRequest)
+            for p in m.parts
+            if isinstance(p, UserPromptPart)
+        ]
+
+    def results(self, index: int = -1) -> list[ToolReturnPart]:
+        """The tool results a request carried."""
+        return [
+            p
+            for m in self.requests[index][0]
+            if isinstance(m, ModelRequest)
+            for p in m.parts
+            if isinstance(p, ToolReturnPart)
+        ]
 
 
 class Agent:
@@ -122,6 +196,9 @@ class Agent:
             {"decision": decision, **body},
         )
 
+    async def resume(self, session_id: str) -> list[tuple[str, Any]]:
+        return await self.stream(f"/agent/sessions/{session_id}:continue", {})
+
     async def detail(self, session_id: str) -> dict[str, Any]:
         return await self.call("GET", f"/agent/sessions/{session_id}")
 
@@ -166,8 +243,9 @@ async def agent(
     user = await make_user()
     await login_as(client, user)
 
-    async def chat_model(ctx: Ctx) -> FakeModel:
-        return model
+    @asynccontextmanager
+    async def chat_model(ctx: Ctx) -> AsyncIterator[FakeModel]:
+        yield model
 
     async def chat_available(ctx: Ctx) -> bool:
         return True

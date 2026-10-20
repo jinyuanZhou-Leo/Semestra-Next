@@ -6,39 +6,48 @@ Tests replace `chat_model`, `chat_available` and `small_complete` with scripted 
 import asyncio
 import uuid
 from collections import defaultdict
-from collections.abc import AsyncIterator, Awaitable, Callable, Generator, Sequence
-from contextlib import asynccontextmanager, contextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable, Generator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Protocol
 
+from pydantic_ai.models import Model
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, ScopeRef, pick_locale
 from semestra.core.errors import AppError
 from semestra.modules import ai
-from semestra.modules.ai import Chunk, Message, Tool
+from semestra.modules.ai import Message
 
 MAX_GENERATIONS_PER_USER = 2
 
 
 class ChatLike(Protocol):
-    """What the loop needs from a model: M06's `ChatModel` or a test fake."""
+    """What the loop needs from a model: M06's `AgentModel` or a test fake."""
 
     @property
-    def model(self) -> str: ...
+    def model(self) -> Model: ...
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def source(self) -> str: ...
 
     @property
     def supports_tools(self) -> bool: ...
 
     @property
+    def vision(self) -> bool: ...
+
+    @property
     def reads_pdf(self) -> bool: ...
 
-    def stream(
-        self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
-    ) -> AsyncIterator[Chunk]: ...
+    @property
+    def context_window(self) -> int: ...
 
 
-async def _chat_model(ctx: Ctx) -> ChatLike:
-    return await ai.get_chat_model(ctx, "chat", source_module="agent")
+def _chat_model(ctx: Ctx) -> AbstractAsyncContextManager[ChatLike]:
+    return ai.agent_model(ctx, "chat", source_module="agent")
 
 
 async def _chat_available(ctx: Ctx) -> bool:
@@ -69,7 +78,7 @@ class Claim:
 
 class AgentRuntime:
     def __init__(self) -> None:
-        self.chat_model: Callable[[Ctx], Awaitable[ChatLike]] = _chat_model
+        self.chat_model: Callable[[Ctx], AbstractAsyncContextManager[ChatLike]] = _chat_model
         self.chat_available: Callable[[Ctx], Awaitable[bool]] = _chat_available
         self.small_complete: Callable[[Ctx, list[Message]], Awaitable[str]] = _small_complete
         self._per_user: defaultdict[str, int] = defaultdict(int)

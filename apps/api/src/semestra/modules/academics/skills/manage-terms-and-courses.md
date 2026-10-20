@@ -38,5 +38,6 @@ e.g. "MAT137Y1" from fall to winter). There are no courses without a term.
 **Deleting** (cannot be undone).
 - Before `academics.term.delete`, call `academics.term.delete_preview` and tell the user how many
   courses will be deleted and how many year-long courses are kept (they only lose this term).
-- Deleting a course or Program also deletes its grades, files and schedule. Confirm with the
-  user in plain words first.
+- Deleting a course or Program also deletes its grades, files and schedule. Say plainly what
+  will be deleted along with it, then call the delete tool: the user confirms on the card, so do
+  not ask for a separate confirmation in your reply.

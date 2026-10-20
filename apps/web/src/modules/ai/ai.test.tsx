@@ -390,7 +390,14 @@ test('each purpose shows the model in use and can be switched to another model',
 
 const usage: UsageSummary = {
   since: '2026-01-01T00:00:00Z',
-  totals: { calls: 12, errors: 1, input_tokens: 40_000, output_tokens: 5_000, cost_usd: 0.21 },
+  totals: {
+    calls: 12,
+    errors: 1,
+    input_tokens: 40_000,
+    cached_tokens: 10_000,
+    output_tokens: 5_000,
+    cost_usd: 0.21,
+  },
   cost_complete: false,
   by_day: [
     {
@@ -414,6 +421,7 @@ const usage: UsageSummary = {
       calls: 10,
       errors: 1,
       input_tokens: 30_000,
+      cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
     },
@@ -422,6 +430,7 @@ const usage: UsageSummary = {
       calls: 2,
       errors: 0,
       input_tokens: 10_000,
+      cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: null,
     },
@@ -432,6 +441,7 @@ const usage: UsageSummary = {
       calls: 12,
       errors: 1,
       input_tokens: 40_000,
+      cached_tokens: 10_000,
       output_tokens: 5_000,
       cost_usd: 0.21,
     },
@@ -442,6 +452,7 @@ const usage: UsageSummary = {
       calls: 10,
       errors: 1,
       input_tokens: 30_000,
+      cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
     },
@@ -450,6 +461,7 @@ const usage: UsageSummary = {
       calls: 2,
       errors: 0,
       input_tokens: 10_000,
+      cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: 0,
     },
@@ -467,6 +479,8 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
   const user = userEvent.setup()
   renderWithQuery(<UsageSection />)
   expect(await screen.findByText('at least $0.21')).toBeInTheDocument()
+  // 10k of the 40k input tokens came from the provider's prompt cache.
+  expect(screen.getByText('Cache hit rate').nextSibling).toHaveTextContent('25%')
   expect(query?.get('days')).toBe('30')
   expect(query?.get('tz')).toBeTruthy()
   expect(

@@ -18,6 +18,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Pencil,
+  Play,
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
@@ -63,7 +64,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
-import { buildItems, canRegenerate, citationsOf, type ViewItem } from '../transcript'
+import { buildItems, canRegenerate, citationsOf, pausedReason, type ViewItem } from '../transcript'
+import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown } from './Markdown'
@@ -322,6 +324,21 @@ function AssistantMessage({
   )
 }
 
+/** Under an answer that stopped at a limit: why, and a button to go on. */
+function PausedNotice({ reason, onContinue }: { reason: PauseReason; onContinue: () => void }) {
+  return (
+    <div className="ml-1 flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">
+        {reason === 'loop' ? m.assistant_paused_loop() : m.assistant_paused_tool_limit()}
+      </span>
+      <Button variant="outline" size="xs" onClick={onContinue}>
+        <Play data-icon="inline-start" />
+        {m.assistant_continue()}
+      </Button>
+    </div>
+  )
+}
+
 function AiSetupNeeded() {
   const settings = useSettingsDialog()
   return (
@@ -425,6 +442,7 @@ export function Conversation({
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
   const regenerateId = detail && !chat.generating ? canRegenerate(detail, items) : null
+  const paused = detail && !chat.generating ? pausedReason(detail) : null
 
   const questionKey = question?.key
   useEffect(() => {
@@ -621,7 +639,9 @@ export function Conversation({
                         onDecide={(decisions) => void chat.decide(decisions)}
                         latest={item === lastAssistant}
                         footer={
-                          item.answer || regenerateId === item.id ? (
+                          item.answer ||
+                          regenerateId === item.id ||
+                          (paused && item === lastAssistant) ? (
                             // Kept in the layout while the answer streams, so nothing jumps.
                             <div
                               className={cn(
@@ -637,6 +657,15 @@ export function Conversation({
                                 >
                                   <RotateCcw />
                                 </IconAction>
+                              ) : null}
+                              {paused && item === lastAssistant ? (
+                                <PausedNotice
+                                  reason={paused}
+                                  onContinue={() => {
+                                    setSent((n) => n + 1)
+                                    void chat.resume()
+                                  }}
+                                />
                               ) : null}
                             </div>
                           ) : null

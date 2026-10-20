@@ -156,6 +156,8 @@ class UsageTotals(BaseModel):
     calls: int
     errors: int
     input_tokens: int
+    # The part of `input_tokens` the provider read from its prompt cache.
+    cached_tokens: int
     output_tokens: int
     cost_usd: float | None
 

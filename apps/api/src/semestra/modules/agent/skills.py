@@ -1,5 +1,8 @@
 """Skills (M12 §3.3): `modules/<m>/skills/*.md`, a frontmatter header and a step-by-step body.
 
+The model sees the catalog (name and description) and loads a skill with `load_capability`: each
+skill is a deferred Pydantic AI capability whose instructions are the body (`loop._skill`).
+
 The frontmatter is a small YAML subset parsed here (PyYAML has no Python 3.15 wheel, see
 CLAUDE.md): `key: value`, flow lists `[a, b]`, flow maps `{ en: "...", zh-CN: "..." }` and
 block scalars `key: |`. A skill is visible to a user only when every tool it declares is
@@ -167,21 +170,3 @@ def all_skills() -> tuple[Skill, ...]:
 def visible_skills(available: list[Capability]) -> list[Skill]:
     names = {c.name for c in available}
     return [s for s in all_skills() if all(t in names for t in s.tools)]
-
-
-def _words(text: str) -> set[str]:
-    return {w for w in re.split(r"[^\w]+", text.lower()) if len(w) > 1}
-
-
-def search_skills(skills: list[Skill], query: str, limit: int = 5) -> list[Skill]:
-    words = _words(query)
-    scored: list[tuple[float, Skill]] = []
-    for skill in skills:
-        haystack = " ".join(
-            [skill.name.replace("-", " "), skill.description, *skill.title.values()]
-        ).lower()
-        score = sum(2.0 if w in skill.name else 1.0 for w in words if w in haystack)
-        if score:
-            scored.append((score, skill))
-    scored.sort(key=lambda pair: (-pair[0], pair[1].name))
-    return [s for _, s in scored[:limit]]

@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
 from semestra.modules.agent import skills
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
-from semestra.modules.ai import Document, Image, Text
 from semestra.testing import MakeUser
 
 MESSAGES = Path(__file__).resolve().parents[6] / "web" / "messages"
@@ -89,10 +89,11 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     await agent.send(
         session["id"], "what is this?", attachment_ids=[image["id"], note["id"], pdf["id"]]
     )
-    parts = model.requests[0][0][2].content
-    assert any(isinstance(p, Image) and p.data == png for p in parts)
-    assert any(isinstance(p, Document) for p in parts)
-    wrapped = next(p.text for p in parts if isinstance(p, Text) and "notes.txt" in p.text)
+    [parts] = model.prompts(0)
+    binary = [p for p in parts if isinstance(p, BinaryContent)]
+    assert [b.media_type for b in binary] == ["image/png", "application/pdf"]
+    assert binary[0].data == png
+    wrapped = next(p for p in parts if isinstance(p, str) and "notes.txt" in p)
     assert wrapped.startswith("<untrusted_document")
     usage = await agent.call("GET", "/storage/usage")
     assert usage["by_module"]["agent"] == len(png) + 29 + 13
@@ -116,9 +117,9 @@ async def test_pdfs_become_a_note_for_models_without_pdf_input(
     monkeypatch.setattr(model, "reads_pdf", False, raising=False)
     model.then(say("Please paste the text."))
     await agent.send(session["id"], "summarize", attachment_ids=[pdf["id"]])
-    parts = model.requests[0][0][2].content
-    assert not any(isinstance(p, Document) for p in parts)
-    assert any(isinstance(p, Text) and "syllabus.pdf" in p.text for p in parts)
+    [parts] = model.prompts(0)
+    assert not any(isinstance(p, BinaryContent) for p in parts)
+    assert any(isinstance(p, str) and "syllabus.pdf" in p for p in parts)
 
 
 async def test_unsent_attachments_can_be_deleted(agent: Agent, model: FakeModel):

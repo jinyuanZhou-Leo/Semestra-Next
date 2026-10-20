@@ -4,11 +4,11 @@ import { getLocale } from '@/paraglide/runtime'
 
 const byKey = messages as unknown as Record<string, (() => string) | undefined>
 
+/** Pydantic AI's built-in tools and the loop's own (not capabilities). */
 const META_TITLES: Record<string, () => string> = {
-  tools_search: m.assistant_step_tools_search,
-  tools_load: m.assistant_step_tools_load,
-  skills_search: m.assistant_step_skills_search,
-  skills_read: m.assistant_step_skills_read,
+  search_tools: m.assistant_step_search_tools,
+  load_capability: m.assistant_step_load_capability,
+  read_tool_result: m.assistant_step_read_tool_result,
 }
 
 /** The localized name of a capability (`capability_<name>_title`, M12 §7), else the name. */

@@ -5,7 +5,6 @@ from typing import Any
 from fastapi import FastAPI
 
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
-from semestra.modules.ai import Text
 
 
 def edit_url(session_id: str, message_id: str) -> str:
@@ -28,9 +27,8 @@ async def test_editing_drops_what_came_after_and_answers_again(agent: Agent, mod
 
     assert "".join(d["text"] for d in events_named(events, "text_delta")) == "Hello again."
     # The model saw only the edited message.
-    users = [m for m in model.requests[-1][0] if m.role == "user"]
-    assert len(users) == 1
-    assert [p.text for p in users[0].content if isinstance(p, Text)][-1] == "hello there"
+    [prompt] = model.prompts(-1)
+    assert prompt[-1] == "hello there"
 
     detail = await agent.detail(session["id"])
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
@@ -105,8 +103,8 @@ async def test_writes_already_done_in_dropped_turns_are_told_to_the_model(
     model.then(say("Done before."))
     await agent.stream(edit_url(session["id"], first["id"]), {"text": "55 on lab 3"})
 
-    [user] = [m for m in model.requests[-1][0] if m.role == "user"]
-    texts = [p.text for p in user.content if isinstance(p, Text)]
+    [user] = model.prompts(-1)
+    texts = [p for p in user if isinstance(p, str)]
     note = next(t for t in texts if "Already done" in t)
     assert "grading.assessment.update" in note
     assert lab["id"] in note

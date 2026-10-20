@@ -1,13 +1,13 @@
 """The system prompt (M12 §3.4), ordered for prompt-cache reuse: most stable first.
 
 1. `STATIC_PROMPT` (`prompts/system.md`): fixed instructions, no variables at all.
-2. Tool definitions (sent by the adapter; core and meta tools in a fixed order, tools loaded on
-   demand only appended, see `tools.bound_tools`).
+2. Tool definitions (core tools and `search_tools`/`load_capability`/`read_tool_result` in a fixed
+   order; tools found later are only appended, see `tools.toolset` and `loop._tool_order`).
 3. `work_context`: the user's name, where the assistant works (Program or term), today's date
    and current term, the reply language. Stable for a whole day unless the user renames themselves
    or switches the scope.
 4. The history. Each user message carries a `[Sent …]` note made from its own stored time, so
-   earlier messages never change (nothing is persisted; see `history.build`).
+   earlier messages never change (nothing is persisted; see `history.user_request`).
 
 The time of day never appears in 1-3: a minute-precise "now" there would invalidate the whole
 cached prefix every minute.

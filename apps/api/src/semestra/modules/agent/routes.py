@@ -1,6 +1,7 @@
-"""Streaming routes (M12 §4): sending, editing a message, deciding proposals and regenerating
-an answer with server-sent events, plus attachment upload. The SSE routes are left out of the
-OpenAPI schema; the web client reads them with `fetch` (see web `modules/assistant/stream.ts`)."""
+"""Streaming routes (M12 §4): sending, editing a message, deciding proposals, regenerating an
+answer and continuing after a pause, with server-sent events, plus attachment upload. The SSE
+routes are left out of the OpenAPI schema; the web client reads them with `fetch` (see web
+`modules/assistant/stream.ts`)."""
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
@@ -117,16 +118,14 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         if skill is None:
             raise not_found()
         blocks.append(
-            {"type": "skill", "name": skill.name, "title": skill.title, "body": skill.body}
+            {
+                "type": "skill",
+                "name": skill.name,
+                "title": skill.title,
+                "body": skill.body,
+                "tools": list(skill.tools),
+            }
         )
-        st = dict(session.state or {})
-        from semestra.modules.agent import tools
-
-        names = {c.name for c in await registry.available(ctx, "agent")}
-        st["loaded_tools"] = tools.load(
-            list(st.get("loaded_tools", [])), [t for t in skill.tools if t in names]
-        )
-        session.state = st
     if text:
         blocks.append({"type": "text", "text": text})
     owned = {a.id: a for a in await service.attachments(ctx, session.id)}
@@ -142,6 +141,9 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
                 "mime": att.mime,
             }
         )
+    # Cards still waiting get a placeholder result first: the history stays append-only.
+    await loop.close_open_calls(ctx, session)
+    service.reset_turn(session)
     service.add_message(ctx, session, "user", blocks, message_id=new_id())
     await ctx.db.commit()
 
@@ -241,6 +243,28 @@ async def edit_message(
     return _respond(_events(state, claim), claim)
 
 
+@router.post("/agent/sessions/{session_id}:continue", include_in_schema=False)
+async def continue_turn(
+    session_id: str,
+    request: Request,
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+) -> EventSourceResponse:
+    """Goes on after the turn paused at the tool-call limit (the answer ends with a `paused`
+    block): the counts start afresh."""
+    rt = _runtime(request)
+    session = await service.get_session_row(ctx, session_id)
+    await _check_ai(ctx, rt)
+    user_id, state = ctx.user_id, request.app.state
+    await ctx.db.close()
+    claim = rt.claim(user_id, session.id)
+    try:
+        await loop.continue_turn(state, user_id, session.id)
+    except BaseException:
+        claim.release()
+        raise
+    return _respond(_events(state, claim), claim)
+
+
 def _wrote(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> bool:
     """Whether a write in these rows ran without a card (auto-approved). A write call with
     neither a proposal nor a result may have run before the stream was cut: count it too."""
@@ -280,6 +304,7 @@ async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) ->
         raise AppError("agent.cannot_regenerate", 409)
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(ids)))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(ids)))
+    service.reset_turn(session)
     await ctx.db.commit()
 
 
