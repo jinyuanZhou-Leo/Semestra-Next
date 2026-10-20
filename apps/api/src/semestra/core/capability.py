@@ -14,7 +14,7 @@ from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
 
 from semestra.core.context import Ctx, get_capability_ctx, run_after_commit
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, validation_error
 
 Effect = Literal["read", "write", "destructive"]
 Surface = Literal["http", "agent", "mcp"]
@@ -140,8 +140,7 @@ class Registry:
         try:
             inp = cap.input_model.model_validate(raw_args or {})
         except ValidationError as exc:
-            errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
-            raise AppError("common.validation", 422, errors=errors) from exc
+            raise validation_error(exc) from exc
         outer, ctx.surface = ctx.surface, surface
         try:
             out = await cap.handler(ctx, inp)

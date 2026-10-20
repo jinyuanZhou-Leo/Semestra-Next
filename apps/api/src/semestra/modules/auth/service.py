@@ -799,7 +799,7 @@ async def revoke_session(ctx: Ctx, session_id: str) -> None:
     user = _require_user(ctx)
     session = await ctx.db.get(AuthSession, session_id)
     if session is None or session.user_id != user.id:
-        raise not_found()
+        raise not_found("session", session_id)
     if session.revoked_at is None:
         session.revoked_at = ctx.now
 
@@ -867,6 +867,6 @@ async def revoke_token(ctx: Ctx, token_id: str) -> None:
     user = _require_user(ctx)
     row = await ctx.db.get(AuthPersonalAccessToken, token_id)
     if row is None or row.user_id != user.id:
-        raise not_found()
+        raise not_found("token", token_id)
     if row.revoked_at is None:
         row.revoked_at = ctx.now

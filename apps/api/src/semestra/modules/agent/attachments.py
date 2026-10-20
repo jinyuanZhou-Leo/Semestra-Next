@@ -121,7 +121,7 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
 async def get_owned(ctx: Ctx, attachment_id: str) -> AgentAttachment:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("attachment", attachment_id)
     return row
 
 

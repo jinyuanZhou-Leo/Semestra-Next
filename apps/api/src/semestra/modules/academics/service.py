@@ -57,21 +57,21 @@ from semestra.modules.settings import service as settings_service
 async def get_program_row(ctx: Ctx, program_id: str) -> AcademicsProgram:
     row = await ctx.db.get(AcademicsProgram, program_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("program", program_id)
     return row
 
 
 async def get_term_row(ctx: Ctx, term_id: str) -> AcademicsTerm:
     row = await ctx.db.get(AcademicsTerm, term_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("term", term_id)
     return row
 
 
 async def get_course_row(ctx: Ctx, course_id: str) -> AcademicsCourse:
     row = await ctx.db.get(AcademicsCourse, course_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("course", course_id)
     return row
 
 

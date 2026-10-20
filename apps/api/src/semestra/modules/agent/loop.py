@@ -63,7 +63,7 @@ from starlette.datastructures import State
 from semestra.core.capability import Capability, Surface, registry
 from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
 from semestra.core.db import new_id
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, validation_error
 from semestra.modules.agent import display, history, memory, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
@@ -232,18 +232,13 @@ def _generic_preview(args: dict[str, Any]) -> dict[str, Any]:
     return {"changes": changes}
 
 
-def _validation_error(exc: ValidationError) -> AppError:
-    errors = [{"loc": list(e["loc"]), "code": e["type"]} for e in exc.errors()]
-    return AppError("common.validation", 422, errors=errors)
-
-
 async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
     """The capability's own `preview` (changes with before → after, a link), else the
     arguments as a list. Raises `common.validation` for arguments the model got wrong."""
     try:
         inp = cap.input_model.model_validate(args)
     except ValidationError as exc:
-        raise _validation_error(exc) from exc
+        raise validation_error(exc) from exc
     out: dict[str, Any] = _generic_preview(args)
     if cap.preview is not None:
         preview = await cap.preview(ctx, inp)

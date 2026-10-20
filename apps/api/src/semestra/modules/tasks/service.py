@@ -50,14 +50,14 @@ from semestra.modules.tasks.settings import TasksSettings
 async def get_item_row(ctx: Ctx, task_id: str) -> TasksItem:
     row = await ctx.db.get(TasksItem, task_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("task", task_id)
     return row
 
 
 async def get_list_row(ctx: Ctx, list_id: str) -> TasksList:
     row = await ctx.db.get(TasksList, list_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("list", list_id)
     return row
 
 
@@ -258,8 +258,9 @@ async def reorder_lists(ctx: Ctx, program_id: str, list_ids: Sequence[str]) -> T
     await academics.get_program_row(ctx, program_id)
     rows = await _program_lists(ctx, program_id)
     by_id = {r.id: r for r in rows}
-    if any(i not in by_id for i in list_ids):
-        raise not_found()
+    missing = next((i for i in list_ids if i not in by_id), None)
+    if missing is not None:
+        raise not_found("list", missing)
     named = list(dict.fromkeys(list_ids))
     order = [by_id[i] for i in named] + [r for r in rows if r.id not in set(named)]
     for position, row in enumerate(order):

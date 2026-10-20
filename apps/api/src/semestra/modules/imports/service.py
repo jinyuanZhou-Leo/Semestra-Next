@@ -11,7 +11,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
-from semestra.core.errors import AppError, not_found
+from semestra.core.errors import AppError, not_found, validation_error
 from semestra.core.events import events
 from semestra.core.jobs import enqueue
 from semestra.core.storage import get_storage
@@ -75,7 +75,7 @@ def register_commit_hook(source_kind: str, fn: CommitHook) -> CommitHook:
 async def get_session_row(ctx: Ctx, session_id: str) -> ImportsSession:
     row = await ctx.db.get(ImportsSession, session_id)
     if row is None or row.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("session", session_id)
     return row
 
 
@@ -321,11 +321,11 @@ async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> Ses
     if target.term_id is not None:
         term = await academics.get_term_row(ctx, target.term_id)
         if term.program_id != program_id:
-            raise not_found()
+            raise not_found("term", target.term_id)
     if target.course_id is not None:
         course = await academics.get_course_row(ctx, target.course_id)
         if course.program_id != program_id:
-            raise not_found()
+            raise not_found("course", target.course_id)
     if target.kind != "term_wizard":
         target = target.model_copy(update={"start_date": None, "end_date": None})
     return target
@@ -458,8 +458,7 @@ def _validated_data(type_: str, data: dict[str, Any]) -> dict[str, Any]:
     try:
         return model.model_validate(data).model_dump(mode="json", exclude_none=True)
     except ValidationError as exc:
-        errors = [{"loc": ["data", *e["loc"]], "code": e["type"]} for e in exc.errors()]
-        raise AppError("common.validation", 422, errors=errors) from exc
+        raise validation_error(exc, ("data",)) from exc
 
 
 async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> list[ImportsItem]:
@@ -557,7 +556,7 @@ async def store_upload(
 async def get_upload(ctx: Ctx, upload_id: str) -> ImportsUpload:
     upload = await ctx.db.get(ImportsUpload, upload_id)
     if upload is None or upload.user_id != ctx.user_id:
-        raise not_found()
+        raise not_found("upload", upload_id)
     return upload
 
 
