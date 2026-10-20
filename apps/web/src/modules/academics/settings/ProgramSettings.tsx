@@ -203,7 +203,7 @@ const subjectColumns = subjectColumn.columns([
   }),
 ])
 
-const SUBJECT_COLUMN_CLASS: Record<string, string> = { color: 'w-12', subject: 'w-full max-w-0' }
+const SUBJECT_COLUMN_CLASS: Record<string, string> = { color: 'w-20', subject: 'w-full max-w-0' }
 
 function refColor(ref: ColorRef): string {
   return 'palette' in ref ? subjectColor(`subject-${ref.palette}`) : ref.hex

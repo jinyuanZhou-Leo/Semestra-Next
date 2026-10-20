@@ -181,7 +181,7 @@ const columns = column.columns([
 ])
 
 const COLUMN_CLASS: Record<string, string> = {
-  color: 'w-12',
+  color: 'w-20',
   code: 'w-28',
   name: 'w-full max-w-0',
   actions: 'w-10',

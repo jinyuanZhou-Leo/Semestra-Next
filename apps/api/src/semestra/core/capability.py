@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, get_type_hints
 
-from fastapi import Body, Depends, FastAPI, Path, Query
+from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
 
 from semestra.core.context import Ctx, get_capability_ctx, run_after_commit
@@ -288,15 +288,29 @@ def _endpoint_for(cap: Capability, reg: Registry) -> Callable[..., Awaitable[Any
     return endpoint
 
 
+# Generated routers, reused by every app built from the same capabilities (tests build one
+# app per test, and generating ~200 routes is most of that cost).
+_routers: dict[tuple[int, tuple[int, ...]], APIRouter] = {}
+
+
 def mount_http(app: FastAPI, reg: Registry | None = None) -> None:
     """Generate one REST route per capability that declares `http=` and exposes it."""
+    reg = reg or registry
+    caps = [c for c in reg.list(expose="http") if c.http is not None]
+    key = (id(reg), tuple(id(c) for c in caps))
+    router = _routers.get(key)
+    if router is None:
+        router = _routers[key] = _router_for(caps, reg)
+    app.include_router(router)
+
+
+def _router_for(caps: list[Capability], reg: Registry) -> APIRouter:
     from semestra.core.errors import ErrorResponse
 
-    reg = reg or registry
-    for cap in reg.list(expose="http"):
-        if cap.http is None:
-            continue
-        app.add_api_route(
+    router = APIRouter()
+    for cap in caps:
+        assert cap.http is not None
+        router.add_api_route(
             cap.http.path,
             _endpoint_for(cap, reg),
             methods=[cap.http.method],
@@ -307,3 +321,4 @@ def mount_http(app: FastAPI, reg: Registry | None = None) -> None:
             tags=list(cap.tags),
             responses={"default": {"model": ErrorResponse}},
         )
+    return router

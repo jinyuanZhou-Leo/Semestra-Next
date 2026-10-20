@@ -29,6 +29,9 @@ type Lazy<P> = ComponentType<P> | LazyExoticComponent<ComponentType<P>>
 
 export type PageProps = { scope: Scope }
 
+/** What a page's own navigation in the app sidebar gets; `onNavigate` closes the phone drawer. */
+export type SidebarNavProps = { scope: Scope; onNavigate: () => void }
+
 export type PageContribution = {
   /** Unique within its scopes; the `$page` URL segment. */
   id: string
@@ -38,6 +41,11 @@ export type PageContribution = {
   component: Lazy<PageProps>
   /** A line for the page header under the title (Program pages; term and course pages keep their own). */
   headerSubtitle?: ComponentType<PageProps>
+  /**
+   * The page's own navigation (its views, lists…), shown under its entry in the app sidebar
+   * while the page is open, so the page needs no column of its own (Program pages).
+   */
+  sidebarNav?: Lazy<SidebarNavProps>
   order: number
   /** `data` is what `availabilityQuery` loaded (undefined without one). */
   isAvailable?: (scope: Scope, data: unknown) => boolean
@@ -212,6 +220,8 @@ export type AssistantContribution = {
   panel: { subscribe: (listener: () => void) => () => void; isOpen: () => boolean }
   /** Wraps the app shell's content and docks the panel beside it (M12 §6.1). */
   Dock: ComponentType<{ children: ReactNode }>
+  /** Recent conversations under the assistant's sidebar entry while its full page is open. */
+  SidebarNav?: Lazy<{ programId: string; onNavigate: () => void }>
 }
 
 /**
