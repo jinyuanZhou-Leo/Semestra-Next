@@ -24,25 +24,24 @@ async def due_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     program = await academics.get_program_row(ctx, q.program_id)
     zone = ZoneInfo(program.timezone)
     now_local = ctx.now.astimezone(zone)
+    # Overdue tasks may be due any time before the range; a day either side covers the zone.
+    first = None if q.include_overdue else (q.range_start.astimezone(zone) - timedelta(days=1))
+    last = q.range_end.astimezone(zone) + timedelta(days=1)
     rows = [
         r
-        for r in await service.program_rows(ctx, program.id, term_id=q.term_id)
-        if r.due_date is not None
-        and r.completed_at is None
-        and r.source_kind != "assessment"  # `grading.assessments` already shows the assessment
+        for r in await service.program_rows(
+            ctx,
+            program.id,
+            term_id=q.term_id,
+            open_only=True,
+            due_from=first.date() if first else None,
+            due_to=last.date(),
+        )
+        if r.source_kind != "assessment"  # `grading.assessments` already shows the assessment
         and q.wants_course(r.course_id)
     ]
-    colors = {
-        c.id: c.resolved_color
-        for c in await academics.courses_out(
-            ctx,
-            program,
-            [
-                await academics.get_course_row(ctx, i)
-                for i in {r.course_id for r in rows if r.course_id}
-            ],
-        )
-    }
+    courses = await academics.courses_by_id(ctx, sorted({r.course_id for r in rows if r.course_id}))
+    colors = {c.id: c.resolved_color for c in await academics.courses_out(ctx, program, courses)}
     out: list[Occurrence] = []
     for r in rows:
         assert r.due_date is not None

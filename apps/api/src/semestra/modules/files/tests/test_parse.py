@@ -1,6 +1,11 @@
 """Type detection and the per-format readers (M07 §3.1, §9 snapshot-style checks)."""
 
 import io
+import os
+import signal
+import sys
+from contextlib import aclosing
+from typing import Any
 
 import pytest
 
@@ -268,3 +273,45 @@ async def test_parsing_in_a_child_process_yields_the_document_and_previews():
     assert isinstance(messages[0], Parsed)
     assert len(messages[0].document.pages) == 3
     assert [m.index for m in messages[1:] if isinstance(m, Thumbnail)] == [0, 1]
+
+
+async def test_page_images_render_in_a_child_process():
+    from semestra.modules.files.parse.isolated import render_isolated
+
+    data = make_pdf(["one", "two", "three"], scanned={1})
+    limits = {"time_limit": 60, "memory_limit": 2**31}
+    chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
+    first = await render_isolated(data, pdf=True, pages=5, **limits)
+    assert len(chosen) == 1
+    assert chosen[0].startswith(b"\x89PNG")
+    assert len(first) == 3  # at most the pages there are
+
+
+def _killed(conn: object) -> None:
+    del conn
+    os.kill(os.getpid(), signal.SIGKILL)  # what the memory limit or a crash in C code does
+
+
+def _exits(conn: object) -> None:
+    del conn
+    sys.exit(1)
+
+
+async def test_a_child_that_dies_or_runs_out_of_time_is_reported():
+    from semestra.modules.files.parse import isolated
+
+    async def run(target: Any, time_limit: float = 60) -> None:
+        async with aclosing(isolated._run(target, (), time_limit)) as messages:  # pyright: ignore[reportPrivateUsage]
+            async for _ in messages:
+                pass
+
+    with pytest.raises(ParseError) as killed:
+        await run(_killed)
+    assert killed.value.code == "files.too_complex"
+    with pytest.raises(ParseError) as exited:
+        await run(_exits)
+    assert exited.value.code == "files.parse_failed"
+    data = make_pdf(["one", "two"], scanned={1})
+    with pytest.raises(ParseError) as late:  # the deadline holds even while pages arrive
+        await isolated.render_isolated(data, pdf=True, pages=2, time_limit=0, memory_limit=2**31)
+    assert late.value.code == "files.too_complex"

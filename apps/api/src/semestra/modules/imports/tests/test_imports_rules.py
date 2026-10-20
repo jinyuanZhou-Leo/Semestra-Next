@@ -2,7 +2,12 @@
 
 from datetime import date, time, timedelta
 
-from semestra.modules.imports import build, dates
+import pytest
+
+from semestra.core.config import Settings
+from semestra.core.errors import AppError
+from semestra.modules.files.tests.conftest import make_pdf
+from semestra.modules.imports import build, dates, deps
 from semestra.modules.imports.ics import parse_ics, section_of
 
 TZ = "America/Toronto"
@@ -191,3 +196,23 @@ def test_meeting_weeks_name_what_went_wrong():
         "import.no_teaching_weeks"
     )
     assert dates.meeting_weeks(None, None, 5, 3, weeks)[2] == "import.no_teaching_weeks"
+
+
+async def test_an_upload_with_scanned_pages_is_read_in_two_children():
+    data = make_pdf(
+        ["typed page with enough words to count as a digital text page", "scan"], scanned={1}
+    )
+    texts, images = await deps.read_upload(Settings(env="test"), data, "s.pdf", "application/pdf")
+    assert [p.page for p in texts] == [1]
+    assert [i.mime for i in images] == ["image/png"]
+
+
+async def test_an_upload_that_takes_too_long_says_so():
+    data = make_pdf(["typed page with enough words to count as a digital text page"])
+    settings = Settings(env="test", files_parse_timeout_seconds=0)
+    with pytest.raises(AppError) as exc:
+        await deps.read_upload(settings, data, "s.pdf", "application/pdf")
+    assert (exc.value.code, exc.value.params) == ("import.file_too_complex", {"filename": "s.pdf"})
+    with pytest.raises(AppError) as exc:
+        await deps.render_pages(settings, data, "application/pdf", "t.pdf")
+    assert exc.value.code == "import.file_too_complex"

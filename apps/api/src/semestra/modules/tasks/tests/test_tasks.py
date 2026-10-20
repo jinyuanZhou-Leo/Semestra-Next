@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from sqlalchemy import event
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
@@ -547,6 +548,61 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
     assert [o.title for o in merged] == ["in"]
 
 
+@pytest.mark.parametrize("zone_name", ["Pacific/Auckland", "Pacific/Pago_Pago"])
+async def test_the_calendar_source_keeps_the_local_days_far_from_utc(
+    app: FastAPI, api: Api, user: UserHandle, zone_name: str
+):
+    program = await api.call("POST", "/programs", json={"name": "Far", "timezone": zone_name})
+    pid = program["id"]
+    await api.task(pid, "day before", due_date="2026-01-14")
+    await api.task(pid, "late the day before", due_date="2026-01-14", due_time="23:30")
+    await api.task(pid, "early first day", due_date="2026-01-15", due_time="00:30")
+    await api.task(pid, "first day", due_date="2026-01-15")
+    await api.task(pid, "late last day", due_date="2026-01-31", due_time="23:30")
+    await api.task(pid, "day after", due_date="2026-02-01")
+    await api.task(pid, "early day after", due_date="2026-02-01", due_time="00:30")
+    zone = ZoneInfo(zone_name)
+    q = OccurrenceQuery(
+        program_id=pid,
+        range_start=datetime(2026, 1, 15, tzinfo=zone).astimezone(UTC),
+        range_end=datetime(2026, 2, 1, tzinfo=zone).astimezone(UTC),
+    )
+    async with system_ctx(app.state, user.id) as ctx:
+        titles = {o.title for o in await due_source(ctx, q)}
+    assert titles == {"early first day", "first day", "late last day"}
+
+
+async def test_the_calendar_reads_courses_once_however_many_have_tasks(app: FastAPI, api: Api):
+    s = await api.setup()
+    pid, terms = s["program"], s["terms"]
+    statements: list[str] = []
+
+    def count(*args: Any) -> None:
+        statements.append(args[2])
+
+    async def calendar_queries() -> int:
+        statements.clear()
+        await api.call(
+            "GET", f"/programs/{pid}/calendar", params={"start": "2026-01-12", "end": "2026-01-19"}
+        )
+        return len(statements)
+
+    await api.task(pid, "one", due_date="2026-01-14", course_id=s["courses"]["aps"])
+    event.listen(app.state.engine.sync_engine, "before_cursor_execute", count)
+    try:
+        before = await calendar_queries()
+        for n in range(5):
+            course = await api.call(
+                "POST",
+                f"/programs/{pid}/courses",
+                json={"title": f"C{n}", "code": f"CSC{n}00H1", "term_ids": [terms["winter"]]},
+            )
+            await api.task(pid, f"t{n}", due_date="2026-01-15", course_id=course["id"])
+        assert await calendar_queries() == before
+    finally:
+        event.remove(app.state.engine.sync_engine, "before_cursor_execute", count)
+
+
 async def test_only_completed_returns_the_finished_tasks_of_a_view(api: Api):
     s = await api.setup()
     pid = s["program"]
@@ -571,6 +627,18 @@ async def test_clear_completed_in_a_term_includes_tasks_without_a_term(api: Api)
     r = await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={"term_id": winter})
     assert r == {"deleted": 2}  # what the winter view shows: its own and the term-less ones
     assert await api.titles(pid, view="completed") == ["fall"]
+
+
+async def test_completed_count_in_a_term_includes_tasks_without_a_term(api: Api):
+    s = await api.setup()
+    pid, winter, fall = s["program"], s["terms"]["winter"], s["terms"]["fall"]
+    for title, term_id in (("no term", None), ("winter", winter), ("fall", fall)):
+        task = await api.task(pid, title, term_id=term_id)
+        await api.call("POST", f"/tasks/{task['id']}:complete", json={})
+    await api.task(pid, "open", term_id=winter)
+    counts = await api.call("GET", f"/programs/{pid}/task-counts", params={"term_id": winter})
+    assert counts["completed"] == 2
+    assert (await api.call("GET", f"/programs/{pid}/task-counts"))["completed"] == 3
 
 
 async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: UserHandle):

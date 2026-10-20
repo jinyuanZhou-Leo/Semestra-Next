@@ -16,12 +16,14 @@ from semestra.core.capability import mount_http
 from semestra.core.config import Settings, get_settings
 from semestra.core.db import make_engine, make_sessionmaker, utcnow
 from semestra.core.errors import AppError, ErrorResponse, install_error_handlers
+from semestra.core.http import close_shared_transports
 from semestra.core.logging import configure_logging
 from semestra.core.observability import init_sentry
 from semestra.core.realtime import Broadcaster
 from semestra.core.realtime import router as realtime_router
 from semestra.core.webapp import install_web
 from semestra.modules import register_all
+from semestra.modules.ai.adapters import sdk
 from semestra.modules.auth.avatar import UploadBodyLimit
 
 
@@ -52,13 +54,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.jobs_autostart:
             runner.start()
         backup_task = asyncio.create_task(backup_loop(settings)) if settings.backup_dir else None
+        warm_up = None
+        if settings.ai_warm_up:
+            warm_up = asyncio.create_task(asyncio.to_thread(sdk.warm_up))
         yield
         if backup_task:
             backup_task.cancel()
+        if warm_up:
+            await asyncio.gather(warm_up, return_exceptions=True)
         await runner.stop()
         # M06 writes usage and provider health in background tasks; let them land first.
         if (ai := getattr(app.state, "ai", None)) is not None:
             await ai.drain()
+        await close_shared_transports()
         await engine.dispose()
 
     app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)

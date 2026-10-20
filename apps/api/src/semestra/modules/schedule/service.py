@@ -1134,67 +1134,73 @@ def _query(
 async def occurrences(
     ctx: Ctx, inp: OccurrencesInput, *, max_days: int = MAX_RANGE_DAYS
 ) -> Occurrences:
-    program = await academics.get_program_row(ctx, inp.program_id)
-    if inp.term_id is not None:
-        term = await academics.get_term_row(ctx, inp.term_id)
-        if term.program_id != program.id:
-            raise not_found()
-    q = _query(program, inp.start, inp.end, inp.term_id, inp.course_ids, max_days=max_days)
-    items = await collect(ctx, q, inp.sources)
-    if inp.kinds is not None:
-        items = [o for o in items if o.kind in inp.kinds]
-    weeks, breaks = await _weeks_and_breaks(
-        ctx, program.id, inp.start, inp.end - timedelta(days=1), inp.term_id
-    )
-    return Occurrences(
-        timezone=program.timezone,
-        start=inp.start,
-        end=inp.end,
-        items=items,
-        weeks=weeks,
-        breaks=breaks,
-    )
+    # Read-only: terms and courses are read once for the sources and the weeks.
+    with academics.read_memo():
+        program = await academics.get_program_row(ctx, inp.program_id)
+        if inp.term_id is not None:
+            term = await academics.get_term_row(ctx, inp.term_id)
+            if term.program_id != program.id:
+                raise not_found()
+        q = _query(program, inp.start, inp.end, inp.term_id, inp.course_ids, max_days=max_days)
+        items = await collect(ctx, q, inp.sources)
+        if inp.kinds is not None:
+            items = [o for o in items if o.kind in inp.kinds]
+        weeks, breaks = await _weeks_and_breaks(
+            ctx, program.id, inp.start, inp.end - timedelta(days=1), inp.term_id
+        )
+        return Occurrences(
+            timezone=program.timezone,
+            start=inp.start,
+            end=inp.end,
+            items=items,
+            weeks=weeks,
+            breaks=breaks,
+        )
 
 
 async def today(ctx: Ctx, program_id: str) -> Today:
-    program = await academics.get_program_row(ctx, program_id)
-    tz = _tz(program)
-    day = academics.program_today(ctx, program)
-    q = OccurrenceQuery(
-        program_id=program.id,
-        range_start=rules.local_midnight(day, tz),
-        range_end=rules.local_midnight(day + timedelta(days=UPCOMING_DAYS), tz),
-        include_overdue=True,
-    )
-    items = await collect(ctx, q)
-    tomorrow = rules.local_midnight(day + timedelta(days=1), tz)
-    week: TodayWeek | None = None
-    for term in await academics.program_terms(ctx, program.id):
-        if term.start_date <= day <= term.end_date:
-            found = await academics.term_week_of(ctx, term, day)
-            week = TodayWeek(
-                term_id=term.id,
-                term_name=term.name,
-                number=found if isinstance(found, int) else None,
-                break_name=found.name if isinstance(found, BreakSpan) else None,
-            )
-            break
-    return Today(
-        day=day,
-        timezone=program.timezone,
-        week=week,
-        items=[o for o in items if o.kind in ("class", "event") and o.start_at < tomorrow],
-        upcoming=[
-            o
-            for o in items
-            if o.kind in ("deadline", "task") and o.status != "done" and o.start_at >= q.range_start
-        ],
-        tasks=[
-            o
-            for o in items
-            if o.kind == "task" and (o.status == "overdue" or o.start_at < tomorrow)
-        ],
-    )
+    # Read-only: terms and courses are read once for the sources and the week.
+    with academics.read_memo():
+        program = await academics.get_program_row(ctx, program_id)
+        tz = _tz(program)
+        day = academics.program_today(ctx, program)
+        q = OccurrenceQuery(
+            program_id=program.id,
+            range_start=rules.local_midnight(day, tz),
+            range_end=rules.local_midnight(day + timedelta(days=UPCOMING_DAYS), tz),
+            include_overdue=True,
+        )
+        items = await collect(ctx, q)
+        tomorrow = rules.local_midnight(day + timedelta(days=1), tz)
+        week: TodayWeek | None = None
+        for term in await academics.program_terms(ctx, program.id):
+            if term.start_date <= day <= term.end_date:
+                found = await academics.term_week_of(ctx, term, day)
+                week = TodayWeek(
+                    term_id=term.id,
+                    term_name=term.name,
+                    number=found if isinstance(found, int) else None,
+                    break_name=found.name if isinstance(found, BreakSpan) else None,
+                )
+                break
+        return Today(
+            day=day,
+            timezone=program.timezone,
+            week=week,
+            items=[o for o in items if o.kind in ("class", "event") and o.start_at < tomorrow],
+            upcoming=[
+                o
+                for o in items
+                if o.kind in ("deadline", "task")
+                and o.status != "done"
+                and o.start_at >= q.range_start
+            ],
+            tasks=[
+                o
+                for o in items
+                if o.kind == "task" and (o.status == "overdue" or o.start_at < tomorrow)
+            ],
+        )
 
 
 # --- feeds ----------------------------------------------------------------------------------

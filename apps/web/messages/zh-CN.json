@@ -1966,6 +1966,7 @@
   "error_import_no_content": "文件中没有找到可用的信息",
   "error_import_session_not_ready": "这次导入还在读取中",
   "error_import_session_closed": "这次导入已经结束",
+  "error_import_file_too_complex": "{filename} 太大或太复杂，无法处理",
   "error_import_file_unsupported": "无法读取 {filename}",
   "error_import_target_unavailable": "暂时无法保存这类内容",
   "error_import_extraction_failed": "读取文件失败",

@@ -157,3 +157,36 @@ def test_cost_comes_from_genai_prices():
     assert catalog.context_window("claude-opus-5-5") == 200_000
     assert catalog.context_window("mystery") == 32_000
     assert catalog.default_model("anthropic", "embedding") is None
+
+
+async def test_days_follow_daylight_saving_time(ai: Ai, app: FastAPI):
+    # Toronto moves from UTC-5 to UTC-4 at 07:00 UTC on 2026-03-08.
+    uid = ai.user.id
+    await add_event(app, uid, datetime(2026, 3, 8, 4, 30, tzinfo=UTC))  # 23:30 on Mar 7
+    await add_event(app, uid, datetime(2026, 3, 9, 4, 30, tzinfo=UTC))  # 00:30 on Mar 9
+    await add_event(app, uid, datetime(2026, 11, 1, 5, 30, tzinfo=UTC))  # 01:30 EDT on Nov 1
+    await add_event(app, uid, datetime(2026, 11, 2, 4, 30, tzinfo=UTC))  # 23:30 EST on Nov 1
+    summary = await ai.call(
+        "GET",
+        "/ai/usage",
+        params={"start": "2026-03-01", "end": "2026-11-30", "tz": "America/Toronto"},
+    )
+    assert [(d["date"], d["calls"]) for d in summary["by_day"]] == [
+        ("2026-03-07", 1),
+        ("2026-03-09", 1),
+        ("2026-11-01", 2),
+    ]
+
+
+async def test_days_change_offset_on_the_exact_second(ai: Ai, app: FastAPI):
+    # Santiago goes from UTC-3 back to UTC-4 at 03:00 UTC on 2026-04-05, at local midnight:
+    # half a second later it is 23:00 on Apr 4 again, not 00:00 on Apr 5.
+    uid = ai.user.id
+    await add_event(app, uid, datetime(2026, 3, 1, tzinfo=UTC))
+    await add_event(app, uid, datetime(2026, 4, 5, 3, 0, 0, 500_000, tzinfo=UTC))
+    summary = await ai.call(
+        "GET",
+        "/ai/usage",
+        params={"start": "2026-04-04", "end": "2026-04-05", "tz": "America/Santiago"},
+    )
+    assert [(d["date"], d["calls"]) for d in summary["by_day"]] == [("2026-04-04", 1)]
