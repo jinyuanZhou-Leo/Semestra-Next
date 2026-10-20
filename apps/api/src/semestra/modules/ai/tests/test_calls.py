@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 import respx
 from fastapi import FastAPI
+from genai_prices import Usage, calc_price
 from httpx import Response
 from pydantic import BaseModel
 from pydantic_ai.direct import model_request_stream
@@ -181,7 +182,16 @@ async def test_anthropic_message_conversion_and_usage(ai: Ai, app: FastAPI, mock
         "test",
     )
     assert (row.input_tokens, row.output_tokens, row.cached_tokens) == (20, 3, 8)
-    assert row.cost_usd_estimate == pytest.approx((20 * 3 + 3 * 15) / 1_000_000)
+
+    # Priced by genai-prices, with the 8 cached tokens at the cheaper cache-read rate.
+    def price(cached: int) -> float:
+        usage = Usage(input_tokens=20, cache_read_tokens=cached, output_tokens=3)
+        return round(
+            float(calc_price(usage, "claude-sonnet-5-5", provider_id="anthropic").total_price), 6
+        )
+
+    assert row.cost_usd_estimate == pytest.approx(price(8))
+    assert price(8) < price(0)
 
 
 async def test_retries_rate_limits_then_succeeds(ai: Ai, mock: respx.MockRouter):

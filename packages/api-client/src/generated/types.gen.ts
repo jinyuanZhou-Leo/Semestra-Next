@@ -4539,6 +4539,12 @@ export type ImportSessionDetail = {
      * Items
      */
     items: Array<ImportItem>;
+    /**
+     * Next Cursor
+     *
+     * More items: pass it as `cursor` to imports.session.get
+     */
+    next_cursor?: string | null;
 };
 
 /**
@@ -9342,6 +9348,10 @@ export type UsageDay = {
      */
     purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
     /**
+     * Calls
+     */
+    calls: number;
+    /**
      * Input Tokens
      */
     input_tokens: number;
@@ -9353,6 +9363,10 @@ export type UsageDay = {
      * Cost Usd
      */
     cost_usd: number | null;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**
@@ -9387,6 +9401,10 @@ export type UsageRow = {
      * Key
      */
     key: string;
+    /**
+     * Cost Complete
+     */
+    cost_complete: boolean;
 };
 
 /**
@@ -9397,6 +9415,10 @@ export type UsageSummary = {
      * Since
      */
     since: string;
+    /**
+     * Until
+     */
+    until: string;
     totals: UsageTotals;
     /**
      * Cost Complete
@@ -12336,9 +12358,21 @@ export type AiUsageSummaryData = {
         /**
          * Days
          *
-         * How many days back to summarise.
+         * How many days back to summarise, today included; omit for all time.
          */
-        days?: number;
+        days?: number | null;
+        /**
+         * Start
+         *
+         * First local day to summarise; overrides `days`.
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Last local day to summarise (inclusive); defaults to today.
+         */
+        end?: string | null;
         /**
          * Tz
          *
@@ -14103,7 +14137,38 @@ export type ImportsSessionGetData = {
          */
         session_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Item Ids
+         *
+         * Only these items
+         */
+        item_ids?: Array<string> | null;
+        /**
+         * Types
+         *
+         * Only items of these types
+         */
+        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+        /**
+         * Fields
+         *
+         * Agent/MCP only: return just these fields of each item (and its id); by default type, data, decision, issues and result
+         */
+        fields?: Array<'session_id' | 'type' | 'data' | 'evidence' | 'confidence' | 'decision' | 'issues' | 'depends_on' | 'result' | 'position'> | null;
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous page
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         *
+         * Items per page (agent/MCP default 25; HTTP: all)
+         */
+        limit?: number | null;
+    };
     url: '/imports/{session_id}';
 };
 

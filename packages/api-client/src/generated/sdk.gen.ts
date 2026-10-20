@@ -835,7 +835,7 @@ export const aiStatus = <ThrowOnError extends boolean = false>(options?: Options
 /**
  * Token use and estimated cost by day, purpose, module and model.
  *
- * Defaults to the last 30 days. Not for agents.
+ * Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.
  */
 export const aiUsageSummary = <ThrowOnError extends boolean = false>(options?: Options<AiUsageSummaryData, ThrowOnError>): RequestResult<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError> => (options?.client ?? client).get<AiUsageSummaryResponses, AiUsageSummaryErrors, ThrowOnError>({ url: '/ai/usage', ...options });
 
@@ -1341,7 +1341,7 @@ export const habitStats = <ThrowOnError extends boolean = false>(options: Option
  * Edit an import item's fields or accept/reject it.
  *
  * `data` is merged into the item (send null to clear a field); the item's issues
- * are checked again afterwards.
+ * are checked again afterwards. The assistant gets the session's `summary` and the changed item.
  */
 export const importsItemUpdate = <ThrowOnError extends boolean = false>(options: Options<ImportsItemUpdateData, ThrowOnError>): RequestResult<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError>({
     url: '/imports/{session_id}/items/{item_id}',
@@ -1355,7 +1355,8 @@ export const importsItemUpdate = <ThrowOnError extends boolean = false>(options:
 /**
  * Accept or reject many import items at once, by type, issue or id.
  *
- * E.g. reject every item with `import.duplicate_assessment`.
+ * E.g. reject every item with `import.duplicate_assessment`. The assistant gets
+ * `changed` and the session's `summary`, without its items.
  */
 export const importsItemsBulkDecide = <ThrowOnError extends boolean = false>(options: Options<ImportsItemsBulkDecideData, ThrowOnError>): RequestResult<ImportsItemsBulkDecideResponses, ImportsItemsBulkDecideErrors, ThrowOnError> => (options.client ?? client).post<ImportsItemsBulkDecideResponses, ImportsItemsBulkDecideErrors, ThrowOnError>({
     url: '/imports/{session_id}/items:decide',
@@ -1371,7 +1372,7 @@ export const importsItemsBulkDecide = <ThrowOnError extends boolean = false>(opt
  *
  * Only after the user reviewed the import. Writes in dependency order; one item
  * failing does not undo the others (see each item's `result`). Repeating it only retries the
- * items that have not been written.
+ * items that have not been written. The assistant gets the counts and the items that failed.
  */
 export const importsSessionCommit = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCommitData, ThrowOnError>): RequestResult<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError>({
     url: '/imports/{session_id}:commit',
@@ -1397,7 +1398,8 @@ export const importsSessionList = <ThrowOnError extends boolean = false>(options
  * the assistant conversation (`attachment_ids`), or `text`.
  * ICS is parsed at once (status ready); the other sources are extracted in the background
  * (status extracting → ready), poll imports.session.get. Never write a document's contents with
- * the modules' own create capabilities instead of importing it.
+ * the modules' own create capabilities instead of importing it. The assistant gets `summary` and the
+ * first 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreate = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCreateData, ThrowOnError>): RequestResult<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError>({
     url: '/programs/{program_id}/imports',
@@ -1419,7 +1421,9 @@ export const importsSessionDiscard = <ThrowOnError extends boolean = false>(opti
  * An import with its items, their issues and the extraction progress.
  *
  * Use to see what an import found (courses, assessments, meetings...) and what
- * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates).
+ * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
+ * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types`
+ * and `fields`; items come 25 at a time, follow `next_cursor` for more.
  */
 export const importsSessionGet = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionGetData, ThrowOnError>): RequestResult<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError>({ url: '/imports/{session_id}', ...options });
 

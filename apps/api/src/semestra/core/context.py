@@ -79,6 +79,9 @@ class Ctx:
     actor: Actor
     request_id: str
     auth: AuthInfo | None = field(default=None)
+    # Where the running capability was called from ("http", "agent", "mcp"); set by
+    # `Registry.invoke`. Output shaping keys on this, not on `actor`: a token over HTTP is "mcp".
+    surface: str = "http"
     # Side effects (emails, ...) to run once the transaction has been committed.
     after_commit: list[Callable[[], Awaitable[None]]] = field(default_factory=lambda: [])
     # `app.state`: settings, session factory and module runtimes (mailer, ...) hang off it.

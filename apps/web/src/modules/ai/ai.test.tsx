@@ -13,7 +13,7 @@ import { Button } from '@/ui/button'
 import { Toaster } from '@/ui/sonner'
 import { ModelsSection } from './settings/ModelsSection'
 import { ProvidersSection } from './settings/ProvidersSection'
-import { UsageSection } from './settings/UsageSection'
+import { UsageSection, buckets } from './settings/UsageSection'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -389,7 +389,8 @@ test('each purpose shows the model in use and can be switched to another model',
 })
 
 const usage: UsageSummary = {
-  since: '2026-01-01T00:00:00Z',
+  since: '2025-12-17T00:00:00Z',
+  until: '2026-01-15',
   totals: {
     calls: 12,
     errors: 1,
@@ -403,16 +404,20 @@ const usage: UsageSummary = {
     {
       date: '2026-01-14',
       purpose: 'chat',
+      calls: 10,
       input_tokens: 30_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       date: '2026-01-15',
       purpose: 'extraction',
+      calls: 2,
       input_tokens: 10_000,
       output_tokens: 1_000,
       cost_usd: null,
+      cost_complete: false,
     },
   ],
   by_purpose: [
@@ -424,6 +429,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       key: 'extraction',
@@ -433,6 +439,7 @@ const usage: UsageSummary = {
       cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: null,
+      cost_complete: false,
     },
   ],
   by_module: [
@@ -444,6 +451,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 5_000,
       cost_usd: 0.21,
+      cost_complete: false,
     },
   ],
   by_model: [
@@ -455,6 +463,7 @@ const usage: UsageSummary = {
       cached_tokens: 10_000,
       output_tokens: 4_000,
       cost_usd: 0.2,
+      cost_complete: true,
     },
     {
       key: 'ollama/qwen3:8b',
@@ -464,28 +473,28 @@ const usage: UsageSummary = {
       cached_tokens: 0,
       output_tokens: 1_000,
       cost_usd: 0,
+      cost_complete: true,
     },
   ],
 }
 
 test('usage shows totals, a chart per day and a table that can be grouped and sorted', async () => {
-  let query: URLSearchParams | undefined
+  const queries: URLSearchParams[] = []
   server.use(
     http.get(`${API}/ai/usage`, ({ request }) => {
-      query = new URL(request.url).searchParams
+      queries.push(new URL(request.url).searchParams)
       return HttpResponse.json(usage)
     }),
   )
   const user = userEvent.setup()
-  renderWithQuery(<UsageSection />)
+  const { container } = renderWithQuery(<UsageSection />)
   expect(await screen.findByText('at least $0.21')).toBeInTheDocument()
   // Over the chat calls only: 10k of their 30k input tokens came from the prompt cache.
   expect(screen.getByText('Cache hit rate').nextSibling).toHaveTextContent('33.3%')
-  expect(query?.get('days')).toBe('30')
-  expect(query?.get('tz')).toBeTruthy()
-  expect(
-    within(screen.getByRole('list', { name: 'Tokens per day' })).getAllByRole('listitem'),
-  ).toHaveLength(30)
+  expect(queries[0]?.get('days')).toBe('30')
+  expect(queries[0]?.get('tz')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Tokens per day' })).toBeInTheDocument()
+  expect(container.querySelector('[data-slot="chart"]')).toBeInTheDocument()
 
   // The table is remounted per grouping, so look it up each time.
   const rows = () =>
@@ -504,6 +513,47 @@ test('usage shows totals, a chart per day and a table that can be grouped and so
     'claude-sonnet-5-5 (Anthropic)10 (1 failed)34,000$0.20',
     'qwen3:8b (Ollama)211,000$0.00',
   ])
+
+  await user.click(screen.getByRole('button', { name: 'All time' }))
+  await waitFor(() => expect(queries.at(-1)?.has('days')).toBe(false))
+  await user.click(screen.getByRole('button', { name: '7 days' }))
+  await waitFor(() => expect(queries.at(-1)?.get('days')).toBe('7'))
+})
+
+test('usage bars are days, or weeks over long ranges, with tokens per purpose', () => {
+  const days = buckets(usage)
+  expect(days).toHaveLength(30)
+  expect(days.at(-2)).toMatchObject({
+    start: '2026-01-14',
+    end: '2026-01-14',
+    chat: 34_000,
+    tokens: 34_000,
+    calls: 10,
+    cost: 0.2,
+    costComplete: true,
+  })
+  expect(days.at(-1)).toMatchObject({ extraction: 11_000, cost: null, costComplete: false })
+  expect(days[0]).not.toHaveProperty('chat')
+
+  // 2025-06-01 is a Sunday, the first day of the week in English.
+  const weeks = buckets({ ...usage, since: '2025-06-01T00:00:00Z' })
+  expect(weeks[0]).toMatchObject({ start: '2025-06-01', end: '2025-06-07' })
+  // A first call midweek: the first bar starts that day and ends with its week.
+  const midweek = buckets({ ...usage, since: '2025-06-04T00:00:00Z' })
+  expect(midweek[0]).toMatchObject({ start: '2025-06-04', end: '2025-06-07' })
+  expect(midweek[1]).toMatchObject({ start: '2025-06-08', end: '2025-06-14' })
+  // Jan 14 and 15 fall in the last, partial week.
+  expect(weeks.at(-1)).toMatchObject({ end: '2026-01-15', tokens: 45_000, calls: 12 })
+})
+
+test('usage over a long range is drawn a week per bar', async () => {
+  server.use(
+    http.get(`${API}/ai/usage`, () =>
+      HttpResponse.json({ ...usage, since: '2025-06-01T00:00:00Z' }),
+    ),
+  )
+  renderWithQuery(<UsageSection />)
+  expect(await screen.findByRole('heading', { name: 'Tokens per week' })).toBeInTheDocument()
 })
 
 test('usage without any requests says so', async () => {
@@ -522,5 +572,8 @@ test('usage without any requests says so', async () => {
   )
   renderWithQuery(<UsageSection />)
   expect(await screen.findByText('No AI requests in the last 30 days.')).toBeInTheDocument()
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  await userEvent.setup().click(screen.getByRole('button', { name: 'All time' }))
+  expect(await screen.findByText('No AI requests yet.')).toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
 })

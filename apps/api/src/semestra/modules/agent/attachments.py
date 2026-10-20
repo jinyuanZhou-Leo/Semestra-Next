@@ -41,7 +41,8 @@ READ_MAX_CHARS = 40_000
 # a single page is cut here too.
 PAGE_MAX_CHARS = 20_000
 ICS_NOTE = (
-    "Calendar file: its text is not shown. To import its classes, pass this attachment id to "
+    "Calendar file, as Semestra's calendar reader understands it: one page per course, in the "
+    "Program's local time. To import its classes, pass this attachment id to "
     "imports.session.create with source_kind ics."
 )
 SCANNED_NOTE = (
@@ -191,6 +192,15 @@ async def cleanup_unsent(ctx: Ctx) -> None:
 # --- capability -----------------------------------------------------------------------------
 
 
+@dataclass
+class _Page:
+    """A page made when it is read (a calendar's), shaped like a stored one."""
+
+    page_no: int
+    markdown: str
+    needs_ocr: bool = False
+
+
 class AttachmentReadInput(BaseModel):
     attachment_id: str = Field(description="Attachment id from the <attachment> block")
     page_from: int = Field(default=1, ge=1, description="First page to read")
@@ -230,8 +240,9 @@ class AttachmentRead(BaseModel):
     summary="Read pages of a file the user attached to the conversation.",
     description=f"""Returns the text of up to {READ_MAX_PAGES} pages as markdown, starting at
 page_from; when next_page is set, call again from there for more. Use the attachment id from the
-<attachment> block. To import courses, grades or a timetable from an attachment, pass its id to
-imports.session.create instead of copying its text.""",
+<attachment> block. A calendar (ICS) file reads as one page per course: its sections, times,
+rooms and dates without class. To import courses, grades or a timetable from an attachment, pass
+its id to imports.session.create instead of copying its text.""",
     effect="read",
     expose=("agent",),
     tags=("agent",),
@@ -239,11 +250,27 @@ imports.session.create instead of copying its text.""",
 )
 async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
     row = await get_owned(ctx, inp.attachment_id)
-    total = row.page_count or 0
+    error = row.parse_error
+    if row.doc_kind == "ics":
+        from semestra.modules.agent import attachment_context
+
+        parsed = await attachment_context.calendar(ctx, row)
+        if parsed is None:
+            error = "files.parse_failed"
+        texts = parsed.pages if parsed is not None else []
+        made = [_Page(n, t) for n, t in enumerate(texts, start=1)]
+        total = len(made)
+    else:
+        made = None
+        total = row.page_count or 0
     last = min(inp.page_to or total, inp.page_from + READ_MAX_PAGES - 1, total)
+    if made is not None:
+        chosen = made[inp.page_from - 1 : last]
+    else:
+        chosen = await pages(ctx, row.id, inp.page_from, last)
     out: list[AttachmentPageOut] = []
     size = 0
-    for page in await pages(ctx, row.id, inp.page_from, last):
+    for page in chosen:
         # Stop early rather than flood the context; next_page picks up from here.
         if out and size + len(page.markdown) > READ_MAX_CHARS:
             last = page.page_no - 1
@@ -261,7 +288,6 @@ async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
     note = ICS_NOTE if row.doc_kind == "ics" else None
     if scanned := [p.page_no for p in out if p.needs_ocr and not p.markdown.strip()]:
         note = SCANNED_NOTE.format(pages=", ".join(map(str, scanned)))
-    error = row.parse_error
     if row.doc_kind is None:
         error = "agent.attachment_not_read"  # uploaded before attachments were parsed
     return AttachmentRead(

@@ -386,6 +386,7 @@ class _Acc:
         self.cached_tokens = 0
         self.output_tokens = 0
         self.cost: float | None = None
+        self.cost_complete = True
 
     def add(self, row: Any) -> None:
         self.calls += 1
@@ -395,6 +396,8 @@ class _Acc:
         self.output_tokens += row.output_tokens
         if row.cost_usd_estimate is not None:
             self.cost = round((self.cost or 0.0) + row.cost_usd_estimate, 6)
+        elif row.input_tokens or row.output_tokens:
+            self.cost_complete = False
 
     def totals(self) -> UsageTotals:
         return UsageTotals(
@@ -407,7 +410,7 @@ class _Acc:
         )
 
     def row(self, key: str) -> UsageRow:
-        return UsageRow(key=key, **self.totals().model_dump())
+        return UsageRow(key=key, cost_complete=self.cost_complete, **self.totals().model_dump())
 
 
 def _rows(groups: dict[str, _Acc]) -> list[UsageRow]:
@@ -423,28 +426,33 @@ async def usage_summary(ctx: Ctx, inp: UsageInput) -> UsageSummary:
     except ZoneInfoNotFoundError, ValueError:
         raise _invalid("tz", "timezone") from None
     today = ctx.now.astimezone(tz).date()
-    start_day = today - timedelta(days=inp.days - 1)
-    since = datetime.combine(start_day, time.min, tz)
-    result = await ctx.db.execute(
-        select(
-            AiUsageEvent.created_at,
-            AiUsageEvent.purpose,
-            AiUsageEvent.source_module,
-            AiUsageEvent.provider_kind,
-            AiUsageEvent.model,
-            AiUsageEvent.status,
-            AiUsageEvent.input_tokens,
-            AiUsageEvent.cached_tokens,
-            AiUsageEvent.output_tokens,
-            AiUsageEvent.cost_usd_estimate,
-        ).where(AiUsageEvent.user_id == ctx.user_id, AiUsageEvent.created_at >= since)
+    end_day = inp.end or today
+    start_day = inp.start or (end_day - timedelta(days=inp.days - 1) if inp.days else None)
+    if start_day is not None and start_day > end_day:
+        raise _invalid("start", "after_end")
+    query = select(
+        AiUsageEvent.created_at,
+        AiUsageEvent.purpose,
+        AiUsageEvent.source_module,
+        AiUsageEvent.provider_kind,
+        AiUsageEvent.model,
+        AiUsageEvent.status,
+        AiUsageEvent.input_tokens,
+        AiUsageEvent.cached_tokens,
+        AiUsageEvent.output_tokens,
+        AiUsageEvent.cost_usd_estimate,
+    ).where(
+        AiUsageEvent.user_id == ctx.user_id,
+        AiUsageEvent.created_at < datetime.combine(end_day + timedelta(days=1), time.min, tz),
     )
+    if start_day is not None:
+        query = query.where(AiUsageEvent.created_at >= datetime.combine(start_day, time.min, tz))
+    result = await ctx.db.execute(query)
     total = _Acc()
     days: defaultdict[tuple[Any, str], _Acc] = defaultdict(_Acc)
     purposes: defaultdict[str, _Acc] = defaultdict(_Acc)
     modules: defaultdict[str, _Acc] = defaultdict(_Acc)
     models: defaultdict[str, _Acc] = defaultdict(_Acc)
-    complete = True
     for row in result:
         day = row.created_at.astimezone(tz).date()
         total.add(row)
@@ -452,22 +460,25 @@ async def usage_summary(ctx: Ctx, inp: UsageInput) -> UsageSummary:
         purposes[row.purpose].add(row)
         modules[row.source_module].add(row)
         models[f"{row.provider_kind}/{row.model}"].add(row)
-        if row.cost_usd_estimate is None and (row.input_tokens or row.output_tokens):
-            complete = False
     by_day = [
         UsageDay(
             date=day,
             purpose=purpose,  # pyright: ignore[reportArgumentType]
+            calls=acc.calls,
             input_tokens=acc.input_tokens,
             output_tokens=acc.output_tokens,
             cost_usd=acc.cost,
+            cost_complete=acc.cost_complete,
         )
         for (day, purpose), acc in sorted(days.items())
     ]
+    if start_day is None:
+        start_day = min((day for day, _ in days), default=end_day)
     return UsageSummary(
-        since=since,
+        since=datetime.combine(start_day, time.min, tz),
+        until=end_day,
         totals=total.totals(),
-        cost_complete=complete,
+        cost_complete=total.cost_complete,
         by_day=by_day,
         by_purpose=_rows(purposes),
         by_module=_rows(modules),
