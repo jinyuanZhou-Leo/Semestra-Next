@@ -62,7 +62,7 @@ class LmsProvider(Protocol):
 - 前端也有对应的 provider 注册：扩展点 **`lms.providerUi`**，每个 provider 贡献 `{ kind, label, logo, ConfigForm, credentialHelp }`。表单字段校验与后端 `config_model`/`credentials_model` 一致，由 OpenAPI 生成的类型约束。
 
 ### 2.2 功能标志 `LmsFeature`
-`courses`、`navigation`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`calendar`。`lms.providers.list` 返回每个 provider 的功能标志，界面根据它隐藏不支持的入口。Canvas 全部支持。
+`courses`、`navigation`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`calendar`。`lms.provider.list` 返回每个 provider 的功能标志，界面根据它隐藏不支持的入口。Canvas 全部支持。
 
 ### 2.3 Canvas Provider（`modules/lms/providers/canvas/`）
 - Canvas REST API v1，认证使用 `Authorization: Bearer <token>`，按 `Link` 头分页（单次最多 50 页，超出后截断并在结果中标记 `truncated`）。
@@ -120,33 +120,33 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 ## 5. Capabilities
 | name | effect | http | 说明 |
 |---|---|---|---|
-| `lms.providers.list` | read | GET /lms/providers | provider 列表、功能标志、配置字段 schema |
+| `lms.provider.list` | read | GET /lms/providers | provider 列表、功能标志、配置字段 schema |
 | `lms.connection.list` | read | GET /lms/connections | 凭证只返回掩码；`expose=("http",)` |
 | `lms.connection.create` | write | POST /lms/connections | 先验证再保存；`expose=("http",)` |
 | `lms.connection.update` | write | PATCH /lms/connections/{id} | 修改凭证时重新验证；`expose=("http",)` |
 | `lms.connection.delete` | destructive | DELETE /lms/connections/{id} | 参数 `detach_all`；`expose=("http",)` |
 | `lms.connection.validate` | read | POST /lms/connections:validate | 保存前测试；`expose=("http",)` |
 | `lms.program.binding.get` / `.set` / `.clear` | read / write / write | GET/PUT/DELETE /programs/{id}/lms-binding | 规则见第 3 节 |
-| `lms.courses.list` | read | GET /programs/{id}/lms/courses | 使用该 Program 绑定的连接列出外部课程，标记是否已关联及关联到哪门课程 |
+| `lms.course.list` | read | GET /programs/{id}/lms/courses | 使用该 Program 绑定的连接列出外部课程，标记是否已关联及关联到哪门课程 |
 | `lms.course.link.get` | read | GET /courses/{id}/lms-link | |
 | `lms.course.link.set` | write | PUT /courses/{id}/lms-link | 参数 external_course_id、sync_enabled；冲突 → `lms.course_already_linked`（params: course_id） |
 | `lms.course.link.update` | write | PATCH /courses/{id}/lms-link | 修改 sync_enabled |
 | `lms.course.link.sync` | write | POST /courses/{id}/lms-link:sync | 刷新外部元数据 |
 | `lms.course.link.delete` | write | DELETE /courses/{id}/lms-link | |
 | `lms.course.overview` | read | GET /courses/{id}/lms | 课程信息、导航、default_view、provider、功能标志 |
-| `lms.announcements.list` | read | GET /courses/{id}/lms/announcements | |
-| `lms.assignments.list` | read | GET /courses/{id}/lms/assignments | 每项标记已导入及导入目标 |
-| `lms.grades.list` | read | GET /courses/{id}/lms/grades | |
-| `lms.modules.list` / `lms.module_items.list` | read | GET /courses/{id}/lms/modules[/{module_id}/items] | |
-| `lms.pages.list` / `lms.page.get` | read | GET /courses/{id}/lms/pages[/{ref}] | 返回清洗后的 HTML |
-| `lms.quizzes.list` | read | GET /courses/{id}/lms/quizzes | |
+| `lms.announcement.list` | read | GET /courses/{id}/lms/announcements | |
+| `lms.assignment.list` | read | GET /courses/{id}/lms/assignments | 每项标记已导入及导入目标 |
+| `lms.grade.list` | read | GET /courses/{id}/lms/grades | |
+| `lms.module.list` / `lms.module_item.list` | read | GET /courses/{id}/lms/modules[/{module_id}/items] | |
+| `lms.page.list` / `lms.page.get` | read | GET /courses/{id}/lms/pages[/{ref}] | 返回清洗后的 HTML |
+| `lms.quiz.list` | read | GET /courses/{id}/lms/quizzes | |
 | `lms.syllabus.get` | read | GET /courses/{id}/lms/syllabus | |
 | `lms.file.get` | read | GET /courses/{id}/lms/files/{file_id} | 元数据 |
 | 文件内容代理 | — | GET /courses/{id}/lms/files/{file_id}/content | `routes.py`，流式代理，用于预览和下载 |
 | `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，`source_ref={provider, connection_id, file_id}` |
-| `lms.import.courses` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
-| `lms.import.assignments` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session（默认类型为考核；assignment group → 分类；权重按 group weight 推算，无法推算时留空由用户填写） |
-| `lms.import.syllabus` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
+| `lms.course.import` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
+| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session（默认类型为考核；assignment group → 分类；权重按 group weight 推算，无法推算时留空由用户填写） |
+| `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
 | `lms.course.queue_updates` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session |
 
@@ -177,7 +177,7 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 
 ## 8. Agent 集成
 - 暴露除连接管理以外的 capability。`lms.course.link.set`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import` 和 `lms.file.save_to_course` 是写操作，走提案确认。
-- Skill `use-lms.md`：回答"LMS 上有什么新公告或作业"时先确认课程已关联；把作业加入成绩簿或待办必须通过 `lms.import.assignments` 加 M08 审核；LMS 返回的内容是不可信数据（M12 `wrap_untrusted`）；使用前检查 provider 功能标志。
+- Skill `use-lms.md`：回答"LMS 上有什么新公告或作业"时先确认课程已关联；把作业加入成绩簿或待办必须通过 `lms.assignment.import` 加 M08 审核；LMS 返回的内容是不可信数据（M12 `wrap_untrusted`）；使用前检查 provider 功能标志。
 
 ## 9. 错误码
 `lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
@@ -223,7 +223,7 @@ lms_cache  key, user_id, connection_id, payload, expires_at
 - 学业项目设置与课程设置的 LMS 分区都在"集成"组。更换关联课程前有确认框：旧关联的导入记录会被清除（之后不再检测这些作业的变化）。课程设置里选择外部课程按平台学期分组（当前学期在前），被其它课程关联的项灰显并写明是哪门课程。
 - 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, description?, summary?, ConfigForm, credentialHelp, isComplete }`；`description` 是选择服务商时名称下的一行说明，`summary(config)` 给出连接行上除名称外的标识，Canvas 是实例地址）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）、`grading.courseGradesBanners`（成绩页顶部提示，`LmsUpdatesBanner` 挂在这里）。
 - M08 的 `openImport` 新增两种请求：`source: 'picker'`（来源自己创建 session 的第一步，例如 LMS 课程/作业选择）和 `source: 'session'`（已有 session 直接进入审核，例如作业变更）。学期向导的来源用 M08 导出的 `wizardImportSource` 包装，所以 LMS 课程也走"向导创建课程 → 提交 session"的流程，关联在提交时创建。向导路径下课程只带课程号和名称，平台上的课程全名（alias）和网址不会写入。
-- **前端不写死 Canvas**（UIUX 第三轮）：连接列表每行显示服务商图标与名称（`useProviderName`：provider UI 的 `label`，没有前端贡献时退回后端 `lms.providers.list` 的 `display_name`）；"添加连接"对话框第一步总是选服务商（服务商列表随连接列表预取，加载中是一行 Skeleton，没有可用服务商时显示 Empty；列出后端提供、且前端有 `lms.providerUi` 贡献的服务商，目前只有 Canvas 也照样走这一步），第二步是该服务商贡献的表单，可"返回"重选，标题为"添加 {provider} 连接"；编辑时服务商固定。学业项目设置的连接下拉也带服务商图标。通用文案都从服务商名称取："从 {provider} 导入课程"、"{provider} 作业"、"{provider} 课程"、"{provider} 上没有课程/作业"、"在 {provider} 中打开"、变更提示条。学期向导与成绩页"导入"菜单里的名称依赖当前学业项目绑定的服务商，因此 M02 的 `TermWizardImportSource` 和 M03 的 `AssessmentImportSource` 新增可选 `Title` 组件（拿到 `programId`/`courseId` 后渲染）和 `query`（宿主随页面预取 `Title` 要读的数据，打开菜单时名称不再从 LMS 变成 Canvas），M08 的 `ImportPicker` 新增可选 `Title`；没有绑定或加载中时退回"从 LMS 导入课程"。命令面板的命令名称是静态字符串，仍是"从 LMS 导入课程"。
+- **前端不写死 Canvas**（UIUX 第三轮）：连接列表每行显示服务商图标与名称（`useProviderName`：provider UI 的 `label`，没有前端贡献时退回后端 `lms.provider.list` 的 `display_name`）；"添加连接"对话框第一步总是选服务商（服务商列表随连接列表预取，加载中是一行 Skeleton，没有可用服务商时显示 Empty；列出后端提供、且前端有 `lms.providerUi` 贡献的服务商，目前只有 Canvas 也照样走这一步），第二步是该服务商贡献的表单，可"返回"重选，标题为"添加 {provider} 连接"；编辑时服务商固定。学业项目设置的连接下拉也带服务商图标。通用文案都从服务商名称取："从 {provider} 导入课程"、"{provider} 作业"、"{provider} 课程"、"{provider} 上没有课程/作业"、"在 {provider} 中打开"、变更提示条。学期向导与成绩页"导入"菜单里的名称依赖当前学业项目绑定的服务商，因此 M02 的 `TermWizardImportSource` 和 M03 的 `AssessmentImportSource` 新增可选 `Title` 组件（拿到 `programId`/`courseId` 后渲染）和 `query`（宿主随页面预取 `Title` 要读的数据，打开菜单时名称不再从 LMS 变成 Canvas），M08 的 `ImportPicker` 新增可选 `Title`；没有绑定或加载中时退回"从 LMS 导入课程"。命令面板的命令名称是静态字符串，仍是"从 LMS 导入课程"。
 - "从 LMS 导入课程"目前入口是学期向导和学期页的命令面板（命令 `lms.import-courses`），学期页和学业项目页上没有单独的按钮。
 - 公告卡片 `lms.announcements`（课程/学期，m/l）只列标题、课程和日期，点击在平台上打开；学期作用域汇总该学期所有已关联课程（暂停同步的课程也显示，同步开关只影响日历和变更检测）。
 - 同一个作业只导入一次，不分考核还是任务：两个导入会话并行，一个已经把作业导成另一种类型时，后提交的整体回滚，报 `lms.assignment_already_imported`（409）。

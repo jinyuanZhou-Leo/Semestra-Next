@@ -79,14 +79,14 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 | `ai.provider.update` | write | PATCH /ai/providers/{id} | 更换 key 需重新验证 |
 | `ai.provider.delete` | destructive | DELETE /ai/providers/{id} | 同时删除引用它的 model assignment |
 | `ai.provider.test` | read | POST /ai/providers/{id}:test | |
-| `ai.provider.models` | read | GET /ai/providers/{id}/models | |
+| `ai.provider.list_models` | read | GET /ai/providers/{id}/models | |
 | `ai.assignment.get/update` | read/write | /ai/assignments | 每个 purpose 的模型选择 |
-| `ai.status` | read | GET /ai/status | 每个 purpose 是否可用、当前使用的模型（前端据此显示/禁用 AI 功能） |
-| `ai.usage.summary` | read | GET /ai/usage | 按日/按用途/按模块汇总 token 与估算费用，默认全部时间，可用 `days` 或 `start`/`end` 限定 |
+| `ai.status.get` | read | GET /ai/status | 每个 purpose 是否可用、当前使用的模型（前端据此显示/禁用 AI 功能） |
+| `ai.usage.summarize` | read | GET /ai/usage | 按日/按用途/按模块汇总 token 与估算费用，默认全部时间，可用 `days` 或 `start`/`end` 限定 |
 
 以上 capability 全部 `expose=("http",)`：密钥管理不对 agent/MCP 开放。
 
-事件：`ai.provider.created|updated|deleted`、`ai.assignment.updated`（payload: purpose；M07 订阅 embedding 变化以重建向量）。前端失效：`ai.*` → `aiStatus*`、`aiProvider*`、`aiAssignment*`。
+事件：`ai.provider.created|updated|deleted`、`ai.assignment.updated`（payload: purpose；M07 订阅 embedding 变化以重建向量）。前端失效：`ai.*` → `aiStatusGet*`、`aiProvider*`、`aiAssignment*`。
 
 ## 7. 前端
 - 账户设置的「AI」小标题下各占一页（M11 §5.2）：服务商、模型、用量（以及 M12 的权限、MCP 与工具）。
@@ -116,7 +116,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - `@pytest.mark.live` 的真实调用测试（读取环境变量中的 key），CI 默认跳过。
 
 ## 10. 验收
-- 用户填入 Anthropic 或 OpenAI key 后，`ai.status` 显示各用途可用，M08 的 syllabus 导入入口从引导卡片变为可用按钮。
+- 用户填入 Anthropic 或 OpenAI key 后，`ai.status.get` 显示各用途可用，M08 的 syllabus 导入入口从引导卡片变为可用按钮。
 - 删除提供方后相关功能立即回到引导状态。
 
 ## 实现说明（M06 落地时补充）
@@ -129,8 +129,8 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - `get_chat_model()` 是 async 的，返回本模块的 `ChatModel`（`complete(messages, tools)`、`stream(...)`、`supports_tools`、`provider_kind`、`model`），不是 LangChain 的 `BaseChatModel`；M12 在 LangGraph 节点里调用它即可，需要 LangChain 接口时由 M12 写一个薄适配。
 - 默认模型与上下文窗口用 TOML（`defaults.toml`，标准库 `tomllib` 读取），不用 YAML，原因同上；上下文窗口按模型名最长前缀匹配，未知模型按 32k 估算。
 - 费用估算（`catalog.estimate_cost`，2026-10-20 起替换手写的 `pricing.toml`）用 `genai-prices`（pydantic-ai 本来就依赖它，这里显式列出）：先按端点 base URL 认服务商（DeepSeek、OpenRouter 等兼容端点），认不出时第一方 kind 退回到自己的服务商（anthropic/openai/google）；缓存读取的 token 按缓存价；`genai_request_timestamp` 取调用时间。Ollama 记 0；其它找不到价格的模型记空。价格数据随库版本更新，不在运行时联网拉取；旧记录保留写入时的估算。
-- **实例级提供方不入库**：直接由 `SEMESTRA_INSTANCE_AI_*` 环境变量在解析时构造（`resolve.instance_endpoint`），所以 `ai_providers.user_id` 不可为空。实例级提供方没有 id，不出现在提供方列表里，`ai.status` 的 `source` 为 `instance`。
-- 解析规则实现为 `try_resolve` / `resolve_provider`；用户的提供方关闭或不具备能力时跳过；`ai.status` 解析时不解密 key。付费 plan 的预留分支以注释形式在 `resolve.py`。
+- **实例级提供方不入库**：直接由 `SEMESTRA_INSTANCE_AI_*` 环境变量在解析时构造（`resolve.instance_endpoint`），所以 `ai_providers.user_id` 不可为空。实例级提供方没有 id，不出现在提供方列表里，`ai.status.get` 的 `source` 为 `instance`。
+- 解析规则实现为 `try_resolve` / `resolve_provider`；用户的提供方关闭或不具备能力时跳过；`ai.status.get` 解析时不解密 key。付费 plan 的预留分支以注释形式在 `resolve.py`。
 - 能力：`anthropic`/`openai`/`gemini` 固定（`catalog.KIND_INFO`）；`anthropic_compatible`、`openai_compatible`、`openai_responses` 与 `ollama` 由用户勾选（默认分别为 chat+tools、chat+tools、chat+tools+structured、chat+tools+structured+embedding）。`capabilities_editable` 字段告诉前端能否修改。三种兼容 kind（`catalog.COMPATIBLE_KINDS`）没有推荐模型，模型列表取不到时允许手填。
 - Anthropic 兼容：base URL 填到 `/v1` 之前（如 `https://api.deepseek.com/anthropic`），带 `/v1` 也接受；有 key 时同时发 `x-api-key` 与 `Authorization: Bearer`（有的网关只认后者）。Responses API：请求带 `store: false`，每次发送完整对话；`reasoning_effort` 只发给 `openai` 与 `openai_responses`。
 - 推理内容（Claude thinking、Responses 的加密 reasoning item）作为不透明的 `Reasoning` 段随 `Completion.reasoning` 返回，调用方把它放回下一轮的助手消息；只回放给产生它的同一服务商与模型（`来源 = kind:provider_id:model`），其他情况丢弃。M12 把它存成 `reasoning` 块，不返回给前端。
@@ -141,7 +141,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 用量事件与提供方健康状态（`last_checked_at`、`last_error_code`）由 `AiRuntime`（`app.state.ai`）在后台任务里用独立会话写入，不受调用方事务回滚影响，SQLite 繁忙时重试 3 次；测试里用 `await app.state.ai.drain()` 等待。流式调用被中断时记 `ai.cancelled`。
 - 模型列表缓存 1 小时（进程内）；兼容端点不支持列出模型时 `manual_entry=true`，前端改为手填。
 - `ai.assignment.updated` 在某个用途的**实际生效模型**变化时发布（包括新增、删除、关闭提供方导致的变化），payload `{purpose}`；提供方事件 payload `{provider_id}`。
-- `ai.usage.summary` 参数 `days`（1–3660，不填为全部时间）、`start`/`end`（本地日期，含两端，`start` 优先于 `days`，`end` 默认今天）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `since`（全部时间时为第一次调用那天）、`until`、`totals`、`by_day`（日期×用途，含请求数与 `cost_complete`）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
+- `ai.usage.summarize` 参数 `days`（1–3660，不填为全部时间）、`start`/`end`（本地日期，含两端，`start` 优先于 `days`，`end` 默认今天）与 `tz`（IANA 时区，默认 UTC），按用户本地日期分组；返回 `since`（全部时间时为第一次调用那天）、`until`、`totals`、`by_day`（日期×用途，含请求数与 `cost_complete`）、`by_purpose`、`by_module`、`by_model`（键为 `kind/model`），`cost_complete=false` 表示有调用缺少价格。
 - 日志只记录长度与 token 数；`SEMESTRA_AI_DEBUG_LOG=true` 且非 prod 时把请求与输出写到 `DATA_DIR/ai-debug/`。
 - 新增环境变量已同步到 `deploy/.env.example` 与自部署 compose。
 
