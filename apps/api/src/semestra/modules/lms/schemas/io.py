@@ -311,13 +311,17 @@ class CoursesImportInput(BaseModel):
         min_length=1, max_length=50, description="External courses to import"
     )
     term_id: Id | None = Field(
-        default=None, description="Term the courses go into (not for the term wizard)"
+        default=None, description="Term the courses go into; agents create the term first"
     )
     term_wizard: bool = Field(
-        default=False, description="For the new-term wizard: the term is created afterwards"
+        default=False,
+        description="Only for the app's new-term wizard (the term is created afterwards); "
+        "agents cannot use it",
     )
-    start_date: date | None = Field(default=None, description="Wizard: first day of the term")
-    end_date: date | None = Field(default=None, description="Wizard: last day of the term")
+    start_date: date | None = Field(
+        default=None, description="App wizard only: first day of the term"
+    )
+    end_date: date | None = Field(default=None, description="App wizard only: last day of the term")
 
 
 class AssignmentsImportInput(BaseModel):

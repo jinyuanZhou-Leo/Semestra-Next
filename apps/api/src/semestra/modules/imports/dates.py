@@ -141,3 +141,23 @@ def last_week_until(day: date, weeks: Sequence[TermWeekSpan]) -> int | None:
     """The week `day` falls in, else the one before (a day in a break, or after the term);
     None before the term."""
     return next((w.number for w in reversed(weeks) if w.start_date <= day), None)
+
+
+def meeting_weeks(
+    first: date | None,
+    last: date | None,
+    start_week: int | None,
+    end_week: int | None,
+    weeks: Sequence[TermWeekSpan],
+) -> tuple[int | None, int | None, str | None]:
+    """A meeting's weeks in a term: explicit weeks win, else from its first and last dates.
+    The third value is the error code when that leaves no teaching week: dates that miss the
+    term (`import.outside_term`), or a range inside one break / reversed weeks
+    (`import.no_teaching_weeks`)."""
+    start = start_week or (first_week_from(first, weeks) if first else None)
+    end = end_week or (last_week_until(last, weeks) if last else None)
+    if (first and start is None) or (last and end is None):
+        return start, end, "import.outside_term"
+    if start and end and end < start:
+        return start, end, "import.no_teaching_weeks"
+    return start, end, None

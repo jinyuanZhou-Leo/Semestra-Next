@@ -792,6 +792,10 @@ async def test_meeting_outside_its_term_fails_instead_of_landing_in_week_one(
             "agent",
         )  # fmt: skip
         await ctx.db.commit()
+    # The review flags it before the commit; the commit still refuses it.
+    session = await api.call("GET", f"/imports/{session_id}")
+    meeting = by_type(session, "meeting")[0]
+    assert [i["code"] for i in meeting["issues"]] == ["import.outside_term"]
     done = await api.commit(session_id)
     assert (done["created"], done["failed"]) == (1, 1)
     failed = next(i for i in done["session"]["items"] if i["type"] == "meeting")
