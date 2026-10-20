@@ -25727,7 +25727,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           },
           "target": {
             "$ref": "#/components/schemas/SessionTarget",
-            "description": "Wizard, a term or a course"
+            "description": "A term or a course; agents cannot use the wizard"
           },
           "upload_ids": {
             "items": {
@@ -26010,7 +26010,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               "course"
             ],
             "title": "Kind",
-            "description": "Where the import goes"
+            "description": "Where the import goes: `term` or `course`; `term_wizard` is only for the app's new-term wizard"
           },
           "term_id": {
             "anyOf": [

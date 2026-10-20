@@ -7550,7 +7550,7 @@ export type SessionCreateInputBody = {
      */
     source_kind: 'ics' | 'syllabus' | 'timetable_image' | 'lms' | 'text' | 'agent';
     /**
-     * Wizard, a term or a course
+     * A term or a course; agents cannot use the wizard
      */
     target: SessionTarget;
     /**
@@ -7742,7 +7742,7 @@ export type SessionTarget = {
     /**
      * Kind
      *
-     * Where the import goes
+     * Where the import goes: `term` or `course`; `term_wizard` is only for the app's new-term wizard
      */
     kind: 'term_wizard' | 'term' | 'course';
     /**

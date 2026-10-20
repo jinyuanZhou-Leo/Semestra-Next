@@ -129,3 +129,15 @@ def week_of(day: date, weeks: Sequence[TermWeekSpan]) -> int | None:
         if week.start_date <= day <= week.end_date:
             return week.number
     return None
+
+
+def first_week_from(day: date, weeks: Sequence[TermWeekSpan]) -> int | None:
+    """The week `day` falls in, else the next one (a day in a break, or before the term);
+    None after the term."""
+    return next((w.number for w in weeks if w.end_date >= day), None)
+
+
+def last_week_until(day: date, weeks: Sequence[TermWeekSpan]) -> int | None:
+    """The week `day` falls in, else the one before (a day in a break, or after the term);
+    None before the term."""
+    return next((w.number for w in reversed(weeks) if w.start_date <= day), None)

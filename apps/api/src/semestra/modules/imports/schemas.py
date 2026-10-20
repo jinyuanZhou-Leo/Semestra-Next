@@ -236,7 +236,12 @@ class SourceRef(BaseModel):
 
 
 class SessionTarget(BaseModel):
-    kind: TargetKind = Field(description="Where the import goes")
+    kind: TargetKind = Field(
+        description=(
+            "Where the import goes: `term` or `course`; `term_wizard` is only for the app's "
+            "new-term wizard"
+        )
+    )
     term_id: Id | None = Field(default=None, description="Term (kind term, or course's term)")
     course_id: Id | None = Field(default=None, description="Course (kind course)")
     start_date: date | None = Field(
@@ -292,7 +297,7 @@ class Upload(BaseModel):
 class SessionCreateInput(BaseModel):
     program_id: Id = Field(description="Program id")
     source_kind: SourceKind = Field(description="ics, syllabus, timetable_image or text")
-    target: SessionTarget = Field(description="Wizard, a term or a course")
+    target: SessionTarget = Field(description="A term or a course; agents cannot use the wizard")
     upload_ids: list[Id] = Field(
         default_factory=list, max_length=20, description="Files from POST /imports/uploads"
     )

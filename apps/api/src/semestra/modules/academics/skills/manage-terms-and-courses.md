@@ -2,8 +2,8 @@
 name: manage-terms-and-courses
 title: { en: "Manage terms and courses", zh-CN: "管理学期与课程" }
 command: /terms
-description: Create terms, add courses, make a course year-long, and delete terms or courses safely.
-tools: [academics.program.list, academics.term.list, academics.term.create, academics.term.delete_preview, academics.term.delete, academics.course.find, academics.course.create, academics.course.set_terms, academics.course.update, academics.course.delete]
+description: Create terms, change their name, dates and breaks, add courses, make a course year-long, and delete terms or courses safely.
+tools: [academics.program.list, academics.term.list, academics.term.get, academics.term.calendar_info, academics.term.create, academics.term.update, academics.term.delete_preview, academics.term.delete, academics.course.find, academics.course.create, academics.course.set_terms, academics.course.update, academics.course.delete]
 ---
 
 # Managing terms and courses
@@ -31,6 +31,9 @@ e.g. "MAT137Y1" from fall to winter). There are no courses without a term.
 - Credits default to the Program's default; the subject (e.g. "APS") is parsed from the code.
 
 **Changing.**
+- A term's name, dates, breaks or week numbering: `academics.term.update` (only the fields you
+  send change; `breaks` replaces the whole list, so read them first with `academics.term.get`).
+  Never delete and re-create a term to change it: deleting takes its courses with it.
 - Course fields: `academics.course.update` (only the fields you send change).
 - Make a course year-long or move it: `academics.course.set_terms` with all its terms. They must
   be consecutive terms of the same Program (`academics.course_terms_not_adjacent` otherwise).

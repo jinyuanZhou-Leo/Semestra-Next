@@ -255,6 +255,12 @@ async def revalidate(ctx: Ctx, row: ImportsSession, items: Sequence[ImportsItem]
 
 
 async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> SessionTarget:
+    if target.kind == "term_wizard" and ctx.actor != "user":
+        # The new-term wizard in the app creates the term and its courses before the commit;
+        # an assistant or MCP client cannot finish such an import.
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": ["target", "kind"], "code": "wizard_only"}]
+        )
     if target.kind == "term" and target.term_id is None:
         raise AppError("common.validation", 422, errors=[{"loc": ["target", "term_id"]}])
     if target.kind == "course" and target.course_id is None:
@@ -808,10 +814,15 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
         term_id = await c.term(data.get("term_ref"), course_id, first)
         weeks = (await c.term_dates(term_id)).weeks
-        start_week = data.get("start_week") or (dates.week_of(first, weeks) if first else None)
-        end_week = data.get("end_week") or (dates.week_of(last, weeks) if last else None)
+        start_week = data.get("start_week") or (
+            dates.first_week_from(first, weeks) if first else None
+        )
+        end_week = data.get("end_week") or (dates.last_week_until(last, weeks) if last else None)
+        if (first and start_week is None) or (last and end_week is None):
+            # Dates that miss the term entirely: never placed in its first week instead.
+            raise AppError("import.outside_term", 422, term_id=term_id)
         if start_week and end_week and end_week < start_week:
-            end_week = None
+            raise AppError("import.outside_term", 422, term_id=term_id)
         meeting = {
             "term_id": term_id,
             "section_code": data.get("section_code", ""),

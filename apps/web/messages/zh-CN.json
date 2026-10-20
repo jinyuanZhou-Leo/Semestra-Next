@@ -1825,6 +1825,7 @@
   "error_import_duplicate_assessment": "已有同名考核",
   "error_import_date_unresolved": "无法确定日期“{text}”",
   "error_import_term_unresolved": "无法确定属于哪个学期",
+  "error_import_outside_term": "日期不在该学期范围内",
   "error_import_weights_not_100": "权重合计为 {total}%，不是 100%",
   "error_import_category_weight_mismatch": "考核合计 {total}%，分类写的是 {expected}%",
   "error_import_course_ref_missing": "所属课程没有导入",
