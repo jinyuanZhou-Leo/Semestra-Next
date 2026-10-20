@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { toApiError } from '@/app/api'
 import { setSignedIn } from '@/app/session-expiry'
-import { flushUiPrefs } from '@/app/ui-pref'
+import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext, type AuthState } from './useAuth'
@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSignedIn(false)
       queryClient.clear()
+      resetUiPrefs(queryClient)
       await navigate({ to })
     },
   }

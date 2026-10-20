@@ -3,17 +3,14 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './app/api'
+import { QUERY_DEFAULTS } from './app/query-client'
 import { initSentry } from './app/sentry'
 import './app/theme.css'
 import { routeTree } from './routeTree.gen'
 
 void initSentry()
 
-const queryClient = new QueryClient({
-  // Changes made elsewhere (another tab, the agent, a job) arrive over SSE and refetch what they
-  // touch (app/realtime.ts), so data a page just loaded or prefetched is not fetched again on mount.
-  defaultOptions: { queries: { staleTime: 30_000 } },
-})
+const queryClient = new QueryClient({ defaultOptions: QUERY_DEFAULTS })
 const router = createRouter({
   routeTree,
   context: { queryClient },

@@ -40,8 +40,6 @@ export type SettingsPath = {
   pending: boolean
 }
 
-const STALE = 30_000
-
 /**
  * Resolves the dialog's level path. The URL's `scope` names the entity of the level being edited;
  * the levels around it come from what was picked in the dialog, else from the page on screen,
@@ -57,13 +55,11 @@ export function useSettingsPath(target: SettingsTarget, base: PathIds): Settings
   const course = useQuery({
     ...academicsCourseGetOptions({ path: { course_id: courseId ?? '' } }),
     enabled: courseId !== undefined,
-    staleTime: STALE,
   })
   const urlTermId = level === 'term' ? scope : undefined
   const urlTerm = useQuery({
     ...academicsTermGetOptions({ path: { term_id: urlTermId ?? '' } }),
     enabled: urlTermId !== undefined,
-    staleTime: STALE,
   })
 
   // A course or term deleted while the dialog shows it answers 404; its old data must not linger.

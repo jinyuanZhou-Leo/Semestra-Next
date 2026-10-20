@@ -26,7 +26,6 @@ export default function UpcomingCard({ scope, size }: CardProps) {
       // The gradebook carries every assessment (the list endpoint pages) and shares its cache
       // with the other grading cards.
       ...gradingGradebookGetOptions({ path: { course_id: course.id } }),
-      staleTime: 30_000,
     })),
   })
   const rows = lists

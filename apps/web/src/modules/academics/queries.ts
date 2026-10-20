@@ -9,23 +9,19 @@ import {
 import { type QueryClient, useQueries, useQuery } from '@tanstack/react-query'
 import type { CourseColumn } from './types'
 
-const STALE = 30_000
-
 export function usePrograms() {
-  return useQuery({ ...academicsProgramListOptions(), staleTime: STALE })
+  return useQuery(academicsProgramListOptions())
 }
 
 export function useProgram(programId: string) {
   return useQuery({
     ...academicsProgramGetOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 
 export function useTerms(programId: string) {
   return useQuery({
     ...academicsTermListOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
     enabled: programId !== '',
   })
 }
@@ -37,7 +33,6 @@ export function useCourses(programId: string, termId?: string) {
       path: { program_id: programId },
       query: { limit: 500, ...(termId ? { term_id: termId } : {}) },
     }),
-    staleTime: STALE,
     enabled: programId !== '',
   })
 }
@@ -45,7 +40,6 @@ export function useCourses(programId: string, termId?: string) {
 export function useCourse(courseId: string) {
   return useQuery({
     ...academicsCourseGetOptions({ path: { course_id: courseId } }),
-    staleTime: STALE,
   })
 }
 

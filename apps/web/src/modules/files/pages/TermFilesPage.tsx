@@ -66,7 +66,6 @@ function TermFiles({
         query: { recursive: true },
       }),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
-      staleTime: 30_000,
     })),
   })
 

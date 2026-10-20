@@ -22,7 +22,6 @@ export default function QuickOpenCard({ size, settings }: CardProps<QuickOpenSet
   const items = useQueries({
     queries: ids.map((id) => ({
       ...filesItemGetOptions({ path: { item_id: id } }),
-      staleTime: 30_000,
       retry: false,
     })),
   })

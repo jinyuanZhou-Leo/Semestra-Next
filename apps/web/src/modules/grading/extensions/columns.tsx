@@ -15,10 +15,8 @@ const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
 
 const available = (data: unknown) => !gpaHidden(data)
 
-const query = (programId: string) => ({
-  ...gradingCourseSummaryListOptions({ path: { program_id: programId } }),
-  staleTime: 30_000,
-})
+const query = (programId: string) =>
+  gradingCourseSummaryListOptions({ path: { program_id: programId } })
 
 /** GPA filters are written for a 4.0 scale and scaled to the Program's maximum. */
 function atLeast(points: number) {

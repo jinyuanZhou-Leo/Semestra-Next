@@ -7,7 +7,6 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 
-const STALE = 30_000
 const PAGE_SIZE = 500
 
 /** Every file and folder of a course, following the list's pages. */
@@ -42,7 +41,6 @@ export function useCourseFiles(courseId: string) {
     queryKey: filesItemListQueryKey({ path: { course_id: courseId }, query: { recursive: true } }),
     queryFn: ({ signal }) => fetchCourseFiles(courseId, signal),
     enabled: Boolean(courseId),
-    staleTime: STALE,
   })
 }
 
@@ -50,12 +48,11 @@ export function useFileItem(itemId: string | null | undefined) {
   return useQuery({
     ...filesItemGetOptions({ path: { item_id: itemId ?? '' } }),
     enabled: Boolean(itemId),
-    staleTime: STALE,
   })
 }
 
 export function useFilesUsage() {
-  return useQuery({ ...filesUsageGetOptions(), staleTime: STALE })
+  return useQuery(filesUsageGetOptions())
 }
 
 function operationId(queryKey: readonly unknown[]): string {

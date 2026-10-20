@@ -195,7 +195,6 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
       queryKey: ['commandPaletteSearch', provider.id, searchText, ctx.scope],
       queryFn: () => provider.search(searchText, ctx.scope),
       enabled: searching,
-      staleTime: 30_000,
     })),
   })
   const assistant = modules.find((module) => module.assistant)?.assistant

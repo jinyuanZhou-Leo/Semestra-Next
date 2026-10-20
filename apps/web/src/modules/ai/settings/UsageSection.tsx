@@ -420,6 +420,8 @@ export function UsageSection() {
     ...aiUsageSummarizeOptions({
       query: { ...(range === 'all' ? {} : { days: Number(range) }), tz },
     }),
+    // Every chat adds usage without an event, so opening this page asks again.
+    refetchOnMount: 'always',
     placeholderData: keepPreviousData,
   })
   const detail = useQuery({
@@ -427,6 +429,7 @@ export function UsageSection() {
       query: { start: selection?.start ?? '', end: selection?.end ?? '', tz },
     }),
     enabled: selection !== null,
+    refetchOnMount: 'always',
     placeholderData: keepPreviousData,
   })
 

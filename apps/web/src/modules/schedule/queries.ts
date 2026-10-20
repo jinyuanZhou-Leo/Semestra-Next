@@ -12,12 +12,9 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 
-const STALE = 30_000
-
 export function useEventTypes(programId: string) {
   return useQuery({
     ...scheduleEventTypeListOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 
@@ -27,7 +24,6 @@ export function useMeetings(courseId: string, termId?: string) {
       path: { course_id: courseId },
       query: termId ? { term_id: termId } : {},
     }),
-    staleTime: STALE,
   })
 }
 
@@ -36,7 +32,6 @@ export function useTermMeetings(courseIds: readonly string[], termId: string) {
   return useQueries({
     queries: courseIds.map((courseId) => ({
       ...scheduleMeetingListOptions({ path: { course_id: courseId }, query: { term_id: termId } }),
-      staleTime: STALE,
     })),
     combine: (results) => ({
       items: results.flatMap((r) => r.data?.items ?? []) as Meeting[],
@@ -48,21 +43,18 @@ export function useTermMeetings(courseIds: readonly string[], termId: string) {
 export function useConflicts(termId: string) {
   return useQuery({
     ...scheduleConflictListOptions({ path: { term_id: termId } }),
-    staleTime: STALE,
   })
 }
 
 export function useEvents(programId: string, query: { course_id?: string; term_id?: string }) {
   return useQuery({
     ...scheduleEventListOptions({ path: { program_id: programId }, query }),
-    staleTime: STALE,
   })
 }
 
 export function useFeeds(programId: string) {
   return useQuery({
     ...scheduleFeedListOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 
@@ -70,14 +62,12 @@ export function useFeeds(programId: string) {
 export function useCalendarInfo(termId: string) {
   return useQuery({
     ...academicsTermGetWeeksOptions({ path: { term_id: termId } }),
-    staleTime: STALE,
   })
 }
 
 export function useToday(programId: string) {
   return useQuery({
     ...calendarTodayGetOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
     // Keep "now" fresh on a page that stays open all day.
     refetchInterval: 5 * 60_000,
   })
@@ -88,7 +78,6 @@ export type OccurrenceParams = CalendarOccurrenceListData['query']
 export function useOccurrences(programId: string, params: OccurrenceParams, enabled = true) {
   return useQuery({
     ...calendarOccurrenceListOptions({ path: { program_id: programId }, query: params }),
-    staleTime: STALE,
     placeholderData: keepPreviousData,
     enabled,
   })
@@ -119,7 +108,6 @@ export function useCalendarSettings(termId?: string): CalendarSettings {
       path: { namespace: 'calendar' },
       query: termId ? { scope_type: 'term', scope_id: termId } : { scope_type: 'account' },
     }),
-    staleTime: STALE,
   }).data?.values
   return { ...DEFAULT_CALENDAR_SETTINGS, ...(values as Partial<CalendarSettings> | undefined) }
 }

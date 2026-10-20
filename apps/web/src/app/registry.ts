@@ -73,8 +73,12 @@ export const builtInModules: readonly ModuleManifest[] = [
  * Starts loading a page's code (and its sidebar navigation) before it renders, from a route
  * loader; see `preloadable`. Only the code: the page fetches its own data.
  */
-export function preloadPage(scope: ScopeKind, pageId: string): void {
-  for (const module of builtInModules) {
+export function preloadPage(
+  scope: ScopeKind,
+  pageId: string,
+  modules: readonly ModuleManifest[] = builtInModules,
+): void {
+  for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope)) continue
       for (const part of [page.component, page.sidebarNav]) {
