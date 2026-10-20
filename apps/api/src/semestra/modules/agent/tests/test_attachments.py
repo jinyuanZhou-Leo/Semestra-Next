@@ -7,16 +7,17 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from pydantic import BaseModel
+from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
-from semestra.modules.agent import service
-from semestra.modules.agent.models import AgentMessage, AgentSession
+from semestra.modules.agent import attachment_context, service
+from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentSession
 from semestra.modules.files.parse.detect import DOCX
 from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS
-from semestra.modules.files.tests.conftest import make_docx, make_pdf
+from semestra.modules.files.tests.conftest import make_docx, make_pdf, make_png
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
 from semestra.testing import Clock, MakeUser, UserHandle
 
@@ -294,3 +295,83 @@ async def test_a_lost_race_on_the_client_key_returns_the_winner(
     monkeypatch.setattr(service, "_session_by_key", miss_once)
     again = await chat.call("POST", "/agent/sessions", json=body)
     assert again["id"] == first["id"]
+
+
+async def given(chat: Chat, attachment_id: str, *, vision: bool = True) -> list[Any]:
+    """What the model gets for the attachment; rendered twice to check it does not change."""
+    async with system_ctx(chat.app.state, chat.user_id) as ctx:
+        att = await ctx.db.get(AgentAttachment, attachment_id)
+        assert att is not None
+        first = await attachment_context.render(ctx, att, vision=vision, reads_pdf=True)
+        again = await attachment_context.render(ctx, att, vision=vision, reads_pdf=True)
+    assert first == again  # same every request, for the prompt cache
+    return first
+
+
+def text_of(content: list[Any]) -> str:
+    return "\n".join(c for c in content if isinstance(c, str))
+
+
+async def test_small_documents_are_given_whole_and_large_ones_start_with_an_outline(
+    chat: Chat, monkeypatch: pytest.MonkeyPatch
+):
+    session_id = await session_of(chat, await chat.program())
+    note = await chat.attach(session_id, "notes.txt", b"Office hours: Tuesday 3pm", "text/plain")
+    [only] = await given(chat, note["id"])
+    assert only.startswith(
+        f'<attachment id="{note["id"]}" name="notes.txt" type="text" pages="1" chars="25">\n'
+        '<untrusted_document label="notes.txt">'
+    )
+    assert "--- page 1 ---\nOffice hours: Tuesday 3pm" in only
+
+    # make_pdf writes one line a page: a small limit makes 40 of them a large document.
+    monkeypatch.setattr(attachment_context, "FULL_TEXT_CHARS", 1000)
+    pages = [f"# Week {n}\nTopic {n}: " + "lorem ipsum " * 60 for n in range(1, 41)]
+    pdf = await chat.attach(session_id, "notes.pdf", make_pdf(pages), "application/pdf")
+    content = await given(chat, pdf["id"])
+    text = text_of(content)
+    assert 'type="pdf" pages="40"' in text
+    assert "--- page 2 ---" in text
+    assert "--- page 3 ---" not in text
+    assert "- Week 40 (p. 40)" in text
+    assert f"attachments.read (attachment_id {pdf['id']}" in text
+
+    docx = make_docx([("Heading 1", "Grading"), ("Normal", "Midterm 30%, final 50%")])
+    doc = await chat.attach(session_id, "syllabus.docx", docx, "application/octet-stream")
+    text = text_of(await given(chat, doc["id"]))
+    assert "Midterm 30%, final 50%" in text
+    assert "�" not in text  # never the zip bytes decoded as text
+
+
+async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
+    session_id = await session_of(chat, await chat.program())
+    cal = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
+    text = text_of(await given(chat, cal["id"]))
+    assert "ECE201H1" in text
+    assert "Dates: 2026-09-14 to 2026-12-07" in text
+    assert "imports.session.create" in text
+    assert "VCALENDAR" not in text
+
+    broken = await chat.attach(session_id, "broken.pdf", b"%PDF-1.4 fake", "application/pdf")
+    text = text_of(await given(chat, broken["id"]))
+    assert "could not be read" in text
+    assert "paste" in text
+
+    png = make_png()
+    shot = await chat.attach(session_id, "shot.png", png, "image/png")
+    seen = await given(chat, shot["id"])
+    assert [c.data for c in seen if isinstance(c, BinaryContent)] == [png]
+    assert attachment_context.NO_VISION in text_of(await given(chat, shot["id"], vision=False))
+
+
+async def test_scanned_pages_are_given_as_images_to_models_that_see(chat: Chat):
+    session_id = await session_of(chat, await chat.program())
+    data = make_pdf(["typed page with enough words to count as digital text", "scan"], scanned={1})
+    pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
+    content = await given(chat, pdf["id"])
+    images = [c for c in content if isinstance(c, BinaryContent)]
+    assert [i.media_type for i in images] == ["image/png"]
+    assert "Page 2 of scan.pdf (scanned):" in content
+    text = text_of(await given(chat, pdf["id"], vision=False))
+    assert "Pages 2 of scan.pdf are scanned images" in text
+    assert attachment_context.NO_VISION in text
