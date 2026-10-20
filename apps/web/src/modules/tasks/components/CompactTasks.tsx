@@ -7,7 +7,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
-import { PriorityFlag } from './TaskRow'
+import { PriorityFlag } from './priority'
 
 /** The tasks of a board card: check them off, nothing else. */
 export function CompactTasks({

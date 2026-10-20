@@ -20,7 +20,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
 import { PRIORITIES, type Priority, type ShownPriority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES } from './TaskRow'
+import { PRIORITY_COLORS, PRIORITY_NAMES } from './priority'
 
 const NONE = '__none__'
 
@@ -244,18 +244,18 @@ export function TaskDetail({
               ]}
             >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {(value: string) => {
+                    const selected = courses.find((c) => c.id === value)
+                    return selected ? <CourseOption course={selected} /> : m.tasks_course_none()
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>{m.tasks_course_none()}</SelectItem>
                 {courses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    <span
-                      aria-hidden
-                      className="size-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: courseColor(c) }}
-                    />
-                    {courseLabel(c)}
+                    <CourseOption course={c} />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -290,6 +290,20 @@ export function TaskDetail({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** A course with its color dot, centered on the text in the list and in the field. */
+function CourseOption({ course }: { course: Course }) {
+  return (
+    <>
+      <span
+        aria-hidden
+        className="size-2 shrink-0 self-center rounded-full"
+        style={{ backgroundColor: courseColor(course) }}
+      />
+      <span className="truncate">{courseLabel(course)}</span>
+    </>
   )
 }
 

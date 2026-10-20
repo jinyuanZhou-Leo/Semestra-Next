@@ -38,7 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useTaskActions } from '../actions'
 import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
-import { SortableTaskRow, TaskRow } from '../components/TaskRow'
+import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TasksSidebar } from '../components/TasksSidebar'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
@@ -97,6 +97,8 @@ export default function TasksPage({ scope }: PageProps) {
   const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  // The one row open for editing in place; `new` is the empty row at the end of the list.
+  const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [clearing, setClearing] = useState(false)
   const quickAdd = useRef<HTMLInputElement>(null)
@@ -120,12 +122,17 @@ export default function TasksPage({ scope }: PageProps) {
     setSelectionPref(selectionKey(next))
     setSelectedId(null)
     setDetailId(null)
+    setEditing(null)
   }
+  const stopEditing = (id: string) => setEditing((current) => (current?.id === id ? null : current))
   const rowProps = (task: Task) => ({
     task,
     courses,
     selected: task.id === selectedId,
     onSelect: () => setSelectedId(task.id),
+    editing: editing?.id === task.id ? editing.focus : null,
+    onStartEdit: (focus: EditFocus) => setEditing({ id: task.id, focus }),
+    onStopEdit: () => stopEditing(task.id),
     onEdit: () => {
       setSelectedId(task.id)
       setDetailId(task.id)
@@ -192,6 +199,18 @@ export default function TasksPage({ scope }: PageProps) {
       list_id: selection.kind === 'list' ? selection.listId : undefined,
       flagged: selection.kind === 'smart' && selection.view === 'flagged' ? true : undefined,
     })
+
+  // Only under tasks: an empty list keeps its empty state and the add box above.
+  const newRow =
+    open.length > 0 ? (
+      <NewTaskRow
+        open={editing?.id === 'new'}
+        onOpenChange={(next) =>
+          next ? setEditing({ id: 'new', focus: { field: 'title' } }) : stopEditing('new')
+        }
+        onAdd={(title) => add({ title, ...(defaultDue ? { due_date: defaultDue } : {}) })}
+      />
+    ) : null
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
@@ -318,6 +337,7 @@ export default function TasksPage({ scope }: PageProps) {
                       {open.map((task) => (
                         <SortableTaskRow key={task.id} {...rowProps(task)} />
                       ))}
+                      {newRow}
                     </ul>
                   </SortableContext>
                 </DndContext>
@@ -326,6 +346,7 @@ export default function TasksPage({ scope }: PageProps) {
                   {(completedView ? [] : open).map((task) => (
                     <TaskRow key={task.id} {...rowProps(task)} />
                   ))}
+                  {completedView ? null : newRow}
                 </ul>
               )}
               {completedView ? (

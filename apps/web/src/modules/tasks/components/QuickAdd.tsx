@@ -9,7 +9,7 @@ import { Input } from '@/ui/input'
 import { dueLabel, localDate } from '../due'
 import { parseQuickAdd } from '../parse'
 import { type Priority, shownPriority } from '../types'
-import { PRIORITY_COLORS, PRIORITY_NAMES } from './TaskRow'
+import { PRIORITY_COLORS, PRIORITY_NAMES } from './priority'
 
 export type NewTask = {
   title: string
