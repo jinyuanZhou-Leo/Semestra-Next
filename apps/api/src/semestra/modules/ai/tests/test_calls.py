@@ -8,6 +8,10 @@ import respx
 from fastapi import FastAPI
 from httpx import Response
 from pydantic import BaseModel
+from pydantic_ai.direct import model_request_stream
+from pydantic_ai.messages import ModelRequest
+from pydantic_ai.models import ModelRequestParameters
+from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import select
 from structlog.testing import capture_logs
 
@@ -392,17 +396,21 @@ async def test_openai_stream_with_usage(ai: Ai, app: FastAPI, mock: respx.MockRo
     route = mock.post(f"{OPENAI}/chat/completions").mock(
         return_value=Response(200, text=sse, headers={"content-type": "text/event-stream"})
     )
-    async with ai.ctx() as ctx:
-        model = await m06.get_chat_model(ctx)
-        assert (model.provider_kind, model.model, model.supports_tools) == ("openai", "gpt-5", True)
-        out = [
-            c async for c in model.stream([Message.user("x")], [Tool("f", "d", {"type": "object"})])
-        ]
+    async with ai.ctx() as ctx, m06.agent_model(ctx) as model:
+        assert (model.provider_kind, model.name, model.supports_tools) == ("openai", "gpt-5", True)
+        params = ModelRequestParameters(
+            function_tools=[ToolDefinition(name="f", parameters_json_schema={"type": "object"})]
+        )
+        async with model_request_stream(
+            model.model, [ModelRequest.user_text_prompt("x")], model_request_parameters=params
+        ) as stream:
+            async for _ in stream:
+                pass
+            response = stream.get()
     assert json.loads(route.calls.last.request.content)["stream_options"] == {"include_usage": True}
-    done = out[-1].done
-    assert done is not None
-    assert done.text == "A"
-    assert done.tool_calls == [ToolCall("c1", "f", {"a": 2})]
+    assert response.text == "A"
+    [tool_call] = response.tool_calls
+    assert (tool_call.tool_call_id, tool_call.args_as_dict()) == ("c1", {"a": 2})
     [row] = await usage_rows(app)
     assert (row.input_tokens, row.output_tokens, row.source_module) == (7, 2, "agent")
 

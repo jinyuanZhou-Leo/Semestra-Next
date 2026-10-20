@@ -29,6 +29,7 @@ from semestra.modules.ai.adapters.base import (
     DEFAULT_MAX_TOKENS,
     ChatRequest,
     Endpoint,
+    ModelParams,
     json_instruction,
 )
 from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS, REASONING_KINDS
@@ -182,18 +183,24 @@ def parameters(kind: str, model: Model, req: ChatRequest) -> ModelRequestParamet
 
 def settings(kind: str, req: ChatRequest, summary: bool = True) -> ModelSettings:
     """`summary=False` when the endpoint refused the Responses reasoning summary before."""
+    return settings_for(kind, req.params, summary)
+
+
+def settings_for(kind: str, params: ModelParams, summary: bool = True) -> ModelSettings:
+    """The request options for a model's purpose (`SemestraModel` drops the Responses reasoning
+    summary for endpoints that refused it)."""
     out: dict[str, Any] = {}
-    max_tokens = req.params.max_tokens
+    max_tokens = params.max_tokens
     if max_tokens is None and kind in ANTHROPIC_KINDS:
         max_tokens = DEFAULT_MAX_TOKENS  # the Messages API requires it
     if max_tokens is None and kind == "gemini":
         max_tokens = DEFAULT_MAX_TOKENS * 2  # thinking tokens count against it
     if max_tokens is not None:
         out["max_tokens"] = max_tokens
-    if req.params.temperature is not None:
-        out["temperature"] = req.params.temperature
-    if req.params.reasoning_effort is not None and kind in REASONING_KINDS:
-        out["openai_reasoning_effort"] = req.params.reasoning_effort
+    if params.temperature is not None:
+        out["temperature"] = params.temperature
+    if params.reasoning_effort is not None and kind in REASONING_KINDS:
+        out["openai_reasoning_effort"] = params.reasoning_effort
         if kind == "openai_responses" and summary:
             # Without it the Responses API keeps the reasoning to itself (M12 shows a summary).
             out["openai_reasoning_summary"] = "auto"

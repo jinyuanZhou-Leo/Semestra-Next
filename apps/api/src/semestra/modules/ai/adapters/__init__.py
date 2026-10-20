@@ -1,13 +1,12 @@
 """Model calls for every provider kind, through Pydantic AI's model layer (M06 §2).
 
 Pydantic AI turns the neutral request (`llm.py`, converted in `convert.py`) into each provider's
-API; this module adds M06's retries and error codes on top. Embeddings and model lists come from
-the providers' official SDKs (Pydantic AI has no model listing). Every request goes through the
-`safe_client` the caller passes in (`bridge.py`).
+API; `model.SemestraModel` adds M06's retries, error codes and usage hook on top. Embeddings
+and model lists come from the providers' official SDKs (Pydantic AI has no model listing). Every
+request goes through the `safe_client` the caller passes in (`bridge.py`).
 """
 
-from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator
 
 import httpx
 from pydantic_ai.direct import model_request, model_request_stream
@@ -22,16 +21,8 @@ from pydantic_ai.messages import (
 
 from semestra.core.errors import AppError
 from semestra.modules.ai.adapters import convert
-from semestra.modules.ai.adapters.base import (
-    MAX_RETRIES,
-    Adapter,
-    ChatRequest,
-    Endpoint,
-    ModelInfo,
-    backoff,
-    map_error,
-    retryable,
-)
+from semestra.modules.ai.adapters.base import Adapter, ChatRequest, Endpoint, ModelInfo, ModelParams
+from semestra.modules.ai.adapters.model import Record, SemestraModel, retrying
 from semestra.modules.ai.adapters.sdk import (
     ANTHROPIC_KINDS,
     anthropic_client,
@@ -57,108 +48,59 @@ def _chunk(event: object) -> Chunk | None:
     return None
 
 
-# Endpoints that rejected the Responses reasoning summary (OpenAI requires a verified
-# organization; some compatible gateways refuse the field): later calls go without it.
-_NO_SUMMARY: set[tuple[str, str | None]] = set()
-
-
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
 
 
-async def _retrying[T](make: Callable[[], Awaitable[T]], model: str | None = None) -> T:
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            return await make()
-        except AppError:
-            raise
-        except Exception as exc:
-            error = map_error(exc, model)
-            if retryable(error, exc) and attempt < MAX_RETRIES:
-                await backoff(attempt, error)
-                continue
-            raise error from None
-    raise AssertionError("unreachable")
+def semestra_model(
+    client: httpx.AsyncClient,
+    ep: Endpoint,
+    model: str,
+    params: ModelParams,
+    record: Record | None = None,
+) -> SemestraModel:
+    """The provider's Pydantic AI model wrapped with M06's retries, errors and usage hook."""
+    return SemestraModel(
+        chat_model(client, ep, model),
+        ep,
+        defaults=convert.settings_for(ep.kind, params),
+        record=record,
+    )
 
 
 class ProviderAdapter:
     def __init__(self, kind: str) -> None:
         self.kind = kind
 
-    async def _summary_fallback[T](
-        self, ep: Endpoint, req: ChatRequest, call: Callable[[bool], Awaitable[T]]
-    ) -> T:
-        """Calls with the reasoning summary when it applies; if the provider rejects the request,
-        tries once without it and, when that works, remembers to leave it out for the endpoint."""
-        key = (ep.base_url, ep.provider_id)
-        if (
-            self.kind != "openai_responses"
-            or req.params.reasoning_effort is None
-            or key in _NO_SUMMARY
-        ):
-            return await call(False)
-        try:
-            return await call(True)
-        except AppError as exc:
-            if exc.code != "ai.request_rejected":
-                raise
-        result = await call(False)
-        _NO_SUMMARY.add(key)
-        return result
-
     async def complete(
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> Completion:
-        model = chat_model(client, ep, req.model)
+        model = semestra_model(client, ep, req.model, req.params)
         source = convert.source(ep, req)
-        response = await self._summary_fallback(
-            ep,
-            req,
-            lambda summary: _retrying(
-                lambda: model_request(
-                    model,
-                    convert.to_messages(req, source),
-                    model_settings=convert.settings(self.kind, req, summary),
-                    model_request_parameters=convert.parameters(self.kind, model, req),
-                    instrument=False,
-                ),
-                req.model,
-            ),
+        response = await model_request(
+            model,
+            convert.to_messages(req, source),
+            model_request_parameters=convert.parameters(self.kind, model, req),
+            instrument=False,
         )
         return convert.completion(response, req, source)
 
     async def stream(
         self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
     ) -> AsyncIterator[Chunk]:
-        model = chat_model(client, ep, req.model)
+        model = semestra_model(client, ep, req.model, req.params)
         source = convert.source(ep, req)
-        async with AsyncExitStack() as stack:
-
-            async def start(summary: bool):
-                return await stack.enter_async_context(
-                    model_request_stream(
-                        model,
-                        convert.to_messages(req, source),
-                        model_settings=convert.settings(self.kind, req, summary),
-                        model_request_parameters=convert.parameters(self.kind, model, req),
-                        instrument=False,
-                    )
-                )
-
-            # Retried like a single call until the provider starts answering.
-            stream = await self._summary_fallback(
-                ep, req, lambda summary: _retrying(lambda: start(summary), req.model)
-            )
-            try:
-                async for event in stream:
-                    chunk = _chunk(event)
-                    if chunk is not None:
-                        yield chunk
-                response = stream.get()
-            except AppError:
-                raise
-            except Exception as exc:
-                raise map_error(exc, req.model) from None
+        async with model_request_stream(
+            model,
+            convert.to_messages(req, source),
+            model_request_parameters=convert.parameters(self.kind, model, req),
+            instrument=False,
+        ) as stream:
+            async for event in stream:
+                chunk = _chunk(event)
+                if chunk is not None:
+                    yield chunk
+            response = stream.get()
         done = convert.completion(response, req, source)
         for call in done.tool_calls:
             yield Chunk(tool_call=call)
@@ -171,7 +113,7 @@ class ProviderAdapter:
             raise AppError("ai.capability_unsupported", 400, capability="embedding")
         if self.kind == "gemini":
             google = google_client(client, ep)
-            result = await _retrying(
+            result = await retrying(
                 lambda: google.aio.models.embed_content(model=model, contents=list(texts)), model
             )
             vectors = [list(e.values or []) for e in result.embeddings or []]
@@ -179,7 +121,7 @@ class ProviderAdapter:
             used = Usage(input_tokens=sum(len(t) for t in texts) // 4)
         else:
             oai = openai_client(client, ep)
-            result = await _retrying(lambda: oai.embeddings.create(model=model, input=texts), model)
+            result = await retrying(lambda: oai.embeddings.create(model=model, input=texts), model)
             vectors = [list(r.embedding) for r in sorted(result.data, key=lambda r: r.index)]
             used = Usage(input_tokens=result.usage.prompt_tokens if result.usage else 0)
         if len(vectors) != len(texts):
@@ -188,7 +130,7 @@ class ProviderAdapter:
 
     async def list_models(self, client: httpx.AsyncClient, ep: Endpoint) -> list[ModelInfo]:
         try:
-            return await _retrying(lambda: self._list(client, ep))
+            return await retrying(lambda: self._list(client, ep))
         except AppError as exc:
             if self.kind in _LISTING_OPTIONAL and exc.code in (
                 "ai.request_rejected",

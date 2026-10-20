@@ -11,24 +11,26 @@ import json
 import re
 import time
 from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
 import structlog
 from pydantic import BaseModel, ValidationError
+from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.models import Model
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
 from semestra.modules.ai import catalog
-from semestra.modules.ai.adapters import adapter_for
+from semestra.modules.ai.adapters import adapter_for, convert, semestra_model
 from semestra.modules.ai.adapters.base import (
     CALL_TIMEOUT_SECONDS,
     STREAM_IDLE_TIMEOUT_SECONDS,
     ChatRequest,
-    Endpoint,
 )
 from semestra.modules.ai.llm import (
     Chunk,
@@ -489,60 +491,70 @@ async def available(ctx: Ctx, purpose: Purpose) -> bool:
 
 
 @dataclass(frozen=True)
-class ChatModel:
-    """A resolved chat model for the assistant runtime (M12): it wraps this in its LangGraph
-    model adapter. Calls go through the same path as `complete` (usage, retries, egress)."""
+class AgentModel:
+    """A resolved chat model for the assistant's Pydantic AI `Agent` (M12). `model` is a
+    `SemestraModel`: every request is retried, mapped to M06 errors and logged in the usage log
+    like `complete`, and sent through `safe_client`."""
 
-    ctx: Ctx
+    model: Model
     resolved: Resolved
-    source_module: str
 
     @property
     def provider_kind(self) -> str:
         return self.resolved.endpoint.kind
 
     @property
-    def model(self) -> str:
+    def name(self) -> str:
         return self.resolved.model
+
+    @property
+    def source(self) -> str:
+        """Where reasoning came from: it is only sent back to the same provider and model."""
+        ep = self.resolved.endpoint
+        return f"{ep.kind}:{ep.provider_id or 'instance'}:{self.resolved.model}"
 
     @property
     def supports_tools(self) -> bool:
         return "tools" in self.resolved.endpoint.capabilities
 
     @property
+    def vision(self) -> bool:
+        return "vision" in self.resolved.endpoint.capabilities
+
+    @property
     def reads_pdf(self) -> bool:
         return catalog.KIND_INFO[self.resolved.endpoint.kind].reads_pdf  # pyright: ignore[reportArgumentType]
 
     @property
-    def endpoint(self) -> Endpoint:
-        return self.resolved.endpoint
-
-    async def complete(
-        self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
-    ) -> Completion:
-        result = await complete_with(
-            self.ctx, self.resolved, messages, tools=tools, source_module=self.source_module
-        )
-        assert isinstance(result, Completion)
-        return result
-
-    async def stream(
-        self, messages: Sequence[Message], tools: Sequence[Tool] | None = None
-    ) -> AsyncIterator[Chunk]:
-        result = await complete_with(
-            self.ctx,
-            self.resolved,
-            messages,
-            tools=tools,
-            stream=True,
-            source_module=self.source_module,
-        )
-        assert not isinstance(result, Completion)
-        async for chunk in result:
-            yield chunk
+    def context_window(self) -> int:
+        return catalog.context_window(self.resolved.model)
 
 
-async def get_chat_model(
+def _output_text(response: ModelResponse) -> str:
+    return "".join(p.content for p in response.parts if isinstance(p, TextPart))
+
+
+@asynccontextmanager
+async def agent_model(
     ctx: Ctx, purpose: Purpose = "chat", *, source_module: str = "agent"
-) -> ChatModel:
-    return ChatModel(ctx, await resolve_provider(ctx, purpose), source_module)
+) -> AsyncIterator[AgentModel]:
+    """The model for one assistant turn; the HTTP client it sends through lives for the block."""
+    resolved = await resolve_provider(ctx, purpose)
+    ep = resolved.endpoint
+
+    def record(started: float, response: ModelResponse | None, error: AppError | None) -> None:
+        call = _Call(ctx, resolved, source_module, None, started)
+        if response is None:
+            _finish(call, Usage(), error=error)
+            return
+        _finish(
+            call,
+            convert.usage(response.usage),
+            output=_output_text(response),
+            model=response.model_name or resolved.model,
+        )
+
+    async with _client(ctx, stream=True) as client:
+        yield AgentModel(
+            semestra_model(client, ep, resolved.model, resolved.params, record), resolved
+        )
