@@ -1,7 +1,6 @@
 import { Keyboard, LayoutGrid, PanelTop, Pencil, Plus, Puzzle } from 'lucide-react'
-import { lazy } from 'react'
 import { hasHostAction, runHostAction } from '@/app/commands'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
 /**
@@ -23,7 +22,7 @@ export default defineModule({
       description: m.plugins_section_description,
       icon: Puzzle,
       order: 10,
-      component: lazy(() => import('./PluginCatalog')),
+      component: preloadable(() => import('./PluginCatalog')),
     },
   ],
   commands: [

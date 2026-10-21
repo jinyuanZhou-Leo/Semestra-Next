@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { preloadPage } from '@/app/registry'
+import { installedModules, preloadPage } from '@/app/registry'
 import { ProgramView } from '@/modules/academics/shell/ScopeView'
 
 /** A Program-scope page contributed by any module, e.g. `/p/<id>/today` (M04). */
 export const Route = createFileRoute('/_authed/p/$programId/$page')({
-  loader: ({ params }) => preloadPage('program', params.page),
+  loader: ({ context, params }) =>
+    preloadPage('program', params.page, installedModules(context.queryClient)),
   component: ProgramPage,
 })
 

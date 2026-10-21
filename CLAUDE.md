@@ -36,7 +36,7 @@ docs/                设计稿与模块规格
 - 主键 UUIDv7 字符串；时间一律 UTC aware；派生值（GPA 等）不入库。
 - 业务操作用 `@capability` 定义一次，同时得到 REST / Agent tool / MCP tool。
 - 前端不手写 fetch 调用业务接口；只用生成客户端。`src/ui/` 只由 shadcn CLI 生成，不手改。
-- 模块页面的 `component`、`sidebarNav` 用 `preloadable()`（`apps/web/src/app/extensions.ts`），不用普通 `lazy()`，否则路由 loader 和悬停预加载拿不到它的代码；`registry.test.ts` 检查内置模块。查询默认 `staleTime` 30 s（`app/query-client.ts`，测试共用），新鲜度靠 SSE 失效；没有事件覆盖的数据自己设 `refetchOnMount: 'always'`。
+- 模块清单里所有按需加载的组件（页面 `component`、`sidebarNav`、卡片及卡片设置、设置分区）都用 `preloadable()`（`apps/web/src/app/extensions.ts`，基于 TanStack Router 的 `lazyRouteComponent`：加载失败会重试，部署后缺块会刷新一次），不用普通 `lazy()`：普通 `lazy` 第一次渲染必然挂起，哪怕代码已经下好，React 会让占位至少停留 300 ms，切页和切设置分组就会闪白。路由 loader 用 `preloadPage(…, installedModules(queryClient))` 等页面代码加载完再切换（旧页面留着，顶部 `NavigationProgress` 提示），带 `board` 的页面顺带开始加载已安装插件的卡片但不等它们；设置对话框空闲时预加载自身和每级的首个分组，打开后预加载本级其余分组；`registry.test.ts` 检查内置模块。查询默认 `staleTime` 30 s（`app/query-client.ts`，测试共用），新鲜度靠 SSE 失效；没有事件覆盖的数据自己设 `refetchOnMount: 'always'`。
 - 用户可见字符串全部走 Paraglide（`messages/en.json` 与 `zh-CN.json` 同步，`pnpm --filter @semestra/web i18n:lint` 检查）。
 - 不要用拼出来的键在整个 `messages` 命名空间上查文案（`import * as m` 再 ``m[`error_${code}`]``），那会把全部文案打进首屏。按前缀查的文案放在 `src/lib/message-groups/*.gen.ts`（`scripts/gen-message-groups.mjs` 生成，新前缀加到脚本的 `GROUPS`，改了文案跑 `pnpm --filter @semestra/web i18n:groups`）。
 - 颜色只用 token，不写死颜色值。

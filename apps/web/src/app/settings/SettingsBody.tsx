@@ -19,7 +19,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useEffectEvent, useState } from 'react'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -44,7 +44,7 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from '@/ui/sidebar'
-import type { SettingsGroup, SettingsLevel } from '../extensions'
+import { type SettingsGroup, type SettingsLevel, preload } from '../extensions'
 import { useSettingsSections } from '../registry'
 import {
   CLUSTER_TITLES,
@@ -135,6 +135,19 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
   useEffect(() => {
     if (stale) switchTo({ level, group: shownGroup, scope: shownScope })
   }, [stale, level, shownGroup, shownScope, switchTo])
+
+  // The other groups of the level load their code once the one on screen has, so switching
+  // groups shows them at once.
+  const preloadGroups = useEffectEvent(() => {
+    const shown = current?.sections ?? []
+    void Promise.all(shown.map((section) => preload(section.component))).then(() =>
+      sections.forEach((section) => void preload(section.component)),
+    )
+  })
+  const shownKey = path.pending ? undefined : `${level}:${shownGroup ?? ''}`
+  useEffect(() => {
+    if (shownKey !== undefined) preloadGroups()
+  }, [shownKey])
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   useEffect(() => {

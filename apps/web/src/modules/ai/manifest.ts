@@ -1,6 +1,5 @@
 import { BarChart3, Boxes, KeyRound, Sparkles } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { ONBOARDING_STEPS, type OnboardingStep } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { AI_QUERIES } from './queries'
@@ -19,7 +18,7 @@ const onboardingSteps: readonly OnboardingStep[] = [
     id: 'ai.connect',
     order: 100,
     title: m.ai_onboarding_title,
-    component: lazy(() => import('./onboarding/ConnectAiStep')),
+    component: preloadable(() => import('./onboarding/ConnectAiStep')),
   },
 ]
 
@@ -42,7 +41,7 @@ export default defineModule({
       description: m.ai_settings_providers_description,
       icon: KeyRound,
       order: 10,
-      component: lazy(() => settings().then((s) => ({ default: s.ProvidersSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ProvidersSection }))),
     },
     {
       id: 'ai-models',
@@ -52,7 +51,7 @@ export default defineModule({
       description: m.ai_settings_models_description,
       icon: Boxes,
       order: 11,
-      component: lazy(() => settings().then((s) => ({ default: s.ModelsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ModelsSection }))),
     },
     {
       id: 'ai-usage',
@@ -62,7 +61,7 @@ export default defineModule({
       description: m.ai_settings_usage_description,
       icon: BarChart3,
       order: 12,
-      component: lazy(() => settings().then((s) => ({ default: s.UsageSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.UsageSection }))),
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },

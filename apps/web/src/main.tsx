@@ -18,6 +18,9 @@ const router = createRouter({
   // decides what is fresh, so the router keeps no copy of its own.
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
+  // While the next page's code loads the current page stays on screen, with NavigationProgress
+  // along the top; no pending component, so the router never swaps the page for a blank one.
+  defaultPendingComponent: undefined,
 })
 
 declare module '@tanstack/react-router' {

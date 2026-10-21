@@ -1,6 +1,5 @@
 import { Hash } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import CounterHeaderActions from './CounterHeaderActions'
 import { counterSettingsSchema } from './schema'
@@ -20,10 +19,10 @@ export default defineModule({
       icon: Hash,
       sizes: ['s', 'm'],
       defaultSize: 's',
-      component: lazy(() => import('./CounterCard')),
+      component: preloadable(() => import('./CounterCard')),
       settings: {
         schema: counterSettingsSchema,
-        component: lazy(() => import('./CounterSettingsForm')),
+        component: preloadable(() => import('./CounterSettingsForm')),
       },
       multiple: true,
       headerActions: CounterHeaderActions,

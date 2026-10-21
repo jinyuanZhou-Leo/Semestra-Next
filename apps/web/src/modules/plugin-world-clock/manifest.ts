@@ -1,6 +1,5 @@
 import { Globe } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { worldClockSettingsSchema } from './schema'
 
@@ -19,10 +18,10 @@ export default defineModule({
       icon: Globe,
       sizes: ['s', 'm'],
       defaultSize: 's',
-      component: lazy(() => import('./WorldClockCard')),
+      component: preloadable(() => import('./WorldClockCard')),
       settings: {
         schema: worldClockSettingsSchema,
-        component: lazy(() => import('./WorldClockSettingsForm')),
+        component: preloadable(() => import('./WorldClockSettingsForm')),
       },
       multiple: true,
     },

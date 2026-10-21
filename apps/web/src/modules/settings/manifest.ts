@@ -1,6 +1,5 @@
 import { Info, Languages, Palette, Settings } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
 /** M11 设置与偏好: the settings framework itself lives in `app/settings`; this is its content. */
@@ -19,7 +18,7 @@ export default defineModule({
       description: m.settings_appearance_description,
       icon: Palette,
       order: 10,
-      component: lazy(() => import('./AppearanceSettings')),
+      component: preloadable(() => import('./AppearanceSettings')),
     },
     {
       id: 'language-time',
@@ -29,7 +28,7 @@ export default defineModule({
       description: m.settings_language_time_description,
       icon: Languages,
       order: 20,
-      component: lazy(() => import('./LanguageSettings')),
+      component: preloadable(() => import('./LanguageSettings')),
     },
     {
       id: 'about',
@@ -38,7 +37,7 @@ export default defineModule({
       title: m.settings_about_title,
       icon: Info,
       order: 10,
-      component: lazy(() => import('./AboutSettings')),
+      component: preloadable(() => import('./AboutSettings')),
     },
   ],
   realtimeInvalidations: {

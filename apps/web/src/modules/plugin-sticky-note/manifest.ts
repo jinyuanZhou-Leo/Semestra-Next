@@ -1,6 +1,5 @@
 import { StickyNote } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { stickySettingsSchema } from './schema'
 
@@ -19,10 +18,10 @@ export default defineModule({
       icon: StickyNote,
       sizes: ['s', 'm', 'l', 'xl'],
       defaultSize: 'm',
-      component: lazy(() => import('./StickyNoteCard')),
+      component: preloadable(() => import('./StickyNoteCard')),
       settings: {
         schema: stickySettingsSchema,
-        component: lazy(() => import('./StickySettingsForm')),
+        component: preloadable(() => import('./StickySettingsForm')),
       },
       multiple: true,
     },

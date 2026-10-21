@@ -1,6 +1,5 @@
 import { DatabaseBackup, Download, Trash2, Upload } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
 const sections = () => import('./sections')
@@ -21,7 +20,7 @@ export default defineModule({
       description: m.portability_export_desc,
       icon: Download,
       order: 10,
-      component: lazy(() => sections().then((s) => ({ default: s.ExportSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.ExportSection }))),
     },
     {
       id: 'restore',
@@ -31,7 +30,7 @@ export default defineModule({
       description: m.portability_restore_desc,
       icon: Upload,
       order: 20,
-      component: lazy(() => sections().then((s) => ({ default: s.RestoreSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.RestoreSection }))),
     },
     {
       id: 'delete-account',
@@ -41,7 +40,7 @@ export default defineModule({
       danger: true,
       icon: Trash2,
       order: 900,
-      component: lazy(() => sections().then((s) => ({ default: s.DeleteAccountSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.DeleteAccountSection }))),
     },
   ],
   jobKinds: [

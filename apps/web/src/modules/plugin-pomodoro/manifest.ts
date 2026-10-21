@@ -1,6 +1,5 @@
 import { Timer } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { pomodoroSettingsSchema } from './schema'
 import { usePomodoroStatus } from './status'
@@ -20,10 +19,10 @@ export default defineModule({
       icon: Timer,
       sizes: ['s', 'm', 'l'],
       defaultSize: 'm',
-      component: lazy(() => import('./PomodoroCard')),
+      component: preloadable(() => import('./PomodoroCard')),
       settings: {
         schema: pomodoroSettingsSchema,
-        component: lazy(() => import('./PomodoroSettingsForm')),
+        component: preloadable(() => import('./PomodoroSettingsForm')),
       },
       multiple: false,
     },

@@ -1,6 +1,5 @@
 import { Bookmark, ListChecks, MessageCircle, Plug, Trash2, Wrench } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule, scopePath } from '@/app/extensions'
+import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { AssistantDock } from './components/AssistantDock'
 import { panel } from './store'
@@ -32,7 +31,7 @@ export default defineModule({
     },
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
     Dock: AssistantDock,
-    SidebarNav: lazy(() =>
+    SidebarNav: preloadable(() =>
       import('./components/SessionNav').then((mod) => ({ default: mod.SessionNav })),
     ),
   },
@@ -55,7 +54,7 @@ export default defineModule({
       description: m.assistant_settings_approvals_description,
       icon: ListChecks,
       order: 20,
-      component: lazy(() => settings().then((s) => ({ default: s.ApprovalsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ApprovalsSection }))),
     },
     {
       id: 'assistant-memory-enabled',
@@ -75,7 +74,7 @@ export default defineModule({
       description: m.assistant_settings_memories_description,
       icon: Bookmark,
       order: 20,
-      component: lazy(() => settings().then((s) => ({ default: s.MemorySection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.MemorySection }))),
     },
     {
       id: 'assistant-memory-clear',
@@ -85,7 +84,7 @@ export default defineModule({
       danger: true,
       icon: Trash2,
       order: 900,
-      component: lazy(() => settings().then((s) => ({ default: s.ClearMemoriesSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ClearMemoriesSection }))),
     },
     {
       id: 'assistant-mcp',
@@ -95,7 +94,7 @@ export default defineModule({
       description: m.assistant_settings_mcp_description,
       icon: Plug,
       order: 21,
-      component: lazy(() => settings().then((s) => ({ default: s.McpSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.McpSection }))),
     },
     {
       id: 'assistant-tools',
@@ -105,7 +104,7 @@ export default defineModule({
       description: m.assistant_settings_tools_description,
       icon: Wrench,
       order: 22,
-      component: lazy(() => settings().then((s) => ({ default: s.ToolsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ToolsSection }))),
     },
   ],
   realtimeInvalidations: {
