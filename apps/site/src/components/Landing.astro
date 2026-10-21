@@ -1,0 +1,118 @@
+---
+import '@/styles/site.css'
+import { Nav } from '@/components/Nav'
+import { GitHubButton, StartButton, WalkButton } from '@/components/Cta'
+import { GITHUB_URL, copy, home, shotLang, type Lang } from '@/i18n'
+
+interface Props { lang: Lang }
+const { lang } = Astro.props
+const t = copy[lang]
+const l = shotLang(lang)
+const shots = ['today', 'calendar', 'tasks', 'grades', 'planfill', 'semcard', 'sem']
+const other: Lang = lang === 'en' ? 'zh-CN' : 'en'
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{t.title}</title>
+    <meta name="description" content={t.description} />
+    <link rel="alternate" hreflang={other} href={new URL(home(other), Astro.site)} />
+    <link rel="canonical" href={new URL(home(lang), Astro.site)} />
+    <meta property="og:title" content={t.title} />
+    <meta property="og:description" content={t.description} />
+    <meta property="og:image" content={new URL(`/shots/today-light-${l}.webp`, Astro.site)} />
+    <script is:inline>
+      // Follow the system theme, as shadcn's `.dark` class.
+      const q = matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => document.documentElement.classList.toggle('dark', q.matches)
+      apply()
+      q.addEventListener('change', apply)
+    </script>
+  </head>
+  <body>
+    <Nav lang={lang} />
+    <main id="top">
+      <div class="wrap day" id="day">
+        <div class="ruler mono" aria-hidden="true"><div class="nowline"><span id="clock">08:00</span></div></div>
+
+        <div class="window-col">
+          <div class="stage">
+            <div class="window" id="win" role="img" aria-label="Semestra">
+              <div class="floor"></div>
+              <div class="screen">
+                <div class="cam" id="cam">
+                  {shots.map((s, i) => (
+                    <picture data-shot={s} style={i === 0 ? 'opacity: 1' : undefined}>
+                      <source srcset={`/shots/${s}-dark-${l}.webp`} media="(prefers-color-scheme: dark)" />
+                      <img src={`/shots/${s}-light-${l}.webp`} alt="" width="2000" height="1250" decoding="async" loading={i === 0 ? 'eager' : 'lazy'} />
+                    </picture>
+                  ))}
+                </div>
+                <div class="slot" id="slot"></div>
+              </div>
+              <div class="lift" id="lift"><div class="clip"><div class="cam" id="cam2"></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="words">
+          <section class="open">
+            <p class="stamp mono"><b>{t.stamp[0]}</b>　{t.stamp[1]}　{t.stamp[2]}</p>
+            <h1>{t.h1[0]}<br />{t.h1[1]}</h1>
+            <p class="lede">{t.lede}</p>
+            <div class="ctas">
+              <StartButton label={t.startFree} />
+              <WalkButton label={t.walk} />
+            </div>
+            <p class="handoff mono">{t.handoff}</p>
+          </section>
+
+          {t.moments.map((m, i) => (
+            <section class="moment" id={`day-${i + 1}`} data-time={m.time} data-shots={m.shots.join(' ')} data-focus={m.focus} data-lift={m.lift}>
+              <p class="t mono">{m.time}</p>
+              <h2>{m.title}</h2>
+              <p>{m.body}</p>
+              <p class="where mono">{m.where}</p>
+            </section>
+          ))}
+        </div>
+      </div>
+
+      <section class="after" id="more">
+        <div class="wrap">
+          <div class="gut mono">23:59</div>
+          <div>
+            <div class="list">
+              <h2>{t.moreTitle}</h2>
+              <table>
+                {t.more.map(([k, name, text]) => (
+                  <tr><td class="mono">{k}</td><td>{name}</td><td>{text}</td></tr>
+                ))}
+              </table>
+            </div>
+            <div class="close">
+              <h2>{t.close}</h2>
+              <div class="ctas">
+                <StartButton label={t.startFree} />
+                <GitHubButton />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>© 2026 Semestra</span>
+        <nav><a href={GITHUB_URL}>GitHub</a><a href="#">{t.privacy}</a><a href="#">{t.terms}</a></nav>
+      </div>
+    </footer>
+
+    <script>
+      import '@/scripts/day.ts'
+    </script>
+  </body>
+</html>

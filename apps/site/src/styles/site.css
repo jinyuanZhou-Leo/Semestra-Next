@@ -1,0 +1,453 @@
+/* The page is one day view: a time ruler down the left with the app calendar's red "now" line at
+   mid-screen, and one app window, in a 3D stage, that stays pinned while the day scrolls past it. */
+@import './theme.css';
+
+:root {
+  --paper: oklch(0.985 0.002 250);
+  --ink: oklch(0.21 0.012 255);
+  --ink-2: oklch(0.47 0.012 255);
+  --rule: oklch(0.9 0.004 255);
+  --rule-strong: oklch(0.78 0.006 255);
+  --now: oklch(0.6 0.2 27);
+  --window: oklch(1 0 0);
+  --shade: 0 1px 2px oklch(0.2 0.02 255 / 0.08), 0 30px 60px -30px oklch(0.2 0.02 255 / 0.28);
+}
+.dark {
+  --paper: oklch(0.165 0.005 255);
+  --ink: oklch(0.95 0.004 255);
+  --ink-2: oklch(0.7 0.01 255);
+  --rule: oklch(1 0 0 / 0.09);
+  --rule-strong: oklch(1 0 0 / 0.22);
+  --now: oklch(0.68 0.19 27);
+  --window: oklch(0.145 0 0);
+  --shade: 0 0 0 1px oklch(1 0 0 / 0.04), 0 30px 60px -30px oklch(0 0 0 / 0.7);
+}
+
+html {
+  overflow-x: clip;
+}
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+  margin: 0;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+p {
+  margin: 0;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.wrap {
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* The day: ruler | words | window. */
+.day {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 340px) minmax(0, 1fr);
+  column-gap: 40px;
+  position: relative;
+}
+.ruler {
+  grid-column: 1;
+  grid-row: 1 / span 20;
+  position: relative;
+  border-right: 1px solid var(--rule);
+}
+.ruler .h {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--ink-2);
+  transform: translateY(-50%);
+}
+.ruler .h::after {
+  content: '';
+  width: 10px;
+  height: 1px;
+  background: var(--rule-strong);
+}
+.ruler .h.q::after {
+  width: 5px;
+}
+.ruler .h.q span {
+  visibility: hidden;
+}
+.ruler .h:not(.q)::before {
+  content: '';
+  position: absolute;
+  left: 100%;
+  width: 100vw;
+  height: 1px;
+  background: var(--rule);
+  opacity: 0.55;
+  z-index: -1;
+  pointer-events: none;
+}
+.nowline {
+  position: sticky;
+  top: 50svh;
+  height: 0;
+  z-index: 2;
+}
+.nowline::before {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: -4.5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--now);
+}
+.nowline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.5px;
+  height: 1px;
+  background: var(--now);
+}
+.nowline span {
+  position: absolute;
+  left: 0;
+  top: -22px;
+  color: var(--now);
+  font-weight: 500;
+}
+
+.words {
+  grid-column: 2;
+}
+/* The window is wider than its column and runs off the right edge; it sits in a 3D stage and tilts
+   with the camera. Parts of the real screen lift off it toward the viewer at each moment. */
+.window-col {
+  grid-column: 3;
+  grid-row: 1 / span 20;
+  --W: min(60vw, calc((100svh - 150px) * 1.6), 1100px);
+}
+.stage {
+  position: sticky;
+  top: calc(50svh - var(--W) * 0.3125 + 30px);
+  width: var(--W);
+  height: calc(var(--W) * 0.625);
+  perspective: 2200px;
+  perspective-origin: 20% 50%;
+}
+.window {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 0% 50%;
+  will-change: transform;
+}
+.screen {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--window);
+  box-shadow:
+    0 0 0 1px var(--rule-strong),
+    var(--shade);
+}
+.window .floor {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -7%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, oklch(0.2 0.02 255 / 0.18), transparent);
+  transform: translateZ(-60px);
+  filter: blur(6px);
+  pointer-events: none;
+}
+.cam {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.cam picture {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.cam img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.slot {
+  position: absolute;
+  border-radius: 8px;
+  background: oklch(0.2 0.02 255 / 0.07);
+  opacity: 0;
+  pointer-events: none;
+}
+.lift {
+  position: absolute;
+  inset: 0;
+  will-change: transform, filter;
+  pointer-events: none;
+}
+.lift .clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.open {
+  padding-block: 96px 120px;
+  min-height: calc(100svh - 56px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.open .stamp {
+  color: var(--ink-2);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.open .stamp b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.open h1 {
+  font-size: clamp(30px, 2.5vw, 36px);
+  line-height: 1.04;
+  margin-top: 28px;
+}
+.open .lede {
+  margin-top: 24px;
+  font-size: 18px;
+  color: var(--ink-2);
+  max-width: 30em;
+}
+.open .ctas {
+  display: flex;
+  gap: 12px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+.open .handoff {
+  margin-top: 72px;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.open .handoff::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--rule-strong);
+}
+
+.moment {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: 80px;
+}
+.moment .t {
+  color: var(--now);
+}
+.moment h2 {
+  font-size: clamp(26px, 2.3vw, 34px);
+  line-height: 1.15;
+  margin-top: 14px;
+}
+.moment p {
+  margin-top: 14px;
+  color: var(--ink-2);
+  font-size: 17px;
+}
+.moment .where {
+  margin-top: 22px;
+  color: var(--ink-2);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.moment .where i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--c, var(--link));
+  display: inline-block;
+}
+
+/* After the day. */
+.after {
+  border-top: 1px solid var(--rule);
+}
+.after .wrap {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  column-gap: 40px;
+}
+.after .gut {
+  border-right: 1px solid var(--rule);
+  padding-top: 72px;
+  color: var(--ink-2);
+  text-align: right;
+  padding-right: 14px;
+}
+.list {
+  padding-block: 72px 96px;
+}
+.list h2 {
+  font-size: clamp(26px, 2.4vw, 34px);
+}
+.list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 32px;
+}
+.list td {
+  border-top: 1px solid var(--rule);
+  padding: 18px 0;
+  vertical-align: baseline;
+}
+.list tr:last-child td {
+  border-bottom: 1px solid var(--rule);
+}
+.list td:first-child {
+  width: 160px;
+  color: var(--ink-2);
+}
+.list td:nth-child(2) {
+  font-family: var(--font-heading);
+  font-weight: 650;
+  font-size: 18px;
+  width: 220px;
+}
+.list td:last-child {
+  color: var(--ink-2);
+}
+.close {
+  padding-block: 96px 120px;
+}
+.close h2 {
+  font-size: clamp(36px, 4.6vw, 64px);
+  line-height: 1.06;
+}
+.close .ctas {
+  display: flex;
+  gap: 12px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+footer {
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+footer .wrap {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-block: 24px 36px;
+}
+footer nav {
+  display: flex;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .day {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ruler {
+    display: none;
+  }
+  .words,
+  .window-col {
+    grid-column: 1;
+  }
+  .window-col {
+    grid-row: 1;
+    position: sticky;
+    top: 68px;
+    z-index: 3;
+    height: 0;
+    --W: calc(100vw - 40px);
+  }
+  .stage {
+    position: relative;
+    top: 0;
+    perspective: 1400px;
+    perspective-origin: 50% 0%;
+  }
+  .window {
+    transform-origin: 50% 0%;
+  }
+  .window-col::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    right: -20px;
+    top: -8px;
+    height: calc((100vw - 40px) * 0.625 + 24px);
+    background: var(--paper);
+  }
+  .open {
+    padding-top: calc(62vw + 48px);
+    min-height: 0;
+  }
+  .moment {
+    justify-content: flex-end;
+    padding-bottom: 12svh;
+    min-height: 90svh;
+  }
+  .after .wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .after .gut {
+    display: none;
+  }
+  .list td:nth-child(2) {
+    width: auto;
+  }
+  .list td:first-child {
+    width: 90px;
+  }
+}
