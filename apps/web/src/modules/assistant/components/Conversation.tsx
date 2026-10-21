@@ -445,6 +445,8 @@ export function Conversation({
   contentClassName,
   initialTemporary = false,
   onTemporaryChange,
+  initialText,
+  onTextChange,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -461,6 +463,9 @@ export function Conversation({
   initialTemporary?: boolean
   /** Reports whether the conversation shown is temporary, when it changes. */
   onTemporaryChange?: (temporary: boolean) => void
+  /** The input starts with this text, and reports what is typed (the hand-over keeps drafts). */
+  initialText?: string
+  onTextChange?: (text: string) => void
 }) {
   const queryClient = useQueryClient()
   const temporaryId = useId()
@@ -812,6 +817,8 @@ export function Conversation({
           onStop={() => void chat.stop()}
           onScope={(next) => void changeScope(next)}
           focusInput={focusInput}
+          initialText={initialText}
+          onTextChange={onTextChange}
         />
       </div>
     </section>

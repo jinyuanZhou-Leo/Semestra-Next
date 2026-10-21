@@ -2,7 +2,15 @@ import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-cli
 import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUp, BookOpen, CalendarRange, FileText, Plus, Sparkles, Square, X } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 import { courseLabel } from '@/modules/academics/color'
 import { courseTermId } from '@/modules/academics/queries'
@@ -116,6 +124,8 @@ export function Composer({
   onStop,
   onScope,
   focusInput,
+  initialText = '',
+  onTextChange,
 }: {
   programId: string | undefined
   generating: boolean
@@ -128,9 +138,13 @@ export function Composer({
   onStop: () => void
   onScope: (scope: AgentScope) => void
   focusInput?: boolean
+  /** Text the input starts with (a draft carried over from the other view). */
+  initialText?: string
+  /** Reports the text being typed. */
+  onTextChange?: (text: string) => void
 }) {
   const id = useId()
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText)
   const [caret, setCaret] = useState(0)
   const [skill, setSkill] = useState<AgentSkillInfo | null>(null)
   const [active, setActive] = useState(0)
@@ -145,6 +159,11 @@ export function Composer({
   useEffect(() => {
     if (focusInput) textarea.current?.focus()
   }, [focusInput])
+
+  const reportText = useEffectEvent((value: string) => onTextChange?.(value))
+  useEffect(() => {
+    reportText(text)
+  }, [text])
 
   const menu = trigger(text, caret)
   const menuKey = menu ? `${menu.kind}${menu.start}` : null

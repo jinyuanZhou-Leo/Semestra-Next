@@ -1217,10 +1217,16 @@ test('on the page, opening the panel hands over the conversation, its temporary 
     </QueryClientProvider>,
   )
   await userEvent.click(await screen.findByRole('switch', { name: 'Temporary chat' }))
+  await userEvent.type(await messageInput(), 'half a thought')
   await waitFor(() => expect(panel.page()).toEqual({ sessionId: null, temporary: true }))
   const navigate = vi.fn<(to: string) => void>()
   manifest.assistant?.open({ navigate, programId: 'p1' } as never, undefined)
-  expect(panel.get()).toMatchObject({ open: true, sessionId: null, temporary: true })
+  expect(panel.get()).toMatchObject({
+    open: true,
+    sessionId: null,
+    temporary: true,
+    draft: 'half a thought',
+  })
   // No page before it: back to Today.
   expect(navigate).toHaveBeenCalledWith('/p/p1/today')
   panel.reset()

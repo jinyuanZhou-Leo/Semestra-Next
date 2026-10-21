@@ -25,7 +25,7 @@ export default defineModule({
       if (!page) return panel.toggle()
       // On the full page the panel is not shown: the conversation moves to it, and the user goes
       // back to where they came from.
-      panel.moveHere(page.sessionId, page.temporary)
+      panel.moveHere(page.sessionId, page.temporary, panel.pageDraft())
       ctx.navigate(
         panel.returnTo() ?? scopePath({ kind: 'program', programId: ctx.programId ?? '' }, 'today'),
       )
