@@ -30,6 +30,7 @@ import { useProgramToday } from '../queries'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
 import { TaskChips } from './TaskChips'
+import type { VirtualRow } from './VirtualTaskList'
 
 /** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
 export type EditFocus = { field: 'title' | 'notes'; caret?: number }
@@ -318,6 +319,8 @@ type Props = {
   sortable?: Sortable
   /** Hide the course tag when the whole list is one course. */
   hideCourse?: boolean
+  /** Set when the row is in a `VirtualTaskList`, which measures it. */
+  virtual?: VirtualRow
 }
 
 /**
@@ -338,6 +341,7 @@ export function TaskRow({
   actions,
   sortable,
   hideCourse,
+  virtual,
 }: Props) {
   const today = useProgramToday(task.program_id)
   const rowRef = useRef<HTMLLIElement | null>(null)
@@ -358,7 +362,11 @@ export function TaskRow({
       ref={(node) => {
         rowRef.current = node
         sortable?.setNodeRef(node)
+        virtual?.measure(node)
       }}
+      data-index={virtual?.index}
+      aria-setsize={virtual?.count}
+      aria-posinset={virtual ? virtual.index + 1 : undefined}
       style={sortable?.style}
       data-selected={selected || undefined}
       data-editing={editing ? true : undefined}

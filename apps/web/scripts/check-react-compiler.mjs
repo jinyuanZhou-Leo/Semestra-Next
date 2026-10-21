@@ -17,6 +17,8 @@ const allowed = [
   ['app/host/StatusBar.tsx', 'Hooks must be the same function'],
   // Refs hold the latest closures for timers that outlive a render.
   ['app/settings/autosave.ts', 'PruneHoistedContexts'],
+  // TanStack Virtual's virtualizer is a mutable object; the compiler skips it on purpose.
+  ['modules/tasks/components/VirtualTaskList.tsx', 'Use of incompatible library'],
 ]
 
 function* files(dir) {
