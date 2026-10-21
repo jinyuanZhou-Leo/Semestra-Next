@@ -3,13 +3,17 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarPlus,
+  CalendarSync,
   Ellipsis,
   ExternalLink,
   Pin,
   PinOff,
   Plus,
+  Settings,
+  Trash2,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
+import { useSettingsDialog } from '@/app/settings'
 import { PageHeader } from '@/app/host/PageHeader'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -22,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import {
@@ -96,16 +101,7 @@ export function TermsAndCoursesPage({
             : undefined
         }
         actions={
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!addTarget}
-              onClick={() => setAdding(true)}
-            >
-              <Plus aria-hidden data-icon="inline-start" />
-              {m.academics_course_add()}
-            </Button>
+          tab === 'terms' ? (
             <Button
               nativeButton={false}
               size="sm"
@@ -114,7 +110,12 @@ export function TermsAndCoursesPage({
               <CalendarPlus aria-hidden data-icon="inline-start" />
               {m.academics_term_new()}
             </Button>
-          </>
+          ) : (
+            <Button size="sm" disabled={!addTarget} onClick={() => setAdding(true)}>
+              <Plus aria-hidden data-icon="inline-start" />
+              {m.academics_course_add()}
+            </Button>
+          )
         }
       >
         {/*
@@ -261,8 +262,6 @@ function TermsTab({
             isCurrent={term.id === current.term?.id}
             pinned={pins.isPinned({ kind: 'term', id: term.id })}
             onSelect={() => onSelect(term.id)}
-            onTogglePin={() => pins.toggle({ kind: 'term', id: term.id })}
-            onSetCurrent={() => current.setCurrentTerm(term.id)}
           />
         ))}
       </ul>
@@ -287,46 +286,21 @@ function termDates(term: Term): string {
   return `${formatDate(`${term.start_date}T00:00`)} – ${formatDate(`${term.end_date}T00:00`)}`
 }
 
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={label} onClick={onClick} />}
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 function TermRow({
   term,
   selected,
   isCurrent,
   pinned,
   onSelect,
-  onTogglePin,
-  onSetCurrent,
 }: {
   term: Term
   selected: boolean
   isCurrent: boolean
   pinned: boolean
   onSelect: () => void
-  onTogglePin: () => void
-  onSetCurrent: () => void
 }) {
   return (
-    <li className="group/term relative">
+    <li>
       <button
         type="button"
         aria-current={selected ? 'true' : undefined}
@@ -339,22 +313,20 @@ function TermRow({
         <span className="flex items-center gap-2">
           <span className="truncate font-medium">{term.name}</span>
           {isCurrent ? <Badge>{m.academics_term_current_badge()}</Badge> : null}
-          {pinned ? <Pin aria-hidden className="size-3 shrink-0 text-muted-foreground" /> : null}
+          {pinned ? (
+            <Tooltip>
+              <TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />}>
+                <Pin aria-hidden className="size-3" />
+                <span className="sr-only">{m.academics_pinned()}</span>
+              </TooltipTrigger>
+              <TooltipContent>{m.academics_pinned()}</TooltipContent>
+            </Tooltip>
+          ) : null}
         </span>
         <span className="truncate text-xs text-muted-foreground">
           {termDates(term)} · {m.academics_course_count({ count: term.course_count })}
         </span>
       </button>
-      <div className="absolute top-1.5 right-1.5 flex gap-0.5 rounded-lg bg-muted opacity-0 group-focus-within/term:opacity-100 group-hover/term:opacity-100">
-        {isCurrent ? null : (
-          <IconAction label={m.terms_courses_set_current()} onClick={onSetCurrent}>
-            <CalendarCheck aria-hidden />
-          </IconAction>
-        )}
-        <IconAction label={pinned ? m.academics_unpin() : m.academics_pin()} onClick={onTogglePin}>
-          {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-        </IconAction>
-      </div>
     </li>
   )
 }
@@ -383,6 +355,7 @@ function TermPane({
   onAddCourse: () => void
 }) {
   const [deleting, setDeleting] = useState(false)
+  const settings = useSettingsDialog()
   return (
     <section aria-label={term.name} className="min-w-0 space-y-4">
       <div className="flex min-h-9 flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -398,17 +371,6 @@ function TermPane({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {isCurrent && isManual ? (
-            <Button size="sm" variant="outline" onClick={onFollowCalendar}>
-              {m.terms_courses_follow_calendar()}
-            </Button>
-          ) : null}
-          {isCurrent ? null : (
-            <Button size="sm" variant="outline" onClick={onSetCurrent}>
-              <CalendarCheck aria-hidden data-icon="inline-start" />
-              {m.terms_courses_set_current()}
-            </Button>
-          )}
           <Button
             nativeButton={false}
             size="sm"
@@ -418,12 +380,6 @@ function TermPane({
             <ExternalLink aria-hidden data-icon="inline-start" />
             {m.terms_courses_open_term()}
           </Button>
-          <IconAction
-            label={pinned ? m.academics_unpin() : m.academics_pin()}
-            onClick={onTogglePin}
-          >
-            {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-          </IconAction>
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger
@@ -440,7 +396,28 @@ function TermPane({
               <TooltipContent>{m.terms_courses_more()}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
+              {isCurrent && !isManual ? null : isCurrent ? (
+                <DropdownMenuItem onClick={onFollowCalendar}>
+                  <CalendarSync aria-hidden />
+                  {m.terms_courses_follow_calendar()}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={onSetCurrent}>
+                  <CalendarCheck aria-hidden />
+                  {m.terms_courses_set_current()}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={onTogglePin}>
+                {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+                {pinned ? m.academics_unpin() : m.academics_pin()}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => settings.open({ level: 'term', scope: term.id })}>
+                <Settings aria-hidden />
+                {m.academics_term_settings()}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
+                <Trash2 aria-hidden />
                 {m.academics_term_delete()}
               </DropdownMenuItem>
             </DropdownMenuContent>

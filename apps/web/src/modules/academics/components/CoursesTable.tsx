@@ -19,15 +19,20 @@ import {
   ArrowUp,
   BookOpen,
   ChevronDown,
+  ExternalLink,
   Pin,
   PinOff,
+  Plus,
   Search,
   SearchX,
+  Settings,
+  Trash2,
   X,
 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
+import { ActionRow, RowMenu, useSettingsDialog } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -41,6 +46,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import {
@@ -65,6 +71,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor } from '../color'
+import { DeleteCourseDialog } from './DeleteCourseDialog'
 import { coursePath } from '../paths'
 import { type Pin as PinRef, usePins } from '../pins'
 import { invalidateAcademics, useColumnData, useTerms } from '../queries'
@@ -104,6 +111,9 @@ type TableState = {
   toggleRow: (id: string, on: boolean) => void
   isPinned: (pin: PinRef) => boolean
   togglePin: (pin: PinRef) => void
+  openCourse: (course: Course) => void
+  openSettings: (course: Course) => void
+  askDelete: (course: Course) => void
   termSpan: (course: Course) => string
   extensions: ReadonlyMap<string, CourseColumn>
   columnData: ReadonlyMap<string, unknown>
@@ -141,6 +151,7 @@ function SelectCell({ row }: CellProps) {
 }
 
 function CodeCell({ row }: CellProps) {
+  const { isPinned } = useTableState()
   return (
     <span className="flex items-center gap-2 font-medium whitespace-nowrap">
       <span
@@ -149,6 +160,15 @@ function CodeCell({ row }: CellProps) {
         style={{ backgroundColor: courseColor(row.original) }}
       />
       {row.original.code || '—'}
+      {isPinned({ kind: 'course', id: row.original.id }) ? (
+        <Tooltip>
+          <TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />}>
+            <Pin aria-hidden className="size-3" />
+            <span className="sr-only">{m.academics_pinned()}</span>
+          </TooltipTrigger>
+          <TooltipContent>{m.academics_pinned()}</TooltipContent>
+        </Tooltip>
+      ) : null}
     </span>
   )
 }
@@ -186,35 +206,40 @@ function ExtensionCell({ row, column: col }: CellProps) {
   return extensions.get(extensionId)?.cell(row.original, columnData.get(extensionId))
 }
 
-const PinHeader = () => <span className="sr-only">{m.terms_courses_pin_column()}</span>
+const ActionsHeader = () => <span className="sr-only">{m.terms_courses_actions_column()}</span>
 
-function PinCell({ row }: CellProps) {
-  const { isPinned, togglePin } = useTableState()
-  const pin: PinRef = { kind: 'course', id: row.original.id }
-  const label = isPinned(pin) ? m.academics_unpin() : m.academics_pin()
+function ActionsCell({ row }: CellProps) {
+  const { isPinned, togglePin, openCourse, openSettings, askDelete } = useTableState()
+  const course = row.original
+  const pin: PinRef = { kind: 'course', id: course.id }
+  const pinned = isPinned(pin)
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={label}
-            onClick={() => togglePin(pin)}
-          />
-        }
-      >
-        {isPinned(pin) ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <RowMenu label={m.terms_courses_course_actions({ name: course.code || course.title })}>
+      <DropdownMenuItem onClick={() => openCourse(course)}>
+        <ExternalLink aria-hidden />
+        {m.academics_course_open()}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => togglePin(pin)}>
+        {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
+        {pinned ? m.academics_unpin() : m.academics_pin()}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => openSettings(course)}>
+        <Settings aria-hidden />
+        {m.academics_course_settings()}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => askDelete(course)}>
+        <Trash2 aria-hidden />
+        {m.academics_course_delete()}
+      </DropdownMenuItem>
+    </RowMenu>
   )
 }
 
 const ALL = '__all__'
 
 /**
- * The pin column sticks to the right edge, so it needs an opaque background that matches what
+ * The actions column sticks to the right edge, so it needs an opaque background that matches what
  * it covers: the header's and a hovered row's `bg-muted/50` over the page background (blended
  * in sRGB, like the browser composites), and a selected row's `bg-muted`, which wins over hover.
  * A 1px shadow on its left separates it from the columns scrolling under it without changing
@@ -248,10 +273,11 @@ export function CoursesTable({
   termId?: string
   onTermChange?: (termId: string | undefined) => void
   lockTerm?: boolean
-  /** Offered by the empty state of a term without courses. */
+  /** Adds a course to the term being looked at: the empty state's button and the table's foot. */
   onAddCourse?: () => void
 }) {
   const router = useRouter()
+  const settings = useSettingsDialog()
   const queryClient = useQueryClient()
   const terms = useTerms(programId).data?.items ?? []
   const extensions = useExtensions<CourseColumn>(COURSE_COLUMNS)
@@ -265,6 +291,7 @@ export function CoursesTable({
   const [columnFilters, setColumnFilters] = useState<Readonly<Record<string, string>>>({})
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [deletingCourse, setDeletingCourse] = useState<Course | null>(null)
   const [busy, setBusy] = useState(false)
 
   const inScope = lockTerm ? courses.filter((c) => termId && c.term_ids.includes(termId)) : courses
@@ -320,6 +347,9 @@ export function CoursesTable({
     toggleRow,
     isPinned,
     togglePin,
+    openCourse: (course) => router.history.push(coursePath(programId, course.id)),
+    openSettings: (course) => settings.open({ level: 'course', scope: course.id }),
+    askDelete: setDeletingCourse,
     termSpan,
     extensions: new Map(extensions.map((ext) => [ext.id, ext])),
     columnData,
@@ -383,7 +413,12 @@ export function CoursesTable({
           : undefined,
       }),
     ),
-    column.display({ id: 'pin', header: PinHeader, cell: PinCell, enableSorting: false }),
+    column.display({
+      id: 'actions',
+      header: ActionsHeader,
+      cell: ActionsCell,
+      enableSorting: false,
+    }),
   ])
 
   const table = useTable({
@@ -557,7 +592,7 @@ export function CoursesTable({
 
         {/*
           The rounded box only clips; the table scrolls inside it (the `Table` container). When
-          the columns do not fit, the pin column stays at the right edge so a row still visibly
+          the columns do not fit, the actions column stays at the right edge so a row still visibly
           ends at the border instead of being cut off mid-cell.
         */}
         <div className="overflow-hidden rounded-2xl border border-border">
@@ -582,7 +617,7 @@ export function CoursesTable({
                         className={cn(
                           'h-auto py-2 text-muted-foreground',
                           h.column.id === 'select' && 'w-10',
-                          h.column.id === 'pin' && STICKY_END_HEAD,
+                          h.column.id === 'actions' && STICKY_END_HEAD,
                         )}
                       >
                         {canSort ? (
@@ -615,8 +650,10 @@ export function CoursesTable({
                   key={row.id}
                   data-state={selected.has(row.original.id) ? 'selected' : undefined}
                   onClick={(event) => {
-                    if ((event.target as HTMLElement).closest('button,a,input,[role=checkbox]'))
-                      return
+                    // Menus render in a portal, but their clicks still bubble through React to here.
+                    const target = event.target as HTMLElement
+                    if (!event.currentTarget.contains(target)) return
+                    if (target.closest('button,a,input,[role=checkbox]')) return
                     router.history.push(coursePath(programId, row.original.id))
                   }}
                   className="cursor-pointer"
@@ -628,7 +665,7 @@ export function CoursesTable({
                       key={cell.id}
                       className={cn(
                         'py-2 whitespace-normal',
-                        cell.column.id === 'pin' && STICKY_END_CELL,
+                        cell.column.id === 'actions' && STICKY_END_CELL,
                       )}
                     >
                       <table.FlexRender cell={cell} />
@@ -661,8 +698,22 @@ export function CoursesTable({
               </EmptyContent>
             </Empty>
           ) : null}
+          {onAddCourse ? (
+            <div className="border-t">
+              <ActionRow icon={Plus} onClick={onAddCourse}>
+                {m.academics_course_add()}
+              </ActionRow>
+            </div>
+          ) : null}
         </div>
 
+        {deletingCourse ? (
+          <DeleteCourseDialog
+            course={deletingCourse}
+            open
+            onOpenChange={(open) => !open && setDeletingCourse(null)}
+          />
+        ) : null}
         <ConfirmDialog
           open={deleting}
           onOpenChange={setDeleting}
