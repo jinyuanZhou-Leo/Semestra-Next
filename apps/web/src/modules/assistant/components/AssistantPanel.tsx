@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { History, Maximize2, SquarePen, X } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useCommandContext } from '@/app/commands/context'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -38,6 +38,9 @@ export function AssistantPanel() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const pageScope = usePageScope(ctx.scope)
   const session = useQuery(sessionQueryOptions(state.sessionId)).data?.session
+  useEffect(() => {
+    panel.takeDraft()
+  }, [])
   const title = session ? sessionTitle(session) : m.assistant_name()
 
   return (
@@ -91,6 +94,8 @@ export function AssistantPanel() {
       </header>
       <Conversation
         key={state.view}
+        initialTemporary={state.temporary}
+        initialText={state.draft}
         sessionId={state.sessionId}
         pageScope={pageScope}
         onCreated={(id) => panel.created(id)}

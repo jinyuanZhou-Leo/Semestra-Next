@@ -242,7 +242,11 @@ function AssistantNavItem({
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
   const ctx = useCommandContext()
   const label = m.academics_nav_assistant()
-  const panelLabel = open ? m.assistant_close_panel() : m.assistant_open_in_panel()
+  const panelLabel = active
+    ? m.assistant_continue_in_panel()
+    : open
+      ? m.assistant_close_panel()
+      : m.assistant_open_in_panel()
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -260,29 +264,26 @@ function AssistantNavItem({
         <MessageCircle aria-hidden />
         <span className="truncate">{label}</span>
       </SidebarMenuButton>
-      {/* On the full page the panel is not shown, so its button would do nothing visible. */}
-      {active ? null : (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <SidebarMenuAction
-                aria-label={panelLabel}
-                aria-pressed={open}
-                className={cn(
-                  ENTRY_ACTION_ON_HOVER,
-                  'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
-                )}
-                onClick={() => assistant.open(ctx)}
-              />
-            }
-          >
-            <PictureInPicture2 aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
-          </TooltipContent>
-        </Tooltip>
-      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <SidebarMenuAction
+              aria-label={panelLabel}
+              aria-pressed={active ? undefined : open}
+              className={cn(
+                ENTRY_ACTION_ON_HOVER,
+                'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
+              )}
+              onClick={() => assistant.open(ctx)}
+            />
+          }
+        >
+          <PictureInPicture2 aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
+        </TooltipContent>
+      </Tooltip>
       {active && assistant.SidebarNav ? (
         <PluginBoundary silent>
           <assistant.SidebarNav programId={programId} onNavigate={onNavigate} />

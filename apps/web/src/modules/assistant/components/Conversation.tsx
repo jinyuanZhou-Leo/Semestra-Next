@@ -23,7 +23,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
-import { type DragEvent, Suspense, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
@@ -60,9 +60,10 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from '@/ui/message-scroller'
+import { Label } from '@/ui/label'
 import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { Toggle } from '@/ui/toggle'
+import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
@@ -441,6 +442,11 @@ export function Conversation({
   onQuestionTaken,
   focusInput,
   className,
+  contentClassName,
+  initialTemporary = false,
+  onTemporaryChange,
+  initialText,
+  onTextChange,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -451,8 +457,18 @@ export function Conversation({
   /** Puts the caret in the input when the conversation shows. */
   focusInput?: boolean
   className?: string
+  /** Applied to the message column and the input area, so the scrollbar can sit at the edge. */
+  contentClassName?: string
+  /** A new conversation starts as a temporary chat (the full page's choice carried over). */
+  initialTemporary?: boolean
+  /** Reports whether the conversation shown is temporary, when it changes. */
+  onTemporaryChange?: (temporary: boolean) => void
+  /** The input starts with this text, and reports what is typed (the hand-over keeps drafts). */
+  initialText?: string
+  onTextChange?: (text: string) => void
 }) {
   const queryClient = useQueryClient()
+  const temporaryId = useId()
   const ai = useAiStatus('chat')
   const chat = useChat(sessionId, onCreated)
   const showReasoning = useShowReasoning()
@@ -461,7 +477,7 @@ export function Conversation({
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
-  const [temporaryChoice, setTemporaryChoice] = useState(false)
+  const [temporaryChoice, setTemporaryChoice] = useState(initialTemporary)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
@@ -469,6 +485,10 @@ export function Conversation({
   const detail = chat.detail
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
+  const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
+  useEffect(() => {
+    reportTemporary(temporary)
+  }, [temporary])
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
   const savedFiles = new Map(
@@ -635,17 +655,27 @@ export function Conversation({
         <ScrollToEndOnSend sent={sent} />
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport aria-label={m.assistant_messages_label()}>
-            <MessageScrollerContent className="gap-6 px-4 py-4">
+            <MessageScrollerContent className={cn('gap-6 px-4 py-4', contentClassName)}>
               {chat.loading ? (
                 <ConversationSkeleton />
               ) : items.length === 0 ? (
                 <Empty className="my-auto border-0">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <MessageSquareText aria-hidden />
+                      {temporary ? (
+                        <MessageCircleDashed aria-hidden />
+                      ) : (
+                        <MessageSquareText aria-hidden />
+                      )}
                     </EmptyMedia>
-                    <EmptyTitle>{m.assistant_empty_title()}</EmptyTitle>
-                    <EmptyDescription>{m.assistant_empty_description()}</EmptyDescription>
+                    <EmptyTitle>
+                      {temporary ? m.assistant_temporary_empty_title() : m.assistant_empty_title()}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {temporary
+                        ? m.assistant_temporary_empty_description()
+                        : m.assistant_empty_description()}
+                    </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               ) : (
@@ -717,7 +747,7 @@ export function Conversation({
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
-      <div className="shrink-0 space-y-2 px-3 pb-3">
+      <div className={cn('w-full shrink-0 space-y-2 px-3 pb-3', contentClassName)}>
         {chat.error ? (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage({ error: chat.error })}</AlertDescription>
@@ -757,17 +787,20 @@ export function Conversation({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Toggle
-                    size="sm"
-                    pressed={temporary}
-                    disabled={sessionId !== null}
-                    className="shrink-0 text-xs text-muted-foreground aria-pressed:text-foreground"
-                    onPressedChange={setTemporaryChoice}
+                  <Label
+                    htmlFor={temporaryId}
+                    className="shrink-0 gap-2 text-xs font-normal text-muted-foreground"
                   />
                 }
               >
-                <MessageCircleDashed data-icon="inline-start" aria-hidden />
                 {m.assistant_temporary_chat()}
+                <Switch
+                  id={temporaryId}
+                  size="sm"
+                  checked={temporary}
+                  disabled={sessionId !== null}
+                  onCheckedChange={setTemporaryChoice}
+                />
               </TooltipTrigger>
               <TooltipContent>{m.assistant_temporary_chat_hint()}</TooltipContent>
             </Tooltip>
@@ -784,6 +817,8 @@ export function Conversation({
           onStop={() => void chat.stop()}
           onScope={(next) => void changeScope(next)}
           focusInput={focusInput}
+          initialText={initialText}
+          onTextChange={onTextChange}
         />
       </div>
     </section>
