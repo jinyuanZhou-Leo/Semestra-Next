@@ -229,8 +229,6 @@ export type NavigationSourceContribution = {
 export type AssistantContribution = {
   /** Without a question it toggles the panel; with one it asks it in a new conversation. */
   open: (ctx: CommandContext, question?: string) => void
-  /** Shows the conversation of the full page (null: a new one) in the panel. */
-  moveToPanel: (sessionId: string | null) => void
   /** Whether the panel is open (for `useSyncExternalStore`), e.g. to highlight its entry. */
   panel: { subscribe: (listener: () => void) => () => void; isOpen: () => boolean }
   /** Wraps the app shell's content and docks the panel beside it (M12 §6.1). */

@@ -1,10 +1,10 @@
 import { useLocation } from '@tanstack/react-router'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable'
 import { Spinner } from '@/ui/spinner'
-import { usePanel } from '../store'
+import { panel, usePanel } from '../store'
 
 // The conversation UI (Markdown, highlighting) loads the first time the panel opens.
 const AssistantPanel = lazy(() =>
@@ -26,6 +26,11 @@ export function AssistantDock({ children }: { children: ReactNode }) {
   const { open } = usePanel()
   const isMobile = useIsMobile()
   const pathname = useLocation({ select: (l) => l.pathname })
+  const href = useLocation({ select: (l) => l.href })
+  // The full page's hand-over to the panel goes back to the page before it.
+  useEffect(() => {
+    if (!ASSISTANT_PAGE.test(href)) panel.setReturnTo(href)
+  }, [href])
   const shown = open && !isMobile && !ASSISTANT_PAGE.test(pathname)
   // Read here, where it is always mounted, so the remembered width stays in the cache.
   const [width, setWidth] = useUiPref('layout.assistant_width', PANEL_DEFAULT)

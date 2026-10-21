@@ -91,6 +91,7 @@ export function AssistantPanel() {
       </header>
       <Conversation
         key={state.view}
+        initialTemporary={state.temporary}
         sessionId={state.sessionId}
         pageScope={pageScope}
         onCreated={(id) => panel.created(id)}

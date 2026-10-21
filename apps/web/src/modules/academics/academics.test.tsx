@@ -66,6 +66,8 @@ const lists = defineModule({
   ],
 })
 
+const openAssistant = vi.fn<() => void>()
+
 /** An assistant whose page lists conversations under its sidebar entry. */
 const assistant = defineModule({
   id: 'assistant',
@@ -74,8 +76,7 @@ const assistant = defineModule({
   description: () => 'Sem',
   icon: NotebookPen,
   assistant: {
-    open: () => {},
-    moveToPanel: () => {},
+    open: openAssistant,
     panel: { subscribe: () => () => {}, isOpen: () => false },
     Dock: ({ children }) => <>{children}</>,
     SidebarNav: () => (
@@ -529,4 +530,12 @@ test('a course deleted while the dialog shows it falls back to its term and leav
 test('a link with a scope opens that course from any page', async () => {
   mount('/p/p1?settings=course/general&scope=c3')
   expect(await screen.findByRole('dialog', { name: /ESC180Y1/ })).toBeInTheDocument()
+})
+
+test("on Sem's page the side panel button continues the conversation there", async () => {
+  openAssistant.mockClear()
+  mount('/p/p1/assistant')
+  const button = await screen.findByRole('button', { name: 'Continue in side panel' })
+  await userEvent.click(button)
+  expect(openAssistant).toHaveBeenCalledOnce()
 })

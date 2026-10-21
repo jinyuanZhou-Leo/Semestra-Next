@@ -12,10 +12,22 @@ export type PanelState = {
   question: { text: string; key: number } | null
   /** Changes when another conversation is shown (not when a new one gets its id). */
   view: number
+  /** Whether a new conversation in the panel starts as a temporary chat. */
+  temporary: boolean
 }
 
-const INITIAL: PanelState = { open: false, sessionId: null, question: null, view: 0 }
+const INITIAL: PanelState = {
+  open: false,
+  sessionId: null,
+  question: null,
+  view: 0,
+  temporary: false,
+}
 let state: PanelState = INITIAL
+// What the full page shows, so `open` can hand it to the panel; null while the page is closed.
+let page: { sessionId: string | null; temporary: boolean } | null = null
+// The last page outside the assistant, where the hand-over goes back to.
+let returnTo: string | null = null
 const listeners = new Set<() => void>()
 
 function set(next: Partial<PanelState>) {
@@ -40,6 +52,7 @@ export const panel = {
         open: true,
         sessionId: null,
         question: { text: question.trim(), key: Date.now() },
+        temporary: false,
         view: state.view + 1,
       })
     } else {
@@ -47,14 +60,22 @@ export const panel = {
     }
   },
   /** Shows an open conversation in the panel (the full page hands its conversation over). */
-  moveHere(sessionId: string | null) {
-    set({ open: true, sessionId, question: null, view: state.view + 1 })
+  moveHere(sessionId: string | null, temporary: boolean) {
+    set({ open: true, sessionId, temporary, question: null, view: state.view + 1 })
+  },
+  page: () => page,
+  setPage(next: typeof page) {
+    page = next
+  },
+  returnTo: () => returnTo,
+  setReturnTo(href: string) {
+    returnTo = href
   },
   close() {
     set({ open: false })
   },
   show(sessionId: string | null) {
-    set({ sessionId, question: null, view: state.view + 1 })
+    set({ sessionId, temporary: false, question: null, view: state.view + 1 })
   },
   /** A new conversation was created by its first message. */
   created(sessionId: string) {
@@ -68,6 +89,8 @@ export const panel = {
   /** Tests start from a closed panel. */
   reset() {
     state = INITIAL
+    page = null
+    returnTo = null
   },
 }
 

@@ -23,7 +23,7 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react'
-import { type DragEvent, Suspense, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
@@ -443,6 +443,8 @@ export function Conversation({
   focusInput,
   className,
   contentClassName,
+  initialTemporary = false,
+  onTemporaryChange,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -455,8 +457,13 @@ export function Conversation({
   className?: string
   /** Applied to the message column and the input area, so the scrollbar can sit at the edge. */
   contentClassName?: string
+  /** A new conversation starts as a temporary chat (the full page's choice carried over). */
+  initialTemporary?: boolean
+  /** Reports whether the conversation shown is temporary, when it changes. */
+  onTemporaryChange?: (temporary: boolean) => void
 }) {
   const queryClient = useQueryClient()
+  const temporaryId = useId()
   const ai = useAiStatus('chat')
   const chat = useChat(sessionId, onCreated)
   const showReasoning = useShowReasoning()
@@ -465,7 +472,7 @@ export function Conversation({
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
-  const [temporaryChoice, setTemporaryChoice] = useState(false)
+  const [temporaryChoice, setTemporaryChoice] = useState(initialTemporary)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [dragging, setDragging] = useState(false)
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
@@ -473,6 +480,10 @@ export function Conversation({
   const detail = chat.detail
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
+  const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
+  useEffect(() => {
+    reportTemporary(temporary)
+  }, [temporary])
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
   const savedFiles = new Map(
@@ -772,14 +783,14 @@ export function Conversation({
               <TooltipTrigger
                 render={
                   <Label
-                    htmlFor="temporary-chat"
+                    htmlFor={temporaryId}
                     className="shrink-0 gap-2 text-xs font-normal text-muted-foreground"
                   />
                 }
               >
                 {m.assistant_temporary_chat()}
                 <Switch
-                  id="temporary-chat"
+                  id={temporaryId}
                   size="sm"
                   checked={temporary}
                   disabled={sessionId !== null}

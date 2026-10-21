@@ -1,5 +1,5 @@
 import type { Program } from '@semestra/api-client'
-import { useLocation, useRouter } from '@tanstack/react-router'
+import { useLocation } from '@tanstack/react-router'
 import {
   BookOpen,
   ChevronsUpDown,
@@ -13,7 +13,7 @@ import {
   PictureInPicture2,
   Settings,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useState, useSyncExternalStore } from 'react'
 import { openCommandPalette, useHostAction } from '@/app/commands'
 import { useCommandContext } from '@/app/commands/context'
 import { type AssistantContribution, scopePath } from '@/app/extensions'
@@ -232,31 +232,21 @@ function AssistantNavItem({
   assistant,
   programId,
   active,
-  returnTo,
   onNavigate,
 }: {
   assistant: AssistantContribution
   programId: string
   active: boolean
-  /** The page the user came from; read when the conversation moves to the panel. */
-  returnTo: () => string
   onNavigate: () => void
 }) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
   const ctx = useCommandContext()
-  const router = useRouter()
   const label = m.academics_nav_assistant()
   const panelLabel = active
     ? m.assistant_continue_in_panel()
     : open
       ? m.assistant_close_panel()
       : m.assistant_open_in_panel()
-  // On the full page the button hands the conversation to the panel and goes back.
-  function moveToPanel() {
-    const segment = router.state.location.pathname.replace(/\/$/, '').split('/').at(-1)
-    assistant.moveToPanel(segment && segment !== 'assistant' ? segment : null)
-    router.history.push(returnTo())
-  }
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -284,7 +274,7 @@ function AssistantNavItem({
                 ENTRY_ACTION_ON_HOVER,
                 'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
               )}
-              onClick={() => (active ? moveToPanel() : assistant.open(ctx))}
+              onClick={() => assistant.open(ctx)}
             />
           }
         >
@@ -321,12 +311,6 @@ export function AppSidebar({ programId }: { programId: string }) {
   useHostAction('nav.manage', () => setManaging(true), !isMobile)
   // Following a link closes the drawer on phones.
   const onNavigate = () => setOpenMobile(false)
-  // The last page outside the assistant, where "continue in side panel" goes back to.
-  const pageHref = useLocation({ select: (l) => l.href })
-  const lastPage = useRef(programPath(programId))
-  useEffect(() => {
-    if (!ASSISTANT_PAGE.test(pageHref)) lastPage.current = pageHref
-  }, [pageHref])
 
   const termsAndCoursesHref = termsAndCoursesPath(programId)
 
@@ -361,7 +345,6 @@ export function AppSidebar({ programId }: { programId: string }) {
                     assistant={assistant}
                     programId={programId}
                     active={ASSISTANT_PAGE.test(pathname)}
-                    returnTo={() => lastPage.current}
                     onNavigate={onNavigate}
                   />
                 ) : null}

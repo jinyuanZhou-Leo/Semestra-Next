@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { History, MoreHorizontal, SquarePen } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { ShellToolbar } from '@/app/host/ShellToolbar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { useSidebar } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { programScope } from '../scope'
+import { panel } from '../store'
 import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
 import { SessionList, SessionMenuItems, sessionTitle, useSessionEditing } from './SessionList'
@@ -67,6 +68,13 @@ export function AssistantPage({
   const editing = useSessionEditing((id) => id === sessionId && onNavigate(null))
   const key = at === created.id ? created.key : at
   const title = session ? sessionTitle(session) : m.assistant_name()
+  const [temporary, setTemporary] = useState(false)
+  // The conversation shown, also before its URL has its id: what "continue in side panel" moves.
+  const currentId = sessionId ?? (created.key === key ? created.id : null)
+  useEffect(() => {
+    panel.setPage({ sessionId: currentId, temporary })
+  }, [currentId, temporary])
+  useEffect(() => () => panel.setPage(null), [])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -150,6 +158,7 @@ export function AssistantPage({
           key={key}
           contentClassName="mx-auto w-full max-w-3xl"
           sessionId={sessionId}
+          onTemporaryChange={setTemporary}
           pageScope={programScope(programId)}
           onCreated={(id) => {
             setCreated({ id, key })
