@@ -145,10 +145,10 @@ export function AssistantPage({
           ) : null}
         </div>
       </ShellToolbar>
-      <div className="flex min-h-0 flex-1 justify-center">
+      <div className="flex min-h-0 flex-1">
         <Conversation
           key={key}
-          className="max-w-3xl"
+          contentClassName="mx-auto w-full max-w-3xl"
           sessionId={sessionId}
           pageScope={programScope(programId)}
           onCreated={(id) => {

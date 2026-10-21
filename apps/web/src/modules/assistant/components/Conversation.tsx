@@ -60,9 +60,10 @@ import {
   MessageScrollerViewport,
   useMessageScroller,
 } from '@/ui/message-scroller'
+import { Label } from '@/ui/label'
 import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { Toggle } from '@/ui/toggle'
+import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
@@ -441,6 +442,7 @@ export function Conversation({
   onQuestionTaken,
   focusInput,
   className,
+  contentClassName,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -451,6 +453,8 @@ export function Conversation({
   /** Puts the caret in the input when the conversation shows. */
   focusInput?: boolean
   className?: string
+  /** Applied to the message column and the input area, so the scrollbar can sit at the edge. */
+  contentClassName?: string
 }) {
   const queryClient = useQueryClient()
   const ai = useAiStatus('chat')
@@ -635,17 +639,27 @@ export function Conversation({
         <ScrollToEndOnSend sent={sent} />
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport aria-label={m.assistant_messages_label()}>
-            <MessageScrollerContent className="gap-6 px-4 py-4">
+            <MessageScrollerContent className={cn('gap-6 px-4 py-4', contentClassName)}>
               {chat.loading ? (
                 <ConversationSkeleton />
               ) : items.length === 0 ? (
                 <Empty className="my-auto border-0">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <MessageSquareText aria-hidden />
+                      {temporary ? (
+                        <MessageCircleDashed aria-hidden />
+                      ) : (
+                        <MessageSquareText aria-hidden />
+                      )}
                     </EmptyMedia>
-                    <EmptyTitle>{m.assistant_empty_title()}</EmptyTitle>
-                    <EmptyDescription>{m.assistant_empty_description()}</EmptyDescription>
+                    <EmptyTitle>
+                      {temporary ? m.assistant_temporary_empty_title() : m.assistant_empty_title()}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {temporary
+                        ? m.assistant_temporary_empty_description()
+                        : m.assistant_empty_description()}
+                    </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               ) : (
@@ -717,7 +731,7 @@ export function Conversation({
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
-      <div className="shrink-0 space-y-2 px-3 pb-3">
+      <div className={cn('w-full shrink-0 space-y-2 px-3 pb-3', contentClassName)}>
         {chat.error ? (
           <Alert variant="destructive">
             <AlertDescription>{errorMessage({ error: chat.error })}</AlertDescription>
@@ -757,17 +771,20 @@ export function Conversation({
             <Tooltip>
               <TooltipTrigger
                 render={
-                  <Toggle
-                    size="sm"
-                    pressed={temporary}
-                    disabled={sessionId !== null}
-                    className="shrink-0 text-xs text-muted-foreground aria-pressed:text-foreground"
-                    onPressedChange={setTemporaryChoice}
+                  <Label
+                    htmlFor="temporary-chat"
+                    className="shrink-0 gap-2 text-xs font-normal text-muted-foreground"
                   />
                 }
               >
-                <MessageCircleDashed data-icon="inline-start" aria-hidden />
                 {m.assistant_temporary_chat()}
+                <Switch
+                  id="temporary-chat"
+                  size="sm"
+                  checked={temporary}
+                  disabled={sessionId !== null}
+                  onCheckedChange={setTemporaryChoice}
+                />
               </TooltipTrigger>
               <TooltipContent>{m.assistant_temporary_chat_hint()}</TooltipContent>
             </Tooltip>

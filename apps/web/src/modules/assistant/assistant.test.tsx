@@ -385,6 +385,16 @@ test('a question streams in as Markdown', async () => {
   expect(input).toHaveValue('')
 })
 
+test('the temporary chat switch turns the empty state into its explanation', async () => {
+  renderConversation()
+  await messageInput()
+  expect(await screen.findByText('New conversation')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('switch', { name: 'Temporary chat' }))
+  expect(screen.getByRole('switch', { name: 'Temporary chat' })).toBeChecked()
+  expect(screen.getByText(/won't read your memories/)).toBeInTheDocument()
+  expect(screen.queryByText('New conversation')).not.toBeInTheDocument()
+})
+
 test('a write waits on a card: approving sends the decision and shows the result', async () => {
   srv.reply = (path) => {
     if (path.endsWith('/messages')) {

@@ -20,6 +20,7 @@ export default defineModule({
   icon: MessageCircle,
   assistant: {
     open: (_ctx, question) => (question ? panel.open(question) : panel.toggle()),
+    moveToPanel: (sessionId) => panel.moveHere(sessionId),
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
     Dock: AssistantDock,
     SidebarNav: lazy(() =>

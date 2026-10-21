@@ -75,6 +75,7 @@ const assistant = defineModule({
   icon: NotebookPen,
   assistant: {
     open: () => {},
+    moveToPanel: () => {},
     panel: { subscribe: () => () => {}, isOpen: () => false },
     Dock: ({ children }) => <>{children}</>,
     SidebarNav: () => (

@@ -46,6 +46,10 @@ export const panel = {
       set({ open: true })
     }
   },
+  /** Shows an open conversation in the panel (the full page hands its conversation over). */
+  moveHere(sessionId: string | null) {
+    set({ open: true, sessionId, question: null, view: state.view + 1 })
+  },
   close() {
     set({ open: false })
   },
