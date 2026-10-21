@@ -6,7 +6,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -21,6 +21,34 @@ import { issueSummary } from '../labels'
 import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
+
+/** How long the finished check shows before the review replaces the extraction. */
+export const SUCCESS_HOLD_MS = 1000
+
+/**
+ * What follows an extraction the user watched (a Canvas or LMS import that started elsewhere): the
+ * check on the action for a moment, then `onFinished` opens the review. A failed or discarded
+ * session goes straight on, since the session view explains it.
+ */
+export function ExtractionDone({
+  session,
+  onFinished,
+}: {
+  session: ImportSessionDetail
+  onFinished: () => void
+}) {
+  const ended = session.status === 'failed' || session.status === 'discarded'
+  useEffect(() => {
+    const timer = window.setTimeout(onFinished, ended ? 0 : SUCCESS_HOLD_MS)
+    return () => window.clearTimeout(timer)
+  }, [ended, onFinished])
+  return (
+    <div className="space-y-4">
+      <AiAction state={ended ? 'idle' : 'success'} label={m.imports_extracting()} />
+      <FileStatusList rows={sessionRows(session.source_refs)} />
+    </div>
+  )
+}
 
 /** The running extraction as a button-shaped progress bar; its stop button cancels the job. */
 function ExtractingAction({ jobId }: { jobId: string | null | undefined }) {

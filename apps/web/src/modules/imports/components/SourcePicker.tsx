@@ -18,11 +18,10 @@ import { storeSession } from '../queries'
 import { SOURCES } from '../sources'
 import type { FileImportRequest } from '../types'
 import { FileStatusList, sessionRows } from './FileStatusList'
+import { SUCCESS_HOLD_MS } from './SessionView'
 
 /** Upload takes the first fifth of the bar; the extraction job fills the rest. */
 const UPLOAD_SHARE = 20
-/** How long the finished check shows before the review replaces the picker. */
-const SUCCESS_HOLD_MS = 1000
 
 /**
  * One file as a multipart upload with real byte progress, which `fetch` cannot report. Stays

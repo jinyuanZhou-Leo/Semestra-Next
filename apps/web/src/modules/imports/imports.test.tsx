@@ -453,3 +453,41 @@ test('a single-file source offers to replace the file, a multi-file one to add m
   await pickFile()
   expect(await screen.findByText('Choose another file, or drop it here')).toBeInTheDocument()
 })
+
+test('a session started elsewhere shows its check before the review opens', async () => {
+  const states = [session({ status: 'extracting', job_id: 'j1', items: [] }), session()]
+  server.use(
+    courses(),
+    http.get(`${API}/imports/s1`, () =>
+      HttpResponse.json(states.length > 1 ? states.shift() : states[0]),
+    ),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'imports.extract',
+        status: 'running',
+        progress: 30,
+        step: null,
+        step_current: null,
+        step_total: null,
+        attempts: 1,
+        cancel_requested: false,
+      }),
+    ),
+  )
+  renderWithRouter(
+    <ImportDialog
+      request={{
+        programId: 'p1',
+        source: 'session',
+        sessionId: 's1',
+        title: () => 'Canvas',
+        mode: 'direct',
+      }}
+      onClose={() => {}}
+    />,
+  )
+  expect(await screen.findByRole('button', { name: /Working…/ })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: 'Done' }, { timeout: 8000 })).toBeInTheDocument()
+  expect((await screen.findAllByText('Midterm', {}, { timeout: 8000 })).length).toBeGreaterThan(0)
+}, 20_000)

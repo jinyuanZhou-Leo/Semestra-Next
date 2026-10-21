@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
 import type { ImportOutcome, ImportRequest } from '../types'
-import { SessionView } from './SessionView'
+import { ExtractionDone, SessionView } from './SessionView'
 import { SourcePicker } from './SourcePicker'
 
 /**
@@ -28,6 +28,10 @@ export function ImportDialog({
   // File and text sources keep their picker (the "Read" progress) until extraction has finished.
   const [reviewing, setReviewing] = useState(false)
   const inPicker = request.source !== 'session' && request.source !== 'picker' && !reviewing
+  // Other starts (Canvas, LMS) hand over an extracting session: show its check before the review.
+  const [watched, setWatched] = useState(false)
+  if (!inPicker && session?.status === 'extracting' && !watched) setWatched(true)
+  const finishing = !inPicker && watched && !reviewing && session && session.status !== 'extracting'
   const spec =
     request.source === 'picker'
       ? request.picker
@@ -51,6 +55,8 @@ export function ImportDialog({
             onStarted={setSessionId}
             onFinished={() => setReviewing(true)}
           />
+        ) : finishing ? (
+          <ExtractionDone session={session} onFinished={() => setReviewing(true)} />
         ) : session ? (
           <SessionView
             session={session}
