@@ -152,7 +152,8 @@ test('previews an uploaded backup and asks for the sentence before replacing', a
   expect(screen.queryByText('course_terms')).not.toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('checkbox', { name: 'Minor' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Replace' }))
+  await userEvent.click(screen.getByRole('combobox', { name: 'Import as' }))
+  await userEvent.click(await screen.findByRole('option', { name: /Replace/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Import' }))
 
   const dialog = await screen.findByRole('alertdialog')

@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Clock2 } from 'lucide-react'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Switch } from '@/ui/switch'
 import {
   Select,
@@ -213,16 +216,21 @@ function PlainControl(props: ControlProps & { follow?: FollowChoice }) {
       return <NumberControl {...props} />
     case 'time':
       return (
-        <Input
-          id={id}
-          type="time"
-          aria-labelledby={labelId}
-          className="w-32"
-          value={typeof value === 'string' ? value.slice(0, 5) : ''}
-          onChange={(event) => {
-            if (event.target.value) onChange(event.target.value)
-          }}
-        />
+        <InputGroup className="w-32">
+          <InputGroupInput
+            id={id}
+            type="time"
+            aria-labelledby={labelId}
+            className={TIME_INPUT}
+            value={typeof value === 'string' ? value.slice(0, 5) : ''}
+            onChange={(event) => {
+              if (event.target.value) onChange(event.target.value)
+            }}
+          />
+          <InputGroupAddon>
+            <Clock2 aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
       )
     case 'text':
       return (

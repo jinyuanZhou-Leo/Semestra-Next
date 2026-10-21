@@ -47,7 +47,7 @@ import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Separator } from '@/ui/separator'
 import { Spinner } from '@/ui/spinner'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 
 /** What the user sees of a catalog entry: the frontend manifest when the module has one. */
 type Entry = {
@@ -372,17 +372,17 @@ export default function PluginCatalog() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <ToggleGroup
-            aria-label={m.plugins_filter_label()}
-            value={[show]}
-            onValueChange={(next) => {
-              if (next[0]) setShow(next[0] as Show)
-            }}
-            variant="outline"
-          >
-            <ToggleGroupItem value="all">{m.plugins_filter_all()}</ToggleGroupItem>
-            <ToggleGroupItem value="installed">{m.plugins_installed()}</ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex h-9 items-center">
+            <ChoiceControl<Show>
+              label={m.plugins_filter_label()}
+              value={show}
+              onChange={setShow}
+              options={[
+                { value: 'all', label: m.plugins_filter_all() },
+                { value: 'installed', label: m.plugins_installed() },
+              ]}
+            />
+          </div>
         </div>
         {visible.length > 0 ? (
           <ul className="grid gap-3 @lg:grid-cols-2 @3xl:grid-cols-3">

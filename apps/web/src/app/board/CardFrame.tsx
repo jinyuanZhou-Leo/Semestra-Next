@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
@@ -15,13 +15,6 @@ import type { DraftCard } from './Board'
 import { CardSettingsDialog } from './CardSettingsDialog'
 import { useCardSettings } from './queries'
 import { parseCardSettings } from './settings'
-
-const SIZE_LABEL: Record<CardSize, () => string> = {
-  s: m.board_size_s,
-  m: m.board_size_m,
-  l: m.board_size_l,
-  xl: m.board_size_xl,
-}
 
 type Props = {
   scope: Scope
@@ -168,26 +161,15 @@ export function CardFrame({
                     <span className="text-xs text-muted-foreground">
                       {m.board_card_size_label()}
                     </span>
-                    <ToggleGroup
-                      aria-label={m.board_card_size({ card: title })}
-                      size="sm"
-                      value={[card.size]}
-                      onValueChange={(value) => {
-                        const size = contribution.sizes.find((s) => s === value[0])
-                        if (size) onResize(size)
-                      }}
-                    >
-                      {contribution.sizes.map((size) => (
-                        <ToggleGroupItem
-                          key={size}
-                          value={size}
-                          aria-label={SIZE_LABEL[size]()}
-                          className="h-6 min-w-6 px-1.5 text-[0.625rem]"
-                        >
-                          {size}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
+                    <ChoiceControl
+                      label={m.board_card_size({ card: title })}
+                      value={card.size}
+                      onChange={onResize}
+                      options={contribution.sizes.map((size) => ({
+                        value: size,
+                        label: size.toUpperCase(),
+                      }))}
+                    />
                   </div>
                 ) : null}
                 {contribution.settings ? (

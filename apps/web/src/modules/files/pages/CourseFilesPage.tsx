@@ -29,6 +29,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Input } from '@/ui/input'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
@@ -125,7 +126,8 @@ function CourseFiles({
           {view === 'grid' ? <SortMenu /> : null}
           <ToggleGroup
             aria-label={m.files_view()}
-            variant="outline"
+            size="sm"
+            className={SEGMENTED}
             value={[view]}
             onValueChange={(next) => {
               if (next[0]) setView(next[0] as View)
@@ -138,7 +140,9 @@ function CourseFiles({
               ] as const
             ).map(([value, Icon, label]) => (
               <Tooltip key={value}>
-                <TooltipTrigger render={<ToggleGroupItem value={value} aria-label={label} />}>
+                <TooltipTrigger
+                  render={<ToggleGroupItem value={value} aria-label={label} className={SEGMENT} />}
+                >
                   <Icon aria-hidden />
                 </TooltipTrigger>
                 <TooltipContent>{label}</TooltipContent>

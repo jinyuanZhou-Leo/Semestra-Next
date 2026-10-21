@@ -1,6 +1,6 @@
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { formatDate, firstDayOfWeek } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -10,6 +10,8 @@ import { Calendar } from '@/ui/calendar'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Textarea } from '@/ui/textarea'
 import { invalidateSchedule } from '../queries'
@@ -114,22 +116,34 @@ export function MoveDialog({
           </Field>
           <Field>
             <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_start_time()}</FieldLabel>
-            <Input
-              id={`${fid}-2`}
-              type="time"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
+            <InputGroup>
+              <InputGroupInput
+                id={`${fid}-2`}
+                type="time"
+                className={TIME_INPUT}
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
+              <InputGroupAddon>
+                <Clock2 aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
           </Field>
           <Field data-invalid={(touched && invalid) || undefined}>
             <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_end_time()}</FieldLabel>
-            <Input
-              id={`${fid}-3`}
-              aria-invalid={(touched && invalid) || undefined}
-              type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
+            <InputGroup>
+              <InputGroupInput
+                id={`${fid}-3`}
+                aria-invalid={(touched && invalid) || undefined}
+                type="time"
+                className={TIME_INPUT}
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+              <InputGroupAddon>
+                <Clock2 aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
             {touched && invalid ? (
               <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
             ) : null}

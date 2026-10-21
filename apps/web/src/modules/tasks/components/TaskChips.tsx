@@ -1,5 +1,5 @@
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
-import { CalendarDays, Check, Clock, Flag, GraduationCap } from 'lucide-react'
+import { CalendarDays, Check, Clock2, Flag, GraduationCap } from 'lucide-react'
 import { useState } from 'react'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { dueLabel, localDate } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
@@ -218,28 +219,33 @@ function TimeChip({
       if (save && draft !== current) onChange({ due_time: draft || null })
     }
     return (
-      <Input
-        type="time"
-        ref={(el) => {
-          if (el && document.activeElement !== el) el.focus()
-        }}
-        aria-label={m.tasks_due_time_label()}
-        className="h-6 w-28 rounded-full px-2.5 text-xs"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => finish(true)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault()
-            finish(true)
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            finish(false)
-          }
-        }}
-      />
+      <InputGroup className="h-6 w-28">
+        <InputGroupInput
+          type="time"
+          ref={(el) => {
+            if (el && document.activeElement !== el) el.focus()
+          }}
+          aria-label={m.tasks_due_time_label()}
+          className={cn(TIME_INPUT, 'px-1 text-xs')}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => finish(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              finish(true)
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              finish(false)
+            }
+          }}
+        />
+        <InputGroupAddon className="py-0 pl-2">
+          <Clock2 className="size-3" aria-hidden />
+        </InputGroupAddon>
+      </InputGroup>
     )
   }
   return (
@@ -251,7 +257,7 @@ function TimeChip({
       disabled={disabled}
       onClick={() => setDraft(current)}
     >
-      <Clock aria-hidden />
+      <Clock2 aria-hidden />
       {current ? formatTime(`${task.due_date}T${current}`) : m.tasks_due_time_label()}
     </Button>
   )

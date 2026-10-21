@@ -4,7 +4,7 @@ import {
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronDownIcon } from 'lucide-react'
+import { ChevronDownIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { firstDayOfWeek, formatDate } from '@/lib/format'
@@ -15,6 +15,8 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
@@ -232,13 +234,19 @@ function AssessmentForm({
           </Field>
           <Field className="w-auto">
             <FieldLabel htmlFor={`${id}-due-time`}>{m.grading_assessment_due_time()}</FieldLabel>
-            <Input
-              id={`${id}-due-time`}
-              type="time"
-              value={dueTime}
-              disabled={dueDate === ''}
-              onChange={(event) => setDueTime(event.target.value)}
-            />
+            <InputGroup data-disabled={dueDate === '' || undefined}>
+              <InputGroupInput
+                id={`${id}-due-time`}
+                type="time"
+                className={TIME_INPUT}
+                value={dueTime}
+                disabled={dueDate === ''}
+                onChange={(event) => setDueTime(event.target.value)}
+              />
+              <InputGroupAddon>
+                <Clock2 aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
           </Field>
         </div>
         <div className="flex flex-wrap gap-4">

@@ -4,7 +4,7 @@ import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 
 export type ListDialogValue = { name: string; termLevel: boolean }
 
@@ -64,16 +64,15 @@ export function ListDialog({
           {canChooseLevel ? (
             <Field>
               <FieldLabel>{m.tasks_list_level_label()}</FieldLabel>
-              <ToggleGroup
-                variant="outline"
-                value={[termLevel ? 'term' : 'program']}
-                onValueChange={(value) => {
-                  if (value[0]) setTermLevel(value[0] === 'term')
-                }}
-              >
-                <ToggleGroupItem value="term">{m.tasks_list_level_term()}</ToggleGroupItem>
-                <ToggleGroupItem value="program">{m.tasks_list_level_program()}</ToggleGroupItem>
-              </ToggleGroup>
+              <ChoiceControl
+                label={m.tasks_list_level_label()}
+                value={termLevel ? 'term' : 'program'}
+                onChange={(value) => setTermLevel(value === 'term')}
+                options={[
+                  { value: 'term', label: m.tasks_list_level_term() },
+                  { value: 'program', label: m.tasks_list_level_program() },
+                ]}
+              />
             </Field>
           ) : null}
           <DialogFooter>

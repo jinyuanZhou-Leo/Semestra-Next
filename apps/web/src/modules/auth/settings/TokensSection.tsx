@@ -30,14 +30,7 @@ import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/e
 import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
+import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
 
 /** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
 export function mcpConfig(token: string, apiOrigin: string): string {
@@ -83,11 +76,11 @@ function CreateTokenDialog({
   const nameId = useId()
   const scopeId = useId()
   const expiryId = useId()
-  const scopeItems = [
+  const scopeItems: ChoiceOption<'read' | 'write'>[] = [
     { value: 'read', label: m.auth_account_tokens_scope_read() },
     { value: 'write', label: m.auth_account_tokens_scope_write() },
   ]
-  const expiryItems = [
+  const expiryItems: ChoiceOption<string>[] = [
     { value: 'never', label: m.auth_account_tokens_expiry_never() },
     ...[30, 90, 365].map((d) => ({
       value: String(d),
@@ -151,45 +144,21 @@ function CreateTokenDialog({
             </Field>
             <Field>
               <FieldLabel id={scopeId}>{m.auth_account_tokens_scope_label()}</FieldLabel>
-              <Select
+              <ChoiceControl
+                labelId={scopeId}
                 value={scope}
-                items={scopeItems}
-                onValueChange={(next) => setScope(next === 'write' ? 'write' : 'read')}
-              >
-                <SelectTrigger aria-labelledby={scopeId} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {scopeItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                onChange={setScope}
+                options={scopeItems}
+              />
             </Field>
             <Field>
               <FieldLabel id={expiryId}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
-              <Select
+              <ChoiceControl
+                labelId={expiryId}
                 value={days}
-                items={expiryItems}
-                onValueChange={(next) => next && setDays(next)}
-              >
-                <SelectTrigger aria-labelledby={expiryId} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {expiryItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                onChange={setDays}
+                options={expiryItems}
+              />
             </Field>
             <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>

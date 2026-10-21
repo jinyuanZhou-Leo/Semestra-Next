@@ -15,6 +15,9 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Clock2 } from 'lucide-react'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import {
   Select,
   SelectContent,
@@ -23,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { weekdayName } from '../time'
@@ -255,22 +258,34 @@ export function MeetingDialog({
           <div className="grid grid-cols-2 gap-2">
             <Field>
               <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_start_time()}</FieldLabel>
-              <Input
-                id={`${fid}-5`}
-                type="time"
-                value={draft.start_time}
-                onChange={(e) => set('start_time', e.target.value)}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id={`${fid}-5`}
+                  type="time"
+                  className={TIME_INPUT}
+                  value={draft.start_time}
+                  onChange={(e) => set('start_time', e.target.value)}
+                />
+                <InputGroupAddon>
+                  <Clock2 aria-hidden />
+                </InputGroupAddon>
+              </InputGroup>
             </Field>
             <Field data-invalid={(touched && timeInvalid) || undefined}>
               <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_end_time()}</FieldLabel>
-              <Input
-                id={`${fid}-6`}
-                aria-invalid={(touched && timeInvalid) || undefined}
-                type="time"
-                value={draft.end_time}
-                onChange={(e) => set('end_time', e.target.value)}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id={`${fid}-6`}
+                  aria-invalid={(touched && timeInvalid) || undefined}
+                  type="time"
+                  className={TIME_INPUT}
+                  value={draft.end_time}
+                  onChange={(e) => set('end_time', e.target.value)}
+                />
+                <InputGroupAddon>
+                  <Clock2 aria-hidden />
+                </InputGroupAddon>
+              </InputGroup>
               {touched && timeInvalid ? (
                 <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
               ) : null}
@@ -303,22 +318,20 @@ export function MeetingDialog({
           </Field>
           <div className="col-span-2 flex flex-wrap items-end gap-4">
             <div>
-              <p className="mb-2 text-sm font-medium">{m.schedule_recurrence()}</p>
-              <ToggleGroup
-                aria-label={m.schedule_recurrence()}
-                variant="outline"
-                size="sm"
-                value={[draft.recurrence]}
-                onValueChange={(value) => {
-                  const v = value[0]
-                  if (v) set('recurrence', v as Draft['recurrence'])
-                }}
-              >
-                <ToggleGroupItem value="weekly">{m.schedule_recurrence_weekly()}</ToggleGroupItem>
-                <ToggleGroupItem value="biweekly">
-                  {m.schedule_recurrence_biweekly()}
-                </ToggleGroupItem>
-              </ToggleGroup>
+              <p id={`${fid}-recurrence`} className="mb-1.5 text-sm font-medium">
+                {m.schedule_recurrence()}
+              </p>
+              <div className="flex h-9 items-center">
+                <ChoiceControl<Draft['recurrence']>
+                  labelId={`${fid}-recurrence`}
+                  value={draft.recurrence}
+                  onChange={(value) => set('recurrence', value)}
+                  options={[
+                    { value: 'weekly', label: m.schedule_recurrence_weekly() },
+                    { value: 'biweekly', label: m.schedule_recurrence_biweekly() },
+                  ]}
+                />
+              </div>
             </div>
             {draft.recurrence === 'biweekly' ? (
               <Field className="w-28">
