@@ -1,5 +1,4 @@
 import { Blocks, HardDrive, House, ListChecks } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
@@ -32,7 +31,7 @@ export default defineModule({
       icon: HardDrive,
       sizes: ['s', 'm'],
       defaultSize: 'm',
-      component: lazy(() => import('./StorageCard')),
+      component: preloadable(() => import('./StorageCard')),
       multiple: false,
     },
   ],

@@ -41,8 +41,8 @@ export default defineModule({
   cards: [{
     id: 'hello.note', scopes: ['program','term','course','today'],
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
-    component: lazy(...),
-    settings: { schema: zodSchema, component: lazy(...) },   // component 可省，省略则按 schema 自动生成表单
+    component: preloadable(...),
+    settings: { schema: zodSchema, component: preloadable(...) },   // component 可省，省略则按 schema 自动生成表单
     multiple: true,
     headerActions: ...,        // 卡片头部操作（计数器的"重置"）
   }],
@@ -51,7 +51,7 @@ export default defineModule({
 })
 ```
 
-- 所有重组件用 `lazy()`；页面的 `component` 和 `sidebarNav` 用 `preloadable()`（`@/app/extensions`），路由才能在 loader 和悬停链接时提前拉代码，用普通 `lazy()` 会悄悄失去预加载（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
+- 所有重组件按需加载；页面的 `component`、`sidebarNav`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
 
 ### 3.2 卡片组件

@@ -7,7 +7,6 @@ import {
   Palette,
   Trash2,
 } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
@@ -57,6 +56,7 @@ export default defineModule({
       title: m.academics_nav_overview,
       icon: LayoutDashboard,
       component: preloadable(() => import('./pages/OverviewPage')),
+      board: 'scope',
       order: 0,
     },
   ],
@@ -69,7 +69,7 @@ export default defineModule({
       icon: CalendarRange,
       sizes: ['m', 'l', 'xl'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/TermsCard')),
+      component: preloadable(() => import('./cards/TermsCard')),
       multiple: false,
     },
     {
@@ -79,7 +79,7 @@ export default defineModule({
       icon: ListChecks,
       sizes: ['l', 'xl'],
       defaultSize: 'xl',
-      component: lazy(() => import('./cards/TermCoursesCard')),
+      component: preloadable(() => import('./cards/TermCoursesCard')),
       multiple: false,
     },
     {
@@ -89,7 +89,7 @@ export default defineModule({
       icon: Info,
       sizes: ['m', 'l'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/CourseInfoCard')),
+      component: preloadable(() => import('./cards/CourseInfoCard')),
       headerActions: CourseInfoActions,
       multiple: false,
     },
@@ -106,7 +106,7 @@ export default defineModule({
       title: m.academics_settings_basics,
       icon: Info,
       order: 10,
-      component: lazy(() => settings().then((s) => ({ default: s.ProgramBasicsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ProgramBasicsSection }))),
     },
     {
       id: 'subject-colors',
@@ -116,7 +116,7 @@ export default defineModule({
       description: m.academics_settings_subject_colors_description,
       icon: Palette,
       order: 20,
-      component: lazy(() => settings().then((s) => ({ default: s.SubjectColorsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.SubjectColorsSection }))),
     },
     {
       id: 'term-basics',
@@ -125,7 +125,7 @@ export default defineModule({
       title: m.academics_settings_basics,
       icon: Info,
       order: 10,
-      component: lazy(() => settings().then((s) => ({ default: s.TermBasicsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.TermBasicsSection }))),
     },
     {
       id: 'course-basics',
@@ -134,7 +134,7 @@ export default defineModule({
       title: m.academics_settings_basics,
       icon: Info,
       order: 10,
-      component: lazy(() => settings().then((s) => ({ default: s.CourseBasicsSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.CourseBasicsSection }))),
     },
     {
       id: 'program-danger',
@@ -144,7 +144,7 @@ export default defineModule({
       danger: true,
       icon: Trash2,
       order: 900,
-      component: lazy(() => settings().then((s) => ({ default: s.ProgramDangerSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ProgramDangerSection }))),
     },
     {
       id: 'term-danger',
@@ -154,7 +154,7 @@ export default defineModule({
       danger: true,
       icon: Trash2,
       order: 900,
-      component: lazy(() => settings().then((s) => ({ default: s.TermDangerSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.TermDangerSection }))),
     },
     {
       id: 'course-danger',
@@ -164,7 +164,7 @@ export default defineModule({
       danger: true,
       icon: Trash2,
       order: 900,
-      component: lazy(() => settings().then((s) => ({ default: s.CourseDangerSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.CourseDangerSection }))),
     },
   ],
   realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, ACADEMICS_QUERIES])),

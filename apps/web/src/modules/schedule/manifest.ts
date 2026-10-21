@@ -9,7 +9,6 @@ import {
   Sun,
   Tags,
 } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
@@ -66,6 +65,7 @@ export default defineModule({
       title: m.schedule_today,
       icon: Sun,
       component: preloadable(() => import('./pages/TodayPage')),
+      board: 'today',
       headerSubtitle: TodaySubtitle,
       order: 5,
     },
@@ -94,7 +94,7 @@ export default defineModule({
       icon: CalendarCheck,
       sizes: ['m', 'l', 'xl'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/TodayCard')),
+      component: preloadable(() => import('./cards/TodayCard')),
       multiple: false,
     },
     {
@@ -104,7 +104,7 @@ export default defineModule({
       icon: ListTodo,
       sizes: ['m', 'l'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/UpcomingCard')),
+      component: preloadable(() => import('./cards/UpcomingCard')),
       multiple: false,
     },
     {
@@ -114,7 +114,7 @@ export default defineModule({
       icon: CalendarRange,
       sizes: ['l', 'xl'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/WeekCard')),
+      component: preloadable(() => import('./cards/WeekCard')),
       multiple: false,
     },
     {
@@ -124,7 +124,7 @@ export default defineModule({
       icon: Clock,
       sizes: ['s'],
       defaultSize: 's',
-      component: lazy(() => import('./cards/NextCard')),
+      component: preloadable(() => import('./cards/NextCard')),
       multiple: false,
     },
   ],
@@ -143,7 +143,7 @@ export default defineModule({
       description: m.schedule_settings_event_types_description,
       icon: Tags,
       order: 30,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/EventTypesSection').then((s) => ({ default: s.EventTypesSection })),
       ),
     },

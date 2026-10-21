@@ -1,5 +1,4 @@
 import { CalendarClock, ChartLine, GraduationCap, NotebookPen, Percent, Sigma } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import {
   COURSE_COLUMNS,
@@ -73,7 +72,7 @@ export default defineModule({
       icon: GraduationCap,
       sizes: ['s', 'm'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/CourseSummaryCard')),
+      component: preloadable(() => import('./cards/CourseSummaryCard')),
       multiple: false,
     },
     {
@@ -83,7 +82,7 @@ export default defineModule({
       icon: Sigma,
       sizes: ['s', 'm'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/TermSummaryCard')),
+      component: preloadable(() => import('./cards/TermSummaryCard')),
       multiple: false,
     },
     {
@@ -93,7 +92,7 @@ export default defineModule({
       icon: Sigma,
       sizes: ['xl'],
       defaultSize: 'xl',
-      component: lazy(() => import('./cards/ProgramKpisCard')),
+      component: preloadable(() => import('./cards/ProgramKpisCard')),
       multiple: false,
     },
     {
@@ -103,7 +102,7 @@ export default defineModule({
       icon: ChartLine,
       sizes: ['l', 'xl'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/ProgramChartsCard')),
+      component: preloadable(() => import('./cards/ProgramChartsCard')),
       multiple: false,
     },
     {
@@ -113,7 +112,7 @@ export default defineModule({
       icon: CalendarClock,
       sizes: ['m', 'l'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/UpcomingCard')),
+      component: preloadable(() => import('./cards/UpcomingCard')),
       multiple: false,
     },
   ],
@@ -126,7 +125,7 @@ export default defineModule({
       description: m.grading_settings_program_description,
       icon: Percent,
       order: 30,
-      component: lazy(() => settings().then((s) => ({ default: s.ProgramGradingSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.ProgramGradingSection }))),
     },
     {
       id: 'course-grading',
@@ -135,7 +134,7 @@ export default defineModule({
       title: m.grading_settings_course,
       icon: Percent,
       order: 30,
-      component: lazy(() => settings().then((s) => ({ default: s.CourseGradingSection }))),
+      component: preloadable(() => settings().then((s) => ({ default: s.CourseGradingSection }))),
     },
   ],
   calendarSources: [

@@ -1,7 +1,8 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
-import { type ComponentType, type LazyExoticComponent, type ReactNode, lazy } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+import { lazyWithPreload } from 'react-lazy-with-preload'
 import type { ZodType } from 'zod'
 
 /**
@@ -25,18 +26,26 @@ export type Scope =
   | { kind: 'term'; programId: string; termId: string }
   | { kind: 'course'; programId: string; courseId: string }
 
-type Lazy<P> = ComponentType<P> | LazyExoticComponent<ComponentType<P>>
+/** A component, or one whose code loads on demand (`preloadable`). */
+type Lazy<P> = ComponentType<P>
 
-export type Preloadable<P> = LazyExoticComponent<ComponentType<P>> & {
-  preload: () => Promise<unknown>
-}
+export type Preloadable<P> = ComponentType<P> & { preload: () => Promise<unknown> }
 
 /**
- * `React.lazy` that can also start loading before it renders. Pages use it, so the router fetches
- * a page's code while the layout's data loads, or as soon as a link to it is hovered.
+ * `React.lazy` that can also start loading before it renders, and once loaded renders at once.
+ * A plain `lazy` component suspends on its first render even when its code is already there, and
+ * React then keeps the fallback up for at least 300 ms; on a page switch or a settings group that
+ * is a blank flash every time. Pages, cards and settings sections use this, and the router or the
+ * settings dialog calls `preload` before they are shown (see `preloadPage`).
  */
 export function preloadable<P>(load: () => Promise<{ default: ComponentType<P> }>): Preloadable<P> {
-  return Object.assign(lazy(load), { preload: load })
+  return lazyWithPreload(load)
+}
+
+/** Starts loading `component` if it is `preloadable`; resolves when it has loaded (or failed). */
+export function preload(component: unknown): Promise<unknown> {
+  const load = (component as Partial<Preloadable<unknown>> | undefined)?.preload
+  return load ? load().catch(() => undefined) : Promise.resolve()
 }
 
 export type PageProps = { scope: Scope }
@@ -58,6 +67,8 @@ export type PageContribution = {
    * while the page is open, so the page needs no column of its own (Program pages).
    */
   sidebarNav?: Lazy<SidebarNavProps>
+  /** The board the page shows, if any (the scope's own or Today's), so its cards load with it. */
+  board?: 'scope' | 'today'
   order: number
   /** `data` is what `availabilityQuery` loaded (undefined without one). */
   isAvailable?: (scope: Scope, data: unknown) => boolean

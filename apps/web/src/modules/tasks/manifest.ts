@@ -1,5 +1,4 @@
 import { CalendarCheck, ListChecks, ListTodo, Sun } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
@@ -39,7 +38,7 @@ export default defineModule({
       icon: Sun,
       sizes: ['m', 'l'],
       defaultSize: 'l',
-      component: lazy(() => import('./cards/TodayCard')),
+      component: preloadable(() => import('./cards/TodayCard')),
       multiple: false,
     },
     {
@@ -49,10 +48,10 @@ export default defineModule({
       icon: ListTodo,
       sizes: ['m', 'l'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/ListCard')),
+      component: preloadable(() => import('./cards/ListCard')),
       settings: {
         schema: listCardSettingsSchema,
-        component: lazy(() => import('./cards/ListCardSettings')),
+        component: preloadable(() => import('./cards/ListCardSettings')),
       },
       multiple: true,
     },
@@ -63,7 +62,7 @@ export default defineModule({
       icon: CalendarCheck,
       sizes: ['s'],
       defaultSize: 's',
-      component: lazy(() => import('./cards/CounterCard')),
+      component: preloadable(() => import('./cards/CounterCard')),
       multiple: false,
     },
   ],

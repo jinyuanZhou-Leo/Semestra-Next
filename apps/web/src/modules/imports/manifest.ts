@@ -1,6 +1,5 @@
 import { History, Import } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ACTIONS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
 import { MEETING_IMPORT_SOURCES } from '@/modules/schedule/types'
@@ -41,7 +40,7 @@ export default defineModule({
       description: m.imports_history_description,
       icon: History,
       order: 20,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/ImportHistorySection').then((s) => ({
           default: s.ImportHistorySection,
         })),

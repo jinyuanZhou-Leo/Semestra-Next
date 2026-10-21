@@ -1,16 +1,20 @@
 import { useRouterState } from '@tanstack/react-router'
-import { lazy, Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogTitle } from '@/ui/dialog'
 import { Spinner } from '@/ui/spinner'
 import { useHostAction } from '../commands'
+import { preloadable } from '../extensions'
 import type { Params } from './SettingsBody'
-import { useSettingsDialog } from './use-settings-dialog'
+import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
 
-// The groups and their forms load when settings first open, not with every page.
-const SettingsBody = lazy(() =>
+// The groups and their forms are not part of the first load: they load once the app is idle, or
+// when settings open before that.
+const SettingsBody = preloadable<{ target: SettingsTarget; page: Params }>(() =>
   import('./SettingsBody').then((mod) => ({ default: mod.SettingsBody })),
 )
+
+const PRELOAD_DELAY_MS = 2000
 
 /**
  * Settings as a dialog (M11 §5.2), shaped like shadcn's "sidebar in a dialog": the level path and
@@ -25,6 +29,11 @@ export function SettingsDialog() {
 
   // "Manage plugins" in the command palette opens the plugin group of the account settings.
   useHostAction('settings.plugins', () => open({ level: 'account', group: 'plugins' }))
+
+  useEffect(() => {
+    const timer = setTimeout(() => void SettingsBody.preload(), PRELOAD_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <Dialog open={target !== undefined} onOpenChange={(next) => !next && close()}>

@@ -1,6 +1,5 @@
 import { Link2, Megaphone, School } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
@@ -44,7 +43,7 @@ export default defineModule({
       description: m.lms_settings_connections_description,
       icon: Link2,
       order: 10,
-      component: lazy(() => sections().then((s) => ({ default: s.ConnectionsSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.ConnectionsSection }))),
     },
     {
       id: 'program-lms',
@@ -54,7 +53,7 @@ export default defineModule({
       description: m.lms_settings_program_description,
       icon: Link2,
       order: 10,
-      component: lazy(() => sections().then((s) => ({ default: s.ProgramLmsSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.ProgramLmsSection }))),
     },
     {
       id: 'course-lms',
@@ -64,7 +63,7 @@ export default defineModule({
       description: m.lms_settings_course_description,
       icon: Link2,
       order: 10,
-      component: lazy(() => sections().then((s) => ({ default: s.CourseLmsSection }))),
+      component: preloadable(() => sections().then((s) => ({ default: s.CourseLmsSection }))),
     },
   ],
   cards: [
@@ -75,7 +74,7 @@ export default defineModule({
       icon: Megaphone,
       sizes: ['m', 'l'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/AnnouncementsCard')),
+      component: preloadable(() => import('./cards/AnnouncementsCard')),
       multiple: false,
     },
   ],

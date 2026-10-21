@@ -1,6 +1,5 @@
 import { KeyRound, MonitorSmartphone, ShieldCheck, UserRound } from 'lucide-react'
-import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
 /** M01 认证与账户: its sections live in the "Account" group of the settings pages (M11). */
@@ -19,7 +18,7 @@ export default defineModule({
       description: m.auth_account_profile_desc,
       icon: UserRound,
       order: 10,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.ProfileSettings })),
       ),
     },
@@ -31,7 +30,7 @@ export default defineModule({
       description: m.auth_account_signin_desc,
       icon: ShieldCheck,
       order: 20,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.SignInMethodsSettings })),
       ),
     },
@@ -43,7 +42,7 @@ export default defineModule({
       description: m.auth_account_sessions_desc,
       icon: MonitorSmartphone,
       order: 30,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.SessionsSettings })),
       ),
     },
@@ -55,7 +54,7 @@ export default defineModule({
       description: m.auth_account_tokens_desc,
       icon: KeyRound,
       order: 40,
-      component: lazy(() =>
+      component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.TokensSettings })),
       ),
     },

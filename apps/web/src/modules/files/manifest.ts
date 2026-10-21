@@ -1,5 +1,4 @@
 import { FileClock, FolderOpen, Star } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { QuickOpenPicker } from './cards/QuickOpenPicker'
@@ -56,7 +55,7 @@ export default defineModule({
       icon: Star,
       sizes: ['s', 'm', 'l'],
       defaultSize: 's',
-      component: lazy(() => import('./cards/QuickOpenCard')),
+      component: preloadable(() => import('./cards/QuickOpenCard')),
       multiple: true,
       settings: { schema: quickOpenSchema, component: QuickOpenPicker },
     },
@@ -68,7 +67,7 @@ export default defineModule({
       icon: FileClock,
       sizes: ['m'],
       defaultSize: 'm',
-      component: lazy(() => import('./cards/RecentCard')),
+      component: preloadable(() => import('./cards/RecentCard')),
       multiple: false,
     },
   ],

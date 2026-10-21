@@ -1,5 +1,4 @@
 import { NotebookPen } from 'lucide-react'
-import { lazy } from 'react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { helloNoteCardSchema } from './schema'
@@ -36,7 +35,7 @@ export default defineModule({
       // Declare only sizes with a design. The first is what "add card" shows in the catalog.
       sizes: ['s', 'm', 'l'],
       defaultSize: 'm',
-      component: lazy(() => import('./HelloNoteCard')),
+      component: preloadable(() => import('./HelloNoteCard')),
       // With `settings.component` omitted the host builds a form from the schema.
       settings: { schema: helloNoteCardSchema },
       multiple: true,

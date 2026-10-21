@@ -34,7 +34,6 @@ import type {
   CardContribution,
   ModuleManifest,
   PageContribution,
-  Preloadable,
   QueryKeyPrefix,
   Scope,
   ScopeKind,
@@ -42,6 +41,7 @@ import type {
   SettingsSectionContribution,
   StatusItemContribution,
 } from './extensions'
+import { preload } from './extensions'
 
 /**
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
@@ -70,23 +70,30 @@ export const builtInModules: readonly ModuleManifest[] = [
 ]
 
 /**
- * Starts loading a page's code (and its sidebar navigation) before it renders, from a route
- * loader; see `preloadable`. Only the code: the page fetches its own data.
+ * Loads a page's code (its sidebar navigation and the cards of its board too) before it renders,
+ * from a route loader; see `preloadable`. The router waits for it, so the previous page stays on
+ * screen instead of a blank one. Only the code: the page fetches its own data.
  */
-export function preloadPage(
+export async function preloadPage(
   scope: ScopeKind,
   pageId: string,
   modules: readonly ModuleManifest[] = builtInModules,
-): void {
+): Promise<void> {
+  const parts: unknown[] = []
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope)) continue
-      for (const part of [page.component, page.sidebarNav]) {
-        const preload = (part as Partial<Preloadable<unknown>> | undefined)?.preload
-        if (preload) void preload().catch(() => undefined)
+      parts.push(page.component, page.sidebarNav)
+      if (page.board) {
+        const board: BoardKind = page.board === 'today' ? 'today' : scope
+        for (const m of modules) {
+          for (const card of m.cards ?? [])
+            if (card.scopes.includes(board)) parts.push(card.component)
+        }
       }
     }
   }
+  await Promise.all(parts.map(preload))
 }
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
