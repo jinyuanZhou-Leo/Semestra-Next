@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
+import { AiAction } from '@/components/AiAction'
 import { SafeHtml } from '@/components/SafeHtml'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
@@ -16,7 +17,6 @@ import { openImport } from '@/modules/imports/launcher'
 import { invalidateLms } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -223,22 +223,20 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
               : m.canvas_tab_select_hint()}
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
+            <AiAction
+              state={starting === 'assessment' ? 'running' : 'idle'}
+              label={m.canvas_tab_import_to_gradebook()}
               disabled={picked.length === 0 || starting !== null}
+              className="h-8 w-48 text-sm"
               onClick={() => start('assessment')}
-            >
-              {starting === 'assessment' ? m.common_loading() : m.canvas_tab_import_to_gradebook()}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
+            />
+            <AiAction
+              state={starting === 'task' ? 'running' : 'idle'}
+              label={m.canvas_tab_import_to_tasks()}
               disabled={picked.length === 0 || starting !== null}
+              className="h-8 w-40 text-sm"
               onClick={() => start('task')}
-            >
-              {starting === 'task' ? m.common_loading() : m.canvas_tab_import_to_tasks()}
-            </Button>
+            />
           </div>
         </div>
         <Table>
