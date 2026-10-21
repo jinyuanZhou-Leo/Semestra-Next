@@ -1,15 +1,66 @@
 ---
 import '@/styles/site.css'
+import {
+  ArrowUpDown,
+  ArrowUpRight,
+  Blocks,
+  Bookmark,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Code,
+  Download,
+  FileText,
+  Flag,
+  GraduationCap,
+  Import,
+  Keyboard,
+  Link,
+  ListChecks,
+  Moon,
+  Plug,
+  School,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+  Target,
+} from 'lucide-react'
 import { Nav } from '@/components/Nav'
-import { GitHubButton, StartButton, WalkButton } from '@/components/Cta'
-import { GITHUB_URL, copy, home, shotLang, type Lang } from '@/i18n'
+import { ExploreButton, GitHubButton, StartButton, StartLink } from '@/components/Cta'
+import Shot from '@/components/Shot.astro'
+import { APP_URL, GITHUB_URL, copy, home, shotLang, type Lang } from '@/i18n'
+import { buttonVariants } from '@/ui/button'
 
-interface Props { lang: Lang }
+interface Props {
+  lang: Lang
+}
 const { lang } = Astro.props
 const t = copy[lang]
 const l = shotLang(lang)
-const shots = ['today', 'calendar', 'tasks', 'grades', 'planfill', 'semcard', 'sem']
 const other: Lang = lang === 'en' ? 'zh-CN' : 'en'
+const integrations = [
+  'Canvas',
+  'Google Calendar',
+  'Apple Calendar',
+  'Outlook',
+  'iCalendar',
+  'Model Context Protocol',
+]
+const todayIcons = [Clock, Flag]
+const tasksIcons = [Keyboard, Check]
+const paletteIcons = [Search, ArrowUpDown]
+const more = [
+  [Blocks, t.more.plugins],
+  [FileText, t.more.files],
+  [School, t.more.canvas],
+  [Moon, t.more.theme],
+  [Code, t.more.open],
+  [Download, t.more.data],
+] as const
+const login = `${APP_URL}/login`
 ---
 <!doctype html>
 <html lang={lang}>
@@ -29,90 +80,284 @@ const other: Lang = lang === 'en' ? 'zh-CN' : 'en'
       const apply = () => document.documentElement.classList.toggle('dark', q.matches)
       apply()
       q.addEventListener('change', apply)
+      document.documentElement.classList.add('js')
     </script>
   </head>
   <body>
     <Nav lang={lang} />
     <main id="top">
-      <div class="wrap day" id="day">
-        <div class="ruler mono" aria-hidden="true"><div class="nowline"><span id="clock">08:00</span></div></div>
-
-        <div class="window-col">
+      <div class="hero">
+        <div class="wrap">
+          <a class="badge" href="#sem" data-reveal>
+            <b>Sem</b>{t.hero.badge}<ChevronRight aria-hidden="true" />
+          </a>
+          <h1 data-reveal style="--d: 1">{t.hero.h1[0]}<br />{t.hero.h1[1]}</h1>
+          <p class="lede" data-reveal style="--d: 2">{t.hero.lede}</p>
+          <div class="ctas" data-reveal style="--d: 3">
+            <StartButton label={t.hero.start} />
+            <ExploreButton label={t.hero.explore} />
+          </div>
+          <a class="small" href="#more" data-reveal style="--d: 4">
+            {t.hero.small}<ChevronRight aria-hidden="true" />
+          </a>
+        </div>
+        <div class="wrap">
           <div class="stage">
-            <div class="window" id="win" role="img" aria-label="Semestra">
-              <div class="floor"></div>
-              <div class="screen">
-                <div class="cam" id="cam">
-                  {shots.map((s, i) => (
-                    <picture data-shot={s} style={i === 0 ? 'opacity: 1' : undefined}>
-                      <source srcset={`/shots/${s}-dark-${l}.webp`} media="(prefers-color-scheme: dark)" />
-                      <img src={`/shots/${s}-light-${l}.webp`} alt="" width="2000" height="1250" decoding="async" loading={i === 0 ? 'eager' : 'lazy'} />
-                    </picture>
-                  ))}
-                </div>
-                <div class="slot" id="slot"></div>
-              </div>
-              <div class="lift" id="lift"><div class="clip"><div class="cam" id="cam2"></div></div></div>
+            <div class="win" id="win">
+              <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
+              <Shot class="float a" cut z={140} src="parts/upcoming" lang={lang} width={1128} height={680} eager />
+              <Shot class="float b" cut z={220} src="parts/proposal" lang={lang} width={1480} height={366} eager />
             </div>
           </div>
         </div>
+      </div>
+      <div class="stage-gap"></div>
 
-        <div class="words">
-          <section class="open">
-            <p class="stamp mono"><b>{t.stamp[0]}</b>　{t.stamp[1]}　{t.stamp[2]}</p>
-            <h1>{t.h1[0]}<br />{t.h1[1]}</h1>
-            <p class="lede">{t.lede}</p>
-            <div class="ctas">
-              <StartButton label={t.startFree} />
-              <WalkButton label={t.walk} />
-            </div>
-            <p class="handoff mono">{t.handoff}</p>
-          </section>
-
-          {t.moments.map((m, i) => (
-            <section class="moment" id={`day-${i + 1}`} data-time={m.time} data-shots={m.shots.join(' ')} data-focus={m.focus} data-lift={m.lift}>
-              <p class="t mono">{m.time}</p>
-              <h2>{m.title}</h2>
-              <p>{m.body}</p>
-              <p class="where mono">{m.where}</p>
-            </section>
-          ))}
-        </div>
+      <div class="wrap logos" data-reveal>
+        <p>{t.logos}</p>
+        <ul>{integrations.map((name) => <li>{name}</li>)}</ul>
       </div>
 
-      <section class="after" id="more">
+      <section class="s" id="today">
+        <div class="wrap split">
+          <div class="words">
+            <span class="eyebrow" data-reveal><Sun aria-hidden="true" />{t.today.eyebrow}</span>
+            <h2 class="h2" data-reveal style="--d: 1">{t.today.h2}</h2>
+            <p class="sub" data-reveal style="--d: 2">{t.today.sub}</p>
+            <ul class="bullets">
+              {t.today.bullets.map(([title, text], i) => {
+                const Icon = todayIcons[i]!
+                return (
+                  <li data-reveal style={`--d: ${i + 3}`}>
+                    <span class="ic"><Icon aria-hidden="true" /></span>
+                    <div><b>{title}</b><span>{text}</span></div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+          <div class="panel layered" data-reveal style="--d: 1">
+            <Shot cut depth={30} style="left: 6%; top: 9%; width: 66%" src="parts/classes" lang={lang} width={1480} height={680} />
+            <Shot cut depth={-50} style="left: 40%; top: 38%; width: 54%" src="parts/upcoming" lang={lang} width={1128} height={680} />
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="calendar">
         <div class="wrap">
-          <div class="gut mono">23:59</div>
+          <div class="head-row">
+            <div>
+              <span class="eyebrow" data-reveal><CalendarDays aria-hidden="true" />{t.calendar.eyebrow}</span>
+              <h2 class="h2" data-reveal style="--d: 1">{t.calendar.h2}</h2>
+            </div>
+            <div data-reveal style="--d: 2"><StartLink label={t.tasks.cta} /></div>
+          </div>
+          <div class="bento">
+            <div class="card span2 row2" data-reveal>
+              <div class="t"><h3>{t.calendar.week[0]}</h3><p>{t.calendar.week[1]}</p></div>
+              <div class="peek"><Shot src="parts/week" lang={lang} width={1600} height={1154} /></div>
+            </div>
+            <div class="card" data-reveal style="--d: 1">
+              <div class="t"><h3>{t.calendar.filters[0]}</h3><p>{t.calendar.filters[1]}</p></div>
+              <div class="peek"><Shot style="width: 72%" src="parts/filters" lang={lang} width={480} height={744} /></div>
+            </div>
+            <div class="card text" data-reveal style="--d: 2">
+              <div class="t"><h3>{t.calendar.subscribe[0]}</h3><p>{t.calendar.subscribe[1]}</p></div>
+              <div class="big-ic"><Link aria-hidden="true" /></div>
+            </div>
+            <div class="card span2" data-reveal>
+              <div class="t"><h3>{t.calendar.meetings[0]}</h3><p>{t.calendar.meetings[1]}</p></div>
+              <div class="peek center"><Shot cut src="parts/meetings" lang={lang} width={1600} height={292} /></div>
+            </div>
+            <div class="card text" data-reveal style="--d: 1">
+              <div class="t"><h3>{t.calendar.import[0]}</h3><p>{t.calendar.import[1]}</p></div>
+              <div class="big-ic"><Import aria-hidden="true" /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="grades">
+        <div class="wrap head-row">
           <div>
-            <div class="list">
-              <h2>{t.moreTitle}</h2>
-              <table>
-                {t.more.map(([k, name, text]) => (
-                  <tr><td class="mono">{k}</td><td>{name}</td><td>{text}</td></tr>
-                ))}
-              </table>
+            <span class="eyebrow" data-reveal><Target aria-hidden="true" />{t.grades.eyebrow}</span>
+            <h2 class="h2" data-reveal style="--d: 1">{t.grades.h2}</h2>
+          </div>
+          <div class="car-nav" data-reveal style="--d: 2">
+            <button class={buttonVariants({ variant: 'outline', size: 'icon' })} type="button" id="prev" aria-label={t.grades.prev} disabled>
+              <ChevronLeft aria-hidden="true" />
+            </button>
+            <button class={buttonVariants({ variant: 'outline', size: 'icon' })} type="button" id="next" aria-label={t.grades.next}>
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <div class="track-wrap" data-reveal style="--d: 1">
+          <div class="track" id="track">
+            <div class="card">
+              <div class="t"><h3>{t.grades.live[0]}</h3><p>{t.grades.live[1]}</p></div>
+              <div class="peek fit"><Shot cut src="parts/gpa" lang={lang} width={648} height={684} /></div>
             </div>
-            <div class="close">
-              <h2>{t.close}</h2>
-              <div class="ctas">
-                <StartButton label={t.startFree} />
-                <GitHubButton />
+            <div class="card">
+              <div class="t"><h3>{t.grades.book[0]}</h3><p>{t.grades.book[1]}</p></div>
+              <div class="peek"><Shot cut src="parts/gradebook" lang={lang} width={1592} height={1178} /></div>
+            </div>
+            <div class="card">
+              <div class="t"><h3>{t.grades.plan[0]}</h3><p>{t.grades.plan[1]}</p></div>
+              <div class="peek fit"><Shot src="parts/gpaplan" lang={lang} width={704} height={1112} /></div>
+            </div>
+            <div class="card">
+              <div class="t"><h3>{t.grades.scales[0]}</h3><p>{t.grades.scales[1]}</p></div>
+              <div class="big-ic"><SlidersHorizontal aria-hidden="true" /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Always dark: the band sets shadcn's `.dark` on itself. -->
+      <section class="band dark" id="sem">
+        <div class="wrap">
+          <span class="eyebrow" data-reveal><Sparkles aria-hidden="true" />Sem · AI Agent</span>
+          <h2 class="h2" data-reveal style="--d: 1">{t.sem.h2}</h2>
+          <p class="sub" data-reveal style="--d: 2">{t.sem.sub}</p>
+          <div class="bento">
+            <div class="card span2" data-reveal>
+              <div class="t"><h3>{t.sem.run[0]}</h3><p>{t.sem.run[1]}</p></div>
+              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1600} height={708} /></div>
+            </div>
+            <div class="card text" data-reveal style="--d: 1">
+              <div class="t"><h3>{t.sem.memory[0]}</h3><p>{t.sem.memory[1]}</p></div>
+              <div class="big-ic"><Bookmark aria-hidden="true" /></div>
+            </div>
+            <div class="card text" data-reveal>
+              <div class="t"><h3>{t.sem.mcp[0]}</h3><p>{t.sem.mcp[1]}</p></div>
+              <div class="big-ic"><Plug aria-hidden="true" /></div>
+            </div>
+            <div class="card span2" data-reveal style="--d: 1">
+              <div class="t"><h3>{t.sem.hitl[0]}</h3><p>{t.sem.hitl[1]}</p></div>
+              <div class="peek center"><Shot cut dark src="parts/proposal" lang={lang} width={1480} height={366} /></div>
+            </div>
+          </div>
+          <div class="showcase">
+            <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
+            <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
+            <div data-reveal style="--d: 2">
+              <Shot dark src="shots/sem" lang={lang} width={2000} height={1250} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="tasks">
+        <div class="wrap split">
+          <div class="words">
+            <span class="eyebrow" data-reveal><ListChecks aria-hidden="true" />{t.tasks.eyebrow}</span>
+            <h2 class="h2" data-reveal style="--d: 1">{t.tasks.h2}</h2>
+            <ul class="bullets">
+              {t.tasks.bullets.map(([title, text], i) => {
+                const Icon = tasksIcons[i]!
+                return (
+                  <li data-reveal style={`--d: ${i + 2}`}>
+                    <span class="ic"><Icon aria-hidden="true" /></span>
+                    <div><b>{title}</b><span>{text}</span></div>
+                  </li>
+                )
+              })}
+            </ul>
+            <div class="words-cta"><StartLink label={t.tasks.cta} /></div>
+          </div>
+          <div class="panel layered" data-reveal style="--d: 1">
+            <Shot depth={-40} style="left: 8%; top: 14%; width: 125%" src="parts/tasklist" lang={lang} width={1600} height={584} />
+          </div>
+        </div>
+      </section>
+
+      <section class="s">
+        <div class="wrap split flip">
+          <div class="words">
+            <span class="eyebrow" data-reveal><Keyboard aria-hidden="true" />{t.palette.eyebrow}</span>
+            <h2 class="h2" data-reveal style="--d: 1">{t.palette.h2}</h2>
+            <ul class="bullets">
+              {t.palette.bullets.map(([title, text], i) => {
+                const Icon = paletteIcons[i]!
+                return (
+                  <li data-reveal style={`--d: ${i + 2}`}>
+                    <span class="ic"><Icon aria-hidden="true" /></span>
+                    <div><b>{title}</b><span>{text}</span></div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+          <div class="panel layered" data-reveal style="--d: 1">
+            <Shot cut depth={-40} style="left: 9%; top: 13%; width: 82%" src="parts/palette" lang={lang} width={1160} height={680} />
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="more">
+        <div class="wrap">
+          <h2 class="h2" data-reveal>{t.more.h2}</h2>
+          <div class="mini">
+            {more.map(([Icon, [title, text]], i) => (
+              <div class="card" data-reveal style={`--d: ${i % 3}`}>
+                <span class="ic"><Icon aria-hidden="true" /></span>
+                <h3>{title}</h3>
+                <p>{text}</p>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="close wrap">
+        <div class="box dark" data-reveal>
+          <div class="tile"><GraduationCap aria-hidden="true" /></div>
+          <h2>{t.close.h2}</h2>
+          <p>{t.close.sub}</p>
+          <div class="ctas">
+            <StartButton label={t.hero.start} />
+            <GitHubButton />
           </div>
         </div>
       </section>
     </main>
 
     <footer>
-      <div class="wrap">
-        <span>© 2026 Semestra</span>
-        <nav><a href={GITHUB_URL}>GitHub</a><a href="#">{t.privacy}</a><a href="#">{t.terms}</a></nav>
+      <div class="wrap cols">
+        <div class="about">
+          <a class="mark" href={home(lang)}><GraduationCap aria-hidden="true" />Semestra</a>
+          <p>{t.footer.about}</p>
+        </div>
+        <div>
+          <h4>{t.footer.product}</h4>
+          <ul>
+            <li><a href="#today">{t.footer.today}</a></li>
+            <li><a href="#calendar">{t.footer.calendar}</a></li>
+            <li><a href="#grades">{t.footer.grades}</a></li>
+            <li><a href="#sem">Sem</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>{t.footer.open}</h4>
+          <ul>
+            <li><a href={GITHUB_URL}>GitHub<ArrowUpRight aria-hidden="true" /></a></li>
+            <li><a href={`${GITHUB_URL}/tree/main/deploy/selfhost`}>{t.footer.selfHost}<ArrowUpRight aria-hidden="true" /></a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>{t.footer.account}</h4>
+          <ul>
+            <li><a href={login}>{t.footer.login}</a></li>
+            <li><a href={login}>{t.footer.signup}</a></li>
+          </ul>
+        </div>
       </div>
+      <div class="wrap legal"><span>© 2026 Semestra</span></div>
     </footer>
 
     <script>
-      import '@/scripts/day.ts'
+      import '@/scripts/landing.ts'
     </script>
   </body>
 </html>

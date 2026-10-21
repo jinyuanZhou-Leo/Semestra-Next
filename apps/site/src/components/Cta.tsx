@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUpRight } from 'lucide-react'
+import { ArrowDown, ArrowUpRight, ChevronRight } from 'lucide-react'
 
 import { APP_URL, GITHUB_URL } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
@@ -11,9 +11,19 @@ export function StartButton({ label }: { label: string }) {
   )
 }
 
-export function WalkButton({ label }: { label: string }) {
+/** The outline "get started" next to a section heading. */
+export function StartLink({ label }: { label: string }) {
   return (
-    <a href="#day-1" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
+    <a href={`${APP_URL}/login`} className={buttonVariants({ variant: 'outline' })}>
+      {label}
+      <ChevronRight data-icon="inline-end" />
+    </a>
+  )
+}
+
+export function ExploreButton({ label }: { label: string }) {
+  return (
+    <a href="#today" className={buttonVariants({ variant: 'outline', size: 'lg' })}>
       {label}
       <ArrowDown data-icon="inline-end" />
     </a>

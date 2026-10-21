@@ -14,7 +14,7 @@ export function Nav({ lang }: { lang: Lang }) {
   const t = copy[lang].nav
   const other: Lang = lang === 'en' ? 'zh-CN' : 'en'
   return (
-    <header className="site-nav">
+    <header className="site-nav" id="nav">
       <div className="wrap flex h-15 items-center gap-5">
         <a
           href={home(lang)}
@@ -26,8 +26,8 @@ export function Nav({ lang }: { lang: Lang }) {
         <NavigationMenu className="max-[900px]:hidden">
           <NavigationMenuList>
             {[
-              ['#day', t.product],
-              ['#more', t.integrations],
+              ['#today', t.product],
+              ['#sem', 'Sem'],
               ['#more', t.open],
             ].map(([href, label]) => (
               <NavigationMenuItem key={label}>
@@ -43,7 +43,10 @@ export function Nav({ lang }: { lang: Lang }) {
             <Languages data-icon="inline-start" />
             {t.other}
           </a>
-          <a href={`${APP_URL}/login`} className={buttonVariants({ variant: 'ghost' })}>
+          <a
+            href={`${APP_URL}/login`}
+            className={buttonVariants({ variant: 'ghost', className: 'max-[900px]:hidden' })}
+          >
             {t.login}
           </a>
           <a href={`${APP_URL}/login`} className={buttonVariants()}>

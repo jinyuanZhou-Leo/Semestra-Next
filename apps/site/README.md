@@ -1,6 +1,6 @@
 # Semestra 官网（apps/site）
 
-独立的静态站点，和应用（`apps/web`）分开部署。Astro 构建成纯 HTML；React 只在构建时用来渲染和应用相同的 shadcn 组件（`src/ui/` 里的 `Button`、`NavigationMenu`），运行时只有一段滚动动画脚本（`src/scripts/day.ts`）。
+独立的静态站点，和应用（`apps/web`）分开部署。Astro 构建成纯 HTML；React 只在构建时用来渲染和应用相同的 shadcn 组件（`src/ui/` 里的 `Button`、`NavigationMenu`），运行时只有一段滚动动画脚本（`src/scripts/landing.ts`：进场动画、首屏窗口的 3D 摆正、分层视差和成绩卡片轮播）。
 
 | 命令（仓库根目录）                     | 作用                       |
 | -------------------------------------- | -------------------------- |
@@ -15,10 +15,15 @@
 
 ## 产品截图
 
-页面里的应用画面全部是真实应用的截图（`public/shots/<画面>-<light|dark>-<en|zh>.webp`），不手画。应用界面改版后重新截取：
+页面里的应用画面全部是真实应用的截图，不手画：
+
+- `public/shots/<画面>-<light|dark>-<en|zh>.webp`：整窗截图（首屏的"今天"页面、Sem 全屏对话）。
+- `public/parts/<局部>-<light|dark>-<en|zh>.webp`：界面局部（今日课程卡片、周视图、命令面板、成绩册、Sem 的确认卡片等），由 `scripts/capture/parts.mjs` 截取。自带圆角的元素用 `part(…, { cut: true })` 连同圆角一起抠出，背景透明，页面上只加阴影不再套框；其余局部带一圈页面边距，页面上套圆角框。组件里用 `src/components/Shot.astro` 引用（`cut` 对应抠图），它按系统主题切换深浅色版本。
+
+应用界面改版后重新截取：
 
 1. 用一个空的本地数据库启动应用：`SEMESTRA_ALLOW_PRIVATE_EGRESS=true pnpm dev`（脚本模型跑在 127.0.0.1，需要放开私有地址）。
 2. 启动脚本模型：`python3 apps/site/scripts/capture/server.py`。它是一个只给截图用的 OpenAI 兼容服务，按固定剧本让 Sem 走完真实的工具调用和确认流程（`script.py`），不进生产代码。
-3. `pnpm --filter @semestra/site capture`：创建示例账户 Maya Chen（UofT 计算机工程，5 门课）并灌入数据，接上脚本模型，截取中英 × 深浅色全部画面，转成 WebP 写进 `public/shots/`。
+3. `pnpm --filter @semestra/site capture`：创建示例账户 Maya Chen（UofT 计算机工程，5 门课）并灌入数据，接上脚本模型，截取中英 × 深浅色全部画面和局部，转成 WebP 写进 `public/`。只重截某一部分时，单独跑对应脚本后再跑 `node scripts/capture/convert.mjs`。
 
-截图日期固定在 2026-10-21（第 7 周，周三），和页面上的时间线一致。中间文件在 `scripts/capture/.out/`（不提交）；再次运行会复用已灌好的账户，要重来就删掉这个目录并重置数据库。
+截图时间固定在 2026-10-21 08:40（多伦多时间，第 7 周周三）。浏览器时区也固定为 America/Toronto：Playwright 的假时钟和 `@date-fns/tz` 一起用时，浏览器时区和学业项目时区不同会让日历整体错位。中间文件在 `scripts/capture/.out/`（不提交）；再次运行会复用已灌好的账户，要重来就删掉这个目录并重置数据库。
