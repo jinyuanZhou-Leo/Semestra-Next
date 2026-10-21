@@ -33,7 +33,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/academics-dark.webp" />
-  <img alt="Terms and courses page with a table of courses, credits, grades and GPA" src="docs/assets/screenshots/academics-light.webp" />
+  <img alt="Terms and courses page showing a finished term's courses with credits, final grades and GPA" src="docs/assets/screenshots/academics-light.webp" />
 </picture>
 
 - **A gradebook for every course** with weighted categories, dropped assessments, scores as points or percentages, and a live current mark.
@@ -65,7 +65,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 </picture>
 
 - **A Today page** with your next class, what's due this week and today's tasks.
-- **Tasks with lists, smart lists and quick add.** Type `Fri lab report !!!` and the date and priority fill themselves in. Tasks can belong to a course, and assessments can create their own.
+- **Tasks with lists, smart lists and quick add.** Type `Fri lab report !!!` and the date and priority fill themselves in. Tasks can belong to a course, and assessments can create matching tasks when you turn that on.
 - **Pages you arrange yourself.** Every program, term and course page is a board of cards you can reorder, resize and extend with plugins.
 
 ### Sem, the AI assistant
@@ -78,7 +78,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 - **Ask about anything in your account**, like "what do I need on the midterm?" or "move my ECE243 lab to Friday". Sem uses the same capabilities as the app and by default shows a confirmation card before it changes your data.
 - **Bring your own key** for Anthropic, OpenAI, Google Gemini, Ollama, or any OpenAI- or Anthropic-compatible endpoint. Usage and cost are tracked per model.
 - **Smart import.** Drop in a syllabus, a timetable or an ICS file, then review the extracted courses, meetings and assessments before anything is saved.
-- **Memory, skills and temporary chats**, and an **MCP server** at `/mcp` so external clients can use the same tools with a personal access token.
+- **Memory, skills and temporary chats**, and an **MCP server** at `/mcp` so external clients can use the same tools with an API token.
 
 ### Plugins and integrations
 
@@ -87,7 +87,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
   <img alt="Plugin catalog in settings: habit streak, Pomodoro, sticky note, counter, world clock and Canvas tab" src="docs/assets/screenshots/plugins-light.webp" />
 </picture>
 
-- **Canvas LMS:** link a Canvas course to import assignments and grades, overlay its calendar, and browse announcements, modules, pages and quizzes in a Canvas tab.
+- **Canvas LMS:** link a Canvas course to import its assignments, overlay its calendar, and browse announcements, grades, modules, pages and quizzes in a Canvas tab.
 - **First-party plugins**, installed per account: habit streak, Pomodoro timer, sticky notes, counter and world clock. See the [plugin authoring guide](docs/plugin-authoring.md).
 - **Settings that inherit** from account to program, term and course; light and dark themes; full English and Simplified Chinese.
 - **Your data stays yours:** export everything to one archive, import it into another instance, or delete your account.
@@ -123,28 +123,30 @@ pnpm dev        # API on http://localhost:8000, web on http://localhost:5173
 
 Open <http://localhost:5173> and sign in with any email address. In development no email is sent: the verification code is printed in the API log and written to `apps/api/data/dev-outbox.jsonl`.
 
-To chat with Sem, open **Settings → AI → Providers** and add an API key, or point it at a local Ollama.
+To chat with Sem, open **Settings → AI → Providers** and add an API key, or point it at a local Ollama. Outbound requests to localhost and private addresses are blocked by default, so for a local Ollama add `SEMESTRA_ALLOW_PRIVATE_EGRESS=true` to `apps/api/.env` and restart `pnpm dev`.
 
 ### Common commands
 
 | Command | What it does |
 |---|---|
 | `pnpm dev` | Run the API (with auto-reload) and the web app together |
-| `pnpm lint` / `pnpm format` | oxlint and oxfmt for the web app, ruff for the API |
+| `pnpm lint` / `pnpm format` | oxlint, oxfmt, i18n and React Compiler checks for the web app; ruff for the API |
 | `pnpm typecheck` | `tsc` and pyright |
 | `pnpm test` | Vitest and pytest |
 | `pnpm gen:api` | Export the OpenAPI schema and regenerate `packages/api-client` |
-| `pnpm --filter @semestra/web e2e` | Playwright smoke tests |
+| `pnpm --filter @semestra/web e2e` | Playwright smoke tests (run `pnpm --filter @semestra/web exec playwright install chromium` once first) |
 
 ## Self-hosting
 
 A single container serves both the API and the web app:
 
 ```bash
-cd deploy/selfhost
+cd Semestra-Next/deploy/selfhost
 cp .env.example .env    # optional
 docker compose up -d    # then open http://localhost:8000
 ```
+
+The image isn't public yet: see [deploy/selfhost/README.md](deploy/selfhost/README.md) to log in to `ghcr.io` or build it locally.
 
 Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example). The hosted setup (Vercel and GCP) is in [deploy/README.md](deploy/README.md).
 
@@ -162,7 +164,11 @@ docs/
   plugin-authoring.md  How to write a plugin
 ```
 
-Each feature is a module on both sides: `academics`, `grading`, `schedule`, `tasks`, `files`, `imports`, `lms`, `ai`, `agent`, `plugins`, `settings`, `portability` and more. A backend module declares **capabilities**, and each one becomes a REST route, an assistant tool and an MCP tool from a single definition. A frontend module registers its pages, cards and settings with `defineModule`.
+Most features are a module on both sides: `academics`, `grading`, `schedule`, `tasks`, `files`, `imports`, `lms`, `ai`, `plugins`, `settings`, `portability` and more (the assistant is `agent` in the API and `assistant` in the web app). A backend module declares **capabilities**, and by default each one becomes a REST route, an assistant tool and an MCP tool from a single definition. A frontend module registers its pages, cards and settings with `defineModule`.
+
+## Roadmap
+
+- **Single-user mode for self-hosting** (planned): with `SEMESTRA_SINGLE_USER=true`, the first visitor creates an admin account with email and password, then sign-up closes. The variable is reserved in `deploy/.env.example` but does nothing yet.
 
 ## Documentation
 
