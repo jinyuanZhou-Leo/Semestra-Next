@@ -35,12 +35,19 @@ export default function TermsCard({ scope }: CardProps) {
           <li key={term.id}>
             <HistoryLink
               href={termPath(programId, term.id)}
+              // The status bar is a straight-edged child; the row's rounded corners clip it.
               className={cn(
-                'flex items-center gap-3 rounded-xl border-l-2 px-3 py-2 hover:bg-muted',
-                term.is_current ? 'border-primary bg-primary/5' : 'border-border',
+                'flex items-stretch gap-3 overflow-hidden rounded-xl transition-colors',
+                term.is_current
+                  ? 'bg-primary/10 hover:bg-primary/15'
+                  : 'bg-muted/60 hover:bg-muted',
               )}
             >
-              <span className="min-w-0 flex-1">
+              <span
+                aria-hidden
+                className={cn('w-1 shrink-0', term.is_current ? 'bg-primary' : 'bg-border')}
+              />
+              <span className="min-w-0 flex-1 py-2">
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <span className="truncate">{term.name}</span>
                   {term.is_current ? (
@@ -53,7 +60,7 @@ export default function TermsCard({ scope }: CardProps) {
                   {day(term.start_date)} – {day(term.end_date)}
                 </span>
               </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="shrink-0 self-center pr-3 text-xs text-muted-foreground">
                 {m.academics_course_count({ count: term.course_count })}
               </span>
             </HistoryLink>

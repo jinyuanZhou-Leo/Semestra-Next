@@ -10,14 +10,7 @@ import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
-import {
-  type CellContext,
-  type ReactTable,
-  type RowData,
-  createColumnHelper,
-  tableFeatures,
-  useTable,
-} from '@tanstack/react-table'
+import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
@@ -25,16 +18,20 @@ import {
   CalendarPlus,
   ChevronDown,
   Import,
-  MoreHorizontal,
+  ListFilter,
+  Pencil,
   Plus,
   RotateCcw,
+  Trash2,
 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useExtensions } from '@/app/registry'
 import { toastError } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
+import { subjectColor } from '@/lib/subject-color'
 import { cn } from '@/lib/utils'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -50,13 +47,11 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { EventDialog } from '../components/EventDialog'
 import { MeetingDialog } from '../components/MeetingDialog'
@@ -64,7 +59,13 @@ import { meetingGridItems, useConflictingIds } from '../components/TimetableView
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
 import { dayLabel, sectionLabel, timeRange, typeName } from '../labels'
-import { invalidateSchedule, useEvents, useEventTypes, useMeetings } from '../queries'
+import {
+  invalidateSchedule,
+  useCalendarSettings,
+  useEvents,
+  useEventTypes,
+  useMeetings,
+} from '../queries'
 import { wallDate, weekdayName } from '../time'
 import { MEETING_IMPORT_SOURCES, type MeetingImportSource } from '../types'
 
@@ -160,9 +161,9 @@ function TermSchedule({
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
   const enabled = meetings.filter((mt) => mt.enabled)
-  // Only the hours that have classes.
-  const gridStart = Math.min(...enabled.map((mt) => minutes(mt.start_time)))
-  const gridEnd = Math.max(...enabled.map((mt) => minutes(mt.end_time)))
+  // The whole week and day of the Program's calendar settings; the grid widens for classes
+  // outside them.
+  const calendar = useCalendarSettings(termId)
   const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing, {
     bySection: true,
   })
@@ -244,13 +245,12 @@ function TermSchedule({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-border p-3 pt-2">
+              <div className="rounded-2xl border border-border p-3 pt-2">
                 <WeekGrid
-                  className="min-w-xl"
-                  days={weekDays(enabled.some((mt) => mt.weekday >= 6))}
+                  days={weekDays(calendar.show_weekends || enabled.some((mt) => mt.weekday >= 6))}
                   items={gridItems}
-                  dayStart={gridStart}
-                  dayEnd={gridEnd}
+                  dayStart={minutes(calendar.day_start)}
+                  dayEnd={minutes(calendar.day_end)}
                   hourHeight={44}
                 />
               </div>
@@ -288,7 +288,13 @@ function TermSchedule({
             </EmptyContent>
           </Empty>
         ) : (
-          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
+          <EventsTable
+            events={events}
+            types={types}
+            timezone={timezone}
+            onEdit={setEventEdit}
+            onAdd={() => setEventEdit('new')}
+          />
         )}
       </section>
 
@@ -332,7 +338,7 @@ function TermSchedule({
   )
 }
 
-const features = tableFeatures({})
+const features = settingsTableFeatures
 const column = createColumnHelper<typeof features, Meeting>()
 
 function weeksText(mt: Meeting): string {
@@ -366,6 +372,9 @@ type CellProps = CellContext<typeof features, Meeting>
 
 const EnabledHeader = () => <span className="sr-only">{m.schedule_enabled()}</span>
 
+/** A disabled meeting's text is dimmed; its switch and menu stay readable. */
+const dim = (mt: Meeting) => cn(!mt.enabled && 'text-muted-foreground opacity-60')
+
 function EnabledCell({ row }: CellProps) {
   const { code, busy, onToggle } = useMeetingGroup()
   return (
@@ -381,7 +390,7 @@ function EnabledCell({ row }: CellProps) {
 function SectionCell({ row }: CellProps) {
   const { conflicting } = useMeetingGroup()
   return (
-    <span className="font-medium">
+    <span className={cn('font-medium', dim(row.original))}>
       {row.original.section_code || '—'}
       {conflicting.has(row.original.id) ? (
         <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
@@ -391,7 +400,7 @@ function SectionCell({ row }: CellProps) {
 }
 
 const TimeCell = ({ row }: CellProps) => (
-  <span className="tabular-nums">
+  <span className={cn('tabular-nums', dim(row.original))}>
     {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
   </span>
 )
@@ -401,33 +410,26 @@ const ActionsHeader = () => <span className="sr-only">{m.schedule_actions()}</sp
 function ActionsCell({ row }: CellProps) {
   const { meetings, onToggle, onEdit } = useMeetingGroup()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
-      >
-        <MoreHorizontal aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => onEdit(row.original)}>
-            {m.schedule_meeting_edit()}
-          </DropdownMenuItem>
-          {meetings.length > 1 ? (
-            <DropdownMenuItem
-              onClick={() => {
-                onToggle([row.original.id], true)
-                onToggle(
-                  meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
-                  false,
-                )
-              }}
-            >
-              {m.schedule_keep_only_this()}
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowMenu label={m.schedule_actions()}>
+      <DropdownMenuItem onClick={() => onEdit(row.original)}>
+        <Pencil aria-hidden />
+        {m.schedule_meeting_edit()}
+      </DropdownMenuItem>
+      {meetings.length > 1 ? (
+        <DropdownMenuItem
+          onClick={() => {
+            onToggle([row.original.id], true)
+            onToggle(
+              meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
+              false,
+            )
+          }}
+        >
+          <ListFilter aria-hidden />
+          {m.schedule_keep_only_this()}
+        </DropdownMenuItem>
+      ) : null}
+    </RowMenu>
   )
 }
 
@@ -441,7 +443,9 @@ const columns = column.columns([
   column.accessor((mt) => mt.weekday, {
     id: 'weekday',
     header: () => m.schedule_weekday(),
-    cell: ({ row }) => weekdayName(row.original.weekday),
+    cell: ({ row }) => (
+      <span className={dim(row.original)}>{weekdayName(row.original.weekday)}</span>
+    ),
   }),
   column.accessor((mt) => mt.start_time, {
     id: 'time',
@@ -451,20 +455,35 @@ const columns = column.columns([
   column.accessor((mt) => mt.start_week, {
     id: 'weeks',
     header: () => m.schedule_weeks(),
-    cell: ({ row }) => weeksText(row.original),
+    cell: ({ row }) => <span className={dim(row.original)}>{weeksText(row.original)}</span>,
   }),
   column.accessor((mt) => mt.location ?? '', {
     id: 'location',
     header: () => m.schedule_location(),
-    cell: ({ row }) => row.original.location || '—',
+    cell: ({ row }) => (
+      <span className={cn('block truncate', dim(row.original))}>
+        {row.original.location || '—'}
+      </span>
+    ),
   }),
   column.accessor((mt) => mt.instructor ?? '', {
     id: 'instructor',
     header: () => m.schedule_instructor(),
-    cell: ({ row }) => row.original.instructor || '—',
+    cell: ({ row }) => (
+      <span className={cn('block truncate', dim(row.original))}>
+        {row.original.instructor || '—'}
+      </span>
+    ),
   }),
   column.display({ id: 'actions', header: ActionsHeader, cell: ActionsCell }),
 ])
+
+const MEETING_COLUMN_CLASS: Record<string, string> = {
+  enabled: 'w-12',
+  location: 'w-full max-w-0',
+  instructor: 'max-w-40',
+  actions: 'w-10',
+}
 
 /** The meetings of one type (e.g. all TUT sections) with enable switches. */
 function MeetingGroup({
@@ -491,7 +510,6 @@ function MeetingGroup({
       a.start_time.localeCompare(b.start_time),
   )
   const state = { code, meetings, conflicting, busy, onToggle, onEdit }
-  const table = useTable({ features, columns, data: sorted, getRowId: (mt) => mt.id })
   return (
     <MeetingGroupContext value={state}>
       <section className="space-y-2">
@@ -501,39 +519,13 @@ function MeetingGroup({
             <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
           ) : null}
         </h3>
-        <div className="rounded-2xl border border-border">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id}>
-                  {group.headers.map((h) => (
-                    <TableHead
-                      key={h.id}
-                      scope="col"
-                      className={cn(h.column.id === 'enabled' && 'w-12')}
-                    >
-                      <table.FlexRender header={h} />
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn(!row.original.enabled && 'text-muted-foreground opacity-60')}
-                >
-                  {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <SettingsTable
+          label={type ? `${code} · ${typeName(type)}` : code}
+          data={sorted}
+          columns={columns}
+          getRowId={(mt) => mt.id}
+          columnClassName={MEETING_COLUMN_CLASS}
+        />
       </section>
     </MeetingGroupContext>
   )
@@ -561,92 +553,99 @@ function useEventsState(): EventsState {
 
 type EventCell = CellContext<typeof features, OneOffEvent>
 
-function EventDateCell({ row }: EventCell) {
-  const { timezone } = useEventsState()
-  return dayLabel(wallDate(row.original.start_at, timezone))
-}
-
-function EventTimeCell({ row }: EventCell) {
-  const { timezone } = useEventsState()
-  return <span className="tabular-nums">{timeRange(row.original, timezone)}</span>
-}
-
+/** Type color dot and title, with the type and location below; the title opens the editor. */
 function EventTitleCell({ row }: EventCell) {
-  return <span className="font-medium">{row.original.title}</span>
+  const { types, onEdit } = useEventsState()
+  const event = row.original
+  const type = types.find((t) => t.code === event.type_code)
+  const typeLabel = type ? typeName(type) : event.type_code
+  const detail = [typeLabel, event.location].filter(Boolean).join(' · ')
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-full"
+        style={{
+          backgroundColor: type?.color ? subjectColor(type.color) : 'var(--muted-foreground)',
+        }}
+      />
+      <span className="min-w-0 flex-1">
+        <button
+          type="button"
+          className="block max-w-full cursor-pointer truncate text-left font-medium hover:underline"
+          onClick={() => onEdit(event)}
+        >
+          {event.title}
+        </button>
+        {detail ? (
+          <span className="block truncate text-xs text-muted-foreground">{detail}</span>
+        ) : null}
+      </span>
+    </div>
+  )
 }
 
-function EventTypeCell({ row }: EventCell) {
-  const { types } = useEventsState()
-  const type = types.find((t) => t.code === row.original.type_code)
-  return type ? typeName(type) : (row.original.type_code ?? '—')
-}
-
-function EventLocationCell({ row }: EventCell) {
-  return row.original.location || '—'
+function EventWhenCell({ row }: EventCell) {
+  const { timezone } = useEventsState()
+  return (
+    <span className="block">
+      <span className="block">{dayLabel(wallDate(row.original.start_at, timezone))}</span>
+      <span className="block text-xs text-muted-foreground tabular-nums">
+        {timeRange(row.original, timezone)}
+      </span>
+    </span>
+  )
 }
 
 function EventActionsCell({ row }: EventCell) {
   const { onEdit, onDelete } = useEventsState()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button size="icon-xs" variant="ghost" aria-label={m.schedule_actions()} />}
-      >
-        <MoreHorizontal aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => onEdit(row.original)}>
-            {m.schedule_event_edit()}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>
-            {m.schedule_event_delete()}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowMenu label={`${m.schedule_actions()}: ${row.original.title}`}>
+      <DropdownMenuItem onClick={() => onEdit(row.original)}>
+        <Pencil aria-hidden />
+        {m.schedule_event_edit()}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>
+        <Trash2 aria-hidden />
+        {m.schedule_event_delete()}
+      </DropdownMenuItem>
+    </RowMenu>
   )
 }
 
 const eventColumns = eventColumn.columns([
-  eventColumn.accessor((e) => e.start_at, {
-    id: 'date',
-    header: () => m.schedule_date(),
-    cell: EventDateCell,
-  }),
-  eventColumn.display({ id: 'time', header: () => m.schedule_time(), cell: EventTimeCell }),
   eventColumn.accessor((e) => e.title, {
     id: 'title',
     header: () => m.schedule_event_title(),
     cell: EventTitleCell,
   }),
-  eventColumn.accessor((e) => e.type_code ?? '', {
-    id: 'type',
-    header: () => m.schedule_type(),
-    cell: EventTypeCell,
-  }),
-  eventColumn.accessor((e) => e.location ?? '', {
-    id: 'location',
-    header: () => m.schedule_location(),
-    cell: EventLocationCell,
+  eventColumn.accessor((e) => e.start_at, {
+    id: 'when',
+    header: () => m.schedule_date(),
+    cell: EventWhenCell,
   }),
   eventColumn.display({ id: 'actions', header: ActionsHeader, cell: EventActionsCell }),
 ])
 
-/** The course's one-off events (exams, extra sessions) in the same table style as meetings. */
+const EVENT_COLUMN_CLASS: Record<string, string> = {
+  title: 'w-full max-w-0',
+  actions: 'w-10',
+}
+
+/** The course's one-off events (exams, extra sessions) in the shared settings-table style. */
 function EventsTable({
   events,
   types,
   timezone,
   onEdit,
+  onAdd,
 }: {
   events: OneOffEvent[]
   types: EventType[]
   timezone: string
   onEdit: (event: OneOffEvent) => void
+  onAdd: () => void
 }) {
   const queryClient = useQueryClient()
   const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
@@ -657,10 +656,20 @@ function EventsTable({
     onSettled: () => invalidateSchedule(queryClient),
   })
   const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
-  const table = useTable({ features, columns: eventColumns, data: sorted, getRowId: (e) => e.id })
   return (
     <EventsContext value={{ types, timezone, onEdit, onDelete: setDeleting }}>
-      <DataTable table={table} />
+      <SettingsTable
+        label={m.schedule_events()}
+        data={sorted}
+        columns={eventColumns}
+        getRowId={(e) => e.id}
+        columnClassName={EVENT_COLUMN_CLASS}
+        footer={
+          <ActionRow icon={Plus} onClick={onAdd}>
+            {m.schedule_event_add()}
+          </ActionRow>
+        }
+      />
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -717,15 +726,17 @@ function ExceptionRestoreCell({ row }: ExceptionCell) {
   const state = use(ExceptionsContext)
   if (!state) throw new Error('ExceptionsTable cells must render inside ExceptionsTable')
   return (
-    <Button
-      size="xs"
-      variant="ghost"
-      disabled={state.busy}
-      onClick={() => state.onRestore(row.original.meeting, row.original.exc)}
-    >
-      <RotateCcw aria-hidden />
-      {m.schedule_restore()}
-    </Button>
+    <div className="flex justify-end">
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={state.busy}
+        onClick={() => state.onRestore(row.original.meeting, row.original.exc)}
+      >
+        <RotateCcw aria-hidden />
+        {m.schedule_restore()}
+      </Button>
+    </div>
   )
 }
 
@@ -748,6 +759,10 @@ const exceptionColumns = exceptionColumn.columns([
   exceptionColumn.display({ id: 'actions', header: ActionsHeader, cell: ExceptionRestoreCell }),
 ])
 
+const EXCEPTION_COLUMN_CLASS: Record<string, string> = {
+  change: 'w-full max-w-0',
+}
+
 /** Cancelled and moved classes, each with a button that puts the class back. */
 function ExceptionsTable({
   exceptions,
@@ -758,51 +773,15 @@ function ExceptionsTable({
   busy: boolean
   onRestore: (meeting: Meeting, exc: MeetingException) => void
 }) {
-  const table = useTable({
-    features,
-    columns: exceptionColumns,
-    data: exceptions,
-    getRowId: (r) => r.exc.id,
-  })
   return (
     <ExceptionsContext value={{ busy, onRestore }}>
-      <DataTable table={table} />
+      <SettingsTable
+        label={m.schedule_exceptions()}
+        data={exceptions}
+        columns={exceptionColumns}
+        getRowId={(r) => r.exc.id}
+        columnClassName={EXCEPTION_COLUMN_CLASS}
+      />
     </ExceptionsContext>
-  )
-}
-
-/** The bordered table every section of this page uses. */
-function DataTable<T extends RowData>({ table }: { table: ReactTable<typeof features, T> }) {
-  return (
-    <div className="rounded-2xl border border-border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id}>
-              {group.headers.map((h) => (
-                <TableHead
-                  key={h.id}
-                  scope="col"
-                  className={cn(h.column.id === 'actions' && 'w-12')}
-                >
-                  <table.FlexRender header={h} />
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  <table.FlexRender cell={cell} />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
   )
 }
