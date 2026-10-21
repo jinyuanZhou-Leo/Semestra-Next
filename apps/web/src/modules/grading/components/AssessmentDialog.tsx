@@ -234,7 +234,7 @@ function AssessmentForm({
           </Field>
           <Field className="w-auto">
             <FieldLabel htmlFor={`${id}-due-time`}>{m.grading_assessment_due_time()}</FieldLabel>
-            <InputGroup>
+            <InputGroup data-disabled={dueDate === '' || undefined}>
               <InputGroupInput
                 id={`${id}-due-time`}
                 type="time"

@@ -326,8 +326,16 @@ function ImportForm({ backup, onDiscarded }: { backup: ImportOut; onDiscarded: (
             value={mode}
             onChange={setMode}
             options={[
-              { value: 'merge', label: m.portability_restore_mode_merge() },
-              { value: 'replace', label: m.portability_restore_mode_replace() },
+              {
+                value: 'merge',
+                label: m.portability_restore_mode_merge(),
+                hint: m.portability_restore_mode_merge_hint(),
+              },
+              {
+                value: 'replace',
+                label: m.portability_restore_mode_replace(),
+                hint: m.portability_restore_mode_replace_hint(),
+              },
             ]}
           />
         </SettingRow>

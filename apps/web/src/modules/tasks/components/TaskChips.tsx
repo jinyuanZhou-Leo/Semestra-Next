@@ -1,5 +1,5 @@
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
-import { CalendarDays, Check, Clock, Clock2, Flag, GraduationCap } from 'lucide-react'
+import { CalendarDays, Check, Clock2, Flag, GraduationCap } from 'lucide-react'
 import { useState } from 'react'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -226,7 +226,7 @@ function TimeChip({
             if (el && document.activeElement !== el) el.focus()
           }}
           aria-label={m.tasks_due_time_label()}
-          className={cn(TIME_INPUT, 'text-xs')}
+          className={cn(TIME_INPUT, 'px-1 text-xs')}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={() => finish(true)}
@@ -242,8 +242,8 @@ function TimeChip({
             }
           }}
         />
-        <InputGroupAddon>
-          <Clock2 aria-hidden />
+        <InputGroupAddon className="py-0 pl-2">
+          <Clock2 className="size-3" aria-hidden />
         </InputGroupAddon>
       </InputGroup>
     )
@@ -257,7 +257,7 @@ function TimeChip({
       disabled={disabled}
       onClick={() => setDraft(current)}
     >
-      <Clock aria-hidden />
+      <Clock2 aria-hidden />
       {current ? formatTime(`${task.due_date}T${current}`) : m.tasks_due_time_label()}
     </Button>
   )

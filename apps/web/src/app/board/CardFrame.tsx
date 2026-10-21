@@ -16,13 +16,6 @@ import { CardSettingsDialog } from './CardSettingsDialog'
 import { useCardSettings } from './queries'
 import { parseCardSettings } from './settings'
 
-const SIZE_LABEL: Record<CardSize, () => string> = {
-  s: m.board_size_s,
-  m: m.board_size_m,
-  l: m.board_size_l,
-  xl: m.board_size_xl,
-}
-
 type Props = {
   scope: Scope
   card: DraftCard
@@ -164,7 +157,7 @@ export function CardFrame({
               </Tooltip>
               <PopoverContent align="end" className="w-56 gap-3">
                 {contribution.sizes.length > 1 ? (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-muted-foreground">
                       {m.board_card_size_label()}
                     </span>
@@ -174,7 +167,7 @@ export function CardFrame({
                       onChange={onResize}
                       options={contribution.sizes.map((size) => ({
                         value: size,
-                        label: SIZE_LABEL[size](),
+                        label: size.toUpperCase(),
                       }))}
                     />
                   </div>

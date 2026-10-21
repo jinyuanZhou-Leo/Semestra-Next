@@ -164,7 +164,10 @@ export function TaskDetail({
                   />
                 </PopoverContent>
               </Popover>
-              <InputGroup className="w-32 shrink-0">
+              <InputGroup
+                className="w-32 shrink-0"
+                data-disabled={managed || !draft.due_date || undefined}
+              >
                 <InputGroupInput
                   type="time"
                   aria-label={m.tasks_due_time_label()}

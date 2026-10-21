@@ -73,12 +73,12 @@ function TypeSwitch({ item }: { item: ImportItem }) {
     onSuccess: (session) => storeSession(queryClient, session),
   })
   return (
-    <ChoiceControl<string>
+    <ChoiceControl<'assessment' | 'task'>
       label={m.imports_import_as()}
-      value={item.type}
+      value={item.type === 'task' ? 'task' : 'assessment'}
       disabled={save.isPending}
       onChange={(type) => {
-        if ((type === 'assessment' || type === 'task') && type !== item.type) {
+        if (type !== item.type) {
           trackEdit(
             save
               .mutateAsync({

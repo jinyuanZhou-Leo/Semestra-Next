@@ -372,15 +372,17 @@ export default function PluginCatalog() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <ChoiceControl<Show>
-            label={m.plugins_filter_label()}
-            value={show}
-            onChange={setShow}
-            options={[
-              { value: 'all', label: m.plugins_filter_all() },
-              { value: 'installed', label: m.plugins_installed() },
-            ]}
-          />
+          <div className="flex h-9 items-center">
+            <ChoiceControl<Show>
+              label={m.plugins_filter_label()}
+              value={show}
+              onChange={setShow}
+              options={[
+                { value: 'all', label: m.plugins_filter_all() },
+                { value: 'installed', label: m.plugins_installed() },
+              ]}
+            />
+          </div>
         </div>
         {visible.length > 0 ? (
           <ul className="grid gap-3 @lg:grid-cols-2 @3xl:grid-cols-3">
