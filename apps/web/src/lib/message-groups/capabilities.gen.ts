@@ -31,6 +31,7 @@ export const capabilityMessages = {
   capability_agent_attachment_read_title: m.capability_agent_attachment_read_title,
   capability_agent_attachment_save_title: m.capability_agent_attachment_save_title,
   capability_agent_memory_forget_title: m.capability_agent_memory_forget_title,
+  capability_agent_memory_get_title: m.capability_agent_memory_get_title,
   capability_agent_memory_remember_title: m.capability_agent_memory_remember_title,
   capability_calendar_occurrence_list_title: m.capability_calendar_occurrence_list_title,
   capability_calendar_today_get_title: m.capability_calendar_today_get_title,

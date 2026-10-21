@@ -301,8 +301,11 @@ async def populate(
             ),
             AgentMemory(
                 **u,
-                category="preference",
-                content="Prefers short answers.",
+                # Memory names are unique per user: one per Program seeded.
+                name=f"short-answers-{name.lower().replace(' ', '-')}",
+                type="feedback",
+                description="Prefers short answers.",
+                body="Why: reads on the phone. How to apply: a few lines, no tables.",
                 source_session_id=chat.id,
                 created_at=NOW,
                 updated_at=NOW,

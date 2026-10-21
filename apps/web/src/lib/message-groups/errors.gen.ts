@@ -18,6 +18,7 @@ export const errorMessages = {
   error_agent_cannot_regenerate: m.error_agent_cannot_regenerate,
   error_agent_interrupted: m.error_agent_interrupted,
   error_agent_memory_full: m.error_agent_memory_full,
+  error_agent_memory_name_taken: m.error_agent_memory_name_taken,
   error_agent_memory_off: m.error_agent_memory_off,
   error_agent_memory_sensitive: m.error_agent_memory_sensitive,
   error_agent_not_paused: m.error_agent_not_paused,

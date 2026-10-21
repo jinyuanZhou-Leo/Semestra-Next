@@ -136,15 +136,24 @@ class AgentPreferences(Base):
 
 
 class AgentMemory(Base, OwnedMixin):
-    """Something Sem remembers about the user across conversations (M12 记忆): a preference, a
-    goal, a constraint or background that the structured data cannot hold."""
+    """One thing Sem remembers about the user across conversations (M12 记忆): who they are, how
+    they want Sem to work, what they are working towards, or where to find something outside the
+    app. The structured data (courses, grades, the timetable) is never copied here."""
 
     __tablename__ = "agent_memories"
-    __table_args__ = (Index("ix_agent_memories_user_updated", "user_id", "updated_at"),)
+    __table_args__ = (
+        Index("ix_agent_memories_user_updated", "user_id", "updated_at"),
+        Index("ux_agent_memories_user_name", "user_id", "name", unique=True),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    category: Mapped[str] = mapped_column(String)  # preference | goal | constraint | context
-    content: Mapped[str] = mapped_column(String)
+    # A kebab-case handle the model picks: how it updates, reads and links (`[[name]]`) a memory.
+    name: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String)  # user | feedback | project | reference
+    # One line: what the index in the prompt shows.
+    description: Mapped[str] = mapped_column(String)
+    # The detail, read on demand with `agent.memory.get`; empty when the line says it all.
+    body: Mapped[str] = mapped_column(String, default="")
     # The conversation it came from; kept when that conversation is deleted.
     source_session_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("agent_sessions.id", ondelete="SET NULL"), default=None

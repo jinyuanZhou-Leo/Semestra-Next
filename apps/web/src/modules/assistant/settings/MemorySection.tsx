@@ -7,8 +7,8 @@ import {
 } from '@semestra/api-client/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Tag, Trash2 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { Bookmark, Pencil, Tag, Trash2 } from 'lucide-react'
+import { createContext, type FormEvent, use, useId, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import {
   DangerZone,
@@ -19,9 +19,19 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
+import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import {
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -32,24 +42,60 @@ import {
   DropdownMenuSubTrigger,
 } from '@/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
+import { Textarea } from '@/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { MEMORY_QUERIES } from '../memory'
 
-type Category = MemoryOut['category']
+type MemoryType = MemoryOut['type']
 
-const CATEGORIES: Category[] = ['preference', 'goal', 'constraint', 'context']
+const TYPES: MemoryType[] = ['user', 'feedback', 'project', 'reference']
 
-export const CATEGORY_LABELS: Record<Category, () => string> = {
-  preference: m.assistant_memory_category_preference,
-  goal: m.assistant_memory_category_goal,
-  constraint: m.assistant_memory_category_constraint,
-  context: m.assistant_memory_category_context,
+export const TYPE_LABELS: Record<MemoryType, () => string> = {
+  user: m.assistant_memory_type_user,
+  feedback: m.assistant_memory_type_feedback,
+  project: m.assistant_memory_type_project,
+  reference: m.assistant_memory_type_reference,
 }
 
-type Patch = { content?: string; category?: Category }
+const TYPE_HINTS: Record<MemoryType, () => string> = {
+  user: m.assistant_memory_type_user_description,
+  feedback: m.assistant_memory_type_feedback_description,
+  project: m.assistant_memory_type_project_description,
+  reference: m.assistant_memory_type_reference_description,
+}
+
+// The same limits and name rule as the server (`agent/memory.py`).
+const MAX_NAME = 64
+const MAX_DESCRIPTION = 150
+const MAX_BODY = 2000
+const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const LINK = /\[\[([a-z0-9]+(?:-[a-z0-9]+)*)\]\]/g
+
+/** The memories `text` refers to with `[[name]]`, once each, in order. */
+function linkedNames(text: string): string[] {
+  return [...new Set(Array.from(text.matchAll(LINK), (match) => match[1] ?? ''))]
+}
+
+/** A body as one line of plain text for the list: no Markdown emphasis or link brackets. */
+function plain(text: string): string {
+  return text.replace(/\*\*|\[\[|\]\]/g, '')
+}
+
+type Patch = { name?: string; type?: MemoryType; description?: string; body?: string }
 
 type RowHandlers = {
   patch: (memory: MemoryOut, body: Patch) => void
+  onEdit: (memory: MemoryOut) => void
   onDelete: (memory: MemoryOut) => void
 }
 
@@ -63,50 +109,46 @@ function useRowHandlers(): RowHandlers {
 
 type CellProps = CellContext<typeof settingsTableFeatures, MemoryOut>
 
-function ContentCell({ row }: CellProps) {
-  const { patch } = useRowHandlers()
+function MemoryCell({ row }: CellProps) {
+  const { onEdit } = useRowHandlers()
   const memory = row.original
+  const details = [TYPE_LABELS[memory.type](), formatDate(memory.updated_at)]
   return (
-    <div className="space-y-1 py-1">
-      <Input
-        key={`${memory.id}-${memory.content}`}
-        aria-label={m.assistant_memory_content()}
-        defaultValue={memory.content}
-        maxLength={200}
-        className="h-8 w-full"
-        onBlur={(e) => {
-          const value = e.target.value.trim()
-          if (!value) {
-            // A memory cannot be empty (delete it from the menu): show its text again.
-            e.target.value = memory.content
-            return
-          }
-          if (value !== memory.content) patch(memory, { content: value })
-        }}
-      />
-      <p className="px-0.5 text-xs text-muted-foreground">{CATEGORY_LABELS[memory.category]()}</p>
-    </div>
+    <button
+      type="button"
+      className="block w-full min-w-0 rounded-md py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={() => onEdit(memory)}
+    >
+      <span className="block truncate">{memory.description}</span>
+      <span className="block truncate text-xs text-muted-foreground">
+        {memory.body ? [...details, plain(memory.body)].join(' · ') : details.join(' · ')}
+      </span>
+    </button>
   )
 }
 
 function ActionsCell({ row }: CellProps) {
-  const { patch, onDelete } = useRowHandlers()
+  const { patch, onEdit, onDelete } = useRowHandlers()
   const memory = row.original
   return (
     <RowMenu label={m.assistant_memory_actions()}>
+      <DropdownMenuItem onClick={() => onEdit(memory)}>
+        <Pencil aria-hidden />
+        {m.assistant_memory_edit()}
+      </DropdownMenuItem>
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
           <Tag aria-hidden />
-          {m.assistant_memory_category()}
+          {m.assistant_memory_type()}
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           <DropdownMenuRadioGroup
-            value={memory.category}
-            onValueChange={(next: string) => patch(memory, { category: next as Category })}
+            value={memory.type}
+            onValueChange={(next: string) => patch(memory, { type: next as MemoryType })}
           >
-            {CATEGORIES.map((category) => (
-              <DropdownMenuRadioItem key={category} value={category}>
-                {CATEGORY_LABELS[category]()}
+            {TYPES.map((type) => (
+              <DropdownMenuRadioItem key={type} value={type}>
+                {TYPE_LABELS[type]()}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
@@ -123,10 +165,10 @@ function ActionsCell({ row }: CellProps) {
 
 const column = createColumnHelper<typeof settingsTableFeatures, MemoryOut>()
 const columns = column.columns([
-  column.accessor((r) => r.content, {
-    id: 'content',
+  column.accessor((r) => r.description, {
+    id: 'memory',
     header: () => m.assistant_memory_content(),
-    cell: ContentCell,
+    cell: MemoryCell,
   }),
   column.display({
     id: 'actions',
@@ -135,7 +177,7 @@ const columns = column.columns([
   }),
 ])
 
-const COLUMN_CLASS: Record<string, string> = { content: 'w-full max-w-0', actions: 'w-10' }
+const COLUMN_CLASS: Record<string, string> = { memory: 'w-full max-w-0', actions: 'w-10' }
 
 /** Account settings → AI → Memory: what Sem remembers about the user, editable (M12 记忆). */
 export function MemorySection() {
@@ -164,6 +206,7 @@ export function MemorySection() {
 function MemoryTable({ items }: { items: MemoryOut[] }) {
   const queryClient = useQueryClient()
   const refresh = () => invalidateOperations(queryClient, MEMORY_QUERIES)
+  const [editing, setEditing] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<MemoryOut | null>(null)
   const update = useMutation({
     ...agentMemoryUpdateMutation(),
@@ -180,8 +223,10 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
   })
   const handlers: RowHandlers = {
     patch: (memory, body) => update.mutate({ path: { id: memory.id }, body }),
+    onEdit: (memory) => setEditing(memory.id),
     onDelete: setDeleting,
   }
+  const open = items.find((memory) => memory.id === editing) ?? null
   return (
     <>
       <RowContext value={handlers}>
@@ -193,16 +238,181 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
           columnClassName={COLUMN_CLASS}
         />
       </RowContext>
+      <Dialog open={open !== null} onOpenChange={(next) => !next && setEditing(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{m.assistant_memory_edit()}</DialogTitle>
+            <DialogDescription>{m.assistant_memory_edit_description()}</DialogDescription>
+          </DialogHeader>
+          {open ? (
+            <MemoryForm
+              key={open.id}
+              memory={open}
+              memories={items}
+              onOpen={(memory) => setEditing(memory.id)}
+              onSaved={() => setEditing(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        onOpenChange={(next) => !next && setDeleting(null)}
         title={m.assistant_memory_delete()}
-        description={deleting?.content ?? ''}
+        description={deleting?.description ?? ''}
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
       />
     </>
+  )
+}
+
+/** One memory's fields; `[[name]]` links in the details open the memory they name. */
+function MemoryForm({
+  memory,
+  memories,
+  onOpen,
+  onSaved,
+}: {
+  memory: MemoryOut
+  memories: MemoryOut[]
+  onOpen: (memory: MemoryOut) => void
+  onSaved: () => void
+}) {
+  const ids = { summary: useId(), type: useId(), details: useId(), name: useId() }
+  const [description, setDescription] = useState(memory.description)
+  const [type, setType] = useState<MemoryType>(memory.type)
+  const [body, setBody] = useState(memory.body)
+  const [name, setName] = useState(memory.name)
+  const queryClient = useQueryClient()
+  const save = useMutation({
+    ...agentMemoryUpdateMutation(),
+    onSuccess: onSaved,
+    onSettled: () => invalidateOperations(queryClient, MEMORY_QUERIES),
+  })
+  const byName = new Map(memories.map((other) => [other.name, other]))
+  const links = linkedNames(body).filter((linked) => linked !== memory.name)
+  const nameValid = NAME.test(name.trim())
+  const changes: Patch = {
+    ...(description.trim() !== memory.description ? { description: description.trim() } : {}),
+    ...(type !== memory.type ? { type } : {}),
+    ...(body.trim() !== memory.body ? { body: body.trim() } : {}),
+    ...(name.trim() !== memory.name ? { name: name.trim() } : {}),
+  }
+  const canSave = description.trim() !== '' && nameValid && Object.keys(changes).length > 0
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (canSave) save.mutate({ path: { id: memory.id }, body: changes })
+  }
+  const typeItems = TYPES.map((value) => ({ value, label: TYPE_LABELS[value]() }))
+  return (
+    <form onSubmit={submit} noValidate>
+      <FieldSet disabled={save.isPending} className="gap-4">
+        <Field>
+          <FieldLabel htmlFor={ids.summary}>{m.assistant_memory_summary()}</FieldLabel>
+          <Input
+            id={ids.summary}
+            value={description}
+            maxLength={MAX_DESCRIPTION}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel id={ids.type}>{m.assistant_memory_type()}</FieldLabel>
+          <Select
+            value={type}
+            items={typeItems}
+            onValueChange={(next) => next && setType(next as MemoryType)}
+          >
+            <SelectTrigger aria-labelledby={ids.type} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    <span className="flex flex-col gap-0.5 whitespace-normal">
+                      {TYPE_LABELS[value]()}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {TYPE_HINTS[value]()}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={ids.details}>{m.assistant_memory_details()}</FieldLabel>
+          <Textarea
+            id={ids.details}
+            value={body}
+            rows={5}
+            maxLength={MAX_BODY}
+            placeholder={m.assistant_memory_details_placeholder()}
+            className="max-h-64"
+            onChange={(e) => setBody(e.target.value)}
+          />
+          {links.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{m.assistant_memory_links()}</span>
+              {links.map((linked) => {
+                const target = byName.get(linked)
+                return target ? (
+                  <Button
+                    key={linked}
+                    type="button"
+                    variant="secondary"
+                    size="xs"
+                    className="max-w-56"
+                    onClick={() => onOpen(target)}
+                  >
+                    <span className="truncate">{target.description}</span>
+                  </Button>
+                ) : (
+                  <Tooltip key={linked}>
+                    <TooltipTrigger
+                      render={
+                        <Badge variant="outline" className="text-muted-foreground">
+                          {linked}
+                        </Badge>
+                      }
+                    />
+                    <TooltipContent>
+                      {m.assistant_memory_link_missing({ name: linked })}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })}
+            </div>
+          ) : null}
+        </Field>
+        <Field data-invalid={!nameValid || undefined}>
+          <FieldLabel htmlFor={ids.name}>{m.assistant_memory_name()}</FieldLabel>
+          <Input
+            id={ids.name}
+            value={name}
+            maxLength={MAX_NAME}
+            aria-invalid={!nameValid || undefined}
+            className="font-mono text-xs"
+            onChange={(e) => setName(e.target.value)}
+          />
+          {nameValid ? (
+            <FieldDescription>{m.assistant_memory_name_description()}</FieldDescription>
+          ) : (
+            <FieldError>{m.assistant_memory_name_invalid()}</FieldError>
+          )}
+        </Field>
+        <FieldError>{save.error ? errorMessage(save.error) : null}</FieldError>
+        <DialogFooter>
+          <Button type="submit" disabled={!canSave}>
+            {save.isPending ? m.common_saving() : m.common_save()}
+          </Button>
+        </DialogFooter>
+      </FieldSet>
+    </form>
   )
 }
 

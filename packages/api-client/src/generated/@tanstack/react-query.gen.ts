@@ -1351,7 +1351,7 @@ export const agentMemoryDeleteMutation = (options?: Partial<Options<AgentMemoryD
 /**
  * Edit a memory.
  *
- * Only the fields sent are changed.
+ * Only the fields sent are changed. Also the undo of a memory updated in a conversation (send back its previous fields).
  */
 export const agentMemoryUpdateMutation = (options?: Partial<Options<AgentMemoryUpdateData>>): UseMutationOptions<AgentMemoryUpdateResponse, AgentMemoryUpdateError, Options<AgentMemoryUpdateData>> => {
     const mutationOptions: UseMutationOptions<AgentMemoryUpdateResponse, AgentMemoryUpdateError, Options<AgentMemoryUpdateData>> = {

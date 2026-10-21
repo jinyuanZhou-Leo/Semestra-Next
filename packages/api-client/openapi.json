@@ -3042,7 +3042,7 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
           "agent"
         ],
         "summary": "Edit a memory.",
-        "description": "Only the fields sent are changed.",
+        "description": "Only the fields sent are changed. Also the undo of a memory updated in a conversation (send back its previous fields).",
         "operationId": "agentMemoryUpdate",
         "parameters": [
           {
@@ -22607,19 +22607,27 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
             "type": "string",
             "title": "Id"
           },
-          "category": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
             "type": "string",
             "enum": [
-              "preference",
-              "goal",
-              "constraint",
-              "context"
+              "user",
+              "feedback",
+              "project",
+              "reference"
             ],
-            "title": "Category"
+            "title": "Type"
           },
-          "content": {
+          "description": {
             "type": "string",
-            "title": "Content"
+            "title": "Description"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
           },
           "source_session_id": {
             "anyOf": [
@@ -22646,8 +22654,10 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "type": "object",
         "required": [
           "id",
-          "category",
-          "content",
+          "name",
+          "type",
+          "description",
+          "body",
           "source_session_id",
           "created_at",
           "updated_at"
@@ -22656,36 +22666,65 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
       },
       "MemoryUpdateInputBody": {
         "properties": {
-          "content": {
+          "name": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 200
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Content",
-            "description": "New text."
+            "title": "Name",
+            "description": "The memory's kebab-case name (lowercase ASCII letters, digits and hyphens), such as `preferred-name` or `no-tables-in-answers`."
           },
-          "category": {
+          "type": {
             "anyOf": [
               {
                 "type": "string",
                 "enum": [
-                  "preference",
-                  "goal",
-                  "constraint",
-                  "context"
+                  "user",
+                  "feedback",
+                  "project",
+                  "reference"
                 ]
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Category",
-            "description": "New category."
+            "title": "Type",
+            "description": "New type."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "New one-line text."
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body",
+            "description": "New body; an empty string removes it."
           }
         },
         "type": "object",

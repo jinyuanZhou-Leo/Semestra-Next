@@ -654,7 +654,7 @@ export const agentMemoryDelete = <ThrowOnError extends boolean = false>(options:
 /**
  * Edit a memory.
  *
- * Only the fields sent are changed.
+ * Only the fields sent are changed. Also the undo of a memory updated in a conversation (send back its previous fields).
  */
 export const agentMemoryUpdate = <ThrowOnError extends boolean = false>(options: Options<AgentMemoryUpdateData, ThrowOnError>): RequestResult<AgentMemoryUpdateResponses, AgentMemoryUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AgentMemoryUpdateResponses, AgentMemoryUpdateErrors, ThrowOnError>({
     url: '/agent/memories/{id}',
