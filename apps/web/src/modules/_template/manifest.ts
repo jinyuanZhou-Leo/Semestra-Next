@@ -1,6 +1,6 @@
 import { Blocks, HardDrive, House, ListChecks } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
 /**
@@ -20,7 +20,7 @@ export default defineModule({
       scopes: ['program', 'term', 'course'],
       title: m.template_page_title,
       icon: ListChecks,
-      component: lazy(() => import('./TemplatePage')),
+      component: preloadable(() => import('./TemplatePage')),
       order: 1000,
     },
   ],

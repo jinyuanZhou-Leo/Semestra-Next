@@ -11,6 +11,7 @@ import { render } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import type { ReactElement } from 'react'
 import '@/app/api'
+import { QUERY_DEFAULTS } from '@/app/query-client'
 
 export const API = 'http://localhost:8000'
 
@@ -18,7 +19,10 @@ export const server = setupServer()
 
 export function newQueryClient() {
   return new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { ...QUERY_DEFAULTS.queries, retry: false },
+      mutations: { retry: false },
+    },
   })
 }
 

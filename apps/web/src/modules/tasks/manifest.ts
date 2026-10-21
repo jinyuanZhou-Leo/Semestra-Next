@@ -1,6 +1,6 @@
 import { CalendarCheck, ListChecks, ListTodo, Sun } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { listCardSettingsSchema } from './cards/schema'
@@ -24,8 +24,8 @@ export default defineModule({
       scopes: ['program', 'term', 'course'],
       title: m.tasks_name,
       icon: ListChecks,
-      component: lazy(() => import('./pages/TasksPage')),
-      sidebarNav: lazy(() =>
+      component: preloadable(() => import('./pages/TasksPage')),
+      sidebarNav: preloadable(() =>
         import('./components/TasksSidebar').then((mod) => ({ default: mod.TasksSidebarNav })),
       ),
       order: 20,

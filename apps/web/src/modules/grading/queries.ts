@@ -8,12 +8,9 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 
-const STALE = 30_000
-
 export function useGradebook(courseId: string) {
   return useQuery({
     ...gradingGradebookGetOptions({ path: { course_id: courseId } }),
-    staleTime: STALE,
   })
 }
 
@@ -23,7 +20,6 @@ export function useTermGrades(termId: string, includeInProgress = false) {
       path: { term_id: termId },
       query: { include_in_progress: includeInProgress },
     }),
-    staleTime: STALE,
     placeholderData: keepPreviousData,
   })
 }
@@ -31,7 +27,6 @@ export function useTermGrades(termId: string, includeInProgress = false) {
 export function useProgramGrades(programId: string) {
   return useQuery({
     ...gradingSummaryProgramOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 
@@ -39,14 +34,12 @@ export function useProgramGrades(programId: string) {
 export function useCourseGrades(programId: string) {
   return useQuery({
     ...gradingCourseSummaryListOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 
 export function useGradingScale(programId: string) {
   return useQuery({
     ...gradingScaleGetOptions({ path: { program_id: programId } }),
-    staleTime: STALE,
   })
 }
 

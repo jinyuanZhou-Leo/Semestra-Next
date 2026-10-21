@@ -1,6 +1,6 @@
 import { FileClock, FolderOpen, Star } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { QuickOpenPicker } from './cards/QuickOpenPicker'
 import { quickOpenSchema } from './cards/quick-open'
@@ -43,7 +43,7 @@ export default defineModule({
       scopes: ['course', 'term'],
       title: m.files_nav,
       icon: FolderOpen,
-      component: lazy(() => import('./pages/FilesPage')),
+      component: preloadable(() => import('./pages/FilesPage')),
       order: 30,
     },
   ],

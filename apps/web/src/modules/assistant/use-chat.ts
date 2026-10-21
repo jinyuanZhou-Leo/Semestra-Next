@@ -71,7 +71,6 @@ export function sessionQueryOptions(sessionId: string | null) {
   return {
     ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
     enabled: sessionId !== null,
-    staleTime: 30_000,
     refetchOnWindowFocus: false,
   }
 }

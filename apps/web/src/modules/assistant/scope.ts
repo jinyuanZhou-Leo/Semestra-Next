@@ -60,13 +60,10 @@ export function scopeKind(scope: AgentScope): ScopeKind {
   return scope.course_id ? 'course' : scope.term_id ? 'term' : 'program'
 }
 
-const STALE = 30_000
-
 function useProgramData(programId: string | undefined) {
   return useQuery({
     ...academicsProgramGetOptions({ path: { program_id: programId ?? '' } }),
     enabled: Boolean(programId),
-    staleTime: STALE,
   }).data
 }
 
@@ -75,7 +72,6 @@ export function useProgramEntities(programId: string | undefined) {
   const terms = useQuery({
     ...academicsTermListOptions({ path: { program_id: programId ?? '' } }),
     enabled: Boolean(programId),
-    staleTime: STALE,
   })
   const courses = useQuery({
     ...academicsCourseListOptions({
@@ -83,7 +79,6 @@ export function useProgramEntities(programId: string | undefined) {
       query: { limit: 500 },
     }),
     enabled: Boolean(programId),
-    staleTime: STALE,
   })
   return { terms: terms.data?.items ?? [], courses: courses.data?.items ?? [] }
 }

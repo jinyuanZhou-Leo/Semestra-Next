@@ -34,8 +34,10 @@ import type {
   CardContribution,
   ModuleManifest,
   PageContribution,
+  Preloadable,
   QueryKeyPrefix,
   Scope,
+  ScopeKind,
   SettingsLevel,
   SettingsSectionContribution,
   StatusItemContribution,
@@ -66,6 +68,26 @@ export const builtInModules: readonly ModuleManifest[] = [
   worldClock,
   canvasTab,
 ]
+
+/**
+ * Starts loading a page's code (and its sidebar navigation) before it renders, from a route
+ * loader; see `preloadable`. Only the code: the page fetches its own data.
+ */
+export function preloadPage(
+  scope: ScopeKind,
+  pageId: string,
+  modules: readonly ModuleManifest[] = builtInModules,
+): void {
+  for (const module of modules) {
+    for (const page of module.pages ?? []) {
+      if (page.id !== pageId || !page.scopes.includes(scope)) continue
+      for (const part of [page.component, page.sidebarNav]) {
+        const preload = (part as Partial<Preloadable<unknown>> | undefined)?.preload
+        if (preload) void preload().catch(() => undefined)
+      }
+    }
+  }
+}
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */
 export const ModuleRegistry = createContext<readonly ModuleManifest[]>(builtInModules)

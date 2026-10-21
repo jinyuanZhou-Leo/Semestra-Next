@@ -37,7 +37,7 @@ apps/api/src/semestra/modules/plugins_builtin/<id_with_underscores>/   后端，
 export default defineModule({
   id: 'hello-note', kind: 'plugin',
   name: m.hello_name, description: m.hello_description, icon: NotebookPen,
-  pages: [{ id, scopes, title, icon, component: lazy(...), order: 1000 }],
+  pages: [{ id, scopes, title, icon, component: preloadable(...), order: 1000 }],
   cards: [{
     id: 'hello.note', scopes: ['program','term','course','today'],
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
@@ -51,7 +51,7 @@ export default defineModule({
 })
 ```
 
-- 所有重组件用 `lazy()`；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
+- 所有重组件用 `lazy()`；页面的 `component` 和 `sidebarNav` 用 `preloadable()`（`@/app/extensions`），路由才能在 loader 和悬停链接时提前拉代码，用普通 `lazy()` 会悄悄失去预加载（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
 
 ### 3.2 卡片组件

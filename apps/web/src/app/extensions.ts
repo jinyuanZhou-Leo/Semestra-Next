@@ -1,7 +1,7 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
-import type { ComponentType, LazyExoticComponent, ReactNode } from 'react'
+import { type ComponentType, type LazyExoticComponent, type ReactNode, lazy } from 'react'
 import type { ZodType } from 'zod'
 
 /**
@@ -26,6 +26,18 @@ export type Scope =
   | { kind: 'course'; programId: string; courseId: string }
 
 type Lazy<P> = ComponentType<P> | LazyExoticComponent<ComponentType<P>>
+
+export type Preloadable<P> = LazyExoticComponent<ComponentType<P>> & {
+  preload: () => Promise<unknown>
+}
+
+/**
+ * `React.lazy` that can also start loading before it renders. Pages use it, so the router fetches
+ * a page's code while the layout's data loads, or as soon as a link to it is hovered.
+ */
+export function preloadable<P>(load: () => Promise<{ default: ComponentType<P> }>): Preloadable<P> {
+  return Object.assign(lazy(load), { preload: load })
+}
 
 export type PageProps = { scope: Scope }
 

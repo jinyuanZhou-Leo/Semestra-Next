@@ -23,6 +23,10 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'commands.',
   'canvas-tab.',
   'files.',
+  'grading.',
+  'ai.',
+  'portability.',
+  'pomodoro.',
 ] as const
 
 type Entry = { found: boolean; value: unknown }
@@ -108,32 +112,51 @@ async function load(queryClient: QueryClient, key: string): Promise<Entry> {
   })
 }
 
-/** Fetch all keys under `prefixes` once; start it before the first screen renders. */
+/**
+ * Fetch all keys under `prefixes` once per signed-in session; start it before the first screen
+ * renders. Later calls (every navigation runs the layout's `beforeLoad`) return the same load.
+ */
 export function prefetchUiPrefs(
   queryClient: QueryClient,
   prefixes: readonly string[] = UI_PREF_PREFETCH_PREFIXES,
 ): Promise<void> {
   const store = storeOf(queryClient)
+  if (store.prefetch) return store.prefetch
   // Prefetched entries have no observer until a component reads them; without this they would
   // be collected after the default 5 minutes and a later read would take them for unset.
   queryClient.setQueryDefaults(['ui-pref'], { gcTime: Infinity })
-  store.prefetch = (async () => {
+  const writes = new Map(store.writes)
+  let prefetch: Promise<void> | null = null
+  prefetch = (async () => {
     try {
       const { data } = await settingsUiStateGetMany({
         body: { prefixes: [...prefixes] },
         throwOnError: true,
       })
       for (const [key, value] of Object.entries(data.items)) {
-        if (!store.pending.has(key)) {
-          queryClient.setQueryData<Entry>(queryKeyFor(key), { found: true, value })
-        }
+        // A change made here while the request was out is newer than the answer.
+        if (store.pending.has(key) || store.writes.get(key) !== writes.get(key)) continue
+        queryClient.setQueryData<Entry>(queryKeyFor(key), { found: true, value })
       }
       store.prefetchedPrefixes = prefixes
     } catch {
-      // Individual reads will try again; nothing depends on the prefetch.
+      // Individual reads will try again, and so does the next navigation.
+      if (store.prefetch === prefetch) store.prefetch = null
     }
   })()
-  return store.prefetch
+  store.prefetch = prefetch
+  return prefetch
+}
+
+/**
+ * Forgets what was prefetched, for the next user in this tab (sign-out). Call after clearing the
+ * query cache and after `flushUiPrefs`.
+ */
+export function resetUiPrefs(queryClient: QueryClient) {
+  const store = storeOf(queryClient)
+  store.prefetch = null
+  store.prefetchedPrefixes = []
+  store.writes.clear()
 }
 
 async function send(queryClient: QueryClient, key: string) {

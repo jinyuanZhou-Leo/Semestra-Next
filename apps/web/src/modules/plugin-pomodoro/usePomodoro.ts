@@ -152,7 +152,6 @@ export function useRecordSession() {
 export function usePomodoroToday(programId: string) {
   const { data } = useQuery({
     ...pomodoroSessionSummarizeOptions({ query: { program_id: programId } }),
-    staleTime: 30_000,
     // "Today" is the Program's day: ask again now and then, so a card left open overnight starts
     // counting the new day.
     refetchInterval: 5 * 60_000,

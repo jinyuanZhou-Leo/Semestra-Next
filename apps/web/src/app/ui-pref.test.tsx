@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { API, newQueryClient, server } from '@/test-utils'
-import { flushUiPrefs, prefetchUiPrefs, refreshUiPrefs, useUiPref } from './ui-pref'
+import { flushUiPrefs, prefetchUiPrefs, refreshUiPrefs, resetUiPrefs, useUiPref } from './ui-pref'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -103,6 +103,48 @@ test('after a prefetch, keys under the prefix need no request of their own', asy
   await waitFor(() => expect(stored.result.current[0]).toBe('due'))
   expect(missing.result.current[0]).toBe('all')
   expect(log.reads).toHaveLength(1)
+})
+
+test('the prefetch runs once per signed-in session, and again after a reset', async () => {
+  const log = backend({ 'tasks.sort': 'due' })
+  await prefetchUiPrefs(queryClient, ['tasks.'])
+  await prefetchUiPrefs(queryClient, ['tasks.'])
+  expect(log.reads).toHaveLength(1)
+
+  queryClient.clear()
+  resetUiPrefs(queryClient)
+  await prefetchUiPrefs(queryClient, ['tasks.'])
+  expect(log.reads).toHaveLength(2)
+})
+
+test('a prefetch answer does not overwrite a value saved while it was out', async () => {
+  const stored: Record<string, unknown> = { 'tasks.sort': 'due' }
+  let answer!: () => void
+  const gate = new Promise<void>((resolve) => (answer = resolve))
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, async () => {
+      const items = { ...stored }
+      await gate
+      return HttpResponse.json({ items })
+    }),
+    http.put(`${API}/me/ui-state/:key`, async ({ params, request }) => {
+      const { value } = (await request.json()) as { value: unknown }
+      stored[String(params.key)] = value
+      return HttpResponse.json({ key: params.key, value })
+    }),
+  )
+  const prefetch = prefetchUiPrefs(queryClient, ['tasks.'])
+  const { result } = renderHook(() => useUiPref('tasks.sort', 'created'), { wrapper })
+  act(() => result.current[1]('title'))
+  await flushUiPrefs(queryClient)
+  answer()
+  await prefetch
+  await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+  expect(result.current[0]).toBe('title')
+  expect(queryClient.getQueryData(['ui-pref', 'tasks.sort'])).toEqual({
+    found: true,
+    value: 'title',
+  })
 })
 
 test('a failed save does not break the page and keeps the value in this tab', async () => {

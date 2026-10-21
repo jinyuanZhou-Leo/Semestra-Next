@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
 import { academicsNavigation } from './commands'
@@ -56,7 +56,7 @@ export default defineModule({
       scopes: ['program', 'term', 'course'],
       title: m.academics_nav_overview,
       icon: LayoutDashboard,
-      component: lazy(() => import('./pages/OverviewPage')),
+      component: preloadable(() => import('./pages/OverviewPage')),
       order: 0,
     },
   ],

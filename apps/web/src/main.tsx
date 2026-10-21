@@ -3,14 +3,22 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './app/api'
+import { QUERY_DEFAULTS } from './app/query-client'
 import { initSentry } from './app/sentry'
 import './app/theme.css'
 import { routeTree } from './routeTree.gen'
 
 void initSentry()
 
-const queryClient = new QueryClient()
-const router = createRouter({ routeTree, context: { queryClient } })
+const queryClient = new QueryClient({ defaultOptions: QUERY_DEFAULTS })
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  // Hovering or focusing a link loads the next page's code (see `preloadPage`); the query cache
+  // decides what is fresh, so the router keeps no copy of its own.
+  defaultPreload: 'intent',
+  defaultPreloadStaleTime: 0,
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

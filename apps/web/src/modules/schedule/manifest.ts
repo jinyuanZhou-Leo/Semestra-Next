@@ -10,7 +10,7 @@ import {
   Tags,
 } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './pages/TodaySubtitle'
@@ -65,7 +65,7 @@ export default defineModule({
       scopes: ['program'],
       title: m.schedule_today,
       icon: Sun,
-      component: lazy(() => import('./pages/TodayPage')),
+      component: preloadable(() => import('./pages/TodayPage')),
       headerSubtitle: TodaySubtitle,
       order: 5,
     },
@@ -74,7 +74,7 @@ export default defineModule({
       scopes: ['term'],
       title: m.schedule_nav_calendar,
       icon: CalendarDays,
-      component: lazy(() => import('./pages/CalendarPage')),
+      component: preloadable(() => import('./pages/CalendarPage')),
       order: 10,
     },
     {
@@ -82,7 +82,7 @@ export default defineModule({
       scopes: ['course'],
       title: m.schedule_nav_schedule,
       icon: CalendarClock,
-      component: lazy(() => import('./pages/CourseSchedulePage')),
+      component: preloadable(() => import('./pages/CourseSchedulePage')),
       order: 10,
     },
   ],

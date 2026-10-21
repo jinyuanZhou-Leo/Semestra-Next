@@ -54,7 +54,6 @@ export function useContentSearch(
     },
     enabled: q.length >= 2,
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
   })
 }
 

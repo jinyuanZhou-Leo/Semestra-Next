@@ -42,12 +42,10 @@ export function QuickOpenPicker({
       query: { limit: 500, term_id: params.termId },
     }),
     enabled: onTerm,
-    staleTime: 30_000,
   })
   const courseGet = useQuery({
     ...academicsCourseGetOptions({ path: { course_id: params.courseId ?? '' } }),
     enabled: onCourse,
-    staleTime: 30_000,
   })
   const thisCourse = courseGet.data
   const courses: Course[] = onCourse
@@ -62,7 +60,6 @@ export function QuickOpenPicker({
         query: { recursive: true },
       }),
       queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
-      staleTime: 30_000,
     })),
   })
   const selected = value.item_ids ?? []
