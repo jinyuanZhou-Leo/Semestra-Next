@@ -5,21 +5,37 @@ import {
   importsSessionGetQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, FileText } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { JobProgress } from '@/components/JobProgress'
+import { AiAction } from '@/components/AiAction'
+import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
-import { Spinner } from '@/ui/spinner'
 import { issueSummary } from '../labels'
 import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
+import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
+
+/** The running extraction as a button-shaped progress bar; its stop button cancels the job. */
+function ExtractingAction({ jobId }: { jobId: string | null | undefined }) {
+  const { progress, stageLabel, cancelling, cancel } = useJob(jobId)
+  return (
+    <AiAction
+      state="running"
+      label={m.imports_extracting()}
+      progress={jobId ? progress : undefined}
+      stageLabel={stageLabel || m.imports_extracting()}
+      cancelling={cancelling}
+      onCancel={jobId ? cancel : undefined}
+    />
+  )
+}
 
 /**
  * One import session at any stage: extraction progress, the review with its actions, the result
@@ -49,28 +65,8 @@ export function SessionView({
   if (session.status === 'extracting') {
     return (
       <div className={cn('space-y-4', className)}>
-        <p className="text-sm text-muted-foreground">{m.imports_extracting()}</p>
-        {session.job_id ? <JobProgress jobId={session.job_id} /> : <Spinner />}
-        <ul className="space-y-1 text-sm">
-          {session.source_refs.map((ref, index) => (
-            <li
-              key={ref.upload_id ?? ref.file_item_id ?? index}
-              className="flex items-center gap-2"
-            >
-              <FileText aria-hidden className="size-4 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate">{ref.filename ?? m.imports_file()}</span>
-              <span className="text-xs text-muted-foreground">
-                {ref.status === 'done'
-                  ? m.imports_file_done()
-                  : ref.status === 'failed'
-                    ? m.imports_file_failed()
-                    : ref.status === 'extracting'
-                      ? m.imports_file_extracting()
-                      : m.imports_file_pending()}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ExtractingAction jobId={session.job_id} />
+        <FileStatusList rows={sessionRows(session.source_refs)} />
       </div>
     )
   }

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { ImportDialog } from './components/ImportDialog'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
 import { itemDetail } from './labels'
@@ -244,3 +245,59 @@ test('a meeting shows how many of its dates are cancelled', () => {
   })
   expect(itemDetail(meeting)).toBe('10:00–11:00 · BA 1180 · 2 cancelled dates')
 })
+
+test('the Read button shows the upload and the extraction, then opens the review', async () => {
+  const extracting = session({ status: 'extracting', job_id: 'j1', items: [] })
+  const states = [extracting, session()]
+  server.use(
+    courses(),
+    http.post(`${API}/imports/uploads`, () =>
+      HttpResponse.json({
+        id: 'u1',
+        filename: 'plan.ics',
+        mime_type: 'text/calendar',
+        size_bytes: 4,
+      }),
+    ),
+    http.post(`${API}/programs/p1/imports`, () => HttpResponse.json(extracting)),
+    http.get(`${API}/imports/s1`, () =>
+      HttpResponse.json(states.length > 1 ? states.shift() : states[0]),
+    ),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'imports.extract',
+        status: 'running',
+        progress: 50,
+        step: null,
+        step_current: null,
+        step_total: null,
+        attempts: 1,
+        cancel_requested: false,
+      }),
+    ),
+  )
+  const closed = vi.fn<(outcome: unknown) => void>()
+  renderWithRouter(
+    <ImportDialog
+      request={{
+        programId: 'p1',
+        source: 'ics',
+        target: { kind: 'course', course_id: 'c1' },
+        mode: 'direct',
+      }}
+      onClose={closed}
+    />,
+  )
+  const read = await screen.findByRole('button', { name: 'Read' })
+  expect(read).toBeDisabled()
+  await userEvent.upload(
+    document.querySelector<HTMLInputElement>('input[type=file]')!,
+    new File(['x'], 'plan.ics'),
+  )
+  await userEvent.click(read)
+  // The files stay listed with their state while the button carries the progress.
+  expect(await screen.findByText('mat137.pdf')).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: /Working…, 60%/ })).toBeDisabled()
+  expect(await screen.findAllByText('Midterm', {}, { timeout: 8000 })).not.toHaveLength(0)
+}, 15_000)
