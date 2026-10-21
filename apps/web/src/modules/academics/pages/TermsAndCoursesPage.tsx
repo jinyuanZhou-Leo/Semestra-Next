@@ -192,7 +192,6 @@ export function TermsAndCoursesPage({
                         courses={page.items}
                         termId={picked?.id}
                         onTermChange={onTermChange}
-                        onAddCourse={addTarget ? () => setAdding(true) : undefined}
                       />
                     )}
                   </TabsContent>
@@ -314,7 +313,15 @@ function TermRow({
         <span className="flex items-center gap-2">
           <span className="truncate font-medium">{term.name}</span>
           {isCurrent ? <Badge>{m.academics_term_current_badge()}</Badge> : null}
-          {pinned ? <Pin aria-hidden className="size-3 shrink-0 text-muted-foreground" /> : null}
+          {pinned ? (
+            <Tooltip>
+              <TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />}>
+                <Pin aria-hidden className="size-3" />
+                <span className="sr-only">{m.academics_pinned()}</span>
+              </TooltipTrigger>
+              <TooltipContent>{m.academics_pinned()}</TooltipContent>
+            </Tooltip>
+          ) : null}
         </span>
         <span className="truncate text-xs text-muted-foreground">
           {termDates(term)} · {m.academics_course_count({ count: term.course_count })}

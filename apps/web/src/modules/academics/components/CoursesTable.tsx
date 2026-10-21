@@ -161,10 +161,13 @@ function CodeCell({ row }: CellProps) {
       />
       {row.original.code || '—'}
       {isPinned({ kind: 'course', id: row.original.id }) ? (
-        <>
-          <Pin aria-hidden className="size-3 shrink-0 text-muted-foreground" />
-          <span className="sr-only">{m.academics_pinned()}</span>
-        </>
+        <Tooltip>
+          <TooltipTrigger render={<span className="shrink-0 text-muted-foreground" />}>
+            <Pin aria-hidden className="size-3" />
+            <span className="sr-only">{m.academics_pinned()}</span>
+          </TooltipTrigger>
+          <TooltipContent>{m.academics_pinned()}</TooltipContent>
+        </Tooltip>
       ) : null}
     </span>
   )

@@ -259,9 +259,16 @@ test('a single course is deleted from its row menu after a confirmation', async 
   await waitFor(() => expect(deleted).toEqual(['c1']))
 })
 
-test('the header has one primary button per tab, and the table ends with Add course', async () => {
+test('each tab has exactly one Add course control, and the header button follows the tab', async () => {
   mount('/p/p1/academics?tab=courses')
   await screen.findByRole('searchbox', { name: 'Search courses' })
-  expect(screen.getAllByRole('button', { name: 'Add course' })).toHaveLength(2)
-  expect(screen.queryByRole('link', { name: 'New term' })).not.toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: 'Add course' })).toHaveLength(1)
+  expect(screen.queryByText('New term')).not.toBeInTheDocument()
+})
+
+test("the terms tab has New term in the header and Add course under the term's table", async () => {
+  mount('/p/p1/academics?term=t1')
+  await screen.findByRole('heading', { name: 'Fall 2025' })
+  expect(await screen.findByText('New term')).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: 'Add course' })).toHaveLength(1)
 })

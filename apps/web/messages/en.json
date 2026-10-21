@@ -482,6 +482,8 @@
   "academics_course_delete": "Delete course",
   "academics_course_delete_description": "Its grades, files and schedule are deleted with it.",
   "academics_course_delete_title": "Delete {name}?",
+  "academics_course_open": "Open course",
+  "academics_course_settings": "Course settings",
   "academics_course_description": "Description",
   "academics_course_in_gpa": "Counts in GPA",
   "academics_course_in_gpa_hint": "Turn off for pass/fail or audited courses.",
@@ -587,6 +589,7 @@
   "academics_term_delete_description": "Deletes the term and the courses that are only in it.",
   "academics_term_delete_kept": "{count} year-long courses stay in their other terms.",
   "academics_term_delete_title": "Delete {name}?",
+  "academics_term_settings": "Term settings",
   "academics_term_end": "Last day",
   "academics_term_menu": "More for {name}",
   "academics_term_name": "Name",
@@ -1277,6 +1280,8 @@
   "terms_courses_follow_calendar": "Follow the calendar",
   "terms_courses_open_term": "Open term",
   "terms_courses_more": "More actions",
+  "terms_courses_actions_column": "Actions",
+  "terms_courses_course_actions": "Actions for {name}",
   "academics_clear_selection": "Clear selection",
   "capability_academics_course_create_title": "Create a course",
   "capability_academics_course_create_many_title": "Create courses",
@@ -2443,10 +2448,5 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "View full screen",
   "assistant_md_zoom_in": "Zoom in",
-  "assistant_md_zoom_out": "Zoom out",
-  "terms_courses_actions_column": "Actions",
-  "terms_courses_course_actions": "Actions for {name}",
-  "academics_course_open": "Open course",
-  "academics_course_settings": "Course settings",
-  "academics_term_settings": "Term settings"
+  "assistant_md_zoom_out": "Zoom out"
 }
