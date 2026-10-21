@@ -12,7 +12,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { ProgramForm } from '../components/ProgramForm'
 import { termPath } from '../paths'
 import { invalidateAcademics } from '../queries'
@@ -122,23 +122,20 @@ export function Onboarding() {
             <p id="onboarding-language" className="text-sm font-medium">
               {m.settings_language_label()}
             </p>
-            <ToggleGroup
-              aria-labelledby="onboarding-language"
-              variant="outline"
-              size="sm"
-              value={[locale]}
-              onValueChange={(value) => {
-                const next = value[0] as AppLocale | undefined
-                if (!next) return
+            <ChoiceControl<AppLocale>
+              labelId="onboarding-language"
+              value={locale}
+              onChange={(next) => {
                 // Changing the language remounts the app; the step is kept in sessionStorage.
                 store(progress)
                 changeLocale(next)
                 updatePreferences({ locale: next })
               }}
-            >
-              <ToggleGroupItem value="en">English</ToggleGroupItem>
-              <ToggleGroupItem value="zh-CN">简体中文</ToggleGroupItem>
-            </ToggleGroup>
+              options={[
+                { value: 'en', label: 'English' },
+                { value: 'zh-CN', label: '简体中文' },
+              ]}
+            />
           </div>
           <div className="flex justify-end">
             <Button onClick={() => advance()}>{m.academics_wizard_next()}</Button>

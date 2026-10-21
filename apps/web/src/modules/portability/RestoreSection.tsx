@@ -36,7 +36,7 @@ import { Label } from '@/ui/label'
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Spinner } from '@/ui/spinner'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 
 type Counts = Record<string, Record<string, number>>
 const labels = portabilityEntityMessages
@@ -321,20 +321,15 @@ function ImportForm({ backup, onDiscarded }: { backup: ImportOut; onDiscarded: (
           description={m.portability_restore_mode_desc()}
           labelId={`${id}-mode`}
         >
-          <ToggleGroup
-            aria-labelledby={`${id}-mode`}
-            variant="outline"
-            size="sm"
-            value={[mode]}
-            onValueChange={(next) => {
-              if (next[0]) setMode(next[0] as 'merge' | 'replace')
-            }}
-          >
-            <ToggleGroupItem value="merge">{m.portability_restore_mode_merge()}</ToggleGroupItem>
-            <ToggleGroupItem value="replace">
-              {m.portability_restore_mode_replace()}
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <ChoiceControl
+            labelId={`${id}-mode`}
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'merge', label: m.portability_restore_mode_merge() },
+              { value: 'replace', label: m.portability_restore_mode_replace() },
+            ]}
+          />
         </SettingRow>
         <SettingRow
           label={m.portability_restore_preferences()}

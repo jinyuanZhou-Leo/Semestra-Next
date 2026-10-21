@@ -1,5 +1,5 @@
 import type { Course, Task, TaskList } from '@semestra/api-client'
-import { CalendarDays, Trash2, X } from 'lucide-react'
+import { CalendarDays, Clock2, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -12,6 +12,8 @@ import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet'
 import {
@@ -24,6 +26,7 @@ import {
 } from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { Textarea } from '@/ui/textarea'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
@@ -161,14 +164,19 @@ export function TaskDetail({
                   />
                 </PopoverContent>
               </Popover>
-              <Input
-                type="time"
-                aria-label={m.tasks_due_time_label()}
-                className="w-28"
-                disabled={managed || !draft.due_date}
-                value={draft.due_time ?? ''}
-                onChange={(event) => set('due_time', event.target.value || null)}
-              />
+              <InputGroup className="w-32 shrink-0">
+                <InputGroupInput
+                  type="time"
+                  aria-label={m.tasks_due_time_label()}
+                  className={TIME_INPUT}
+                  disabled={managed || !draft.due_date}
+                  value={draft.due_time ?? ''}
+                  onChange={(event) => set('due_time', event.target.value || null)}
+                />
+                <InputGroupAddon>
+                  <Clock2 aria-hidden />
+                </InputGroupAddon>
+              </InputGroup>
               {draft.due_date && !managed ? (
                 <Tooltip>
                   <TooltipTrigger
@@ -191,8 +199,8 @@ export function TaskDetail({
           <Field>
             <FieldLabel>{m.tasks_priority_field()}</FieldLabel>
             <ToggleGroup
-              variant="outline"
-              className="w-full"
+              size="sm"
+              className={`${SEGMENTED} w-full`}
               aria-label={m.tasks_priority_field()}
               value={[shownPriority(draft.priority)]}
               onValueChange={(value) => {
@@ -202,7 +210,7 @@ export function TaskDetail({
               }}
             >
               {PRIORITIES.map((p) => (
-                <ToggleGroupItem key={p} value={p} className="flex-1 gap-1 px-1 text-xs">
+                <ToggleGroupItem key={p} value={p} className={`${SEGMENT} flex-1 gap-1 px-1`}>
                   {p === 'none' ? null : <PriorityMarks level={p} className="min-w-0" />}
                   {p === 'none' ? m.tasks_priority_none_short() : PRIORITY_NAMES[p]()}
                 </ToggleGroupItem>

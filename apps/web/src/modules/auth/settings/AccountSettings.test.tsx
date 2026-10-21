@@ -120,10 +120,8 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
   await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
   const form = await screen.findByRole('dialog')
   await userEvent.type(within(form).getByLabelText('Name'), 'Claude Desktop')
-  await userEvent.click(within(form).getByRole('combobox', { name: 'Access' }))
-  await userEvent.click(await screen.findByRole('option', { name: 'Read and write' }))
-  await userEvent.click(within(form).getByRole('combobox', { name: 'Expires' }))
-  await userEvent.click(await screen.findByRole('option', { name: /90/ }))
+  await userEvent.click(within(form).getByRole('button', { name: 'Read and write' }))
+  await userEvent.click(within(form).getByRole('button', { name: /90/ }))
   await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
 
   expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')

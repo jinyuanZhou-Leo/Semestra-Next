@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { pngsToPdf, renderPng } from '../export'
 import { weekLabel } from '../labels'
 import { weekGridItems } from '../occurrence'
@@ -196,30 +196,28 @@ export function ExportDialog({
           <DialogTitle>{m.schedule_export()}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <ToggleGroup
-            aria-label={m.schedule_export_format()}
-            variant="outline"
-            size="sm"
-            value={[format]}
-            onValueChange={(value) => value[0] && setFormat(value[0] as Format)}
-          >
-            <ToggleGroupItem value="png">PNG</ToggleGroupItem>
-            <ToggleGroupItem value="pdf">PDF</ToggleGroupItem>
-            <ToggleGroupItem value="ics">ICS</ToggleGroupItem>
-          </ToggleGroup>
-          <ToggleGroup
-            aria-label={m.schedule_export_range()}
-            variant="outline"
-            size="sm"
-            value={[effectiveRange]}
-            onValueChange={(value) => value[0] && setRange(value[0] as Range)}
-          >
-            <ToggleGroupItem value="week">{m.schedule_export_one_week()}</ToggleGroupItem>
-            <ToggleGroupItem value="weeks">{m.schedule_export_weeks()}</ToggleGroupItem>
-            {format === 'ics' ? null : (
-              <ToggleGroupItem value="template">{m.schedule_view_timetable()}</ToggleGroupItem>
-            )}
-          </ToggleGroup>
+          <ChoiceControl<Format>
+            label={m.schedule_export_format()}
+            value={format}
+            onChange={setFormat}
+            options={[
+              { value: 'png', label: 'PNG' },
+              { value: 'pdf', label: 'PDF' },
+              { value: 'ics', label: 'ICS' },
+            ]}
+          />
+          <ChoiceControl<Range>
+            label={m.schedule_export_range()}
+            value={effectiveRange}
+            onChange={setRange}
+            options={[
+              { value: 'week', label: m.schedule_export_one_week() },
+              { value: 'weeks', label: m.schedule_export_weeks() },
+              ...(format === 'ics'
+                ? []
+                : [{ value: 'template' as const, label: m.schedule_view_timetable() }]),
+            ]}
+          />
           {effectiveRange !== 'template' && weekOptions.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               <Field>
@@ -296,33 +294,30 @@ export function ExportDialog({
             <div className="flex flex-wrap gap-4">
               <div>
                 <p className="mb-2 text-sm font-medium">{m.schedule_export_cancelled()}</p>
-                <ToggleGroup
-                  aria-label={m.schedule_export_cancelled()}
-                  variant="outline"
-                  size="sm"
-                  value={[cancelled]}
-                  onValueChange={(value) => value[0] && setCancelled(value[0] as typeof cancelled)}
-                >
-                  <ToggleGroupItem value="strike">
-                    {m.settings_calendar_cancelled_display_option_strike()}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="hide">
-                    {m.settings_calendar_cancelled_display_option_hide()}
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                <ChoiceControl<typeof cancelled>
+                  label={m.schedule_export_cancelled()}
+                  value={cancelled}
+                  onChange={setCancelled}
+                  options={[
+                    {
+                      value: 'strike',
+                      label: m.settings_calendar_cancelled_display_option_strike(),
+                    },
+                    { value: 'hide', label: m.settings_calendar_cancelled_display_option_hide() },
+                  ]}
+                />
               </div>
               <div>
                 <p className="mb-2 text-sm font-medium">{m.schedule_export_theme()}</p>
-                <ToggleGroup
-                  aria-label={m.schedule_export_theme()}
-                  variant="outline"
-                  size="sm"
-                  value={[theme]}
-                  onValueChange={(value) => value[0] && setTheme(value[0] as 'light' | 'dark')}
-                >
-                  <ToggleGroupItem value="light">{m.schedule_export_theme_light()}</ToggleGroupItem>
-                  <ToggleGroupItem value="dark">{m.schedule_export_theme_dark()}</ToggleGroupItem>
-                </ToggleGroup>
+                <ChoiceControl<'light' | 'dark'>
+                  label={m.schedule_export_theme()}
+                  value={theme}
+                  onChange={setTheme}
+                  options={[
+                    { value: 'light', label: m.schedule_export_theme_light() },
+                    { value: 'dark', label: m.schedule_export_theme_dark() },
+                  ]}
+                />
               </div>
             </div>
           ) : (

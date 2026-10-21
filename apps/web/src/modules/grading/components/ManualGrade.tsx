@@ -3,7 +3,7 @@ import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-qu
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { GpaValue } from './GpaValue'
@@ -28,20 +28,16 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
   if (result.basis === 'pass_fail') {
     return (
       <Stat label={m.grading_pass_fail_result()}>
-        <ToggleGroup
-          aria-label={m.grading_pass_fail_result()}
-          variant="outline"
-          size="sm"
-          value={[result.pass_fail_result ?? 'pending']}
-          onValueChange={([next]) => {
-            if (!next) return
-            patch({ pass_fail_result: next === 'pass' || next === 'fail' ? next : null })
-          }}
-        >
-          <ToggleGroupItem value="pending">{m.grading_pass_fail_pending()}</ToggleGroupItem>
-          <ToggleGroupItem value="pass">{m.grading_pass()}</ToggleGroupItem>
-          <ToggleGroupItem value="fail">{m.grading_fail()}</ToggleGroupItem>
-        </ToggleGroup>
+        <ChoiceControl<'pending' | 'pass' | 'fail'>
+          label={m.grading_pass_fail_result()}
+          value={result.pass_fail_result ?? 'pending'}
+          onChange={(next) => patch({ pass_fail_result: next === 'pending' ? null : next })}
+          options={[
+            { value: 'pending', label: m.grading_pass_fail_pending() },
+            { value: 'pass', label: m.grading_pass() },
+            { value: 'fail', label: m.grading_fail() },
+          ]}
+        />
       </Stat>
     )
   }

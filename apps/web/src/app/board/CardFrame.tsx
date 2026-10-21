@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
@@ -164,30 +164,19 @@ export function CardFrame({
               </Tooltip>
               <PopoverContent align="end" className="w-56 gap-3">
                 {contribution.sizes.length > 1 ? (
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-1.5">
                     <span className="text-xs text-muted-foreground">
                       {m.board_card_size_label()}
                     </span>
-                    <ToggleGroup
-                      aria-label={m.board_card_size({ card: title })}
-                      size="sm"
-                      value={[card.size]}
-                      onValueChange={(value) => {
-                        const size = contribution.sizes.find((s) => s === value[0])
-                        if (size) onResize(size)
-                      }}
-                    >
-                      {contribution.sizes.map((size) => (
-                        <ToggleGroupItem
-                          key={size}
-                          value={size}
-                          aria-label={SIZE_LABEL[size]()}
-                          className="h-6 min-w-6 px-1.5 text-[0.625rem]"
-                        >
-                          {size}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
+                    <ChoiceControl
+                      label={m.board_card_size({ card: title })}
+                      value={card.size}
+                      onChange={onResize}
+                      options={contribution.sizes.map((size) => ({
+                        value: size,
+                        label: SIZE_LABEL[size](),
+                      }))}
+                    />
                   </div>
                 ) : null}
                 {contribution.settings ? (

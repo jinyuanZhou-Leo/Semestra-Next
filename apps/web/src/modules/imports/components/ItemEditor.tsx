@@ -12,7 +12,7 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, itemTitle, TYPE_LABELS } from '../labels'
 import { storeSession, trackEdit } from '../queries'
@@ -73,12 +73,11 @@ function TypeSwitch({ item }: { item: ImportItem }) {
     onSuccess: (session) => storeSession(queryClient, session),
   })
   return (
-    <ToggleGroup
-      aria-label={m.imports_import_as()}
-      value={[item.type]}
+    <ChoiceControl<string>
+      label={m.imports_import_as()}
+      value={item.type}
       disabled={save.isPending}
-      onValueChange={(next) => {
-        const type = next[0]
+      onChange={(type) => {
         if ((type === 'assessment' || type === 'task') && type !== item.type) {
           trackEdit(
             save
@@ -90,12 +89,11 @@ function TypeSwitch({ item }: { item: ImportItem }) {
           )
         }
       }}
-      variant="outline"
-      size="sm"
-    >
-      <ToggleGroupItem value="assessment">{m.imports_type_assessment()}</ToggleGroupItem>
-      <ToggleGroupItem value="task">{m.imports_type_task()}</ToggleGroupItem>
-    </ToggleGroup>
+      options={[
+        { value: 'assessment', label: m.imports_type_assessment() },
+        { value: 'task', label: m.imports_type_task() },
+      ]}
+    />
   )
 }
 

@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useTaskActions } from '../actions'
 import { QuickAdd } from '../components/QuickAdd'
@@ -267,13 +268,13 @@ export default function TasksPage({ scope }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
             <ToggleGroup
-              variant="outline"
               size="sm"
+              className={SEGMENTED}
               value={[key]}
               onValueChange={(value) => value[0] && select(parseSelection(value[0]))}
             >
               {SMART_VIEWS.map((v) => (
-                <ToggleGroupItem key={v.view} value={v.view}>
+                <ToggleGroupItem key={v.view} value={v.view} className={SEGMENT}>
                   {v.title()}
                 </ToggleGroupItem>
               ))}

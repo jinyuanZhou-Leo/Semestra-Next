@@ -21,7 +21,7 @@ import {
 } from '@/ui/empty'
 import { Field, FieldLabel } from '@/ui/field'
 import { Label } from '@/ui/label'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { ChoiceControl } from '@/app/settings/choice'
 import { ProgramUnbound, startedSession } from './CoursePicker'
 import { useProviderName } from '../providers'
 
@@ -105,18 +105,15 @@ function AssignmentList({
     <>
       <div className="flex items-center gap-3">
         <Label id={`${id}-kind`}>{m.lms_import_as()}</Label>
-        <ToggleGroup
-          aria-labelledby={`${id}-kind`}
-          value={[kind]}
-          onValueChange={(next) => {
-            if (next[0]) setKind(next[0] as Kind)
-          }}
-          variant="outline"
-          size="sm"
-        >
-          <ToggleGroupItem value="assessment">{m.imports_type_assessment()}</ToggleGroupItem>
-          <ToggleGroupItem value="task">{m.imports_type_task()}</ToggleGroupItem>
-        </ToggleGroup>
+        <ChoiceControl<Kind>
+          labelId={`${id}-kind`}
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'assessment', label: m.imports_type_assessment() },
+            { value: 'task', label: m.imports_type_task() },
+          ]}
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <AsyncBoundary

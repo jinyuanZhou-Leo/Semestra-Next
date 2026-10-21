@@ -5,7 +5,7 @@ import {
   scheduleEventUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { formatDate, firstDayOfWeek } from '@/lib/format'
@@ -19,6 +19,8 @@ import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
@@ -277,7 +279,7 @@ export function EventDialog({
               {m.schedule_all_day()}
             </FieldLabel>
           </Field>
-          <Field data-invalid={(touched && timeMissing) || undefined}>
+          <Field className="col-span-2" data-invalid={(touched && timeMissing) || undefined}>
             <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_starts()}</FieldLabel>
             <div className="flex gap-2">
               <Popover open={startOpen} onOpenChange={setStartOpen}>
@@ -314,18 +316,23 @@ export function EventDialog({
                 </PopoverContent>
               </Popover>
               {draft.all_day ? null : (
-                <Input
-                  type="time"
-                  aria-label={m.schedule_start_time()}
-                  className="w-32 shrink-0"
-                  value={clock(draft.start)}
-                  onChange={(input) => set('start', withClock(draft.start, input.target.value))}
-                />
+                <InputGroup className="w-32 shrink-0">
+                  <InputGroupInput
+                    type="time"
+                    aria-label={m.schedule_start_time()}
+                    className={TIME_INPUT}
+                    value={clock(draft.start)}
+                    onChange={(input) => set('start', withClock(draft.start, input.target.value))}
+                  />
+                  <InputGroupAddon>
+                    <Clock2 aria-hidden />
+                  </InputGroupAddon>
+                </InputGroup>
               )}
             </div>
             {touched && timeMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
           </Field>
-          <Field data-invalid={(touched && timeInvalid) || undefined}>
+          <Field className="col-span-2" data-invalid={(touched && timeInvalid) || undefined}>
             <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_ends()}</FieldLabel>
             <div className="flex gap-2">
               <Popover open={endOpen} onOpenChange={setEndOpen}>
@@ -359,13 +366,18 @@ export function EventDialog({
                 </PopoverContent>
               </Popover>
               {draft.all_day ? null : (
-                <Input
-                  type="time"
-                  aria-label={m.schedule_end_time()}
-                  className="w-32 shrink-0"
-                  value={clock(draft.end)}
-                  onChange={(input) => set('end', withClock(draft.end, input.target.value))}
-                />
+                <InputGroup className="w-32 shrink-0">
+                  <InputGroupInput
+                    type="time"
+                    aria-label={m.schedule_end_time()}
+                    className={TIME_INPUT}
+                    value={clock(draft.end)}
+                    onChange={(input) => set('end', withClock(draft.end, input.target.value))}
+                  />
+                  <InputGroupAddon>
+                    <Clock2 aria-hidden />
+                  </InputGroupAddon>
+                </InputGroup>
               )}
             </div>
             {touched && timeInvalid ? (

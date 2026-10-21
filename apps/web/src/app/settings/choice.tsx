@@ -1,5 +1,4 @@
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
-import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -45,7 +44,7 @@ export function ChoiceControl<T extends string>({
   labelId,
   label,
   id,
-  className,
+  disabled,
   follow,
 }: {
   options: readonly ChoiceOption<T>[]
@@ -55,8 +54,7 @@ export function ChoiceControl<T extends string>({
   labelId?: string
   label?: string
   id?: string
-  /** Width of the select trigger. */
-  className?: string
+  disabled?: boolean
   follow?: FollowChoice
 }) {
   const shown = follow?.selected ? FOLLOW : value
@@ -74,6 +72,7 @@ export function ChoiceControl<T extends string>({
         id={id}
         aria-labelledby={labelId}
         aria-label={label}
+        disabled={disabled}
         value={[shown]}
         onValueChange={(next) => pick(next[0])}
         size="sm"
@@ -103,13 +102,9 @@ export function ChoiceControl<T extends string>({
         ...options.map((o) => ({ value: o.value, label: o.label })),
       ]}
       onValueChange={pick}
+      disabled={disabled}
     >
-      <SelectTrigger
-        id={id}
-        aria-labelledby={labelId}
-        aria-label={label}
-        className={cn('w-56', className)}
-      >
+      <SelectTrigger id={id} aria-labelledby={labelId} aria-label={label} className="w-56">
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="w-72">
