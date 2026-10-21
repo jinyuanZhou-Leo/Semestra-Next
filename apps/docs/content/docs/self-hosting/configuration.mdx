@@ -48,9 +48,9 @@ Email settings are on [Email](./email.mdx).
 | ------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
 | `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_      | Lets the server call private and loopback addresses: a LAN Ollama, an on-premises Canvas, plain-http Canvas. Outside the compose file the default is `false` |
 
-With `false`, requests to user-chosen hosts (AI base URLs, Canvas) are refused with
-`common.egress_blocked` when the host resolves to a private, loopback or link-local address, and
-redirects are never followed.
+With `false`, requests to user-chosen hosts are refused when the host resolves to a private,
+loopback or link-local address: AI base URLs with `common.egress_blocked`, Canvas addresses with
+`lms.blocked_address`. Every redirect target Canvas sends goes through the same check.
 
 ## AI
 

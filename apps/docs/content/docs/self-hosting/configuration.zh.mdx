@@ -47,8 +47,8 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 | ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------- |
 | `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_  | 允许服务器访问内网和回环地址：局域网里的 Ollama、学校自建的 Canvas、纯 http 的 Canvas。compose 文件之外默认是 `false` |
 
-设为 `false` 时，访问用户填写的主机（AI 接口地址、Canvas）如果解析到内网、回环或链路本地地址，会被拒绝并返回
-`common.egress_blocked`，而且不会跟随重定向。
+设为 `false` 时，访问用户填写的主机如果解析到内网、回环或链路本地地址，会被拒绝：AI 接口地址返回 `common.egress_blocked`，Canvas
+地址返回 `lms.blocked_address`。Canvas 返回的每个重定向目标也要通过同样的检查。
 
 ## AI
 

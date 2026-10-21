@@ -66,7 +66,8 @@ export function McpTools({ lang }: { lang: Lang }) {
                   <td>
                     <code>{tool.name}</code>
                   </td>
-                  <td>{title(tool.capability, lang)}</td>
+                  {/* The summaries are English; Chinese readers get the app's capability title. */}
+                  <td>{lang === 'en' ? tool.summary : title(tool.capability, lang)}</td>
                   <td>{effects[tool.effect as Effect][lang]}</td>
                 </tr>
               ))}

@@ -7,8 +7,9 @@
 		-Server
 	}
 
+	# Room for the largest backup import: 1 GiB + 50 MB when storage is unlimited (the default).
 	request_body {
-		max_size 100MB
+		max_size 1100MB
 	}
 
 	# Server-sent events must not be buffered or compressed.

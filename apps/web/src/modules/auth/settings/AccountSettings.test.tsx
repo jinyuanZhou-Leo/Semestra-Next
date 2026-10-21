@@ -175,7 +175,8 @@ test('mcpConfig points Claude Desktop at the API and passes the token via env', 
   const parsed = JSON.parse(mcpConfig('spat_x', 'https://api.example.com/'))
   const entry = parsed.mcpServers.semestra
   expect(entry.args).toContain('https://api.example.com/mcp')
-  expect(entry.env.SEMESTRA_TOKEN).toBe('spat_x')
+  expect(entry.args).toContain('Authorization:${AUTH_HEADER}')
+  expect(entry.env.AUTH_HEADER).toBe('Bearer spat_x')
   expect(JSON.stringify(entry.args)).not.toContain('spat_x')
 })
 

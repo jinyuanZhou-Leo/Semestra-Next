@@ -17,7 +17,7 @@ SEMESTRA_BIND=127.0.0.1
 docker compose --profile https up -d
 ```
 
-Caddy 会申请并续期证书，加上 HSTS 等安全响应头，并接受最大 100 MB 的请求体。`SEMESTRA_BIND=127.0.0.1` 让 8000
+Caddy 会申请并续期证书，加上 HSTS 等安全响应头，并接受最大 1100 MB 的请求体，足够导入最大的备份。`SEMESTRA_BIND=127.0.0.1` 让 8000
 端口不暴露在公网网卡上。
 
 ## 使用自己的反向代理

@@ -18,7 +18,8 @@ docker compose --profile https up -d
 ```
 
 Caddy gets and renews the certificate, adds HSTS and other security headers, and accepts request
-bodies up to 100 MB. `SEMESTRA_BIND=127.0.0.1` keeps port 8000 off the public interface.
+bodies up to 1100 MB, enough for the largest backup import. `SEMESTRA_BIND=127.0.0.1` keeps port
+8000 off the public interface.
 
 ## Your own reverse proxy
 
