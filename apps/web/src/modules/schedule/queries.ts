@@ -103,13 +103,22 @@ export const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
 
 /** The `calendar` namespace (M11), resolved for a term when given. */
 export function useCalendarSettings(termId?: string): CalendarSettings {
-  const values = useQuery({
+  return useCalendarSettingsState(termId).settings
+}
+
+/** `useCalendarSettings` plus whether the Program's values are still loading (defaults only). */
+export function useCalendarSettingsState(termId?: string): {
+  settings: CalendarSettings
+  isPending: boolean
+} {
+  const query = useQuery({
     ...settingsValueGetOptions({
       path: { namespace: 'calendar' },
       query: termId ? { scope_type: 'term', scope_id: termId } : { scope_type: 'account' },
     }),
-  }).data?.values
-  return { ...DEFAULT_CALENDAR_SETTINGS, ...(values as Partial<CalendarSettings> | undefined) }
+  })
+  const values = query.data?.values as Partial<CalendarSettings> | undefined
+  return { settings: { ...DEFAULT_CALENDAR_SETTINGS, ...values }, isPending: query.isPending }
 }
 
 function operationId(queryKey: readonly unknown[]): string {

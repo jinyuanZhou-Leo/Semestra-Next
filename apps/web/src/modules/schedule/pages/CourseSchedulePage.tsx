@@ -61,7 +61,7 @@ import { useProgramTimezone } from '../hooks'
 import { dayLabel, sectionLabel, timeRange, typeName } from '../labels'
 import {
   invalidateSchedule,
-  useCalendarSettings,
+  useCalendarSettingsState,
   useEvents,
   useEventTypes,
   useMeetings,
@@ -163,7 +163,7 @@ function TermSchedule({
   const enabled = meetings.filter((mt) => mt.enabled)
   // The whole week and day of the Program's calendar settings; the grid widens for classes
   // outside them.
-  const calendar = useCalendarSettings(termId)
+  const { settings: calendar, isPending: calendarPending } = useCalendarSettingsState(termId)
   const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing, {
     bySection: true,
   })
@@ -246,13 +246,19 @@ function TermSchedule({
               </Empty>
             ) : (
               <div className="rounded-2xl border border-border p-3 pt-2">
-                <WeekGrid
-                  days={weekDays(calendar.show_weekends || enabled.some((mt) => mt.weekday >= 6))}
-                  items={gridItems}
-                  dayStart={minutes(calendar.day_start)}
-                  dayEnd={minutes(calendar.day_end)}
-                  hourHeight={44}
-                />
+                {calendarPending ? (
+                  // The default 08:00–22:00 grid's height, so the page does not jump when the
+                  // Program's own hours arrive.
+                  <div aria-hidden className="h-[calc(14*44px+3.5rem)]" />
+                ) : (
+                  <WeekGrid
+                    days={weekDays(calendar.show_weekends || enabled.some((mt) => mt.weekday >= 6))}
+                    items={gridItems}
+                    dayStart={minutes(calendar.day_start)}
+                    dayEnd={minutes(calendar.day_end)}
+                    hourHeight={44}
+                  />
+                )}
               </div>
             )}
           </section>
@@ -408,9 +414,14 @@ const TimeCell = ({ row }: CellProps) => (
 const ActionsHeader = () => <span className="sr-only">{m.schedule_actions()}</span>
 
 function ActionsCell({ row }: CellProps) {
-  const { meetings, onToggle, onEdit } = useMeetingGroup()
+  const { code, meetings, onToggle, onEdit } = useMeetingGroup()
   return (
-    <RowMenu label={m.schedule_actions()}>
+    <RowMenu
+      label={m.schedule_meeting_actions({
+        section: row.original.section_code || code,
+        day: weekdayName(row.original.weekday),
+      })}
+    >
       <DropdownMenuItem onClick={() => onEdit(row.original)}>
         <Pencil aria-hidden />
         {m.schedule_meeting_edit()}
@@ -572,7 +583,7 @@ function EventTitleCell({ row }: EventCell) {
       <span className="min-w-0 flex-1">
         <button
           type="button"
-          className="block max-w-full cursor-pointer truncate text-left font-medium hover:underline"
+          className="block max-w-full cursor-pointer truncate rounded-sm text-left font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           onClick={() => onEdit(event)}
         >
           {event.title}
@@ -600,7 +611,7 @@ function EventWhenCell({ row }: EventCell) {
 function EventActionsCell({ row }: EventCell) {
   const { onEdit, onDelete } = useEventsState()
   return (
-    <RowMenu label={`${m.schedule_actions()}: ${row.original.title}`}>
+    <RowMenu label={m.schedule_event_actions({ title: row.original.title })}>
       <DropdownMenuItem onClick={() => onEdit(row.original)}>
         <Pencil aria-hidden />
         {m.schedule_event_edit()}
@@ -622,7 +633,7 @@ const eventColumns = eventColumn.columns([
   }),
   eventColumn.accessor((e) => e.start_at, {
     id: 'when',
-    header: () => m.schedule_date(),
+    header: () => m.schedule_date_time(),
     cell: EventWhenCell,
   }),
   eventColumn.display({ id: 'actions', header: ActionsHeader, cell: EventActionsCell }),

@@ -166,12 +166,18 @@ export function WeekGrid({
                 formatTime(
                   `${String(Math.floor(value / 60) % 24).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`,
                 )
+              const range = `${clock(item.start)} – ${clock(item.end)}`
+              const flags = [
+                item.conflict ? m.schedule_conflict() : null,
+                item.cancelled ? m.schedule_status_cancelled() : null,
+              ].filter(Boolean)
+              const label = [...flags, item.title, item.subtitle, range].filter(Boolean).join(', ')
               return (
                 <Tooltip key={item.id}>
                   <TooltipTrigger
                     render={
                       item.onClick ? (
-                        <button type="button" aria-label={item.title} onClick={item.onClick} />
+                        <button type="button" aria-label={label} onClick={item.onClick} />
                       ) : (
                         <div />
                       )
@@ -221,9 +227,8 @@ export function WeekGrid({
                   <TooltipContent className="flex-col items-start gap-0.5">
                     <span className="font-medium">{item.title}</span>
                     {item.subtitle ? <span>{item.subtitle}</span> : null}
-                    <span className="tabular-nums">
-                      {clock(item.start)} – {clock(item.end)}
-                    </span>
+                    <span className="tabular-nums">{range}</span>
+                    {flags.length > 0 ? <span>{flags.join(' · ')}</span> : null}
                   </TooltipContent>
                 </Tooltip>
               )
