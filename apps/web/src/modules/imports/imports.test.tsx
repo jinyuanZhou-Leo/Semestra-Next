@@ -7,6 +7,7 @@ import { API, renderWithRouter, server } from '@/test-utils'
 import { ImportDialog } from './components/ImportDialog'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
+import { errorMessage } from '@/lib/errors'
 import { itemDetail } from './labels'
 import { finishImport, openImport } from './launcher'
 
@@ -246,19 +247,51 @@ test('a meeting shows how many of its dates are cancelled', () => {
   expect(itemDetail(meeting)).toBe('10:00–11:00 · BA 1180 · 2 cancelled dates')
 })
 
+// The upload goes through XMLHttpRequest, which jsdom treats as cross-origin to the API.
+const CORS = {
+  'Access-Control-Allow-Origin': window.location.origin,
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': '*',
+}
+
+function upload(delayMs = 0) {
+  return [
+    http.options(
+      `${API}/imports/uploads`,
+      () => new HttpResponse(null, { status: 204, headers: CORS }),
+    ),
+    http.post(`${API}/imports/uploads`, async () => {
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      return HttpResponse.json(
+        { id: 'u1', filename: 'plan.ics', mime_type: 'text/calendar', size_bytes: 4 },
+        { headers: CORS },
+      )
+    }),
+  ]
+}
+
+function icsRequest(source: 'ics' | 'syllabus' = 'ics') {
+  return {
+    programId: 'p1',
+    source,
+    target: { kind: 'course', course_id: 'c1' },
+    mode: 'direct',
+  } as const
+}
+
+async function pickFile(name = 'plan.ics') {
+  await userEvent.upload(
+    document.querySelector<HTMLInputElement>('input[type=file]')!,
+    new File(['x'], name),
+  )
+}
+
 test('the Read button shows the upload and the extraction, then opens the review', async () => {
   const extracting = session({ status: 'extracting', job_id: 'j1', items: [] })
   const states = [extracting, session()]
   server.use(
     courses(),
-    http.post(`${API}/imports/uploads`, () =>
-      HttpResponse.json({
-        id: 'u1',
-        filename: 'plan.ics',
-        mime_type: 'text/calendar',
-        size_bytes: 4,
-      }),
-    ),
+    ...upload(),
     http.post(`${API}/programs/p1/imports`, () => HttpResponse.json(extracting)),
     http.get(`${API}/imports/s1`, () =>
       HttpResponse.json(states.length > 1 ? states.shift() : states[0]),
@@ -301,3 +334,122 @@ test('the Read button shows the upload and the extraction, then opens the review
   expect(await screen.findByRole('button', { name: /Working…, 60%/ })).toBeDisabled()
   expect(await screen.findAllByText('Midterm', {}, { timeout: 8000 })).not.toHaveLength(0)
 }, 15_000)
+
+test('stopping during the upload shows no error and never creates the session', async () => {
+  const create = vi.fn<() => void>()
+  server.use(
+    ...upload(5_000),
+    http.post(`${API}/programs/p1/imports`, () => {
+      create()
+      return HttpResponse.json(session({ status: 'extracting', job_id: 'j1', items: [] }))
+    }),
+  )
+  renderWithRouter(<ImportDialog request={icsRequest()} onClose={() => {}} />)
+  await screen.findByRole('button', { name: 'Read' })
+  await pickFile()
+  await userEvent.click(screen.getByRole('button', { name: 'Read' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop' }))
+  // The drop zone is back and no reason is shown.
+  expect(await screen.findByText('Choose another file, or drop it here')).toBeInTheDocument()
+  expect(screen.queryByText(/went wrong|failed/i)).toBeNull()
+  expect(create).not.toHaveBeenCalled()
+})
+
+test('stopping while reading discards the session and returns to the start', async () => {
+  const discarded = vi.fn<() => void>()
+  let status: 'extracting' | 'discarded' = 'extracting'
+  server.use(
+    ...upload(),
+    http.post(`${API}/programs/p1/imports`, () =>
+      HttpResponse.json(session({ status: 'extracting', job_id: 'j1', items: [] })),
+    ),
+    http.get(`${API}/imports/s1`, () =>
+      HttpResponse.json(
+        session({ status, job_id: status === 'extracting' ? 'j1' : null, items: [] }),
+      ),
+    ),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'imports.extract',
+        status: 'running',
+        progress: 10,
+        step: null,
+        step_current: null,
+        step_total: null,
+        attempts: 1,
+        cancel_requested: false,
+      }),
+    ),
+    http.post(`${API}/imports/s1\\:discard`, () => {
+      discarded()
+      status = 'discarded'
+      return HttpResponse.json(session({ status: 'discarded', items: [] }))
+    }),
+  )
+  renderWithRouter(<ImportDialog request={icsRequest()} onClose={() => {}} />)
+  await screen.findByRole('button', { name: 'Read' })
+  await pickFile()
+  await userEvent.click(screen.getByRole('button', { name: 'Read' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop' }))
+  await waitFor(() => expect(discarded).toHaveBeenCalledOnce())
+  expect(await screen.findByRole('button', { name: 'Read' })).toBeEnabled()
+})
+
+test("a retry that fails shows its own reason, not the failed session's", async () => {
+  let attempts = 0
+  server.use(
+    ...upload(),
+    http.post(`${API}/programs/p1/imports`, () => {
+      attempts += 1
+      if (attempts === 1) {
+        return HttpResponse.json(
+          session({ status: 'failed', error_code: 'import.no_content', items: [] }),
+        )
+      }
+      return HttpResponse.json(
+        { error: { code: 'import.file_too_complex', params: {}, request_id: 'r' } },
+        { status: 422 },
+      )
+    }),
+    http.get(`${API}/imports/s1`, () =>
+      HttpResponse.json(session({ status: 'failed', error_code: 'import.no_content', items: [] })),
+    ),
+  )
+  renderWithRouter(<ImportDialog request={icsRequest()} onClose={() => {}} />)
+  await screen.findByRole('button', { name: 'Read' })
+  await pickFile()
+  await userEvent.click(screen.getByRole('button', { name: 'Read' }))
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  expect(
+    screen.getByText(errorMessage({ error: { code: 'import.no_content', params: {} } })),
+  ).toBeInTheDocument()
+  await userEvent.click(retry)
+  expect(
+    await screen.findByText(
+      errorMessage({ error: { code: 'import.file_too_complex', params: {} } }),
+    ),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByText(errorMessage({ error: { code: 'import.no_content', params: {} } })),
+  ).toBeNull()
+})
+
+test('a single-file source offers to replace the file, a multi-file one to add more', async () => {
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({ items: [{ purpose: 'extraction', available: true }] }),
+    ),
+  )
+  const { unmount } = renderWithRouter(
+    <ImportDialog request={icsRequest('syllabus')} onClose={() => {}} />,
+  )
+  await screen.findByText('Choose files or drop them here')
+  await pickFile('a.pdf')
+  expect(await screen.findByText('Add more files, or drop them here')).toBeInTheDocument()
+  unmount()
+  renderWithRouter(<ImportDialog request={icsRequest('ics')} onClose={() => {}} />)
+  await screen.findByText('Choose a file or drop it here')
+  await pickFile()
+  expect(await screen.findByText('Choose another file, or drop it here')).toBeInTheDocument()
+})

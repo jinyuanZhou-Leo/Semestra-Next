@@ -5,7 +5,8 @@ import { ClipboardList, Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { toastError } from '@/lib/errors'
+import { AiAction } from '@/components/AiAction'
+import { errorMessage } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -84,11 +85,13 @@ function AssignmentList({
   const [kind, setKind] = useState<Kind>('assessment')
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
   const assignments = useQuery(lmsAssignmentListOptions({ path: { course_id: courseId } }))
   const provider = useProviderName(providerKind) ?? providerKind
 
   const start = () => {
     setStarting(true)
+    setStartError(null)
     lmsAssignmentImport({
       path: { course_id: courseId },
       body: { external_ids: [...picked], as_kind: kind },
@@ -96,7 +99,7 @@ function AssignmentList({
     })
       .then(({ data }) => startedSession(data.session_id))
       .then(onStarted, (error: unknown) => {
-        toastError(error)
+        setStartError(errorMessage(error))
         setStarting(false)
       })
   }
@@ -185,9 +188,14 @@ function AssignmentList({
         </AsyncBoundary>
       </div>
       <DialogFooter>
-        <Button disabled={picked.size === 0 || starting} onClick={start}>
-          {starting ? m.common_loading() : m.lms_import_review({ count: picked.size })}
-        </Button>
+        <AiAction
+          state={starting ? 'running' : startError ? 'error' : 'idle'}
+          label={m.lms_import_review({ count: picked.size })}
+          error={startError}
+          disabled={picked.size === 0}
+          className="w-56"
+          onClick={start}
+        />
       </DialogFooter>
     </>
   )

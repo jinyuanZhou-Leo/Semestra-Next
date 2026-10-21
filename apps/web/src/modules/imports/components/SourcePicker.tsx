@@ -1,12 +1,13 @@
-import type { ImportSessionDetail } from '@semestra/api-client'
-import { importsSessionCreate, importsUploadCreate } from '@semestra/api-client'
+import type { ImportSessionDetail, Upload } from '@semestra/api-client'
+import { client, importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { FileUp, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { AiAction, type AiActionState } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
 import { useJob } from '@/hooks/use-job'
-import { errorMessage } from '@/lib/errors'
+import { csrfHeaders, invalidateOperations, toApiError } from '@/app/api'
+import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -23,20 +24,55 @@ const UPLOAD_SHARE = 20
 /** How long the finished check shows before the review replaces the picker. */
 const SUCCESS_HOLD_MS = 1000
 
+/**
+ * One file as a multipart upload with real byte progress, which `fetch` cannot report. Stays
+ * outside the generated client, so it adds the CSRF header itself.
+ */
+function uploadFile(file: File, signal: AbortSignal, onProgress: (loaded: number) => void) {
+  return new Promise<Upload>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', `${client.getConfig().baseUrl ?? ''}/imports/uploads`)
+    request.withCredentials = true
+    for (const [name, value] of Object.entries(csrfHeaders())) request.setRequestHeader(name, value)
+    request.upload.onprogress = (event) => onProgress(event.loaded)
+    request.onload = () => {
+      let body: unknown = null
+      try {
+        body = JSON.parse(request.responseText)
+      } catch {
+        // not JSON: handled as an unknown error below
+      }
+      if (request.status >= 200 && request.status < 300) resolve(body as Upload)
+      else reject(toApiError(body, request.status))
+    }
+    request.onerror = () => reject(toApiError(null))
+    request.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal.addEventListener('abort', () => request.abort(), { once: true })
+    const form = new FormData()
+    form.append('file', file)
+    request.send(form)
+  })
+}
+
 /** Uploads the files one by one, then starts the session (ICS is parsed right away). */
-async function createSession(
+async function uploadAndCreate(
   request: FileImportRequest,
   files: File[],
   text: string | null,
   signal: AbortSignal,
-  onUploaded: (count: number) => void,
+  onUploaded: (bytes: number, count: number) => void,
 ) {
   const uploadIds: string[] = []
+  let done = 0
   for (const file of files) {
-    const { data } = await importsUploadCreate({ body: { file }, signal, throwOnError: true })
-    uploadIds.push(data.id)
-    onUploaded(uploadIds.length)
+    const upload = await uploadFile(file, signal, (loaded) =>
+      onUploaded(done + loaded, uploadIds.length),
+    )
+    uploadIds.push(upload.id)
+    done += file.size
+    onUploaded(done, uploadIds.length)
   }
+  // Not abortable: once the server has the request the session exists whether or not we hear back.
   const { data } = await importsSessionCreate({
     path: { program_id: request.programId },
     body: {
@@ -46,7 +82,6 @@ async function createSession(
       text,
       source_meta: request.sourceMeta ?? {},
     },
-    signal,
     throwOnError: true,
   })
   return data
@@ -75,11 +110,24 @@ export function SourcePicker({
   const [files, setFiles] = useState<File[]>([])
   const [text, setText] = useState('')
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'creating'>('idle')
-  const [uploaded, setUploaded] = useState(0)
+  const [uploaded, setUploaded] = useState({ bytes: 0, count: 0 })
   const [startError, setStartError] = useState<string | null>(null)
-  const [cancelled, setCancelled] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const abort = useRef<AbortController | null>(null)
+  // Read by the start request when it finishes: the user stopped, or closed the dialog, meanwhile.
+  const stopRequested = useRef(false)
+  const mounted = useRef(true)
   const job = useJob(session?.status === 'extracting' ? session.job_id : null)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      // Closing the dialog while files are still uploading ends the upload; a session already
+      // extracting stays and can be reopened.
+      abort.current?.abort()
+    }
+  }, [])
   const ready = spec.accept ? files.length > 0 : text.trim().length > 0
 
   const extracting = session?.status === 'extracting'
@@ -88,16 +136,17 @@ export function SourcePicker({
   let error: string | null = null
   if (starting || extracting) {
     state = 'running'
-  } else if (session && !cancelled) {
+  } else if (startError) {
+    // A new attempt that failed before it had a session: its reason, not the old session's.
+    state = 'error'
+    error = startError
+  } else if (session && session.status !== 'discarded') {
     state = session.status === 'failed' ? 'error' : 'success'
     if (session.status === 'failed') {
       error = errorMessage({
         error: { code: session.error_code ?? 'import.no_content', params: {} },
       })
     }
-  } else if (startError) {
-    state = 'error'
-    error = startError
   }
   const locked = state === 'running' || state === 'success'
 
@@ -108,14 +157,13 @@ export function SourcePicker({
   }, [state, onFinished])
 
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
-  const uploadedBytes = files.slice(0, uploaded).reduce((sum, file) => sum + file.size, 0)
   let progress = UPLOAD_SHARE
   let stageLabel: string | undefined
   if (phase === 'uploading') {
-    progress = totalBytes > 0 ? (UPLOAD_SHARE * uploadedBytes) / totalBytes : 0
+    progress = totalBytes > 0 ? (UPLOAD_SHARE * uploaded.bytes) / totalBytes : 0
     stageLabel = m.job_stage_count({
       stage: m.imports_uploading(),
-      current: Math.min(uploaded + 1, files.length),
+      current: Math.min(uploaded.count + 1, files.length),
       total: files.length,
     })
   } else if (extracting) {
@@ -123,34 +171,59 @@ export function SourcePicker({
     stageLabel = job.stageLabel || undefined
   }
 
+  const discard = (sessionId: string) =>
+    importsSessionDiscard({ path: { session_id: sessionId }, throwOnError: true })
+      .catch(toastError)
+      .then(() => invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList']))
+
   const start = () => {
     const controller = new AbortController()
     abort.current = controller
+    stopRequested.current = false
     setStartError(null)
-    setCancelled(false)
-    setUploaded(0)
+    setStopping(false)
+    setUploaded({ bytes: 0, count: 0 })
     setPhase(files.length > 0 ? 'uploading' : 'creating')
-    createSession(request, files, spec.accept ? null : text, controller.signal, (count) => {
-      setUploaded(count)
-      if (count === files.length) setPhase('creating')
-    })
+    uploadAndCreate(
+      request,
+      files,
+      spec.accept ? null : text,
+      controller.signal,
+      (bytes, count) => {
+        if (!mounted.current) return
+        setUploaded({ bytes, count })
+        if (count === files.length) setPhase('creating')
+      },
+    )
       .then((created) => {
+        if (stopRequested.current || !mounted.current) return discard(created.id)
         storeSession(queryClient, created)
         onStarted(created.id)
       })
       .catch((caught: unknown) => {
         // Stopping during the upload is the user's choice, not a failure.
-        if (!controller.signal.aborted) setStartError(errorMessage(caught))
+        if (!controller.signal.aborted && mounted.current) setStartError(errorMessage(caught))
       })
-      .finally(() => setPhase('idle'))
+      .finally(() => {
+        if (!mounted.current) return
+        setPhase('idle')
+        setStopping(false)
+      })
   }
   const cancel = () => {
-    if (phase !== 'idle') {
+    if (phase === 'uploading') {
       abort.current?.abort()
       return
     }
-    setCancelled(true)
-    job.cancel()
+    setStopping(true)
+    if (phase === 'creating') {
+      // The request is already on the server; the new session is discarded when it comes back.
+      stopRequested.current = true
+      return
+    }
+    // Discarding also cancels the job and deletes the uploads, and works on a session that
+    // finished a moment ago.
+    if (session) void discard(session.id).finally(() => setStopping(false))
   }
 
   const action = (
@@ -160,8 +233,9 @@ export function SourcePicker({
       progress={progress}
       stageLabel={stageLabel}
       error={error}
-      cancelling={extracting && job.cancelling}
+      cancelling={stopping}
       disabled={!ready}
+      className="w-56"
       onClick={start}
       onCancel={cancel}
     />
@@ -193,7 +267,9 @@ export function SourcePicker({
               >
                 <FileUp aria-hidden className={files.length === 0 ? 'size-6' : 'size-4'} />
                 {files.length > 0
-                  ? m.imports_add_more()
+                  ? spec.multiple
+                    ? m.imports_add_more()
+                    : m.imports_replace_file()
                   : spec.multiple
                     ? m.imports_pick_files()
                     : m.imports_pick_file()}
@@ -220,9 +296,9 @@ export function SourcePicker({
                     status:
                       session && state === 'success'
                         ? 'done'
-                        : index < uploaded
+                        : index < uploaded.count
                           ? 'done'
-                          : phase === 'uploading' && index === uploaded
+                          : phase === 'uploading' && index === uploaded.count
                             ? 'uploading'
                             : 'pending',
                   }))

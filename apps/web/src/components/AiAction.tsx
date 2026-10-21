@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Progress } from '@/ui/progress'
+import { ProgressRing } from './Progress'
 
 export type AiActionState = 'idle' | 'running' | 'success' | 'error'
 export type AiActionVariant = 'integrated' | 'anchored' | 'radial'
@@ -153,7 +154,6 @@ export function AiAction({
       </div>
     )
   } else if (variant === 'radial') {
-    const circumference = 2 * Math.PI * 9
     action = (
       <Button
         type="button"
@@ -171,32 +171,7 @@ export function AiAction({
         aria-label={statusText}
       >
         <span className="relative flex size-6 items-center justify-center">
-          <svg className="absolute inset-0 -rotate-90" viewBox="0 0 24 24" aria-hidden="true">
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              fill="none"
-              stroke="currentColor"
-              strokeOpacity="0.12"
-              strokeWidth="2"
-            />
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - fill / 100)}
-              className={cn(
-                'transition-[stroke-dashoffset] duration-500 motion-reduce:transition-none',
-                EASE,
-              )}
-            />
-          </svg>
+          <ProgressRing value={fill} className="absolute inset-0 size-6" />
           <span className="scale-75">
             <ActionIcon state={shown} />
           </span>

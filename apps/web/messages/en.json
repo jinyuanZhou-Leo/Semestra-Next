@@ -1851,6 +1851,7 @@
   "imports_pick_file": "Choose a file or drop it here",
   "imports_pick_files": "Choose files or drop them here",
   "imports_uploading": "Uploading",
+  "imports_replace_file": "Choose another file, or drop it here",
   "imports_add_more": "Add more files, or drop them here",
   "imports_remove_file": "Remove {name}",
   "imports_text_placeholder": "Course code, title, meeting times, grading…",

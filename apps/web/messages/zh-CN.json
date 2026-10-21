@@ -1851,6 +1851,7 @@
   "imports_pick_file": "选择文件或拖到这里",
   "imports_pick_files": "选择文件或拖到这里",
   "imports_uploading": "正在上传",
+  "imports_replace_file": "换一个文件，或拖到这里",
   "imports_add_more": "再添加文件，或拖到这里",
   "imports_remove_file": "移除 {name}",
   "imports_text_placeholder": "课程号、名称、上课时间、成绩构成……",
