@@ -1,0 +1,48 @@
+---
+title: Backup and restore
+description: Everything lives in one volume. Take snapshots, keep daily backups, restore.
+---
+
+The `semestra-data` volume (`/data` in the container) holds the SQLite databases, uploaded files
+and `secrets.env`. Back up all three.
+
+## One-off snapshot
+
+```bash
+docker compose exec semestra semestra backup /data/backups   # databases and files
+docker compose cp semestra:/data/backups ./semestra-backup
+```
+
+`semestra backup` takes a consistent copy of each database while the app keeps running. Add
+`--db-only` to skip the files.
+
+## Daily backup to the host
+
+```bash
+mkdir backups && sudo chown 10001 backups
+```
+
+Uncomment `- ./backups:/backups` in `docker-compose.yml`, add `SEMESTRA_BACKUP_DIR=/backups` to
+`.env`, and run `docker compose up -d`. The app then keeps the newest seven snapshots of each
+database (`SEMESTRA_BACKUP_KEEP`) and mirrors uploaded files into `backups/storage`.
+
+<Callout type="warn">
+  A backup on the same disk does not survive that disk. Copy the folder to another machine
+  regularly.
+</Callout>
+
+## Restore
+
+```bash
+docker compose down
+docker run --rm -v semestra_semestra-data:/data -v "$PWD/semestra-backup:/in:ro" alpine sh -c \
+  'cp /in/db/semestra-<timestamp>.sqlite /data/semestra.db && rm -f /data/semestra.db-wal /data/semestra.db-shm && chown -R 10001:10001 /data'
+docker compose up -d
+```
+
+On a new volume, also put `storage/` and `secrets.env` back into `/data`.
+
+## Per-user backups
+
+Each user can also export their own data as a zip file and import it into another account or
+instance. See [Export, restore and delete](/docs/data).

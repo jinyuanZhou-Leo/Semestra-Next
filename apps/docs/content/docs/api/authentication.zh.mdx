@@ -1,0 +1,43 @@
+---
+title: 认证
+description: 网页应用用会话 cookie，原生应用用访问令牌，脚本和 MCP 用 API 令牌。
+---
+
+OpenAPI schema 声明了三种认证方式，每个接口都列出了它接受的方式。
+
+| 方式                  | 发送形式                                  | 用于                 | 哪些接口接受                                    |
+| --------------------- | ----------------------------------------- | -------------------- | ----------------------------------------------- |
+| `sessionCookie`       | `semestra_session` cookie                 | 网页应用             | 所有需要登录的接口                              |
+| `accessToken`         | `Authorization: Bearer <JWT>`             | 原生应用             | 所有需要登录的接口                              |
+| `personalAccessToken` | `Authorization: Bearer spat_…`            | 脚本和 MCP 客户端    | `/mcp` 以及对 MCP 开放的能力                    |
+
+`Bearer` 请求头优先于 cookie；`Bearer` 值无效的请求不会退回使用 cookie。
+
+## API 令牌
+
+在账户设置 → **安全 → API 令牌** 里创建（已登录会话调用 `POST /account/tokens`）。密钥只返回一次，Semestra 只保存它的哈希。
+
+- **权限**：`read`，或 `read` + `write`。只读令牌只能调用读取类操作。
+- **范围**：API 令牌可用于 `/mcp`，以及对 MCP 开放的能力的 HTTP 接口，即[接口参考](/docs/api/reference/academics)中标有 `personalAccessToken` 的接口。
+  账户、AI 服务商、令牌和数据导出等接口会以 `auth.token_scope` 拒绝。
+- **有效期**：永不过期，或 30、90、365 天后过期。在同一页面可以吊销令牌。
+
+```bash
+curl https://semestra.example.com/programs \
+  -H "Authorization: Bearer spat_…"
+```
+
+## 会话 cookie
+
+登录接口（`/auth/email/verify`、`/auth/password/login`、`/auth/google`）会设置两个 cookie：`semestra_session`（HTTP-only）和 `semestra_csrf`。
+除 `GET`、`HEAD`、`OPTIONS` 外的请求都必须在 `X-Semestra-CSRF` 请求头里带上 CSRF cookie 的值。
+
+## 原生应用的访问令牌
+
+在登录请求后加 `?client=native`，令牌会放在响应体里而不是 cookie 中：
+
+```json
+{ "tokens": { "access_token": "…", "refresh_token": "…", "token_type": "Bearer", "expires_in": 900 } }
+```
+
+访问令牌默认有效 15 分钟；用 `POST /auth/token/refresh` 换取新的令牌。能力之外的接口（例如文件上传和 `/events/stream`）不接受 API 令牌，所以原生应用在这些地方使用访问令牌。

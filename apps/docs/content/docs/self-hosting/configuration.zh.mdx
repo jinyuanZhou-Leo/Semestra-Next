@@ -1,0 +1,84 @@
+---
+title: 配置
+description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
+---
+
+把设置写在 `deploy/selfhost/.env` 里。compose 文件会把它传给容器，并填好下面标为 _compose_ 的变量。带注释的完整列表见
+`deploy/.env.example`；以 `apps/api/src/semestra/core/config.py` 为准。
+
+## Compose 文件
+
+这些变量由 `docker-compose.yml` 自己读取。
+
+| 变量                  | 默认值                  | 含义                                                     |
+| --------------------- | ----------------------- | -------------------------------------------------------- |
+| `SEMESTRA_VERSION`    | `latest`                | 镜像标签，例如 `1.2.0`                                   |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。决定网页和 API 的源以及 CORS             |
+| `SEMESTRA_PORT`       | `8000`                  | 宿主机端口                                               |
+| `SEMESTRA_BIND`       | `0.0.0.0`               | 宿主机网卡。放在反向代理后面时用 `127.0.0.1`             |
+| `SEMESTRA_DOMAIN`     | （空）                  | 内置 Caddy 使用的域名（`--profile https`）               |
+
+## 账户与登录
+
+| 变量                                  | 默认值  | 含义                                                             |
+| ------------------------------------- | ------- | ---------------------------------------------------------------- |
+| `SEMESTRA_SESSION_TTL_DAYS`           | `30`    | 网页会话有效期                                                   |
+| `SEMESTRA_ACCESS_TOKEN_TTL_SECONDS`   | `900`   | 原生客户端访问令牌有效期                                         |
+| `SEMESTRA_REFRESH_TOKEN_TTL_DAYS`     | `60`    | 原生客户端刷新令牌有效期                                         |
+| `SEMESTRA_NOTIFY_NEW_SIGN_IN`         | `false` | 有新会话登录时给用户发邮件                                       |
+| `SEMESTRA_GOOGLE_CLIENT_ID`           | （空）  | Google 登录。为空时隐藏 Google 按钮                              |
+| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | API 前面的反向代理层数；客户端 IP 从 `X-Forwarded-For` 右数这么多层读取 |
+| `SEMESTRA_COOKIE_SECURE`              | （未设置） | 未设置时，公开地址是 `https` 就使用 Secure cookie             |
+
+邮件设置见[邮件](./email.mdx)。
+
+## 存储与文件
+
+| 变量                                   | 默认值（自部署）      | 含义                                  |
+| -------------------------------------- | --------------------- | ------------------------------------- |
+| `SEMESTRA_USER_STORAGE_QUOTA_BYTES`    | `0` _compose_         | 每个用户的存储空间；`0` 表示不限      |
+| `SEMESTRA_FILES_MAX_UPLOAD_BYTES`      | `26214400`（25 MB）   | 单个上传文件的上限                    |
+| `SEMESTRA_FILES_PARSE_TIMEOUT_SECONDS` | `300`                 | 解析一个文件的最长时间                |
+| `SEMESTRA_FILES_PARSE_MEMORY_BYTES`    | `2147483648`（2 GB）  | 解析进程的内存上限                    |
+
+## 网络
+
+| 变量                            | 默认值（自部署）  | 含义                                                                                      |
+| ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_  | 允许服务器访问内网和回环地址：局域网里的 Ollama、学校自建的 Canvas、纯 http 的 Canvas。compose 文件之外默认是 `false` |
+
+设为 `false` 时，访问用户填写的主机（AI 接口地址、Canvas）如果解析到内网、回环或链路本地地址，会被拒绝并返回
+`common.egress_blocked`，而且不会跟随重定向。
+
+## AI
+
+| 变量                                   | 默认值 | 含义                                       |
+| -------------------------------------- | ------ | ------------------------------------------ |
+| `SEMESTRA_INSTANCE_AI_KIND`            | （空） | 全实例服务商的类型                         |
+| `SEMESTRA_INSTANCE_AI_BASE_URL`        | （空） | 它的接口地址                               |
+| `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | （空） | 用于对话、读取文档和生成标题的模型         |
+| `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | （空） | 用于搜索的向量模型                         |
+| `SEMESTRA_INSTANCE_AI_API_KEY`         | （空） | 它的密钥，Ollama 可不填                    |
+| `SEMESTRA_AI_WARM_UP`                  | `true` | 启动后在后台预先加载 AI 相关库             |
+
+见[全实例服务商](/docs/ai/instance-provider)。
+
+## 后台任务与备份
+
+| 变量                       | 默认值 | 含义                                       |
+| -------------------------- | ------ | ------------------------------------------ |
+| `SEMESTRA_JOB_CONCURRENCY` | `2`    | 进程内后台任务的并发数                     |
+| `SEMESTRA_BACKUP_DIR`      | （空） | 设置后每天自动备份到这个目录               |
+| `SEMESTRA_BACKUP_KEEP`     | `7`    | 保留的数据库快照数                         |
+
+## 密钥与日志
+
+| 变量                       | 默认值   | 含义                                                   |
+| -------------------------- | -------- | ------------------------------------------------------ |
+| `SEMESTRA_SECRET_KEY`      | 自动生成 | 签发会话和令牌                                         |
+| `SEMESTRA_ENCRYPTION_KEY`  | 自动生成 | 加密已保存的服务商密钥和 Canvas 令牌的 Fernet 密钥     |
+| `SEMESTRA_LOG_LEVEL`       | `INFO`   | 日志级别                                               |
+| `SEMESTRA_SENTRY_DSN`      | （空）   | 把错误报告给 Sentry；为空则关闭                        |
+
+只有在 `SEMESTRA_AUTO_SECRETS=true` 时容器才会生成密钥，compose 文件已经设置了它。`SEMESTRA_SKIP_MIGRATIONS=true`
+会在启动时跳过迁移。

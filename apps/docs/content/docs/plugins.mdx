@@ -1,0 +1,196 @@
+---
+title: Writing a plugin
+description: "How to write a first-party plugin: cards, pages, settings, capabilities, data and tests."
+icon: Puzzle
+---
+
+This applies to first-party plugins (the counter, habit streak, Pomodoro, sticky note and world
+clock of M14 are all written this way). The reference implementation is the template plugin
+`hello-note`:
+
+- Frontend: `apps/web/src/modules/_template-plugin/`
+- Backend: `apps/api/src/semestra/modules/plugins_builtin/_template/`
+
+The template is not registered in the app; copy it and rename it. For a fuller example, see
+`plugin-habit-streak` + `plugins_builtin/habit_streak/` (its own table, event subscriptions and an
+export adapter).
+
+## 1. Decide what the plugin provides
+
+| Form           | Description                                                                                         | Who draws the frame                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Card           | Sits on a scope's board (Program / term / course / today), size s/m/l/xl on a 4-column grid         | The M10 host draws the frame (title, size menu, settings entry, remove); the plugin draws only the content |
+| Page           | A tab in the scope's header, free layout                                                            | The host only wraps it in a `PluginBoundary`                                                    |
+| Settings section | The plugin's account-level or scope-level configuration                                           | M11 generates the form                                                                          |
+| Capability     | A read/write operation, at once a REST endpoint, an assistant tool and an MCP tool                  | No UI                                                                                           |
+
+Plugins are installed and uninstalled per account (M10). Uninstalling only hides the plugin and
+keeps its data; when the user chooses "also delete data", `plugins.purge` is published and the
+plugin must clean up its own rows.
+
+## 2. Folders and names
+
+```
+apps/web/src/modules/plugin-<id>/       frontend; entry point manifest.ts
+apps/api/src/semestra/modules/plugins_builtin/<id_with_underscores>/   backend, only when it stores data or offers agent tools
+```
+
+- The plugin id is kebab-case (`habit-streak`) and must match on both sides; a CI test compares
+  the frontend manifest list with the backend `/plugins/catalog`.
+- Card ids are `<prefix>.<name>` (`habit.board`), capabilities `<prefix>.<object>.<action>`
+  (`habit.checkin.toggle`), tables `plugin_<prefix>_<name>`, the settings namespace
+  `plugin.<id>`.
+- Message keys use the plugin prefix (`habit_…`) and exist in both languages; error code
+  `habit.date_out_of_range` maps to message `error_habit_date_out_of_range`.
+
+## 3. Frontend
+
+### 3.1 Manifest
+
+```ts
+export default defineModule({
+  id: 'hello-note', kind: 'plugin',
+  name: m.hello_name, description: m.hello_description, icon: NotebookPen,
+  pages: [{ id, scopes, title, icon, component: preloadable(...), order: 1000 }],
+  cards: [{
+    id: 'hello.note', scopes: ['program','term','course','today'],
+    title, icon, sizes: ['s','m','l'], defaultSize: 'm',
+    component: preloadable(...),
+    settings: { schema: zodSchema, component: preloadable(...) },   // component is optional; without it a form is generated from the schema
+    multiple: true,
+    headerActions: ...,        // card header actions (the counter's "reset")
+  }],
+  settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
+  statusItems: [{ id, order, useStatus }],   // sidebar status bar (Pomodoro shows the running timer here)
+})
+```
+
+- Load every heavy component on demand. A page's `component`, `sidebarNav`, and the `component`
+  of cards and settings sections use `preloadable()` (`@/app/extensions`), so the router and the
+  settings dialog can fetch the code early and render it as soon as it is there. A plain
+  `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Pass
+  `m.xxx` as the function itself; do not call it at module level (switching language remounts).
+- Add the new plugin's manifest to the list in `app/registry.ts`.
+
+### 3.2 Card components
+
+- Props: `{ scope, instanceId, size, settings }`. `settings` is what the host parsed with
+  `settings.schema`, so give every field a default; otherwise old cards fail to parse when a
+  field is added.
+- **Every declared size needs a design.** Size s holds the least information and one main
+  action; do not just scale things down. Tests render every size.
+- Change settings with `useCardSettings(instanceId, settings, delayMs)`: it applies locally at
+  once, saves after the delay, rolls back on failure and reports a `status`. The counter uses
+  300 ms, the sticky note 800 ms.
+- Do not draw your own card frame or add your own padding; spacing inside the frame is the
+  host's.
+- Business data (rows that are not settings, such as check-ins) goes through the plugin's own
+  capabilities with the generated `@semestra/api-client`; never hand-write `fetch`. Query keys come
+  from the generated client; invalidate them by matching an object subset.
+- Remembered UI state (collapsed, last choice, timer state) uses
+  `useUiPref('<prefix>.<name>', default)`, not settings and not `localStorage` directly.
+
+### 3.3 Styling and accessibility
+
+- Use tokens only: `bg-primary`, `text-muted-foreground`; course and subject colors through
+  `subjectColor`. No `oklch(...)` or `sky-500`.
+- Controls come from the shadcn components in `@/ui/` (Button, Input, Textarea, Checkbox, Switch,
+  RadioGroup, Select…), not hand-styled `<input>` or `<button>`; install new ones with the shadcn
+  CLI and never edit `src/ui/` by hand. Tables use TanStack Table.
+- Icon buttons have an `aria-label`; changing numbers use `aria-live="polite"`; animations respect
+  reduced motion, both the system's `prefers-reduced-motion` (`useReducedMotion` from
+  `motion/react`) and the M11 preference written to `<html data-reduce-motion="on">`. If either is
+  set, do not animate (see `plugin-kit/Burst.tsx`).
+- Ask for confirmation only for destructive actions that cannot be undone and have no other
+  confirmation step; submitting a form is the confirmation.
+
+## 4. Backend
+
+### 4.1 Settings namespace
+
+```python
+register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
+                  levels=("account", "course"), plugin_id="hello-note")
+```
+
+`levels` are the levels where a value can be set; deeper scopes read the inherited result. Every
+field needs a default and a `description`. Messages:
+`settings_plugin_hello_note_<field>_label|_description|_option_<value>` (a backend test checks
+both languages).
+
+### 4.2 Capabilities
+
+```python
+@capability(name="hello.note.append", summary=..., description=..., effect="write",
+            http=Http("POST", "/hello/notes/{instance_id}/lines"), tags=("hello-note",),
+            plugin_id=PLUGIN_ID)
+```
+
+- `description` is read by the AI: when to use it, how to find its inputs (card instances via
+  `layouts.board.get`), and when not to use it.
+- `effect` is `read | write | destructive`. A capability with `plugin_id` is refused while the
+  plugin is not installed and is left out of the agent's tool list.
+- Capabilities bound to a card instance use
+  `instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)`: a missing card, someone
+  else's card, or a card of another plugin all return `common.not_found`.
+- For "today" in the user's time zone, go through the card's program
+  (`instances.instance_program` + `academics.program_today`); do not compute it in the frontend.
+- Domain errors are `AppError("<prefix>.<reason>", status, **params)`.
+
+### 4.3 Data and cleanup
+
+- Tables use `OwnedMixin` (with `user_id`) and refer to the card by `instance_id`, which is not a
+  foreign key (M10 owns card instances).
+- Subscribe to `layouts.card.deleted` (filter by `card_id`) to delete that card's rows, and to
+  `plugins.purge` (filter by `plugin_id`) to delete all of the user's rows. `plugins.purge` is
+  published inside the uninstall transaction, so subscribe with
+  `@events.subscribe("plugins.purge", in_transaction=True)`; raising makes the uninstall roll back.
+  A plugin that wants its statistics to survive card deletion can respond to `plugins.purge`
+  only (Pomodoro does). Plugins that keep data in `useUiPref` clear it in the same subscription
+  with `settings.service.purge_ui_state(ctx, user_id, '<prefix>')`.
+- Migrations follow the single Alembic chain: import your `models` in `migrations/env.py`, run
+  `alembic revision --autogenerate`, and check the result.
+
+### 4.4 Export and import adapter (M13 §3)
+
+Provide the four callbacks `export / import_ / preview / purge`. Imports must be idempotent (no
+duplicate rows on a repeated import), and `id_map` remaps ids across modules. The complete example
+is `plugins_builtin/portability.py`, registered in `plugins_builtin/__init__.py` with
+`register_portability(..., tables=(...))`; add a new plugin's tables in both places, or M13's
+coverage test fails (every table with `user_id` must belong to an adapter and be emptied by it).
+A plugin with no data of its own (such as the template's sticky note, whose text lives in the
+card settings) can have an empty adapter.
+
+### 4.5 Agent skill
+
+`<plugin package>/skills/<name>.md`. The frontmatter has `name`, `title: { en: "…", zh-CN: "…" }`
+(the name shown in the app), `description` (starts with "Use when …" and says when to load it;
+the model sees only this line in its catalog) and `tools` (every capability the body uses; the
+skill appears only when all of them are available, and a test checks this), plus an optional
+`command` (a slash command such as `/note`, unique across the app). The body says which
+capabilities to call in which order for which requests (see `hello-note.md` in the template).
+Every capability whose `expose` includes the agent needs `capability_<name with underscores>_title`
+in `messages/*.json`; a backend test checks it.
+
+## 5. Tests
+
+- Frontend: render every card in **every declared size**; validate the settings schema
+  (including old data with missing fields); two instances do not interfere; timer and date logic
+  as pure functions with a fake clock. Use `renderWithQuery` from `@/test-utils` and the msw
+  `server`.
+- Backend: success and failure paths of each capability over REST (error codes and params);
+  ownership checks (someone else's instance or another card id returns 404); event subscriptions
+  (card deletion, purge); an export → purge → import round trip. Card instances are simulated with
+  the `cards` fixture in `plugins_builtin/tests/conftest.py`.
+- After changing backend endpoints, run `pnpm gen:api` and commit the result.
+
+## 6. Release checklist
+
+- [ ] Frontend and backend ids match; the `PLUGIN` info (name and description keys, version, `default_installed`, cards and capabilities provided) is exported
+- [ ] Every size of every card has a design; size s is usable
+- [ ] Messages complete in both languages (including settings and error messages)
+- [ ] Colors are all tokens, controls are all shadcn components, icon buttons have an `aria-label`
+- [ ] Uninstall (keep data / delete data) and reinstall behave: cards disappear, data returns after reinstall, and after purge the user has 0 rows in the tables
+- [ ] The export adapter is written and passes the round-trip test
+- [ ] Capability `description`s are clear enough for the AI; write operations have the right `effect`
+- [ ] `pnpm lint typecheck test`, `uv run ruff check`, `uv run pyright`, `uv run pytest` pass, and `pnpm gen:api` shows no diff

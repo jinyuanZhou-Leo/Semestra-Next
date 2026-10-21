@@ -1,0 +1,103 @@
+---
+title: Connect an MCP client
+description: Use Semestra from Claude Desktop, Claude Code, Cursor or any MCP client.
+---
+
+Semestra runs an [MCP](https://modelcontextprotocol.io) server, so an AI client outside the app
+can read your schedule, grades and tasks, and change them when you allow it. It offers the same
+operations as the in-app assistant Sem.
+
+- **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Account settings → **AI → MCP and tools** shows the exact address
+- **Transport**: Streamable HTTP (stateless, JSON responses)
+- **Authentication**: `Authorization: Bearer spat_…` with an API token. Session cookies are not accepted
+
+## 1. Create an API token
+
+Account settings → **Security → API tokens** → create a token. Choose:
+
+- **Access**: _Read only_ or _Read and write_.
+- **Expiry**: never, 30, 90 or 365 days.
+
+The token is shown once. Copy it, or press **Copy MCP config** for a ready-made Claude Desktop
+snippet. You can revoke a token at any time; deleting your account revokes all of them.
+
+## 2. Add Semestra to your client
+
+Replace `<token>` and the address with your own.
+
+<Tabs items={['Claude Code', 'Claude Desktop', 'Cursor']}>
+<Tab value="Claude Code">
+
+```bash
+claude mcp add --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+</Tab>
+<Tab value="Claude Desktop">
+
+Claude Desktop connects to remote servers through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
+In `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://semestra.example.com/mcp", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <token>" }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Cursor">
+
+In `.cursor/mcp.json` or the global `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+Then ask something like "What classes do I have tomorrow?"
+
+## What a client may do
+
+| Token / setting                                    | Read tools | Write tools | Delete tools |
+| -------------------------------------------------- | ---------- | ----------- | ------------ |
+| Read only                                          | yes        | no          | no           |
+| Read and write                                     | yes        | yes         | no           |
+| Read and write, and **Allow deleting** turned on   | yes        | yes         | yes          |
+
+- **Write tools run immediately.** Unlike Sem, which shows a confirmation card, Semestra relies on
+  the client's own approval prompt for MCP calls.
+- **Allow deleting** is off by default. Turn it on in account settings → **AI → MCP and tools**.
+- Tools of a plugin appear only while that plugin is installed on your account.
+- Changes made over MCP appear in open browser tabs right away.
+
+## Prompts and resources
+
+- **Prompts**: each of Sem's skills is an MCP prompt, a step-by-step workflow such as importing
+  a timetable. A prompt is listed only when the token may call every tool it uses.
+- **Resources**: `semestra://programs` (your programs and terms), `semestra://terms/{id}` (a term
+  and its courses) and `semestra://courses/{id}` (a course and its terms).
+
+## Good to know
+
+- Tool names are capability names with `__` for dots, e.g. `academics__course__create`.
+- Times are in the program's time zone, with the offset.
+- If you have exactly one program, tools that need a `program_id` can be called without it.
+- Text other people wrote (Canvas pages, file contents) is returned as data; treat it as such.
+
+The full list is on [Tools and prompts](./tools.mdx).

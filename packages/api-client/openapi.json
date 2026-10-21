@@ -1,4 +1,3 @@
-Consider using the pymupdf_layout package for a greatly improved page layout analysis.
 {
   "openapi": "3.1.0",
   "info": {
@@ -8,6 +7,9 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
   "paths": {
     "/healthz": {
       "get": {
+        "tags": [
+          "system"
+        ],
         "summary": "Healthz",
         "operationId": "healthz",
         "responses": {
@@ -26,6 +28,9 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
     },
     "/readyz": {
       "get": {
+        "tags": [
+          "system"
+        ],
         "summary": "Readyz",
         "operationId": "readyz",
         "responses": {
@@ -468,7 +473,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/avatar": {
@@ -509,7 +522,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/avatars/{user_id}/{version}": {
@@ -570,6 +591,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Upload one or more files into a course.",
         "description": "All or nothing: if one file is refused (too large, over quota) none is kept.",
         "operationId": "filesUpload",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -623,6 +652,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the files, links and folders of a course.",
         "description": "Use to see what a course has: its files and saved links in one folder (or every\nfolder with recursive=true), with their processing status. Do not use to look for what the files\nsay; use files.document.search for that.",
         "operationId": "filesItemList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -821,6 +861,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "Download or preview a file; supports Range requests.",
         "operationId": "filesContent",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -877,6 +925,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "A small image of one page of a processed file.",
         "operationId": "filesPageImage",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -960,7 +1016,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/imports/uploads/{upload_id}/content": {
@@ -970,6 +1034,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "The uploaded file, shown inline (evidence preview).",
         "operationId": "importsUploadContent",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "upload_id",
@@ -1010,6 +1082,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "File Content",
         "operationId": "lmsFileContent",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -1097,7 +1177,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/imports": {
@@ -1138,7 +1226,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/exports/{export_id}/download": {
@@ -1148,6 +1244,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "Export Download",
         "operationId": "portabilityExportDownload",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "export_id",
@@ -1187,6 +1291,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add a course to one term, or to consecutive terms for a year-long course.",
         "description": "Use when the user adds a course. Get term ids from academics.term.list.\nFor a year-long course whose second term does not exist yet, link the current term only and set\n`planned_terms` to 2; the term wizard offers to continue it later.",
         "operationId": "academicsCourseCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1240,6 +1355,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the courses of a Program, optionally of one term, subject or search text.",
         "description": "Use to see all courses of a term or Program. To locate one course the user\ndescribed in words (\"my programming course\"), prefer academics.course.find.",
         "operationId": "academicsCourseList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1413,6 +1539,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add several courses at once.",
         "description": "Use for a batch of courses the user typed or listed in the chat. Courses in a\ndocument or file (a timetable, a syllabus) go through imports.session.create instead.",
         "operationId": "academicsCourseCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1468,6 +1605,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a course and all of its data (grades, files, schedule).",
         "description": "Irreversible. Use only when the user clearly asks to delete the course.",
         "operationId": "academicsCourseDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -1511,6 +1659,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get one course with its terms, credits, instructors and resolved color.",
         "description": "Use when you need the details of a course whose id you know.",
         "operationId": "academicsCourseGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -1554,6 +1713,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a course's code, title, alias, credits, color, instructors or other fields.",
         "description": "Partial update: only the fields that are sent change. To move a course to other\nterms or make it year-long, use academics.course.set_terms.",
         "operationId": "academicsCourseUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -1609,6 +1779,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the display order of the courses within a term.",
         "description": "Courses not listed keep their default order after the listed ones.",
         "operationId": "academicsCourseReorder",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -1664,6 +1845,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set which terms a course runs in (consecutive terms for a year-long course).",
         "description": "Replaces the course's terms. They must belong to its Program and be next to each\nother in time.",
         "operationId": "academicsCourseSetTerms",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -1740,7 +1932,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -1780,7 +1983,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/programs/{program_id}": {
@@ -1791,6 +2005,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a Program with all of its terms, courses and their data.",
         "description": "Irreversible. Use only when the user clearly asks to delete the whole Program.\nTo remove one term or course use academics.term.delete or academics.course.delete.",
         "operationId": "academicsProgramDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1834,6 +2059,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get one Program: name, school, time zone, credit defaults and subject colors.",
         "description": "Use when you need a Program's details such as its time zone or credit goal.",
         "operationId": "academicsProgramGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1877,6 +2113,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a Program's name, school, time zone or credit settings.",
         "description": "Partial update: only the fields that are sent change.",
         "operationId": "academicsProgramUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1932,6 +2179,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the color of a subject code (e.g. all 'APS' courses) in a Program.",
         "description": "Use when the user wants every course of a subject in another color. To color a\nsingle course differently, use academics.course.update with `color`.",
         "operationId": "academicsProgramSetSubjectColor",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -1998,6 +2256,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create a term, optionally with its courses, in one step.",
         "description": "Use when the user starts a new semester. Check academics.term.list first so the\nterm does not exist already. `courses` creates courses in the new term; `continue_course_ids`\nextends year-long courses of the previous term into it.",
         "operationId": "academicsTermCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -2051,6 +2320,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the terms (semesters) of a Program in chronological order.",
         "description": "Use to find a term id, or which term is current (`is_current`), before creating\ncourses or answering questions about a semester.",
         "operationId": "academicsTermList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -2096,6 +2376,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a term and the courses that are only in it.",
         "description": "Irreversible. Year-long courses that also run in other terms are kept and only\nlose this term. Show academics.term.preview_delete to the user first.",
         "operationId": "academicsTermDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -2139,6 +2430,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get one term with its dates and breaks.",
         "description": "Use when you need a term's dates, reading weeks or holidays.",
         "operationId": "academicsTermGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -2182,6 +2484,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a term's name, dates, breaks or week numbering.",
         "description": "Partial update. `breaks` replaces the whole list; keep the ids of breaks that\nstay. Fails with academics.course_terms_not_adjacent when new dates would separate the terms of\na year-long course.",
         "operationId": "academicsTermUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -2237,6 +2550,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Week numbers of a term: each week's dates, number or break, and today's week.",
         "description": "Use to translate between dates and week numbers (\"week 6\", \"reading week\"),\ne.g. to resolve \"the Friday of week 3\". Week 1 is the week the term starts in.",
         "operationId": "academicsTermGetWeeks",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -2282,6 +2606,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "What deleting a term would remove: its own courses vs. year-long courses kept.",
         "description": "Use before academics.term.delete to tell the user what will be deleted.",
         "operationId": "academicsTermPreviewDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -2358,7 +2693,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/email/change-confirm": {
@@ -2400,7 +2743,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/email/change-start": {
@@ -2442,7 +2793,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/google/link": {
@@ -2484,7 +2843,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/google/unlink": {
@@ -2516,7 +2883,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/password/change": {
@@ -2558,7 +2933,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/me": {
@@ -2590,7 +2973,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/account/profile": {
@@ -2632,7 +3026,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/sessions": {
@@ -2664,7 +3066,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/sessions/{session_id}": {
@@ -2675,6 +3085,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Sign out one device.",
         "description": "Revokes a session. Revoking the current session signs this browser out.",
         "operationId": "accountSessionRevoke",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -2741,7 +3159,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/tokens": {
@@ -2773,7 +3199,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -2813,7 +3247,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/account/tokens/{id}": {
@@ -2824,6 +3266,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Revoke a personal access token.",
         "description": "Revokes the token immediately.",
         "operationId": "accountTokenRevoke",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2869,6 +3319,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Remove an uploaded attachment that has not been sent.",
         "description": "Attachments already part of a message stay until the conversation is deleted.",
         "operationId": "agentAttachmentDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2914,6 +3372,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Save a file attached to the conversation to a course's files.",
         "description": "Use when the user wants to keep an attached document (a syllabus, notes) with\nthe course. The file is then processed like any course file (searchable, citable). Saving it to\nthe same course again returns the saved file.",
         "operationId": "agentAttachmentSave",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2990,7 +3456,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/agent/memories/{id}": {
@@ -3001,6 +3475,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a memory.",
         "description": "Also the undo of a memory saved in a conversation.",
         "operationId": "agentMemoryDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3044,6 +3526,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Edit a memory.",
         "description": "Only the fields sent are changed. Also the undo of a memory updated in a conversation (send back its previous fields).",
         "operationId": "agentMemoryUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3120,7 +3610,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/agent/preferences": {
@@ -3152,7 +3650,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "patch": {
         "tags": [
@@ -3192,7 +3698,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/agent/sessions": {
@@ -3203,6 +3717,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Start a new conversation.",
         "description": "Where the assistant works: a Program or one of its terms. Idempotent per\n`client_key`.",
         "operationId": "agentSessionCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -3243,6 +3765,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the user's assistant conversations.",
         "description": "Newest first; pinned ones are sorted by the client.",
         "operationId": "agentSessionList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "query",
@@ -3319,6 +3849,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a conversation with its messages and attachments.",
         "description": "Cannot be undone.",
         "operationId": "agentSessionDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3362,6 +3900,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get a conversation with its messages and proposals.",
         "description": "Pending proposals older than 24 hours are reported as expired.",
         "operationId": "agentSessionGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3405,6 +3951,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename, pin, archive a conversation or change where it works.",
         "description": "Only the fields sent are changed.",
         "operationId": "agentSessionUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3460,6 +4014,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Stop the answer being generated.",
         "description": "What was written so far is kept.",
         "operationId": "agentSessionStop",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3526,7 +4088,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/agent/tools": {
@@ -3558,7 +4128,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/ai/assignments": {
@@ -3590,7 +4168,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -3630,7 +4216,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/ai/providers": {
@@ -3662,7 +4256,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -3702,7 +4304,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/ai/providers/{id}": {
@@ -3713,6 +4323,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Remove an AI provider and the model choices that use it.",
         "description": "Not for agents.",
         "operationId": "aiProviderDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3756,6 +4374,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename, re-key, reconfigure or turn off an AI provider.",
         "description": "A new key or base URL is checked again before saving. Not for agents.",
         "operationId": "aiProviderUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3811,6 +4437,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the models a provider offers.",
         "description": "Cached for an hour. Not for agents.",
         "operationId": "aiProviderListModels",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3856,6 +4490,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Check that a provider's key and URL still work.",
         "description": "Records the result on the provider. Not for agents.",
         "operationId": "aiProviderTest",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3922,7 +4564,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/ai/usage": {
@@ -3933,6 +4583,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Token use and estimated cost by day, purpose, module and model.",
         "description": "Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.",
         "operationId": "aiUsageSummarize",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "days",
@@ -4035,6 +4693,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
         "description": "Use for \"when is my class tomorrow?\", \"what's on next Wednesday?\" or a week\noverview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive\nand at most 400 days after `start`. A busy term is a large result: narrow it with\ncourse_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.\nFor today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.",
         "operationId": "calendarOccurrenceList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -4197,6 +4866,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
         "description": "Prefer this for questions about today (\"what do I have today?\", \"what's due this\nweek?\"). It also says which term week it is. For other days or longer ranges use\ncalendar.occurrence.list. Times are local to the Program, with their UTC offset.",
         "operationId": "calendarTodayGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -4242,6 +4922,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Cancel a pending or running background job.",
         "description": "Use when the user wants to stop a background operation. A running job stops at\nits next checkpoint, so it may still finish. Cancelling a finished job changes nothing.",
         "operationId": "coreJobCancel",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
@@ -4287,6 +4978,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the state and progress of a background job.",
         "description": "Use to check on a long-running operation (file parsing, imports, syncs) that\nanother capability started and returned a job id for.",
         "operationId": "coreJobGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "job_id",
@@ -4332,6 +5034,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the user's background jobs, newest first.",
         "description": "Use to find recent or running background operations and their outcome.\nDo not use to read the data a job produced; use the capability of the module that owns it.",
         "operationId": "coreJobList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "status",
@@ -4460,7 +5173,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/files/{item_id}/outline": {
@@ -4471,6 +5195,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the headings of a processed file with their page numbers.",
         "description": "Use to see the structure of a long document before reading parts of it.",
         "operationId": "filesDocumentOutline",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -4516,6 +5251,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Read the text of a processed file, page by page.",
         "description": "Returns the markdown of the pages from page_from (a few pages per call, each with\nits citation_id). When next_page is set, call again from there to continue. Use it to summarise or\nextract from a whole document; to find something specific use files.document.search first.",
         "operationId": "filesDocumentRead",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -4592,6 +5338,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Search what the course files say.",
         "description": "Use to answer questions about course content (syllabus rules, dates, lecture\nmaterial): finds the passages of the user's files that match, with page numbers. Narrow it with\ncourse_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some\nfiles are still being processed; if unreadable_items is not empty, those files could not be read\nat all. In both cases tell the user the answer may be incomplete. Do not use to find a file by its\nname; use files.item.list.",
         "operationId": "filesDocumentSearch",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -4647,6 +5404,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create a folder in a course's files.",
         "description": "Use to organise a course's files. Folders can be nested up to three levels.",
         "operationId": "filesFolderCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -4702,6 +5470,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a folder, optionally with everything in it.",
         "description": "Use only when the user clearly asks. A folder that is not empty is refused\nunless recursive=true, which permanently deletes all its files, links and subfolders.",
         "operationId": "filesFolderDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "folder_id",
@@ -4757,6 +5536,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename or move a folder, or change its order.",
         "description": "Rename a folder, move it under another folder (parent_id null = course root) or\nset its position among its siblings. Only send the fields to change.",
         "operationId": "filesFolderUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "folder_id",
@@ -4812,6 +5599,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a file or link permanently.",
         "description": "Use only when the user clearly asks to delete a file or link. The stored file\nand everything derived from it (text, search index) is removed and cannot be restored.",
         "operationId": "filesItemDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -4855,6 +5653,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get one file or link.",
         "description": "Use to check a file's name, type, size and whether its text is ready to read\n(doc_status = ready). Use files.document.read to read the text.",
         "operationId": "filesItemGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -4898,6 +5707,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename, move or pin a file or link.",
         "description": "Use when the user wants to rename a file, put it in another folder of the same\ncourse (folder_id null = course root), or pin it for quick access. Only send the fields to\nchange.",
         "operationId": "filesItemUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -4953,6 +5773,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the pinned files of a Program.",
         "description": "Files and links the user pinned for quick access, across the Program's\ncourses.",
         "operationId": "filesItemListPinned",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -4998,6 +5826,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Read a file's text again.",
         "description": "Starts the document pipeline again for a file, for example after a failure or\nafter an AI model for reading scanned pages was set up.",
         "operationId": "filesItemReprocess",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "item_id",
@@ -5043,6 +5879,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Save a web link in a course's files.",
         "description": "Use when the user wants to keep a web page (an http or https address) next to\nthe course files. Do not use to save a file; uploads are done by the user in the app.",
         "operationId": "filesLinkCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5119,7 +5966,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/courses/{course_id}/assessments": {
@@ -5130,6 +5985,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add an assessment (quiz, exam, assignment...) to a course gradebook.",
         "description": "Use when the user adds a graded item. Give the deadline as `due_date` (and\n`due_time` if known) in the Program's time zone. Do not use to record a score on an existing\nassessment; use grading.assessment.update.",
         "operationId": "gradingAssessmentCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5183,6 +6049,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List a course's assessments with deadline, weight and score.",
         "description": "Use to see what is graded, still pending or overdue in a course. To locate one\nassessment the user named in words (\"Lab 3\", \"the midterm\"), prefer grading.assessment.find.",
         "operationId": "gradingAssessmentList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5323,6 +6200,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add several assessments at once.",
         "description": "Use for assessments the user typed or listed in the chat. A grading scheme in a\nfile goes through imports.session.create, and LMS assignments through lms.assignment.import.\nItems that carry `source_kind` and `source_ref` are skipped when the course\nalready has an assessment from the same source, so repeating an import creates no duplicates.",
         "operationId": "gradingAssessmentCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5378,6 +6266,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete an assessment from a gradebook.",
         "description": "Irreversible. To ignore an assessment in the grade, set `dropped` instead.",
         "operationId": "gradingAssessmentDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "assessment_id",
@@ -5421,6 +6320,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change an assessment, mainly to record its score.",
         "description": "Record a score with `score_percentage` (82), or `points_earned` with\n`points_possible` (18 of 20). Send null to clear the score again. Also changes title, category,\ndeadline, weight, `dropped` (ignore it in every calculation) and note. Only the fields that are sent\nchange.",
         "operationId": "gradingAssessmentUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "assessment_id",
@@ -5476,6 +6386,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the order of a course's assessments.",
         "description": "Assessments not listed keep their order after the listed ones.",
         "operationId": "gradingAssessmentReorder",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5531,6 +6452,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add an assessment category (e.g. 'Midterm') to a course's gradebook.",
         "description": "Use when the syllabus has a kind of assessment the built-in categories lack.",
         "operationId": "gradingCategoryCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5586,6 +6518,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete an assessment category; its assessments become uncategorised.",
         "description": "Irreversible, but no assessment is deleted. Prefer archiving.",
         "operationId": "gradingCategoryDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "category_id",
@@ -5629,6 +6572,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename, recolor or archive an assessment category.",
         "description": "Partial update. Archived categories keep their assessments but leave the pickers.",
         "operationId": "gradingCategoryUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "category_id",
@@ -5684,6 +6638,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the display order of a course's assessment categories.",
         "description": "Categories not listed keep their order after the listed ones.",
         "operationId": "gradingCategoryReorder",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5739,6 +6704,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change how a course is graded: official final grade, target, pass/fail, forecast.",
         "description": "Use to enter the official final grade (`final_override_percentage`, which wins\nover the calculated one; null clears it), set the target in grade points, switch a course to\npass/fail, or enter a final grade for a course without a gradebook (`manual_percentage` with\n`gradebook_enabled: false`). To record the score of one assessment use\ngrading.assessment.update.",
         "operationId": "gradingCourseResultUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5794,6 +6770,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "The grade, grade points and status of every course in a Program.",
         "description": "Use to compare courses or list which are finished, in progress or pass/fail.",
         "operationId": "gradingCourseSummaryList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -5851,6 +6838,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "A course's gradebook: categories, assessments, and every calculated figure.",
         "description": "Use to answer questions about a course's grade: the current average, the final\ngrade, the forecast, or what the remaining assessments must average to reach a target grade\n(`summary.required_average`). The summary figures are null while the weights do not add up to\n100 (`summary.weight_gap` says how much is missing). Never calculate grades yourself.",
         "operationId": "gradingGradebookGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -5896,6 +6894,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get a Program's grading scale: percentage ranges → grade points and letters.",
         "description": "Use to convert a percentage to grade points or a letter, or to read the Program's\ngrading defaults (how year-long courses count, default categories, hidden GPA).",
         "operationId": "gradingScaleGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -5939,6 +6948,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a Program's grading scale or grading defaults.",
         "description": "Partial update: only the fields that are sent change. `bands` replaces the whole\ntable; the ranges must not overlap and must reach from 0 to 100, with points of at most\n`max_points`. Every GPA of the Program is recalculated from the new scale.",
         "operationId": "gradingScaleUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -6015,7 +7035,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/courses/{course_id}/gradebook:suggest": {
@@ -6026,6 +7057,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Suggest a score for every ungraded assessment that reaches the target grade.",
         "description": "Scores follow the student's results so far in each category and land exactly on\nthe target. Used to auto-fill a what-if plan. Fails with grading.weights_not_100 while the\nweights do not add up.",
         "operationId": "gradingScoreSuggest",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -6081,6 +7123,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "What-if: the course figures if ungraded assessments scored the given marks.",
         "description": "Use to answer \"what if I get 80 on the final\". Nothing is saved: never change\nreal scores to simulate. Scores it could not use (already graded, not of this course) come back in\n`ignored`. Fails with grading.weights_not_100 while the weights do not add up.",
         "operationId": "gradingSimulateCourse",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -6136,6 +7189,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "What-if for a term: the term GPA if unfinished courses ended with given marks.",
         "description": "Pass assumed final percentages per unfinished course in `scores`; with\n`target_gpa` the result says whether it is reachable and what average the other unfinished courses\nneed. Marks it could not use (finished or unknown courses) come back in `ignored`. Nothing is\nsaved.",
         "operationId": "gradingSimulateTerm",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -6191,6 +7255,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Cumulative GPA, earned credits, progress to graduation and GPA per term.",
         "description": "Use for \"what is my overall GPA\" or \"how many credits do I have left\". Every\ncourse counts once, a year-long one in the term the Program's setting names.",
         "operationId": "gradingSummaryProgram",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -6248,6 +7323,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "A term's GPA, average, credits and every course's grade.",
         "description": "Use for \"what is my GPA this term\". Unfinished courses are left out unless\n`include_in_progress` counts their current average.",
         "operationId": "gradingSummaryTerm",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -6305,6 +7391,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the checked days of a habit within a date range.",
         "description": "Use to see which days a habit was done. The range is at most 400 days and in the\nProgram's time zone.",
         "operationId": "habitCheckinList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -6374,6 +7471,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Check or uncheck a habit for a day (today or the past 7 days).",
         "description": "The habit card's click: a checked day becomes unchecked and the other way\nround. Days older than 7 days or in the future are refused.",
         "operationId": "habitCheckinToggle",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -6429,6 +7534,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Current streak, longest streak and total check-ins of a habit.",
         "description": "Use to answer how long the user's streak is or how often they did a habit. For a\nweekly goal the streaks count weeks that reached the weekly target; a streak stays alive while\nthe running day (or week) is still open. Also returns today's date in the Program's time zone.",
         "operationId": "habitStreakGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -6474,6 +7590,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Accept or reject many import items at once, by type, issue or id.",
         "description": "E.g. reject every item with `import.duplicate_assessment`. Give at least one\nfilter; they combine (an item must match all given). Rejecting a course item also rejects the items\nthat belong to it (its meetings, assessments, categories, events and tasks), so leaving a course out\ntakes only its id. The assistant gets `changed` and the session's `summary`, without its items.",
         "operationId": "importsItemDecideMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -6529,6 +7656,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Edit an import item's fields or accept/reject it.",
         "description": "`data` is merged into the item (send null to clear a field); fields the item's\ntype does not have are refused. The item's issues are checked again afterwards. The assistant gets\nthe session's `summary` and the changed item.",
         "operationId": "importsItemUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -6595,6 +7733,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
         "description": "The user reviews the import on its confirmation card; summarise it first.\nWrites in dependency order; one item failing does not undo the others (see each item's\n`result`). Repeating it only retries the items that have not been written. The assistant gets\nthe counts and the items that failed.",
         "operationId": "importsSessionCommit",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -6650,6 +7799,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
         "description": "Use when the user shares a syllabus, timetable, ICS file or other document to\nbring into the app (\"import this\", \"set up my courses from this syllabus\"). Creates a draft the user\nreviews before anything is written. Pass the files themselves: `attachment_ids` for files attached\nto the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.\nAn import never creates terms: the target term must exist (academics.term.create first). ICS is\nparsed at once (status ready); the other sources are extracted in the background (status\nextracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a\ndocument's contents with the modules' own create capabilities instead of importing it. The\nassistant gets `summary` and the first\n25 items; read the rest with imports.session.get.",
         "operationId": "importsSessionCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -6703,6 +7863,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Import history of a Program, newest first.",
         "description": "Closed imports are kept for 30 days.",
         "operationId": "importsSessionList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -6778,6 +7949,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Drop an import that has not been committed, with its uploaded files.",
         "description": "Use when the user does not want the import. Its uploaded files are deleted too.",
         "operationId": "importsSessionDiscard",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -6823,6 +8005,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "An import with its items, their issues and the extraction progress.",
         "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and\n`fields`; items come 25 at a time, follow `next_cursor` for more. While it is\nextracting, pass wait_seconds (up to 25) to wait for the result in one call; if it\nis still extracting after that, tell the user and stop instead of calling again.",
         "operationId": "importsSessionGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
@@ -7006,6 +8199,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the cards on a Program, term or course overview, or on the Today page.",
         "description": "Use to find card instances (their instance_id and settings), e.g. which\nsticky notes or habit trackers a course has, before calling a card-specific tool.",
         "operationId": "layoutsBoardGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7066,6 +8270,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Replace the card layout of a board (positions, sizes, added and removed cards).",
         "description": "Cards left out of the list are deleted together with their data.",
         "operationId": "layoutsBoardUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7138,6 +8350,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add a card to a board, e.g. a sticky note to a course overview.",
         "description": "Use when the user asks to put a card (sticky note, pomodoro timer, habit\ntracker, ...) on an overview or the Today page. The card goes to the first free spot. Check\nwith plugins.catalog.list that its plugin is installed.",
         "operationId": "layoutsCardAdd",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7210,6 +8433,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the settings of a card instance.",
         "description": "layouts.board.get already includes every card's settings.",
         "operationId": "layoutsCardGetSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -7253,6 +8484,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Replace the settings of a card instance.",
         "description": "The settings are validated against the card's schema.",
         "operationId": "layoutsCardUpdateSettings",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -7308,6 +8547,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Remove a card from its board, deleting its data.",
         "description": "Use when the user asks to remove a card. Find its instance_id with\nlayouts.board.get.",
         "operationId": "layoutsCardRemove",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -7353,6 +8603,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the order and hidden pages of the tab bar of a scope type.",
         "description": "Applies to every Program, every term or every course alike.",
         "operationId": "layoutsNavGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7401,6 +8659,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the order and hidden pages of the tab bar of a scope type.",
         "description": "Applies to every Program, every term or every course alike.",
         "operationId": "layoutsNavUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7461,6 +8727,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the default card layout new boards of a scope type start from.",
         "description": "Either the user's own default or the built-in one.",
         "operationId": "layoutsTemplateGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7510,6 +8784,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Go back to the built-in default layout of a scope type.",
         "description": "Boards that were never changed follow it at once.",
         "operationId": "layoutsTemplateReset",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7561,6 +8843,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Make a board's layout the default for its scope type.",
         "description": "Boards that were never changed follow it at once; changed boards keep theirs.",
         "operationId": "layoutsTemplateSaveFromBoard",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -7621,6 +8911,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "Recent announcements of a linked course on Canvas or another LMS, newest first.",
         "operationId": "lmsAnnouncementList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -7728,6 +9029,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Start importing assignments of a linked course as assessments or tasks.",
         "description": "Creates an import the user reviews; each item can be switched between an\nassessment and a task there. Assignments imported before are left out. Then commit it like\nany import (imports.session.commit).",
         "operationId": "lmsAssignmentImport",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -7783,6 +9095,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
         "description": "To add them to the gradebook or tasks use lms.assignment.import (reviewed by\nthe user), never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -7900,7 +9223,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -7940,7 +9271,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/lms/connections/{id}": {
@@ -7951,6 +9290,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Remove an LMS connection.",
         "description": "Refused while Programs are bound to it (lms.connection_in_use) unless\n`detach_all`, which also unbinds them and unlinks their courses; imported assessments, tasks\nand files stay. Not for agents.",
         "operationId": "lmsConnectionDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -8006,6 +9353,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename an LMS connection or change its address or credentials.",
         "description": "New settings or credentials are checked before saving. Not for agents.",
         "operationId": "lmsConnectionUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -8092,7 +9447,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/courses/{course_id}/lms/updates": {
@@ -8103,6 +9466,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Imported assignments whose title, due date or points changed on the LMS.",
         "description": "Put them up for the user's review with lms.course.queue_updates.",
         "operationId": "lmsCourseCheckUpdates",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8160,6 +9534,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Start importing courses from the Program's LMS (reviewed before anything is created).",
         "description": "Creates an import the user reviews (imports.session.get); committing it creates\nthe courses and links them to the LMS in one go.",
         "operationId": "lmsCourseImport",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -8215,6 +9600,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Unlink a course from its LMS course.",
         "description": "Imported assessments, tasks and files stay.",
         "operationId": "lmsCourseLinkDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8258,6 +9654,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "The LMS course a course is linked to, if any.",
         "description": "Also says which connection the course's Program is bound to.",
         "operationId": "lmsCourseLinkGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8301,6 +9708,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
         "description": "Uses the Program's bound connection (lms.program_not_configured without one).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
         "operationId": "lmsCourseLinkSet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8354,6 +9772,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Turn LMS sync of a linked course on or off.",
         "description": "Off: no calendar overlay and no update checks; reading still works.",
         "operationId": "lmsCourseLinkUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8409,6 +9838,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Refresh the linked LMS course's code, name and term.",
         "description": "Changes only the link, never the course itself.",
         "operationId": "lmsCourseLinkSync",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8454,6 +9894,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
         "description": "Current-term courses by default; `include_past` for all of them.",
         "operationId": "lmsCourseList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -8523,6 +9974,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "A linked course on the LMS: details, navigation and supported features.",
         "description": "A read the platform does not support fails with lms.feature_unsupported.",
         "operationId": "lmsCourseOverview",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8580,6 +10042,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Put the LMS changes of imported assignments up for review.",
         "description": "Creates an import of the changes and changes nothing itself: they are written\nwhen the import is committed (imports.session.commit) after the user reviewed it.",
         "operationId": "lmsCourseQueueUpdates",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8625,6 +10098,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Details of a file of a linked course.",
         "description": "To read or search its text, save it with lms.file.save_to_course.",
         "operationId": "lmsFileGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8693,6 +10177,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Save a file of a linked course into the course's files.",
         "description": "It is then processed like an upload and can be searched and extracted.",
         "operationId": "lmsFileSaveToCourse",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8759,6 +10254,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "The user's grades on Canvas or another LMS for a linked course.",
         "description": "The course total first, then one row per assignment.",
         "operationId": "lmsGradeList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8816,6 +10322,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Modules of a linked course.",
         "description": "Items of a module: lms.module_item.list.",
         "operationId": "lmsModuleList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8873,6 +10390,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Items of one module of a linked course.",
         "description": "`target` says where an item opens in the app (page, assignment, file...).",
         "operationId": "lmsModuleItemList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -8940,6 +10468,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "One page of a linked course; the assistant gets its body as Markdown.",
         "operationId": "lmsPageGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -9008,6 +10547,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Pages of a linked course.",
         "description": "Read one with lms.page.get.",
         "operationId": "lmsPageList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -9065,6 +10615,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Unbind a Program's LMS connection.",
         "description": "Refused while courses of the Program are linked (lms.program_has_links).",
         "operationId": "lmsProgramBindingClear",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -9108,6 +10669,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Which LMS connection a Program uses.",
         "description": "Courses of the Program can only be linked through this connection.",
         "operationId": "lmsProgramBindingGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -9151,6 +10723,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Bind an LMS connection to a Program.",
         "description": "Refused while courses of the Program are linked (lms.program_has_links).",
         "operationId": "lmsProgramBindingSet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -9227,7 +10810,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/courses/{course_id}/lms/quizzes": {
@@ -9237,6 +10831,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         ],
         "summary": "Quizzes of a linked course.",
         "operationId": "lmsQuizList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -9326,6 +10931,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "The syllabus of a linked course on Canvas or another LMS.",
         "description": "To extract its grading scheme use lms.syllabus.import.",
         "operationId": "lmsSyllabusGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -9383,6 +10999,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Extract the grading scheme and dates from a linked course's LMS syllabus.",
         "description": "Starts an AI extraction the user reviews; needs an AI model. Then wait for it and\ncommit it like any import (imports.session.get, imports.session.commit).",
         "operationId": "lmsSyllabusImport",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -9449,7 +11076,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/plugins/{plugin_id}/installation": {
@@ -9460,6 +11098,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Install a plugin for the user's account.",
         "description": "Installing an already installed plugin does nothing.",
         "operationId": "pluginsPluginInstall",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "plugin_id",
@@ -9503,6 +11149,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Uninstall a plugin; optionally delete its data.",
         "description": "Hides the plugin's pages, cards and features. Without purge_data its data is\nkept and comes back on reinstall.",
         "operationId": "pluginsPluginUninstall",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "plugin_id",
@@ -9591,7 +11245,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/pomodoro/stats": {
@@ -9602,6 +11264,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Focus time per day and per course from the pomodoro timer.",
         "description": "Use to answer how long the user focused, e.g. \"how long did I study APS105 this\nweek\". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the\nlast 7 days. Days follow the Program's time zone.",
         "operationId": "pomodoroSessionSummarize",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "from_date",
@@ -9731,7 +11404,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -9771,7 +11452,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/imports/{id}": {
@@ -9782,6 +11471,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Discard an uploaded backup without importing it.",
         "description": "Not for agents.",
         "operationId": "portabilityImportDiscard",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -9825,6 +11522,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get an uploaded backup: its preview, and the import's state and report.",
         "description": "Not for agents.",
         "operationId": "portabilityImportGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -9870,6 +11575,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Import an uploaded backup, merging it or replacing the current data.",
         "description": "Runs as a background job in one transaction. Not for agents.",
         "operationId": "portabilityImportStart",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -9925,6 +11638,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Weekly class times of a term that overlap each other.",
         "description": "Use after adding or moving meetings to warn about clashes. Only enabled meetings\nthat share at least one date count.",
         "operationId": "scheduleConflictList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "term_id",
@@ -9970,6 +11694,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add a one-off event: an exam, office hour, make-up class or appointment.",
         "description": "Times without an offset are read in the Program's time zone. For something\nthat repeats weekly use schedule.meeting.create.",
         "operationId": "scheduleEventCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10023,6 +11758,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List one-off events (exams, office hours, make-up classes) of a Program.",
         "description": "Optionally only one course's or one term's. For a date range use\ncalendar.occurrence.list.",
         "operationId": "scheduleEventList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10108,6 +11854,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a one-off event.",
         "description": "Irreversible.",
         "operationId": "scheduleEventDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_id",
@@ -10151,6 +11908,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a one-off event.",
         "description": "Moving only `start_at` keeps the event's duration.",
         "operationId": "scheduleEventUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_id",
@@ -10206,6 +11974,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add a class or event type to a Program, e.g. LAB for laboratories.",
         "description": "Use when a schedule needs a type the Program does not have yet.",
         "operationId": "scheduleEventTypeCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10259,6 +12038,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the class and event types of a Program (LEC, PRA, TUT, ...).",
         "description": "Use to find valid type codes before creating meetings or events.",
         "operationId": "scheduleEventTypeList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10304,6 +12094,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a custom type that no meeting or event uses.",
         "description": "Fails with schedule.event_type_in_use while anything uses the type.",
         "operationId": "scheduleEventTypeDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_type_id",
@@ -10347,6 +12148,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename a custom type, or change the color or icon of any type.",
         "description": "Built-in types (LEC, PRA, TUT) keep their name; their color and icon can change.",
         "operationId": "scheduleEventTypeUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "event_type_id",
@@ -10402,6 +12214,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the display order of a Program's types.",
         "description": "Types not listed keep their relative order after the listed ones.",
         "operationId": "scheduleEventTypeReorder",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10457,6 +12280,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Undo the cancellation or move of one class.",
         "description": "The class happens again as regularly scheduled.",
         "operationId": "scheduleExceptionDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "meeting_id",
@@ -10512,6 +12346,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Cancel or move one class (one date only).",
         "description": "Use for \"class is cancelled on Friday\" or \"Tuesday's lecture moves to room X\".\n`original_date` must be a date the meeting normally happens on. Prefer this over deleting the\nmeeting.",
         "operationId": "scheduleExceptionUpsert",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "meeting_id",
@@ -10579,6 +12424,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.",
         "description": "Anyone with the link can read the calendar; it is returned only once.",
         "operationId": "scheduleFeedCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10632,6 +12485,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the calendar subscription links of a Program.",
         "description": "The links themselves are only shown when created.",
         "operationId": "scheduleFeedList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -10677,6 +12538,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Turn off a calendar subscription link.",
         "description": "Calendars subscribed to it stop updating.",
         "operationId": "scheduleFeedRevoke",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "feed_id",
@@ -10722,6 +12591,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add a weekly (or biweekly) class time to a course in one of its terms.",
         "description": "Times are wall-clock times in the Program's time zone. Check\nschedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up\nclass) use schedule.event.create instead.",
         "operationId": "scheduleMeetingCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -10775,6 +12655,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List a course's weekly class times, with their cancelled or moved dates.",
         "description": "Use to see when a course meets each week, or to find the meeting id before\nchanging or cancelling one class. Optionally only one term of a year-long course.",
         "operationId": "scheduleMeetingList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -10840,6 +12731,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add several weekly class times to a course at once (importers).",
         "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting meeting of the course updates it instead of adding a duplicate.",
         "operationId": "scheduleMeetingCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -10895,6 +12797,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a weekly class time with all its dates.",
         "description": "Removes this weekly time entirely; a section that meets on two days has two.\nTo cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the\nuser does not attend use\nschedule.meeting.set_enabled.",
         "operationId": "scheduleMeetingDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "meeting_id",
@@ -10938,6 +12851,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a weekly class time for the whole term (time, room, weeks, ...).",
         "description": "Changes every week. To change or cancel a single date use\nschedule.exception.upsert instead.",
         "operationId": "scheduleMeetingUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "meeting_id",
@@ -10993,6 +12917,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
         "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). Disabled meetings stay in the course but are left out of the calendar.\nReturns only the meetings whose state changed (empty when they already were as asked).",
         "operationId": "scheduleMeetingSetEnabled",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "course_id",
@@ -11069,7 +13004,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       },
       "patch": {
         "tags": [
@@ -11109,7 +13055,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/settings/schemas": {
@@ -11141,7 +13095,18 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ]
       }
     },
     "/me/ui-state:get": {
@@ -11183,7 +13148,15 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/ui-state/{key}": {
@@ -11194,6 +13167,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Save one UI state entry.",
         "description": "Stores interface state under a key. Not available to agents.",
         "operationId": "settingsUiStateSet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "key",
@@ -11249,6 +13230,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get the effective settings of a module or plugin at a scope.",
         "description": "Use when the user asks how a module is configured, e.g. the default calendar\nview. Returns the effective value of every field and the level it is inherited from\n(default, account, program, term or course).\nDo not use for personal preferences such as language or theme; use settings.preference.get.",
         "operationId": "settingsValueGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "namespace",
@@ -11328,6 +13320,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change settings of a module or plugin at one scope level.",
         "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schema.list first.\nDo not use to change language, theme or other personal preferences.",
         "operationId": "settingsValueUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "namespace",
@@ -11383,6 +13386,14 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Remove one setting at a scope level so it is inherited again.",
         "description": "Restores a field to the value of the level above (or the default).\nNot available to agents.",
         "operationId": "settingsValueReset",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "namespace",
@@ -11475,6 +13486,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the sticky notes on a Program, term, course or Today board.",
         "description": "Use to read the notes of one board (\"what is in my note for this course\").\nReturns each note's instance_id and Markdown text. To find a note without knowing its board use\nlayouts.card.list.",
         "operationId": "stickyNoteList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "scope_type",
@@ -11537,6 +13559,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Add to or replace the text of a sticky note.",
         "description": "Use when the user asks to jot something down in a note (\"note the midterm scope\nin this course's sticky\"): by default (mode append) the lines go after the note's text, so the\nsame call made twice adds them twice. To rewrite or delete text, read the note first and send the\nwhole new text with mode replace. At most 10 000 characters.",
         "operationId": "stickyNoteUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "instance_id",
@@ -11592,6 +13625,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete the completed tasks of a Program, optionally of one list, term or course.",
         "description": "Irreversible; returns how many were deleted. Use only when the user asks to clear\nor clean up completed tasks.",
         "operationId": "tasksItemClearCompleted",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -11647,6 +13691,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Mark a task done, or reopen it with completed=false.",
         "description": "Completing a task never changes grades, even if it came from an assessment.",
         "operationId": "tasksItemComplete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -11702,6 +13757,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Counts of unfinished tasks per smart list, list and course (sidebar badges).",
         "description": "Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.",
         "operationId": "tasksItemCount",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -11787,6 +13853,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create a task (a to-do or reminder), optionally with a due date, course and list.",
         "description": "Always pass the course and due date when the user's words or the current scope\ngive them. Dates are in the Program's time zone; a time needs a date. The term is inferred from\nthe course and due date. Omit list_id to put the task in the inbox. Use tasks.item.create_many\nfor several tasks.",
         "operationId": "tasksItemCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -11840,6 +13917,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
         "description": "Use for 'what do I have to do'. `today` includes overdue tasks. For questions\nabout what is due this week prefer calendar.occurrence.list, which merges tasks with assessment\ndeadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;\ncompleted tasks are hidden unless the view is `completed` or include_completed is set.",
         "operationId": "tasksItemQuery",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -12135,6 +14223,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create several tasks at once; items with an already known source are skipped.",
         "description": "Use for a list of tasks the user dictates or pastes; tasks in a document go\nthrough imports.session.create. Items whose source_kind and source_ref match an existing task\nare skipped and returned with that task's id, so repeating an import does not duplicate them.",
         "operationId": "tasksItemCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -12190,6 +14289,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a task for good.",
         "description": "Irreversible. To finish a task use tasks.item.complete instead; delete only when\nthe user asks to remove it. A task made from an assessment comes back when the assessment\nchanges.",
         "operationId": "tasksItemDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -12233,6 +14343,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Get one task with its notes, due date, priority and source.",
         "description": "Use when you need the full details of a task you already know the id of.",
         "operationId": "tasksItemGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -12276,6 +14397,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Change a task's title, notes, due date and time, priority, flag, list or course.",
         "description": "Partial update: only the fields that are sent change; null clears the nullable\nones (due_date, due_time, course_id, list_id, term_id). Use tasks.item.complete to finish a task\nand tasks.item.move to reorder it. A task with source_kind assessment takes its title, due date and\ncourse from the assessment: changing those is refused (tasks.managed_by_assessment); change the\nassessment instead.",
         "operationId": "tasksItemUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -12331,6 +14463,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Move a task to another list (or the inbox) and/or to a place within the list.",
         "description": "Send list_id (null = inbox) to change list; leave it out to reorder inside the\ncurrent one. before_task_id places the task right before that task, otherwise it goes last.",
         "operationId": "tasksItemMove",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -12386,6 +14529,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Create a task list, for one term or for the whole Program.",
         "description": "Use when the user wants a named list such as 'Errands'. Names are unique within\na term (or within the Program-wide lists). Do not create a list just to file one task: leave\ntasks in the inbox unless the user names a list.",
         "operationId": "tasksListCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -12439,6 +14593,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "List the task lists of a Program (term lists and Program-wide lists).",
         "description": "Use to find a list id before creating or moving tasks. Tasks without a list are\nin the inbox, which is not a list row.",
         "operationId": "tasksListList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -12484,6 +14649,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Delete a task list; its tasks move to the inbox unless told otherwise.",
         "description": "With `delete_tasks` true the list's tasks are deleted for good, so only use\nit when the user asked for that. By default the tasks are kept in the inbox.",
         "operationId": "tasksListDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "list_id",
@@ -12539,6 +14715,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Rename a task list or change its color or icon.",
         "description": "Partial update: only the fields that are sent change.",
         "operationId": "tasksListUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "list_id",
@@ -12594,6 +14781,17 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         "summary": "Set the display order of a Program's task lists.",
         "description": "Lists not named keep their relative order after the named ones.",
         "operationId": "tasksListReorder",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
         "parameters": [
           {
             "name": "program_id",
@@ -30184,6 +32382,26 @@ Consider using the pymupdf_layout package for a greatly improved page layout ana
         },
         "type": "object",
         "title": "Deleted"
+      }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "description": "Set by the sign-in endpoints for the web app. Requests other than GET, HEAD and OPTIONS also need the `X-Semestra-CSRF` header set to the `semestra_csrf` cookie.",
+        "in": "cookie",
+        "name": "semestra_session"
+      },
+      "accessToken": {
+        "type": "http",
+        "description": "Short-lived access token for native clients: sign in with `?client=native`, renew with `POST /auth/token/refresh`.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "personalAccessToken": {
+        "type": "http",
+        "description": "Personal access token from account settings, with `read` or `read` + `write` scope. Accepted by `/mcp` and by the endpoints of capabilities exposed to MCP; a `read` token can only call read capabilities.",
+        "scheme": "bearer",
+        "bearerFormat": "spat_…"
       }
     }
   }

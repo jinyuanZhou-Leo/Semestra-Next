@@ -1,0 +1,31 @@
+---
+title: 简介
+description: 文档覆盖的内容，以及托管版和自部署版的区别。
+icon: BookOpen
+---
+
+Semestra 是面向学生的学期规划工具：Program、学期与课程，成绩与 GPA，课表和日历，待办，课程文件，Canvas
+集成，以及名为 Sem 的 AI 助手。日常功能在应用里就有说明，这份文档只讲进阶内容：自己部署实例，接入 AI
+服务商、MCP 客户端和 Canvas，以及 HTTP API。
+
+## 两种使用方式
+
+|                  | 托管版                       | 自部署                                             |
+| ---------------- | ---------------------------- | -------------------------------------------------- |
+| 谁来运行         | Semestra 项目                | 你自己，用 Docker Compose                          |
+| AI               | 你自己的服务商密钥（BYOK）   | 你自己的密钥，或一个全实例共用的服务商，例如 Ollama |
+| 访问内网地址     | 不允许                       | 默认允许（局域网里的 Ollama、学校自建的 Canvas）   |
+| 邮件             | 由服务发送                   | 配置 SMTP 或 Resend 之前打印在日志里               |
+
+其他功能，包括 API 和 MCP，两者完全一样。
+
+## 从哪里开始
+
+<Cards>
+  <Card title="自部署" href="/docs/self-hosting" description="一条命令启动一个实例。" />
+  <Card title="AI 与 BYOK" href="/docs/ai" description="添加你自己的 Anthropic、OpenAI、Gemini 或 Ollama 服务商。" />
+  <Card title="MCP" href="/docs/mcp" description="在 Claude、Cursor 等 MCP 客户端里使用 Semestra。" />
+  <Card title="LMS" href="/docs/lms" description="连接 Canvas，导入课程和作业。" />
+  <Card title="API" href="/docs/api" description="认证、错误格式和接口参考。" />
+  <Card title="插件" href="/docs/plugins" description="编写第一方插件。" />
+</Cards>

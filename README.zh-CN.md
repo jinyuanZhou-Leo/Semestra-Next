@@ -88,7 +88,7 @@ Semestra 是给大学生用的学期规划工具。建好 Program，加上学期
 </picture>
 
 - **Canvas LMS**：关联 Canvas 课程后可以导入作业、叠加它的日历，并在 Canvas 标签页里浏览公告、成绩、单元、页面和测验。
-- **官方插件**，按账户安装：习惯打卡、番茄钟、便签、计数器和世界时钟。写插件见[插件开发指南](docs/plugin-authoring.md)。
+- **官方插件**，按账户安装：习惯打卡、番茄钟、便签、计数器和世界时钟。写插件见[插件开发指南](apps/docs/content/docs/plugins.zh.mdx)。
 - **设置逐级继承**：账户 → Program → 学期 → 课程；亮色与暗色主题；完整的中英文界面。
 - **数据归你所有**：一键导出为一个归档，导入到另一个实例，或者删除账户。
 
@@ -156,12 +156,12 @@ docker compose up -d    # 然后打开 http://localhost:8000
 apps/
   api/                 FastAPI 后端：src/semestra/{core, modules/*}
   web/                 React SPA：src/{routes, app, modules/*, ui, components, lib}
+  docs/                文档站（Fumadocs，静态导出）：自部署、AI、MCP、LMS、API
 packages/
   api-client/          由 OpenAPI 生成的 TypeScript 客户端（不要手改 src/generated）
 deploy/                Dockerfile、自部署 compose、托管版（GCP + Vercel）脚本
 docs/
   specs/               每个模块一份设计规格，M00 到 M16
-  plugin-authoring.md  插件开发指南
 ```
 
 大多数功能在前后端各是一个模块：`academics`、`grading`、`schedule`、`tasks`、`files`、`imports`、`lms`、`ai`、`plugins`、`settings`、`portability` 等（助手在后端叫 `agent`，在前端叫 `assistant`）。后端模块声明 **capability**，一份定义默认同时生成 REST 路由、助手工具和 MCP 工具；前端模块通过 `defineModule` 注册自己的页面、卡片和设置。
@@ -174,5 +174,5 @@ docs/
 
 - [模块规格](docs/specs/README.md)：每个模块的设计与实现说明
 - [CLAUDE.md](CLAUDE.md)：开发约定与已知的坑
-- [插件开发指南](docs/plugin-authoring.md)
+- [文档站](apps/docs)（`pnpm docs:dev`）：自部署、AI 服务商、MCP、Canvas、API 参考与[插件开发指南](apps/docs/content/docs/plugins.zh.mdx)
 - [部署](deploy/README.md)与[上线安全清单](deploy/SECURITY-CHECKLIST.md)

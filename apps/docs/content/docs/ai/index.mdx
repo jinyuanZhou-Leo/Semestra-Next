@@ -1,0 +1,66 @@
+---
+title: AI and BYOK
+description: Semestra's AI features run on providers you bring. How keys are stored and which model is used.
+---
+
+Sem (the assistant), syllabus and timetable extraction, image reading and file search all call an
+AI provider that **you** configure: bring your own key (BYOK). Semestra does not resell model
+access, so there is no AI quota and no AI bill from Semestra; your provider bills you directly.
+
+## Where to configure it
+
+Account settings, under **AI**:
+
+| Page          | What it holds                                                            |
+| ------------- | ------------------------------------------------------------------------ |
+| **Providers** | Your providers: type, name, base URL, key, and what the endpoint can do  |
+| **Models**    | Which model serves each purpose, and optional model parameters           |
+| **Usage**     | Tokens and estimated cost over the last 7 or 30 days, or all time        |
+
+## How keys are stored
+
+- Keys are encrypted with the server's `SEMESTRA_ENCRYPTION_KEY` before they are written to the
+  database. The API only ever returns a masked hint.
+- A provider is test-called before it is saved, and again when its key changes.
+- Data exports never include keys. After importing a backup, providers that had a key are
+  turned off until you enter it again.
+
+## Purposes
+
+Each AI call has a purpose, and each purpose needs one capability from the provider.
+
+| Purpose          | Used for                                              | Needs       |
+| ---------------- | ----------------------------------------------------- | ----------- |
+| Sem              | Conversations with the assistant                      | `chat`      |
+| Reading documents| Course details, deadlines and grades from syllabi     | `chat`      |
+| Reading images   | Timetable screenshots and scanned pages               | `vision`    |
+| Search           | Finding passages in your course files                 | `embedding` |
+| Titles           | Short titles for conversations                        | `chat`      |
+
+## Which model answers
+
+For each purpose, Semestra takes the first of:
+
+1. The model you chose for that purpose on **Models**, if its provider is on and can serve it.
+2. Any enabled provider that can serve it, with that provider type's recommended model.
+3. On a self-hosted instance, the [instance-wide provider](./instance-provider.mdx).
+
+When none applies, the feature shows a quiet "connect AI" hint instead of failing.
+
+Recommended models (used in step 2):
+
+| Provider  | Sem, documents, images         | Titles                   | Search                   |
+| --------- | ------------------------------ | ------------------------ | ------------------------ |
+| Anthropic | `claude-sonnet-5-5`            | `claude-haiku-5-5`       | (none)                   |
+| OpenAI    | `gpt-5`; `gpt-5-mini` for documents and images | `gpt-5-nano` | `text-embedding-3-small` |
+| Gemini    | `gemini-2.5-pro`; `gemini-2.5-flash` for documents and images | `gemini-2.5-flash-lite` | `gemini-embedding-001` |
+| Ollama    | `qwen3:8b` (no images)         | `qwen3:8b`               | `nomic-embed-text`       |
+
+Compatible endpoints have no recommendation: pick a model on **Models**, or type its name when
+the endpoint cannot list its models.
+
+## Cost estimates
+
+The **Usage** page estimates cost with the [genai-prices](https://github.com/pydantic/genai-prices)
+price list bundled with the server. Compatible endpoints are matched by their base URL (DeepSeek,
+OpenRouter and others); models with no known price show no cost, and Ollama is always free.

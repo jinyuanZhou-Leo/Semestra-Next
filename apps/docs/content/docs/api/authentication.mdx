@@ -1,0 +1,49 @@
+---
+title: Authentication
+description: Session cookies for the web app, access tokens for native apps, API tokens for scripts and MCP.
+---
+
+The OpenAPI schema declares three security schemes, and each operation lists the ones it accepts.
+
+| Scheme                | Sent as                                   | For                         | Accepted by                                     |
+| --------------------- | ----------------------------------------- | --------------------------- | ----------------------------------------------- |
+| `sessionCookie`       | `semestra_session` cookie                 | The web app                 | Every signed-in endpoint                        |
+| `accessToken`         | `Authorization: Bearer <JWT>`             | Native apps                 | Every signed-in endpoint                        |
+| `personalAccessToken` | `Authorization: Bearer spat_…`            | Scripts and MCP clients     | `/mcp` and capabilities offered to MCP          |
+
+A `Bearer` header takes precedence over the cookie, and a request with a bad `Bearer` value does
+not fall back to the cookie.
+
+## API tokens
+
+Create one in account settings → **Security → API tokens** (`POST /account/tokens` from a
+signed-in session). The secret is returned once; Semestra stores only its hash.
+
+- **Access**: `read` or `read` + `write`. A read-only token can only call operations that read.
+- **Reach**: API tokens work for `/mcp` and for the HTTP endpoints of capabilities that are
+  offered to MCP, marked with `personalAccessToken` in the [reference](/docs/api/reference/academics).
+  Account, AI provider, token and data-export endpoints refuse them with `auth.token_scope`.
+- **Expiry**: never, or after 30, 90 or 365 days. Revoke a token from the same page.
+
+```bash
+curl https://semestra.example.com/programs \
+  -H "Authorization: Bearer spat_…"
+```
+
+## Session cookies
+
+The sign-in endpoints (`/auth/email/verify`, `/auth/password/login`, `/auth/google`) set two
+cookies: `semestra_session` (HTTP-only) and `semestra_csrf`. Requests other than `GET`, `HEAD`
+and `OPTIONS` must repeat the CSRF cookie's value in the `X-Semestra-CSRF` header.
+
+## Access tokens for native apps
+
+Add `?client=native` to a sign-in request to receive tokens in the body instead of cookies:
+
+```json
+{ "tokens": { "access_token": "…", "refresh_token": "…", "token_type": "Bearer", "expires_in": 900 } }
+```
+
+The access token lasts 15 minutes by default; exchange the refresh token at
+`POST /auth/token/refresh`. API tokens are not accepted on endpoints outside the capability set,
+such as file uploads and `/events/stream`, so native apps use access tokens there.

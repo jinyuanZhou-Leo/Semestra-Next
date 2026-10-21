@@ -1,0 +1,1388 @@
+{
+  "tools": [
+    {
+      "name": "academics__course__create",
+      "capability": "academics.course.create",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Add a course to one term, or to consecutive terms for a year-long course.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__create_many",
+      "capability": "academics.course.create_many",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Add several courses at once.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__delete",
+      "capability": "academics.course.delete",
+      "module": "academics",
+      "effect": "destructive",
+      "summary": "Delete a course and all of its data (grades, files, schedule).",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__find",
+      "capability": "academics.course.find",
+      "module": "academics",
+      "effect": "read",
+      "summary": "Find courses by how the user names them: code, title words or nickname.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__get",
+      "capability": "academics.course.get",
+      "module": "academics",
+      "effect": "read",
+      "summary": "Get one course with its terms, credits, instructors and resolved color.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__list",
+      "capability": "academics.course.list",
+      "module": "academics",
+      "effect": "read",
+      "summary": "List the courses of a Program, optionally of one term, subject or search text.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__reorder",
+      "capability": "academics.course.reorder",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Set the display order of the courses within a term.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__set_terms",
+      "capability": "academics.course.set_terms",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Set which terms a course runs in (consecutive terms for a year-long course).",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__course__update",
+      "capability": "academics.course.update",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Change a course's code, title, alias, credits, color, instructors or other fields.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__create",
+      "capability": "academics.program.create",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Create a Program (a degree or study plan).",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__delete",
+      "capability": "academics.program.delete",
+      "module": "academics",
+      "effect": "destructive",
+      "summary": "Delete a Program with all of its terms, courses and their data.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__get",
+      "capability": "academics.program.get",
+      "module": "academics",
+      "effect": "read",
+      "summary": "Get one Program: name, school, time zone, credit defaults and subject colors.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__list",
+      "capability": "academics.program.list",
+      "module": "academics",
+      "effect": "read",
+      "summary": "List the user's Programs (degrees) with their term and course counts.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__set_subject_color",
+      "capability": "academics.program.set_subject_color",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Set the color of a subject code (e.g. all 'APS' courses) in a Program.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__program__update",
+      "capability": "academics.program.update",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Change a Program's name, school, time zone or credit settings.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__create",
+      "capability": "academics.term.create",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Create a term, optionally with its courses, in one step.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__delete",
+      "capability": "academics.term.delete",
+      "module": "academics",
+      "effect": "destructive",
+      "summary": "Delete a term and the courses that are only in it.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__get",
+      "capability": "academics.term.get",
+      "module": "academics",
+      "effect": "read",
+      "summary": "Get one term with its dates and breaks.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__get_weeks",
+      "capability": "academics.term.get_weeks",
+      "module": "academics",
+      "effect": "read",
+      "summary": "Week numbers of a term: each week's dates, number or break, and today's week.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__list",
+      "capability": "academics.term.list",
+      "module": "academics",
+      "effect": "read",
+      "summary": "List the terms (semesters) of a Program in chronological order.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__preview_delete",
+      "capability": "academics.term.preview_delete",
+      "module": "academics",
+      "effect": "read",
+      "summary": "What deleting a term would remove: its own courses vs. year-long courses kept.",
+      "plugin_id": null
+    },
+    {
+      "name": "academics__term__update",
+      "capability": "academics.term.update",
+      "module": "academics",
+      "effect": "write",
+      "summary": "Change a term's name, dates, breaks or week numbering.",
+      "plugin_id": null
+    },
+    {
+      "name": "account__profile__get",
+      "capability": "account.profile.get",
+      "module": "account",
+      "effect": "read",
+      "summary": "Get the signed-in user's account profile.",
+      "plugin_id": null
+    },
+    {
+      "name": "calendar__occurrence__list",
+      "capability": "calendar.occurrence.list",
+      "module": "calendar",
+      "effect": "read",
+      "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
+      "plugin_id": null
+    },
+    {
+      "name": "calendar__today__get",
+      "capability": "calendar.today.get",
+      "module": "calendar",
+      "effect": "read",
+      "summary": "Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
+      "plugin_id": null
+    },
+    {
+      "name": "core__job__cancel",
+      "capability": "core.job.cancel",
+      "module": "core",
+      "effect": "write",
+      "summary": "Cancel a pending or running background job.",
+      "plugin_id": null
+    },
+    {
+      "name": "core__job__get",
+      "capability": "core.job.get",
+      "module": "core",
+      "effect": "read",
+      "summary": "Get the state and progress of a background job.",
+      "plugin_id": null
+    },
+    {
+      "name": "core__job__list",
+      "capability": "core.job.list",
+      "module": "core",
+      "effect": "read",
+      "summary": "List the user's background jobs, newest first.",
+      "plugin_id": null
+    },
+    {
+      "name": "core__storage__get",
+      "capability": "core.storage.get",
+      "module": "core",
+      "effect": "read",
+      "summary": "Get how much file storage the user has used and their quota.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__document__outline",
+      "capability": "files.document.outline",
+      "module": "files",
+      "effect": "read",
+      "summary": "Get the headings of a processed file with their page numbers.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__document__read",
+      "capability": "files.document.read",
+      "module": "files",
+      "effect": "read",
+      "summary": "Read the text of a processed file, page by page.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__document__search",
+      "capability": "files.document.search",
+      "module": "files",
+      "effect": "read",
+      "summary": "Search what the course files say.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__folder__create",
+      "capability": "files.folder.create",
+      "module": "files",
+      "effect": "write",
+      "summary": "Create a folder in a course's files.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__folder__delete",
+      "capability": "files.folder.delete",
+      "module": "files",
+      "effect": "destructive",
+      "summary": "Delete a folder, optionally with everything in it.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__delete",
+      "capability": "files.item.delete",
+      "module": "files",
+      "effect": "destructive",
+      "summary": "Delete a file or link permanently.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__get",
+      "capability": "files.item.get",
+      "module": "files",
+      "effect": "read",
+      "summary": "Get one file or link.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__list",
+      "capability": "files.item.list",
+      "module": "files",
+      "effect": "read",
+      "summary": "List the files, links and folders of a course.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__item__update",
+      "capability": "files.item.update",
+      "module": "files",
+      "effect": "write",
+      "summary": "Rename, move or pin a file or link.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__link__create",
+      "capability": "files.link.create",
+      "module": "files",
+      "effect": "write",
+      "summary": "Save a web link in a course's files.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__create",
+      "capability": "grading.assessment.create",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Add an assessment (quiz, exam, assignment...) to a course gradebook.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__create_many",
+      "capability": "grading.assessment.create_many",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Add several assessments at once.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__delete",
+      "capability": "grading.assessment.delete",
+      "module": "grading",
+      "effect": "destructive",
+      "summary": "Delete an assessment from a gradebook.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__find",
+      "capability": "grading.assessment.find",
+      "module": "grading",
+      "effect": "read",
+      "summary": "Find assessments by how the user names them: 'Lab 3', 'midterm'.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__list",
+      "capability": "grading.assessment.list",
+      "module": "grading",
+      "effect": "read",
+      "summary": "List a course's assessments with deadline, weight and score.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__reorder",
+      "capability": "grading.assessment.reorder",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Set the order of a course's assessments.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__update",
+      "capability": "grading.assessment.update",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Change an assessment, mainly to record its score.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__category__create",
+      "capability": "grading.category.create",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Add an assessment category (e.g. 'Midterm') to a course's gradebook.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__category__delete",
+      "capability": "grading.category.delete",
+      "module": "grading",
+      "effect": "destructive",
+      "summary": "Delete an assessment category; its assessments become uncategorised.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__category__reorder",
+      "capability": "grading.category.reorder",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Set the display order of a course's assessment categories.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__category__update",
+      "capability": "grading.category.update",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Rename, recolor or archive an assessment category.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__course_result__update",
+      "capability": "grading.course_result.update",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Change how a course is graded: official final grade, target, pass/fail, forecast.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__course_summary__list",
+      "capability": "grading.course_summary.list",
+      "module": "grading",
+      "effect": "read",
+      "summary": "The grade, grade points and status of every course in a Program.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__gradebook__get",
+      "capability": "grading.gradebook.get",
+      "module": "grading",
+      "effect": "read",
+      "summary": "A course's gradebook: categories, assessments, and every calculated figure.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__scale__get",
+      "capability": "grading.scale.get",
+      "module": "grading",
+      "effect": "read",
+      "summary": "Get a Program's grading scale: percentage ranges → grade points and letters.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__scale__list_presets",
+      "capability": "grading.scale.list_presets",
+      "module": "grading",
+      "effect": "read",
+      "summary": "List the built-in grading scales (UofT 4.0, US 4.0 and 4.33, standard 4.0, China 100-point, Australia 7-point, Korea 4.5, custom).",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__scale__update",
+      "capability": "grading.scale.update",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Change a Program's grading scale or grading defaults.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__score__suggest",
+      "capability": "grading.score.suggest",
+      "module": "grading",
+      "effect": "read",
+      "summary": "Suggest a score for every ungraded assessment that reaches the target grade.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__simulate__course",
+      "capability": "grading.simulate.course",
+      "module": "grading",
+      "effect": "read",
+      "summary": "What-if: the course figures if ungraded assessments scored the given marks.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__simulate__term",
+      "capability": "grading.simulate.term",
+      "module": "grading",
+      "effect": "read",
+      "summary": "What-if for a term: the term GPA if unfinished courses ended with given marks.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__summary__program",
+      "capability": "grading.summary.program",
+      "module": "grading",
+      "effect": "read",
+      "summary": "Cumulative GPA, earned credits, progress to graduation and GPA per term.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__summary__term",
+      "capability": "grading.summary.term",
+      "module": "grading",
+      "effect": "read",
+      "summary": "A term's GPA, average, credits and every course's grade.",
+      "plugin_id": null
+    },
+    {
+      "name": "habit__checkin__list",
+      "capability": "habit.checkin.list",
+      "module": "habit",
+      "effect": "read",
+      "summary": "List the checked days of a habit within a date range.",
+      "plugin_id": "habit-streak"
+    },
+    {
+      "name": "habit__checkin__set",
+      "capability": "habit.checkin.set",
+      "module": "habit",
+      "effect": "write",
+      "summary": "Mark a habit done (or not done) for a day: today or the past 7 days.",
+      "plugin_id": "habit-streak"
+    },
+    {
+      "name": "habit__streak__get",
+      "capability": "habit.streak.get",
+      "module": "habit",
+      "effect": "read",
+      "summary": "Current streak, longest streak and total check-ins of a habit.",
+      "plugin_id": "habit-streak"
+    },
+    {
+      "name": "imports__item__add_many",
+      "capability": "imports.item.add_many",
+      "module": "imports",
+      "effect": "write",
+      "summary": "Add items you read yourself to an import draft.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__item__decide_many",
+      "capability": "imports.item.decide_many",
+      "module": "imports",
+      "effect": "write",
+      "summary": "Accept or reject many import items at once, by type, issue or id.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__item__update",
+      "capability": "imports.item.update",
+      "module": "imports",
+      "effect": "write",
+      "summary": "Edit an import item's fields or accept/reject it.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__session__commit",
+      "capability": "imports.session.commit",
+      "module": "imports",
+      "effect": "write",
+      "summary": "Write the accepted items of an import (courses, gradebook, schedule, tasks).",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__session__create",
+      "capability": "imports.session.create",
+      "module": "imports",
+      "effect": "write",
+      "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__session__discard",
+      "capability": "imports.session.discard",
+      "module": "imports",
+      "effect": "destructive",
+      "summary": "Drop an import that has not been committed, with its uploaded files.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__session__get",
+      "capability": "imports.session.get",
+      "module": "imports",
+      "effect": "read",
+      "summary": "An import with its items, their issues and the extraction progress.",
+      "plugin_id": null
+    },
+    {
+      "name": "imports__session__list",
+      "capability": "imports.session.list",
+      "module": "imports",
+      "effect": "read",
+      "summary": "Import history of a Program, newest first.",
+      "plugin_id": null
+    },
+    {
+      "name": "layouts__board__get",
+      "capability": "layouts.board.get",
+      "module": "layouts",
+      "effect": "read",
+      "summary": "Get the cards on a Program, term or course overview, or on the Today page.",
+      "plugin_id": null
+    },
+    {
+      "name": "layouts__card__add",
+      "capability": "layouts.card.add",
+      "module": "layouts",
+      "effect": "write",
+      "summary": "Add a card to a board, e.g. a sticky note to a course overview.",
+      "plugin_id": null
+    },
+    {
+      "name": "layouts__card__list",
+      "capability": "layouts.card.list",
+      "module": "layouts",
+      "effect": "read",
+      "summary": "Find cards across a Program's boards: sticky notes, habit trackers and others.",
+      "plugin_id": null
+    },
+    {
+      "name": "layouts__card__remove",
+      "capability": "layouts.card.remove",
+      "module": "layouts",
+      "effect": "destructive",
+      "summary": "Remove a card from its board, deleting its data.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__announcement__list",
+      "capability": "lms.announcement.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Recent announcements of a linked course on Canvas or another LMS, newest first.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__assignment__import",
+      "capability": "lms.assignment.import",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Start importing assignments of a linked course as assessments or tasks.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__assignment__list",
+      "capability": "lms.assignment.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__check_updates",
+      "capability": "lms.course.check_updates",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Imported assignments whose title, due date or points changed on the LMS.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__import",
+      "capability": "lms.course.import",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Start importing courses from the Program's LMS (reviewed before anything is created).",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__link__delete",
+      "capability": "lms.course.link.delete",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Unlink a course from its LMS course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__link__get",
+      "capability": "lms.course.link.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The LMS course a course is linked to, if any.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__link__set",
+      "capability": "lms.course.link.set",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__link__sync",
+      "capability": "lms.course.link.sync",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Refresh the linked LMS course's code, name and term.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__link__update",
+      "capability": "lms.course.link.update",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Turn LMS sync of a linked course on or off.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__list",
+      "capability": "lms.course.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__overview",
+      "capability": "lms.course.overview",
+      "module": "lms",
+      "effect": "read",
+      "summary": "A linked course on the LMS: details, navigation and supported features.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__course__queue_updates",
+      "capability": "lms.course.queue_updates",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Put the LMS changes of imported assignments up for review.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__file__get",
+      "capability": "lms.file.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Details of a file of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__file__save_to_course",
+      "capability": "lms.file.save_to_course",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Save a file of a linked course into the course's files.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__grade__list",
+      "capability": "lms.grade.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The user's grades on Canvas or another LMS for a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__module__list",
+      "capability": "lms.module.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Modules of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__module_item__list",
+      "capability": "lms.module_item.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Items of one module of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__page__get",
+      "capability": "lms.page.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "One page of a linked course; the assistant gets its body as Markdown.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__page__list",
+      "capability": "lms.page.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Pages of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__program__binding__clear",
+      "capability": "lms.program.binding.clear",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Unbind a Program's LMS connection.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__program__binding__get",
+      "capability": "lms.program.binding.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Which LMS connection a Program uses.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__program__binding__set",
+      "capability": "lms.program.binding.set",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Bind an LMS connection to a Program.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__provider__list",
+      "capability": "lms.provider.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "LMS platforms the app can connect to, with their features and settings.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__quiz__list",
+      "capability": "lms.quiz.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Quizzes of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__syllabus__get",
+      "capability": "lms.syllabus.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The syllabus of a linked course on Canvas or another LMS.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__syllabus__import",
+      "capability": "lms.syllabus.import",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Extract the grading scheme and dates from a linked course's LMS syllabus.",
+      "plugin_id": null
+    },
+    {
+      "name": "plugins__catalog__list",
+      "capability": "plugins.catalog.list",
+      "module": "plugins",
+      "effect": "read",
+      "summary": "List the app's modules and plugins, and which plugins the user has installed.",
+      "plugin_id": null
+    },
+    {
+      "name": "pomodoro__session__summarize",
+      "capability": "pomodoro.session.summarize",
+      "module": "pomodoro",
+      "effect": "read",
+      "summary": "Focus time per day and per course from the pomodoro timer.",
+      "plugin_id": "pomodoro"
+    },
+    {
+      "name": "schedule__conflict__list",
+      "capability": "schedule.conflict.list",
+      "module": "schedule",
+      "effect": "read",
+      "summary": "Weekly class times of a term that overlap each other.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event__create",
+      "capability": "schedule.event.create",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add a one-off event: an exam, office hour, make-up class or appointment.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event__delete",
+      "capability": "schedule.event.delete",
+      "module": "schedule",
+      "effect": "destructive",
+      "summary": "Delete a one-off event.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event__list",
+      "capability": "schedule.event.list",
+      "module": "schedule",
+      "effect": "read",
+      "summary": "List one-off events (exams, office hours, make-up classes) of a Program.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event__update",
+      "capability": "schedule.event.update",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Change a one-off event.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event_type__create",
+      "capability": "schedule.event_type.create",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add a class or event type to a Program, e.g. LAB for laboratories.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event_type__delete",
+      "capability": "schedule.event_type.delete",
+      "module": "schedule",
+      "effect": "destructive",
+      "summary": "Delete a custom type that no meeting or event uses.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event_type__list",
+      "capability": "schedule.event_type.list",
+      "module": "schedule",
+      "effect": "read",
+      "summary": "List the class and event types of a Program (LEC, PRA, TUT, ...).",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event_type__reorder",
+      "capability": "schedule.event_type.reorder",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Set the display order of a Program's types.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event_type__update",
+      "capability": "schedule.event_type.update",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Rename a custom type, or change the color or icon of any type.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__exception__delete",
+      "capability": "schedule.exception.delete",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Undo the cancellation or move of one class.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__exception__upsert",
+      "capability": "schedule.exception.upsert",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Cancel or move one class (one date only).",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__create",
+      "capability": "schedule.meeting.create",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add a weekly (or biweekly) class time to a course in one of its terms.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__create_many",
+      "capability": "schedule.meeting.create_many",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add several weekly class times to a course at once (importers).",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__delete",
+      "capability": "schedule.meeting.delete",
+      "module": "schedule",
+      "effect": "destructive",
+      "summary": "Delete a weekly class time with all its dates.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__list",
+      "capability": "schedule.meeting.list",
+      "module": "schedule",
+      "effect": "read",
+      "summary": "List a course's weekly class times, with their cancelled or moved dates.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__set_enabled",
+      "capability": "schedule.meeting.set_enabled",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__meeting__update",
+      "capability": "schedule.meeting.update",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Change a weekly class time for the whole term (time, room, weeks, ...).",
+      "plugin_id": null
+    },
+    {
+      "name": "settings__preference__get",
+      "capability": "settings.preference.get",
+      "module": "settings",
+      "effect": "read",
+      "summary": "Get the user's personal preferences.",
+      "plugin_id": null
+    },
+    {
+      "name": "settings__schema__list",
+      "capability": "settings.schema.list",
+      "module": "settings",
+      "effect": "read",
+      "summary": "List every settings namespace with its fields.",
+      "plugin_id": null
+    },
+    {
+      "name": "settings__value__get",
+      "capability": "settings.value.get",
+      "module": "settings",
+      "effect": "read",
+      "summary": "Get the effective settings of a module or plugin at a scope.",
+      "plugin_id": null
+    },
+    {
+      "name": "settings__value__update",
+      "capability": "settings.value.update",
+      "module": "settings",
+      "effect": "write",
+      "summary": "Change settings of a module or plugin at one scope level.",
+      "plugin_id": null
+    },
+    {
+      "name": "sticky__note__list",
+      "capability": "sticky.note.list",
+      "module": "sticky",
+      "effect": "read",
+      "summary": "List the sticky notes on a Program, term, course or Today board.",
+      "plugin_id": "sticky-note"
+    },
+    {
+      "name": "sticky__note__update",
+      "capability": "sticky.note.update",
+      "module": "sticky",
+      "effect": "write",
+      "summary": "Add to or replace the text of a sticky note.",
+      "plugin_id": "sticky-note"
+    },
+    {
+      "name": "tasks__item__clear_completed",
+      "capability": "tasks.item.clear_completed",
+      "module": "tasks",
+      "effect": "destructive",
+      "summary": "Delete the completed tasks of a Program, optionally of one list, term or course.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__complete",
+      "capability": "tasks.item.complete",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Mark a task done, or reopen it with completed=false.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__count",
+      "capability": "tasks.item.count",
+      "module": "tasks",
+      "effect": "read",
+      "summary": "Counts of unfinished tasks per smart list, list and course (sidebar badges).",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__create",
+      "capability": "tasks.item.create",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Create a task (a to-do or reminder), optionally with a due date, course and list.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__create_many",
+      "capability": "tasks.item.create_many",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Create several tasks at once; items with an already known source are skipped.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__delete",
+      "capability": "tasks.item.delete",
+      "module": "tasks",
+      "effect": "destructive",
+      "summary": "Delete a task for good.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__find",
+      "capability": "tasks.item.find",
+      "module": "tasks",
+      "effect": "read",
+      "summary": "Find tasks by words of their title ('that lab report').",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__get",
+      "capability": "tasks.item.get",
+      "module": "tasks",
+      "effect": "read",
+      "summary": "Get one task with its notes, due date, priority and source.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__move",
+      "capability": "tasks.item.move",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Move a task to another list (or the inbox) and/or to a place within the list.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__query",
+      "capability": "tasks.item.query",
+      "module": "tasks",
+      "effect": "read",
+      "summary": "List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__item__update",
+      "capability": "tasks.item.update",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Change a task's title, notes, due date and time, priority, flag, list or course.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__list__create",
+      "capability": "tasks.list.create",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Create a task list, for one term or for the whole Program.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__list__delete",
+      "capability": "tasks.list.delete",
+      "module": "tasks",
+      "effect": "destructive",
+      "summary": "Delete a task list; its tasks move to the inbox unless told otherwise.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__list__list",
+      "capability": "tasks.list.list",
+      "module": "tasks",
+      "effect": "read",
+      "summary": "List the task lists of a Program (term lists and Program-wide lists).",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__list__reorder",
+      "capability": "tasks.list.reorder",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Set the display order of a Program's task lists.",
+      "plugin_id": null
+    },
+    {
+      "name": "tasks__list__update",
+      "capability": "tasks.list.update",
+      "module": "tasks",
+      "effect": "write",
+      "summary": "Rename a task list or change its color or icon.",
+      "plugin_id": null
+    }
+  ],
+  "prompts": [
+    {
+      "name": "answer-from-course-files",
+      "title": {
+        "en": "Answer from course files",
+        "zh-CN": "根据课程文件回答"
+      },
+      "description": "Use when the user asks what a course's material says (syllabus rules, lecture notes, assignment handouts) and the answer should come from their uploaded files, with citations.",
+      "tools": [
+        "files__document__search",
+        "files__document__read",
+        "files__document__outline",
+        "files__item__list",
+        "academics__course__find"
+      ]
+    },
+    {
+      "name": "answer-schedule-questions",
+      "title": {
+        "en": "Answer schedule questions",
+        "zh-CN": "查询课表与日程"
+      },
+      "description": "Use when the user asks when something happens: their next class, what is on a day or week, what is due soon, exam dates, or when a course meets.",
+      "tools": [
+        "calendar__today__get",
+        "calendar__occurrence__list",
+        "academics__course__find",
+        "academics__term__get_weeks",
+        "schedule__meeting__list"
+      ]
+    },
+    {
+      "name": "edit-class-schedule",
+      "title": {
+        "en": "Edit the timetable",
+        "zh-CN": "编辑课表"
+      },
+      "description": "Use when the user wants to add, change, cancel, move or hide classes, change a room, keep only their own tutorial, or add, change or delete one-off events such as exams and office hours.",
+      "tools": [
+        "academics__course__find",
+        "calendar__occurrence__list",
+        "schedule__meeting__list",
+        "schedule__meeting__create",
+        "schedule__meeting__update",
+        "schedule__meeting__delete",
+        "schedule__meeting__set_enabled",
+        "schedule__exception__upsert",
+        "schedule__exception__delete",
+        "schedule__event__list",
+        "schedule__event__create",
+        "schedule__event__update",
+        "schedule__event__delete",
+        "schedule__event_type__list",
+        "schedule__event_type__create",
+        "schedule__event_type__update",
+        "schedule__conflict__list"
+      ]
+    },
+    {
+      "name": "grade-planning",
+      "title": {
+        "en": "Plan grades",
+        "zh-CN": "成绩规划"
+      },
+      "description": "Use when the user asks what they need on the rest of a course (\"what do I need on the final to get an A\", \"final grade needed\"), or asks a what-if about scores or GPA.",
+      "tools": [
+        "academics__course__find",
+        "grading__gradebook__get",
+        "grading__scale__get",
+        "grading__simulate__course",
+        "grading__score__suggest",
+        "grading__summary__term",
+        "grading__simulate__term",
+        "grading__summary__program"
+      ]
+    },
+    {
+      "name": "import-from-documents",
+      "title": {
+        "en": "Import from documents",
+        "zh-CN": "从文档导入"
+      },
+      "description": "Use when the user shares a syllabus, timetable, ICS file or screenshot and wants its courses, grading scheme, class times or dates in the app (\"import this\", \"import syllabus\", \"set up my courses from these\"), or to finish an import an LMS tool started.",
+      "tools": [
+        "academics__course__find",
+        "academics__term__list",
+        "academics__term__create",
+        "academics__term__update",
+        "imports__session__create",
+        "imports__session__get",
+        "imports__item__update",
+        "imports__item__decide_many",
+        "imports__item__add_many",
+        "imports__session__commit",
+        "imports__session__discard"
+      ]
+    },
+    {
+      "name": "manage-tasks",
+      "title": {
+        "en": "Manage tasks",
+        "zh-CN": "管理待办"
+      },
+      "description": "Use when the user wants to add a to-do or reminder (\"remind me to…\"), or find, finish, change, move or delete tasks and task lists, or asks about the task list itself (flagged, overdue, unsorted).",
+      "tools": [
+        "tasks__item__find",
+        "tasks__item__get",
+        "tasks__item__query",
+        "tasks__item__create",
+        "tasks__item__create_many",
+        "tasks__item__update",
+        "tasks__item__complete",
+        "tasks__item__move",
+        "tasks__item__delete",
+        "tasks__item__clear_completed",
+        "tasks__item__count",
+        "tasks__list__list",
+        "tasks__list__create",
+        "tasks__list__update",
+        "tasks__list__reorder",
+        "tasks__list__delete",
+        "academics__course__find",
+        "grading__assessment__update"
+      ]
+    },
+    {
+      "name": "manage-terms-and-courses",
+      "title": {
+        "en": "Manage terms and courses",
+        "zh-CN": "管理学期与课程"
+      },
+      "description": "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, reorder courses, or make a course year-long.",
+      "tools": [
+        "academics__program__get",
+        "academics__program__update",
+        "academics__program__set_subject_color",
+        "academics__term__list",
+        "academics__term__get",
+        "academics__term__get_weeks",
+        "academics__term__create",
+        "academics__term__update",
+        "academics__term__preview_delete",
+        "academics__term__delete",
+        "academics__course__find",
+        "academics__course__list",
+        "academics__course__get",
+        "academics__course__create",
+        "academics__course__create_many",
+        "academics__course__set_terms",
+        "academics__course__update",
+        "academics__course__reorder",
+        "academics__course__delete"
+      ]
+    },
+    {
+      "name": "record-grades",
+      "title": {
+        "en": "Record grades",
+        "zh-CN": "录入成绩"
+      },
+      "description": "Use when the user reports a score they got (\"I got 82 on the midterm\", \"Lab 3: 18/20\") or an official final grade, to record it on the right assessment or course.",
+      "tools": [
+        "academics__course__find",
+        "grading__assessment__find",
+        "grading__assessment__list",
+        "grading__assessment__create",
+        "grading__assessment__update",
+        "grading__gradebook__get",
+        "grading__course_result__update"
+      ]
+    },
+    {
+      "name": "setup-gradebook",
+      "title": {
+        "en": "Set up a gradebook",
+        "zh-CN": "设置成绩簿"
+      },
+      "description": "Use when the user tells you a course's grading scheme in the chat (\"2 midterms 25% each, final 40%\") and wants the gradebook built from it. A scheme in a file or syllabus is imported instead.",
+      "tools": [
+        "academics__course__find",
+        "grading__gradebook__get",
+        "grading__category__create",
+        "grading__category__update",
+        "grading__assessment__create_many",
+        "grading__assessment__update",
+        "grading__course_result__update"
+      ]
+    },
+    {
+      "name": "use-lms",
+      "title": {
+        "en": "Use the LMS",
+        "zh-CN": "使用学习平台"
+      },
+      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, pages, modules, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
+      "tools": [
+        "lms__course__link__get",
+        "lms__course__overview",
+        "lms__announcement__list",
+        "lms__assignment__list",
+        "lms__grade__list",
+        "lms__module__list",
+        "lms__module_item__list",
+        "lms__page__list",
+        "lms__page__get",
+        "lms__quiz__list",
+        "lms__syllabus__get",
+        "lms__file__get",
+        "lms__file__save_to_course",
+        "lms__course__list",
+        "lms__course__link__set",
+        "lms__course__import",
+        "lms__assignment__import",
+        "lms__syllabus__import",
+        "lms__course__check_updates",
+        "lms__course__queue_updates",
+        "imports__session__get",
+        "imports__item__update",
+        "imports__item__decide_many",
+        "imports__session__commit",
+        "imports__session__discard"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       web: ${{ steps.filter.outputs.web }}
       contract: ${{ steps.filter.outputs.contract }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
@@ -48,6 +49,15 @@ jobs:
               - *ci
               - apps/api/**
               - packages/api-client/**
+              - package.json
+              - pnpm-lock.yaml
+            # The docs build reads the OpenAPI schema, the MCP catalog and the app's messages.
+            docs:
+              - *ci
+              - apps/docs/**
+              - apps/web/messages/**
+              - packages/api-client/openapi.json
+              - packages/api-client/capabilities.json
               - package.json
               - pnpm-lock.yaml
 
@@ -121,3 +131,17 @@ jobs:
       - run: uv sync --locked --project apps/api
       - run: pnpm gen:api
       - run: git diff --exit-code
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with: { node-version: 26, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @semestra/docs lint
+      - run: pnpm --filter @semestra/docs typecheck
+      - run: pnpm --filter @semestra/docs build

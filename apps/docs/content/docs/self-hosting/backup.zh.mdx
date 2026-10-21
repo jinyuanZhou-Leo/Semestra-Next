@@ -1,0 +1,44 @@
+---
+title: 备份与恢复
+description: 所有数据都在一个卷里。做快照、每日备份、恢复。
+---
+
+`semestra-data` 卷（容器里的 `/data`）存放 SQLite 数据库、上传的文件和 `secrets.env`。三者都要备份。
+
+## 一次性快照
+
+```bash
+docker compose exec semestra semestra backup /data/backups   # 数据库和文件
+docker compose cp semestra:/data/backups ./semestra-backup
+```
+
+`semestra backup` 在应用运行时为每个数据库做一致的副本。加 `--db-only` 跳过文件。
+
+## 每日备份到宿主机
+
+```bash
+mkdir backups && sudo chown 10001 backups
+```
+
+取消 `docker-compose.yml` 里 `- ./backups:/backups` 的注释，在 `.env` 里加上 `SEMESTRA_BACKUP_DIR=/backups`，再运行
+`docker compose up -d`。之后应用会为每个数据库保留最新的 7 个快照（`SEMESTRA_BACKUP_KEEP`），并把上传的文件同步到
+`backups/storage`。
+
+<Callout type="warn">
+  和数据在同一块磁盘上的备份，磁盘坏了也一起没了。请定期把备份目录复制到另一台机器。
+</Callout>
+
+## 恢复
+
+```bash
+docker compose down
+docker run --rm -v semestra_semestra-data:/data -v "$PWD/semestra-backup:/in:ro" alpine sh -c \
+  'cp /in/db/semestra-<timestamp>.sqlite /data/semestra.db && rm -f /data/semestra.db-wal /data/semestra.db-shm && chown -R 10001:10001 /data'
+docker compose up -d
+```
+
+如果是新的卷，还要把 `storage/` 和 `secrets.env` 放回 `/data`。
+
+## 单个用户的备份
+
+每个用户也可以把自己的数据导出成 zip 文件，再导入到另一个账户或实例。见[导出、恢复与删除账户](/docs/data)。

@@ -7,13 +7,13 @@ from fastapi import Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from semestra.core.auth_schemes import SESSION_COOKIE
 from semestra.core.config import Settings
 from semestra.core.context import AuthInfo, Identity
 from semestra.core.errors import AppError
 from semestra.modules.auth import crypto
 from semestra.modules.auth.models import AuthPersonalAccessToken, AuthSession, AuthUser
 
-SESSION_COOKIE = "semestra_session"
 CSRF_COOKIE = "semestra_csrf"
 CSRF_HEADER = "x-semestra-csrf"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})

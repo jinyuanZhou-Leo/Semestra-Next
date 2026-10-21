@@ -18,7 +18,11 @@
     "apps/web/src/lib/message-groups",
     "packages/api-client/src/generated",
     "packages/api-client/openapi.json",
+    "packages/api-client/capabilities.json",
     "pnpm-lock.yaml",
-    "docs"
+    "/docs",
+    "apps/docs/.next",
+    "apps/docs/.source",
+    "apps/docs/out"
   ]
 }

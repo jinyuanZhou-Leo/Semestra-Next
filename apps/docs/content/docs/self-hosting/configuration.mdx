@@ -1,0 +1,86 @@
+---
+title: Configuration
+description: Every setting is an environment variable with the SEMESTRA_ prefix.
+---
+
+Put settings in `deploy/selfhost/.env`. The compose file passes the file to the container and
+fills in the variables marked _compose_ below. The full list with comments is
+`deploy/.env.example`; the source of truth is `apps/api/src/semestra/core/config.py`.
+
+## Compose file
+
+These are read by `docker-compose.yml` itself.
+
+| Variable              | Default                 | Meaning                                                                    |
+| --------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| `SEMESTRA_VERSION`    | `latest`                | Image tag, e.g. `1.2.0`                                                    |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Sets the web and API origins and CORS              |
+| `SEMESTRA_PORT`       | `8000`                  | Host port                                                                  |
+| `SEMESTRA_BIND`       | `0.0.0.0`               | Host interface. Use `127.0.0.1` behind a reverse proxy                     |
+| `SEMESTRA_DOMAIN`     | (empty)                 | Domain for the bundled Caddy (`--profile https`)                           |
+
+## Accounts and sign-in
+
+| Variable                              | Default | Meaning                                                                    |
+| ------------------------------------- | ------- | -------------------------------------------------------------------------- |
+| `SEMESTRA_SESSION_TTL_DAYS`           | `30`    | Web session lifetime                                                       |
+| `SEMESTRA_ACCESS_TOKEN_TTL_SECONDS`   | `900`   | Access token lifetime for native clients                                   |
+| `SEMESTRA_REFRESH_TOKEN_TTL_DAYS`     | `60`    | Refresh token lifetime for native clients                                  |
+| `SEMESTRA_NOTIFY_NEW_SIGN_IN`         | `false` | Email the user when a new session signs in                                 |
+| `SEMESTRA_GOOGLE_CLIENT_ID`           | (empty) | Google sign-in. Empty hides the Google button                              |
+| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | Reverse proxies in front of the API; the client IP is read from `X-Forwarded-For` that many hops from the right |
+| `SEMESTRA_COOKIE_SECURE`              | (unset) | Unset means Secure cookies when the public URL is `https`                  |
+
+Email settings are on [Email](./email.mdx).
+
+## Storage and files
+
+| Variable                               | Default (self-hosted) | Meaning                                         |
+| -------------------------------------- | --------------------- | ----------------------------------------------- |
+| `SEMESTRA_USER_STORAGE_QUOTA_BYTES`    | `0` _compose_         | Storage per user; `0` means unlimited           |
+| `SEMESTRA_FILES_MAX_UPLOAD_BYTES`      | `26214400` (25 MB)    | Largest single upload                           |
+| `SEMESTRA_FILES_PARSE_TIMEOUT_SECONDS` | `300`                 | Longest a file may take to parse                |
+| `SEMESTRA_FILES_PARSE_MEMORY_BYTES`    | `2147483648` (2 GB)   | Memory limit of the parsing process             |
+
+## Network
+
+| Variable                        | Default (self-hosted) | Meaning                                                                                       |
+| ------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_      | Lets the server call private and loopback addresses: a LAN Ollama, an on-premises Canvas, plain-http Canvas. Outside the compose file the default is `false` |
+
+With `false`, requests to user-chosen hosts (AI base URLs, Canvas) are refused with
+`common.egress_blocked` when the host resolves to a private, loopback or link-local address, and
+redirects are never followed.
+
+## AI
+
+| Variable                               | Default | Meaning                                                    |
+| -------------------------------------- | ------- | ---------------------------------------------------------- |
+| `SEMESTRA_INSTANCE_AI_KIND`            | (empty) | Instance-wide provider kind                                |
+| `SEMESTRA_INSTANCE_AI_BASE_URL`        | (empty) | Its base URL                                               |
+| `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | (empty) | Model for chat, document reading and titles                |
+| `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | (empty) | Model for search embeddings                                |
+| `SEMESTRA_INSTANCE_AI_API_KEY`         | (empty) | Its key, optional for Ollama                               |
+| `SEMESTRA_AI_WARM_UP`                  | `true`  | Load the AI libraries in the background after start        |
+
+See [Instance-wide provider](/docs/ai/instance-provider).
+
+## Background work and backups
+
+| Variable                   | Default | Meaning                                                       |
+| -------------------------- | ------- | ------------------------------------------------------------- |
+| `SEMESTRA_JOB_CONCURRENCY` | `2`     | Background job workers in the process                         |
+| `SEMESTRA_BACKUP_DIR`      | (empty) | Turns on the daily built-in backup into this directory        |
+| `SEMESTRA_BACKUP_KEEP`     | `7`     | Database snapshots kept                                       |
+
+## Secrets and logging
+
+| Variable                   | Default                  | Meaning                                                                 |
+| -------------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| `SEMESTRA_SECRET_KEY`      | generated                | Signs sessions and tokens                                               |
+| `SEMESTRA_ENCRYPTION_KEY`  | generated                | Fernet key that encrypts saved provider keys and Canvas tokens          |
+| `SEMESTRA_LOG_LEVEL`       | `INFO`                   | Log level                                                               |
+| `SEMESTRA_SENTRY_DSN`      | (empty)                  | Error reporting to Sentry; empty turns it off                           |
+
+The container only generates keys while `SEMESTRA_AUTO_SECRETS=true`, which the compose file
+sets. `SEMESTRA_SKIP_MIGRATIONS=true` skips the migration on start.

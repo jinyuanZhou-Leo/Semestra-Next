@@ -1,0 +1,30 @@
+---
+title: 全实例服务商
+description: 仅限自部署。用户自己没有服务商时使用的公共服务商。
+---
+
+自部署实例可以通过环境变量为每个用户提供一个默认服务商，例如本地的 Ollama。只有当用户自己没有能满足某个用途的已启用服务商时，才会用它
+（见[由哪个模型回答](./index.mdx#由哪个模型回答)）。
+
+```bash title="deploy/selfhost/.env"
+SEMESTRA_INSTANCE_AI_KIND=ollama
+SEMESTRA_INSTANCE_AI_BASE_URL=http://ollama:11434
+SEMESTRA_INSTANCE_AI_CHAT_MODEL=qwen3:8b
+SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
+# SEMESTRA_INSTANCE_AI_API_KEY=   # Ollama 可不填
+```
+
+| 变量                                   | 含义                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `SEMESTRA_INSTANCE_AI_KIND`            | `anthropic`、`anthropic_compatible`、`openai`、`openai_compatible`、`openai_responses`、`gemini` 或 `ollama` |
+| `SEMESTRA_INSTANCE_AI_BASE_URL`        | 兼容类型、`openai_responses` 和 `ollama` 必填                                                |
+| `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | 用于 Sem、读取文档和标题                                                                     |
+| `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | 用于文件搜索；留空表示不提供                                                                 |
+| `SEMESTRA_INSTANCE_AI_API_KEY`         | 服务商需要时填写密钥                                                                         |
+
+全实例服务商的能力由这些变量决定：对话模型提供对话、工具调用和结构化输出，Anthropic、OpenAI 和 Gemini 还提供读取图片；向量模型提供搜索。
+使用 Ollama 或兼容接口时，读取图片需要用户自己的服务商。
+
+<Callout type="warn">
+  实例的所有用户都会消耗这个服务商的额度。如果用的是付费 API 密钥，账单由你承担。
+</Callout>

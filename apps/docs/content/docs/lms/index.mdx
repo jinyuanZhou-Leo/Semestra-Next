@@ -1,0 +1,77 @@
+---
+title: Connect Canvas
+description: Link Semestra to your Canvas account, a program and its courses.
+---
+
+Semestra connects to learning platforms through providers. Canvas is the only provider today.
+A connection reads from Canvas with your own access token; Semestra never writes to Canvas.
+
+There are three levels, each set up once:
+
+| Level      | Where                                                     | What it holds                                         |
+| ---------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| Connection | Account settings → **Integrations → LMS connections**     | Canvas address and access token. You can have several |
+| Program    | Program settings → **Integrations → LMS**                 | Which connection this program's courses use           |
+| Course     | Course settings → **Integrations → LMS**                  | Which Canvas course this course is linked to          |
+
+## 1. Add a connection
+
+<Steps>
+<Step>
+
+In Canvas, open **Account → Settings** and choose **New access token** under _Approved
+integrations_. Copy the token; Canvas shows it only once.
+
+</Step>
+<Step>
+
+In Semestra, add an LMS connection, pick **Canvas**, and enter your Canvas address (for example
+`https://school.instructure.com`; `https://` is added if you leave it out) and the token.
+
+</Step>
+<Step>
+
+Semestra checks the token against Canvas before saving. The token is stored encrypted and only a
+masked hint is shown afterwards. Changing the address requires entering the token again, so a
+saved token is never sent to a different server.
+
+</Step>
+</Steps>
+
+Connections are re-checked every six hours. A connection whose token was revoked or expired is
+marked with an error until you update it.
+
+## 2. Bind a program
+
+In the program's settings, choose the connection its courses use. While any course of the
+program is linked, the binding cannot be changed or removed.
+
+## 3. Link courses
+
+Either [import courses from Canvas](./imports.mdx), which links them as they are created, or open
+an existing course's settings and pick its Canvas course. A Canvas course can be linked to only
+one course per program. A year-long course has a single link.
+
+Each link has a **sync** switch. When it is off, the course's Canvas deadlines leave the calendar
+and assignment changes are no longer detected; the Canvas tab and Sem can still read the course.
+
+## What you get from a link
+
+- **Canvas tab** (a plugin, installed per account): announcements, assignments, modules, pages,
+  files, quizzes, grades and the syllabus of the linked course, read live from Canvas.
+- **Calendar**: assignment due dates and Canvas calendar events of synced courses appear in the
+  term calendar. Assignments you already imported are not shown twice.
+- **Announcements card** for course and term boards.
+- **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
+
+Reads are cached for five minutes. Refreshing in the Canvas tab bypasses the cache.
+
+## Self-hosted Canvas
+
+A Canvas server on a private network, or one served over plain `http://`, needs
+`SEMESTRA_ALLOW_PRIVATE_EGRESS=true` (the default of the self-hosting compose file). On the hosted
+version only public `https://` addresses work.
+
+## Not supported yet
+
+New Quizzes and discussion checkpoints are not read.
