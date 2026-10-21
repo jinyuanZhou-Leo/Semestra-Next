@@ -1,5 +1,6 @@
 """Built-in grading scales and category templates (M03 §2)."""
 
+from collections.abc import Sequence
 from typing import Any
 
 # (min, max, points, letter): whole-number tables as universities publish them.
@@ -88,7 +89,7 @@ _KR_45 = [
 _CUSTOM = [(0, 100, 0.0, None)]
 
 # Preset id -> (points of a perfect grade, bands); the order is the order users see.
-_PRESETS: dict[str, tuple[float, list[tuple[int, int, float, str | None]]]] = {
+_PRESETS: dict[str, tuple[float, Sequence[tuple[int, int, float, str | None]]]] = {
     "uoft_4_0": (4.0, _UOFT),
     "us_4_0": (4.0, _US),
     "us_4_33": (4.33, _US_433),
