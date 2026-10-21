@@ -22,6 +22,7 @@ type CalendarProps = {
   events: { id: string; title: string; display?: string }[]
   eventDrop: (info: unknown) => void
   datesSet: (info: unknown) => void
+  weekNumberContent: (arg: { date: Date }) => string
 }
 const calendar = vi.hoisted(() => ({ props: null as CalendarProps | null }))
 
@@ -293,6 +294,21 @@ test('dragging a class asks whether to move only this one, which saves an except
       },
     }),
   )
+})
+
+test('the week number beside the days is the term week of the first day shown, west of UTC too', async () => {
+  // FullCalendar passes its UTC-based date marker here; read as a local date it is the
+  // day before in Toronto, which fell in the previous term week.
+  const tz = process.env.TZ
+  process.env.TZ = 'America/Toronto'
+  try {
+    await openCalendar()
+    expect(calendar.props?.weekNumberContent({ date: new Date(Date.UTC(2026, 0, 11)) })).toBe(
+      'Week 2',
+    )
+  } finally {
+    process.env.TZ = tz
+  }
 })
 
 test('"whole section" moves the meeting itself; closing the question puts the class back', async () => {

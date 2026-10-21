@@ -62,7 +62,7 @@ import {
   useOccurrences,
   useTermMeetings,
 } from '../queries'
-import { hhmm, isoDay, isoWeekday, plusDays, toWall, todayIn } from '../time'
+import { hhmm, isoDay, isoWeekday, markerDay, plusDays, toWall, todayIn } from '../time'
 
 export type CalendarView = CalendarSettings['default_view']
 type Nav = { view: CalendarView; date: string }
@@ -266,8 +266,8 @@ function TermCalendar({
     await invalidateSchedule(queryClient)
   }
 
-  const weekNumberLabel = (date: Date) => {
-    const week = weekOf(weeks, isoDay(date))
+  const weekNumberLabel = (day: string) => {
+    const week = weekOf(weeks, day)
     return week ? weekLabel(week.number, week.break_info?.name) : ''
   }
   const currentWeek = weekOf(weeks, anchor)
@@ -430,7 +430,7 @@ function TermCalendar({
                 nowIndicator
                 now={now}
                 weekNumbers
-                weekNumberContent={(arg) => weekNumberLabel(arg.date)}
+                weekNumberContent={(arg) => weekNumberLabel(markerDay(arg.date))}
                 allDayText={m.schedule_all_day()}
                 noEventsText={m.schedule_no_events()}
                 events={fcEvents}
