@@ -1,4 +1,4 @@
-import type { AgentProposalOut } from '@semestra/api-client'
+import type { AgentProposalOut, MemoryOut } from '@semestra/api-client'
 import { csrfHeaders, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
@@ -34,9 +34,15 @@ export type PauseReason = 'tool_limit' | 'loop'
 /** The server-sent events of a turn (M12 §4). */
 export type RememberedMemory = {
   id: string
-  content: string
+  name?: string
+  /** The memory's line as the call left it. */
+  description?: string
+  /** The same, on results saved before memories had names. */
+  content?: string
   /** Missing on results saved before forgetting was shown. */
-  action?: 'remembered' | 'forgot'
+  action?: 'remembered' | 'updated' | 'forgot'
+  /** For `updated`: what the call replaced, which its undo puts back. */
+  previous?: { name: string; type: MemoryOut['type']; description: string; body: string }
 }
 
 export type AgentEvent =
@@ -60,7 +66,7 @@ export type AgentEvent =
         ok: boolean
         error_code: string | null
         changed?: boolean
-        /** What `agent.memory.remember` saved: the chat offers to undo it. */
+        /** What a memory call saved, updated or forgot: the chat offers to undo it. */
         memory?: RememberedMemory
         /** Names and counts for the step's line (`agent/display.py`). */
         display?: StepDisplay

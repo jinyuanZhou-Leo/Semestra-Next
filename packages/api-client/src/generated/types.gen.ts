@@ -5646,13 +5646,21 @@ export type MemoryOut = {
      */
     id: string;
     /**
-     * Category
+     * Name
      */
-    category: 'preference' | 'goal' | 'constraint' | 'context';
+    name: string;
     /**
-     * Content
+     * Type
      */
-    content: string;
+    type: 'user' | 'feedback' | 'project' | 'reference';
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Body
+     */
+    body: string;
     /**
      * Source Session Id
      */
@@ -5672,17 +5680,29 @@ export type MemoryOut = {
  */
 export type MemoryUpdateInputBody = {
     /**
-     * Content
+     * Name
      *
-     * New text.
+     * The memory's kebab-case name (lowercase ASCII letters, digits and hyphens), such as `preferred-name` or `no-tables-in-answers`.
      */
-    content?: string | null;
+    name?: string | null;
     /**
-     * Category
+     * Type
      *
-     * New category.
+     * New type.
      */
-    category?: 'preference' | 'goal' | 'constraint' | 'context' | null;
+    type?: 'user' | 'feedback' | 'project' | 'reference' | null;
+    /**
+     * Description
+     *
+     * New one-line text.
+     */
+    description?: string | null;
+    /**
+     * Body
+     *
+     * New body; an empty string removes it.
+     */
+    body?: string | null;
 };
 
 /**

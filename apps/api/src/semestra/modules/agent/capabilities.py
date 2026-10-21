@@ -178,7 +178,7 @@ async def tools_catalog(ctx: Ctx, inp: NoInput) -> AgentToolCatalog:
                 plugin_id=c.plugin_id,
                 core=c.agent_core,
                 mcp="mcp" in c.expose,
-                confirm=c.effect != "read" and c.name not in memory.TOOLS,
+                confirm=c.effect != "read" and c.name not in memory.WRITES,
             )
             for c in available
         ]

@@ -31,8 +31,9 @@ import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
 import { mcpConfig } from './settings/McpSection'
+import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
-import { parseSse } from './stream'
+import { parseSse, type RememberedMemory } from './stream'
 import { applyEvent, buildItems, canRegenerate, withEditedMessage } from './transcript'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -1098,28 +1099,32 @@ test('an attachment saved before shows where it went and opens the saved file', 
 })
 
 test('what Sem remembered shows under the answer and can be undone', async () => {
-  let memories = [
-    {
-      id: 'm1',
-      category: 'preference',
-      content: 'Likes short bullet points',
-      created_at: NOW,
-      updated_at: NOW,
-    },
-  ]
+  const row = (id: string, description: string) => ({
+    id,
+    name: id,
+    type: 'user',
+    description,
+    body: '',
+    source_session_id: null,
+    created_at: NOW,
+    updated_at: NOW,
+  })
+  let memories = [row('m1', 'Likes short bullet points'), row('m4', 'Goes by Leo, not Jinyuan')]
   const deleted: string[] = []
+  const patched: unknown[] = []
   server.use(
     http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: memories })),
     http.delete(`${API}/agent/memories/:id`, ({ params }) => {
       deleted.push(String(params.id))
-      memories = []
+      memories = memories.filter((memory) => memory.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),
+    http.patch(`${API}/agent/memories/:id`, async ({ request }) => {
+      patched.push(await request.json())
+      return HttpResponse.json(memories[1])
+    }),
   )
-  const step = (
-    callId: string,
-    memory: { id: string; content: string; action?: 'remembered' | 'forgot' } | null,
-  ) => ({
+  const step = (callId: string, memory: RememberedMemory | null) => ({
     callId,
     name: 'agent.memory.remember',
     args: {},
@@ -1130,16 +1135,18 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
     display: null,
     changed: true,
   })
+  const previous = { name: 'm4', type: 'user' as const, description: 'Goes by Leo', body: '' }
   render(
     <QueryClientProvider client={newQueryClient()}>
       {/* m1 was edited in settings since: the current wording shows. m2 was deleted
-          elsewhere: it is not offered for undo. */}
+          elsewhere: it is not offered for undo. m3 was forgotten before memories had names. */}
       <Remembered
         steps={[
-          step('c1', { id: 'm1', content: 'Likes bullet points', action: 'remembered' }),
+          step('c1', { id: 'm1', description: 'Likes bullet points', action: 'remembered' }),
           step('c2', { id: 'm2', content: 'Gone' }),
           step('c3', null),
           step('c4', { id: 'm3', content: 'Works Fridays', action: 'forgot' }),
+          step('c5', { id: 'm4', description: 'Goes by Leo', action: 'updated', previous }),
         ]}
       />
     </QueryClientProvider>,
@@ -1147,12 +1154,72 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
   expect(await screen.findByText('Remembered: Likes short bullet points')).toBeInTheDocument()
   expect(screen.queryByText('Remembered: Gone')).not.toBeInTheDocument()
   expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(screen.getByText('Updated memory: Goes by Leo, not Jinyuan')).toBeInTheDocument()
+  const [undoSaved, undoUpdated] = screen.getAllByRole('button', { name: 'Undo' })
+  await userEvent.click(undoUpdated!)
+  // Undoing an update puts back what it replaced; it does not delete the memory.
+  await waitFor(() => expect(patched).toEqual([previous]))
+  expect(deleted).toEqual([])
+  await waitFor(() => expect(screen.queryByText(/^Updated memory:/)).not.toBeInTheDocument())
+  await userEvent.click(undoSaved!)
   await waitFor(() => expect(deleted).toEqual(['m1']))
   await waitFor(() =>
     expect(screen.queryByText('Remembered: Likes short bullet points')).not.toBeInTheDocument(),
   )
   expect(screen.getByText('Forgot: Works Fridays')).toBeInTheDocument()
+})
+
+test('the memory page edits a memory and opens the memories it links to', async () => {
+  const row = (id: string, description: string, body = '') => ({
+    id,
+    name: id,
+    type: 'user',
+    description,
+    body,
+    source_session_id: null,
+    created_at: NOW,
+    updated_at: NOW,
+  })
+  const memories = [
+    row(
+      'exchange-credits',
+      'Exchange credits count at half weight',
+      'See [[major]] and [[rules]].',
+    ),
+    row('major', 'Majors in ECE'),
+  ]
+  const patched: unknown[] = []
+  server.use(
+    http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: memories, limit: 60 })),
+    http.patch(`${API}/agent/memories/:id`, async ({ request }) => {
+      patched.push(await request.json())
+      return HttpResponse.json(memories[0])
+    }),
+  )
+  renderWithRouter(<MemorySection />)
+  await userEvent.click(
+    await screen.findByRole('button', { name: /Exchange credits count at half weight/ }),
+  )
+  const dialog = await screen.findByRole('dialog', { name: 'Edit memory' })
+  expect(within(dialog).getByLabelText('Summary')).toHaveValue(
+    'Exchange credits count at half weight',
+  )
+  // A link to a memory that exists opens it; one to a missing name is only shown.
+  expect(within(dialog).getByText('rules')).toBeInTheDocument()
+  const name = within(dialog).getByLabelText('Name')
+  await userEvent.clear(name)
+  await userEvent.type(name, 'Bad Name')
+  expect(within(dialog).getByText('Use lowercase letters, digits and hyphens only.')).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
+  await userEvent.clear(name)
+  await userEvent.type(name, 'exchange-rules')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Majors in ECE' }))
+  // Switching discards the unsaved edit and shows the linked memory.
+  expect(within(dialog).getByLabelText('Summary')).toHaveValue('Majors in ECE')
+  await userEvent.type(within(dialog).getByLabelText('Details'), 'Electrical, not computer.')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(patched).toEqual([{ body: 'Electrical, not computer.' }]))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 test('the sentence the model said and its steps show in order, not folded into groups', async () => {

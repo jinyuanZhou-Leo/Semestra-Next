@@ -194,6 +194,7 @@ async def test_tool_catalog_follows_installed_plugins(agent: Agent):
     assert {n for n in names if n.startswith("agent.")} == {
         "agent.memory.remember",
         "agent.memory.forget",
+        "agent.memory.get",
         "agent.attachment.read",
         "agent.attachment.save",
     }

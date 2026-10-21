@@ -300,13 +300,20 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
     if shown != text:
         meta["full"] = text
         turn.full[call_id] = (name, text)
-    if outcome.ok and outcome.ran and name in memory.TOOLS and isinstance(outcome.payload, dict):
-        # The chat shows "Remembered: …" with an undo link (only for a memory this call created,
-        # so the undo never deletes an older one), or "Forgot: …".
+    if outcome.ok and outcome.ran and name in memory.WRITES and isinstance(outcome.payload, dict):
+        # The chat shows "Remembered: …" with an undo link that deletes the memory this call
+        # created, "Updated memory: …" with one that puts back what it replaced, or "Forgot: …".
+        # A call that changed nothing shows nothing (an undo would touch an older memory).
         saved: dict[str, Any] = outcome.payload  # pyright: ignore[reportUnknownVariableType]
-        if name == memory.FORGET or saved.get("created"):
-            action = "forgot" if name == memory.FORGET else "remembered"
-            meta["memory"] = {"id": saved["id"], "content": saved["content"], "action": action}
+        about = {"id": saved["id"], "name": saved["name"], "description": saved["description"]}
+        if name == memory.FORGET:
+            meta["memory"] = {**about, "action": "forgot"}
+        elif saved.get("created"):
+            meta["memory"] = {**about, "action": "remembered"}
+        elif saved.get("previous"):
+            before: dict[str, Any] = saved["previous"]
+            previous = {k: before[k] for k in ("name", "type", "description", "body")}
+            meta["memory"] = {**about, "action": "updated", "previous": previous}
     if outcome.ok and tools.is_untrusted(name):
         shown = wrap_untrusted(shown, tools.tool_name(name))
     return ToolReturn(return_value=shown, metadata=meta)
@@ -405,7 +412,7 @@ class _Hooks(AbstractCapability[Turn]):
         cap = turn.caps.get(tools.capability_name(call.tool_name))
         if cap is None or cap.effect == "read":
             return args
-        if cap.effect == "write" and (cap.name in turn.auto_approve or cap.name in memory.TOOLS):
+        if cap.effect == "write" and (cap.name in turn.auto_approve or cap.name in memory.WRITES):
             return args
         try:
             async with agent_ctx(turn.state, turn.user_id, scope=turn.scope) as c:
@@ -662,7 +669,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
                 text = _proposal_outcome(prop).content
                 resume.approvals[c.tool_call_id] = ToolDenied(text)
         _keep_callable(messages, calls)
-    remembered = await memory.snapshot(ctx, session)
+    remembered = await memory.snapshot(ctx, session, work.timezone)
     available = await registry.available(ctx, "agent")
     if not remembered:  # a temporary conversation, or memory turned off
         available = [c for c in available if c.name not in memory.TOOLS]
