@@ -36,6 +36,15 @@ export function isoDay(local: Date): string {
   return format(local, 'yyyy-MM-dd')
 }
 
+/**
+ * `yyyy-MM-dd` of a FullCalendar date marker. A few callbacks (`weekNumberContent`) pass the
+ * internal marker, which holds the day in its UTC fields, not a browser-local `Date`: read
+ * locally, it is the day before west of UTC.
+ */
+export function markerDay(marker: Date): string {
+  return marker.toISOString().slice(0, 10)
+}
+
 /** A `yyyy-MM-dd` day as a browser-local midnight `Date`. */
 export function localDay(day: string): Date {
   const [y, m, d] = day.split('-').map(Number)
