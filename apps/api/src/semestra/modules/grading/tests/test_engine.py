@@ -71,7 +71,8 @@ def test_every_preset_is_a_valid_scale(preset: str) -> None:
     bands = [
         Band(b["min"], b["max"], b["points"], b["letter"]) for b in presets.preset_bands(preset)
     ]
-    engine.validate_bands(bands, 4.0)
+    engine.validate_bands(bands, presets.preset_max_points(preset))
+    assert max(b.points for b in bands) <= presets.preset_max_points(preset)
 
 
 @pytest.mark.parametrize(

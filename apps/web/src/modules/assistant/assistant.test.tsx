@@ -19,12 +19,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
 import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
+import manifest from './manifest'
+import { panel } from './store'
 import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
@@ -383,6 +385,16 @@ test('a question streams in as Markdown', async () => {
     body: { text: 'Hello' },
   })
   expect(input).toHaveValue('')
+})
+
+test('the temporary chat switch turns the empty state into its explanation', async () => {
+  renderConversation()
+  await messageInput()
+  expect(await screen.findByText('New conversation')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('switch', { name: 'Temporary chat' }))
+  expect(screen.getByRole('switch', { name: 'Temporary chat' })).toBeChecked()
+  expect(screen.getByText(/won't read your memories/)).toBeInTheDocument()
+  expect(screen.queryByText('New conversation')).not.toBeInTheDocument()
 })
 
 test('a write waits on a card: approving sends the decision and shows the result', async () => {
@@ -1183,4 +1195,39 @@ test('a round whose only call waits on a card keeps the whole sentence the model
   await userEvent.click(screen.getByRole('button', { name: /Thought/ }))
   expect(screen.getByText('Lab_3', { selector: '[data-streamdown=strong]' })).toBeVisible()
   expect(screen.getByText('Please confirm below.')).toBeVisible()
+})
+
+test('on the page, opening the panel hands over the conversation, its temporary choice, and goes back', async () => {
+  panel.reset()
+  const root = createRootRoute({ component: Outlet })
+  const page = createRoute({
+    getParentRoute: () => root,
+    path: '/p/$programId/assistant/{-$sessionId}',
+    component: () => <AssistantPage programId="p1" sessionId={null} onNavigate={() => {}} />,
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([page]),
+    history: createMemoryHistory({ initialEntries: ['/p/p1/assistant'] }),
+  })
+  render(
+    <QueryClientProvider client={newQueryClient()}>
+      <SidebarProvider>
+        <RouterProvider router={router} />
+      </SidebarProvider>
+    </QueryClientProvider>,
+  )
+  await userEvent.click(await screen.findByRole('switch', { name: 'Temporary chat' }))
+  await userEvent.type(await messageInput(), 'half a thought')
+  await waitFor(() => expect(panel.page()).toEqual({ sessionId: null, temporary: true }))
+  const navigate = vi.fn<(to: string) => void>()
+  manifest.assistant?.open({ navigate, programId: 'p1' } as never, undefined)
+  expect(panel.get()).toMatchObject({
+    open: true,
+    sessionId: null,
+    temporary: true,
+    draft: 'half a thought',
+  })
+  // No page before it: back to Today.
+  expect(navigate).toHaveBeenCalledWith('/p/p1/today')
+  panel.reset()
 })

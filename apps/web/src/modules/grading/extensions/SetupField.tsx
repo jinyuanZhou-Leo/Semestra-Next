@@ -1,6 +1,7 @@
 import { m } from '@/paraglide/messages'
 import { Field, FieldDescription, FieldLabel } from '@/ui/field'
-import { PresetSelect } from '../components/PresetSelect'
+import { ChoiceControl } from '@/app/settings/choice'
+import { presetOptions } from '../presets'
 import { useScalePresets } from '../queries'
 
 const DEFAULT_PRESET = 'uoft_4_0'
@@ -18,9 +19,9 @@ export function ScalePresetField({
   return (
     <Field>
       <FieldLabel>{m.grading_setup_label()}</FieldLabel>
-      <PresetSelect
+      <ChoiceControl
         label={m.grading_setup_label()}
-        ids={presets?.map((p) => p.id) ?? [current]}
+        options={presetOptions(presets?.map((p) => p.id) ?? [current])}
         value={current}
         onChange={onChange}
       />

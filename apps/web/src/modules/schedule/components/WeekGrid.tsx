@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { firstDayOfWeek, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { weekdayName } from '../time'
 
 /** One block on the grid; times are minutes after midnight in the Program's time zone. */
@@ -99,11 +100,12 @@ export function WeekGrid({
   )
   const from = Math.floor(Math.min(dayStart, ...shown.map((i) => i.start)) / 60) * 60
   const to = Math.ceil(Math.max(dayEnd, ...shown.map((i) => i.end)) / 60) * 60
-  const hours = Array.from({ length: Math.max(1, (to - from) / 60) }, (_, i) => from / 60 + i)
-  // Room above the first hour line so its label can sit centered on the line like the others.
+  // One line per hour boundary, the closing one included, so the last block has a bottom edge.
+  const hours = Array.from({ length: Math.max(1, (to - from) / 60) + 1 }, (_, i) => from / 60 + i)
+  // Room above the first and below the last hour line so their labels sit centered on the lines.
   const inset = 8
-  const span = hours.length * hourHeight
-  const height = span + inset
+  const span = (hours.length - 1) * hourHeight
+  const height = span + inset * 2
   const top = (value: number) => inset + ((value - from) / (to - from)) * span
 
   return (
@@ -160,45 +162,75 @@ export function WeekGrid({
             ))}
             {dayItems.map((item) => {
               const place = lanes.get(item.id) ?? { lane: 0, lanes: 1 }
-              const Tag = item.onClick ? 'button' : 'div'
+              const clock = (value: number) =>
+                formatTime(
+                  `${String(Math.floor(value / 60) % 24).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`,
+                )
+              const range = `${clock(item.start)} – ${clock(item.end)}`
+              const flags = [
+                item.conflict ? m.schedule_conflict() : null,
+                item.cancelled ? m.schedule_status_cancelled() : null,
+              ].filter(Boolean)
+              const label = [...flags, item.title, item.subtitle, range].filter(Boolean).join(', ')
               return (
-                <Tag
-                  key={item.id}
-                  type={item.onClick ? 'button' : undefined}
-                  onClick={item.onClick}
-                  data-testid="grid-item"
-                  className={cn(
-                    'absolute flex flex-col justify-start overflow-hidden rounded-md border-l-4 px-1 py-0.5 text-left leading-tight',
-                    item.onClick && 'cursor-pointer hover:brightness-95',
-                    item.muted && 'opacity-50',
-                  )}
-                  style={{
-                    top: top(item.start) + 1,
-                    height: Math.max(top(item.end) - top(item.start) - 2, 14),
-                    left: `calc(${(place.lane / place.lanes) * 100}% + 2px)`,
-                    width: `calc(${100 / place.lanes}% - 4px)`,
-                    borderLeftColor: item.color,
-                    backgroundColor: `color-mix(in oklab, ${item.color} 18%, var(--background))`,
-                  }}
-                >
-                  <span
+                <Tooltip key={item.id}>
+                  <TooltipTrigger
+                    render={
+                      item.onClick ? (
+                        <button type="button" aria-label={label} onClick={item.onClick} />
+                      ) : (
+                        <div />
+                      )
+                    }
+                    data-testid="grid-item"
                     className={cn(
-                      'flex items-center gap-1 font-medium',
-                      item.cancelled && 'line-through opacity-70',
+                      'absolute flex overflow-hidden rounded-md text-left leading-tight',
+                      item.onClick && 'cursor-pointer hover:brightness-95',
+                      item.muted && 'opacity-50',
                     )}
+                    style={{
+                      top: top(item.start) + 1,
+                      height: Math.max(top(item.end) - top(item.start) - 2, 14),
+                      left: `calc(${(place.lane / place.lanes) * 100}% + 2px)`,
+                      width: `calc(${100 / place.lanes}% - 4px)`,
+                      backgroundColor: `color-mix(in oklab, ${item.color} 18%, var(--background))`,
+                    }}
                   >
-                    {item.conflict ? (
-                      <TriangleAlert
-                        aria-label={m.schedule_conflict()}
-                        className="size-3 shrink-0 text-destructive"
-                      />
-                    ) : null}
-                    <span className="truncate">{item.title}</span>
-                  </span>
-                  {!compact && item.subtitle ? (
-                    <span className="block truncate text-muted-foreground">{item.subtitle}</span>
-                  ) : null}
-                </Tag>
+                    {/* A straight-edged bar: the block's rounded corners clip it. */}
+                    <span
+                      aria-hidden
+                      className="w-1 shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="min-w-0 flex-1 px-1 py-0.5">
+                      <span
+                        className={cn(
+                          'flex items-center gap-1 font-medium',
+                          item.cancelled && 'line-through opacity-70',
+                        )}
+                      >
+                        {item.conflict ? (
+                          <TriangleAlert
+                            aria-label={m.schedule_conflict()}
+                            className="size-3 shrink-0 text-destructive"
+                          />
+                        ) : null}
+                        <span className="truncate">{item.title}</span>
+                      </span>
+                      {!compact && item.subtitle ? (
+                        <span className="block truncate text-muted-foreground">
+                          {item.subtitle}
+                        </span>
+                      ) : null}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="flex-col items-start gap-0.5">
+                    <span className="font-medium">{item.title}</span>
+                    {item.subtitle ? <span>{item.subtitle}</span> : null}
+                    <span className="tabular-nums">{range}</span>
+                    {flags.length > 0 ? <span>{flags.join(' · ')}</span> : null}
+                  </TooltipContent>
+                </Tooltip>
               )
             })}
           </div>

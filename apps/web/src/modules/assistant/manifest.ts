@@ -1,6 +1,6 @@
 import { Bookmark, ListChecks, MessageCircle, Plug, Trash2, Wrench } from 'lucide-react'
 import { lazy } from 'react'
-import { defineModule } from '@/app/extensions'
+import { defineModule, scopePath } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { AssistantDock } from './components/AssistantDock'
 import { panel } from './store'
@@ -19,7 +19,17 @@ export default defineModule({
   description: m.assistant_description,
   icon: MessageCircle,
   assistant: {
-    open: (_ctx, question) => (question ? panel.open(question) : panel.toggle()),
+    open: (ctx, question) => {
+      if (question) return panel.open(question)
+      const page = panel.page()
+      if (!page) return panel.toggle()
+      // On the full page the panel is not shown: the conversation moves to it, and the user goes
+      // back to where they came from.
+      panel.moveHere(page.sessionId, page.temporary, panel.pageDraft())
+      ctx.navigate(
+        panel.returnTo() ?? scopePath({ kind: 'program', programId: ctx.programId ?? '' }, 'today'),
+      )
+    },
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
     Dock: AssistantDock,
     SidebarNav: lazy(() =>
