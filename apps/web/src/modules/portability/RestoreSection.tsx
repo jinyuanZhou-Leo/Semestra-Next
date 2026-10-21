@@ -17,7 +17,7 @@ import { JobProgress } from '@/components/JobProgress'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatBytes, formatCount, formatDateTime } from '@/lib/format'
-import * as messages from '@/paraglide/messages'
+import { portabilityEntityMessages } from '@/lib/message-groups/portability-entities.gen'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -39,8 +39,7 @@ import { Switch } from '@/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 type Counts = Record<string, Record<string, number>>
-type MessageFn = () => string
-const labels = messages as unknown as Record<string, MessageFn | undefined>
+const labels = portabilityEntityMessages
 
 /** `portability_entity_<module>_<entity>`; entities without a label are not listed. */
 function entityRows(counts: Counts): { key: string; label: string; count: number }[] {

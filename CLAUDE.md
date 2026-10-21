@@ -37,6 +37,7 @@ docs/                设计稿与模块规格
 - 业务操作用 `@capability` 定义一次，同时得到 REST / Agent tool / MCP tool。
 - 前端不手写 fetch 调用业务接口；只用生成客户端。`src/ui/` 只由 shadcn CLI 生成，不手改。
 - 用户可见字符串全部走 Paraglide（`messages/en.json` 与 `zh-CN.json` 同步，`pnpm --filter @semestra/web i18n:lint` 检查）。
+- 不要用拼出来的键在整个 `messages` 命名空间上查文案（`import * as m` 再 ``m[`error_${code}`]``），那会把全部文案打进首屏。按前缀查的文案放在 `src/lib/message-groups/*.gen.ts`（`scripts/gen-message-groups.mjs` 生成，新前缀加到脚本的 `GROUPS`，改了文案跑 `pnpm --filter @semestra/web i18n:groups`）。
 - 颜色只用 token，不写死颜色值。
 - Alembic 保持单一 head；合并前基于最新 head 重新生成迁移。
 - 耗时任务在 `@job_handler` 里声明 `stages`（阶段与权重），进度由后端换算；前端只用 `<AiAction>` / `<JobProgress>` 展示，不自己拼阶段权重（M00 3.7、4.7.1）。

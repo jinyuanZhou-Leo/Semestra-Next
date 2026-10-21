@@ -1,4 +1,13 @@
-import { Fragment, useState } from 'react'
+import {
+  Component,
+  type ComponentType,
+  Fragment,
+  type LazyExoticComponent,
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+} from 'react'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
@@ -7,8 +16,68 @@ import { scopePath } from '../extensions'
 import { formatHotkey, useHotkey, useListedHotkeys } from '../hotkeys'
 import { useModules, usePages } from '../registry'
 import { openCommandPalette, setPalette, usePaletteState, useHostAction } from './bus'
-import { CommandPalette } from './CommandPalette'
 import { useCommandContext } from './context'
+
+// The palette and its pinyin dictionary (~300 KB) stay out of the first bundle: they load the
+// first time the palette opens, or once the page has settled, whichever comes first.
+const loadPalette = () =>
+  import('./CommandPalette').then((mod) => ({ default: mod.CommandPalette }))
+const PALETTE_LOAD_DELAY_MS = 2000
+
+function useSettled(): boolean {
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    let idle: number | undefined
+    const timer = setTimeout(() => {
+      if ('requestIdleCallback' in window) idle = requestIdleCallback(() => setSettled(true))
+      else setSettled(true)
+    }, PALETTE_LOAD_DELAY_MS)
+    return () => {
+      clearTimeout(timer)
+      if (idle !== undefined) cancelIdleCallback(idle)
+    }
+  }, [])
+  return settled
+}
+
+type LoaderState = {
+  Palette: LazyExoticComponent<ComponentType>
+  failed: boolean
+  wasOpen: boolean
+}
+
+/**
+ * Loads and shows the palette. A failed load (offline, a new deploy) shows nothing instead of
+ * taking the page down, and is tried again with a fresh import the next time the palette opens.
+ */
+class PaletteLoader extends Component<{ open: boolean }, LoaderState> {
+  state: LoaderState = { Palette: lazy(loadPalette), failed: false, wasOpen: this.props.open }
+
+  static getDerivedStateFromError(): Partial<LoaderState> {
+    return { failed: true }
+  }
+
+  static getDerivedStateFromProps(props: { open: boolean }, state: LoaderState) {
+    const reopened = props.open && !state.wasOpen
+    if (state.failed && reopened)
+      return { Palette: lazy(loadPalette), failed: false, wasOpen: true }
+    return { wasOpen: props.open }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('command_palette_load_failed', error)
+  }
+
+  render() {
+    if (this.state.failed) return null
+    const { Palette } = this.state
+    return (
+      <Suspense fallback={null}>
+        <Palette />
+      </Suspense>
+    )
+  }
+}
 
 function HotkeysHelp({
   open,
@@ -62,6 +131,7 @@ export function CommandCenter() {
   const assistant = useModules().find((module) => module.assistant)?.assistant
   const program = { kind: 'program', programId: ctx.programId ?? '' } as const
   const hasToday = usePages(program).some((page) => page.id === 'today') && !!ctx.programId
+  const settled = useSettled()
 
   useHotkey(
     'mod+k',
@@ -88,7 +158,7 @@ export function CommandCenter() {
 
   return (
     <>
-      <CommandPalette />
+      {palette.open || settled ? <PaletteLoader open={palette.open} /> : null}
       <HotkeysHelp open={helpOpen} onOpenChange={setHelpOpen} />
     </>
   )

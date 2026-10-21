@@ -13,7 +13,8 @@
     "test": "pnpm i18n:compile && vitest run",
     "test:related": "pnpm i18n:compile && vitest related --run --passWithNoTests",
     "i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --emit-ts-declarations",
-    "i18n:lint": "node scripts/check-messages.mjs",
+    "i18n:lint": "node scripts/check-messages.mjs && node scripts/gen-message-groups.mjs --check",
+    "i18n:groups": "node scripts/gen-message-groups.mjs",
     "compiler:check": "node scripts/check-react-compiler.mjs",
     "manifest:export": "pnpm i18n:compile && UPDATE_MANIFEST=1 vitest run src/app/manifest-export.test.ts",
     "e2e": "playwright test"

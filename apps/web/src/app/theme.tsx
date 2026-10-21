@@ -1,4 +1,3 @@
-import { MotionConfig } from 'motion/react'
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react'
 import {
   type Accent,
@@ -85,21 +84,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setReduceMotion,
   }
 
-  return (
-    <ThemeContext value={value}>
-      <MotionConfig
-        reducedMotion={
-          appearance.reduceMotion === 'on'
-            ? 'always'
-            : appearance.reduceMotion === 'off'
-              ? 'never'
-              : 'user'
-        }
-      >
-        {children}
-      </MotionConfig>
-    </ThemeContext>
-  )
+  return <ThemeContext value={value}>{children}</ThemeContext>
+}
+
+/**
+ * The motion setting as motion's `MotionConfig reducedMotion` value. Components that animate with
+ * motion wrap themselves in it, so the library stays out of the first bundle.
+ */
+export function useMotionPreference(): 'always' | 'never' | 'user' {
+  const reduceMotion = useContext(ThemeContext)?.reduceMotion
+  return reduceMotion === 'on' ? 'always' : reduceMotion === 'off' ? 'never' : 'user'
 }
 
 export function useTheme(): ThemeState {

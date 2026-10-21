@@ -1,7 +1,4 @@
-import * as paraglide from '@/paraglide/messages'
-
-type MessageFn = (params?: Record<string, unknown>) => string
-const messages = paraglide as unknown as Record<string, MessageFn | undefined>
+import { settingsMessages as messages } from '@/lib/message-groups/settings.gen'
 
 // Message keys are identifiers: dots and dashes (`plugin.pomodoro`, `zh-CN`) become underscores.
 const part = (value: unknown) => String(value).replaceAll(/[.-]/g, '_')
