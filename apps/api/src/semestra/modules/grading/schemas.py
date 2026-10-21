@@ -83,7 +83,11 @@ class ScaleUpdateInput(BaseModel):
 
 
 class ScalePreset(BaseModel):
-    id: str = Field(description="Preset id: uoft_4_0, us_4_0, cn_100 or custom")
+    id: str = Field(
+        description=(
+            "Preset id: uoft_4_0, us_4_0, us_4_33, standard_4_0, cn_100, au_7, kr_4_5, custom"
+        )
+    )
     max_points: float
     bands: list[ScaleBand]
 

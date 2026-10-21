@@ -93,7 +93,31 @@ async def test_program_gets_the_default_scale_or_the_chosen_preset(api: Api):
     assert (await api.call("GET", f"/programs/{odd['id']}/grading-scale"))["bands"][0]["min"] == 90
 
     presets = await api.call("GET", "/grading/scale-presets")
-    assert [p["id"] for p in presets["items"]] == ["uoft_4_0", "us_4_0", "cn_100", "custom"]
+    assert [p["id"] for p in presets["items"]] == [
+        "uoft_4_0",
+        "us_4_0",
+        "us_4_33",
+        "standard_4_0",
+        "cn_100",
+        "au_7",
+        "kr_4_5",
+        "custom",
+    ]
+    assert {p["id"]: p["max_points"] for p in presets["items"]} == {
+        "uoft_4_0": 4.0,
+        "us_4_0": 4.0,
+        "us_4_33": 4.33,
+        "standard_4_0": 4.0,
+        "cn_100": 4.0,
+        "au_7": 7.0,
+        "kr_4_5": 4.5,
+        "custom": 4.0,
+    }
+
+    au = await api.program(name="AU", setup={"grading_scale_preset": "au_7"})
+    au_scale = await api.call("GET", f"/programs/{au['id']}/grading-scale")
+    assert au_scale["max_points"] == 7.0
+    assert au_scale["bands"][0] == {"min": 85, "max": 100, "points": 7.0, "letter": "HD"}
 
 
 async def test_scale_update_validates_and_keeps_unsent_fields(api: Api):

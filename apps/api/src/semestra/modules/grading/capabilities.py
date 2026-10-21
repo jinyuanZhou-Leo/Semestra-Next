@@ -106,7 +106,10 @@ async def scale_update(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
 
 @capability(
     name="grading.scale.list_presets",
-    summary="List the built-in grading scales (UofT 4.0, US 4.0, China 100-point, custom).",
+    summary=(
+        "List the built-in grading scales (UofT 4.0, US 4.0 and 4.33, standard 4.0, "
+        "China 100-point, Australia 7-point, Korea 4.5, custom)."
+    ),
     description="Use to offer ready-made scales; apply one with grading.scale.update.",
     effect="read",
     http=Http("GET", "/grading/scale-presets"),

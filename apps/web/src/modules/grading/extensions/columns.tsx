@@ -18,7 +18,7 @@ const available = (data: unknown) => !gpaHidden(data)
 const query = (programId: string) =>
   gradingCourseSummaryListOptions({ path: { program_id: programId } })
 
-/** GPA filters are written for a 4.0 scale and scaled to the Program's maximum. */
+/** The thresholds are written for a 4.0 scale (3.5 = 87.5 %, 3.0 = 75 %) and scaled to the Program's maximum. */
 function atLeast(points: number) {
   return (course: Course, data: unknown) => {
     const max = grades(data)?.max_points
