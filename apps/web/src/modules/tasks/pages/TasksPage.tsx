@@ -338,41 +338,43 @@ export default function TasksPage({ scope }: PageProps) {
                 </Empty>
               ) : null}
               {/* One block, so the section's spacing does not open a gap above the new row. */}
-              <div className="empty:hidden">
-                {sortableRows ? (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={onDragStart}
-                    onDragEnd={onDragEnd}
-                    onDragCancel={() => setDraggingId(null)}
-                  >
-                    <SortableContext
-                      items={open.map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
+              {open.length > 0 ? (
+                <div>
+                  {sortableRows ? (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                      onDragCancel={() => setDraggingId(null)}
                     >
-                      <VirtualTaskList
-                        tasks={open}
-                        keepId={draggingId ?? editing?.id}
-                        scrollTo={scrollTo}
-                        renderRow={(task, row) => (
-                          <SortableTaskRow key={task.id} {...rowProps(task)} virtual={row} />
-                        )}
-                      />
-                    </SortableContext>
-                  </DndContext>
-                ) : completedView ? null : (
-                  <VirtualTaskList
-                    tasks={open}
-                    keepId={editing?.id}
-                    scrollTo={scrollTo}
-                    renderRow={(task, row) => (
-                      <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
-                    )}
-                  />
-                )}
-                {completedView || !newRow ? null : <ul>{newRow}</ul>}
-              </div>
+                      <SortableContext
+                        items={open.map((t) => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <VirtualTaskList
+                          tasks={open}
+                          keepId={draggingId ?? editing?.id}
+                          scrollTo={scrollTo}
+                          renderRow={(task, row) => (
+                            <SortableTaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                          )}
+                        />
+                      </SortableContext>
+                    </DndContext>
+                  ) : completedView ? null : (
+                    <VirtualTaskList
+                      tasks={open}
+                      keepId={editing?.id}
+                      scrollTo={scrollTo}
+                      renderRow={(task, row) => (
+                        <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
+                      )}
+                    />
+                  )}
+                  {completedView || !newRow ? null : <ul>{newRow}</ul>}
+                </div>
+              ) : null}
               {completedView ? (
                 <CompletedRows
                   rows={done}

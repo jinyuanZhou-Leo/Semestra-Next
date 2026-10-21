@@ -279,9 +279,10 @@ function CourseFiles({
       {dragging ? (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-background/80 backdrop-blur-sm"
+          className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-background/80 backdrop-blur-sm"
         >
-          <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-primary px-16 py-12 text-primary">
+          {/* Sticks to the middle of the scroll area, so it stays in view above a long list. */}
+          <div className="sticky top-1/2 mx-auto flex w-fit -translate-y-1/2 flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-primary px-16 py-12 text-primary">
             <Upload className="size-8" />
             <p className="text-sm font-medium">
               {m.files_drop_here({ folder: trail.at(-1)?.name ?? m.files_all_files() })}
