@@ -1,8 +1,8 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
+import { lazyRouteComponent } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
-import { lazyWithPreload } from 'react-lazy-with-preload'
 import type { ZodType } from 'zod'
 
 /**
@@ -29,21 +29,26 @@ export type Scope =
 /** A component, or one whose code loads on demand (`preloadable`). */
 type Lazy<P> = ComponentType<P>
 
-export type Preloadable<P> = ComponentType<P> & { preload: () => Promise<unknown> }
+/** `preload` goes away once the code has loaded (see `preloadable`). */
+export type Preloadable<P> = ComponentType<P> & { preload?: () => Promise<void> }
 
 /**
- * `React.lazy` that can also start loading before it renders, and once loaded renders at once.
- * A plain `lazy` component suspends on its first render even when its code is already there, and
- * React then keeps the fallback up for at least 300 ms; on a page switch or a settings group that
- * is a blank flash every time. Pages, cards and settings sections use this, and the router or the
- * settings dialog calls `preload` before they are shown (see `preloadPage`).
+ * A component whose code loads on demand, can start loading before it renders, and once loaded
+ * renders at once. A plain `React.lazy` suspends on its first render even when its code is
+ * already there, and React then keeps the fallback up for at least 300 ms: a blank flash on every
+ * first page switch or settings group. Pages, cards and settings sections use this; the router
+ * and the settings dialog call `preload` before they show them (see `preloadPage`).
+ *
+ * Built on TanStack Router's `lazyRouteComponent`, which is not tied to routes: a failed load is
+ * forgotten so the next preload or render tries again, and a chunk missing after a deploy
+ * reloads the page once.
  */
 export function preloadable<P>(load: () => Promise<{ default: ComponentType<P> }>): Preloadable<P> {
-  return lazyWithPreload(load)
+  return lazyRouteComponent(load) as unknown as Preloadable<P>
 }
 
-/** Starts loading `component` if it is `preloadable`; resolves when it has loaded (or failed). */
-export function preload(component: unknown): Promise<unknown> {
+/** Starts loading `component` if it is `preloadable`; resolves when it has loaded or failed. */
+export function preload(component: unknown): Promise<void> {
   const load = (component as Partial<Preloadable<unknown>> | undefined)?.preload
   return load ? load().catch(() => undefined) : Promise.resolve()
 }

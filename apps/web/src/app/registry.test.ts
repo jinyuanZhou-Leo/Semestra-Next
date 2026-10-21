@@ -1,6 +1,8 @@
 import { lazy } from 'react'
 import { expect, test, vi } from 'vitest'
-import { builtInModules, preloadPage } from './registry'
+import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
+import { QueryClient } from '@tanstack/react-query'
+import { builtInModules, installedModules, preloadPage } from './registry'
 import { preloadable } from './extensions'
 import type { ModuleManifest } from './extensions'
 
@@ -13,9 +15,11 @@ test('every lazy page, page navigation, card and settings section of a built-in 
         .filter((part) => part !== undefined && !canPreload(part))
         .map(() => `${module.id}:${page.id}`),
     ),
-    ...(module.cards ?? [])
-      .filter((card) => !canPreload(card.component))
-      .map((card) => `${module.id}:${card.id}`),
+    ...(module.cards ?? []).flatMap((card) =>
+      [card.component, card.settings?.component]
+        .filter((part) => part !== undefined && !canPreload(part))
+        .map(() => `${module.id}:${card.id}`),
+    ),
     ...(module.settingsSections ?? [])
       .filter((section) => section.component !== undefined && !canPreload(section.component))
       .map((section) => `${module.id}:${section.id}`),
@@ -58,15 +62,13 @@ test('preloadPage loads the code of the page with that id in that scope only', (
   expect(other).not.toHaveBeenCalled()
 })
 
-test('preloadPage also loads the cards of the board the page shows, and waits for them', async () => {
-  let resolve = () => {}
-  const card = vi.fn<() => Promise<never>>(
-    () => new Promise<never>((done) => (resolve = done as () => void)),
-  )
+test("preloadPage starts the cards of the page's board but waits only for the page", async () => {
+  const card = vi.fn<() => Promise<never>>(() => new Promise<never>(() => {}))
   const away = vi.fn<() => Promise<never>>(() => new Promise<never>(() => {}))
   const modules = [
     {
       id: 'demo',
+      kind: 'core',
       pages: [
         {
           id: 'overview',
@@ -85,13 +87,58 @@ test('preloadPage also loads the cards of the board the page shows, and waits fo
     },
   ] as unknown as ModuleManifest[]
 
-  let done = false
-  const loading = preloadPage('term', 'overview', modules).then(() => (done = true))
+  // Resolves although the term card never finishes loading.
+  await preloadPage('term', 'overview', modules)
   expect(card).toHaveBeenCalledTimes(1)
   expect(away).not.toHaveBeenCalled()
+})
+
+test('installedModules leaves out plugins the account has not installed', () => {
+  const modules = [
+    { id: 'core-one', kind: 'core' },
+    { id: 'plugin-on', kind: 'plugin' },
+    { id: 'plugin-off', kind: 'plugin' },
+  ] as unknown as ModuleManifest[]
+  const queryClient = new QueryClient()
+  const ids = (list: readonly ModuleManifest[]) => list.map((m) => m.id)
+
+  // Catalog not loaded yet: core modules only.
+  expect(ids(installedModules(queryClient, modules))).toEqual(['core-one'])
+
+  queryClient.setQueryData(pluginsCatalogListOptions().queryKey, {
+    items: [
+      { id: 'plugin-on', installed: true },
+      { id: 'plugin-off', installed: false },
+    ],
+  } as never)
+  expect(ids(installedModules(queryClient, modules))).toEqual(['core-one', 'plugin-on'])
+})
+
+test('preloadPage waits until the page code has loaded', async () => {
+  let finish = () => {}
+  const load = () =>
+    new Promise<{ default: () => null }>((done) => (finish = () => done({ default: () => null })))
+  const modules = [
+    {
+      id: 'demo',
+      pages: [
+        {
+          id: 'files',
+          scopes: ['course'],
+          title: () => 'files',
+          icon: (() => null) as never,
+          component: preloadable(load),
+          order: 1,
+        },
+      ],
+    },
+  ] as unknown as ModuleManifest[]
+
+  let done = false
+  const loading = preloadPage('course', 'files', modules).then(() => (done = true))
   await Promise.resolve()
   expect(done).toBe(false)
-  resolve()
+  finish()
   await loading
   expect(done).toBe(true)
 })

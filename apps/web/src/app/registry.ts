@@ -1,6 +1,6 @@
 import type { PluginCatalog } from '@semestra/api-client'
 import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
-import { skipToken, useQueries, useQuery } from '@tanstack/react-query'
+import { type QueryClient, skipToken, useQueries, useQuery } from '@tanstack/react-query'
 import {
   type ComponentType,
   createContext,
@@ -70,11 +70,13 @@ export const builtInModules: readonly ModuleManifest[] = [
 ]
 
 /**
- * Loads a page's code (its sidebar navigation and the cards of its board too) before it renders,
- * from a route loader; see `preloadable`. The router waits for it, so the previous page stays on
- * screen instead of a blank one. Only the code: the page fetches its own data.
+ * Loads a page's code and its sidebar navigation before it renders, from a route loader; see
+ * `preloadable`. The router waits for it, so the previous page stays on screen instead of a
+ * blank one. The cards of the page's board start loading too, without holding up the switch:
+ * a card still loading shows its own skeleton. Only the code: the page fetches its own data.
+ * Loaders pass `installedModules`, so cards of plugins the account has not installed stay out.
  */
-export async function preloadPage(
+export function preloadPage(
   scope: ScopeKind,
   pageId: string,
   modules: readonly ModuleManifest[] = builtInModules,
@@ -87,13 +89,27 @@ export async function preloadPage(
       if (page.board) {
         const board: BoardKind = page.board === 'today' ? 'today' : scope
         for (const m of modules) {
-          for (const card of m.cards ?? [])
-            if (card.scopes.includes(board)) parts.push(card.component)
+          for (const card of m.cards ?? []) {
+            if (card.scopes.includes(board)) void preload(card.component)
+          }
         }
       }
     }
   }
-  await Promise.all(parts.map(preload))
+  return Promise.all(parts.map(preload)).then(() => undefined)
+}
+
+/**
+ * Core modules and the plugins this account installed, from the cached plugin catalog (which
+ * the signed-in layout prefetches). Until it has loaded, only core modules.
+ */
+export function installedModules(
+  queryClient: QueryClient,
+  modules: readonly ModuleManifest[] = builtInModules,
+): readonly ModuleManifest[] {
+  const catalog = queryClient.getQueryData(pluginsCatalogListOptions().queryKey)
+  const installed = catalog ? installedIds(catalog) : NONE
+  return modules.filter((m) => m.kind === 'core' || installed.has(m.id))
 }
 
 /** Tests provide their own list: `<ModuleRegistry value={[manifest]}>`. */

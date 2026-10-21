@@ -19,7 +19,7 @@ import {
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
-import { type CSSProperties, useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useEffectEvent, useState } from 'react'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -138,12 +138,16 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
 
   // The other groups of the level load their code once the one on screen has, so switching
   // groups shows them at once.
-  const shownSections = current?.sections
-  useEffect(() => {
-    void Promise.all((shownSections ?? []).map((section) => preload(section.component))).then(() =>
+  const preloadGroups = useEffectEvent(() => {
+    const shown = current?.sections ?? []
+    void Promise.all(shown.map((section) => preload(section.component))).then(() =>
       sections.forEach((section) => void preload(section.component)),
     )
-  }, [shownSections, sections])
+  })
+  const shownKey = path.pending ? undefined : `${level}:${shownGroup ?? ''}`
+  useEffect(() => {
+    if (shownKey !== undefined) preloadGroups()
+  }, [shownKey])
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   useEffect(() => {
