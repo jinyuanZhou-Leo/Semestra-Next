@@ -2621,7 +2621,7 @@ export const gradingScaleUpdateMutation = (options?: Partial<Options<GradingScal
 export const gradingScaleListPresetsQueryKey = (options?: Options<GradingScaleListPresetsData>) => createQueryKey('gradingScaleListPresets', options);
 
 /**
- * List the built-in grading scales (UofT 4.0, US 4.0, China 100-point, custom).
+ * List the built-in grading scales (UofT 4.0, US 4.0 and 4.33, standard 4.0, China 100-point, Australia 7-point, Korea 4.5, custom).
  *
  * Use to offer ready-made scales; apply one with grading.scale.update.
  */

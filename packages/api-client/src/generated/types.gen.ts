@@ -7444,7 +7444,7 @@ export type ScalePreset = {
     /**
      * Id
      *
-     * Preset id: uoft_4_0, us_4_0, cn_100 or custom
+     * Preset id: uoft_4_0, us_4_0, us_4_33, standard_4_0, cn_100, au_7, kr_4_5, custom
      */
     id: string;
     /**

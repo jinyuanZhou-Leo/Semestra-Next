@@ -34,7 +34,7 @@ import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
-import { PresetSelect } from '../components/PresetSelect'
+import { presetOptions } from '../presets'
 import { invalidateGrading, useGradingScale, useScalePresets } from '../queries'
 
 /** Program "GPA and grades" settings (M03 §5.4): conversion table, year courses, defaults, privacy. */
@@ -298,9 +298,9 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           {save.isPending ? m.common_saving() : m.grading_scale_save()}
         </Button>
         <span className="flex-1" />
-        <PresetSelect
+        <ChoiceControl
           label={m.grading_preset()}
-          ids={presets?.map((p) => p.id) ?? [presetId]}
+          options={presetOptions(presets?.map((p) => p.id) ?? [presetId])}
           value={presetId}
           onChange={setPresetId}
           className="w-52"

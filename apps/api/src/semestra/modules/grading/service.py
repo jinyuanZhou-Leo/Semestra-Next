@@ -117,7 +117,7 @@ def list_presets() -> list[ScalePreset]:
         ScalePreset.model_validate(
             {
                 "id": preset_id,
-                "max_points": 4.0,
+                "max_points": presets.preset_max_points(preset_id),
                 "bands": sorted(presets.preset_bands(preset_id), key=lambda b: -b["min"]),
             }
         )
@@ -136,7 +136,7 @@ async def create_scale(ctx: Ctx, program_id: str, preset: str | None = None) -> 
             "user_id": ctx.user_id,
             "program_id": program_id,
             "bands": presets.preset_bands(preset_id),
-            "max_points": 4.0,
+            "max_points": presets.preset_max_points(preset_id),
             "year_course_attribution": "end_term",
             "default_forecast_model": "auto",
             "default_categories": presets.BUILTIN_CATEGORIES,

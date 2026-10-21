@@ -66,7 +66,11 @@ grading_assessments
 预设换算表（Program 创建时可选，M02 onboarding 扩展点 `academics.programSetupFields`）：
 - `uoft_4_0`（旧版默认表：90-100→4.0、85-89→4.0、80-84→3.7、77-79→3.3、73-76→3.0、70-72→2.7、67-69→2.3、63-66→2.0、60-62→1.7、57-59→1.3、53-56→1.0、50-52→0.7、0-49→0.0，带字母 A+ A A- B+ B B- C+ C C- D+ D D- F）
 - `us_4_0`（A 93+ 4.0、A- 90 3.7、B+ 87 3.3…）
+- `us_4_33`（满分 4.33：A+ 97+ 4.33、A 93 4.0、A- 90 3.67、B+ 87 3.33、B 83 3.0 … D- 60 0.67、F 0）
+- `standard_4_0`（A–F 每 10 分一档：90 A 4、80 B 3、70 C 2、60 D 1、F 0）
 - `cn_100`（百分制直接显示，绩点 = 常见 4.0 映射：90-100→4.0、85-89→3.7、82-84→3.3、78-81→3.0、75-77→2.7、72-74→2.3、68-71→2.0、64-67→1.5、60-63→1.0、0-59→0）
+- `au_7`（满分 7：85 HD 7、75 D 6、65 C 5、50 P 4、F 0）
+- `kr_4_5`（满分 4.5：95 A+ 4.5、90 A 4.0、85 B+ 3.5、80 B 3.0、75 C+ 2.5、70 C 2.0、65 D+ 1.5、60 D 1.0、F 0）
 - `custom`（从空表开始）
 
 ## 3. 计算规则（`grading/engine.py`，纯函数，100% 单元测试覆盖）
@@ -173,7 +177,7 @@ grading_assessments
 **后端**（`apps/api/src/semestra/modules/grading/`）
 - 计算全部在 `engine.py`（纯函数 + dataclass，结果四舍五入到 3 位小数）：换算表校验与查表、`compute_course`（第 3 节规则 1–6）、`suggest_scores`（整体平移二分 + 向上取 0.5 + K=3 收缩）、年课学分归属、学期/Program 汇总与序列、学期 What If。`service.py` 只负责读库、组装与事件。
 - 表 `grading_scales`（每个 Program 一行）、`grading_course_results`（主键 `course_id`）、`grading_categories`、`grading_assessments`；跨模块的 id 都是普通字符串，不建外键，清理靠订阅 `academics.course.deleting` / `academics.program.deleting`（同事务）。分类删除时考核的 `category_id` 置空。
-- 预设 `uoft_4_0`、`us_4_0`、`cn_100`、`custom`；`custom` 起点只有一个 0–100 的单区间，由用户自己拆分。预设与默认分类模板的文本都在 `presets.py`，分类颜色是名称（blue、amber、emerald、violet、cyan、rose、slate）或 `#rrggbb`，前端把名称映射到主题的科目色令牌。
+- 预设 `uoft_4_0`、`us_4_0`、`us_4_33`、`standard_4_0`、`cn_100`、`au_7`、`kr_4_5`、`custom`，每个预设有自己的满分（`max_points`，如 4.33、7、4.5，其余 4.0）；预设只在创建时把区间复制进 `grading_scales.bands`，不记预设 id；`custom` 起点只有一个 0–100 的单区间，由用户自己拆分。预设与默认分类模板的文本都在 `presets.py`，分类颜色是名称（blue、amber、emerald、violet、cyan、rose、slate）或 `#rrggbb`，前端把名称映射到主题的科目色令牌。
 - 考核的截止时间输入除 `due_at` 外还接受 `due_date` + `due_time`（按 Program 时区解释，没有时间则只显示日期、截止点是当天结束）；输出同时给 `due_at` 和本地的 `due_date`/`due_time`，前端表单直接用后者。
 - 分数输入：`points_earned` + `points_possible` 优先并换算出百分比；只给 `score_percentage` 会清除分数制；`points_earned: null` 清除分数。`status` 由服务端算出（`graded` / `pending` / `overdue`）。
 - 事件：除第 4 节列出的三类外，删除考核前在事务内发 `grading.assessment.deleting`；`created|updated` 的 payload 带 `changed`（变化的字段名），`deleted` 带 `due_changed`。分类的增删改没有事件（本标签页靠失效刷新，其它标签页要等下一次拉取）。
