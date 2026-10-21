@@ -219,7 +219,10 @@ export function CardFrame({
         </div>
       </header>
       <div
-        className={cn('min-h-0 flex-1 overflow-hidden px-4 pb-3', editing && 'opacity-60')}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3',
+          editing && 'opacity-60',
+        )}
         inert={editing || undefined}
       >
         {card.isNew ? (

@@ -94,7 +94,7 @@ function TermFiles({
   const loaded = lists.every((q) => q.data)
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <div className="flex min-h-9 items-center gap-2">
         <div className="relative">
           <Search

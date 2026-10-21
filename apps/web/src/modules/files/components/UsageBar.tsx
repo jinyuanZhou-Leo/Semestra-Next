@@ -7,7 +7,7 @@ import { useFilesUsage } from '../queries'
 export function UsageBar() {
   const usage = useFilesUsage().data
   // Same height while loading, so the page does not move when it arrives.
-  if (!usage) return <div className="h-9" />
+  if (!usage) return <div className="mt-auto h-9" />
   const limited = usage.quota_bytes > 0
   const label = limited
     ? m.files_usage_of({
@@ -16,7 +16,7 @@ export function UsageBar() {
       })
     : m.files_usage_unlimited({ used: formatBytes(usage.used_bytes) })
   return (
-    <div className="flex h-9 items-center gap-3 text-xs text-muted-foreground">
+    <div className="mt-auto flex h-9 items-center gap-3 text-xs text-muted-foreground">
       <span className="tabular-nums">{label}</span>
       {limited ? (
         <Progress

@@ -18,9 +18,9 @@ export default function TermsCard({ scope }: CardProps) {
   const terms = useTerms(programId).data?.items
   return (
     <div className="flex h-full flex-col gap-2">
-      <ol className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+      <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {terms && terms.length === 0 ? (
-          <li className="h-full">
+          <li className="flex flex-1 flex-col">
             <Empty className="border-0 p-0">
               <EmptyHeader>
                 <EmptyMedia variant="icon">

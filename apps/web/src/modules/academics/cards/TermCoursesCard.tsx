@@ -25,7 +25,7 @@ export default function TermCoursesCard({ scope }: CardProps) {
   if (!termId) return null
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {courses && courses.length === 0 ? (
           <Empty className="border-0 p-0">
             <EmptyHeader>

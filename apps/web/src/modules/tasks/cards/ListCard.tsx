@@ -18,7 +18,7 @@ export default function ListCard({ scope, settings }: CardProps<ListCardSettings
   const actions = useTaskActions()
   if (!tasks.data) return null
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="flex h-full flex-col overflow-y-auto">
       <CompactTasks
         programId={scope.programId}
         tasks={tasks.data.items}
