@@ -50,7 +50,7 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
           className="flex min-w-0 flex-1 items-center gap-1 pr-4"
         />
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {isMobile && !PHONE_PAGE.test(pathname) ? (
           <Empty>
             <EmptyHeader>

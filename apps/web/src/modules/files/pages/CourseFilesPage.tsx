@@ -105,7 +105,7 @@ function CourseFiles({
   const empty = list.items.length === 0 && list.folders.length === 0
 
   return (
-    <div className="space-y-3">
+    <div className="relative flex flex-col gap-3">
       <div className="flex min-h-9 flex-wrap items-center gap-2">
         <div className="relative">
           <Search
@@ -279,7 +279,7 @@ function CourseFiles({
       {dragging ? (
         <div
           aria-hidden
-          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-background/80 backdrop-blur-sm"
         >
           <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-primary px-16 py-12 text-primary">
             <Upload className="size-8" />

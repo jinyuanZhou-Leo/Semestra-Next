@@ -392,7 +392,7 @@ function BoardView({
   const draggedOrigin = drag ? draft?.find((c) => c.id === drag.id) : undefined
 
   return (
-    <div className="space-y-3" data-board={kind}>
+    <div className="flex flex-1 flex-col gap-3" data-board={kind}>
       {!headerHostsEdit ? (
         <div className="flex min-h-8 items-center justify-end gap-2">
           {editing ? (

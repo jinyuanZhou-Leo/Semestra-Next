@@ -262,8 +262,8 @@ export default function TasksPage({ scope }: PageProps) {
   }
 
   return (
-    <div>
-      <section ref={listRef} className="min-w-0 space-y-3" aria-label={title}>
+    <div className="flex flex-col">
+      <section ref={listRef} className="flex min-w-0 flex-1 flex-col gap-3" aria-label={title}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
             <ToggleGroup
@@ -338,7 +338,7 @@ export default function TasksPage({ scope }: PageProps) {
                 </Empty>
               ) : null}
               {/* One block, so the section's spacing does not open a gap above the new row. */}
-              <div>
+              <div className="empty:hidden">
                 {sortableRows ? (
                   <DndContext
                     sensors={sensors}
