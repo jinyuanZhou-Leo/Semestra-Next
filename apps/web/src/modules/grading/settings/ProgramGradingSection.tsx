@@ -303,7 +303,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           options={presetOptions(presets?.map((p) => p.id) ?? [presetId])}
           value={presetId}
           onChange={setPresetId}
-          className="w-52"
+          selectClassName="w-52"
         />
         <Button variant="outline" size="sm" disabled={!preset} onClick={() => setConfirming(true)}>
           {m.grading_preset_reset()}

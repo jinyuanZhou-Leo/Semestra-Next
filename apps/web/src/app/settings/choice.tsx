@@ -1,4 +1,5 @@
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -45,6 +46,7 @@ export function ChoiceControl<T extends string>({
   label,
   id,
   disabled,
+  selectClassName,
   follow,
 }: {
   options: readonly ChoiceOption<T>[]
@@ -55,6 +57,8 @@ export function ChoiceControl<T extends string>({
   label?: string
   id?: string
   disabled?: boolean
+  /** Width of the select trigger; ignored by the segmented form. */
+  selectClassName?: string
   follow?: FollowChoice
 }) {
   const shown = follow?.selected ? FOLLOW : value
@@ -104,7 +108,12 @@ export function ChoiceControl<T extends string>({
       onValueChange={pick}
       disabled={disabled}
     >
-      <SelectTrigger id={id} aria-labelledby={labelId} aria-label={label} className="w-56">
+      <SelectTrigger
+        id={id}
+        aria-labelledby={labelId}
+        aria-label={label}
+        className={cn('w-56', selectClassName)}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="w-72">
