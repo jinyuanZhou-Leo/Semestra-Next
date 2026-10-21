@@ -1275,9 +1275,8 @@
   "terms_courses_choose_term": "选择学期",
   "terms_courses_set_current": "设为当前学期",
   "terms_courses_follow_calendar": "恢复自动",
-  "terms_courses_open_term": "打开学期页",
+  "terms_courses_open_term": "打开学期",
   "terms_courses_more": "更多操作",
-  "terms_courses_pin_column": "置顶",
   "academics_clear_selection": "取消选择",
   "capability_academics_course_create_title": "创建课程",
   "capability_academics_course_create_many_title": "批量创建课程",
@@ -2444,5 +2443,10 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "全屏查看",
   "assistant_md_zoom_in": "放大",
-  "assistant_md_zoom_out": "缩小"
+  "assistant_md_zoom_out": "缩小",
+  "terms_courses_actions_column": "操作",
+  "terms_courses_course_actions": "{name} 的操作",
+  "academics_course_open": "打开课程",
+  "academics_course_settings": "课程设置",
+  "academics_term_settings": "学期设置"
 }

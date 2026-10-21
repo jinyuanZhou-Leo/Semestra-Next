@@ -114,13 +114,24 @@ test('a term can be made the current one, and follows the calendar again', async
   mount('/p/p1/academics?term=t1')
   expect(await screen.findByRole('heading', { name: 'Fall 2025' })).toBeInTheDocument()
   const pane = screen.getByRole('region', { name: 'Fall 2025' })
-  await userEvent.click(within(pane).getByRole('button', { name: 'Set as current term' }))
+  const more = within(pane).getByRole('button', { name: 'More actions' })
+  await userEvent.click(more)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Set as current term' }))
   expect(await within(pane).findByText('Now')).toBeInTheDocument()
-  await userEvent.click(within(pane).getByRole('button', { name: 'Follow the calendar' }))
-  await waitFor(() =>
-    expect(within(pane).queryByRole('button', { name: 'Follow the calendar' })).toBeNull(),
-  )
-  expect(within(pane).queryByText('Now')).not.toBeInTheDocument()
+  await userEvent.click(more)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Follow the calendar' }))
+  await waitFor(() => expect(within(pane).queryByText('Now')).not.toBeInTheDocument())
+})
+
+test('the term list only selects: its operations live in the title menu, once', async () => {
+  mount('/p/p1/academics?term=t1')
+  await screen.findByRole('heading', { name: 'Fall 2025' })
+  const list = screen.getByRole('list', { name: 'Terms' })
+  expect(within(list).queryAllByRole('button', { name: /current term|Pin|Unpin/ })).toHaveLength(0)
+  await userEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  for (const name of ['Pin to sidebar', 'Term settings', 'Delete term']) {
+    expect(await screen.findByRole('menuitem', { name })).toBeInTheDocument()
+  }
 })
 
 test('selecting rows puts the batch actions in place of the filters, keeping the search box', async () => {
@@ -214,25 +225,43 @@ test('each column that contributes filters gets its own dropdown', async () => {
   expect(screen.getByRole('link', { name: 'Computer Fundamentals' })).toBeInTheDocument()
 })
 
-test('a course can be pinned from the table', async () => {
+test('a course is pinned from its row menu and then shows a pin mark', async () => {
   mount('/p/p1/academics?tab=courses')
-  await screen.findAllByRole('button', { name: 'Pin to sidebar' })
+  await screen.findByRole('searchbox', { name: 'Search courses' })
   await settle()
-  await userEvent.click(screen.getAllByRole('button', { name: 'Pin to sidebar' })[0]!)
-  expect((await screen.findAllByRole('button', { name: 'Unpin' })).length).toBe(1)
+  const menu = screen.getByRole('button', { name: 'Actions for APS105H1' })
+  await userEvent.click(menu)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Pin to sidebar' }))
+  expect(
+    await within(screen.getByRole('row', { name: /APS105H1/ })).findByText('Pinned'),
+  ).toBeInTheDocument()
+  expect(menu.isConnected).toBe(true)
+  await userEvent.click(menu)
+  expect(await screen.findByRole('menuitem', { name: 'Unpin' })).toBeInTheDocument()
 })
 
-test('pinning or selecting a row keeps the button, so keyboard focus stays on it', async () => {
+test('a single course is deleted from its row menu after a confirmation', async () => {
+  const deleted: string[] = []
+  server.use(
+    http.delete(`${API}/courses/:id`, ({ params }) => {
+      deleted.push(String(params.id))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
   mount('/p/p1/academics?tab=courses')
-  await screen.findAllByRole('button', { name: 'Pin to sidebar' })
+  await screen.findByRole('searchbox', { name: 'Search courses' })
   await settle()
-  const pin = screen.getAllByRole('button', { name: 'Pin to sidebar' })[0]!
-  await userEvent.click(pin)
-  await screen.findByRole('button', { name: 'Unpin' })
-  expect(pin.isConnected).toBe(true)
+  await userEvent.click(screen.getByRole('button', { name: 'Actions for APS105H1' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete course' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(deleted).toEqual([])
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Delete course' }))
+  await waitFor(() => expect(deleted).toEqual(['c1']))
+})
 
-  const checkbox = screen.getByRole('checkbox', { name: 'Select MAT188H1' })
-  await userEvent.click(checkbox)
-  await waitFor(() => expect(checkbox).toBeChecked())
-  expect(checkbox.isConnected).toBe(true)
+test('the header has one primary button per tab, and the table ends with Add course', async () => {
+  mount('/p/p1/academics?tab=courses')
+  await screen.findByRole('searchbox', { name: 'Search courses' })
+  expect(screen.getAllByRole('button', { name: 'Add course' })).toHaveLength(2)
+  expect(screen.queryByRole('link', { name: 'New term' })).not.toBeInTheDocument()
 })
