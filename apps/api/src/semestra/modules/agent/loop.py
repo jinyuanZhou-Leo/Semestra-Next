@@ -669,7 +669,7 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
                 text = _proposal_outcome(prop).content
                 resume.approvals[c.tool_call_id] = ToolDenied(text)
         _keep_callable(messages, calls)
-    remembered = await memory.snapshot(ctx, session)
+    remembered = await memory.snapshot(ctx, session, work.timezone)
     available = await registry.available(ctx, "agent")
     if not remembered:  # a temporary conversation, or memory turned off
         available = [c for c in available if c.name not in memory.TOOLS]

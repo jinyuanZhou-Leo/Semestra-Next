@@ -2399,7 +2399,6 @@
   "assistant_memory_type_reference": "参考资料",
   "assistant_memory_type_reference_description": "Semestra 以外的资料在哪里",
   "assistant_memory_content": "记忆",
-  "assistant_memory_updated_at": "更新时间",
   "assistant_memory_edit": "编辑记忆",
   "assistant_memory_edit_description": "Sem 在每段新对话里都会看到概括，详情只在用得上时才读。",
   "assistant_memory_summary": "概括",

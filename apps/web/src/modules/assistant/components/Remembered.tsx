@@ -5,6 +5,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark, BookmarkX } from 'lucide-react'
+import { useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -35,18 +36,24 @@ export function Remembered({ steps }: { steps: Step[] }) {
     onError: toastError,
     onSettled: refresh,
   })
+  // Updates put back from here: the line goes away, as a saved memory's does once deleted.
+  const [restored, setRestored] = useState<ReadonlySet<string>>(new Set())
   const current = new Map(memories.data?.items.map((memory) => [memory.id, memory]) ?? [])
   const shown = changes.flatMap((change): { change: RememberedMemory; text: string }[] => {
     if (change.action === 'forgot') {
       return [{ change, text: change.description ?? change.content ?? '' }]
     }
     const row = current.get(change.id)
+    if (change.action === 'updated' && restored.has(change.id)) return []
     return row ? [{ change, text: row.description }] : []
   })
   if (shown.length === 0) return null
   const undo = (change: RememberedMemory) => {
     if (change.action === 'updated' && change.previous) {
-      restore.mutate({ path: { id: change.id }, body: change.previous })
+      restore.mutate(
+        { path: { id: change.id }, body: change.previous },
+        { onSuccess: () => setRestored((done) => new Set(done).add(change.id)) },
+      )
     } else {
       remove.mutate({ path: { id: change.id } })
     }

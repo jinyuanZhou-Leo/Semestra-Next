@@ -1148,6 +1148,7 @@ test('what Sem remembered shows under the answer and can be undone', async () =>
   // Undoing an update puts back what it replaced; it does not delete the memory.
   await waitFor(() => expect(patched).toEqual([previous]))
   expect(deleted).toEqual([])
+  await waitFor(() => expect(screen.queryByText(/^Updated memory:/)).not.toBeInTheDocument())
   await userEvent.click(undoSaved!)
   await waitFor(() => expect(deleted).toEqual(['m1']))
   await waitFor(() =>

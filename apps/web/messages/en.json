@@ -2399,7 +2399,6 @@
   "assistant_memory_type_reference": "References",
   "assistant_memory_type_reference_description": "Where to find things outside Semestra",
   "assistant_memory_content": "Memory",
-  "assistant_memory_updated_at": "Updated",
   "assistant_memory_edit": "Edit memory",
   "assistant_memory_edit_description": "Sem sees the summary in every new conversation and reads the details only when they matter.",
   "assistant_memory_summary": "Summary",

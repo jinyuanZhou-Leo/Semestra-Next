@@ -20,6 +20,22 @@ depends_on: str | Sequence[str] | None = None
 # Old categories → types: preferences and background describe the user; goals and constraints
 # are what they are working towards or within.
 _TYPES = {"preference": "user", "context": "user", "goal": "project", "constraint": "project"}
+# The new one-line limit (old memories could be 200 characters).
+_LINE = 150
+
+
+def _split(content: str) -> tuple[str, str]:
+    """A line that fits, and the whole text as the body when it did not (nothing is lost)."""
+    content = " ".join(content.split())
+    if len(content) <= _LINE:
+        return content, ""
+    cut = content[: _LINE - 1]
+    space = cut.rfind(" ")
+    if space > _LINE // 2:
+        cut = cut[:space]
+    return cut.rstrip() + "…", content
+
+
 _CATEGORIES = {
     "user": "context",
     "feedback": "preference",
@@ -39,10 +55,11 @@ def upgrade() -> None:
     conn = op.get_bind()
     rows = conn.execute(sa.text("SELECT id, category, content FROM agent_memories")).all()
     for row in rows:
+        description, body = _split(row.content)
         conn.execute(
             sa.text(
-                "UPDATE agent_memories SET name = :name, type = :type, description = :description "
-                "WHERE id = :id"
+                "UPDATE agent_memories SET name = :name, type = :type, description = :description, "
+                "body = :body WHERE id = :id"
             ),
             {
                 "id": row.id,
@@ -50,7 +67,8 @@ def upgrade() -> None:
                 # saved in the same minute). The model can rename it later.
                 "name": "memory-" + row.id.replace("-", "")[-8:],
                 "type": _TYPES.get(row.category, "user"),
-                "description": row.content,
+                "description": description,
+                "body": body,
             },
         )
 

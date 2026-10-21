@@ -375,7 +375,7 @@ function MemoryForm({
                   <Tooltip key={linked}>
                     <TooltipTrigger
                       render={
-                        <Badge variant="outline" className="text-muted-foreground">
+                        <Badge tabIndex={0} variant="outline" className="text-muted-foreground">
                           {linked}
                         </Badge>
                       }

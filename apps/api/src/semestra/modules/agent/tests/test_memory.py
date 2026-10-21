@@ -6,17 +6,20 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 
+from semestra.core.context import system_ctx
+from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
 from semestra.modules.agent import memory
 from semestra.modules.agent.memory import MemoryOperation, MemoryUpdates
-from semestra.modules.agent.portability import _memory_v1  # pyright: ignore[reportPrivateUsage]
+from semestra.modules.agent.portability import _memory  # pyright: ignore[reportPrivateUsage]
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
 from semestra.modules.ai import Message
-from semestra.testing import API_DIR, Clock
+from semestra.testing import API_DIR, Clock, MakeUser
 
 REMEMBER = "agent__memory__remember"
 FORGET = "agent__memory__forget"
@@ -91,6 +94,8 @@ async def test_remember_runs_without_a_card_and_reaches_the_next_conversation(
     assert again["ok"] is True
     assert "memory" not in again
     assert len(await _memories(agent)) == 1
+    # The model is told which name already holds it, so it does not link a name that is not there.
+    assert "Already saved as `bullet-points`" in str(model.results(-1)[0].content)
 
     # The same name updates it; the undo puts back what it replaced.
     model.then(
@@ -164,6 +169,7 @@ async def test_get_reads_the_body_and_the_memories_it_links_to(agent: Agent, mod
     [read] = model.results(-1)
     content = str(read.content)
     assert "faculty handbook" in content
+    assert "untrusted" in content.lower()  # read back as data, not instructions
     assert '{"name":"major","description":"Majors in ECE.","exists":true}' in content
     assert '{"name":"program-rules","exists":false}' in content
 
@@ -178,11 +184,12 @@ async def test_sensitive_details_are_not_saved(agent: Agent, model: FakeModel):
     model.then(
         _remember("student-number", "My student number is 1004567890", type="user"),
         _remember("bank", "Has a bank.", type="user", body="Bank account at RBC."),
+        _remember("student-1004567890", "Has a student number.", type="user"),
         say("I won't keep that."),
     )
     events = await agent.send(session["id"], "remember my student number 1004567890")
     results = events_named(events, "tool_result")
-    assert [r["error_code"] for r in results] == ["agent.memory_sensitive"] * 2
+    assert [r["error_code"] for r in results] == ["agent.memory_sensitive"] * 3
     assert await _memories(agent) == []
     for text in ("My password is hunter2", "Takes medication for ADHD", "我的银行卡是招行"):
         assert memory.is_sensitive(text)
@@ -230,7 +237,9 @@ async def test_temporary_chats_and_memory_turned_off_neither_read_nor_write(
     assert "# Memory" not in model.instructions_of(-1)
 
 
-async def test_the_settings_page_can_edit_delete_and_clear(agent: Agent, model: FakeModel):
+async def test_the_settings_page_can_edit_delete_and_clear(
+    agent: Agent, model: FakeModel, clock: Clock
+):
     session = await agent.session()
     model.then(
         _remember("preferred-name", "Goes by Leo.", type="user"),
@@ -266,6 +275,12 @@ async def test_the_settings_page_can_edit_delete_and_clear(agent: Agent, model: 
     # A refused change leaves the memory as it was.
     kept = next(m for m in await _memories(agent) if m["id"] == leo["id"])
     assert kept["body"] == "Why: it is what friends call him."
+    # Sending what it already says (an undo clicked twice) does not touch its date.
+    clock.advance(days=2)
+    same = await agent.call(
+        "PATCH", f"/agent/memories/{leo['id']}", json={"name": "name-to-use", "type": "feedback"}
+    )
+    assert same["updated_at"] == kept["updated_at"]
     await agent.call("DELETE", f"/agent/memories/{leo['id']}")
     assert [m["name"] for m in await _memories(agent)] == ["major"]
     await agent.call("DELETE", f"/agent/memories/{leo['id']}", 404)
@@ -364,20 +379,58 @@ async def test_a_conversation_held_with_memory_off_is_never_consolidated(
     assert await _memories(agent) == []
 
 
-async def test_archives_from_before_names_are_converted():
-    row = {
-        "id": "0193a7c2-1111-7000-8000-00000000abcd",
-        "category": "constraint",
-        "content": "Works Wednesday nights.",
-        "created_at": "2026-10-20T00:00:00+00:00",
-    }
-    converted = await _memory_v1(None, row, None)  # pyright: ignore[reportArgumentType]
-    assert converted["name"] == "memory-0000abcd"
-    assert converted["type"] == "project"
-    assert converted["description"] == "Works Wednesday nights."
-    assert converted["body"] == ""
-    current = {"id": "x", "name": "major", "type": "user", "description": "ECE", "body": ""}
-    assert await _memory_v1(None, current, None) == current  # pyright: ignore[reportArgumentType]
+async def test_imported_memories_are_converted_checked_and_kept_to_the_limit(
+    app: FastAPI, make_user: MakeUser
+):
+    user = await make_user()
+    async with system_ctx(app.state, user.id) as ctx:
+        long = ("Works Wednesday nights at the campus library, " * 4).strip()
+        old = {
+            "id": "0193a7c2-1111-7000-8000-00000000abcd",
+            "category": "constraint",
+            "content": long,
+            "created_at": "2026-10-20T00:00:00+00:00",
+        }
+        converted = await _memory(ctx, old, None)  # pyright: ignore[reportArgumentType]
+        assert converted is not None
+        assert converted["name"] == "memory-0000abcd"
+        assert converted["type"] == "project"
+        assert len(converted["description"]) <= memory.MAX_DESCRIPTION
+        assert converted["description"].endswith("…")
+        assert converted["body"] == long  # nothing is lost
+        row = {"id": "x", "name": "major", "type": "user", "description": "ECE", "body": ""}
+        assert await _memory(ctx, row, None) == row  # pyright: ignore[reportArgumentType]
+        for bad in (
+            {**row, "name": "Major"},
+            {**row, "type": "goal"},
+            {**row, "description": "Student number 1004567890"},
+        ):
+            assert await _memory(ctx, bad, None) is None  # pyright: ignore[reportArgumentType]
+        for i in range(memory.MAX_MEMORIES):
+            await memory.save(ctx, name=f"m{i}", type="user", description=f"Fact {i}", body=None)
+        # Full: a new name is left out, an existing one still replaces its memory.
+        assert await _memory(ctx, row, None) is None  # pyright: ignore[reportArgumentType]
+        same = {**row, "name": "m0", "description": "Fact zero"}
+        assert await _memory(ctx, same, None) == same  # pyright: ignore[reportArgumentType]
+
+
+async def test_two_calls_saving_one_new_name_do_not_crash(
+    app: FastAPI, make_user: MakeUser, monkeypatch: pytest.MonkeyPatch
+):
+    user = await make_user()
+    async with system_ctx(app.state, user.id) as ctx:
+        await memory.save(ctx, name="major", type="user", description="Majors in ECE.", body=None)
+        await ctx.db.commit()
+
+        async def missed(ctx: Any, name: str) -> None:  # the other call has not saved it yet
+            return None
+
+        monkeypatch.setattr(memory, "by_name", missed)
+        with pytest.raises(AppError) as err:
+            await memory.save(
+                ctx, name="major", type="user", description="Electrical engineering.", body=None
+            )
+        assert err.value.code == "agent.memory_name_taken"
 
 
 def test_migration_turns_old_memories_into_named_records(tmp_path: Path):
@@ -387,8 +440,9 @@ def test_migration_turns_old_memories_into_named_records(tmp_path: Path):
     cfg.attributes["database_url"] = f"sqlite+aiosqlite:///{path}"
     command.upgrade(cfg, "0018")
     db = sqlite3.connect(path)  # foreign keys are off: no user row needed
+    long = ("Works Wednesday nights at the campus library, " * 4).strip()  # 183 characters
     for i, (category, content) in enumerate(
-        [("preference", "Goes by Leo."), ("goal", "Wants a 3.7 GPA.")]
+        [("preference", "Goes by Leo."), ("goal", "Wants a 3.7 GPA."), ("constraint", long)]
     ):
         db.execute(
             "INSERT INTO agent_memories (id, user_id, category, content, created_at, updated_at) "
@@ -402,15 +456,36 @@ def test_migration_turns_old_memories_into_named_records(tmp_path: Path):
     rows = db.execute(
         "SELECT name, type, description, body FROM agent_memories ORDER BY id"
     ).fetchall()
-    assert rows == [
+    assert rows[:2] == [
         ("memory-00000000", "user", "Goes by Leo.", ""),
         ("memory-00000001", "project", "Wants a 3.7 GPA.", ""),
     ]
+    # Longer than the new line: the line is cut, the whole text is kept as the body; it is the
+    # same split the import of an old archive makes.
+    name, kind, description, body = rows[2]
+    assert (name, kind, body) == ("memory-00000002", "project", long)
+    assert len(description) <= memory.MAX_DESCRIPTION
+    assert (description, body) == memory.split_line(long)
     db.close()
     command.downgrade(cfg, "0018")
     db = sqlite3.connect(path)
-    assert db.execute("SELECT category, content FROM agent_memories ORDER BY id").fetchall() == [
-        ("context", "Goes by Leo."),
-        ("goal", "Wants a 3.7 GPA."),
-    ]
+    assert db.execute("SELECT category, content FROM agent_memories ORDER BY id").fetchall()[
+        :2
+    ] == [("context", "Goes by Leo."), ("goal", "Wants a 3.7 GPA.")]
     db.close()
+
+
+def test_the_index_dates_a_memory_in_the_work_context_zone():
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    from semestra.modules.agent.models import AgentMemory
+
+    at = datetime(2026, 10, 21, 2, 0, tzinfo=UTC)  # still the 20th in Toronto
+    row = AgentMemory(
+        name="major", type="user", description="ECE", body="x", created_at=at, updated_at=at
+    )
+    assert memory.index_line(row, ZoneInfo("America/Toronto")) == (
+        '- [major] (user, 2026-10-20) "ECE" +'
+    )
+    assert memory.index_line(row) == '- [major] (user, 2026-10-21) "ECE" +'
