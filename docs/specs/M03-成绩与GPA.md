@@ -70,8 +70,8 @@ grading_assessments
 - `standard_4_0`（A–F 每 10 分一档：90 A 4、80 B 3、70 C 2、60 D 1、F 0）
 - `cn_100`（百分制直接显示，绩点 = 常见 4.0 映射：90-100→4.0、85-89→3.7、82-84→3.3、78-81→3.0、75-77→2.7、72-74→2.3、68-71→2.0、64-67→1.5、60-63→1.0、0-59→0）
 - `au_7`（满分 7：85 HD 7、75 D 6、65 C 5、50 P 4、F 0）
-- `kr_4_5`（满分 4.5：95 A+ 4.5、90 A 4.0、85 B+ 3.5、80 B 3.0、75 C+ 2.5、70 C 2.0、65 D+ 1.5、60 D 1.0、F 0）
-- `custom`（从空表开始）
+- `kr_4_5`（满分 4.5：95 A+ 4.5、90 A0 4.0、85 B+ 3.5、80 B0 3.0、75 C+ 2.5、70 C0 2.0、65 D+ 1.5、60 D0 1.0、F 0；平时成绩单上的字母是 A0/B0/C0/D0）
+- `custom`（一个 0–100 的单区间，由用户拆分）
 
 ## 3. 计算规则（`grading/engine.py`，纯函数，100% 单元测试覆盖）
 记号：考核 i 的权重 wᵢ、得分 sᵢ（未出分为空），`dropped` 的考核不参与任何计算。
@@ -144,7 +144,7 @@ grading_assessments
 - `hide_gpa=true` 时所有显示 GPA 的位置改为显示"•••"，可点击临时显示。
 
 ### 5.4 扩展贡献
-- `academics.courseColumns`：成绩（百分比/字母）、GPA（`showInTermCard=true`），以及筛选器 GPA=满分、≥3.5、≥3.0（阈值随 `max_points` 缩放）。
+- `academics.courseColumns`：成绩（百分比/字母）、GPA（`showInTermCard=true`），以及筛选器 GPA=满分、≥满分的 87.5%（4.0 制的 3.5）、≥满分的 75%（3.0）（阈值随 `max_points` 缩放）。
 - `academics.programSetupFields`：GPA 换算预设选择。
 - M04 日历源：考核截止事件（见 M04 的 `CalendarSourceContribution`），颜色取课程颜色，点击打开课程 `grades` Page 并高亮该行。
 - Program 设置分区（program 级）："GPA 与成绩"：换算表编辑器（可视化区间条 + 表格编辑 + 预设重置）、年课计入规则、默认分类模板、默认预测模型、隐藏 GPA。
@@ -195,6 +195,6 @@ grading_assessments
 - `hide_gpa`：所有 GPA 数字通过 `GpaValue` 显示，开启时显示"•••"，点击后临时显示。
 - 内置分类名（Quiz、Exam…）没改过名时按界面语言显示；改过名就显示用户的名字。
 - 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, icon, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页的"从…导入"菜单列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
-- 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放。
+- 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放，所以标签写成与满分无关的比例：「≥ 满分的 87.5%」「≥ 满分的 75%」。
 - UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
 - 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。
