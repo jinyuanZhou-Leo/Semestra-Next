@@ -1,5 +1,5 @@
 import { source } from '@/lib/source'
-import { DocsLayout } from 'fumadocs-ui/layouts/docs'
+import { DocsLayout } from 'fumadocs-ui/layouts/spacious'
 import { baseOptions } from '@/lib/layout.shared'
 
 export default async function Layout({ params, children }: LayoutProps<'/[lang]/[[...slug]]'>) {
