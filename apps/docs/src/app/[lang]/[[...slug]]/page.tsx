@@ -14,15 +14,17 @@ import { Card } from 'fumadocs-ui/components/card'
 import { createRelativeLink } from 'fumadocs-ui/mdx'
 import { OpenAPIPage } from '@/components/api-page'
 import { openapi } from '@/lib/openapi'
-import { getPageImageUrl, getPageMarkdownUrl, gitConfig } from '@/lib/shared'
+import { basePath, getPageImageUrl, getPageMarkdownUrl, gitConfig } from '@/lib/shared'
 
 type DocsPageData = NonNullable<ReturnType<typeof source.getPage>>
 
 // MDX components bound to one page: links resolve relative to it, and content links written
-// as `/docs/...` go to the page's language.
+// as `/docs/...` go to that page in the reader's language (`/docs/mcp` → `/<lang>/mcp`, which
+// next/link serves under the basePath).
 function pageComponents(page: DocsPageData, lang: string) {
   const RelativeLink = createRelativeLink(source, page)
-  const localize = (href?: string) => (href?.startsWith('/docs') ? `/${lang}${href}` : href)
+  const localize = (href?: string) =>
+    href === '/docs' || href?.startsWith('/docs/') ? `/${lang}${href.slice('/docs'.length)}` : href
 
   return getMDXComponents({
     a: (props) => <RelativeLink {...props} href={localize(props.href)} />,
@@ -33,13 +35,13 @@ function pageComponents(page: DocsPageData, lang: string) {
   })
 }
 
-export default async function Page(props: PageProps<'/[lang]/docs/[[...slug]]'>) {
+export default async function Page(props: PageProps<'/[lang]/[[...slug]]'>) {
   const { slug, lang } = await props.params
   const page = source.getPage(slug, lang)
   if (!page) notFound()
 
   const MDX = page.data.body
-  const markdownUrl = getPageMarkdownUrl(page).url
+  const markdownUrl = basePath + getPageMarkdownUrl(page).url
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
@@ -62,9 +64,7 @@ export async function generateStaticParams() {
   return source.generateParams()
 }
 
-export async function generateMetadata(
-  props: PageProps<'/[lang]/docs/[[...slug]]'>,
-): Promise<Metadata> {
+export async function generateMetadata(props: PageProps<'/[lang]/[[...slug]]'>): Promise<Metadata> {
   const { slug, lang } = await props.params
   const page = source.getPage(slug, lang)
   if (!page) notFound()
@@ -73,7 +73,7 @@ export async function generateMetadata(
     title: page.data.title,
     description: page.data.description,
     openGraph: {
-      images: getPageImageUrl(page).url,
+      images: basePath + getPageImageUrl(page).url,
     },
   }
 }
