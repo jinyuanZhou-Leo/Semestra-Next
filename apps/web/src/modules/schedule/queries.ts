@@ -12,6 +12,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
+import { readUiPref } from '@/app/ui-pref'
 import { courseListOptions } from '@/modules/academics/queries'
 
 export function useEventTypes(programId: string) {
@@ -119,13 +120,46 @@ function calendarSettingsOptions(termId?: string) {
 
 /**
  * What the term calendar needs before it can ask for its dates (`PageContribution.prefetch`):
- * its settings (the view), the term's weeks and courses. The occurrences wait for the dates.
+ * its settings (the view), the term's weeks and courses. The occurrences wait for the dates;
+ * when the calendar opens on the timetable, which shows meetings instead, they start too.
  */
-export function prefetchCalendarPage(scope: Scope, queryClient: QueryClient) {
+export function prefetchCalendarPage(
+  scope: Scope,
+  queryClient: QueryClient,
+  { preload }: { preload: boolean },
+) {
   if (scope.kind !== 'term') return
-  void queryClient.prefetchQuery(calendarSettingsOptions(scope.termId))
-  void queryClient.prefetchQuery(academicsTermGetWeeksOptions({ path: { term_id: scope.termId } }))
-  void queryClient.prefetchQuery(courseListOptions(scope.programId, scope.termId))
+  const { termId } = scope
+  void queryClient.prefetchQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } }))
+  const settings = queryClient.fetchQuery(calendarSettingsOptions(termId))
+  const courses = queryClient.fetchQuery(courseListOptions(scope.programId, termId))
+  // A hovered link stops here: the meetings (one request per course) wait for the click.
+  const meetings = preload
+    ? Promise.resolve()
+    : Promise.all([
+        settings,
+        readUiPref<{ view?: CalendarSettings['default_view'] }>(
+          queryClient,
+          `calendar.nav.${termId}`,
+        ),
+        courses,
+      ]).then(([values, nav, list]) => {
+        const view =
+          nav?.view ??
+          { ...DEFAULT_CALENDAR_SETTINGS, ...(values.values as Partial<CalendarSettings>) }
+            .default_view
+        if (view !== 'timetable') return
+        for (const course of list.items) {
+          void queryClient.prefetchQuery(
+            scheduleMeetingListOptions({
+              path: { course_id: course.id },
+              query: { term_id: termId },
+            }),
+          )
+        }
+      })
+  // The page's own queries report errors.
+  Promise.all([settings, courses, meetings]).catch(() => undefined)
 }
 
 /** `useCalendarSettings` plus whether the Program's values are still loading (defaults only). */

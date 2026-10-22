@@ -53,6 +53,7 @@ export function ExportDialog({
   currentWeekStart,
   courses,
   meetings,
+  meetingsPending = false,
   sources,
   defaultSources,
   hiddenCourses,
@@ -68,6 +69,8 @@ export function ExportDialog({
   currentWeekStart: string
   courses: readonly Course[]
   meetings: readonly Meeting[]
+  /** The meetings are still loading: the timetable template waits for them. */
+  meetingsPending?: boolean
   sources: readonly CalendarSourceContribution[]
   defaultSources: readonly string[]
   hiddenCourses: readonly string[]
@@ -326,7 +329,10 @@ export function ExportDialog({
         </div>
         <DialogFooter>
           <Button
-            disabled={busy || (effectiveRange !== 'template' && (wanted.length === 0 || !from))}
+            disabled={
+              busy ||
+              (effectiveRange === 'template' ? meetingsPending : wanted.length === 0 || !from)
+            }
             onClick={() => void run()}
           >
             {busy ? m.schedule_exporting() : m.schedule_export()}

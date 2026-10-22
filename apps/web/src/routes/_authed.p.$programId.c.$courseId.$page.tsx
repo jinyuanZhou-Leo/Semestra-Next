@@ -10,11 +10,12 @@ export const Route = createFileRoute('/_authed/p/$programId/c/$courseId/$page')(
         (entry): entry is [string, string] => typeof entry[1] === 'string',
       ),
     ),
-  loader: ({ context, params }) =>
+  loader: ({ context, params, preload }) =>
     preloadPage(
       { kind: 'course', programId: params.programId, courseId: params.courseId },
       params.page,
       context.queryClient,
+      { preload },
     ),
   component: CoursePage,
 })

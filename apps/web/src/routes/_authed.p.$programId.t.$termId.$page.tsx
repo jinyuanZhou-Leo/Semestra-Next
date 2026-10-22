@@ -3,11 +3,12 @@ import { preloadPage } from '@/app/registry'
 import { TermView } from '@/modules/academics/shell/ScopeView'
 
 export const Route = createFileRoute('/_authed/p/$programId/t/$termId/$page')({
-  loader: ({ context, params }) =>
+  loader: ({ context, params, preload }) =>
     preloadPage(
       { kind: 'term', programId: params.programId, termId: params.termId },
       params.page,
       context.queryClient,
+      { preload },
     ),
   component: TermPage,
 })

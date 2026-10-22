@@ -4,11 +4,12 @@ import { preloadPage } from '@/app/registry'
 import { ProgramView } from '@/modules/academics/shell/ScopeView'
 
 export const Route = createFileRoute('/_authed/p/$programId/')({
-  loader: ({ context, params }) =>
+  loader: ({ context, params, preload }) =>
     preloadPage(
       { kind: 'program', programId: params.programId },
       OVERVIEW_PAGE,
       context.queryClient,
+      { preload },
     ),
   component: ProgramOverview,
 })

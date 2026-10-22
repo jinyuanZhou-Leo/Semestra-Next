@@ -81,14 +81,21 @@ export function preloadPage(
   scope: Scope,
   pageId: string,
   queryClient: QueryClient,
-  modules: readonly ModuleManifest[] = installedModules(queryClient),
+  {
+    preload: hovered = false,
+    modules = installedModules(queryClient),
+  }: {
+    /** From the loader's context: a hovered link rather than a navigation. */
+    preload?: boolean
+    modules?: readonly ModuleManifest[]
+  } = {},
 ): Promise<void> {
   const parts: unknown[] = []
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
       parts.push(page.component, page.sidebarNav)
-      page.prefetch?.(scope, queryClient)
+      page.prefetch?.(scope, queryClient, { preload: hovered })
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules)
     }
   }

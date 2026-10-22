@@ -50,13 +50,22 @@ export function useCourseFiles(courseId: string) {
 }
 
 /** The files page's data, started with its code (`PageContribution.prefetch`). */
-export function prefetchFilesPage(scope: Scope, queryClient: QueryClient) {
+export function prefetchFilesPage(
+  scope: Scope,
+  queryClient: QueryClient,
+  { preload }: { preload: boolean },
+) {
   if (scope.kind === 'course') {
     void queryClient.prefetchQuery(courseFilesOptions(scope.courseId))
     return
   }
   if (scope.kind !== 'term') return
   const { termId } = scope
+  // A hovered link gets the course list only: every course's files wait for the click.
+  if (preload) {
+    void queryClient.prefetchQuery(courseListOptions(scope.programId, termId))
+    return
+  }
   queryClient
     .fetchQuery(courseListOptions(scope.programId, termId))
     .then((list) => {
