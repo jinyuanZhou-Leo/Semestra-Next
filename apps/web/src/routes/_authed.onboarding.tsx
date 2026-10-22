@@ -3,7 +3,8 @@ import {
   academicsProgramListOptions,
 } from '@semestra/api-client/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { Onboarding, onboardingInProgress } from '@/modules/academics/onboarding/Onboarding'
+import { Onboarding } from '@/modules/academics/onboarding/Onboarding'
+import { onboardingInProgress } from '@/modules/academics/onboarding/progress'
 
 export const Route = createFileRoute('/_authed/onboarding')({
   beforeLoad: async ({ context }) => {

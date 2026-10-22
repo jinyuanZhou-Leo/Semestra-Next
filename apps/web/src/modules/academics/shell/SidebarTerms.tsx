@@ -471,9 +471,12 @@ export function SidebarTerms({
 }) {
   const { isMobile } = useSidebar()
   const terms = useTerms(programId).data?.items
-  const courses = useCourses(programId).data?.items
   const { term: current } = useCurrentTerm(programId)
   const { pins, setPins, toggle } = usePins(programId)
+  // The Program's courses, only to show pinned courses (an open term lists its own).
+  const courses = useCourses(programId, undefined, {
+    enabled: pins.some((pin) => pin.kind === 'course'),
+  }).data?.items
   const { open, setOpen } = useOpenTerms(programId, current?.id)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 

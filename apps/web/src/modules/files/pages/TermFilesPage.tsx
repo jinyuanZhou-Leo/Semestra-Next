@@ -1,5 +1,4 @@
 import type { Course, ItemOut } from '@semestra/api-client'
-import { filesItemListQueryKey } from '@semestra/api-client/react-query'
 import { useQueries } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, CircleAlert, FolderOpen, Search } from 'lucide-react'
 import { useState } from 'react'
@@ -23,7 +22,7 @@ import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '../hooks'
-import { fetchCourseFiles } from '../queries'
+import { courseFilesOptions } from '../queries'
 
 const NOOP = () => {}
 
@@ -59,15 +58,7 @@ function TermFiles({
   const link = useExternalLink()
   const query = useDebounced(search, 300)
   const contentSearch = useContentSearch(programId, query, { termId })
-  const lists = useQueries({
-    queries: courses.map((course) => ({
-      queryKey: filesItemListQueryKey({
-        path: { course_id: course.id },
-        query: { recursive: true },
-      }),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchCourseFiles(course.id, signal),
-    })),
-  })
+  const lists = useQueries({ queries: courses.map((course) => courseFilesOptions(course.id)) })
 
   if (courses.length === 0) {
     return (

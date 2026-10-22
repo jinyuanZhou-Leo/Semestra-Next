@@ -3,6 +3,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { QuickOpenPicker } from './cards/QuickOpenPicker'
 import { quickOpenSchema } from './cards/quick-open'
+import { prefetchFilesPage } from './queries'
 
 /** Queries that show files; any change to a file, a folder or the course behind them refetches them. */
 const FILES_QUERIES = [
@@ -43,6 +44,7 @@ export default defineModule({
       title: m.files_nav,
       icon: FolderOpen,
       component: preloadable(() => import('./pages/FilesPage')),
+      prefetch: prefetchFilesPage,
       order: 30,
     },
   ],

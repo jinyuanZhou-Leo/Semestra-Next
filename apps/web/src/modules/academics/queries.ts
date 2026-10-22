@@ -26,14 +26,19 @@ export function useTerms(programId: string) {
   })
 }
 
-/** Every course of a Program (the list is small; one page of up to 500). */
-export function useCourses(programId: string, termId?: string) {
+/** Every course of a Program, or of one term (the list is small; one page of up to 500). */
+export function courseListOptions(programId: string, termId?: string) {
+  return academicsCourseListOptions({
+    path: { program_id: programId },
+    query: { limit: 500, ...(termId ? { term_id: termId } : {}) },
+  })
+}
+
+/** See `courseListOptions`; `enabled: false` waits (e.g. until the term is known). */
+export function useCourses(programId: string, termId?: string, { enabled = true } = {}) {
   return useQuery({
-    ...academicsCourseListOptions({
-      path: { program_id: programId },
-      query: { limit: 500, ...(termId ? { term_id: termId } : {}) },
-    }),
-    enabled: programId !== '',
+    ...courseListOptions(programId, termId),
+    enabled: enabled && programId !== '',
   })
 }
 
