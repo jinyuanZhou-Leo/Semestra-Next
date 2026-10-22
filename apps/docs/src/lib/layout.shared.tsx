@@ -84,12 +84,12 @@ export function baseOptions(lang: string): BaseLayoutProps {
       title: appName,
       url: `/${lang}`,
     },
-    // `external` keeps them plain links, outside the docs' basePath. The landing page's Chinese
-    // version is its root.
+    // `external` keeps them plain links, outside the docs' basePath. The landing page is English
+    // at its root and Chinese under /zh/.
     links: [
       {
         text: zh ? 'Semestra 主页' : 'Semestra home',
-        url: `${landingUrl}/${zh ? '' : 'en/'}`,
+        url: `${landingUrl}/${zh ? 'zh/' : ''}`,
         external: true,
       },
       { text: zh ? '打开应用' : 'Open app', url: `${appUrl}/login`, external: true },
