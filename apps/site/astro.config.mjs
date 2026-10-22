@@ -5,7 +5,7 @@ import { defineConfig } from 'astro/config'
 // The marketing site: static HTML, no client framework at runtime. React is only used at build time
 // to render the shadcn components (Button, NavigationMenu) the app also uses.
 export default defineConfig({
-  site: 'https://semestra.app',
+  site: process.env.PUBLIC_SITE_URL ?? 'https://semestra.jyleo.cc',
   integrations: [react()],
   i18n: {
     locales: ['zh-CN', 'en'],

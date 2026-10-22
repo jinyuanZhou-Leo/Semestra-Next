@@ -10,6 +10,7 @@
 | `pnpm --filter @semestra/site capture` | 从真实应用重新截取产品画面 |
 
 - 路由：`/` 中文，`/en/` 英文；文案在 `src/i18n.ts`。
+- 外链：应用和文档站的地址在 `src/i18n.ts`（`APP_URL`、`DOCS_URL`），构建时可用 `PUBLIC_APP_URL`、`PUBLIC_DOCS_URL`、`PUBLIC_SITE_URL` 覆盖；`site:dev` 时默认指向本地的应用（:5173）和文档站（:3001），构建时默认是 `app.` / `docs.semestra.jyleo.cc`。三个站的域名规划见项目文件 `discussions/2026-10-22-三站路由方案.md`。
 - 主题：跟随系统，深色时给 `<html>` 加 `.dark`（和 shadcn 一致）；令牌在 `src/styles/theme.css`，复制自应用的 `apps/web/src/app/theme.css`，应用改了主题要同步。
 - `src/ui/` 是 shadcn CLI 生成的文件，不手改；要新组件在本目录运行 `CI=1 pnpm dlx shadcn@latest add <组件> </dev/null`。
 

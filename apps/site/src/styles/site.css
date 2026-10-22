@@ -671,7 +671,7 @@ footer {
 }
 footer .cols {
   display: grid;
-  grid-template-columns: 2fr repeat(3, 1fr);
+  grid-template-columns: 2fr repeat(4, 1fr);
   gap: 32px;
   padding-block: 56px;
 }

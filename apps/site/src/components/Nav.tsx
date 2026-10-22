@@ -1,6 +1,6 @@
 import { GraduationCap, Languages } from 'lucide-react'
 
-import { APP_URL, copy, home, type Lang } from '@/i18n'
+import { APP_URL, copy, docs, home, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
 import {
   NavigationMenu,
@@ -29,6 +29,7 @@ export function Nav({ lang }: { lang: Lang }) {
               ['#today', t.product],
               ['#sem', 'Sem'],
               ['#more', t.open],
+              [docs(lang), t.docs],
             ].map(([href, label]) => (
               <NavigationMenuItem key={label}>
                 <NavigationMenuLink href={href} className={navigationMenuTriggerStyle()}>
