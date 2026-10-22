@@ -1,7 +1,13 @@
-import { GraduationCap, Languages } from 'lucide-react'
+import { Check, ChevronDown, GraduationCap, Languages } from 'lucide-react'
 
-import { APP_URL, copy, home, type Lang } from '@/i18n'
+import { APP_URL, copy, home, langName, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -12,7 +18,6 @@ import {
 
 export function Nav({ lang }: { lang: Lang }) {
   const t = copy[lang].nav
-  const other: Lang = lang === 'en' ? 'zh-CN' : 'en'
   return (
     <header className="site-nav" id="nav">
       <div className="wrap flex h-15 items-center gap-5">
@@ -39,10 +44,21 @@ export function Nav({ lang }: { lang: Lang }) {
           </NavigationMenuList>
         </NavigationMenu>
         <div className="ml-auto flex items-center gap-1.5">
-          <a href={home(other)} hrefLang={other} className={buttonVariants({ variant: 'ghost' })}>
-            <Languages data-icon="inline-start" />
-            {t.other}
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger className={buttonVariants({ variant: 'ghost' })}>
+              <Languages data-icon="inline-start" />
+              {langName[lang]}
+              <ChevronDown data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(Object.keys(langName) as Lang[]).map((l) => (
+                <DropdownMenuItem key={l} render={<a href={home(l)} hrefLang={l} />}>
+                  {langName[l]}
+                  {l === lang && <Check className="ml-auto" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <a
             href={`${APP_URL}/login`}
             className={buttonVariants({ variant: 'ghost', className: 'max-[900px]:hidden' })}

@@ -31,7 +31,7 @@ import {
 import { Nav } from '@/components/Nav'
 import { ExploreButton, GitHubButton, StartButton, StartLink } from '@/components/Cta'
 import Shot from '@/components/Shot.astro'
-import { APP_URL, GITHUB_URL, copy, home, shotLang, type Lang } from '@/i18n'
+import { APP_URL, GITHUB_URL, docsUrl, copy, home, shotLang, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
 
 interface Props {
@@ -84,7 +84,7 @@ const login = `${APP_URL}/login`
     </script>
   </head>
   <body>
-    <Nav lang={lang} />
+    <Nav client:load lang={lang} />
     <main id="top">
       <div class="hero">
         <div class="wrap">
@@ -342,7 +342,7 @@ const login = `${APP_URL}/login`
           <h4>{t.footer.open}</h4>
           <ul>
             <li><a href={GITHUB_URL}>GitHub<ArrowUpRight aria-hidden="true" /></a></li>
-            <li><a href={`${GITHUB_URL}/tree/main/deploy/selfhost`}>{t.footer.selfHost}<ArrowUpRight aria-hidden="true" /></a></li>
+            <li><a href={docsUrl(lang, '/self-hosting')}>{t.footer.selfHost}<ArrowUpRight aria-hidden="true" /></a></li>
           </ul>
         </div>
         <div>

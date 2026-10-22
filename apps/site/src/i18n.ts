@@ -1,6 +1,9 @@
 export type Lang = 'zh-CN' | 'en'
 
 export const APP_URL = 'https://app.semestra.app'
+/** Docs site root (same host, /docs); override per environment, e.g. http://localhost:3001 in dev. */
+export const DOCS_URL = (import.meta.env.PUBLIC_DOCS_URL ?? 'https://semestra.jyleo.cc/docs').replace(/\/$/, '')
+export const docsUrl = (lang: Lang, path = '') => `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}${path}`
 export const GITHUB_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
 
 /** A title and one line under it. */
@@ -311,5 +314,6 @@ export const copy = {
   },
 } satisfies Record<Lang, unknown>
 
+export const langName: Record<Lang, string> = { 'zh-CN': '简体中文', en: 'English' }
 export const home = (lang: Lang) => (lang === 'en' ? '/en/' : '/')
 export const shotLang = (lang: Lang) => (lang === 'en' ? 'en' : 'zh')
