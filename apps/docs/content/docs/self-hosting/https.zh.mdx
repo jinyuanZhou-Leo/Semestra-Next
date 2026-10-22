@@ -1,0 +1,37 @@
+---
+title: 域名与 HTTPS
+description: 用内置的 Caddy 或你自己的代理，把实例放到自己的域名下。
+---
+
+## 内置 Caddy
+
+把 A/AAAA 记录指向服务器，开放 80 和 443 端口。然后在 `.env` 里：
+
+```bash title=".env"
+SEMESTRA_DOMAIN=semestra.example.com
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+```bash
+docker compose --profile https up -d
+```
+
+Caddy 会申请并续期证书，加上 HSTS 等安全响应头，并接受最大 1100 MB 的请求体，足够导入最大的备份。`SEMESTRA_BIND=127.0.0.1` 让 8000
+端口不暴露在公网网卡上。
+
+## 使用自己的反向代理
+
+不用这个 profile，保留 `SEMESTRA_BIND=127.0.0.1`，设置 `SEMESTRA_PUBLIC_URL`，把请求代理到 8000 端口。注意两点：
+
+- **不要缓冲 `/events/stream`。** 这是让网页实时更新的 server-sent events 流。nginx 要对这个路径关闭
+  `proxy_buffering`；Caddy 对应的是 `flush_interval -1`。
+- **允许大文件上传。** 用户导入的备份最大可以是存储配额加 50 MB（存储不限时为 1 GiB 加 50 MB）；应用只有在代理把请求体转发过来之后才检查大小。
+
+容器信任来自任意地址的 `X-Forwarded-*` 请求头（compose 文件里的 `FORWARDED_ALLOW_IPS=*`），所以只有在 8000
+端口无法从外部访问时才是安全的。
+
+## 为什么公开地址很重要
+
+`SEMESTRA_PUBLIC_URL` 会成为网页的源、API 的源和唯一允许的 CORS 源。以 `https://` 开头时，会话 cookie 会标为
+Secure。这个值和浏览器里的地址不一致时，表现为无法登录。

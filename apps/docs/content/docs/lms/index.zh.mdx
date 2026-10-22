@@ -1,0 +1,64 @@
+---
+title: 连接 Canvas
+description: 把 Semestra 关联到你的 Canvas 账户、一个 Program 及其课程。
+---
+
+Semestra 通过服务商接入学习平台，目前只支持 Canvas。连接使用你自己的访问令牌读取 Canvas；Semestra 从不向 Canvas 写入任何内容。
+
+分为三层，每层设置一次：
+
+| 层级     | 位置                                             | 内容                                       |
+| -------- | ------------------------------------------------ | ------------------------------------------ |
+| 连接     | 账户设置 → **集成 → LMS 连接**                   | Canvas 地址和访问令牌，可以有多个          |
+| Program  | Program 设置 → **集成 → LMS**                    | 这个 Program 的课程使用哪个连接            |
+| 课程     | 课程设置 → **集成 → LMS**                        | 这门课程关联到哪门 Canvas 课程             |
+
+## 1. 添加连接
+
+<Steps>
+<Step>
+
+在 Canvas 里打开 **Account → Settings**，在 _Approved integrations_ 下选择 **New access token**。复制令牌，Canvas 只显示一次。
+
+</Step>
+<Step>
+
+在 Semestra 里添加 LMS 连接，选择 **Canvas**，填入 Canvas 地址（例如 `https://school.instructure.com`；省略 `https://` 会自动补上）和令牌。
+
+</Step>
+<Step>
+
+保存前 Semestra 会用 Canvas 验证令牌。令牌加密保存，之后只显示打码后的提示。修改地址时必须重新填写令牌，所以已保存的令牌永远不会发给另一个服务器。
+
+</Step>
+</Steps>
+
+连接每六小时重新检查一次。令牌被吊销或过期的连接会标记为错误，直到你更新它。
+
+## 2. 绑定 Program
+
+在 Program 设置里选择它的课程使用的连接。只要 Program 下还有关联的课程，绑定就不能修改或移除。
+
+## 3. 关联课程
+
+可以[从 Canvas 导入课程](./imports.mdx)，导入时就会建立关联；也可以打开已有课程的设置，选择它对应的 Canvas 课程。同一个 Program 里，一门 Canvas
+课程只能关联一门课程。全年课只有一个关联。
+
+每个关联都有一个**同步**开关。关闭后，这门课程的 Canvas 截止日期会从日历中移除，也不再检测作业变化；Canvas 页签和 Sem 仍然可以读取这门课程。
+
+## 关联后能得到什么
+
+- **Canvas 页签**（插件，按账户安装）：实时读取已关联课程的公告、作业、单元、页面、文件、测验、成绩和 syllabus。
+- **日历**：同步中的课程的作业截止日期和 Canvas 日历事件会显示在学期日历里。已经导入的作业不会重复显示。
+- **公告卡片**，可放在课程和学期看板上。
+- **Sem 和 MCP** 可以读取同样的数据（见 [MCP 工具](/docs/mcp/tools)）。
+
+读取结果缓存五分钟。在 Canvas 页签里刷新会跳过缓存。
+
+## 自建的 Canvas
+
+位于内网或使用纯 `http://` 的 Canvas 服务器，需要 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`（自部署 compose 文件的默认值）。托管版只能使用公网的 `https://` 地址。
+
+## 尚不支持
+
+不会读取 New Quizzes 和讨论的 checkpoints。

@@ -1,0 +1,32 @@
+---
+title: Instance-wide provider
+description: Self-hosted only. One provider every user falls back to when they have none.
+---
+
+A self-hosted instance can give every user a default provider through environment variables, for
+example a local Ollama. It is used for a purpose only when the user has no enabled provider of
+their own that can serve it (see [Which model answers](./index.mdx#which-model-answers)).
+
+```bash title="deploy/selfhost/.env"
+SEMESTRA_INSTANCE_AI_KIND=ollama
+SEMESTRA_INSTANCE_AI_BASE_URL=http://ollama:11434
+SEMESTRA_INSTANCE_AI_CHAT_MODEL=qwen3:8b
+SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
+# SEMESTRA_INSTANCE_AI_API_KEY=   # optional for Ollama
+```
+
+| Variable                               | Meaning                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `SEMESTRA_INSTANCE_AI_KIND`            | `anthropic`, `anthropic_compatible`, `openai`, `openai_compatible`, `openai_responses`, `gemini` or `ollama` |
+| `SEMESTRA_INSTANCE_AI_BASE_URL`        | Required for the compatible types, `openai_responses` and `ollama`                            |
+| `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | Serves Sem, document reading and titles                                                       |
+| `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | Serves file search; leave empty for none                                                      |
+| `SEMESTRA_INSTANCE_AI_API_KEY`         | The key, when the provider needs one                                                          |
+
+What the instance provider can do follows from the variables: a chat model gives chat, tools and
+structured output, plus image reading for Anthropic, OpenAI and Gemini; an embedding model gives
+search. With Ollama or a compatible endpoint, image reading needs a user's own provider.
+
+<Callout type="warn">
+  Every user of the instance spends from this provider. With a paid API key, that is your bill.
+</Callout>

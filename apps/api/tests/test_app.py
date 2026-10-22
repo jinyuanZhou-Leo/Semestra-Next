@@ -62,6 +62,37 @@ def test_openapi_has_health_operations(settings: Settings) -> None:
     assert {"healthz", "readyz"} <= ops
 
 
+def test_openapi_declares_credentials(settings: Settings) -> None:
+    from semestra.main import create_app
+
+    schema = create_app(settings).openapi()
+    assert set(schema["components"]["securitySchemes"]) == {
+        "sessionCookie",
+        "accessToken",
+        "personalAccessToken",
+    }
+    paths = schema["paths"]
+    # Capabilities exposed to MCP take personal access tokens; HTTP-only capabilities,
+    # hand-written routes and sign-in do not.
+    assert {"personalAccessToken": []} in paths["/programs"]["get"]["security"]
+    assert {"personalAccessToken": []} not in paths["/account/tokens"]["get"]["security"]
+    assert {"personalAccessToken": []} not in paths["/account/avatar"]["post"]["security"]
+    assert "security" not in paths["/auth/password/login"]["post"]
+    assert "security" not in paths["/healthz"]["get"]
+
+
+def test_mcp_catalog_lists_tools_and_prompts(settings: Settings) -> None:
+    from semestra.main import create_app
+    from semestra.modules.agent.mcp_server import catalog
+
+    create_app(settings)
+    data = catalog()
+    names = {t["name"] for t in data["tools"]}
+    assert "academics__course__create" in names
+    assert all("." not in n for n in names)
+    assert all(set(p["title"]) >= {"en", "zh-CN"} for p in data["prompts"])
+
+
 def test_now_is_aware() -> None:
     assert datetime.now(UTC).tzinfo is not None
 

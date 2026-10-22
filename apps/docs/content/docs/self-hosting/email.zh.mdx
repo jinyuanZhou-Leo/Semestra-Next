@@ -1,0 +1,38 @@
+---
+title: 邮件
+description: 配置 SMTP 或 Resend 之前，验证码打印在日志里。
+---
+
+Semestra 用发到邮箱的一次性验证码登录（密码和 Google 登录是可选的）。`SEMESTRA_EMAIL_BACKEND` 决定邮件怎么发送。
+
+| 方式      | 行为                                                                      |
+| --------- | ------------------------------------------------------------------------- |
+| `console` | 默认。把每封邮件（包括验证码）打印到日志                                  |
+| `smtp`    | 通过你的 SMTP 服务器发送                                                  |
+| `resend`  | 通过 [Resend](https://resend.com) 发送。没有密钥时 API 不会启动           |
+
+```bash
+docker compose logs -f semestra   # console 模式：在这里找验证码
+```
+
+## SMTP
+
+```bash title=".env"
+SEMESTRA_EMAIL_BACKEND=smtp
+SEMESTRA_EMAIL_FROM=Semestra <semestra@example.com>
+SEMESTRA_SMTP_HOST=smtp.example.com
+SEMESTRA_SMTP_PORT=587
+SEMESTRA_SMTP_USERNAME=semestra@example.com
+SEMESTRA_SMTP_PASSWORD=...
+SEMESTRA_SMTP_STARTTLS=true
+```
+
+## Resend
+
+```bash title=".env"
+SEMESTRA_EMAIL_BACKEND=resend
+SEMESTRA_EMAIL_FROM=Semestra <no-reply@example.com>
+SEMESTRA_RESEND_API_KEY=...
+```
+
+发件域名需要先在 Resend 里验证。`SEMESTRA_EMAIL_REPLY_TO` 可以为两种方式设置回复地址。

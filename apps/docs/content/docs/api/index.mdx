@@ -1,0 +1,66 @@
+---
+title: API overview
+description: Conventions shared by every endpoint, errors, live updates and background jobs.
+---
+
+Everything the web app does goes through a JSON HTTP API. The [endpoint reference](/docs/api/reference/academics)
+is generated from the server's OpenAPI schema (`packages/api-client/openapi.json`), and the web
+app itself uses a client generated from the same file.
+
+## Base URL
+
+The API sits at the root of the server: on a self-hosted instance that is the same address as
+the web app (`https://semestra.example.com/programs`). The OpenAPI document of a running server is
+at `/openapi.json`.
+
+## Conventions
+
+- Ids are UUIDv7 strings. Times are ISO 8601 in UTC; dates without a time are `YYYY-MM-DD`.
+- Most operations are **capabilities**: one definition that is at the same time an HTTP endpoint,
+  a tool for Sem and, for many, an [MCP tool](/docs/mcp/tools). Their HTTP form is `GET` with
+  query parameters for reads and a JSON body for writes; actions are paths like
+  `POST /tasks/{task_id}:complete`.
+- Responses carry an `X-Request-ID` header; send your own `X-Request-ID` to correlate logs.
+- `X-Semestra-Scope: program:<id>;term:<id>;course:<id>` tells the server which program, term or
+  course you are looking at, where that matters.
+- Answers are in the user's language when the server has text to localize; send
+  `Accept-Language` (`en` or `zh-CN`).
+
+## Errors
+
+Errors never carry display text. The body is always:
+
+```json
+{
+  "error": {
+    "code": "common.not_found",
+    "params": { "kind": "course", "id": "01J…" },
+    "request_id": "01J…"
+  }
+}
+```
+
+`code` is a stable, dotted, module-prefixed identifier; `params` fills in the details. Common
+codes:
+
+| Status | Code                     | Meaning                                                            |
+| ------ | ------------------------ | ------------------------------------------------------------------ |
+| 401    | `common.unauthenticated` | No valid credential                                                |
+| 403    | `auth.token_scope`       | The API token may not call this (read-only token, or not offered to MCP) |
+| 403    | `auth.csrf_failed`       | Cookie request without the CSRF header                             |
+| 404    | `common.not_found`       | Unknown id, or one that belongs to someone else                    |
+| 409    | `ai.not_configured`      | No AI provider can serve the purpose                               |
+| 422    | `common.validation`      | Invalid input; `params.errors` lists `{loc, code, msg}`            |
+
+## Live updates
+
+`GET /events/stream` is a server-sent events stream. Each message is
+`{"type": "<module>.<event>", "data": {…}}` for something that changed in the signed-in user's
+data; `core.resync` means "refetch everything". It accepts a session cookie or an access token,
+not an API token, and is not part of the OpenAPI schema.
+
+## Background jobs
+
+Long operations (file parsing, AI extraction, exports) return a job. Poll `GET /jobs/{job_id}`
+for its status and progress, or wait for its event on the stream; `POST /jobs/{job_id}/cancel`
+stops it.

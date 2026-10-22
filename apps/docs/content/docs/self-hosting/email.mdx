@@ -1,0 +1,40 @@
+---
+title: Email
+description: Verification codes are logged until you configure SMTP or Resend.
+---
+
+Semestra signs users in with one-time codes sent by email (passwords and Google sign-in are
+optional extras). `SEMESTRA_EMAIL_BACKEND` picks how mail is sent.
+
+| Backend   | Behaviour                                                                     |
+| --------- | ----------------------------------------------------------------------------- |
+| `console` | Default. Prints each message, including the code, to the log                  |
+| `smtp`    | Sends through your SMTP server                                                |
+| `resend`  | Sends through [Resend](https://resend.com). The API refuses to start without a key |
+
+```bash
+docker compose logs -f semestra   # console: find the code here
+```
+
+## SMTP
+
+```bash title=".env"
+SEMESTRA_EMAIL_BACKEND=smtp
+SEMESTRA_EMAIL_FROM=Semestra <semestra@example.com>
+SEMESTRA_SMTP_HOST=smtp.example.com
+SEMESTRA_SMTP_PORT=587
+SEMESTRA_SMTP_USERNAME=semestra@example.com
+SEMESTRA_SMTP_PASSWORD=...
+SEMESTRA_SMTP_STARTTLS=true
+```
+
+## Resend
+
+```bash title=".env"
+SEMESTRA_EMAIL_BACKEND=resend
+SEMESTRA_EMAIL_FROM=Semestra <no-reply@example.com>
+SEMESTRA_RESEND_API_KEY=...
+```
+
+The sending domain must be verified in Resend. `SEMESTRA_EMAIL_REPLY_TO` sets an optional
+reply-to address for either backend.

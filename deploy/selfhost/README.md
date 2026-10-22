@@ -3,6 +3,9 @@
 One container serves both the API and the web app. You need Docker with the Compose plugin and about 1 GB of RAM.
 一个容器同时提供 API 和网页，只需要装有 Compose 插件的 Docker 和约 1 GB 内存。
 
+The full guide (HTTPS, email, backups, AI, every setting) is in the docs site: `apps/docs/content/docs/self-hosting`, or run `pnpm docs:dev`.
+完整指南（HTTPS、邮件、备份、AI、全部设置）在文档站里：`apps/docs/content/docs/self-hosting`，或运行 `pnpm docs:dev`。
+
 ## Start / 启动
 
 ```bash
@@ -30,10 +33,10 @@ docker compose logs -f semestra
 To send real email, set in `.env`: `SEMESTRA_EMAIL_BACKEND=smtp` plus the SMTP settings listed in [`../.env.example`](../.env.example) (or `resend`).
 要发真实邮件，在 `.env` 里设置 `SEMESTRA_EMAIL_BACKEND=smtp` 和 [`../.env.example`](../.env.example) 里的 SMTP 配置（或 `resend`）。
 
-### Single-user mode / 单用户模式
+### Single-user mode (planned) / 单用户模式（规划中）
 
-For a personal instance set `SEMESTRA_SINGLE_USER=true`: the first visitor creates the admin account (email + password), then sign-up closes.
-个人使用时设置 `SEMESTRA_SINGLE_USER=true`：第一个访问者创建管理员账户（邮箱 + 密码），之后关闭注册。
+`SEMESTRA_SINGLE_USER` (the first visitor creates the admin account, then sign-up closes) is not implemented yet: the variable is accepted and has no effect. Once real email is configured, anyone who can reach the instance can sign up, so keep it on a private network or behind your own access control for now.
+`SEMESTRA_SINGLE_USER`（第一个访问者创建管理员账户，之后关闭注册）尚未实现：这个变量会被接受，但不起作用。配置真实邮件后，任何能访问实例的人都可以注册，所以目前请把实例放在内网，或放在你自己的访问控制之后。
 
 ## Secrets / 密钥
 

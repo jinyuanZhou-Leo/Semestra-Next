@@ -1,0 +1,42 @@
+---
+title: Provider types
+description: The seven provider types, what each needs, and what it can do.
+---
+
+| Type                     | Base URL                                       | Key      | Capabilities                                         |
+| ------------------------ | ---------------------------------------------- | -------- | ---------------------------------------------------- |
+| Anthropic                | fixed (`https://api.anthropic.com`)            | required | chat, tools, vision, structured output               |
+| OpenAI                   | fixed (`https://api.openai.com/v1`)            | required | chat, tools, vision, structured output, embedding    |
+| Google Gemini            | fixed                                          | required | chat, tools, vision, structured output, embedding    |
+| OpenAI-compatible        | required                                       | optional | you choose (default: chat, tools)                    |
+| OpenAI Responses API     | required (`https://api.openai.com/v1` for OpenAI) | optional | you choose (default: chat, tools, structured output) |
+| Anthropic-compatible     | required                                       | optional | you choose (default: chat, tools)                    |
+| Ollama                   | required                                       | optional | you choose (default: chat, tools, structured output, embedding) |
+
+## Compatible endpoints
+
+Use the compatible types for any service that speaks the OpenAI Chat Completions, OpenAI Responses
+or Anthropic Messages format: DeepSeek, OpenRouter, Kimi, GLM, a vLLM or LiteLLM gateway, and so
+on. Because Semestra cannot know what such an endpoint supports, you tick its capabilities
+yourself:
+
+- **tools** is needed for Sem to act on your data.
+- **vision** lets it read images.
+- **structured output** makes extraction use the endpoint's JSON-schema mode; without it,
+  Semestra asks for JSON and validates the answer.
+- **embedding** enables file search.
+
+When you add a compatible endpoint or Ollama you can type one model name; it is assigned to the
+purposes nothing could serve yet: Sem, reading documents and titles, plus reading images when
+you ticked vision.
+
+## Model parameters
+
+On **Models** each purpose can override temperature (0 to 2), the output token limit, and the
+reasoning effort (`minimal`, `low`, `medium`, `high`) for models that support it.
+
+## Private addresses
+
+On a server where `SEMESTRA_ALLOW_PRIVATE_EGRESS` is `false` (the hosted version and a plain
+`semestra dev`), base URLs that resolve to private, loopback or link-local addresses are refused
+with "That address points to a private network and can't be used." See [Ollama](./ollama.mdx).

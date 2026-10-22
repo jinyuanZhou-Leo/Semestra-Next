@@ -2,3 +2,7 @@ packages:
   - apps/*
   - packages/*
 savePrefix: ''
+allowBuilds:
+  # esbuild (via fumadocs-mdx) ships prebuilt binaries as optional dependencies; its
+  # postinstall only verifies them.
+  esbuild: false

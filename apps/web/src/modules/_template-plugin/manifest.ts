@@ -5,7 +5,7 @@ import { helloNoteCardSchema } from './schema'
 
 /**
  * Plugin template (M14 §6): one Page, one Card with settings and one settings section.
- * `docs/plugin-authoring.md` explains every field. Copy this folder to `modules/plugin-<name>/`,
+ * `apps/docs/content/docs/plugins.mdx` explains every field. Copy this folder to `modules/plugin-<name>/`,
  * rename the ids and the `hello_` message keys, and add the manifest to `app/registry.ts`. The
  * template itself is not registered. The id must equal the backend `PLUGIN.id` (CI compares).
  */

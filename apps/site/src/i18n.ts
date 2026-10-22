@@ -336,4 +336,5 @@ export const asset = (path: string) => `${BASE}${path}`
 /** A page of the docs site in the visitor's language, e.g. `docs('en', 'mcp')`. */
 export const docs = (lang: Lang, section = '') =>
   `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}${section ? `/${section}` : ''}`
+export const langName: Record<Lang, string> = { en: 'English', 'zh-CN': '简体中文' }
 export const shotLang = (lang: Lang) => (lang === 'en' ? 'en' : 'zh')

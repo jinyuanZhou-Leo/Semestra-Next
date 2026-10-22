@@ -2,8 +2,9 @@
 
 Shows what a first-party plugin's backend consists of: a settings namespace set at account and
 course level, a read and a write capability (both tied to a card instance and to the plugin with
-`plugin_id`), an agent skill, an export adapter and its tests. `docs/plugin-authoring.md` walks
-through it. The matching frontend is `apps/web/src/modules/_template-plugin/`.
+`plugin_id`), an agent skill, an export adapter and its tests.
+`apps/docs/content/docs/plugins.mdx` walks through it. The matching frontend is
+`apps/web/src/modules/_template-plugin/`.
 
 To start a plugin, copy this package to `modules/plugins_builtin/<name>/`, rename `hello-note`,
 `hello_note` and `hello.` everywhere, then:
