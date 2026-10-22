@@ -80,6 +80,33 @@ def _tool(cap: Capability) -> types.Tool:
     )
 
 
+def catalog() -> dict[str, Any]:
+    """Every MCP tool and prompt, for the docs site (`semestra capabilities`). What one client
+    sees depends on its token's scope, the user's plugins and the delete preference."""
+    return {
+        "tools": [
+            {
+                "name": tools.tool_name(c.name),
+                "capability": c.name,
+                "module": c.name.split(".")[0],
+                "effect": c.effect,
+                "summary": c.summary,
+                "plugin_id": c.plugin_id,
+            }
+            for c in registry.list("mcp")
+        ],
+        "prompts": [
+            {
+                "name": s.name,
+                "title": s.title,
+                "description": s.description,
+                "tools": [tools.tool_name(t) for t in s.tools],
+            }
+            for s in sorted(skills.all_skills(), key=lambda s: s.name)
+        ],
+    }
+
+
 async def _list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
     state, ident = _identity(ctx)
 

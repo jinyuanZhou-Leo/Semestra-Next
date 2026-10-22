@@ -44,9 +44,11 @@ export function mcpConfig(token: string, apiOrigin: string): string {
             'mcp-remote',
             `${apiOrigin.replace(/\/$/, '')}/mcp`,
             '--header',
-            'Authorization: Bearer ${SEMESTRA_TOKEN}',
+            // No space after the colon: mcp-remote's documented form, safe from argument
+            // splitting on Windows (the same as the MCP settings page).
+            'Authorization:${AUTH_HEADER}',
           ],
-          env: { SEMESTRA_TOKEN: token },
+          env: { AUTH_HEADER: `Bearer ${token}` },
         },
       },
     },

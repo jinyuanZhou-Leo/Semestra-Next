@@ -10,6 +10,6 @@
     "typecheck": "uv run pyright",
     "test": "uv run pytest -q",
     "migrate": "uv run alembic upgrade head",
-    "openapi": "uv run semestra openapi > ../../packages/api-client/openapi.json"
+    "openapi": "uv run semestra openapi > ../../packages/api-client/openapi.json && uv run semestra capabilities > ../../packages/api-client/capabilities.json"
   }
 }

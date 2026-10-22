@@ -120,13 +120,34 @@ export const authTokenRefresh = <ThrowOnError extends boolean = false>(options: 
 /**
  * Logout
  */
-export const authLogout = <ThrowOnError extends boolean = false>(options?: Options<AuthLogoutData, ThrowOnError>): RequestResult<AuthLogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AuthLogoutResponses, unknown, ThrowOnError>({ url: '/auth/logout', ...options });
+export const authLogout = <ThrowOnError extends boolean = false>(options?: Options<AuthLogoutData, ThrowOnError>): RequestResult<AuthLogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AuthLogoutResponses, unknown, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/auth/logout',
+    ...options
+});
 
 /**
  * Upload a profile picture (PNG, JPEG or WebP, up to 5 MB).
  */
 export const accountAvatarUpload = <ThrowOnError extends boolean = false>(options: Options<AccountAvatarUploadData, ThrowOnError>): RequestResult<AccountAvatarUploadResponses, AccountAvatarUploadErrors, ThrowOnError> => (options.client ?? client).post<AccountAvatarUploadResponses, AccountAvatarUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/avatar',
     ...options,
     headers: {
@@ -149,7 +170,27 @@ export const accountAvatarGet = <ThrowOnError extends boolean = false>(options: 
  * folder with recursive=true), with their processing status. Do not use to look for what the files
  * say; use files.document.search for that.
  */
-export const filesItemList = <ThrowOnError extends boolean = false>(options: Options<FilesItemListData, ThrowOnError>): RequestResult<FilesItemListResponses, FilesItemListErrors, ThrowOnError> => (options.client ?? client).get<FilesItemListResponses, FilesItemListErrors, ThrowOnError>({ url: '/courses/{course_id}/files', ...options });
+export const filesItemList = <ThrowOnError extends boolean = false>(options: Options<FilesItemListData, ThrowOnError>): RequestResult<FilesItemListResponses, FilesItemListErrors, ThrowOnError> => (options.client ?? client).get<FilesItemListResponses, FilesItemListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/files',
+    ...options
+});
 
 /**
  * Upload one or more files into a course.
@@ -158,6 +199,15 @@ export const filesItemList = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const filesUpload = <ThrowOnError extends boolean = false>(options: Options<FilesUploadData, ThrowOnError>): RequestResult<FilesUploadResponses, FilesUploadErrors, ThrowOnError> => (options.client ?? client).post<FilesUploadResponses, FilesUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/courses/{course_id}/files',
     ...options,
     headers: {
@@ -169,18 +219,51 @@ export const filesUpload = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Download or preview a file; supports Range requests.
  */
-export const filesContent = <ThrowOnError extends boolean = false>(options: Options<FilesContentData, ThrowOnError>): RequestResult<FilesContentResponses, FilesContentErrors, ThrowOnError> => (options.client ?? client).get<FilesContentResponses, FilesContentErrors, ThrowOnError>({ url: '/files/{item_id}/content', ...options });
+export const filesContent = <ThrowOnError extends boolean = false>(options: Options<FilesContentData, ThrowOnError>): RequestResult<FilesContentResponses, FilesContentErrors, ThrowOnError> => (options.client ?? client).get<FilesContentResponses, FilesContentErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/files/{item_id}/content',
+    ...options
+});
 
 /**
  * A small image of one page of a processed file.
  */
-export const filesPageImage = <ThrowOnError extends boolean = false>(options: Options<FilesPageImageData, ThrowOnError>): RequestResult<FilesPageImageResponses, FilesPageImageErrors, ThrowOnError> => (options.client ?? client).get<FilesPageImageResponses, FilesPageImageErrors, ThrowOnError>({ url: '/files/{item_id}/pages/{page}.png', ...options });
+export const filesPageImage = <ThrowOnError extends boolean = false>(options: Options<FilesPageImageData, ThrowOnError>): RequestResult<FilesPageImageResponses, FilesPageImageErrors, ThrowOnError> => (options.client ?? client).get<FilesPageImageResponses, FilesPageImageErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/files/{item_id}/pages/{page}.png',
+    ...options
+});
 
 /**
  * Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.
  */
 export const importsUploadCreate = <ThrowOnError extends boolean = false>(options: Options<ImportsUploadCreateData, ThrowOnError>): RequestResult<ImportsUploadCreateResponses, ImportsUploadCreateErrors, ThrowOnError> => (options.client ?? client).post<ImportsUploadCreateResponses, ImportsUploadCreateErrors, ThrowOnError>({
     ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/imports/uploads',
     ...options,
     headers: {
@@ -192,18 +275,51 @@ export const importsUploadCreate = <ThrowOnError extends boolean = false>(option
 /**
  * The uploaded file, shown inline (evidence preview).
  */
-export const importsUploadContent = <ThrowOnError extends boolean = false>(options: Options<ImportsUploadContentData, ThrowOnError>): RequestResult<ImportsUploadContentResponses, ImportsUploadContentErrors, ThrowOnError> => (options.client ?? client).get<ImportsUploadContentResponses, ImportsUploadContentErrors, ThrowOnError>({ url: '/imports/uploads/{upload_id}/content', ...options });
+export const importsUploadContent = <ThrowOnError extends boolean = false>(options: Options<ImportsUploadContentData, ThrowOnError>): RequestResult<ImportsUploadContentResponses, ImportsUploadContentErrors, ThrowOnError> => (options.client ?? client).get<ImportsUploadContentResponses, ImportsUploadContentErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/imports/uploads/{upload_id}/content',
+    ...options
+});
 
 /**
  * File Content
  */
-export const lmsFileContent = <ThrowOnError extends boolean = false>(options: Options<LmsFileContentData, ThrowOnError>): RequestResult<LmsFileContentResponses, LmsFileContentErrors, ThrowOnError> => (options.client ?? client).get<LmsFileContentResponses, LmsFileContentErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/files/{file_id}/content', ...options });
+export const lmsFileContent = <ThrowOnError extends boolean = false>(options: Options<LmsFileContentData, ThrowOnError>): RequestResult<LmsFileContentResponses, LmsFileContentErrors, ThrowOnError> => (options.client ?? client).get<LmsFileContentResponses, LmsFileContentErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/courses/{course_id}/lms/files/{file_id}/content',
+    ...options
+});
 
 /**
  * Upload a file or image for the assistant.
  */
 export const agentAttachmentUpload = <ThrowOnError extends boolean = false>(options: Options<AgentAttachmentUploadData, ThrowOnError>): RequestResult<AgentAttachmentUploadResponses, AgentAttachmentUploadErrors, ThrowOnError> => (options.client ?? client).post<AgentAttachmentUploadResponses, AgentAttachmentUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/attachments',
     ...options,
     headers: {
@@ -217,6 +333,15 @@ export const agentAttachmentUpload = <ThrowOnError extends boolean = false>(opti
  */
 export const portabilityImportUpload = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportUploadData, ThrowOnError>): RequestResult<PortabilityImportUploadResponses, PortabilityImportUploadErrors, ThrowOnError> => (options.client ?? client).post<PortabilityImportUploadResponses, PortabilityImportUploadErrors, ThrowOnError>({
     ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/imports',
     ...options,
     headers: {
@@ -228,7 +353,19 @@ export const portabilityImportUpload = <ThrowOnError extends boolean = false>(op
 /**
  * Export Download
  */
-export const portabilityExportDownload = <ThrowOnError extends boolean = false>(options: Options<PortabilityExportDownloadData, ThrowOnError>): RequestResult<PortabilityExportDownloadResponses, PortabilityExportDownloadErrors, ThrowOnError> => (options.client ?? client).get<PortabilityExportDownloadResponses, PortabilityExportDownloadErrors, ThrowOnError>({ url: '/me/exports/{export_id}/download', ...options });
+export const portabilityExportDownload = <ThrowOnError extends boolean = false>(options: Options<PortabilityExportDownloadData, ThrowOnError>): RequestResult<PortabilityExportDownloadResponses, PortabilityExportDownloadErrors, ThrowOnError> => (options.client ?? client).get<PortabilityExportDownloadResponses, PortabilityExportDownloadErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/me/exports/{export_id}/download',
+    ...options
+});
 
 /**
  * List the courses of a Program, optionally of one term, subject or search text.
@@ -236,7 +373,27 @@ export const portabilityExportDownload = <ThrowOnError extends boolean = false>(
  * Use to see all courses of a term or Program. To locate one course the user
  * described in words ("my programming course"), prefer academics.course.find.
  */
-export const academicsCourseList = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseListData, ThrowOnError>): RequestResult<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError>({ url: '/programs/{program_id}/courses', ...options });
+export const academicsCourseList = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseListData, ThrowOnError>): RequestResult<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseListResponses, AcademicsCourseListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/courses',
+    ...options
+});
 
 /**
  * Add a course to one term, or to consecutive terms for a year-long course.
@@ -246,6 +403,23 @@ export const academicsCourseList = <ThrowOnError extends boolean = false>(option
  * `planned_terms` to 2; the term wizard offers to continue it later.
  */
 export const academicsCourseCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateData, ThrowOnError>): RequestResult<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/courses',
     ...options,
     headers: {
@@ -261,6 +435,23 @@ export const academicsCourseCreate = <ThrowOnError extends boolean = false>(opti
  * document or file (a timetable, a syllabus) go through imports.session.create instead.
  */
 export const academicsCourseCreateMany = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateManyData, ThrowOnError>): RequestResult<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/courses:batch',
     ...options,
     headers: {
@@ -274,14 +465,54 @@ export const academicsCourseCreateMany = <ThrowOnError extends boolean = false>(
  *
  * Irreversible. Use only when the user clearly asks to delete the course.
  */
-export const academicsCourseDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseDeleteData, ThrowOnError>): RequestResult<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError>({ url: '/courses/{course_id}', ...options });
+export const academicsCourseDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseDeleteData, ThrowOnError>): RequestResult<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsCourseDeleteResponses, AcademicsCourseDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}',
+    ...options
+});
 
 /**
  * Get one course with its terms, credits, instructors and resolved color.
  *
  * Use when you need the details of a course whose id you know.
  */
-export const academicsCourseGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseGetData, ThrowOnError>): RequestResult<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError>({ url: '/courses/{course_id}', ...options });
+export const academicsCourseGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseGetData, ThrowOnError>): RequestResult<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsCourseGetResponses, AcademicsCourseGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}',
+    ...options
+});
 
 /**
  * Change a course's code, title, alias, credits, color, instructors or other fields.
@@ -290,6 +521,23 @@ export const academicsCourseGet = <ThrowOnError extends boolean = false>(options
  * terms or make it year-long, use academics.course.set_terms.
  */
 export const academicsCourseUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseUpdateData, ThrowOnError>): RequestResult<AcademicsCourseUpdateResponses, AcademicsCourseUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsCourseUpdateResponses, AcademicsCourseUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}',
     ...options,
     headers: {
@@ -304,6 +552,23 @@ export const academicsCourseUpdate = <ThrowOnError extends boolean = false>(opti
  * Courses not listed keep their default order after the listed ones.
  */
 export const academicsCourseReorder = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseReorderData, ThrowOnError>): RequestResult<AcademicsCourseReorderResponses, AcademicsCourseReorderErrors, ThrowOnError> => (options.client ?? client).put<AcademicsCourseReorderResponses, AcademicsCourseReorderErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/terms/{term_id}/course-order',
     ...options,
     headers: {
@@ -319,6 +584,23 @@ export const academicsCourseReorder = <ThrowOnError extends boolean = false>(opt
  * other in time.
  */
 export const academicsCourseSetTerms = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseSetTermsData, ThrowOnError>): RequestResult<AcademicsCourseSetTermsResponses, AcademicsCourseSetTermsErrors, ThrowOnError> => (options.client ?? client).put<AcademicsCourseSetTermsResponses, AcademicsCourseSetTermsErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/terms',
     ...options,
     headers: {
@@ -333,7 +615,27 @@ export const academicsCourseSetTerms = <ThrowOnError extends boolean = false>(op
  * Use to find the Program ids of the user, e.g. before listing terms or courses
  * when no Program is given. Most users have exactly one Program.
  */
-export const academicsProgramList = <ThrowOnError extends boolean = false>(options?: Options<AcademicsProgramListData, ThrowOnError>): RequestResult<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError> => (options?.client ?? client).get<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError>({ url: '/programs', ...options });
+export const academicsProgramList = <ThrowOnError extends boolean = false>(options?: Options<AcademicsProgramListData, ThrowOnError>): RequestResult<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError> => (options?.client ?? client).get<AcademicsProgramListResponses, AcademicsProgramListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs',
+    ...options
+});
 
 /**
  * Create a Program (a degree or study plan).
@@ -343,6 +645,23 @@ export const academicsProgramList = <ThrowOnError extends boolean = false>(optio
  * academics.course.create.
  */
 export const academicsProgramCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramCreateData, ThrowOnError>): RequestResult<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs',
     ...options,
     headers: {
@@ -357,14 +676,54 @@ export const academicsProgramCreate = <ThrowOnError extends boolean = false>(opt
  * Irreversible. Use only when the user clearly asks to delete the whole Program.
  * To remove one term or course use academics.term.delete or academics.course.delete.
  */
-export const academicsProgramDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramDeleteData, ThrowOnError>): RequestResult<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError>({ url: '/programs/{program_id}', ...options });
+export const academicsProgramDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramDeleteData, ThrowOnError>): RequestResult<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}',
+    ...options
+});
 
 /**
  * Get one Program: name, school, time zone, credit defaults and subject colors.
  *
  * Use when you need a Program's details such as its time zone or credit goal.
  */
-export const academicsProgramGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramGetData, ThrowOnError>): RequestResult<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError>({ url: '/programs/{program_id}', ...options });
+export const academicsProgramGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramGetData, ThrowOnError>): RequestResult<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsProgramGetResponses, AcademicsProgramGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}',
+    ...options
+});
 
 /**
  * Change a Program's name, school, time zone or credit settings.
@@ -372,6 +731,23 @@ export const academicsProgramGet = <ThrowOnError extends boolean = false>(option
  * Partial update: only the fields that are sent change.
  */
 export const academicsProgramUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramUpdateData, ThrowOnError>): RequestResult<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}',
     ...options,
     headers: {
@@ -387,6 +763,23 @@ export const academicsProgramUpdate = <ThrowOnError extends boolean = false>(opt
  * single course differently, use academics.course.update with `color`.
  */
 export const academicsProgramSetSubjectColor = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramSetSubjectColorData, ThrowOnError>): RequestResult<AcademicsProgramSetSubjectColorResponses, AcademicsProgramSetSubjectColorErrors, ThrowOnError> => (options.client ?? client).put<AcademicsProgramSetSubjectColorResponses, AcademicsProgramSetSubjectColorErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/subject-colors/{subject_code}',
     ...options,
     headers: {
@@ -401,7 +794,27 @@ export const academicsProgramSetSubjectColor = <ThrowOnError extends boolean = f
  * Use to find a term id, or which term is current (`is_current`), before creating
  * courses or answering questions about a semester.
  */
-export const academicsTermList = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermListData, ThrowOnError>): RequestResult<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError>({ url: '/programs/{program_id}/terms', ...options });
+export const academicsTermList = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermListData, ThrowOnError>): RequestResult<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermListResponses, AcademicsTermListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/terms',
+    ...options
+});
 
 /**
  * Create a term, optionally with its courses, in one step.
@@ -411,6 +824,23 @@ export const academicsTermList = <ThrowOnError extends boolean = false>(options:
  * extends year-long courses of the previous term into it.
  */
 export const academicsTermCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermCreateData, ThrowOnError>): RequestResult<AcademicsTermCreateResponses, AcademicsTermCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsTermCreateResponses, AcademicsTermCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/terms',
     ...options,
     headers: {
@@ -425,14 +855,54 @@ export const academicsTermCreate = <ThrowOnError extends boolean = false>(option
  * Irreversible. Year-long courses that also run in other terms are kept and only
  * lose this term. Show academics.term.preview_delete to the user first.
  */
-export const academicsTermDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermDeleteData, ThrowOnError>): RequestResult<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError>({ url: '/terms/{term_id}', ...options });
+export const academicsTermDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermDeleteData, ThrowOnError>): RequestResult<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsTermDeleteResponses, AcademicsTermDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}',
+    ...options
+});
 
 /**
  * Get one term with its dates and breaks.
  *
  * Use when you need a term's dates, reading weeks or holidays.
  */
-export const academicsTermGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetData, ThrowOnError>): RequestResult<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError>({ url: '/terms/{term_id}', ...options });
+export const academicsTermGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetData, ThrowOnError>): RequestResult<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}',
+    ...options
+});
 
 /**
  * Change a term's name, dates, breaks or week numbering.
@@ -442,6 +912,23 @@ export const academicsTermGet = <ThrowOnError extends boolean = false>(options: 
  * a year-long course.
  */
 export const academicsTermUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermUpdateData, ThrowOnError>): RequestResult<AcademicsTermUpdateResponses, AcademicsTermUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsTermUpdateResponses, AcademicsTermUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/terms/{term_id}',
     ...options,
     headers: {
@@ -456,14 +943,54 @@ export const academicsTermUpdate = <ThrowOnError extends boolean = false>(option
  * Use to translate between dates and week numbers ("week 6", "reading week"),
  * e.g. to resolve "the Friday of week 3". Week 1 is the week the term starts in.
  */
-export const academicsTermGetWeeks = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetWeeksData, ThrowOnError>): RequestResult<AcademicsTermGetWeeksResponses, AcademicsTermGetWeeksErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetWeeksResponses, AcademicsTermGetWeeksErrors, ThrowOnError>({ url: '/terms/{term_id}/calendar-info', ...options });
+export const academicsTermGetWeeks = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetWeeksData, ThrowOnError>): RequestResult<AcademicsTermGetWeeksResponses, AcademicsTermGetWeeksErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetWeeksResponses, AcademicsTermGetWeeksErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}/calendar-info',
+    ...options
+});
 
 /**
  * What deleting a term would remove: its own courses vs. year-long courses kept.
  *
  * Use before academics.term.delete to tell the user what will be deleted.
  */
-export const academicsTermPreviewDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermPreviewDeleteData, ThrowOnError>): RequestResult<AcademicsTermPreviewDeleteResponses, AcademicsTermPreviewDeleteErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermPreviewDeleteResponses, AcademicsTermPreviewDeleteErrors, ThrowOnError>({ url: '/terms/{term_id}/delete-preview', ...options });
+export const academicsTermPreviewDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermPreviewDeleteData, ThrowOnError>): RequestResult<AcademicsTermPreviewDeleteResponses, AcademicsTermPreviewDeleteErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermPreviewDeleteResponses, AcademicsTermPreviewDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}/delete-preview',
+    ...options
+});
 
 /**
  * Delete the user's account and all of their data.
@@ -472,6 +999,15 @@ export const academicsTermPreviewDelete = <ThrowOnError extends boolean = false>
  * background job. Not for agents.
  */
 export const accountDelete = <ThrowOnError extends boolean = false>(options: Options<AccountDeleteData, ThrowOnError>): RequestResult<AccountDeleteResponses, AccountDeleteErrors, ThrowOnError> => (options.client ?? client).post<AccountDeleteResponses, AccountDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me:delete',
     ...options,
     headers: {
@@ -486,6 +1022,15 @@ export const accountDelete = <ThrowOnError extends boolean = false>(options: Opt
  * Finishes an email change started with account.email.change_start.
  */
 export const accountEmailChangeConfirm = <ThrowOnError extends boolean = false>(options: Options<AccountEmailChangeConfirmData, ThrowOnError>): RequestResult<AccountEmailChangeConfirmResponses, AccountEmailChangeConfirmErrors, ThrowOnError> => (options.client ?? client).post<AccountEmailChangeConfirmResponses, AccountEmailChangeConfirmErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/email/change-confirm',
     ...options,
     headers: {
@@ -500,6 +1045,15 @@ export const accountEmailChangeConfirm = <ThrowOnError extends boolean = false>(
  * Sends a verification code to the new address. Not available to agents.
  */
 export const accountEmailChangeStart = <ThrowOnError extends boolean = false>(options: Options<AccountEmailChangeStartData, ThrowOnError>): RequestResult<AccountEmailChangeStartResponses, AccountEmailChangeStartErrors, ThrowOnError> => (options.client ?? client).post<AccountEmailChangeStartResponses, AccountEmailChangeStartErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/email/change-start',
     ...options,
     headers: {
@@ -514,6 +1068,15 @@ export const accountEmailChangeStart = <ThrowOnError extends boolean = false>(op
  * Links the Google account behind the given ID token. Not available to agents.
  */
 export const accountGoogleLink = <ThrowOnError extends boolean = false>(options: Options<AccountGoogleLinkData, ThrowOnError>): RequestResult<AccountGoogleLinkResponses, AccountGoogleLinkErrors, ThrowOnError> => (options.client ?? client).post<AccountGoogleLinkResponses, AccountGoogleLinkErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/google/link',
     ...options,
     headers: {
@@ -527,7 +1090,19 @@ export const accountGoogleLink = <ThrowOnError extends boolean = false>(options:
  *
  * Removes the Google sign-in. Email code sign-in always remains available.
  */
-export const accountGoogleUnlink = <ThrowOnError extends boolean = false>(options?: Options<AccountGoogleUnlinkData, ThrowOnError>): RequestResult<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError> => (options?.client ?? client).post<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError>({ url: '/account/google/unlink', ...options });
+export const accountGoogleUnlink = <ThrowOnError extends boolean = false>(options?: Options<AccountGoogleUnlinkData, ThrowOnError>): RequestResult<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError> => (options?.client ?? client).post<AccountGoogleUnlinkResponses, AccountGoogleUnlinkErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/google/unlink',
+    ...options
+});
 
 /**
  * Change or set the account password.
@@ -535,6 +1110,15 @@ export const accountGoogleUnlink = <ThrowOnError extends boolean = false>(option
  * Change the password (or set the first one). Signs out all other sessions.
  */
 export const accountPasswordChange = <ThrowOnError extends boolean = false>(options: Options<AccountPasswordChangeData, ThrowOnError>): RequestResult<AccountPasswordChangeResponses, AccountPasswordChangeErrors, ThrowOnError> => (options.client ?? client).post<AccountPasswordChangeResponses, AccountPasswordChangeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/password/change',
     ...options,
     headers: {
@@ -549,7 +1133,27 @@ export const accountPasswordChange = <ThrowOnError extends boolean = false>(opti
  * Use when you need the user's name, email address or preferred language.
  * Do not use to read academic data; use the academics, grading or schedule capabilities.
  */
-export const accountProfileGet = <ThrowOnError extends boolean = false>(options?: Options<AccountProfileGetData, ThrowOnError>): RequestResult<AccountProfileGetResponses, AccountProfileGetErrors, ThrowOnError> => (options?.client ?? client).get<AccountProfileGetResponses, AccountProfileGetErrors, ThrowOnError>({ url: '/account/me', ...options });
+export const accountProfileGet = <ThrowOnError extends boolean = false>(options?: Options<AccountProfileGetData, ThrowOnError>): RequestResult<AccountProfileGetResponses, AccountProfileGetErrors, ThrowOnError> => (options?.client ?? client).get<AccountProfileGetResponses, AccountProfileGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/account/me',
+    ...options
+});
 
 /**
  * Update the display name or avatar.
@@ -557,6 +1161,15 @@ export const accountProfileGet = <ThrowOnError extends boolean = false>(options?
  * Change the signed-in user's profile. Not available to agents.
  */
 export const accountProfileUpdate = <ThrowOnError extends boolean = false>(options: Options<AccountProfileUpdateData, ThrowOnError>): RequestResult<AccountProfileUpdateResponses, AccountProfileUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AccountProfileUpdateResponses, AccountProfileUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/profile',
     ...options,
     headers: {
@@ -570,28 +1183,76 @@ export const accountProfileUpdate = <ThrowOnError extends boolean = false>(optio
  *
  * Lists active sessions of the signed-in user. Not available to agents.
  */
-export const accountSessionList = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionListData, ThrowOnError>): RequestResult<AccountSessionListResponses, AccountSessionListErrors, ThrowOnError> => (options?.client ?? client).get<AccountSessionListResponses, AccountSessionListErrors, ThrowOnError>({ url: '/account/sessions', ...options });
+export const accountSessionList = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionListData, ThrowOnError>): RequestResult<AccountSessionListResponses, AccountSessionListErrors, ThrowOnError> => (options?.client ?? client).get<AccountSessionListResponses, AccountSessionListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/sessions',
+    ...options
+});
 
 /**
  * Sign out one device.
  *
  * Revokes a session. Revoking the current session signs this browser out.
  */
-export const accountSessionRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountSessionRevokeData, ThrowOnError>): RequestResult<AccountSessionRevokeResponses, AccountSessionRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountSessionRevokeResponses, AccountSessionRevokeErrors, ThrowOnError>({ url: '/account/sessions/{session_id}', ...options });
+export const accountSessionRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountSessionRevokeData, ThrowOnError>): RequestResult<AccountSessionRevokeResponses, AccountSessionRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountSessionRevokeResponses, AccountSessionRevokeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/sessions/{session_id}',
+    ...options
+});
 
 /**
  * Sign out all other devices.
  *
  * Revokes every session except the current one.
  */
-export const accountSessionRevokeOthers = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionRevokeOthersData, ThrowOnError>): RequestResult<AccountSessionRevokeOthersResponses, AccountSessionRevokeOthersErrors, ThrowOnError> => (options?.client ?? client).post<AccountSessionRevokeOthersResponses, AccountSessionRevokeOthersErrors, ThrowOnError>({ url: '/account/sessions/revoke-others', ...options });
+export const accountSessionRevokeOthers = <ThrowOnError extends boolean = false>(options?: Options<AccountSessionRevokeOthersData, ThrowOnError>): RequestResult<AccountSessionRevokeOthersResponses, AccountSessionRevokeOthersErrors, ThrowOnError> => (options?.client ?? client).post<AccountSessionRevokeOthersResponses, AccountSessionRevokeOthersErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/sessions/revoke-others',
+    ...options
+});
 
 /**
  * List personal access tokens.
  *
  * Lists the user's non-revoked personal access tokens (never the secrets).
  */
-export const accountTokenList = <ThrowOnError extends boolean = false>(options?: Options<AccountTokenListData, ThrowOnError>): RequestResult<AccountTokenListResponses, AccountTokenListErrors, ThrowOnError> => (options?.client ?? client).get<AccountTokenListResponses, AccountTokenListErrors, ThrowOnError>({ url: '/account/tokens', ...options });
+export const accountTokenList = <ThrowOnError extends boolean = false>(options?: Options<AccountTokenListData, ThrowOnError>): RequestResult<AccountTokenListResponses, AccountTokenListErrors, ThrowOnError> => (options?.client ?? client).get<AccountTokenListResponses, AccountTokenListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/tokens',
+    ...options
+});
 
 /**
  * Create a personal access token for an MCP client.
@@ -599,6 +1260,15 @@ export const accountTokenList = <ThrowOnError extends boolean = false>(options?:
  * Creates a token. The plaintext is returned once and cannot be retrieved again.
  */
 export const accountTokenCreate = <ThrowOnError extends boolean = false>(options: Options<AccountTokenCreateData, ThrowOnError>): RequestResult<AccountTokenCreateResponses, AccountTokenCreateErrors, ThrowOnError> => (options.client ?? client).post<AccountTokenCreateResponses, AccountTokenCreateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/account/tokens',
     ...options,
     headers: {
@@ -612,14 +1282,38 @@ export const accountTokenCreate = <ThrowOnError extends boolean = false>(options
  *
  * Revokes the token immediately.
  */
-export const accountTokenRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokenRevokeData, ThrowOnError>): RequestResult<AccountTokenRevokeResponses, AccountTokenRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokenRevokeResponses, AccountTokenRevokeErrors, ThrowOnError>({ url: '/account/tokens/{id}', ...options });
+export const accountTokenRevoke = <ThrowOnError extends boolean = false>(options: Options<AccountTokenRevokeData, ThrowOnError>): RequestResult<AccountTokenRevokeResponses, AccountTokenRevokeErrors, ThrowOnError> => (options.client ?? client).delete<AccountTokenRevokeResponses, AccountTokenRevokeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/account/tokens/{id}',
+    ...options
+});
 
 /**
  * Remove an uploaded attachment that has not been sent.
  *
  * Attachments already part of a message stay until the conversation is deleted.
  */
-export const agentAttachmentDelete = <ThrowOnError extends boolean = false>(options: Options<AgentAttachmentDeleteData, ThrowOnError>): RequestResult<AgentAttachmentDeleteResponses, AgentAttachmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentAttachmentDeleteResponses, AgentAttachmentDeleteErrors, ThrowOnError>({ url: '/agent/attachments/{id}', ...options });
+export const agentAttachmentDelete = <ThrowOnError extends boolean = false>(options: Options<AgentAttachmentDeleteData, ThrowOnError>): RequestResult<AgentAttachmentDeleteResponses, AgentAttachmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentAttachmentDeleteResponses, AgentAttachmentDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/attachments/{id}',
+    ...options
+});
 
 /**
  * Save a file attached to the conversation to a course's files.
@@ -629,6 +1323,15 @@ export const agentAttachmentDelete = <ThrowOnError extends boolean = false>(opti
  * the same course again returns the saved file.
  */
 export const agentAttachmentSave = <ThrowOnError extends boolean = false>(options: Options<AgentAttachmentSaveData, ThrowOnError>): RequestResult<AgentAttachmentSaveResponses, AgentAttachmentSaveErrors, ThrowOnError> => (options.client ?? client).post<AgentAttachmentSaveResponses, AgentAttachmentSaveErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/attachments/{id}:save',
     ...options,
     headers: {
@@ -642,14 +1345,38 @@ export const agentAttachmentSave = <ThrowOnError extends boolean = false>(option
  *
  * Conversations are kept.
  */
-export const agentMemoryClear = <ThrowOnError extends boolean = false>(options?: Options<AgentMemoryClearData, ThrowOnError>): RequestResult<AgentMemoryClearResponses, AgentMemoryClearErrors, ThrowOnError> => (options?.client ?? client).post<AgentMemoryClearResponses, AgentMemoryClearErrors, ThrowOnError>({ url: '/agent/memories:clear', ...options });
+export const agentMemoryClear = <ThrowOnError extends boolean = false>(options?: Options<AgentMemoryClearData, ThrowOnError>): RequestResult<AgentMemoryClearResponses, AgentMemoryClearErrors, ThrowOnError> => (options?.client ?? client).post<AgentMemoryClearResponses, AgentMemoryClearErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/memories:clear',
+    ...options
+});
 
 /**
  * Delete a memory.
  *
  * Also the undo of a memory saved in a conversation.
  */
-export const agentMemoryDelete = <ThrowOnError extends boolean = false>(options: Options<AgentMemoryDeleteData, ThrowOnError>): RequestResult<AgentMemoryDeleteResponses, AgentMemoryDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentMemoryDeleteResponses, AgentMemoryDeleteErrors, ThrowOnError>({ url: '/agent/memories/{id}', ...options });
+export const agentMemoryDelete = <ThrowOnError extends boolean = false>(options: Options<AgentMemoryDeleteData, ThrowOnError>): RequestResult<AgentMemoryDeleteResponses, AgentMemoryDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentMemoryDeleteResponses, AgentMemoryDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/memories/{id}',
+    ...options
+});
 
 /**
  * Edit a memory.
@@ -657,6 +1384,15 @@ export const agentMemoryDelete = <ThrowOnError extends boolean = false>(options:
  * Only the fields sent are changed. Also the undo of a memory updated in a conversation (send back its previous fields).
  */
 export const agentMemoryUpdate = <ThrowOnError extends boolean = false>(options: Options<AgentMemoryUpdateData, ThrowOnError>): RequestResult<AgentMemoryUpdateResponses, AgentMemoryUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AgentMemoryUpdateResponses, AgentMemoryUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/memories/{id}',
     ...options,
     headers: {
@@ -670,14 +1406,38 @@ export const agentMemoryUpdate = <ThrowOnError extends boolean = false>(options:
  *
  * Newest first.
  */
-export const agentMemoryList = <ThrowOnError extends boolean = false>(options?: Options<AgentMemoryListData, ThrowOnError>): RequestResult<AgentMemoryListResponses, AgentMemoryListErrors, ThrowOnError> => (options?.client ?? client).get<AgentMemoryListResponses, AgentMemoryListErrors, ThrowOnError>({ url: '/agent/memories', ...options });
+export const agentMemoryList = <ThrowOnError extends boolean = false>(options?: Options<AgentMemoryListData, ThrowOnError>): RequestResult<AgentMemoryListResponses, AgentMemoryListErrors, ThrowOnError> => (options?.client ?? client).get<AgentMemoryListResponses, AgentMemoryListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/memories',
+    ...options
+});
 
 /**
  * Get the assistant preferences.
  *
  * Which write actions run without a confirmation card; MCP delete permission.
  */
-export const agentPreferenceGet = <ThrowOnError extends boolean = false>(options?: Options<AgentPreferenceGetData, ThrowOnError>): RequestResult<AgentPreferenceGetResponses, AgentPreferenceGetErrors, ThrowOnError> => (options?.client ?? client).get<AgentPreferenceGetResponses, AgentPreferenceGetErrors, ThrowOnError>({ url: '/agent/preferences', ...options });
+export const agentPreferenceGet = <ThrowOnError extends boolean = false>(options?: Options<AgentPreferenceGetData, ThrowOnError>): RequestResult<AgentPreferenceGetResponses, AgentPreferenceGetErrors, ThrowOnError> => (options?.client ?? client).get<AgentPreferenceGetResponses, AgentPreferenceGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/preferences',
+    ...options
+});
 
 /**
  * Change the assistant preferences.
@@ -685,6 +1445,15 @@ export const agentPreferenceGet = <ThrowOnError extends boolean = false>(options
  * Only write actions can be auto-approved; delete actions always ask.
  */
 export const agentPreferenceUpdate = <ThrowOnError extends boolean = false>(options: Options<AgentPreferenceUpdateData, ThrowOnError>): RequestResult<AgentPreferenceUpdateResponses, AgentPreferenceUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AgentPreferenceUpdateResponses, AgentPreferenceUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/preferences',
     ...options,
     headers: {
@@ -698,7 +1467,19 @@ export const agentPreferenceUpdate = <ThrowOnError extends boolean = false>(opti
  *
  * Newest first; pinned ones are sorted by the client.
  */
-export const agentSessionList = <ThrowOnError extends boolean = false>(options?: Options<AgentSessionListData, ThrowOnError>): RequestResult<AgentSessionListResponses, AgentSessionListErrors, ThrowOnError> => (options?.client ?? client).get<AgentSessionListResponses, AgentSessionListErrors, ThrowOnError>({ url: '/agent/sessions', ...options });
+export const agentSessionList = <ThrowOnError extends boolean = false>(options?: Options<AgentSessionListData, ThrowOnError>): RequestResult<AgentSessionListResponses, AgentSessionListErrors, ThrowOnError> => (options?.client ?? client).get<AgentSessionListResponses, AgentSessionListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/sessions',
+    ...options
+});
 
 /**
  * Start a new conversation.
@@ -707,6 +1488,15 @@ export const agentSessionList = <ThrowOnError extends boolean = false>(options?:
  * `client_key`.
  */
 export const agentSessionCreate = <ThrowOnError extends boolean = false>(options: Options<AgentSessionCreateData, ThrowOnError>): RequestResult<AgentSessionCreateResponses, AgentSessionCreateErrors, ThrowOnError> => (options.client ?? client).post<AgentSessionCreateResponses, AgentSessionCreateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/sessions',
     ...options,
     headers: {
@@ -720,14 +1510,38 @@ export const agentSessionCreate = <ThrowOnError extends boolean = false>(options
  *
  * Cannot be undone.
  */
-export const agentSessionDelete = <ThrowOnError extends boolean = false>(options: Options<AgentSessionDeleteData, ThrowOnError>): RequestResult<AgentSessionDeleteResponses, AgentSessionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentSessionDeleteResponses, AgentSessionDeleteErrors, ThrowOnError>({ url: '/agent/sessions/{id}', ...options });
+export const agentSessionDelete = <ThrowOnError extends boolean = false>(options: Options<AgentSessionDeleteData, ThrowOnError>): RequestResult<AgentSessionDeleteResponses, AgentSessionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AgentSessionDeleteResponses, AgentSessionDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/sessions/{id}',
+    ...options
+});
 
 /**
  * Get a conversation with its messages and proposals.
  *
  * Pending proposals older than 24 hours are reported as expired.
  */
-export const agentSessionGet = <ThrowOnError extends boolean = false>(options: Options<AgentSessionGetData, ThrowOnError>): RequestResult<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError> => (options.client ?? client).get<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError>({ url: '/agent/sessions/{id}', ...options });
+export const agentSessionGet = <ThrowOnError extends boolean = false>(options: Options<AgentSessionGetData, ThrowOnError>): RequestResult<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError> => (options.client ?? client).get<AgentSessionGetResponses, AgentSessionGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/sessions/{id}',
+    ...options
+});
 
 /**
  * Rename, pin, archive a conversation or change where it works.
@@ -735,6 +1549,15 @@ export const agentSessionGet = <ThrowOnError extends boolean = false>(options: O
  * Only the fields sent are changed.
  */
 export const agentSessionUpdate = <ThrowOnError extends boolean = false>(options: Options<AgentSessionUpdateData, ThrowOnError>): RequestResult<AgentSessionUpdateResponses, AgentSessionUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AgentSessionUpdateResponses, AgentSessionUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/agent/sessions/{id}',
     ...options,
     headers: {
@@ -748,28 +1571,76 @@ export const agentSessionUpdate = <ThrowOnError extends boolean = false>(options
  *
  * What was written so far is kept.
  */
-export const agentSessionStop = <ThrowOnError extends boolean = false>(options: Options<AgentSessionStopData, ThrowOnError>): RequestResult<AgentSessionStopResponses, AgentSessionStopErrors, ThrowOnError> => (options.client ?? client).post<AgentSessionStopResponses, AgentSessionStopErrors, ThrowOnError>({ url: '/agent/sessions/{id}:stop', ...options });
+export const agentSessionStop = <ThrowOnError extends boolean = false>(options: Options<AgentSessionStopData, ThrowOnError>): RequestResult<AgentSessionStopResponses, AgentSessionStopErrors, ThrowOnError> => (options.client ?? client).post<AgentSessionStopResponses, AgentSessionStopErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/sessions/{id}:stop',
+    ...options
+});
 
 /**
  * List the skills the user can run as slash commands.
  *
  * Titles are in both interface languages.
  */
-export const agentSkillList = <ThrowOnError extends boolean = false>(options?: Options<AgentSkillListData, ThrowOnError>): RequestResult<AgentSkillListResponses, AgentSkillListErrors, ThrowOnError> => (options?.client ?? client).get<AgentSkillListResponses, AgentSkillListErrors, ThrowOnError>({ url: '/agent/skills', ...options });
+export const agentSkillList = <ThrowOnError extends boolean = false>(options?: Options<AgentSkillListData, ThrowOnError>): RequestResult<AgentSkillListResponses, AgentSkillListErrors, ThrowOnError> => (options?.client ?? client).get<AgentSkillListResponses, AgentSkillListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/skills',
+    ...options
+});
 
 /**
  * List every tool the assistant can use for this user.
  *
  * Plugin tools appear once the plugin is installed.
  */
-export const agentToolList = <ThrowOnError extends boolean = false>(options?: Options<AgentToolListData, ThrowOnError>): RequestResult<AgentToolListResponses, AgentToolListErrors, ThrowOnError> => (options?.client ?? client).get<AgentToolListResponses, AgentToolListErrors, ThrowOnError>({ url: '/agent/tools', ...options });
+export const agentToolList = <ThrowOnError extends boolean = false>(options?: Options<AgentToolListData, ThrowOnError>): RequestResult<AgentToolListResponses, AgentToolListErrors, ThrowOnError> => (options?.client ?? client).get<AgentToolListResponses, AgentToolListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/agent/tools',
+    ...options
+});
 
 /**
  * The model chosen for each AI purpose, with the recommended default.
  *
  * Not for agents.
  */
-export const aiAssignmentGet = <ThrowOnError extends boolean = false>(options?: Options<AiAssignmentGetData, ThrowOnError>): RequestResult<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError> => (options?.client ?? client).get<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError>({ url: '/ai/assignments', ...options });
+export const aiAssignmentGet = <ThrowOnError extends boolean = false>(options?: Options<AiAssignmentGetData, ThrowOnError>): RequestResult<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError> => (options?.client ?? client).get<AiAssignmentGetResponses, AiAssignmentGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/assignments',
+    ...options
+});
 
 /**
  * Choose the provider and model for one AI purpose.
@@ -777,6 +1648,15 @@ export const aiAssignmentGet = <ThrowOnError extends boolean = false>(options?: 
  * provider_id null removes the choice so the default applies. Not for agents.
  */
 export const aiAssignmentUpdate = <ThrowOnError extends boolean = false>(options: Options<AiAssignmentUpdateData, ThrowOnError>): RequestResult<AiAssignmentUpdateResponses, AiAssignmentUpdateErrors, ThrowOnError> => (options.client ?? client).put<AiAssignmentUpdateResponses, AiAssignmentUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/ai/assignments',
     ...options,
     headers: {
@@ -790,7 +1670,19 @@ export const aiAssignmentUpdate = <ThrowOnError extends boolean = false>(options
  *
  * Providers the user connected with their own API keys. Not for agents.
  */
-export const aiProviderList = <ThrowOnError extends boolean = false>(options?: Options<AiProviderListData, ThrowOnError>): RequestResult<AiProviderListResponses, AiProviderListErrors, ThrowOnError> => (options?.client ?? client).get<AiProviderListResponses, AiProviderListErrors, ThrowOnError>({ url: '/ai/providers', ...options });
+export const aiProviderList = <ThrowOnError extends boolean = false>(options?: Options<AiProviderListData, ThrowOnError>): RequestResult<AiProviderListResponses, AiProviderListErrors, ThrowOnError> => (options?.client ?? client).get<AiProviderListResponses, AiProviderListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/providers',
+    ...options
+});
 
 /**
  * Connect an AI provider with the user's own key.
@@ -799,6 +1691,15 @@ export const aiProviderList = <ThrowOnError extends boolean = false>(options?: O
  * check returns ai.provider_check_failed with the reason. Not for agents.
  */
 export const aiProviderCreate = <ThrowOnError extends boolean = false>(options: Options<AiProviderCreateData, ThrowOnError>): RequestResult<AiProviderCreateResponses, AiProviderCreateErrors, ThrowOnError> => (options.client ?? client).post<AiProviderCreateResponses, AiProviderCreateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/ai/providers',
     ...options,
     headers: {
@@ -812,7 +1713,19 @@ export const aiProviderCreate = <ThrowOnError extends boolean = false>(options: 
  *
  * Not for agents.
  */
-export const aiProviderDelete = <ThrowOnError extends boolean = false>(options: Options<AiProviderDeleteData, ThrowOnError>): RequestResult<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError>({ url: '/ai/providers/{id}', ...options });
+export const aiProviderDelete = <ThrowOnError extends boolean = false>(options: Options<AiProviderDeleteData, ThrowOnError>): RequestResult<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AiProviderDeleteResponses, AiProviderDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/providers/{id}',
+    ...options
+});
 
 /**
  * Rename, re-key, reconfigure or turn off an AI provider.
@@ -820,6 +1733,15 @@ export const aiProviderDelete = <ThrowOnError extends boolean = false>(options: 
  * A new key or base URL is checked again before saving. Not for agents.
  */
 export const aiProviderUpdate = <ThrowOnError extends boolean = false>(options: Options<AiProviderUpdateData, ThrowOnError>): RequestResult<AiProviderUpdateResponses, AiProviderUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AiProviderUpdateResponses, AiProviderUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/ai/providers/{id}',
     ...options,
     headers: {
@@ -833,28 +1755,76 @@ export const aiProviderUpdate = <ThrowOnError extends boolean = false>(options: 
  *
  * Cached for an hour. Not for agents.
  */
-export const aiProviderListModels = <ThrowOnError extends boolean = false>(options: Options<AiProviderListModelsData, ThrowOnError>): RequestResult<AiProviderListModelsResponses, AiProviderListModelsErrors, ThrowOnError> => (options.client ?? client).get<AiProviderListModelsResponses, AiProviderListModelsErrors, ThrowOnError>({ url: '/ai/providers/{id}/models', ...options });
+export const aiProviderListModels = <ThrowOnError extends boolean = false>(options: Options<AiProviderListModelsData, ThrowOnError>): RequestResult<AiProviderListModelsResponses, AiProviderListModelsErrors, ThrowOnError> => (options.client ?? client).get<AiProviderListModelsResponses, AiProviderListModelsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/providers/{id}/models',
+    ...options
+});
 
 /**
  * Check that a provider's key and URL still work.
  *
  * Records the result on the provider. Not for agents.
  */
-export const aiProviderTest = <ThrowOnError extends boolean = false>(options: Options<AiProviderTestData, ThrowOnError>): RequestResult<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError> => (options.client ?? client).post<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError>({ url: '/ai/providers/{id}:test', ...options });
+export const aiProviderTest = <ThrowOnError extends boolean = false>(options: Options<AiProviderTestData, ThrowOnError>): RequestResult<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError> => (options.client ?? client).post<AiProviderTestResponses, AiProviderTestErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/providers/{id}:test',
+    ...options
+});
 
 /**
  * Whether each AI purpose is available and which model serves it.
  *
  * The frontend enables or greys out AI features with it. Not for agents.
  */
-export const aiStatusGet = <ThrowOnError extends boolean = false>(options?: Options<AiStatusGetData, ThrowOnError>): RequestResult<AiStatusGetResponses, AiStatusGetErrors, ThrowOnError> => (options?.client ?? client).get<AiStatusGetResponses, AiStatusGetErrors, ThrowOnError>({ url: '/ai/status', ...options });
+export const aiStatusGet = <ThrowOnError extends boolean = false>(options?: Options<AiStatusGetData, ThrowOnError>): RequestResult<AiStatusGetResponses, AiStatusGetErrors, ThrowOnError> => (options?.client ?? client).get<AiStatusGetResponses, AiStatusGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/status',
+    ...options
+});
 
 /**
  * Token use and estimated cost by day, purpose, module and model.
  *
  * Defaults to all time; `days` or `start`/`end` narrow it. Not for agents.
  */
-export const aiUsageSummarize = <ThrowOnError extends boolean = false>(options?: Options<AiUsageSummarizeData, ThrowOnError>): RequestResult<AiUsageSummarizeResponses, AiUsageSummarizeErrors, ThrowOnError> => (options?.client ?? client).get<AiUsageSummarizeResponses, AiUsageSummarizeErrors, ThrowOnError>({ url: '/ai/usage', ...options });
+export const aiUsageSummarize = <ThrowOnError extends boolean = false>(options?: Options<AiUsageSummarizeData, ThrowOnError>): RequestResult<AiUsageSummarizeResponses, AiUsageSummarizeErrors, ThrowOnError> => (options?.client ?? client).get<AiUsageSummarizeResponses, AiUsageSummarizeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/ai/usage',
+    ...options
+});
 
 /**
  * Everything on the calendar in a date range: classes, events, deadlines, tasks.
@@ -865,7 +1835,27 @@ export const aiUsageSummarize = <ThrowOnError extends boolean = false>(options?:
  * course_ids, kinds or a shorter range. Cancelled classes are included with status 'cancelled'.
  * For today alone prefer calendar.today.get. Each class carries its term week in meta.week_number.
  */
-export const calendarOccurrenceList = <ThrowOnError extends boolean = false>(options: Options<CalendarOccurrenceListData, ThrowOnError>): RequestResult<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError> => (options.client ?? client).get<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError>({ url: '/programs/{program_id}/calendar', ...options });
+export const calendarOccurrenceList = <ThrowOnError extends boolean = false>(options: Options<CalendarOccurrenceListData, ThrowOnError>): RequestResult<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError> => (options.client ?? client).get<CalendarOccurrenceListResponses, CalendarOccurrenceListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/calendar',
+    ...options
+});
 
 /**
  * Today in a Program: classes and events, deadlines of the next 7 days, due tasks.
@@ -874,7 +1864,27 @@ export const calendarOccurrenceList = <ThrowOnError extends boolean = false>(opt
  * week?"). It also says which term week it is. For other days or longer ranges use
  * calendar.occurrence.list. Times are local to the Program, with their UTC offset.
  */
-export const calendarTodayGet = <ThrowOnError extends boolean = false>(options: Options<CalendarTodayGetData, ThrowOnError>): RequestResult<CalendarTodayGetResponses, CalendarTodayGetErrors, ThrowOnError> => (options.client ?? client).get<CalendarTodayGetResponses, CalendarTodayGetErrors, ThrowOnError>({ url: '/programs/{program_id}/today', ...options });
+export const calendarTodayGet = <ThrowOnError extends boolean = false>(options: Options<CalendarTodayGetData, ThrowOnError>): RequestResult<CalendarTodayGetResponses, CalendarTodayGetErrors, ThrowOnError> => (options.client ?? client).get<CalendarTodayGetResponses, CalendarTodayGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/today',
+    ...options
+});
 
 /**
  * Cancel a pending or running background job.
@@ -882,7 +1892,27 @@ export const calendarTodayGet = <ThrowOnError extends boolean = false>(options: 
  * Use when the user wants to stop a background operation. A running job stops at
  * its next checkpoint, so it may still finish. Cancelling a finished job changes nothing.
  */
-export const coreJobCancel = <ThrowOnError extends boolean = false>(options: Options<CoreJobCancelData, ThrowOnError>): RequestResult<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError> => (options.client ?? client).post<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError>({ url: '/jobs/{job_id}/cancel', ...options });
+export const coreJobCancel = <ThrowOnError extends boolean = false>(options: Options<CoreJobCancelData, ThrowOnError>): RequestResult<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError> => (options.client ?? client).post<CoreJobCancelResponses, CoreJobCancelErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/jobs/{job_id}/cancel',
+    ...options
+});
 
 /**
  * Get the state and progress of a background job.
@@ -890,7 +1920,27 @@ export const coreJobCancel = <ThrowOnError extends boolean = false>(options: Opt
  * Use to check on a long-running operation (file parsing, imports, syncs) that
  * another capability started and returned a job id for.
  */
-export const coreJobGet = <ThrowOnError extends boolean = false>(options: Options<CoreJobGetData, ThrowOnError>): RequestResult<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError> => (options.client ?? client).get<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError>({ url: '/jobs/{job_id}', ...options });
+export const coreJobGet = <ThrowOnError extends boolean = false>(options: Options<CoreJobGetData, ThrowOnError>): RequestResult<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError> => (options.client ?? client).get<CoreJobGetResponses, CoreJobGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/jobs/{job_id}',
+    ...options
+});
 
 /**
  * List the user's background jobs, newest first.
@@ -898,7 +1948,27 @@ export const coreJobGet = <ThrowOnError extends boolean = false>(options: Option
  * Use to find recent or running background operations and their outcome.
  * Do not use to read the data a job produced; use the capability of the module that owns it.
  */
-export const coreJobList = <ThrowOnError extends boolean = false>(options?: Options<CoreJobListData, ThrowOnError>): RequestResult<CoreJobListResponses, CoreJobListErrors, ThrowOnError> => (options?.client ?? client).get<CoreJobListResponses, CoreJobListErrors, ThrowOnError>({ url: '/jobs', ...options });
+export const coreJobList = <ThrowOnError extends boolean = false>(options?: Options<CoreJobListData, ThrowOnError>): RequestResult<CoreJobListResponses, CoreJobListErrors, ThrowOnError> => (options?.client ?? client).get<CoreJobListResponses, CoreJobListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/jobs',
+    ...options
+});
 
 /**
  * Get how much file storage the user has used and their quota.
@@ -906,14 +1976,54 @@ export const coreJobList = <ThrowOnError extends boolean = false>(options?: Opti
  * Use when the user asks how much space their files take or why an upload was
  * rejected for exceeding the quota.
  */
-export const coreStorageGet = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageGetData, ThrowOnError>): RequestResult<CoreStorageGetResponses, CoreStorageGetErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageGetResponses, CoreStorageGetErrors, ThrowOnError>({ url: '/storage/usage', ...options });
+export const coreStorageGet = <ThrowOnError extends boolean = false>(options?: Options<CoreStorageGetData, ThrowOnError>): RequestResult<CoreStorageGetResponses, CoreStorageGetErrors, ThrowOnError> => (options?.client ?? client).get<CoreStorageGetResponses, CoreStorageGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/storage/usage',
+    ...options
+});
 
 /**
  * Get the headings of a processed file with their page numbers.
  *
  * Use to see the structure of a long document before reading parts of it.
  */
-export const filesDocumentOutline = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentOutlineData, ThrowOnError>): RequestResult<FilesDocumentOutlineResponses, FilesDocumentOutlineErrors, ThrowOnError> => (options.client ?? client).get<FilesDocumentOutlineResponses, FilesDocumentOutlineErrors, ThrowOnError>({ url: '/files/{item_id}/outline', ...options });
+export const filesDocumentOutline = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentOutlineData, ThrowOnError>): RequestResult<FilesDocumentOutlineResponses, FilesDocumentOutlineErrors, ThrowOnError> => (options.client ?? client).get<FilesDocumentOutlineResponses, FilesDocumentOutlineErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/files/{item_id}/outline',
+    ...options
+});
 
 /**
  * Read the text of a processed file, page by page.
@@ -922,7 +2032,27 @@ export const filesDocumentOutline = <ThrowOnError extends boolean = false>(optio
  * its citation_id). When next_page is set, call again from there to continue. Use it to summarise or
  * extract from a whole document; to find something specific use files.document.search first.
  */
-export const filesDocumentRead = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentReadData, ThrowOnError>): RequestResult<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError> => (options.client ?? client).get<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError>({ url: '/files/{item_id}/document', ...options });
+export const filesDocumentRead = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentReadData, ThrowOnError>): RequestResult<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError> => (options.client ?? client).get<FilesDocumentReadResponses, FilesDocumentReadErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/files/{item_id}/document',
+    ...options
+});
 
 /**
  * Search what the course files say.
@@ -935,6 +2065,23 @@ export const filesDocumentRead = <ThrowOnError extends boolean = false>(options:
  * name; use files.item.list.
  */
 export const filesDocumentSearch = <ThrowOnError extends boolean = false>(options: Options<FilesDocumentSearchData, ThrowOnError>): RequestResult<FilesDocumentSearchResponses, FilesDocumentSearchErrors, ThrowOnError> => (options.client ?? client).post<FilesDocumentSearchResponses, FilesDocumentSearchErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/files:search',
     ...options,
     headers: {
@@ -949,6 +2096,23 @@ export const filesDocumentSearch = <ThrowOnError extends boolean = false>(option
  * Use to organise a course's files. Folders can be nested up to three levels.
  */
 export const filesFolderCreate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderCreateData, ThrowOnError>): RequestResult<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError> => (options.client ?? client).post<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/folders',
     ...options,
     headers: {
@@ -963,7 +2127,27 @@ export const filesFolderCreate = <ThrowOnError extends boolean = false>(options:
  * Use only when the user clearly asks. A folder that is not empty is refused
  * unless recursive=true, which permanently deletes all its files, links and subfolders.
  */
-export const filesFolderDelete = <ThrowOnError extends boolean = false>(options: Options<FilesFolderDeleteData, ThrowOnError>): RequestResult<FilesFolderDeleteResponses, FilesFolderDeleteErrors, ThrowOnError> => (options.client ?? client).delete<FilesFolderDeleteResponses, FilesFolderDeleteErrors, ThrowOnError>({ url: '/folders/{folder_id}', ...options });
+export const filesFolderDelete = <ThrowOnError extends boolean = false>(options: Options<FilesFolderDeleteData, ThrowOnError>): RequestResult<FilesFolderDeleteResponses, FilesFolderDeleteErrors, ThrowOnError> => (options.client ?? client).delete<FilesFolderDeleteResponses, FilesFolderDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/folders/{folder_id}',
+    ...options
+});
 
 /**
  * Rename or move a folder, or change its order.
@@ -972,6 +2156,15 @@ export const filesFolderDelete = <ThrowOnError extends boolean = false>(options:
  * set its position among its siblings. Only send the fields to change.
  */
 export const filesFolderUpdate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderUpdateData, ThrowOnError>): RequestResult<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError> => (options.client ?? client).patch<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/folders/{folder_id}',
     ...options,
     headers: {
@@ -986,7 +2179,27 @@ export const filesFolderUpdate = <ThrowOnError extends boolean = false>(options:
  * Use only when the user clearly asks to delete a file or link. The stored file
  * and everything derived from it (text, search index) is removed and cannot be restored.
  */
-export const filesItemDelete = <ThrowOnError extends boolean = false>(options: Options<FilesItemDeleteData, ThrowOnError>): RequestResult<FilesItemDeleteResponses, FilesItemDeleteErrors, ThrowOnError> => (options.client ?? client).delete<FilesItemDeleteResponses, FilesItemDeleteErrors, ThrowOnError>({ url: '/files/{item_id}', ...options });
+export const filesItemDelete = <ThrowOnError extends boolean = false>(options: Options<FilesItemDeleteData, ThrowOnError>): RequestResult<FilesItemDeleteResponses, FilesItemDeleteErrors, ThrowOnError> => (options.client ?? client).delete<FilesItemDeleteResponses, FilesItemDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/files/{item_id}',
+    ...options
+});
 
 /**
  * Get one file or link.
@@ -994,7 +2207,27 @@ export const filesItemDelete = <ThrowOnError extends boolean = false>(options: O
  * Use to check a file's name, type, size and whether its text is ready to read
  * (doc_status = ready). Use files.document.read to read the text.
  */
-export const filesItemGet = <ThrowOnError extends boolean = false>(options: Options<FilesItemGetData, ThrowOnError>): RequestResult<FilesItemGetResponses, FilesItemGetErrors, ThrowOnError> => (options.client ?? client).get<FilesItemGetResponses, FilesItemGetErrors, ThrowOnError>({ url: '/files/{item_id}', ...options });
+export const filesItemGet = <ThrowOnError extends boolean = false>(options: Options<FilesItemGetData, ThrowOnError>): RequestResult<FilesItemGetResponses, FilesItemGetErrors, ThrowOnError> => (options.client ?? client).get<FilesItemGetResponses, FilesItemGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/files/{item_id}',
+    ...options
+});
 
 /**
  * Rename, move or pin a file or link.
@@ -1004,6 +2237,23 @@ export const filesItemGet = <ThrowOnError extends boolean = false>(options: Opti
  * change.
  */
 export const filesItemUpdate = <ThrowOnError extends boolean = false>(options: Options<FilesItemUpdateData, ThrowOnError>): RequestResult<FilesItemUpdateResponses, FilesItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<FilesItemUpdateResponses, FilesItemUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/files/{item_id}',
     ...options,
     headers: {
@@ -1018,7 +2268,19 @@ export const filesItemUpdate = <ThrowOnError extends boolean = false>(options: O
  * Files and links the user pinned for quick access, across the Program's
  * courses.
  */
-export const filesItemListPinned = <ThrowOnError extends boolean = false>(options: Options<FilesItemListPinnedData, ThrowOnError>): RequestResult<FilesItemListPinnedResponses, FilesItemListPinnedErrors, ThrowOnError> => (options.client ?? client).get<FilesItemListPinnedResponses, FilesItemListPinnedErrors, ThrowOnError>({ url: '/programs/{program_id}/pinned-files', ...options });
+export const filesItemListPinned = <ThrowOnError extends boolean = false>(options: Options<FilesItemListPinnedData, ThrowOnError>): RequestResult<FilesItemListPinnedResponses, FilesItemListPinnedErrors, ThrowOnError> => (options.client ?? client).get<FilesItemListPinnedResponses, FilesItemListPinnedErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/programs/{program_id}/pinned-files',
+    ...options
+});
 
 /**
  * Read a file's text again.
@@ -1026,7 +2288,19 @@ export const filesItemListPinned = <ThrowOnError extends boolean = false>(option
  * Starts the document pipeline again for a file, for example after a failure or
  * after an AI model for reading scanned pages was set up.
  */
-export const filesItemReprocess = <ThrowOnError extends boolean = false>(options: Options<FilesItemReprocessData, ThrowOnError>): RequestResult<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError> => (options.client ?? client).post<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError>({ url: '/files/{item_id}:reprocess', ...options });
+export const filesItemReprocess = <ThrowOnError extends boolean = false>(options: Options<FilesItemReprocessData, ThrowOnError>): RequestResult<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError> => (options.client ?? client).post<FilesItemReprocessResponses, FilesItemReprocessErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/files/{item_id}:reprocess',
+    ...options
+});
 
 /**
  * Save a web link in a course's files.
@@ -1035,6 +2309,23 @@ export const filesItemReprocess = <ThrowOnError extends boolean = false>(options
  * the course files. Do not use to save a file; uploads are done by the user in the app.
  */
 export const filesLinkCreate = <ThrowOnError extends boolean = false>(options: Options<FilesLinkCreateData, ThrowOnError>): RequestResult<FilesLinkCreateResponses, FilesLinkCreateErrors, ThrowOnError> => (options.client ?? client).post<FilesLinkCreateResponses, FilesLinkCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/file-links',
     ...options,
     headers: {
@@ -1048,7 +2339,19 @@ export const filesLinkCreate = <ThrowOnError extends boolean = false>(options: O
  *
  * Used and available storage, and the largest file that can be uploaded.
  */
-export const filesUsageGet = <ThrowOnError extends boolean = false>(options?: Options<FilesUsageGetData, ThrowOnError>): RequestResult<FilesUsageGetResponses, FilesUsageGetErrors, ThrowOnError> => (options?.client ?? client).get<FilesUsageGetResponses, FilesUsageGetErrors, ThrowOnError>({ url: '/files-usage', ...options });
+export const filesUsageGet = <ThrowOnError extends boolean = false>(options?: Options<FilesUsageGetData, ThrowOnError>): RequestResult<FilesUsageGetResponses, FilesUsageGetErrors, ThrowOnError> => (options?.client ?? client).get<FilesUsageGetResponses, FilesUsageGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/files-usage',
+    ...options
+});
 
 /**
  * List a course's assessments with deadline, weight and score.
@@ -1056,7 +2359,27 @@ export const filesUsageGet = <ThrowOnError extends boolean = false>(options?: Op
  * Use to see what is graded, still pending or overdue in a course. To locate one
  * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
  */
-export const gradingAssessmentList = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentListData, ThrowOnError>): RequestResult<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError> => (options.client ?? client).get<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError>({ url: '/courses/{course_id}/assessments', ...options });
+export const gradingAssessmentList = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentListData, ThrowOnError>): RequestResult<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError> => (options.client ?? client).get<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/assessments',
+    ...options
+});
 
 /**
  * Add an assessment (quiz, exam, assignment...) to a course gradebook.
@@ -1066,6 +2389,23 @@ export const gradingAssessmentList = <ThrowOnError extends boolean = false>(opti
  * assessment; use grading.assessment.update.
  */
 export const gradingAssessmentCreate = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentCreateData, ThrowOnError>): RequestResult<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/assessments',
     ...options,
     headers: {
@@ -1083,6 +2423,23 @@ export const gradingAssessmentCreate = <ThrowOnError extends boolean = false>(op
  * already has an assessment from the same source, so repeating an import creates no duplicates.
  */
 export const gradingAssessmentCreateMany = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentCreateManyData, ThrowOnError>): RequestResult<GradingAssessmentCreateManyResponses, GradingAssessmentCreateManyErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentCreateManyResponses, GradingAssessmentCreateManyErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/assessments:batch',
     ...options,
     headers: {
@@ -1096,7 +2453,27 @@ export const gradingAssessmentCreateMany = <ThrowOnError extends boolean = false
  *
  * Irreversible. To ignore an assessment in the grade, set `dropped` instead.
  */
-export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteData, ThrowOnError>): RequestResult<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError>({ url: '/assessments/{assessment_id}', ...options });
+export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteData, ThrowOnError>): RequestResult<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/assessments/{assessment_id}',
+    ...options
+});
 
 /**
  * Change an assessment, mainly to record its score.
@@ -1107,6 +2484,23 @@ export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(op
  * change.
  */
 export const gradingAssessmentUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentUpdateData, ThrowOnError>): RequestResult<GradingAssessmentUpdateResponses, GradingAssessmentUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingAssessmentUpdateResponses, GradingAssessmentUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/assessments/{assessment_id}',
     ...options,
     headers: {
@@ -1121,6 +2515,23 @@ export const gradingAssessmentUpdate = <ThrowOnError extends boolean = false>(op
  * Assessments not listed keep their order after the listed ones.
  */
 export const gradingAssessmentReorder = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentReorderData, ThrowOnError>): RequestResult<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/assessment-order',
     ...options,
     headers: {
@@ -1135,6 +2546,23 @@ export const gradingAssessmentReorder = <ThrowOnError extends boolean = false>(o
  * Use when the syllabus has a kind of assessment the built-in categories lack.
  */
 export const gradingCategoryCreate = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryCreateData, ThrowOnError>): RequestResult<GradingCategoryCreateResponses, GradingCategoryCreateErrors, ThrowOnError> => (options.client ?? client).post<GradingCategoryCreateResponses, GradingCategoryCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/grading-categories',
     ...options,
     headers: {
@@ -1148,7 +2576,27 @@ export const gradingCategoryCreate = <ThrowOnError extends boolean = false>(opti
  *
  * Irreversible, but no assessment is deleted. Prefer archiving.
  */
-export const gradingCategoryDelete = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryDeleteData, ThrowOnError>): RequestResult<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError>({ url: '/grading-categories/{category_id}', ...options });
+export const gradingCategoryDelete = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryDeleteData, ThrowOnError>): RequestResult<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingCategoryDeleteResponses, GradingCategoryDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/grading-categories/{category_id}',
+    ...options
+});
 
 /**
  * Rename, recolor or archive an assessment category.
@@ -1156,6 +2604,23 @@ export const gradingCategoryDelete = <ThrowOnError extends boolean = false>(opti
  * Partial update. Archived categories keep their assessments but leave the pickers.
  */
 export const gradingCategoryUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryUpdateData, ThrowOnError>): RequestResult<GradingCategoryUpdateResponses, GradingCategoryUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingCategoryUpdateResponses, GradingCategoryUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/grading-categories/{category_id}',
     ...options,
     headers: {
@@ -1170,6 +2635,23 @@ export const gradingCategoryUpdate = <ThrowOnError extends boolean = false>(opti
  * Categories not listed keep their order after the listed ones.
  */
 export const gradingCategoryReorder = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryReorderData, ThrowOnError>): RequestResult<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/grading-category-order',
     ...options,
     headers: {
@@ -1188,6 +2670,23 @@ export const gradingCategoryReorder = <ThrowOnError extends boolean = false>(opt
  * grading.assessment.update.
  */
 export const gradingCourseResultUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingCourseResultUpdateData, ThrowOnError>): RequestResult<GradingCourseResultUpdateResponses, GradingCourseResultUpdateErrors, ThrowOnError> => (options.client ?? client).patch<GradingCourseResultUpdateResponses, GradingCourseResultUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/grade',
     ...options,
     headers: {
@@ -1201,7 +2700,27 @@ export const gradingCourseResultUpdate = <ThrowOnError extends boolean = false>(
  *
  * Use to compare courses or list which are finished, in progress or pass/fail.
  */
-export const gradingCourseSummaryList = <ThrowOnError extends boolean = false>(options: Options<GradingCourseSummaryListData, ThrowOnError>): RequestResult<GradingCourseSummaryListResponses, GradingCourseSummaryListErrors, ThrowOnError> => (options.client ?? client).get<GradingCourseSummaryListResponses, GradingCourseSummaryListErrors, ThrowOnError>({ url: '/programs/{program_id}/course-grades', ...options });
+export const gradingCourseSummaryList = <ThrowOnError extends boolean = false>(options: Options<GradingCourseSummaryListData, ThrowOnError>): RequestResult<GradingCourseSummaryListResponses, GradingCourseSummaryListErrors, ThrowOnError> => (options.client ?? client).get<GradingCourseSummaryListResponses, GradingCourseSummaryListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/course-grades',
+    ...options
+});
 
 /**
  * A course's gradebook: categories, assessments, and every calculated figure.
@@ -1211,7 +2730,27 @@ export const gradingCourseSummaryList = <ThrowOnError extends boolean = false>(o
  * (`summary.required_average`). The summary figures are null while the weights do not add up to
  * 100 (`summary.weight_gap` says how much is missing). Never calculate grades yourself.
  */
-export const gradingGradebookGet = <ThrowOnError extends boolean = false>(options: Options<GradingGradebookGetData, ThrowOnError>): RequestResult<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError> => (options.client ?? client).get<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError>({ url: '/courses/{course_id}/gradebook', ...options });
+export const gradingGradebookGet = <ThrowOnError extends boolean = false>(options: Options<GradingGradebookGetData, ThrowOnError>): RequestResult<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError> => (options.client ?? client).get<GradingGradebookGetResponses, GradingGradebookGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/gradebook',
+    ...options
+});
 
 /**
  * Get a Program's grading scale: percentage ranges → grade points and letters.
@@ -1219,7 +2758,27 @@ export const gradingGradebookGet = <ThrowOnError extends boolean = false>(option
  * Use to convert a percentage to grade points or a letter, or to read the Program's
  * grading defaults (how year-long courses count, default categories, hidden GPA).
  */
-export const gradingScaleGet = <ThrowOnError extends boolean = false>(options: Options<GradingScaleGetData, ThrowOnError>): RequestResult<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError> => (options.client ?? client).get<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError>({ url: '/programs/{program_id}/grading-scale', ...options });
+export const gradingScaleGet = <ThrowOnError extends boolean = false>(options: Options<GradingScaleGetData, ThrowOnError>): RequestResult<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError> => (options.client ?? client).get<GradingScaleGetResponses, GradingScaleGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/grading-scale',
+    ...options
+});
 
 /**
  * Change a Program's grading scale or grading defaults.
@@ -1229,6 +2788,23 @@ export const gradingScaleGet = <ThrowOnError extends boolean = false>(options: O
  * `max_points`. Every GPA of the Program is recalculated from the new scale.
  */
 export const gradingScaleUpdate = <ThrowOnError extends boolean = false>(options: Options<GradingScaleUpdateData, ThrowOnError>): RequestResult<GradingScaleUpdateResponses, GradingScaleUpdateErrors, ThrowOnError> => (options.client ?? client).put<GradingScaleUpdateResponses, GradingScaleUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/grading-scale',
     ...options,
     headers: {
@@ -1242,7 +2818,27 @@ export const gradingScaleUpdate = <ThrowOnError extends boolean = false>(options
  *
  * Use to offer ready-made scales; apply one with grading.scale.update.
  */
-export const gradingScaleListPresets = <ThrowOnError extends boolean = false>(options?: Options<GradingScaleListPresetsData, ThrowOnError>): RequestResult<GradingScaleListPresetsResponses, GradingScaleListPresetsErrors, ThrowOnError> => (options?.client ?? client).get<GradingScaleListPresetsResponses, GradingScaleListPresetsErrors, ThrowOnError>({ url: '/grading/scale-presets', ...options });
+export const gradingScaleListPresets = <ThrowOnError extends boolean = false>(options?: Options<GradingScaleListPresetsData, ThrowOnError>): RequestResult<GradingScaleListPresetsResponses, GradingScaleListPresetsErrors, ThrowOnError> => (options?.client ?? client).get<GradingScaleListPresetsResponses, GradingScaleListPresetsErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/grading/scale-presets',
+    ...options
+});
 
 /**
  * Suggest a score for every ungraded assessment that reaches the target grade.
@@ -1252,6 +2848,23 @@ export const gradingScaleListPresets = <ThrowOnError extends boolean = false>(op
  * weights do not add up.
  */
 export const gradingScoreSuggest = <ThrowOnError extends boolean = false>(options: Options<GradingScoreSuggestData, ThrowOnError>): RequestResult<GradingScoreSuggestResponses, GradingScoreSuggestErrors, ThrowOnError> => (options.client ?? client).post<GradingScoreSuggestResponses, GradingScoreSuggestErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/gradebook:suggest',
     ...options,
     headers: {
@@ -1268,6 +2881,23 @@ export const gradingScoreSuggest = <ThrowOnError extends boolean = false>(option
  * `ignored`. Fails with grading.weights_not_100 while the weights do not add up.
  */
 export const gradingSimulateCourse = <ThrowOnError extends boolean = false>(options: Options<GradingSimulateCourseData, ThrowOnError>): RequestResult<GradingSimulateCourseResponses, GradingSimulateCourseErrors, ThrowOnError> => (options.client ?? client).post<GradingSimulateCourseResponses, GradingSimulateCourseErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/gradebook:simulate',
     ...options,
     headers: {
@@ -1285,6 +2915,23 @@ export const gradingSimulateCourse = <ThrowOnError extends boolean = false>(opti
  * saved.
  */
 export const gradingSimulateTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSimulateTermData, ThrowOnError>): RequestResult<GradingSimulateTermResponses, GradingSimulateTermErrors, ThrowOnError> => (options.client ?? client).post<GradingSimulateTermResponses, GradingSimulateTermErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/terms/{term_id}/grade-summary:simulate',
     ...options,
     headers: {
@@ -1299,7 +2946,27 @@ export const gradingSimulateTerm = <ThrowOnError extends boolean = false>(option
  * Use for "what is my overall GPA" or "how many credits do I have left". Every
  * course counts once, a year-long one in the term the Program's setting names.
  */
-export const gradingSummaryProgram = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryProgramData, ThrowOnError>): RequestResult<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError>({ url: '/programs/{program_id}/grade-summary', ...options });
+export const gradingSummaryProgram = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryProgramData, ThrowOnError>): RequestResult<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryProgramResponses, GradingSummaryProgramErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/grade-summary',
+    ...options
+});
 
 /**
  * A term's GPA, average, credits and every course's grade.
@@ -1307,7 +2974,27 @@ export const gradingSummaryProgram = <ThrowOnError extends boolean = false>(opti
  * Use for "what is my GPA this term". Unfinished courses are left out unless
  * `include_in_progress` counts their current average.
  */
-export const gradingSummaryTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryTermData, ThrowOnError>): RequestResult<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError>({ url: '/terms/{term_id}/grade-summary', ...options });
+export const gradingSummaryTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryTermData, ThrowOnError>): RequestResult<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}/grade-summary',
+    ...options
+});
 
 /**
  * List the checked days of a habit within a date range.
@@ -1315,7 +3002,27 @@ export const gradingSummaryTerm = <ThrowOnError extends boolean = false>(options
  * Use to see which days a habit was done. The range is at most 400 days and in the
  * Program's time zone.
  */
-export const habitCheckinList = <ThrowOnError extends boolean = false>(options: Options<HabitCheckinListData, ThrowOnError>): RequestResult<HabitCheckinListResponses, HabitCheckinListErrors, ThrowOnError> => (options.client ?? client).get<HabitCheckinListResponses, HabitCheckinListErrors, ThrowOnError>({ url: '/habit/instances/{instance_id}/checkins', ...options });
+export const habitCheckinList = <ThrowOnError extends boolean = false>(options: Options<HabitCheckinListData, ThrowOnError>): RequestResult<HabitCheckinListResponses, HabitCheckinListErrors, ThrowOnError> => (options.client ?? client).get<HabitCheckinListResponses, HabitCheckinListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/habit/instances/{instance_id}/checkins',
+    ...options
+});
 
 /**
  * Check or uncheck a habit for a day (today or the past 7 days).
@@ -1324,6 +3031,15 @@ export const habitCheckinList = <ThrowOnError extends boolean = false>(options: 
  * round. Days older than 7 days or in the future are refused.
  */
 export const habitCheckinToggle = <ThrowOnError extends boolean = false>(options: Options<HabitCheckinToggleData, ThrowOnError>): RequestResult<HabitCheckinToggleResponses, HabitCheckinToggleErrors, ThrowOnError> => (options.client ?? client).post<HabitCheckinToggleResponses, HabitCheckinToggleErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/habit/instances/{instance_id}/checkins/toggle',
     ...options,
     headers: {
@@ -1339,7 +3055,27 @@ export const habitCheckinToggle = <ThrowOnError extends boolean = false>(options
  * weekly goal the streaks count weeks that reached the weekly target; a streak stays alive while
  * the running day (or week) is still open. Also returns today's date in the Program's time zone.
  */
-export const habitStreakGet = <ThrowOnError extends boolean = false>(options: Options<HabitStreakGetData, ThrowOnError>): RequestResult<HabitStreakGetResponses, HabitStreakGetErrors, ThrowOnError> => (options.client ?? client).get<HabitStreakGetResponses, HabitStreakGetErrors, ThrowOnError>({ url: '/habit/instances/{instance_id}/stats', ...options });
+export const habitStreakGet = <ThrowOnError extends boolean = false>(options: Options<HabitStreakGetData, ThrowOnError>): RequestResult<HabitStreakGetResponses, HabitStreakGetErrors, ThrowOnError> => (options.client ?? client).get<HabitStreakGetResponses, HabitStreakGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/habit/instances/{instance_id}/stats',
+    ...options
+});
 
 /**
  * Accept or reject many import items at once, by type, issue or id.
@@ -1350,6 +3086,23 @@ export const habitStreakGet = <ThrowOnError extends boolean = false>(options: Op
  * takes only its id. The assistant gets `changed` and the session's `summary`, without its items.
  */
 export const importsItemDecideMany = <ThrowOnError extends boolean = false>(options: Options<ImportsItemDecideManyData, ThrowOnError>): RequestResult<ImportsItemDecideManyResponses, ImportsItemDecideManyErrors, ThrowOnError> => (options.client ?? client).post<ImportsItemDecideManyResponses, ImportsItemDecideManyErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/imports/{session_id}/items:decide',
     ...options,
     headers: {
@@ -1366,6 +3119,23 @@ export const importsItemDecideMany = <ThrowOnError extends boolean = false>(opti
  * the session's `summary` and the changed item.
  */
 export const importsItemUpdate = <ThrowOnError extends boolean = false>(options: Options<ImportsItemUpdateData, ThrowOnError>): RequestResult<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/imports/{session_id}/items/{item_id}',
     ...options,
     headers: {
@@ -1383,6 +3153,23 @@ export const importsItemUpdate = <ThrowOnError extends boolean = false>(options:
  * the counts and the items that failed.
  */
 export const importsSessionCommit = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCommitData, ThrowOnError>): RequestResult<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCommitResponses, ImportsSessionCommitErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/imports/{session_id}:commit',
     ...options,
     headers: {
@@ -1396,7 +3183,27 @@ export const importsSessionCommit = <ThrowOnError extends boolean = false>(optio
  *
  * Closed imports are kept for 30 days.
  */
-export const importsSessionList = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionListData, ThrowOnError>): RequestResult<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError>({ url: '/programs/{program_id}/imports', ...options });
+export const importsSessionList = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionListData, ThrowOnError>): RequestResult<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/imports',
+    ...options
+});
 
 /**
  * Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.
@@ -1413,6 +3220,23 @@ export const importsSessionList = <ThrowOnError extends boolean = false>(options
  * 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreate = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCreateData, ThrowOnError>): RequestResult<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/imports',
     ...options,
     headers: {
@@ -1426,7 +3250,27 @@ export const importsSessionCreate = <ThrowOnError extends boolean = false>(optio
  *
  * Use when the user does not want the import. Its uploaded files are deleted too.
  */
-export const importsSessionDiscard = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionDiscardData, ThrowOnError>): RequestResult<ImportsSessionDiscardResponses, ImportsSessionDiscardErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionDiscardResponses, ImportsSessionDiscardErrors, ThrowOnError>({ url: '/imports/{session_id}:discard', ...options });
+export const importsSessionDiscard = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionDiscardData, ThrowOnError>): RequestResult<ImportsSessionDiscardResponses, ImportsSessionDiscardErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionDiscardResponses, ImportsSessionDiscardErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/imports/{session_id}:discard',
+    ...options
+});
 
 /**
  * An import with its items, their issues and the extraction progress.
@@ -1438,7 +3282,27 @@ export const importsSessionDiscard = <ThrowOnError extends boolean = false>(opti
  * extracting, pass wait_seconds (up to 25) to wait for the result in one call; if it
  * is still extracting after that, tell the user and stop instead of calling again.
  */
-export const importsSessionGet = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionGetData, ThrowOnError>): RequestResult<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError>({ url: '/imports/{session_id}', ...options });
+export const importsSessionGet = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionGetData, ThrowOnError>): RequestResult<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/imports/{session_id}',
+    ...options
+});
 
 /**
  * Get the cards on a Program, term or course overview, or on the Today page.
@@ -1446,7 +3310,27 @@ export const importsSessionGet = <ThrowOnError extends boolean = false>(options:
  * Use to find card instances (their instance_id and settings), e.g. which
  * sticky notes or habit trackers a course has, before calling a card-specific tool.
  */
-export const layoutsBoardGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsBoardGetData, ThrowOnError>): RequestResult<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError>({ url: '/layouts/boards/{scope_type}/{scope_id}', ...options });
+export const layoutsBoardGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsBoardGetData, ThrowOnError>): RequestResult<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsBoardGetResponses, LayoutsBoardGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/layouts/boards/{scope_type}/{scope_id}',
+    ...options
+});
 
 /**
  * Replace the card layout of a board (positions, sizes, added and removed cards).
@@ -1454,6 +3338,15 @@ export const layoutsBoardGet = <ThrowOnError extends boolean = false>(options: O
  * Cards left out of the list are deleted together with their data.
  */
 export const layoutsBoardUpdate = <ThrowOnError extends boolean = false>(options: Options<LayoutsBoardUpdateData, ThrowOnError>): RequestResult<LayoutsBoardUpdateResponses, LayoutsBoardUpdateErrors, ThrowOnError> => (options.client ?? client).put<LayoutsBoardUpdateResponses, LayoutsBoardUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/layouts/boards/{scope_type}/{scope_id}',
     ...options,
     headers: {
@@ -1470,6 +3363,23 @@ export const layoutsBoardUpdate = <ThrowOnError extends boolean = false>(options
  * with plugins.catalog.list that its plugin is installed.
  */
 export const layoutsCardAdd = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardAddData, ThrowOnError>): RequestResult<LayoutsCardAddResponses, LayoutsCardAddErrors, ThrowOnError> => (options.client ?? client).post<LayoutsCardAddResponses, LayoutsCardAddErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/layouts/boards/{scope_type}/{scope_id}/cards',
     ...options,
     headers: {
@@ -1483,7 +3393,19 @@ export const layoutsCardAdd = <ThrowOnError extends boolean = false>(options: Op
  *
  * layouts.board.get already includes every card's settings.
  */
-export const layoutsCardGetSettings = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardGetSettingsData, ThrowOnError>): RequestResult<LayoutsCardGetSettingsResponses, LayoutsCardGetSettingsErrors, ThrowOnError> => (options.client ?? client).get<LayoutsCardGetSettingsResponses, LayoutsCardGetSettingsErrors, ThrowOnError>({ url: '/layouts/cards/{instance_id}/settings', ...options });
+export const layoutsCardGetSettings = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardGetSettingsData, ThrowOnError>): RequestResult<LayoutsCardGetSettingsResponses, LayoutsCardGetSettingsErrors, ThrowOnError> => (options.client ?? client).get<LayoutsCardGetSettingsResponses, LayoutsCardGetSettingsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/layouts/cards/{instance_id}/settings',
+    ...options
+});
 
 /**
  * Replace the settings of a card instance.
@@ -1491,6 +3413,15 @@ export const layoutsCardGetSettings = <ThrowOnError extends boolean = false>(opt
  * The settings are validated against the card's schema.
  */
 export const layoutsCardUpdateSettings = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardUpdateSettingsData, ThrowOnError>): RequestResult<LayoutsCardUpdateSettingsResponses, LayoutsCardUpdateSettingsErrors, ThrowOnError> => (options.client ?? client).put<LayoutsCardUpdateSettingsResponses, LayoutsCardUpdateSettingsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/layouts/cards/{instance_id}/settings',
     ...options,
     headers: {
@@ -1505,14 +3436,46 @@ export const layoutsCardUpdateSettings = <ThrowOnError extends boolean = false>(
  * Use when the user asks to remove a card. Find its instance_id with
  * layouts.board.get.
  */
-export const layoutsCardRemove = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardRemoveData, ThrowOnError>): RequestResult<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError>({ url: '/layouts/cards/{instance_id}', ...options });
+export const layoutsCardRemove = <ThrowOnError extends boolean = false>(options: Options<LayoutsCardRemoveData, ThrowOnError>): RequestResult<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsCardRemoveResponses, LayoutsCardRemoveErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/layouts/cards/{instance_id}',
+    ...options
+});
 
 /**
  * Get the order and hidden pages of the tab bar of a scope type.
  *
  * Applies to every Program, every term or every course alike.
  */
-export const layoutsNavGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsNavGetData, ThrowOnError>): RequestResult<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError>({ url: '/layouts/nav/{scope_type}', ...options });
+export const layoutsNavGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsNavGetData, ThrowOnError>): RequestResult<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsNavGetResponses, LayoutsNavGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/layouts/nav/{scope_type}',
+    ...options
+});
 
 /**
  * Set the order and hidden pages of the tab bar of a scope type.
@@ -1520,6 +3483,15 @@ export const layoutsNavGet = <ThrowOnError extends boolean = false>(options: Opt
  * Applies to every Program, every term or every course alike.
  */
 export const layoutsNavUpdate = <ThrowOnError extends boolean = false>(options: Options<LayoutsNavUpdateData, ThrowOnError>): RequestResult<LayoutsNavUpdateResponses, LayoutsNavUpdateErrors, ThrowOnError> => (options.client ?? client).put<LayoutsNavUpdateResponses, LayoutsNavUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/layouts/nav/{scope_type}',
     ...options,
     headers: {
@@ -1533,14 +3505,38 @@ export const layoutsNavUpdate = <ThrowOnError extends boolean = false>(options: 
  *
  * Boards that were never changed follow it at once.
  */
-export const layoutsTemplateReset = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateResetData, ThrowOnError>): RequestResult<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError>({ url: '/layouts/templates/{scope_type}', ...options });
+export const layoutsTemplateReset = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateResetData, ThrowOnError>): RequestResult<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError> => (options.client ?? client).delete<LayoutsTemplateResetResponses, LayoutsTemplateResetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/layouts/templates/{scope_type}',
+    ...options
+});
 
 /**
  * Get the default card layout new boards of a scope type start from.
  *
  * Either the user's own default or the built-in one.
  */
-export const layoutsTemplateGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateGetData, ThrowOnError>): RequestResult<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError>({ url: '/layouts/templates/{scope_type}', ...options });
+export const layoutsTemplateGet = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateGetData, ThrowOnError>): RequestResult<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError> => (options.client ?? client).get<LayoutsTemplateGetResponses, LayoutsTemplateGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/layouts/templates/{scope_type}',
+    ...options
+});
 
 /**
  * Make a board's layout the default for its scope type.
@@ -1548,6 +3544,15 @@ export const layoutsTemplateGet = <ThrowOnError extends boolean = false>(options
  * Boards that were never changed follow it at once; changed boards keep theirs.
  */
 export const layoutsTemplateSaveFromBoard = <ThrowOnError extends boolean = false>(options: Options<LayoutsTemplateSaveFromBoardData, ThrowOnError>): RequestResult<LayoutsTemplateSaveFromBoardResponses, LayoutsTemplateSaveFromBoardErrors, ThrowOnError> => (options.client ?? client).post<LayoutsTemplateSaveFromBoardResponses, LayoutsTemplateSaveFromBoardErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/layouts/templates/{scope_type}:from-board',
     ...options,
     headers: {
@@ -1559,7 +3564,27 @@ export const layoutsTemplateSaveFromBoard = <ThrowOnError extends boolean = fals
 /**
  * Recent announcements of a linked course on Canvas or another LMS, newest first.
  */
-export const lmsAnnouncementList = <ThrowOnError extends boolean = false>(options: Options<LmsAnnouncementListData, ThrowOnError>): RequestResult<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError> => (options.client ?? client).get<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/announcements', ...options });
+export const lmsAnnouncementList = <ThrowOnError extends boolean = false>(options: Options<LmsAnnouncementListData, ThrowOnError>): RequestResult<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError> => (options.client ?? client).get<LmsAnnouncementListResponses, LmsAnnouncementListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/announcements',
+    ...options
+});
 
 /**
  * Start importing assignments of a linked course as assessments or tasks.
@@ -1569,6 +3594,23 @@ export const lmsAnnouncementList = <ThrowOnError extends boolean = false>(option
  * any import (imports.session.commit).
  */
 export const lmsAssignmentImport = <ThrowOnError extends boolean = false>(options: Options<LmsAssignmentImportData, ThrowOnError>): RequestResult<LmsAssignmentImportResponses, LmsAssignmentImportErrors, ThrowOnError> => (options.client ?? client).post<LmsAssignmentImportResponses, LmsAssignmentImportErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/lms/imports:assignments',
     ...options,
     headers: {
@@ -1583,14 +3625,46 @@ export const lmsAssignmentImport = <ThrowOnError extends boolean = false>(option
  * To add them to the gradebook or tasks use lms.assignment.import (reviewed by
  * the user), never the gradebook or task capabilities directly.
  */
-export const lmsAssignmentList = <ThrowOnError extends boolean = false>(options: Options<LmsAssignmentListData, ThrowOnError>): RequestResult<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError> => (options.client ?? client).get<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/assignments', ...options });
+export const lmsAssignmentList = <ThrowOnError extends boolean = false>(options: Options<LmsAssignmentListData, ThrowOnError>): RequestResult<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError> => (options.client ?? client).get<LmsAssignmentListResponses, LmsAssignmentListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/assignments',
+    ...options
+});
 
 /**
  * The user's LMS connections (credentials masked).
  *
  * Not for agents.
  */
-export const lmsConnectionList = <ThrowOnError extends boolean = false>(options?: Options<LmsConnectionListData, ThrowOnError>): RequestResult<LmsConnectionListResponses, LmsConnectionListErrors, ThrowOnError> => (options?.client ?? client).get<LmsConnectionListResponses, LmsConnectionListErrors, ThrowOnError>({ url: '/lms/connections', ...options });
+export const lmsConnectionList = <ThrowOnError extends boolean = false>(options?: Options<LmsConnectionListData, ThrowOnError>): RequestResult<LmsConnectionListResponses, LmsConnectionListErrors, ThrowOnError> => (options?.client ?? client).get<LmsConnectionListResponses, LmsConnectionListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/lms/connections',
+    ...options
+});
 
 /**
  * Connect an LMS account; the settings are checked before saving.
@@ -1598,6 +3672,15 @@ export const lmsConnectionList = <ThrowOnError extends boolean = false>(options?
  * Credentials are stored encrypted and only ever shown masked. Not for agents.
  */
 export const lmsConnectionCreate = <ThrowOnError extends boolean = false>(options: Options<LmsConnectionCreateData, ThrowOnError>): RequestResult<LmsConnectionCreateResponses, LmsConnectionCreateErrors, ThrowOnError> => (options.client ?? client).post<LmsConnectionCreateResponses, LmsConnectionCreateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/lms/connections',
     ...options,
     headers: {
@@ -1613,7 +3696,19 @@ export const lmsConnectionCreate = <ThrowOnError extends boolean = false>(option
  * `detach_all`, which also unbinds them and unlinks their courses; imported assessments, tasks
  * and files stay. Not for agents.
  */
-export const lmsConnectionDelete = <ThrowOnError extends boolean = false>(options: Options<LmsConnectionDeleteData, ThrowOnError>): RequestResult<LmsConnectionDeleteResponses, LmsConnectionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<LmsConnectionDeleteResponses, LmsConnectionDeleteErrors, ThrowOnError>({ url: '/lms/connections/{id}', ...options });
+export const lmsConnectionDelete = <ThrowOnError extends boolean = false>(options: Options<LmsConnectionDeleteData, ThrowOnError>): RequestResult<LmsConnectionDeleteResponses, LmsConnectionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<LmsConnectionDeleteResponses, LmsConnectionDeleteErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/lms/connections/{id}',
+    ...options
+});
 
 /**
  * Rename an LMS connection or change its address or credentials.
@@ -1621,6 +3716,15 @@ export const lmsConnectionDelete = <ThrowOnError extends boolean = false>(option
  * New settings or credentials are checked before saving. Not for agents.
  */
 export const lmsConnectionUpdate = <ThrowOnError extends boolean = false>(options: Options<LmsConnectionUpdateData, ThrowOnError>): RequestResult<LmsConnectionUpdateResponses, LmsConnectionUpdateErrors, ThrowOnError> => (options.client ?? client).patch<LmsConnectionUpdateResponses, LmsConnectionUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/lms/connections/{id}',
     ...options,
     headers: {
@@ -1635,6 +3739,15 @@ export const lmsConnectionUpdate = <ThrowOnError extends boolean = false>(option
  * A re-check records the connection's status. Not for agents.
  */
 export const lmsConnectionValidate = <ThrowOnError extends boolean = false>(options: Options<LmsConnectionValidateData, ThrowOnError>): RequestResult<LmsConnectionValidateResponses, LmsConnectionValidateErrors, ThrowOnError> => (options.client ?? client).post<LmsConnectionValidateResponses, LmsConnectionValidateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/lms/connections:validate',
     ...options,
     headers: {
@@ -1648,7 +3761,27 @@ export const lmsConnectionValidate = <ThrowOnError extends boolean = false>(opti
  *
  * Put them up for the user's review with lms.course.queue_updates.
  */
-export const lmsCourseCheckUpdates = <ThrowOnError extends boolean = false>(options: Options<LmsCourseCheckUpdatesData, ThrowOnError>): RequestResult<LmsCourseCheckUpdatesResponses, LmsCourseCheckUpdatesErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseCheckUpdatesResponses, LmsCourseCheckUpdatesErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/updates', ...options });
+export const lmsCourseCheckUpdates = <ThrowOnError extends boolean = false>(options: Options<LmsCourseCheckUpdatesData, ThrowOnError>): RequestResult<LmsCourseCheckUpdatesResponses, LmsCourseCheckUpdatesErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseCheckUpdatesResponses, LmsCourseCheckUpdatesErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/updates',
+    ...options
+});
 
 /**
  * Start importing courses from the Program's LMS (reviewed before anything is created).
@@ -1657,6 +3790,23 @@ export const lmsCourseCheckUpdates = <ThrowOnError extends boolean = false>(opti
  * the courses and links them to the LMS in one go.
  */
 export const lmsCourseImport = <ThrowOnError extends boolean = false>(options: Options<LmsCourseImportData, ThrowOnError>): RequestResult<LmsCourseImportResponses, LmsCourseImportErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseImportResponses, LmsCourseImportErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/lms/imports:courses',
     ...options,
     headers: {
@@ -1670,14 +3820,54 @@ export const lmsCourseImport = <ThrowOnError extends boolean = false>(options: O
  *
  * Imported assessments, tasks and files stay.
  */
-export const lmsCourseLinkDelete = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkDeleteData, ThrowOnError>): RequestResult<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError> => (options.client ?? client).delete<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError>({ url: '/courses/{course_id}/lms-link', ...options });
+export const lmsCourseLinkDelete = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkDeleteData, ThrowOnError>): RequestResult<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError> => (options.client ?? client).delete<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms-link',
+    ...options
+});
 
 /**
  * The LMS course a course is linked to, if any.
  *
  * Also says which connection the course's Program is bound to.
  */
-export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkGetData, ThrowOnError>): RequestResult<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError>({ url: '/courses/{course_id}/lms-link', ...options });
+export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkGetData, ThrowOnError>): RequestResult<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms-link',
+    ...options
+});
 
 /**
  * Turn LMS sync of a linked course on or off.
@@ -1685,6 +3875,23 @@ export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: 
  * Off: no calendar overlay and no update checks; reading still works.
  */
 export const lmsCourseLinkUpdate = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkUpdateData, ThrowOnError>): RequestResult<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError> => (options.client ?? client).patch<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/lms-link',
     ...options,
     headers: {
@@ -1703,6 +3910,23 @@ export const lmsCourseLinkUpdate = <ThrowOnError extends boolean = false>(option
  * what was imported through the old link.
  */
 export const lmsCourseLinkSet = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkSetData, ThrowOnError>): RequestResult<LmsCourseLinkSetResponses, LmsCourseLinkSetErrors, ThrowOnError> => (options.client ?? client).put<LmsCourseLinkSetResponses, LmsCourseLinkSetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/lms-link',
     ...options,
     headers: {
@@ -1716,21 +3940,81 @@ export const lmsCourseLinkSet = <ThrowOnError extends boolean = false>(options: 
  *
  * Changes only the link, never the course itself.
  */
-export const lmsCourseLinkSync = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkSyncData, ThrowOnError>): RequestResult<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError>({ url: '/courses/{course_id}/lms-link:sync', ...options });
+export const lmsCourseLinkSync = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkSyncData, ThrowOnError>): RequestResult<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms-link:sync',
+    ...options
+});
 
 /**
  * The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.
  *
  * Current-term courses by default; `include_past` for all of them.
  */
-export const lmsCourseList = <ThrowOnError extends boolean = false>(options: Options<LmsCourseListData, ThrowOnError>): RequestResult<LmsCourseListResponses, LmsCourseListErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseListResponses, LmsCourseListErrors, ThrowOnError>({ url: '/programs/{program_id}/lms/courses', ...options });
+export const lmsCourseList = <ThrowOnError extends boolean = false>(options: Options<LmsCourseListData, ThrowOnError>): RequestResult<LmsCourseListResponses, LmsCourseListErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseListResponses, LmsCourseListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/lms/courses',
+    ...options
+});
 
 /**
  * A linked course on the LMS: details, navigation and supported features.
  *
  * A read the platform does not support fails with lms.feature_unsupported.
  */
-export const lmsCourseOverview = <ThrowOnError extends boolean = false>(options: Options<LmsCourseOverviewData, ThrowOnError>): RequestResult<LmsCourseOverviewResponses, LmsCourseOverviewErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseOverviewResponses, LmsCourseOverviewErrors, ThrowOnError>({ url: '/courses/{course_id}/lms', ...options });
+export const lmsCourseOverview = <ThrowOnError extends boolean = false>(options: Options<LmsCourseOverviewData, ThrowOnError>): RequestResult<LmsCourseOverviewResponses, LmsCourseOverviewErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseOverviewResponses, LmsCourseOverviewErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms',
+    ...options
+});
 
 /**
  * Put the LMS changes of imported assignments up for review.
@@ -1738,14 +4022,54 @@ export const lmsCourseOverview = <ThrowOnError extends boolean = false>(options:
  * Creates an import of the changes and changes nothing itself: they are written
  * when the import is committed (imports.session.commit) after the user reviewed it.
  */
-export const lmsCourseQueueUpdates = <ThrowOnError extends boolean = false>(options: Options<LmsCourseQueueUpdatesData, ThrowOnError>): RequestResult<LmsCourseQueueUpdatesResponses, LmsCourseQueueUpdatesErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseQueueUpdatesResponses, LmsCourseQueueUpdatesErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/updates:review', ...options });
+export const lmsCourseQueueUpdates = <ThrowOnError extends boolean = false>(options: Options<LmsCourseQueueUpdatesData, ThrowOnError>): RequestResult<LmsCourseQueueUpdatesResponses, LmsCourseQueueUpdatesErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseQueueUpdatesResponses, LmsCourseQueueUpdatesErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/updates:review',
+    ...options
+});
 
 /**
  * Details of a file of a linked course.
  *
  * To read or search its text, save it with lms.file.save_to_course.
  */
-export const lmsFileGet = <ThrowOnError extends boolean = false>(options: Options<LmsFileGetData, ThrowOnError>): RequestResult<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError> => (options.client ?? client).get<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/files/{file_id}', ...options });
+export const lmsFileGet = <ThrowOnError extends boolean = false>(options: Options<LmsFileGetData, ThrowOnError>): RequestResult<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError> => (options.client ?? client).get<LmsFileGetResponses, LmsFileGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/files/{file_id}',
+    ...options
+});
 
 /**
  * Save a file of a linked course into the course's files.
@@ -1753,6 +4077,23 @@ export const lmsFileGet = <ThrowOnError extends boolean = false>(options: Option
  * It is then processed like an upload and can be searched and extracted.
  */
 export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(options: Options<LmsFileSaveToCourseData, ThrowOnError>): RequestResult<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError> => (options.client ?? client).post<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/lms/files/{file_id}:save',
     ...options,
     headers: {
@@ -1766,47 +4107,187 @@ export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(option
  *
  * The course total first, then one row per assignment.
  */
-export const lmsGradeList = <ThrowOnError extends boolean = false>(options: Options<LmsGradeListData, ThrowOnError>): RequestResult<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError> => (options.client ?? client).get<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/grades', ...options });
+export const lmsGradeList = <ThrowOnError extends boolean = false>(options: Options<LmsGradeListData, ThrowOnError>): RequestResult<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError> => (options.client ?? client).get<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/grades',
+    ...options
+});
 
 /**
  * Modules of a linked course.
  *
  * Items of a module: lms.module_item.list.
  */
-export const lmsModuleList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleListData, ThrowOnError>): RequestResult<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/modules', ...options });
+export const lmsModuleList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleListData, ThrowOnError>): RequestResult<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/modules',
+    ...options
+});
 
 /**
  * Items of one module of a linked course.
  *
  * `target` says where an item opens in the app (page, assignment, file...).
  */
-export const lmsModuleItemList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleItemListData, ThrowOnError>): RequestResult<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/modules/{module_id}/items', ...options });
+export const lmsModuleItemList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleItemListData, ThrowOnError>): RequestResult<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/modules/{module_id}/items',
+    ...options
+});
 
 /**
  * One page of a linked course; the assistant gets its body as Markdown.
  */
-export const lmsPageGet = <ThrowOnError extends boolean = false>(options: Options<LmsPageGetData, ThrowOnError>): RequestResult<LmsPageGetResponses, LmsPageGetErrors, ThrowOnError> => (options.client ?? client).get<LmsPageGetResponses, LmsPageGetErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/pages/{ref}', ...options });
+export const lmsPageGet = <ThrowOnError extends boolean = false>(options: Options<LmsPageGetData, ThrowOnError>): RequestResult<LmsPageGetResponses, LmsPageGetErrors, ThrowOnError> => (options.client ?? client).get<LmsPageGetResponses, LmsPageGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/pages/{ref}',
+    ...options
+});
 
 /**
  * Pages of a linked course.
  *
  * Read one with lms.page.get.
  */
-export const lmsPageList = <ThrowOnError extends boolean = false>(options: Options<LmsPageListData, ThrowOnError>): RequestResult<LmsPageListResponses, LmsPageListErrors, ThrowOnError> => (options.client ?? client).get<LmsPageListResponses, LmsPageListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/pages', ...options });
+export const lmsPageList = <ThrowOnError extends boolean = false>(options: Options<LmsPageListData, ThrowOnError>): RequestResult<LmsPageListResponses, LmsPageListErrors, ThrowOnError> => (options.client ?? client).get<LmsPageListResponses, LmsPageListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/pages',
+    ...options
+});
 
 /**
  * Unbind a Program's LMS connection.
  *
  * Refused while courses of the Program are linked (lms.program_has_links).
  */
-export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingClearData, ThrowOnError>): RequestResult<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError> => (options.client ?? client).delete<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError>({ url: '/programs/{program_id}/lms-binding', ...options });
+export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingClearData, ThrowOnError>): RequestResult<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError> => (options.client ?? client).delete<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/lms-binding',
+    ...options
+});
 
 /**
  * Which LMS connection a Program uses.
  *
  * Courses of the Program can only be linked through this connection.
  */
-export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingGetData, ThrowOnError>): RequestResult<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError> => (options.client ?? client).get<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError>({ url: '/programs/{program_id}/lms-binding', ...options });
+export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingGetData, ThrowOnError>): RequestResult<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError> => (options.client ?? client).get<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/lms-binding',
+    ...options
+});
 
 /**
  * Bind an LMS connection to a Program.
@@ -1814,6 +4295,23 @@ export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(optio
  * Refused while courses of the Program are linked (lms.program_has_links).
  */
 export const lmsProgramBindingSet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingSetData, ThrowOnError>): RequestResult<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError> => (options.client ?? client).put<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/lms-binding',
     ...options,
     headers: {
@@ -1827,19 +4325,79 @@ export const lmsProgramBindingSet = <ThrowOnError extends boolean = false>(optio
  *
  * Features the provider lacks are not offered for its connections.
  */
-export const lmsProviderList = <ThrowOnError extends boolean = false>(options?: Options<LmsProviderListData, ThrowOnError>): RequestResult<LmsProviderListResponses, LmsProviderListErrors, ThrowOnError> => (options?.client ?? client).get<LmsProviderListResponses, LmsProviderListErrors, ThrowOnError>({ url: '/lms/providers', ...options });
+export const lmsProviderList = <ThrowOnError extends boolean = false>(options?: Options<LmsProviderListData, ThrowOnError>): RequestResult<LmsProviderListResponses, LmsProviderListErrors, ThrowOnError> => (options?.client ?? client).get<LmsProviderListResponses, LmsProviderListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/lms/providers',
+    ...options
+});
 
 /**
  * Quizzes of a linked course.
  */
-export const lmsQuizList = <ThrowOnError extends boolean = false>(options: Options<LmsQuizListData, ThrowOnError>): RequestResult<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError> => (options.client ?? client).get<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/quizzes', ...options });
+export const lmsQuizList = <ThrowOnError extends boolean = false>(options: Options<LmsQuizListData, ThrowOnError>): RequestResult<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError> => (options.client ?? client).get<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/quizzes',
+    ...options
+});
 
 /**
  * The syllabus of a linked course on Canvas or another LMS.
  *
  * To extract its grading scheme use lms.syllabus.import.
  */
-export const lmsSyllabusGet = <ThrowOnError extends boolean = false>(options: Options<LmsSyllabusGetData, ThrowOnError>): RequestResult<LmsSyllabusGetResponses, LmsSyllabusGetErrors, ThrowOnError> => (options.client ?? client).get<LmsSyllabusGetResponses, LmsSyllabusGetErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/syllabus', ...options });
+export const lmsSyllabusGet = <ThrowOnError extends boolean = false>(options: Options<LmsSyllabusGetData, ThrowOnError>): RequestResult<LmsSyllabusGetResponses, LmsSyllabusGetErrors, ThrowOnError> => (options.client ?? client).get<LmsSyllabusGetResponses, LmsSyllabusGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/syllabus',
+    ...options
+});
 
 /**
  * Extract the grading scheme and dates from a linked course's LMS syllabus.
@@ -1847,7 +4405,27 @@ export const lmsSyllabusGet = <ThrowOnError extends boolean = false>(options: Op
  * Starts an AI extraction the user reviews; needs an AI model. Then wait for it and
  * commit it like any import (imports.session.get, imports.session.commit).
  */
-export const lmsSyllabusImport = <ThrowOnError extends boolean = false>(options: Options<LmsSyllabusImportData, ThrowOnError>): RequestResult<LmsSyllabusImportResponses, LmsSyllabusImportErrors, ThrowOnError> => (options.client ?? client).post<LmsSyllabusImportResponses, LmsSyllabusImportErrors, ThrowOnError>({ url: '/courses/{course_id}/lms/imports:syllabus', ...options });
+export const lmsSyllabusImport = <ThrowOnError extends boolean = false>(options: Options<LmsSyllabusImportData, ThrowOnError>): RequestResult<LmsSyllabusImportResponses, LmsSyllabusImportErrors, ThrowOnError> => (options.client ?? client).post<LmsSyllabusImportResponses, LmsSyllabusImportErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/lms/imports:syllabus',
+    ...options
+});
 
 /**
  * List the app's modules and plugins, and which plugins the user has installed.
@@ -1856,7 +4434,27 @@ export const lmsSyllabusImport = <ThrowOnError extends boolean = false>(options:
  * installed before suggesting its cards, or to tell the user what plugins exist. Core modules are
  * always installed.
  */
-export const pluginsCatalogList = <ThrowOnError extends boolean = false>(options?: Options<PluginsCatalogListData, ThrowOnError>): RequestResult<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError> => (options?.client ?? client).get<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError>({ url: '/plugins/catalog', ...options });
+export const pluginsCatalogList = <ThrowOnError extends boolean = false>(options?: Options<PluginsCatalogListData, ThrowOnError>): RequestResult<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError> => (options?.client ?? client).get<PluginsCatalogListResponses, PluginsCatalogListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/plugins/catalog',
+    ...options
+});
 
 /**
  * Uninstall a plugin; optionally delete its data.
@@ -1864,14 +4462,38 @@ export const pluginsCatalogList = <ThrowOnError extends boolean = false>(options
  * Hides the plugin's pages, cards and features. Without purge_data its data is
  * kept and comes back on reinstall.
  */
-export const pluginsPluginUninstall = <ThrowOnError extends boolean = false>(options: Options<PluginsPluginUninstallData, ThrowOnError>): RequestResult<PluginsPluginUninstallResponses, PluginsPluginUninstallErrors, ThrowOnError> => (options.client ?? client).delete<PluginsPluginUninstallResponses, PluginsPluginUninstallErrors, ThrowOnError>({ url: '/plugins/{plugin_id}/installation', ...options });
+export const pluginsPluginUninstall = <ThrowOnError extends boolean = false>(options: Options<PluginsPluginUninstallData, ThrowOnError>): RequestResult<PluginsPluginUninstallResponses, PluginsPluginUninstallErrors, ThrowOnError> => (options.client ?? client).delete<PluginsPluginUninstallResponses, PluginsPluginUninstallErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/plugins/{plugin_id}/installation',
+    ...options
+});
 
 /**
  * Install a plugin for the user's account.
  *
  * Installing an already installed plugin does nothing.
  */
-export const pluginsPluginInstall = <ThrowOnError extends boolean = false>(options: Options<PluginsPluginInstallData, ThrowOnError>): RequestResult<PluginsPluginInstallResponses, PluginsPluginInstallErrors, ThrowOnError> => (options.client ?? client).put<PluginsPluginInstallResponses, PluginsPluginInstallErrors, ThrowOnError>({ url: '/plugins/{plugin_id}/installation', ...options });
+export const pluginsPluginInstall = <ThrowOnError extends boolean = false>(options: Options<PluginsPluginInstallData, ThrowOnError>): RequestResult<PluginsPluginInstallResponses, PluginsPluginInstallErrors, ThrowOnError> => (options.client ?? client).put<PluginsPluginInstallResponses, PluginsPluginInstallErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/plugins/{plugin_id}/installation',
+    ...options
+});
 
 /**
  * Record a finished pomodoro focus session.
@@ -1880,6 +4502,15 @@ export const pluginsPluginInstall = <ThrowOnError extends boolean = false>(optio
  * log time the user only mentions in chat: sessions come from the timer.
  */
 export const pomodoroSessionRecord = <ThrowOnError extends boolean = false>(options: Options<PomodoroSessionRecordData, ThrowOnError>): RequestResult<PomodoroSessionRecordResponses, PomodoroSessionRecordErrors, ThrowOnError> => (options.client ?? client).post<PomodoroSessionRecordResponses, PomodoroSessionRecordErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/pomodoro/sessions',
     ...options,
     headers: {
@@ -1895,14 +4526,46 @@ export const pomodoroSessionRecord = <ThrowOnError extends boolean = false>(opti
  * week". Pass course_id to limit to one course (find it with academics.course.find). Defaults to the
  * last 7 days. Days follow the Program's time zone.
  */
-export const pomodoroSessionSummarize = <ThrowOnError extends boolean = false>(options?: Options<PomodoroSessionSummarizeData, ThrowOnError>): RequestResult<PomodoroSessionSummarizeResponses, PomodoroSessionSummarizeErrors, ThrowOnError> => (options?.client ?? client).get<PomodoroSessionSummarizeResponses, PomodoroSessionSummarizeErrors, ThrowOnError>({ url: '/pomodoro/stats', ...options });
+export const pomodoroSessionSummarize = <ThrowOnError extends boolean = false>(options?: Options<PomodoroSessionSummarizeData, ThrowOnError>): RequestResult<PomodoroSessionSummarizeResponses, PomodoroSessionSummarizeErrors, ThrowOnError> => (options?.client ?? client).get<PomodoroSessionSummarizeResponses, PomodoroSessionSummarizeErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/pomodoro/stats',
+    ...options
+});
 
 /**
  * List the user's recent exports and whether they can be downloaded.
  *
  * Newest first; expired exports are left out.
  */
-export const portabilityExportList = <ThrowOnError extends boolean = false>(options?: Options<PortabilityExportListData, ThrowOnError>): RequestResult<PortabilityExportListResponses, PortabilityExportListErrors, ThrowOnError> => (options?.client ?? client).get<PortabilityExportListResponses, PortabilityExportListErrors, ThrowOnError>({ url: '/me/exports', ...options });
+export const portabilityExportList = <ThrowOnError extends boolean = false>(options?: Options<PortabilityExportListData, ThrowOnError>): RequestResult<PortabilityExportListResponses, PortabilityExportListErrors, ThrowOnError> => (options?.client ?? client).get<PortabilityExportListResponses, PortabilityExportListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/me/exports',
+    ...options
+});
 
 /**
  * Start exporting the user's data to a backup file.
@@ -1910,6 +4573,15 @@ export const portabilityExportList = <ThrowOnError extends boolean = false>(opti
  * Runs as a background job; the file can be downloaded for 24 hours.
  */
 export const portabilityExportStart = <ThrowOnError extends boolean = false>(options: Options<PortabilityExportStartData, ThrowOnError>): RequestResult<PortabilityExportStartResponses, PortabilityExportStartErrors, ThrowOnError> => (options.client ?? client).post<PortabilityExportStartResponses, PortabilityExportStartErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/exports',
     ...options,
     headers: {
@@ -1923,14 +4595,38 @@ export const portabilityExportStart = <ThrowOnError extends boolean = false>(opt
  *
  * Not for agents.
  */
-export const portabilityImportDiscard = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportDiscardData, ThrowOnError>): RequestResult<PortabilityImportDiscardResponses, PortabilityImportDiscardErrors, ThrowOnError> => (options.client ?? client).delete<PortabilityImportDiscardResponses, PortabilityImportDiscardErrors, ThrowOnError>({ url: '/me/imports/{id}', ...options });
+export const portabilityImportDiscard = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportDiscardData, ThrowOnError>): RequestResult<PortabilityImportDiscardResponses, PortabilityImportDiscardErrors, ThrowOnError> => (options.client ?? client).delete<PortabilityImportDiscardResponses, PortabilityImportDiscardErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/me/imports/{id}',
+    ...options
+});
 
 /**
  * Get an uploaded backup: its preview, and the import's state and report.
  *
  * Not for agents.
  */
-export const portabilityImportGet = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportGetData, ThrowOnError>): RequestResult<PortabilityImportGetResponses, PortabilityImportGetErrors, ThrowOnError> => (options.client ?? client).get<PortabilityImportGetResponses, PortabilityImportGetErrors, ThrowOnError>({ url: '/me/imports/{id}', ...options });
+export const portabilityImportGet = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportGetData, ThrowOnError>): RequestResult<PortabilityImportGetResponses, PortabilityImportGetErrors, ThrowOnError> => (options.client ?? client).get<PortabilityImportGetResponses, PortabilityImportGetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/me/imports/{id}',
+    ...options
+});
 
 /**
  * Import an uploaded backup, merging it or replacing the current data.
@@ -1938,6 +4634,15 @@ export const portabilityImportGet = <ThrowOnError extends boolean = false>(optio
  * Runs as a background job in one transaction. Not for agents.
  */
 export const portabilityImportStart = <ThrowOnError extends boolean = false>(options: Options<PortabilityImportStartData, ThrowOnError>): RequestResult<PortabilityImportStartResponses, PortabilityImportStartErrors, ThrowOnError> => (options.client ?? client).post<PortabilityImportStartResponses, PortabilityImportStartErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/imports/{id}:start',
     ...options,
     headers: {
@@ -1952,7 +4657,27 @@ export const portabilityImportStart = <ThrowOnError extends boolean = false>(opt
  * Use after adding or moving meetings to warn about clashes. Only enabled meetings
  * that share at least one date count.
  */
-export const scheduleConflictList = <ThrowOnError extends boolean = false>(options: Options<ScheduleConflictListData, ThrowOnError>): RequestResult<ScheduleConflictListResponses, ScheduleConflictListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleConflictListResponses, ScheduleConflictListErrors, ThrowOnError>({ url: '/terms/{term_id}/schedule-conflicts', ...options });
+export const scheduleConflictList = <ThrowOnError extends boolean = false>(options: Options<ScheduleConflictListData, ThrowOnError>): RequestResult<ScheduleConflictListResponses, ScheduleConflictListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleConflictListResponses, ScheduleConflictListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/terms/{term_id}/schedule-conflicts',
+    ...options
+});
 
 /**
  * List one-off events (exams, office hours, make-up classes) of a Program.
@@ -1960,7 +4685,27 @@ export const scheduleConflictList = <ThrowOnError extends boolean = false>(optio
  * Optionally only one course's or one term's. For a date range use
  * calendar.occurrence.list.
  */
-export const scheduleEventList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventListData, ThrowOnError>): RequestResult<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError>({ url: '/programs/{program_id}/events', ...options });
+export const scheduleEventList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventListData, ThrowOnError>): RequestResult<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventListResponses, ScheduleEventListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/events',
+    ...options
+});
 
 /**
  * Add a one-off event: an exam, office hour, make-up class or appointment.
@@ -1969,6 +4714,23 @@ export const scheduleEventList = <ThrowOnError extends boolean = false>(options:
  * that repeats weekly use schedule.meeting.create.
  */
 export const scheduleEventCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventCreateData, ThrowOnError>): RequestResult<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/events',
     ...options,
     headers: {
@@ -1982,7 +4744,27 @@ export const scheduleEventCreate = <ThrowOnError extends boolean = false>(option
  *
  * Irreversible.
  */
-export const scheduleEventDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventDeleteData, ThrowOnError>): RequestResult<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError>({ url: '/events/{event_id}', ...options });
+export const scheduleEventDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventDeleteData, ThrowOnError>): RequestResult<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/events/{event_id}',
+    ...options
+});
 
 /**
  * Change a one-off event.
@@ -1990,6 +4772,23 @@ export const scheduleEventDelete = <ThrowOnError extends boolean = false>(option
  * Moving only `start_at` keeps the event's duration.
  */
 export const scheduleEventUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventUpdateData, ThrowOnError>): RequestResult<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/events/{event_id}',
     ...options,
     headers: {
@@ -2003,7 +4802,27 @@ export const scheduleEventUpdate = <ThrowOnError extends boolean = false>(option
  *
  * Use to find valid type codes before creating meetings or events.
  */
-export const scheduleEventTypeList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeListData, ThrowOnError>): RequestResult<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError>({ url: '/programs/{program_id}/event-types', ...options });
+export const scheduleEventTypeList = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeListData, ThrowOnError>): RequestResult<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleEventTypeListResponses, ScheduleEventTypeListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/event-types',
+    ...options
+});
 
 /**
  * Add a class or event type to a Program, e.g. LAB for laboratories.
@@ -2011,6 +4830,23 @@ export const scheduleEventTypeList = <ThrowOnError extends boolean = false>(opti
  * Use when a schedule needs a type the Program does not have yet.
  */
 export const scheduleEventTypeCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeCreateData, ThrowOnError>): RequestResult<ScheduleEventTypeCreateResponses, ScheduleEventTypeCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventTypeCreateResponses, ScheduleEventTypeCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/event-types',
     ...options,
     headers: {
@@ -2024,7 +4860,27 @@ export const scheduleEventTypeCreate = <ThrowOnError extends boolean = false>(op
  *
  * Fails with schedule.event_type_in_use while anything uses the type.
  */
-export const scheduleEventTypeDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeDeleteData, ThrowOnError>): RequestResult<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError>({ url: '/event-types/{event_type_id}', ...options });
+export const scheduleEventTypeDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeDeleteData, ThrowOnError>): RequestResult<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventTypeDeleteResponses, ScheduleEventTypeDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/event-types/{event_type_id}',
+    ...options
+});
 
 /**
  * Rename a custom type, or change the color or icon of any type.
@@ -2032,6 +4888,23 @@ export const scheduleEventTypeDelete = <ThrowOnError extends boolean = false>(op
  * Built-in types (LEC, PRA, TUT) keep their name; their color and icon can change.
  */
 export const scheduleEventTypeUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeUpdateData, ThrowOnError>): RequestResult<ScheduleEventTypeUpdateResponses, ScheduleEventTypeUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleEventTypeUpdateResponses, ScheduleEventTypeUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/event-types/{event_type_id}',
     ...options,
     headers: {
@@ -2046,6 +4919,23 @@ export const scheduleEventTypeUpdate = <ThrowOnError extends boolean = false>(op
  * Types not listed keep their relative order after the listed ones.
  */
 export const scheduleEventTypeReorder = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeReorderData, ThrowOnError>): RequestResult<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError> => (options.client ?? client).put<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/event-types:order',
     ...options,
     headers: {
@@ -2059,7 +4949,27 @@ export const scheduleEventTypeReorder = <ThrowOnError extends boolean = false>(o
  *
  * The class happens again as regularly scheduled.
  */
-export const scheduleExceptionDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionDeleteData, ThrowOnError>): RequestResult<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError>({ url: '/meetings/{meeting_id}/exceptions/{original_date}', ...options });
+export const scheduleExceptionDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionDeleteData, ThrowOnError>): RequestResult<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/meetings/{meeting_id}/exceptions/{original_date}',
+    ...options
+});
 
 /**
  * Cancel or move one class (one date only).
@@ -2069,6 +4979,23 @@ export const scheduleExceptionDelete = <ThrowOnError extends boolean = false>(op
  * meeting.
  */
 export const scheduleExceptionUpsert = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionUpsertData, ThrowOnError>): RequestResult<ScheduleExceptionUpsertResponses, ScheduleExceptionUpsertErrors, ThrowOnError> => (options.client ?? client).put<ScheduleExceptionUpsertResponses, ScheduleExceptionUpsertErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/meetings/{meeting_id}/exceptions/{original_date}',
     ...options,
     headers: {
@@ -2082,7 +5009,19 @@ export const scheduleExceptionUpsert = <ThrowOnError extends boolean = false>(op
  *
  * The links themselves are only shown when created.
  */
-export const scheduleFeedList = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedListData, ThrowOnError>): RequestResult<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError>({ url: '/programs/{program_id}/calendar-feeds', ...options });
+export const scheduleFeedList = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedListData, ThrowOnError>): RequestResult<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleFeedListResponses, ScheduleFeedListErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/programs/{program_id}/calendar-feeds',
+    ...options
+});
 
 /**
  * Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.
@@ -2090,6 +5029,15 @@ export const scheduleFeedList = <ThrowOnError extends boolean = false>(options: 
  * Anyone with the link can read the calendar; it is returned only once.
  */
 export const scheduleFeedCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedCreateData, ThrowOnError>): RequestResult<ScheduleFeedCreateResponses, ScheduleFeedCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleFeedCreateResponses, ScheduleFeedCreateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/programs/{program_id}/calendar-feeds',
     ...options,
     headers: {
@@ -2103,7 +5051,19 @@ export const scheduleFeedCreate = <ThrowOnError extends boolean = false>(options
  *
  * Calendars subscribed to it stop updating.
  */
-export const scheduleFeedRevoke = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedRevokeData, ThrowOnError>): RequestResult<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError>({ url: '/calendar-feeds/{feed_id}', ...options });
+export const scheduleFeedRevoke = <ThrowOnError extends boolean = false>(options: Options<ScheduleFeedRevokeData, ThrowOnError>): RequestResult<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleFeedRevokeResponses, ScheduleFeedRevokeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/calendar-feeds/{feed_id}',
+    ...options
+});
 
 /**
  * List a course's weekly class times, with their cancelled or moved dates.
@@ -2111,7 +5071,27 @@ export const scheduleFeedRevoke = <ThrowOnError extends boolean = false>(options
  * Use to see when a course meets each week, or to find the meeting id before
  * changing or cancelling one class. Optionally only one term of a year-long course.
  */
-export const scheduleMeetingList = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingListData, ThrowOnError>): RequestResult<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError>({ url: '/courses/{course_id}/meetings', ...options });
+export const scheduleMeetingList = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingListData, ThrowOnError>): RequestResult<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError> => (options.client ?? client).get<ScheduleMeetingListResponses, ScheduleMeetingListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/courses/{course_id}/meetings',
+    ...options
+});
 
 /**
  * Add a weekly (or biweekly) class time to a course in one of its terms.
@@ -2121,6 +5101,23 @@ export const scheduleMeetingList = <ThrowOnError extends boolean = false>(option
  * class) use schedule.event.create instead.
  */
 export const scheduleMeetingCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateData, ThrowOnError>): RequestResult<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/meetings',
     ...options,
     headers: {
@@ -2136,6 +5133,23 @@ export const scheduleMeetingCreate = <ThrowOnError extends boolean = false>(opti
  * existing meeting of the course updates it instead of adding a duplicate.
  */
 export const scheduleMeetingCreateMany = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateManyData, ThrowOnError>): RequestResult<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/meetings:batch',
     ...options,
     headers: {
@@ -2152,7 +5166,27 @@ export const scheduleMeetingCreateMany = <ThrowOnError extends boolean = false>(
  * user does not attend use
  * schedule.meeting.set_enabled.
  */
-export const scheduleMeetingDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingDeleteData, ThrowOnError>): RequestResult<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError>({ url: '/meetings/{meeting_id}', ...options });
+export const scheduleMeetingDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingDeleteData, ThrowOnError>): RequestResult<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleMeetingDeleteResponses, ScheduleMeetingDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/meetings/{meeting_id}',
+    ...options
+});
 
 /**
  * Change a weekly class time for the whole term (time, room, weeks, ...).
@@ -2161,6 +5195,23 @@ export const scheduleMeetingDelete = <ThrowOnError extends boolean = false>(opti
  * schedule.exception.upsert instead.
  */
 export const scheduleMeetingUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingUpdateData, ThrowOnError>): RequestResult<ScheduleMeetingUpdateResponses, ScheduleMeetingUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleMeetingUpdateResponses, ScheduleMeetingUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/meetings/{meeting_id}',
     ...options,
     headers: {
@@ -2177,6 +5228,23 @@ export const scheduleMeetingUpdate = <ThrowOnError extends boolean = false>(opti
  * Returns only the meetings whose state changed (empty when they already were as asked).
  */
 export const scheduleMeetingSetEnabled = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingSetEnabledData, ThrowOnError>): RequestResult<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError> => (options.client ?? client).put<ScheduleMeetingSetEnabledResponses, ScheduleMeetingSetEnabledErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/courses/{course_id}/meetings:enabled',
     ...options,
     headers: {
@@ -2193,7 +5261,27 @@ export const scheduleMeetingSetEnabled = <ThrowOnError extends boolean = false>(
  * Do not use to read per-module settings such as the calendar default view;
  * use settings.value.get.
  */
-export const settingsPreferenceGet = <ThrowOnError extends boolean = false>(options?: Options<SettingsPreferenceGetData, ThrowOnError>): RequestResult<SettingsPreferenceGetResponses, SettingsPreferenceGetErrors, ThrowOnError> => (options?.client ?? client).get<SettingsPreferenceGetResponses, SettingsPreferenceGetErrors, ThrowOnError>({ url: '/me/preferences', ...options });
+export const settingsPreferenceGet = <ThrowOnError extends boolean = false>(options?: Options<SettingsPreferenceGetData, ThrowOnError>): RequestResult<SettingsPreferenceGetResponses, SettingsPreferenceGetErrors, ThrowOnError> => (options?.client ?? client).get<SettingsPreferenceGetResponses, SettingsPreferenceGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/me/preferences',
+    ...options
+});
 
 /**
  * Change personal preferences (language, theme, accent, clock, week start).
@@ -2201,6 +5289,15 @@ export const settingsPreferenceGet = <ThrowOnError extends boolean = false>(opti
  * Partial update: only the fields that are sent change. Not for agents.
  */
 export const settingsPreferenceUpdate = <ThrowOnError extends boolean = false>(options: Options<SettingsPreferenceUpdateData, ThrowOnError>): RequestResult<SettingsPreferenceUpdateResponses, SettingsPreferenceUpdateErrors, ThrowOnError> => (options.client ?? client).patch<SettingsPreferenceUpdateResponses, SettingsPreferenceUpdateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/preferences',
     ...options,
     headers: {
@@ -2216,7 +5313,27 @@ export const settingsPreferenceUpdate = <ThrowOnError extends boolean = false>(o
  * their allowed values and the levels (account, program, term, course) where they can be set.
  * Do not use to read current values; use settings.value.get.
  */
-export const settingsSchemaList = <ThrowOnError extends boolean = false>(options?: Options<SettingsSchemaListData, ThrowOnError>): RequestResult<SettingsSchemaListResponses, SettingsSchemaListErrors, ThrowOnError> => (options?.client ?? client).get<SettingsSchemaListResponses, SettingsSchemaListErrors, ThrowOnError>({ url: '/settings/schemas', ...options });
+export const settingsSchemaList = <ThrowOnError extends boolean = false>(options?: Options<SettingsSchemaListData, ThrowOnError>): RequestResult<SettingsSchemaListResponses, SettingsSchemaListErrors, ThrowOnError> => (options?.client ?? client).get<SettingsSchemaListResponses, SettingsSchemaListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/settings/schemas',
+    ...options
+});
 
 /**
  * Read several UI state entries at once.
@@ -2225,6 +5342,15 @@ export const settingsSchemaList = <ThrowOnError extends boolean = false>(options
  * Not available to agents.
  */
 export const settingsUiStateGetMany = <ThrowOnError extends boolean = false>(options: Options<SettingsUiStateGetManyData, ThrowOnError>): RequestResult<SettingsUiStateGetManyResponses, SettingsUiStateGetManyErrors, ThrowOnError> => (options.client ?? client).post<SettingsUiStateGetManyResponses, SettingsUiStateGetManyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/ui-state:get',
     ...options,
     headers: {
@@ -2239,6 +5365,15 @@ export const settingsUiStateGetMany = <ThrowOnError extends boolean = false>(opt
  * Stores interface state under a key. Not available to agents.
  */
 export const settingsUiStateSet = <ThrowOnError extends boolean = false>(options: Options<SettingsUiStateSetData, ThrowOnError>): RequestResult<SettingsUiStateSetResponses, SettingsUiStateSetErrors, ThrowOnError> => (options.client ?? client).put<SettingsUiStateSetResponses, SettingsUiStateSetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/me/ui-state/{key}',
     ...options,
     headers: {
@@ -2255,7 +5390,27 @@ export const settingsUiStateSet = <ThrowOnError extends boolean = false>(options
  * (default, account, program, term or course).
  * Do not use for personal preferences such as language or theme; use settings.preference.get.
  */
-export const settingsValueGet = <ThrowOnError extends boolean = false>(options: Options<SettingsValueGetData, ThrowOnError>): RequestResult<SettingsValueGetResponses, SettingsValueGetErrors, ThrowOnError> => (options.client ?? client).get<SettingsValueGetResponses, SettingsValueGetErrors, ThrowOnError>({ url: '/settings/{namespace}', ...options });
+export const settingsValueGet = <ThrowOnError extends boolean = false>(options: Options<SettingsValueGetData, ThrowOnError>): RequestResult<SettingsValueGetResponses, SettingsValueGetErrors, ThrowOnError> => (options.client ?? client).get<SettingsValueGetResponses, SettingsValueGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/settings/{namespace}',
+    ...options
+});
 
 /**
  * Change settings of a module or plugin at one scope level.
@@ -2266,6 +5421,23 @@ export const settingsValueGet = <ThrowOnError extends boolean = false>(options: 
  * Do not use to change language, theme or other personal preferences.
  */
 export const settingsValueUpdate = <ThrowOnError extends boolean = false>(options: Options<SettingsValueUpdateData, ThrowOnError>): RequestResult<SettingsValueUpdateResponses, SettingsValueUpdateErrors, ThrowOnError> => (options.client ?? client).patch<SettingsValueUpdateResponses, SettingsValueUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/settings/{namespace}',
     ...options,
     headers: {
@@ -2280,7 +5452,19 @@ export const settingsValueUpdate = <ThrowOnError extends boolean = false>(option
  * Restores a field to the value of the level above (or the default).
  * Not available to agents.
  */
-export const settingsValueReset = <ThrowOnError extends boolean = false>(options: Options<SettingsValueResetData, ThrowOnError>): RequestResult<SettingsValueResetResponses, SettingsValueResetErrors, ThrowOnError> => (options.client ?? client).delete<SettingsValueResetResponses, SettingsValueResetErrors, ThrowOnError>({ url: '/settings/{namespace}/keys/{key}', ...options });
+export const settingsValueReset = <ThrowOnError extends boolean = false>(options: Options<SettingsValueResetData, ThrowOnError>): RequestResult<SettingsValueResetResponses, SettingsValueResetErrors, ThrowOnError> => (options.client ?? client).delete<SettingsValueResetResponses, SettingsValueResetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        }, {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/settings/{namespace}/keys/{key}',
+    ...options
+});
 
 /**
  * List the sticky notes on a Program, term, course or Today board.
@@ -2289,7 +5473,27 @@ export const settingsValueReset = <ThrowOnError extends boolean = false>(options
  * Returns each note's instance_id and Markdown text. To find a note without knowing its board use
  * layouts.card.list.
  */
-export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Options<StickyNoteListData, ThrowOnError>): RequestResult<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError> => (options.client ?? client).get<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError>({ url: '/sticky/notes', ...options });
+export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Options<StickyNoteListData, ThrowOnError>): RequestResult<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError> => (options.client ?? client).get<StickyNoteListResponses, StickyNoteListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/sticky/notes',
+    ...options
+});
 
 /**
  * Add to or replace the text of a sticky note.
@@ -2300,6 +5504,23 @@ export const stickyNoteList = <ThrowOnError extends boolean = false>(options: Op
  * whole new text with mode replace. At most 10 000 characters.
  */
 export const stickyNoteUpdate = <ThrowOnError extends boolean = false>(options: Options<StickyNoteUpdateData, ThrowOnError>): RequestResult<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError> => (options.client ?? client).put<StickyNoteUpdateResponses, StickyNoteUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/sticky/notes/{instance_id}',
     ...options,
     headers: {
@@ -2315,6 +5536,23 @@ export const stickyNoteUpdate = <ThrowOnError extends boolean = false>(options: 
  * or clean up completed tasks.
  */
 export const tasksItemClearCompleted = <ThrowOnError extends boolean = false>(options: Options<TasksItemClearCompletedData, ThrowOnError>): RequestResult<TasksItemClearCompletedResponses, TasksItemClearCompletedErrors, ThrowOnError> => (options.client ?? client).post<TasksItemClearCompletedResponses, TasksItemClearCompletedErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/tasks:clear-completed',
     ...options,
     headers: {
@@ -2329,6 +5567,23 @@ export const tasksItemClearCompleted = <ThrowOnError extends boolean = false>(op
  * Completing a task never changes grades, even if it came from an assessment.
  */
 export const tasksItemComplete = <ThrowOnError extends boolean = false>(options: Options<TasksItemCompleteData, ThrowOnError>): RequestResult<TasksItemCompleteResponses, TasksItemCompleteErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCompleteResponses, TasksItemCompleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/tasks/{task_id}:complete',
     ...options,
     headers: {
@@ -2342,7 +5597,27 @@ export const tasksItemComplete = <ThrowOnError extends boolean = false>(options:
  *
  * Cheap overview: today, overdue, scheduled, all, inbox, flagged and completed.
  */
-export const tasksItemCount = <ThrowOnError extends boolean = false>(options: Options<TasksItemCountData, ThrowOnError>): RequestResult<TasksItemCountResponses, TasksItemCountErrors, ThrowOnError> => (options.client ?? client).get<TasksItemCountResponses, TasksItemCountErrors, ThrowOnError>({ url: '/programs/{program_id}/task-counts', ...options });
+export const tasksItemCount = <ThrowOnError extends boolean = false>(options: Options<TasksItemCountData, ThrowOnError>): RequestResult<TasksItemCountResponses, TasksItemCountErrors, ThrowOnError> => (options.client ?? client).get<TasksItemCountResponses, TasksItemCountErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/task-counts',
+    ...options
+});
 
 /**
  * List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.
@@ -2352,7 +5627,27 @@ export const tasksItemCount = <ThrowOnError extends boolean = false>(options: Op
  * deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
  * completed tasks are hidden unless the view is `completed` or include_completed is set.
  */
-export const tasksItemQuery = <ThrowOnError extends boolean = false>(options: Options<TasksItemQueryData, ThrowOnError>): RequestResult<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError> => (options.client ?? client).get<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError>({ url: '/programs/{program_id}/tasks', ...options });
+export const tasksItemQuery = <ThrowOnError extends boolean = false>(options: Options<TasksItemQueryData, ThrowOnError>): RequestResult<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError> => (options.client ?? client).get<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/tasks',
+    ...options
+});
 
 /**
  * Create a task (a to-do or reminder), optionally with a due date, course and list.
@@ -2363,6 +5658,23 @@ export const tasksItemQuery = <ThrowOnError extends boolean = false>(options: Op
  * for several tasks.
  */
 export const tasksItemCreate = <ThrowOnError extends boolean = false>(options: Options<TasksItemCreateData, ThrowOnError>): RequestResult<TasksItemCreateResponses, TasksItemCreateErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCreateResponses, TasksItemCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/tasks',
     ...options,
     headers: {
@@ -2379,6 +5691,23 @@ export const tasksItemCreate = <ThrowOnError extends boolean = false>(options: O
  * are skipped and returned with that task's id, so repeating an import does not duplicate them.
  */
 export const tasksItemCreateMany = <ThrowOnError extends boolean = false>(options: Options<TasksItemCreateManyData, ThrowOnError>): RequestResult<TasksItemCreateManyResponses, TasksItemCreateManyErrors, ThrowOnError> => (options.client ?? client).post<TasksItemCreateManyResponses, TasksItemCreateManyErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/tasks:batch',
     ...options,
     headers: {
@@ -2394,14 +5723,54 @@ export const tasksItemCreateMany = <ThrowOnError extends boolean = false>(option
  * the user asks to remove it. A task made from an assessment comes back when the assessment
  * changes.
  */
-export const tasksItemDelete = <ThrowOnError extends boolean = false>(options: Options<TasksItemDeleteData, ThrowOnError>): RequestResult<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError>({ url: '/tasks/{task_id}', ...options });
+export const tasksItemDelete = <ThrowOnError extends boolean = false>(options: Options<TasksItemDeleteData, ThrowOnError>): RequestResult<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksItemDeleteResponses, TasksItemDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/tasks/{task_id}',
+    ...options
+});
 
 /**
  * Get one task with its notes, due date, priority and source.
  *
  * Use when you need the full details of a task you already know the id of.
  */
-export const tasksItemGet = <ThrowOnError extends boolean = false>(options: Options<TasksItemGetData, ThrowOnError>): RequestResult<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError> => (options.client ?? client).get<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError>({ url: '/tasks/{task_id}', ...options });
+export const tasksItemGet = <ThrowOnError extends boolean = false>(options: Options<TasksItemGetData, ThrowOnError>): RequestResult<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError> => (options.client ?? client).get<TasksItemGetResponses, TasksItemGetErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/tasks/{task_id}',
+    ...options
+});
 
 /**
  * Change a task's title, notes, due date and time, priority, flag, list or course.
@@ -2413,6 +5782,23 @@ export const tasksItemGet = <ThrowOnError extends boolean = false>(options: Opti
  * assessment instead.
  */
 export const tasksItemUpdate = <ThrowOnError extends boolean = false>(options: Options<TasksItemUpdateData, ThrowOnError>): RequestResult<TasksItemUpdateResponses, TasksItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<TasksItemUpdateResponses, TasksItemUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/tasks/{task_id}',
     ...options,
     headers: {
@@ -2428,6 +5814,23 @@ export const tasksItemUpdate = <ThrowOnError extends boolean = false>(options: O
  * current one. before_task_id places the task right before that task, otherwise it goes last.
  */
 export const tasksItemMove = <ThrowOnError extends boolean = false>(options: Options<TasksItemMoveData, ThrowOnError>): RequestResult<TasksItemMoveResponses, TasksItemMoveErrors, ThrowOnError> => (options.client ?? client).post<TasksItemMoveResponses, TasksItemMoveErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/tasks/{task_id}:move',
     ...options,
     headers: {
@@ -2442,7 +5845,27 @@ export const tasksItemMove = <ThrowOnError extends boolean = false>(options: Opt
  * Use to find a list id before creating or moving tasks. Tasks without a list are
  * in the inbox, which is not a list row.
  */
-export const tasksListList = <ThrowOnError extends boolean = false>(options: Options<TasksListListData, ThrowOnError>): RequestResult<TasksListListResponses, TasksListListErrors, ThrowOnError> => (options.client ?? client).get<TasksListListResponses, TasksListListErrors, ThrowOnError>({ url: '/programs/{program_id}/task-lists', ...options });
+export const tasksListList = <ThrowOnError extends boolean = false>(options: Options<TasksListListData, ThrowOnError>): RequestResult<TasksListListResponses, TasksListListErrors, ThrowOnError> => (options.client ?? client).get<TasksListListResponses, TasksListListErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/programs/{program_id}/task-lists',
+    ...options
+});
 
 /**
  * Create a task list, for one term or for the whole Program.
@@ -2452,6 +5875,23 @@ export const tasksListList = <ThrowOnError extends boolean = false>(options: Opt
  * tasks in the inbox unless the user names a list.
  */
 export const tasksListCreate = <ThrowOnError extends boolean = false>(options: Options<TasksListCreateData, ThrowOnError>): RequestResult<TasksListCreateResponses, TasksListCreateErrors, ThrowOnError> => (options.client ?? client).post<TasksListCreateResponses, TasksListCreateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/task-lists',
     ...options,
     headers: {
@@ -2466,7 +5906,27 @@ export const tasksListCreate = <ThrowOnError extends boolean = false>(options: O
  * With `delete_tasks` true the list's tasks are deleted for good, so only use
  * it when the user asked for that. By default the tasks are kept in the inbox.
  */
-export const tasksListDelete = <ThrowOnError extends boolean = false>(options: Options<TasksListDeleteData, ThrowOnError>): RequestResult<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError>({ url: '/task-lists/{list_id}', ...options });
+export const tasksListDelete = <ThrowOnError extends boolean = false>(options: Options<TasksListDeleteData, ThrowOnError>): RequestResult<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError> => (options.client ?? client).delete<TasksListDeleteResponses, TasksListDeleteErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
+    url: '/task-lists/{list_id}',
+    ...options
+});
 
 /**
  * Rename a task list or change its color or icon.
@@ -2474,6 +5934,23 @@ export const tasksListDelete = <ThrowOnError extends boolean = false>(options: O
  * Partial update: only the fields that are sent change.
  */
 export const tasksListUpdate = <ThrowOnError extends boolean = false>(options: Options<TasksListUpdateData, ThrowOnError>): RequestResult<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError> => (options.client ?? client).patch<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/task-lists/{list_id}',
     ...options,
     headers: {
@@ -2488,6 +5965,23 @@ export const tasksListUpdate = <ThrowOnError extends boolean = false>(options: O
  * Lists not named keep their relative order after the named ones.
  */
 export const tasksListReorder = <ThrowOnError extends boolean = false>(options: Options<TasksListReorderData, ThrowOnError>): RequestResult<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError> => (options.client ?? client).put<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError>({
+    security: [
+        {
+            in: 'cookie',
+            name: 'semestra_session',
+            type: 'apiKey'
+        },
+        {
+            key: 'accessToken',
+            scheme: 'bearer',
+            type: 'http'
+        },
+        {
+            key: 'personalAccessToken',
+            scheme: 'bearer',
+            type: 'http'
+        }
+    ],
     url: '/programs/{program_id}/task-list-order',
     ...options,
     headers: {

@@ -1,0 +1,54 @@
+---
+title: API 概览
+description: 所有接口共用的约定、错误格式、实时更新和后台任务。
+---
+
+网页应用做的每件事都通过 JSON HTTP API 完成。[接口参考](/docs/api/reference/academics)由服务器的 OpenAPI schema（`packages/api-client/openapi.json`）
+生成，网页应用自己也使用由同一个文件生成的客户端。接口参考只有英文版。
+
+## 基础地址
+
+API 位于服务器根路径：在自部署实例上就是网页应用的地址（`https://semestra.example.com/programs`）。运行中的服务器在 `/openapi.json` 提供 OpenAPI 文档。
+
+## 约定
+
+- id 是 UUIDv7 字符串。时间是 UTC 的 ISO 8601；不带时间的日期是 `YYYY-MM-DD`。
+- 大多数操作是**能力（capability）**：同一个定义同时是 HTTP 接口、Sem 的工具，其中很多也是 [MCP 工具](/docs/mcp/tools)。读取用 `GET` 加查询参数，
+  修改用 JSON 请求体；动作的路径形如 `POST /tasks/{task_id}:complete`。
+- 响应带有 `X-Request-ID` 头；你也可以发送自己的 `X-Request-ID` 来关联日志。
+- `X-Semestra-Scope: program:<id>;term:<id>;course:<id>` 告诉服务器你正在查看哪个 Program、学期或课程（在需要时）。
+- 服务器有需要本地化的文本时，会用用户的语言回答；请发送 `Accept-Language`（`en` 或 `zh-CN`）。
+
+## 错误
+
+错误从不包含展示文本。响应体总是：
+
+```json
+{
+  "error": {
+    "code": "common.not_found",
+    "params": { "kind": "course", "id": "01J…" },
+    "request_id": "01J…"
+  }
+}
+```
+
+`code` 是稳定的、以模块为前缀的点分标识符；`params` 提供细节。常见错误码：
+
+| 状态码 | 错误码                   | 含义                                                       |
+| ------ | ------------------------ | ---------------------------------------------------------- |
+| 401    | `common.unauthenticated` | 没有有效凭据                                               |
+| 403    | `auth.token_scope`       | API 令牌不能调用这个接口（只读令牌，或该接口不对 MCP 开放）|
+| 403    | `auth.csrf_failed`       | 使用 cookie 的请求缺少 CSRF 请求头                         |
+| 404    | `common.not_found`       | id 不存在，或属于其他用户                                  |
+| 409    | `ai.not_configured`      | 没有能满足该用途的 AI 服务商                               |
+| 422    | `common.validation`      | 输入无效；`params.errors` 列出 `{loc, code, msg}`          |
+
+## 实时更新
+
+`GET /events/stream` 是一个 server-sent events 流。每条消息形如 `{"type": "<module>.<event>", "data": {…}}`，表示已登录用户的某项数据发生了变化；
+`core.resync` 表示“全部重新获取”。它接受会话 cookie 或访问令牌，不接受 API 令牌，也不在 OpenAPI schema 里。
+
+## 后台任务
+
+耗时操作（文件解析、AI 提取、导出）会返回一个任务。轮询 `GET /jobs/{job_id}` 获取状态和进度，或者在事件流上等待它的事件；`POST /jobs/{job_id}/cancel` 可以取消。

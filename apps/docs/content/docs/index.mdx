@@ -1,0 +1,32 @@
+---
+title: Introduction
+description: What these docs cover and how the hosted and self-hosted versions differ.
+icon: BookOpen
+---
+
+Semestra is a semester planner for students: programs, terms and courses, grades and GPA, a
+timetable and calendar, tasks, course files, Canvas integration, and an AI assistant called Sem.
+The app explains its everyday features itself. These docs cover the advanced topics: running
+your own instance, connecting AI providers, MCP clients and Canvas, and the HTTP API.
+
+## Two ways to run it
+
+|                                 | Hosted                                  | Self-hosted                                                     |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| Who runs it                     | The Semestra project                    | You, with Docker Compose                                        |
+| AI                              | Your own provider keys (BYOK)           | Your own keys, or one instance-wide provider such as Ollama     |
+| Reaching private networks       | Not allowed                             | Allowed by default (LAN Ollama, an on-premises Canvas)          |
+| Email                           | Sent by the service                     | Printed to the log until you configure SMTP or Resend           |
+
+Everything else, including the API and MCP, works the same in both.
+
+## Where to start
+
+<Cards>
+  <Card title="Self-hosting" href="/docs/self-hosting" description="Start an instance with one command." />
+  <Card title="AI and BYOK" href="/docs/ai" description="Add your own Anthropic, OpenAI, Gemini or Ollama provider." />
+  <Card title="MCP" href="/docs/mcp" description="Use Semestra from Claude, Cursor and other MCP clients." />
+  <Card title="LMS" href="/docs/lms" description="Connect Canvas and import courses and assignments." />
+  <Card title="API" href="/docs/api" description="Authentication, errors and the endpoint reference." />
+  <Card title="Plugins" href="/docs/plugins" description="Write a first-party plugin." />
+</Cards>

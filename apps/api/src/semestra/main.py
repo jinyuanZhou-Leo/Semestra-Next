@@ -98,7 +98,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
 
-    @app.get("/healthz", operation_id="healthz", response_model=Health)
+    @app.get("/healthz", operation_id="healthz", response_model=Health, tags=["system"])
     async def healthz() -> Health:  # pyright: ignore[reportUnusedFunction]
         return Health(status="ok")
 
@@ -107,6 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         operation_id="readyz",
         response_model=Ready,
         responses={503: {"model": ErrorResponse}},
+        tags=["system"],
     )
     async def readyz(request: Request) -> Ready:  # pyright: ignore[reportUnusedFunction]
         async with request.app.state.session_factory() as session:

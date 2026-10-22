@@ -1,0 +1,43 @@
+---
+title: Domain and HTTPS
+description: Put the instance behind your own domain with the bundled Caddy or your own proxy.
+---
+
+## Bundled Caddy
+
+Point an A/AAAA record at the server and open ports 80 and 443. Then in `.env`:
+
+```bash title=".env"
+SEMESTRA_DOMAIN=semestra.example.com
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+```bash
+docker compose --profile https up -d
+```
+
+Caddy gets and renews the certificate, adds HSTS and other security headers, and accepts request
+bodies up to 1100 MB, enough for the largest backup import. `SEMESTRA_BIND=127.0.0.1` keeps port
+8000 off the public interface.
+
+## Your own reverse proxy
+
+Skip the profile, keep `SEMESTRA_BIND=127.0.0.1`, set `SEMESTRA_PUBLIC_URL` and proxy to port
+8000. Two things matter:
+
+- **Do not buffer `/events/stream`.** It is a server-sent events stream that keeps the web app
+  up to date. With nginx, turn off `proxy_buffering` for that path; Caddy's equivalent is
+  `flush_interval -1`.
+- **Allow large uploads.** A backup a user imports may be as large as their storage quota plus
+  50 MB (1 GiB plus 50 MB when storage is unlimited); the app checks the size only after the
+  proxy has passed the body on.
+
+The container trusts `X-Forwarded-*` headers from any address (`FORWARDED_ALLOW_IPS=*` in the
+compose file), which is safe only while port 8000 is not reachable from outside.
+
+## Why the public URL matters
+
+`SEMESTRA_PUBLIC_URL` becomes the web origin, the API origin and the only allowed CORS origin.
+Session cookies are marked Secure when it starts with `https://`. A mismatch between this value
+and the address in the browser shows up as sign-in failures.

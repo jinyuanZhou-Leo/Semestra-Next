@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> None:
     backup.add_argument("--db-only", action="store_true", help="skip the stored-files mirror")
 
     sub.add_parser("openapi", help="print the OpenAPI schema as JSON")
+    sub.add_parser("capabilities", help="print the MCP tools and prompts as JSON (docs site)")
 
     check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
     check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
@@ -70,9 +71,25 @@ def main(argv: list[str] | None = None) -> None:
             for path in run_backup(get_settings(), Path(dest), include_storage=not args.db_only):
                 sys.stdout.write(f"{path}\n")
         case "openapi":
-            from semestra.main import create_app
+            from contextlib import redirect_stdout
 
-            json.dump(create_app().openapi(), sys.stdout, indent=2, ensure_ascii=False)
+            # Libraries may print notices on import (PyMuPDF does); keep them out of the JSON.
+            with redirect_stdout(sys.stderr):
+                from semestra.main import create_app
+
+                schema = create_app().openapi()
+            json.dump(schema, sys.stdout, indent=2, ensure_ascii=False)
+            sys.stdout.write("\n")
+        case "capabilities":
+            from contextlib import redirect_stdout
+
+            with redirect_stdout(sys.stderr):
+                from semestra.main import create_app
+                from semestra.modules.agent.mcp_server import catalog
+
+                create_app()  # registers every module's capabilities
+                data = catalog()
+            json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
             sys.stdout.write("\n")
         case "check-sessions":
             from pathlib import Path

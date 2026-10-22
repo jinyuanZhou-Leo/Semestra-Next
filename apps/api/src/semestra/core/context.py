@@ -18,6 +18,7 @@ from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.datastructures import State
 
+from semestra.core.auth_schemes import AccessToken, PersonalAccessToken, SessionCookie
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
 
@@ -181,14 +182,22 @@ async def _build_ctx(
 
 
 async def get_ctx(
-    request: Request, response: Response, db: Annotated[AsyncSession, Depends(get_session)]
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _cookie: SessionCookie,
+    _token: AccessToken,
 ) -> Ctx:
     """Login required. Personal access tokens are rejected: they may only call capabilities."""
     return await _build_ctx(request, response, db, required=True, allow_pat=False)
 
 
 async def get_optional_ctx(
-    request: Request, response: Response, db: Annotated[AsyncSession, Depends(get_session)]
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _cookie: SessionCookie,
+    _token: AccessToken,
 ) -> Ctx:
     return await _build_ctx(request, response, db, required=False, allow_pat=False)
 
@@ -203,9 +212,27 @@ async def get_anonymous_ctx(
 
 
 async def get_capability_ctx(
-    request: Request, response: Response, db: Annotated[AsyncSession, Depends(get_session)]
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _cookie: SessionCookie,
+    _token: AccessToken,
+    _pat: PersonalAccessToken,
 ) -> Ctx:
-    """Used by generated capability routes: the one place PATs are accepted."""
+    """Used by generated capability routes: the one place PATs are accepted (`Registry.invoke`
+    then allows them only for capabilities exposed to MCP)."""
+    return await _build_ctx(request, response, db, required=False, allow_pat=True)
+
+
+async def get_http_capability_ctx(
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _cookie: SessionCookie,
+    _token: AccessToken,
+) -> Ctx:
+    """`get_capability_ctx` for capabilities not exposed to MCP. Same behaviour; the schema just
+    does not offer personal access tokens, which `Registry.invoke` would refuse."""
     return await _build_ctx(request, response, db, required=False, allow_pat=True)
 
 

@@ -88,7 +88,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 </picture>
 
 - **Canvas LMS:** link a Canvas course to import its assignments, overlay its calendar, and browse announcements, grades, modules, pages and quizzes in a Canvas tab.
-- **First-party plugins**, installed per account: habit streak, Pomodoro timer, sticky notes, counter and world clock. See the [plugin authoring guide](docs/plugin-authoring.md).
+- **First-party plugins**, installed per account: habit streak, Pomodoro timer, sticky notes, counter and world clock. See the [plugin authoring guide](apps/docs/content/docs/plugins.mdx).
 - **Settings that inherit** from account to program, term and course; light and dark themes; full English and Simplified Chinese.
 - **Your data stays yours:** export everything to one archive, import it into another instance, or delete your account.
 
@@ -156,12 +156,12 @@ Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](
 apps/
   api/                 FastAPI backend: src/semestra/{core, modules/*}
   web/                 React SPA: src/{routes, app, modules/*, ui, components, lib}
+  docs/                Documentation site (Fumadocs, static): self-hosting, AI, MCP, LMS, API
 packages/
   api-client/          TypeScript client generated from OpenAPI (don't edit src/generated)
 deploy/                Dockerfile, self-host compose, hosted (GCP + Vercel) scripts
 docs/
   specs/               One design spec per module, M00 to M16
-  plugin-authoring.md  How to write a plugin
 ```
 
 Most features are a module on both sides: `academics`, `grading`, `schedule`, `tasks`, `files`, `imports`, `lms`, `ai`, `plugins`, `settings`, `portability` and more (the assistant is `agent` in the API and `assistant` in the web app). A backend module declares **capabilities**, and by default each one becomes a REST route, an assistant tool and an MCP tool from a single definition. A frontend module registers its pages, cards and settings with `defineModule`.
@@ -174,7 +174,7 @@ Most features are a module on both sides: `academics`, `grading`, `schedule`, `t
 
 - [Module specs](docs/specs/README.md): the design of every module, with implementation notes
 - [CLAUDE.md](CLAUDE.md): development conventions and known pitfalls
-- [Plugin authoring](docs/plugin-authoring.md)
+- [Documentation site](apps/docs) (`pnpm docs:dev`): self-hosting, AI providers, MCP, Canvas, the API reference and [plugin authoring](apps/docs/content/docs/plugins.mdx)
 - [Deployment](deploy/README.md) and the [security checklist](deploy/SECURITY-CHECKLIST.md)
 
 Most design documents are written in Chinese.

@@ -1,0 +1,97 @@
+---
+title: Export, restore and delete
+description: Back up your data, restore it on this or another instance, and delete your account.
+icon: DatabaseBackup
+---
+
+Everything here is in **Settings → Data**. These actions are available in the app and over HTTP
+with a session or access token, but not to Sem or MCP clients, and API tokens cannot call them.
+
+## Export
+
+**Export all data** builds a `.zip` backup in the background. It holds your Programs, terms,
+courses, grades, schedules, tasks, settings and plugin data. Turn on **Include files** to pack
+your uploaded files too.
+
+<Callout type="warn">
+  Secrets never leave the server: AI provider keys, Canvas tokens and API tokens are not in the
+  backup. Enter them again after restoring.
+</Callout>
+
+- Each backup can be downloaded for 24 hours, then it is deleted.
+- The list shows your 5 most recent exports that have not expired.
+
+| Request                                     | Does                                     |
+| ------------------------------------------- | ---------------------------------------- |
+| `POST /me/exports`                          | Starts an export (`include_files`)       |
+| `GET /me/exports`                           | Lists recent exports and their status    |
+| `GET /me/exports/{export_id}/download`      | Downloads a ready backup                 |
+
+## Restore
+
+<Steps>
+<Step>
+
+### Upload the backup
+
+Drop the `.zip` on **Restore from backup**. The server checks it and shows what it holds: when it
+was exported, counts per kind of data, and its Programs. An uploaded backup is kept for 24 hours
+until you import or discard it.
+
+</Step>
+<Step>
+
+### Choose what to import
+
+- **Programs**: all of them, or only some.
+- **Merge** adds the backup as new data next to what you have. Every row gets a new id, so the
+  same backup imported twice gives you two copies.
+- **Replace** deletes all your current data first. Type `replace my data` (or `替换我的数据`) to
+  confirm.
+- **Also import preferences and layouts**: theme, language, tab order, default layouts,
+  installed plugins and AI providers (without keys). Off by default.
+
+</Step>
+<Step>
+
+### Import
+
+The import runs in the background and reports how many items were imported and skipped. Items
+are skipped when what they belong to was not imported (for example a course of a Program you left
+out) or when they are invalid. If the import fails, nothing is changed.
+
+</Step>
+</Steps>
+
+### Limits
+
+| Case                                              | Result                                                                  |
+| ------------------------------------------------- | ----------------------------------------------------------------------- |
+| Upload size                                       | Your storage quota plus 50 MB; 1 GB plus 50 MB when there is no quota   |
+| The backup's files do not fit your quota          | Merge is refused; Replace is still possible                             |
+| The backup comes from a newer version             | Refused with `portability.unsupported_version`                          |
+| It holds data of a feature this version lacks     | That data is left out; the rest imports                                 |
+| A JSON backup from the old Semestra app           | Refused with `portability.legacy_backup`                                |
+
+| Request                         | Does                                                            |
+| ------------------------------- | --------------------------------------------------------------- |
+| `POST /me/imports`              | Uploads a backup (multipart `file`) and returns its preview     |
+| `GET /me/imports/{id}`          | Status, preview and report                                      |
+| `POST /me/imports/{id}:start`   | Starts the import (`mode`, `program_ids`, `include_preferences`, `confirmation`) |
+| `DELETE /me/imports/{id}`       | Discards an upload                                              |
+
+## Delete your account
+
+**Delete account** permanently deletes the account and everything in it. To confirm:
+
+1. Type `delete my account` (or `删除我的账户`) and tick that it cannot be undone.
+2. If you signed in more than 10 minutes ago, enter your password, or sign in again and delete
+   within 10 minutes. Accounts without a password (email code or Google) have to sign in again.
+
+The account is locked at once: you are signed out on every device, every token is revoked and
+sign-in is refused. The data, including stored files, is deleted by a background job, and you get
+an email when it is gone. If the job is interrupted, the server finishes the deletion within an
+hour.
+
+The request is `POST /me:delete` with `confirmation`, `acknowledged` and, when needed, `password`.
+Export a backup first if you want to keep anything.

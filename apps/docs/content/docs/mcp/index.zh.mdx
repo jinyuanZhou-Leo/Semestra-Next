@@ -1,0 +1,97 @@
+---
+title: 连接 MCP 客户端
+description: 在 Claude Desktop、Claude Code、Cursor 或任何 MCP 客户端里使用 Semestra。
+---
+
+Semestra 提供一个 [MCP](https://modelcontextprotocol.io) 服务器，让应用之外的 AI 客户端可以读取你的课表、成绩和待办，并在你允许时修改它们。
+它提供的操作和应用内助手 Sem 相同。
+
+- **地址**：`<你的 Semestra 地址>/mcp`，例如 `https://semestra.example.com/mcp`。账户设置 → **AI → MCP 与工具** 显示准确地址
+- **传输方式**：Streamable HTTP（无状态，返回 JSON）
+- **认证**：`Authorization: Bearer spat_…`，使用 API 令牌。不接受会话 cookie
+
+## 1. 创建 API 令牌
+
+账户设置 → **安全 → API 令牌** → 创建令牌。选择：
+
+- **权限**：_只读_ 或 _读写_。
+- **有效期**：永不过期、30 天、90 天或 365 天。
+
+令牌只显示一次。复制它，或者点**复制 MCP 配置**得到一段现成的 Claude Desktop 配置。令牌可以随时吊销；删除账户会吊销全部令牌。
+
+## 2. 在客户端里添加 Semestra
+
+把 `<token>` 和地址换成你自己的。
+
+<Tabs items={['Claude Code', 'Claude Desktop', 'Cursor']}>
+<Tab value="Claude Code">
+
+```bash
+claude mcp add --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+</Tab>
+<Tab value="Claude Desktop">
+
+Claude Desktop 通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 连接远程服务器。在 `claude_desktop_config.json` 里：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://semestra.example.com/mcp", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <token>" }
+    }
+  }
+}
+```
+
+</Tab>
+<Tab value="Cursor">
+
+在 `.cursor/mcp.json` 或全局的 `~/.cursor/mcp.json` 里：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+然后问它，比如“我明天有什么课？”
+
+## 客户端能做什么
+
+| 令牌 / 设置                                  | 读取类工具 | 修改类工具 | 删除类工具 |
+| -------------------------------------------- | ---------- | ---------- | ---------- |
+| 只读                                         | 可以       | 不可以     | 不可以     |
+| 读写                                         | 可以       | 可以       | 不可以     |
+| 读写，并打开**允许删除类操作**               | 可以       | 可以       | 可以       |
+
+- **修改类工具会直接执行。** Sem 会显示确认卡片，而 MCP 调用依赖客户端自己的批准提示。
+- **允许删除类操作**默认关闭，在账户设置 → **AI → MCP 与工具** 里打开。
+- 插件的工具只有在你的账户安装了该插件时才会出现。
+- 通过 MCP 做的修改会立即显示在已打开的浏览器标签页里。
+
+## Prompt 和资源
+
+- **Prompt**：Sem 的每个技能都是一个 MCP prompt，即一套分步骤的流程，例如导入课表。只有当令牌能调用某个 prompt 用到的全部工具时，它才会列出。
+- **资源**：`semestra://programs`（你的 Program 和学期）、`semestra://terms/{id}`（一个学期及其课程）和 `semestra://courses/{id}`（一门课程及其学期）。
+
+## 注意事项
+
+- 工具名是把能力名里的点换成 `__`，例如 `academics__course__create`。
+- 时间使用 Program 所在时区，并带有偏移量。
+- 如果你只有一个 Program，需要 `program_id` 的工具可以不传它。
+- 别人写的文本（Canvas 页面、文件内容）会作为数据返回，请按数据对待。
+
+完整列表见[工具与 prompt](./tools.mdx)。

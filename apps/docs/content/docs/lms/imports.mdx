@@ -1,0 +1,52 @@
+---
+title: Import from Canvas
+description: Courses, assignments and syllabi go through a review before anything is written.
+---
+
+Every import from Canvas opens a review in Semestra's import center. Nothing is written until you
+commit it, and you can edit or drop any item first.
+
+## Courses
+
+From the new-term wizard, or the command palette on a term page (**Import courses from LMS**).
+Pick Canvas courses (the current term by default, or all), choose the target term, review, and
+commit. Each course takes its title from the Canvas course name, its code from the Canvas course
+code (also kept as an alias) and its website from the Canvas link, and is linked to its Canvas
+course in the same step.
+
+## Assignments
+
+On a course's **Grades** page, open the import menu and choose the Canvas assignments. Pick
+assignments, then decide per item whether it becomes a **gradebook assessment** or a **task**.
+
+- As assessments, each Canvas assignment group becomes a grading category (with the group's
+  weight when the course weights its groups), and the assignment's Canvas link is kept in its
+  note.
+- Weights come from Canvas assignment groups: an assessment's weight is its group's weight times
+  its share of the group's points. When the course does not weight groups, the weight is left
+  empty for you to fill in.
+- Each assignment can be imported once. Imported assignments disappear from the list.
+
+<Callout title="Grades are not imported">
+  Assignment imports bring in names, due dates and weights, not points or your scores. Your Canvas
+  grades are visible in the Canvas tab and to Sem, but the gradebook keeps only the scores you
+  enter.
+</Callout>
+
+## Changes after an import
+
+Imports are one-time copies, not a mirror. Semestra compares what you imported with Canvas, and
+when a name or due date changes, or the weight of a weighted assessment changes (including
+through its points), the Grades page and the Canvas tab show a "changed assignments" notice. Reviewing it opens another import review; your data changes only
+when you commit.
+
+## Syllabus
+
+In the Canvas tab's syllabus view, send the Canvas syllabus to AI extraction. Course details,
+grading scheme and deadlines are pulled out into a review, like an uploaded syllabus file. This
+needs an [AI provider](/docs/ai).
+
+## Files
+
+Canvas files can be saved to the course's own files, where they are indexed for search and can
+be used for extraction.

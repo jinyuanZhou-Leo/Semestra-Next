@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @semestra/web --filter @semestra/api dev",
     "build": "pnpm --filter @semestra/web build",
-    "lint": "pnpm --filter @semestra/web lint && pnpm --filter @semestra/api lint",
+    "docs:dev": "pnpm --filter @semestra/docs dev",
+    "docs:build": "pnpm --filter @semestra/docs build",
+    "lint": "pnpm --filter @semestra/web lint && pnpm --filter @semestra/api lint && pnpm --filter @semestra/docs lint",
     "format": "pnpm --filter @semestra/web format && pnpm --filter @semestra/api format",
-    "typecheck": "pnpm --filter @semestra/web typecheck && pnpm --filter @semestra/api typecheck",
+    "typecheck": "pnpm --filter @semestra/web typecheck && pnpm --filter @semestra/api typecheck && pnpm --filter @semestra/docs typecheck",
     "test": "pnpm --filter @semestra/web test && pnpm --filter @semestra/api test",
     "gen:api": "pnpm --filter @semestra/api openapi && pnpm --filter @semestra/api-client generate",
     "site:dev": "pnpm --filter @semestra/site dev",

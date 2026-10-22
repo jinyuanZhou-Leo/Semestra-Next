@@ -14,7 +14,12 @@ from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
 
 from semestra.core import agent_output
-from semestra.core.context import Ctx, get_capability_ctx, run_after_commit
+from semestra.core.context import (
+    Ctx,
+    get_capability_ctx,
+    get_http_capability_ctx,
+    run_after_commit,
+)
 from semestra.core.errors import AppError, validation_error
 
 Effect = Literal["read", "write", "destructive"]
@@ -315,7 +320,10 @@ def _endpoint_for(cap: Capability, reg: Registry) -> Callable[..., Awaitable[Any
         inspect.Parameter(
             "ctx",
             inspect.Parameter.KEYWORD_ONLY,
-            annotation=Annotated[Ctx, Depends(get_capability_ctx)],
+            annotation=Annotated[
+                Ctx,
+                Depends(get_capability_ctx if "mcp" in cap.expose else get_http_capability_ctx),
+            ],
         )
     ]
     body_fields: dict[str, Any] = {}

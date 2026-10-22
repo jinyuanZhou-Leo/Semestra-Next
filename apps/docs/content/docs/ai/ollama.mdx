@@ -1,0 +1,49 @@
+---
+title: Ollama and local models
+description: Connect a model running on your own machine, and the switch it needs.
+---
+
+Ollama works like any other provider: on **AI → Providers**, add **Ollama** and enter its address,
+for example `http://192.168.1.20:11434`. Semestra talks to Ollama's OpenAI-compatible API under
+`/v1`, which it appends for you. No key is needed.
+
+## The private-network switch
+
+Ollama usually runs on `localhost` or a LAN address, and the Semestra server refuses to call
+private, loopback and link-local addresses unless `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`. The check
+protects a shared server from being used to reach its own internal network.
+
+| Where Semestra runs                       | Default  | What to do                                                    |
+| ----------------------------------------- | -------- | ------------------------------------------------------------- |
+| Self-hosted with `deploy/selfhost`        | `true`   | Nothing                                                       |
+| Local development (`pnpm dev`)            | `false`  | Start the API with `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`       |
+| Hosted version                            | `false`  | Only an Ollama reachable at a public address can be used      |
+
+## Which address to enter
+
+The address is dialled **by the Semestra server**, not by your browser.
+
+- Semestra in Docker, Ollama on the same host: `localhost` is the container itself. Use the
+  host's LAN address, or the bundled Ollama container (below).
+- Ollama on another machine: start it with `OLLAMA_HOST=0.0.0.0` so it listens beyond
+  localhost, and enter that machine's address.
+
+## The bundled Ollama container
+
+The self-hosting compose file has an `ai-local` profile that runs Ollama next to Semestra:
+
+```bash
+docker compose --profile ai-local up -d
+docker compose exec ollama ollama pull qwen3:8b
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+Inside the compose network its address is `http://ollama:11434`. Add it as a provider, or make
+it the [instance-wide provider](./instance-provider.mdx) so every user gets it without setup.
+Running Ollama on a GPU needs the NVIDIA Container Toolkit and a compose override; see the Ollama
+documentation.
+
+## Capabilities
+
+The defaults for Ollama are chat, tools, structured output and embedding. Untick **tools** if
+your model does not support tool calling, and tick **vision** only for a multimodal model.
