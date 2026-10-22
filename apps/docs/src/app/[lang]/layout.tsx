@@ -4,6 +4,7 @@ import { i18nProvider } from 'fumadocs-ui/i18n'
 import { Provider } from '@/components/provider'
 import { i18n } from '@/lib/i18n'
 import { translations } from '@/lib/layout.shared'
+import { siteUrl } from '@/lib/shared'
 import '../global.css'
 
 const inter = Inter({
@@ -31,8 +32,8 @@ export async function generateMetadata({ params }: LayoutProps<'/[lang]'>): Prom
   const title = lang === 'zh' ? 'Semestra 文档' : 'Semestra Docs'
 
   return {
-    // Absolute URLs for the social images; set SITE_URL when building for a real domain.
-    metadataBase: new URL(process.env.SITE_URL ?? 'http://localhost:3001'),
+    // Origin for the social images' absolute URLs (their paths already carry the basePath).
+    metadataBase: new URL(siteUrl),
     title: { default: title, template: `%s | ${title}` },
     description:
       lang === 'zh'

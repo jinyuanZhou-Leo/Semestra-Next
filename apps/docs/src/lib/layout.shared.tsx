@@ -1,7 +1,7 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 import { uiTranslations } from 'fumadocs-ui/i18n'
 import { i18n } from './i18n'
-import { appName, gitConfig } from './shared'
+import { appName, appUrl, gitConfig, landingUrl } from './shared'
 
 export const translations = i18n
   .translations()
@@ -77,11 +77,23 @@ export const translations = i18n
   })
 
 export function baseOptions(lang: string): BaseLayoutProps {
+  const zh = lang === 'zh'
+
   return {
     nav: {
       title: appName,
       url: `/${lang}`,
     },
+    // `external` keeps them plain links, outside the docs' basePath. The landing page is English
+    // at its root and Chinese under /zh/.
+    links: [
+      {
+        text: zh ? 'Semestra 主页' : 'Semestra home',
+        url: `${landingUrl}/${zh ? 'zh/' : ''}`,
+        external: true,
+      },
+      { text: zh ? '打开应用' : 'Open app', url: `${appUrl}/login`, external: true },
+    ],
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
   }
 }

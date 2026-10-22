@@ -12,11 +12,14 @@ import {
 } from 'fumadocs-ui/components/dialog/search'
 import { useStaticSearch } from 'fumadocs-core/search/client'
 import { useI18n } from 'fumadocs-ui/contexts/i18n'
+import { basePath } from '@/lib/shared'
 
 export default function DefaultSearchDialog(props: SharedProps) {
   const { locale } = useI18n() // (optional) for i18n
   const search = useStaticSearch({
     locale,
+    // fumadocs reads the base path from Vite's env only, so Next's basePath is passed here.
+    from: `${basePath}/api/search`,
   })
 
   return (

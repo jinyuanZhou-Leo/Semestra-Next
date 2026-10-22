@@ -174,7 +174,7 @@ Most features are a module on both sides: `academics`, `grading`, `schedule`, `t
 
 - [Module specs](docs/specs/README.md): the design of every module, with implementation notes
 - [CLAUDE.md](CLAUDE.md): development conventions and known pitfalls
-- [Documentation site](apps/docs) (`pnpm docs:dev`): self-hosting, AI providers, MCP, Canvas, the API reference and [plugin authoring](apps/docs/content/docs/plugins.mdx)
+- [Documentation site](apps/docs) (served at `https://semestra.jyleo.cc/docs` once deployed; locally `pnpm docs:dev`, then open `http://localhost:3001/docs`): self-hosting, AI providers, MCP, Canvas, the API reference and [plugin authoring](apps/docs/content/docs/plugins.mdx)
 - [Deployment](deploy/README.md) and the [security checklist](deploy/SECURITY-CHECKLIST.md)
 
 Most design documents are written in Chinese.
