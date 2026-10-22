@@ -57,13 +57,13 @@ test('preloadPage loads the code of the page with that id in that scope only', (
   ] as unknown as ModuleManifest[]
 
   const queryClient = new QueryClient()
-  preloadPage(PROGRAM, 'files', queryClient, modules)
+  preloadPage(PROGRAM, 'files', queryClient, { modules })
   expect(load).not.toHaveBeenCalled()
-  preloadPage(COURSE, 'files', queryClient, modules)
+  preloadPage(COURSE, 'files', queryClient, { modules })
   expect(load).toHaveBeenCalledTimes(1)
   expect(nav).toHaveBeenCalledTimes(1)
   expect(other).not.toHaveBeenCalled()
-  preloadPage(COURSE, 'plain', queryClient, modules)
+  preloadPage(COURSE, 'plain', queryClient, { modules })
   expect(other).not.toHaveBeenCalled()
 })
 
@@ -101,14 +101,14 @@ test("preloadPage starts the cards on the page's saved board but waits only for 
   )
 
   // Resolves although the term card never finishes loading.
-  await preloadPage(TERM, 'overview', queryClient, modules)
+  await preloadPage(TERM, 'overview', queryClient, { modules })
   await vi.waitFor(() => expect(shown).toHaveBeenCalledTimes(1))
   expect(notShown).not.toHaveBeenCalled()
   expect(away).not.toHaveBeenCalled()
 })
 
 test("preloadPage starts the page's data with its code", () => {
-  const prefetch = vi.fn<(scope: unknown, queryClient: QueryClient) => void>()
+  const prefetch = vi.fn<(scope: unknown, queryClient: QueryClient, options: unknown) => void>()
   const modules = [
     {
       id: 'demo',
@@ -128,8 +128,8 @@ test("preloadPage starts the page's data with its code", () => {
   ] as unknown as ModuleManifest[]
   const queryClient = new QueryClient()
 
-  void preloadPage(COURSE, 'files', queryClient, modules)
-  expect(prefetch).toHaveBeenCalledWith(COURSE, queryClient)
+  void preloadPage(COURSE, 'files', queryClient, { modules })
+  expect(prefetch).toHaveBeenCalledWith(COURSE, queryClient, { preload: false })
 })
 
 test('installedModules leaves out plugins the account has not installed', () => {
@@ -174,7 +174,9 @@ test('preloadPage waits until the page code has loaded', async () => {
   ] as unknown as ModuleManifest[]
 
   let done = false
-  const loading = preloadPage(COURSE, 'files', new QueryClient(), modules).then(() => (done = true))
+  const loading = preloadPage(COURSE, 'files', new QueryClient(), { modules }).then(
+    () => (done = true),
+  )
   await Promise.resolve()
   expect(done).toBe(false)
   finish()

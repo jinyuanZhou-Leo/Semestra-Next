@@ -15,6 +15,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 import {
   ChevronLeft,
   ChevronRight,
@@ -133,11 +134,29 @@ function TermCalendar({
   const [feeds, setFeeds] = useState(false)
   // Only the timetable and the export show meetings; the other views show occurrences, and
   // editing one fetches its meeting or event when asked.
-  const meetings = useTermMeetings(
+  const termMeetings = useTermMeetings(
     courses.map((c) => c.id),
     term.id,
     view === 'timetable' || exporting,
-  ).items
+  )
+  const meetings = termMeetings.items
+
+  // The meeting or event behind an occurrence, for its editor: fetched when its details open,
+  // so "Edit" usually finds it cached.
+  const meetingsOf = (o: Occurrence) =>
+    queryClient.fetchQuery(
+      scheduleMeetingListOptions({
+        path: { course_id: o.course_id ?? '' },
+        query: { term_id: term.id },
+      }),
+    )
+  const programEvents = () =>
+    queryClient.fetchQuery(scheduleEventListOptions({ path: { program_id: programId }, query: {} }))
+  const showDetails = (o: Occurrence) => {
+    setDetails(o)
+    if (isMeeting(o) && o.course_id) void meetingsOf(o).catch(() => undefined)
+    else if (isOneOff(o)) void programEvents().catch(() => undefined)
+  }
 
   const wanted = visibleSources(filters, sources)
   const occurrences = useOccurrences(
@@ -456,7 +475,7 @@ function TermCalendar({
                 }}
                 eventClick={(arg) => {
                   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
-                  if (o) setDetails(o)
+                  if (o) showDetails(o)
                 }}
                 eventDrop={onChange}
                 eventResize={onChange}
@@ -498,28 +517,24 @@ function TermCalendar({
             })
           }}
           onEditMeeting={(o) => {
-            setDetails(null)
             if (!o.course_id) return
-            queryClient
-              .fetchQuery(
-                scheduleMeetingListOptions({
-                  path: { course_id: o.course_id },
-                  query: { term_id: term.id },
-                }),
-              )
+            // The details stay open until the meeting is here, then give way to its editor.
+            meetingsOf(o)
               .then((list) => {
                 const meeting = list.items.find((mt) => mt.id === o.meta?.meeting_id)
+                setDetails(null)
                 if (meeting) setMeetingEdit(meeting)
+                else toast.error(m.error_common_not_found())
               })
               .catch(toastError)
           }}
           onEditEvent={(o) => {
-            setDetails(null)
-            queryClient
-              .fetchQuery(scheduleEventListOptions({ path: { program_id: programId }, query: {} }))
+            programEvents()
               .then((list) => {
                 const event = list.items.find((e) => e.id === o.ref.id)
+                setDetails(null)
                 if (event) setEventEdit({ event })
+                else toast.error(m.error_common_not_found())
               })
               .catch(toastError)
           }}
@@ -572,6 +587,7 @@ function TermCalendar({
           currentWeekStart={anchor}
           courses={courses}
           meetings={meetings}
+          meetingsPending={termMeetings.isPending}
           sources={sources}
           defaultSources={wanted}
           hiddenCourses={filters.hiddenCourses}
