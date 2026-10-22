@@ -1,6 +1,7 @@
 import { Info, Languages, Palette, Settings } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { WhatsNew } from './WhatsNew'
 
 /** M11 设置与偏好: the settings framework itself lives in `app/settings`; this is its content. */
 export default defineModule({
@@ -40,6 +41,8 @@ export default defineModule({
       component: preloadable(() => import('./AboutSettings')),
     },
   ],
+  // "What's new" after an update (minor and major versions, once per account).
+  overlays: [WhatsNew],
   realtimeInvalidations: {
     'settings.preferences.updated': ['settingsPreferenceGet'],
     'settings.values.updated': ['settingsValueGet'],

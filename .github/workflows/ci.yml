@@ -42,6 +42,7 @@ jobs:
             web:
               - *ci
               - apps/web/**
+              - release-notes/**
               - packages/**
               - package.json
               - pnpm-lock.yaml
@@ -57,6 +58,7 @@ jobs:
             docs:
               - *ci
               - apps/docs/**
+              - release-notes/**
               - packages/api-client/openapi.json
               - packages/api-client/capabilities.json
               - package.json
@@ -66,6 +68,25 @@ jobs:
               - *ci
               - apps/site/**
               - pnpm-lock.yaml
+
+  # Every PR that touches an app or package carries a changeset (`pnpm changeset`, or
+  # `pnpm changeset --empty` for internal changes) with an English and a Chinese note.
+  # The version PR (branch changeset-release/*) consumes the changesets, so it is exempt.
+  changeset:
+    if: >-
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      !startsWith(github.head_ref, 'changeset-release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with: { node-version: 26, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --filter .
+      - run: pnpm exec changeset status --since="origin/${{ github.base_ref }}"
+      - run: pnpm release:check
+      - run: node --test scripts/release.test.mjs
 
   api:
     needs: changes

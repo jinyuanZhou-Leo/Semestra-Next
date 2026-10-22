@@ -29,6 +29,13 @@ docs/                设计稿与模块规格
 
 **草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只能在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
 
+## 版本号与 changeset（1.0 起）
+
+- 全仓库一个产品版本号（SemVer），用 Changesets 管理，所有 `@semestra/*` 包同号；不要手改各 `package.json`/`pyproject.toml` 的 `version`。
+- **每个改动了 `apps/`、`packages/` 的 PR 都要带 changeset**：`pnpm changeset` 选 major/minor/patch，正文按 [.changeset/README.md](.changeset/README.md) 写 `<!-- en -->` 和 `<!-- zh -->` 两段面向学生的一句话（说能做什么，不写实现细节和 PR 号），一个改动一个文件；纯内部改动（重构、CI、测试、依赖）用 `pnpm changeset --empty`。CI 的 `changeset` job 会检查（`changeset status` + `pnpm release:check`）。
+- minor（新功能、可见改进）会在用户第一次打开新版本时弹「更新了什么」对话框，patch 只在设置 → 关于里列出；major 只用于用户需要做点什么的变化（备份格式、API 令牌/MCP 不兼容、自托管配置改名）。
+- 发版：合并 `Version` 工作流开的「Release (version packages)」PR（文案在 `.changeset/*.md` 里改，不要改版本 PR 里的 JSON，`main` 每次推送都会重建它），之后自动打 tag 并走 `release.yml`。`release-notes/<版本>.json` 是 app、文档站和 GitHub Release 共用的数据，只由 `pnpm release:version` 生成。
+
 ## 硬性约定摘要（完整版见 M00）
 
 - 后端不返回面向用户的文案，只返回 `{error:{code,params,request_id}}`；前端按 `error_<code>` 翻译。

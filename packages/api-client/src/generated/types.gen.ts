@@ -4288,6 +4288,10 @@ export type Health = {
      * Status
      */
     status: 'ok';
+    /**
+     * Version
+     */
+    version: string;
 };
 
 /**

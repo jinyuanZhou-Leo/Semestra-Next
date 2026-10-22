@@ -22354,11 +22354,16 @@
             "type": "string",
             "const": "ok",
             "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
           }
         },
         "type": "object",
         "required": [
-          "status"
+          "status",
+          "version"
         ],
         "title": "Health"
       },

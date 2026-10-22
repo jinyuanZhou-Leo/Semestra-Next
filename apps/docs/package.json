@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/generate-api.ts && next dev --port 3001",
-    "build": "node scripts/generate-api.ts && next build",
+    "dev": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next dev --port 3001",
+    "build": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next build",
     "start": "serve out",
-    "typecheck": "node scripts/generate-api.ts && next typegen && tsc --noEmit",
+    "typecheck": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next typegen && tsc --noEmit",
     "lint": "oxlint src scripts && oxfmt --check src scripts",
     "format": "oxfmt src scripts"
   },

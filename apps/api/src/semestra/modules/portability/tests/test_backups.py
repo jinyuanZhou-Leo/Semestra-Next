@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import Table, func, select
 
+from semestra import __version__
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.db import Base, new_id
 from semestra.core.jobs import CoreJob
@@ -150,6 +151,7 @@ async def test_round_trip_into_another_account(
         blob = b"".join(z.read(n) for n in z.namelist())
     assert manifest["format"] == "semestra-backup"
     assert manifest["version"] == 1
+    assert manifest["app_version"] == __version__ != "0.0.0"
     assert manifest["counts"]["academics.programs"] == 1
     assert {"academics", "grading", "schedule", "plugins_builtin"} <= set(manifest["modules"])
     # No secrets in the backup.

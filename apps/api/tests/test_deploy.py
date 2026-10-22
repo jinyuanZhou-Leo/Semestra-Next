@@ -46,7 +46,7 @@ async def web_client(settings: Settings, web_dist: Path) -> AsyncIterator[AsyncC
 
 async def test_serve_web_api_routes_still_win(web_client: AsyncClient) -> None:
     r = await web_client.get("/healthz")
-    assert r.json() == {"status": "ok"}
+    assert r.json()["status"] == "ok"
 
 
 async def test_serve_web_spa_fallback_for_html_navigation(web_client: AsyncClient) -> None:

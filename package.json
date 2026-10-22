@@ -13,9 +13,15 @@
     "test": "pnpm --filter @semestra/web test && pnpm --filter @semestra/api test",
     "gen:api": "pnpm --filter @semestra/api openapi && pnpm --filter @semestra/api-client generate",
     "site:dev": "pnpm --filter @semestra/site dev",
-    "site:build": "pnpm --filter @semestra/site build"
+    "site:build": "pnpm --filter @semestra/site build",
+    "changeset": "changeset",
+    "release:check": "node scripts/release.mjs check",
+    "release:version": "node scripts/release.mjs version"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@changesets/get-release-plan": "5.0.2",
+    "@changesets/read": "1.0.1",
     "oxfmt": "0.73.0",
     "oxlint": "1.88.0"
   },
