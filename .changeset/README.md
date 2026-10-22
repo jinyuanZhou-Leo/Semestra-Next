@@ -3,7 +3,8 @@
 Every PR that changes an app or package adds a changeset: `pnpm changeset`. All `@semestra/*`
 packages share one product version (`fixed`), so picking any one of them is enough.
 
-Write the note for students, once in English and once in Chinese, one change per file:
+Write the note for students in plain text (no Markdown), once in English and once in Chinese, one
+change per file:
 
 ```md
 ---

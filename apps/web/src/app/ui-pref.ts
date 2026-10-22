@@ -27,6 +27,7 @@ export const UI_PREF_PREFETCH_PREFIXES = [
   'ai.',
   'portability.',
   'pomodoro.',
+  'release.',
 ] as const
 
 type Entry = { found: boolean; value: unknown }
@@ -251,6 +252,12 @@ export async function updateUiPref<T>(
   } catch {
     // The value could not be read; leave the key as it is.
   }
+}
+
+/** The stored value of `key`, or undefined when nothing is stored (it waits for the load). */
+export async function readUiPref<T>(queryClient: QueryClient, key: string): Promise<T | undefined> {
+  const entry = await load(queryClient, key)
+  return entry.found ? (entry.value as T) : undefined
 }
 
 /**
