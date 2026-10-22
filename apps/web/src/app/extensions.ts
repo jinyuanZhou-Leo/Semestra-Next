@@ -1,5 +1,5 @@
 import type { JobOut, Occurrence } from '@semestra/api-client'
-import type { UseQueryOptions } from '@tanstack/react-query'
+import type { QueryClient, UseQueryOptions } from '@tanstack/react-query'
 import { lazyRouteComponent } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
@@ -74,6 +74,12 @@ export type PageContribution = {
   sidebarNav?: Lazy<SidebarNavProps>
   /** The board the page shows, if any (the scope's own or Today's), so its cards load with it. */
   board?: 'scope' | 'today'
+  /**
+   * Starts the page's main data along with its code, from the route loader (also on hover), so
+   * the page's own queries find it in the cache instead of waiting for the page to mount. Use
+   * `queryClient.prefetchQuery` (it never throws): the page still loads and reports its data.
+   */
+  prefetch?: (scope: Scope, queryClient: QueryClient) => void
   order: number
   /** `data` is what `availabilityQuery` loaded (undefined without one). */
   isAvailable?: (scope: Scope, data: unknown) => boolean

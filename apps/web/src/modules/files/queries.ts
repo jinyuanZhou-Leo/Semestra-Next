@@ -5,7 +5,9 @@ import {
   filesItemListQueryKey,
   filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
-import { type QueryClient, useQuery } from '@tanstack/react-query'
+import { type QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
+import type { Scope } from '@/app/extensions'
+import { courseListOptions, coursesOfTerm } from '@/modules/academics/queries'
 
 const PAGE_SIZE = 500
 
@@ -36,12 +38,33 @@ export async function fetchCourseFiles(
  * Everything in a course (all folders): folders are browsed on the client, which also gives the
  * name filter and the duplicate check the whole course without more requests.
  */
-export function useCourseFiles(courseId: string) {
-  return useQuery({
+export function courseFilesOptions(courseId: string) {
+  return queryOptions({
     queryKey: filesItemListQueryKey({ path: { course_id: courseId }, query: { recursive: true } }),
     queryFn: ({ signal }) => fetchCourseFiles(courseId, signal),
-    enabled: Boolean(courseId),
   })
+}
+
+export function useCourseFiles(courseId: string) {
+  return useQuery({ ...courseFilesOptions(courseId), enabled: Boolean(courseId) })
+}
+
+/** The files page's data, started with its code (`PageContribution.prefetch`). */
+export function prefetchFilesPage(scope: Scope, queryClient: QueryClient) {
+  if (scope.kind === 'course') {
+    void queryClient.prefetchQuery(courseFilesOptions(scope.courseId))
+    return
+  }
+  if (scope.kind !== 'term') return
+  const { termId } = scope
+  queryClient
+    .fetchQuery(courseListOptions(scope.programId, termId))
+    .then((list) => {
+      for (const course of coursesOfTerm(list.items, termId)) {
+        void queryClient.prefetchQuery(courseFilesOptions(course.id))
+      }
+    })
+    .catch(() => undefined)
 }
 
 export function useFileItem(itemId: string | null | undefined) {

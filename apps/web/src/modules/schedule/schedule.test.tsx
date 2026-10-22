@@ -274,6 +274,21 @@ function dropLecture(revert = vi.fn<() => void>()) {
   return revert
 }
 
+test('the week view asks for no meetings, events or feeds before they are needed', async () => {
+  const gets: string[] = []
+  const listen = ({ request }: { request: Request }) => {
+    if (request.method === 'GET') gets.push(new URL(request.url).pathname)
+  }
+  server.events.on('request:start', listen)
+  try {
+    await openCalendar()
+  } finally {
+    server.events.removeListener('request:start', listen)
+  }
+  expect(gets).toContain('/programs/p1/calendar')
+  expect(gets.filter((path) => /\/meetings$|\/events$|\/calendar-feeds$/.test(path))).toEqual([])
+})
+
 test('dragging a class asks whether to move only this one, which saves an exception', async () => {
   await openCalendar()
   dropLecture()

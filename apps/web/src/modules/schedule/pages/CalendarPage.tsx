@@ -7,8 +7,10 @@ import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import type { Meeting, OneOffEvent, Occurrence, Term } from '@semestra/api-client'
 import {
+  scheduleEventListOptions,
   scheduleEventUpdateMutation,
   scheduleExceptionUpsertMutation,
+  scheduleMeetingListOptions,
   scheduleMeetingUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -58,7 +60,6 @@ import {
   invalidateSchedule,
   useCalendarInfo,
   useCalendarSettings,
-  useEvents,
   useOccurrences,
   useTermMeetings,
 } from '../queries'
@@ -109,11 +110,6 @@ function TermCalendar({
   const settings = useCalendarSettings(term.id)
   const sources = useCalendarSources()
   const courses = useCourses(programId, term.id).data?.items ?? []
-  const meetings = useTermMeetings(
-    courses.map((c) => c.id),
-    term.id,
-  ).items
-  const events = useEvents(programId, {}).data?.items ?? []
   const weeks = useCalendarInfo(term.id).data?.weeks ?? []
   const [nav, setNav] = useUiPref<Nav | null>('calendar.nav', null, { scope: term.id })
   const [filters, setFilters] = useUiPref<CalendarFilters>('calendar.filters', DEFAULT_FILTERS, {
@@ -135,6 +131,13 @@ function TermCalendar({
   const [drag, setDrag] = useState<DragState | null>(null)
   const [exporting, setExporting] = useState(false)
   const [feeds, setFeeds] = useState(false)
+  // Only the timetable and the export show meetings; the other views show occurrences, and
+  // editing one fetches its meeting or event when asked.
+  const meetings = useTermMeetings(
+    courses.map((c) => c.id),
+    term.id,
+    view === 'timetable' || exporting,
+  ).items
 
   const wanted = visibleSources(filters, sources)
   const occurrences = useOccurrences(
@@ -495,14 +498,30 @@ function TermCalendar({
             })
           }}
           onEditMeeting={(o) => {
-            const meeting = meetings.find((mt) => mt.id === o.meta?.meeting_id)
             setDetails(null)
-            if (meeting) setMeetingEdit(meeting)
+            if (!o.course_id) return
+            queryClient
+              .fetchQuery(
+                scheduleMeetingListOptions({
+                  path: { course_id: o.course_id },
+                  query: { term_id: term.id },
+                }),
+              )
+              .then((list) => {
+                const meeting = list.items.find((mt) => mt.id === o.meta?.meeting_id)
+                if (meeting) setMeetingEdit(meeting)
+              })
+              .catch(toastError)
           }}
           onEditEvent={(o) => {
-            const event = events.find((e) => e.id === o.ref.id)
             setDetails(null)
-            if (event) setEventEdit({ event })
+            queryClient
+              .fetchQuery(scheduleEventListOptions({ path: { program_id: programId }, query: {} }))
+              .then((list) => {
+                const event = list.items.find((e) => e.id === o.ref.id)
+                if (event) setEventEdit({ event })
+              })
+              .catch(toastError)
           }}
         />
       ) : null}

@@ -36,12 +36,12 @@ import type {
   PageContribution,
   QueryKeyPrefix,
   Scope,
-  ScopeKind,
   SettingsLevel,
   SettingsSectionContribution,
   StatusItemContribution,
 } from './extensions'
 import { preload } from './extensions'
+import { boardOptions, boardRef } from './board/queries'
 
 /**
  * Every frontend module's manifest (M00 §4.4). Add new modules here, in no particular order.
@@ -70,33 +70,51 @@ export const builtInModules: readonly ModuleManifest[] = [
 ]
 
 /**
- * Loads a page's code and its sidebar navigation before it renders, from a route loader; see
- * `preloadable`. The router waits for it, so the previous page stays on screen instead of a
- * blank one. The cards of the page's board start loading too, without holding up the switch:
- * a card still loading shows its own skeleton. Only the code: the page fetches its own data.
- * Loaders pass `installedModules`, so cards of plugins the account has not installed stay out.
+ * Loads a page's code and its sidebar navigation before it renders, from a route loader (which
+ * also runs when a link to the page is hovered); see `preloadable`. The router waits for it, so
+ * the previous page stays on screen instead of a blank one. Meanwhile the page's data starts
+ * (`PageContribution.prefetch`), and so does its board: the saved layout, then the code of the
+ * cards in it, without holding up the switch (a card still loading shows its own skeleton).
+ * Only installed modules count, so cards of plugins the account has not installed stay out.
  */
 export function preloadPage(
-  scope: ScopeKind,
+  scope: Scope,
   pageId: string,
-  modules: readonly ModuleManifest[] = builtInModules,
+  queryClient: QueryClient,
+  modules: readonly ModuleManifest[] = installedModules(queryClient),
 ): Promise<void> {
   const parts: unknown[] = []
   for (const module of modules) {
     for (const page of module.pages ?? []) {
-      if (page.id !== pageId || !page.scopes.includes(scope)) continue
+      if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
       parts.push(page.component, page.sidebarNav)
-      if (page.board) {
-        const board: BoardKind = page.board === 'today' ? 'today' : scope
-        for (const m of modules) {
-          for (const card of m.cards ?? []) {
-            if (card.scopes.includes(board)) void preload(card.component)
-          }
-        }
-      }
+      page.prefetch?.(scope, queryClient)
+      if (page.board) preloadBoardCards(scope, page.board, queryClient, modules)
     }
   }
   return Promise.all(parts.map(preload)).then(() => undefined)
+}
+
+function preloadBoardCards(
+  scope: Scope,
+  board: 'scope' | 'today',
+  queryClient: QueryClient,
+  modules: readonly ModuleManifest[],
+) {
+  const ref = boardRef(scope, board === 'today' ? 'today' : undefined)
+  queryClient
+    .ensureQueryData(boardOptions(ref))
+    .then((layout) => {
+      const shown = new Set(layout.cards.map((card) => card.card_id))
+      for (const module of modules) {
+        for (const card of module.cards ?? []) {
+          if (shown.has(card.id) && card.scopes.includes(ref.scope_type))
+            void preload(card.component)
+        }
+      }
+    })
+    // The board shows the error itself once it renders.
+    .catch(() => undefined)
 }
 
 /**

@@ -1,10 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { installedModules, preloadPage } from '@/app/registry'
+import { preloadPage } from '@/app/registry'
 import { TermView } from '@/modules/academics/shell/ScopeView'
 
 export const Route = createFileRoute('/_authed/p/$programId/t/$termId/$page')({
   loader: ({ context, params }) =>
-    preloadPage('term', params.page, installedModules(context.queryClient)),
+    preloadPage(
+      { kind: 'term', programId: params.programId, termId: params.termId },
+      params.page,
+      context.queryClient,
+    ),
   component: TermPage,
 })
 

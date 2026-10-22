@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'vitest'
-import { onboardingInProgress } from './Onboarding'
+import { onboardingInProgress } from './progress'
 
 afterEach(() => sessionStorage.clear())
 

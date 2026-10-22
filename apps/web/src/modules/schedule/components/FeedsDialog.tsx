@@ -50,7 +50,7 @@ export function FeedsDialog({
 }) {
   const fid = useId()
   const queryClient = useQueryClient()
-  const feeds = (useFeeds(programId).data?.items ?? []).filter((f) => !f.revoked_at)
+  const feeds = (useFeeds(programId, open).data?.items ?? []).filter((f) => !f.revoked_at)
   const [name, setName] = useState('')
   const [sources, setSources] = useState<FeedSource[]>(['schedule', 'assessments', 'tasks'])
   const [url, setUrl] = useState<string | null>(null)

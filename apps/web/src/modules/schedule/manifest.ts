@@ -13,6 +13,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './pages/TodaySubtitle'
+import { prefetchCalendarPage } from './queries'
 
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
@@ -75,6 +76,7 @@ export default defineModule({
       title: m.schedule_nav_calendar,
       icon: CalendarDays,
       component: preloadable(() => import('./pages/CalendarPage')),
+      prefetch: prefetchCalendarPage,
       order: 10,
     },
     {

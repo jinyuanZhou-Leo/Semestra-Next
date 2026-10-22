@@ -148,7 +148,9 @@ export function CourseView({
   const terms = useTerms(programId)
   const course = useCourse(courseId)
   const termId = course.data ? courseTermId(course.data, terms.data?.items, fromTerm) : undefined
-  const termCourses = useCourses(programId, termId).data?.items ?? []
+  // Waits for the term: without one the list would be the whole Program's.
+  const termCourses =
+    useCourses(programId, termId, { enabled: termId !== undefined }).data?.items ?? []
   useCourseSwitchHotkey({
     programId,
     courseId,

@@ -10,26 +10,34 @@ import { buildNavigation } from './groups'
 import type { Params } from './SettingsBody'
 import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
 
-// The groups and their forms are not part of the first load: they load once the app is idle
-// (see `whenIdle`), or when settings open before that.
+// The groups and their forms are not part of the first load: they load once the page has
+// settled (see `whenSettled`), or when settings open before that.
 const SettingsBody = preloadable<{ target: SettingsTarget; page: Params }>(() =>
   import('./SettingsBody').then((mod) => ({ default: mod.SettingsBody })),
 )
 
 const LEVELS: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
-/** Longest wait for an idle moment before preloading anyway. */
+/**
+ * How long after start the preload waits: an idle main thread says nothing about the network,
+ * and the first page's code and data load in these first moments. Like the command palette.
+ */
+const SETTLE_DELAY_MS = 2000
+/** Longest wait for an idle moment after that before preloading anyway. */
 const IDLE_TIMEOUT_MS = 5000
-/** Where `requestIdleCallback` is missing (older Safari): a plain delay after start. */
-const FALLBACK_DELAY_MS = 2000
 
-/** Runs `task` when the browser is idle; returns a cancel function. */
-function whenIdle(task: () => void): () => void {
-  if (typeof requestIdleCallback === 'function') {
-    const id = requestIdleCallback(task, { timeout: IDLE_TIMEOUT_MS })
-    return () => cancelIdleCallback(id)
+/** Runs `task` once the page has settled (a delay, then an idle moment); returns a cancel function. */
+function whenSettled(task: () => void): () => void {
+  let idle: number | undefined
+  const timer = setTimeout(() => {
+    // `requestIdleCallback` is missing in older Safari.
+    if (typeof requestIdleCallback === 'function') {
+      idle = requestIdleCallback(task, { timeout: IDLE_TIMEOUT_MS })
+    } else task()
+  }, SETTLE_DELAY_MS)
+  return () => {
+    clearTimeout(timer)
+    if (idle !== undefined) cancelIdleCallback(idle)
   }
-  const timer = setTimeout(task, FALLBACK_DELAY_MS)
-  return () => clearTimeout(timer)
 }
 
 /**
@@ -46,8 +54,8 @@ export function SettingsDialog() {
   // "Manage plugins" in the command palette opens the plugin group of the account settings.
   useHostAction('settings.plugins', () => open({ level: 'account', group: 'plugins' }))
 
-  // Once idle: the dialog itself, and the group each level opens on, so the first opening shows
-  // its forms at once instead of an empty pane that then fills in.
+  // Once the page has settled: the dialog itself, and the group each level opens on, so the first
+  // opening shows its forms at once instead of an empty pane that then fills in.
   const modules = useModules()
   const preloadSettings = useEffectEvent(() => {
     void preload(SettingsBody)
@@ -58,7 +66,7 @@ export function SettingsDialog() {
       }
     }
   })
-  useEffect(() => whenIdle(preloadSettings), [])
+  useEffect(() => whenSettled(preloadSettings), [])
 
   return (
     <Dialog open={target !== undefined} onOpenChange={(next) => !next && close()}>

@@ -1,10 +1,14 @@
 import { lazy } from 'react'
 import { expect, test, vi } from 'vitest'
-import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
+import { layoutsBoardGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { QueryClient } from '@tanstack/react-query'
 import { builtInModules, installedModules, preloadPage } from './registry'
 import { preloadable } from './extensions'
 import type { ModuleManifest } from './extensions'
+
+const PROGRAM = { kind: 'program', programId: 'p1' } as const
+const TERM = { kind: 'term', programId: 'p1', termId: 't1' } as const
+const COURSE = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
 
 const canPreload = (part: unknown) => typeof part !== 'object' || part === null || 'preload' in part
 
@@ -52,19 +56,22 @@ test('preloadPage loads the code of the page with that id in that scope only', (
     },
   ] as unknown as ModuleManifest[]
 
-  preloadPage('program', 'files', modules)
+  const queryClient = new QueryClient()
+  preloadPage(PROGRAM, 'files', queryClient, modules)
   expect(load).not.toHaveBeenCalled()
-  preloadPage('course', 'files', modules)
+  preloadPage(COURSE, 'files', queryClient, modules)
   expect(load).toHaveBeenCalledTimes(1)
   expect(nav).toHaveBeenCalledTimes(1)
   expect(other).not.toHaveBeenCalled()
-  preloadPage('course', 'plain', modules)
+  preloadPage(COURSE, 'plain', queryClient, modules)
   expect(other).not.toHaveBeenCalled()
 })
 
-test("preloadPage starts the cards of the page's board but waits only for the page", async () => {
-  const card = vi.fn<() => Promise<never>>(() => new Promise<never>(() => {}))
-  const away = vi.fn<() => Promise<never>>(() => new Promise<never>(() => {}))
+test("preloadPage starts the cards on the page's saved board but waits only for the page", async () => {
+  const pending = () => new Promise<never>(() => {})
+  const shown = vi.fn<() => Promise<never>>(pending)
+  const notShown = vi.fn<() => Promise<never>>(pending)
+  const away = vi.fn<() => Promise<never>>(pending)
   const modules = [
     {
       id: 'demo',
@@ -81,16 +88,48 @@ test("preloadPage starts the cards of the page's board but waits only for the pa
         },
       ],
       cards: [
-        { id: 'term-card', scopes: ['term'], component: preloadable(card) },
+        { id: 'term-card', scopes: ['term'], component: preloadable(shown) },
+        { id: 'other-term-card', scopes: ['term'], component: preloadable(notShown) },
         { id: 'today-card', scopes: ['today'], component: preloadable(away) },
       ],
     },
   ] as unknown as ModuleManifest[]
+  const queryClient = new QueryClient()
+  queryClient.setQueryData(
+    layoutsBoardGetOptions({ path: { scope_type: 'term', scope_id: 't1' } }).queryKey,
+    { cards: [{ card_id: 'term-card' }, { card_id: 'today-card' }] } as never,
+  )
 
   // Resolves although the term card never finishes loading.
-  await preloadPage('term', 'overview', modules)
-  expect(card).toHaveBeenCalledTimes(1)
+  await preloadPage(TERM, 'overview', queryClient, modules)
+  await vi.waitFor(() => expect(shown).toHaveBeenCalledTimes(1))
+  expect(notShown).not.toHaveBeenCalled()
   expect(away).not.toHaveBeenCalled()
+})
+
+test("preloadPage starts the page's data with its code", () => {
+  const prefetch = vi.fn<(scope: unknown, queryClient: QueryClient) => void>()
+  const modules = [
+    {
+      id: 'demo',
+      kind: 'core',
+      pages: [
+        {
+          id: 'files',
+          scopes: ['course'],
+          title: () => 'files',
+          icon: (() => null) as never,
+          component: preloadable(() => new Promise<never>(() => {})),
+          prefetch,
+          order: 1,
+        },
+      ],
+    },
+  ] as unknown as ModuleManifest[]
+  const queryClient = new QueryClient()
+
+  void preloadPage(COURSE, 'files', queryClient, modules)
+  expect(prefetch).toHaveBeenCalledWith(COURSE, queryClient)
 })
 
 test('installedModules leaves out plugins the account has not installed', () => {
@@ -135,7 +174,7 @@ test('preloadPage waits until the page code has loaded', async () => {
   ] as unknown as ModuleManifest[]
 
   let done = false
-  const loading = preloadPage('course', 'files', modules).then(() => (done = true))
+  const loading = preloadPage(COURSE, 'files', new QueryClient(), modules).then(() => (done = true))
   await Promise.resolve()
   expect(done).toBe(false)
   finish()

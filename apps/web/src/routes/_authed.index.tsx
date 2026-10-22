@@ -9,6 +9,10 @@ import { pickProgram } from '@/modules/academics/queries'
 export const Route = createFileRoute('/_authed/')({
   beforeLoad: async ({ context, location }) => {
     const { queryClient } = context
+    // Started with the Programs rather than after them (the app reads the preferences anyway).
+    const preferences = queryClient
+      .ensureQueryData(settingsPreferenceGetOptions())
+      .catch(() => undefined)
     // Always fresh: a Program deleted a moment ago must not be opened again.
     const programs = await queryClient.fetchQuery({
       ...academicsProgramListOptions(),
@@ -19,10 +23,7 @@ export const Route = createFileRoute('/_authed/')({
     if (programs.items.length === 0) {
       throw redirect({ href: `/onboarding${carried}`, replace: true })
     }
-    const preferences = await queryClient
-      .ensureQueryData(settingsPreferenceGetOptions())
-      .catch(() => undefined)
-    const program = pickProgram(programs.items, preferences?.active_program_id)
+    const program = pickProgram(programs.items, (await preferences)?.active_program_id)
     throw redirect({ href: `/p/${program!.id}${carried}`, replace: true })
   },
 })
