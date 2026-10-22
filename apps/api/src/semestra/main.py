@@ -69,7 +69,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await close_shared_transports()
         await engine.dispose()
 
-    app = FastAPI(title="Semestra API", version="0.1.0", lifespan=lifespan)
+    # No Swagger UI or ReDoc: /docs belongs to the docs site on the same origin, which has the API
+    # reference. The schema stays at /openapi.json.
+    app = FastAPI(
+        title="Semestra API", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None
+    )
     app.state.settings = settings
     app.state.now = utcnow  # tests replace this clock
     app.state.realtime = Broadcaster()

@@ -31,6 +31,11 @@ async def test_unknown_route_uses_error_envelope(client: AsyncClient) -> None:
     assert body["request_id"] == r.headers["x-request-id"]
 
 
+async def test_docs_paths_are_left_to_the_docs_site(client: AsyncClient) -> None:
+    for path in ("/docs", "/redoc"):
+        assert (await client.get(path)).status_code == 404
+
+
 async def test_sqlite_pragmas(settings: Settings) -> None:
     engine = make_engine(settings)
     async with engine.connect() as conn:

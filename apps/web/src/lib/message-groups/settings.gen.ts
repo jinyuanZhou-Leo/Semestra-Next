@@ -6,6 +6,9 @@ type MessageFn = (params?: Record<string, unknown>) => string
 /** Messages whose key starts with `settings_`, for lookups by a computed key. */
 export const settingsMessages = {
   settings_about_build_time: m.settings_about_build_time,
+  settings_about_docs: m.settings_about_docs,
+  settings_about_docs_link: m.settings_about_docs_link,
+  settings_about_docs_note: m.settings_about_docs_note,
   settings_about_license_note: m.settings_about_license_note,
   settings_about_source: m.settings_about_source,
   settings_about_title: m.settings_about_title,

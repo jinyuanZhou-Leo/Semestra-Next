@@ -2,15 +2,16 @@
 
 独立的静态站点，和应用（`apps/web`）分开部署。Astro 构建成纯 HTML；React 只在构建时用来渲染和应用相同的 shadcn 组件（`src/ui/` 里的 `Button`、`NavigationMenu`），运行时只有一段滚动动画脚本（`src/scripts/landing.ts`：进场动画、首屏窗口的 3D 摆正、分层视差和成绩卡片轮播）。
 
-| 命令（仓库根目录）                     | 作用                       |
-| -------------------------------------- | -------------------------- |
-| `pnpm site:dev`                        | 本地预览（:4321）          |
-| `pnpm site:build`                      | 构建到 `apps/site/dist/`   |
-| `pnpm --filter @semestra/site check`   | 类型检查                   |
-| `pnpm --filter @semestra/site capture` | 从真实应用重新截取产品画面 |
+| 命令（仓库根目录）                     | 作用                                       |
+| -------------------------------------- | ------------------------------------------ |
+| `pnpm site:dev`                        | 本地预览（http://localhost:4321/landing/） |
+| `pnpm site:build`                      | 构建到 `apps/site/dist/`                   |
+| `pnpm --filter @semestra/site check`   | 类型检查                                   |
+| `pnpm --filter @semestra/site capture` | 从真实应用重新截取产品画面                 |
 
-- 路由：`/` 中文，`/en/` 英文；文案在 `src/i18n.ts`。
-- 外链：应用和文档站的地址在 `src/i18n.ts`（`APP_URL`、`DOCS_URL`），构建时可用 `PUBLIC_APP_URL`、`PUBLIC_DOCS_URL`、`PUBLIC_SITE_URL` 覆盖；`site:dev` 时默认指向本地的应用（:5173）和文档站（:3001），构建时默认是 `semestra.jyleo.cc` 与 `docs.semestra.jyleo.cc`。三个站的域名规划见项目文件 `discussions/2026-10-22-三站路由方案.md`。
+- 路由：站点挂在 `/landing` 下（`astro.config.mjs` 的 `base`）：`/landing/` 英文，`/landing/zh/` 中文；文案在 `src/i18n.ts`。生产环境里应用、文档（`/docs`）和官网共用 `semestra.jyleo.cc` 一个域名，未登录的人打开应用的 `/` 会被带到 `/landing/`（应用的 `VITE_LANDING_URL`）。
+- 外链：应用和文档的地址在 `src/i18n.ts`（`APP_URL`、`DOCS_URL`）。生产环境是同源路径（`/login`、`/docs/<en|zh>/…`）；`site:dev` 时指向本地的应用（:5173）和文档站（:3001/docs）；构建时可用 `PUBLIC_APP_URL`、`PUBLIC_DOCS_URL`、`PUBLIC_SITE_URL` 覆盖。路由方案见项目文件 `discussions/2026-10-22-三站路由方案.md`。
+- 引用 `public/` 里的文件要经过 `asset()`，带上 `/landing` 前缀。
 - 主题：跟随系统，深色时给 `<html>` 加 `.dark`（和 shadcn 一致）；令牌在 `src/styles/theme.css`，复制自应用的 `apps/web/src/app/theme.css`，应用改了主题要同步。
 - `src/ui/` 是 shadcn CLI 生成的文件，不手改；要新组件在本目录运行 `CI=1 pnpm dlx shadcn@latest add <组件> </dev/null`。
 

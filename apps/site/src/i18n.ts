@@ -1,12 +1,11 @@
 export type Lang = 'zh-CN' | 'en'
 
-// The app lives at semestra.jyleo.cc and the docs at docs.semestra.jyleo.cc. Builds can override the
-// addresses; `pnpm site:dev` points at the other local dev servers.
+// The app, the docs (/docs) and this site (/landing) share one origin in production, so links are
+// plain paths there. `pnpm site:dev` points at the other local dev servers; builds can override both.
 const env = import.meta.env
-export const APP_URL: string =
-  env.PUBLIC_APP_URL ?? (env.DEV ? 'http://localhost:5173' : 'https://semestra.jyleo.cc')
+export const APP_URL: string = env.PUBLIC_APP_URL ?? (env.DEV ? 'http://localhost:5173' : '')
 export const DOCS_URL: string =
-  env.PUBLIC_DOCS_URL ?? (env.DEV ? 'http://localhost:3001' : 'https://docs.semestra.jyleo.cc')
+  env.PUBLIC_DOCS_URL ?? (env.DEV ? 'http://localhost:3001/docs' : '/docs')
 export const GITHUB_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
 
 /** A title and one line under it. */
@@ -329,8 +328,12 @@ export const copy = {
   },
 } satisfies Record<Lang, unknown>
 
-export const home = (lang: Lang) => (lang === 'en' ? '/en/' : '/')
+/** The site's base path, without a trailing slash (`/landing`). */
+export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+export const home = (lang: Lang) => (lang === 'en' ? `${BASE}/` : `${BASE}/zh/`)
+/** A file in `public/`, e.g. `asset('/parts/gpa-light-en.webp')`. */
+export const asset = (path: string) => `${BASE}${path}`
 /** A page of the docs site in the visitor's language, e.g. `docs('en', 'mcp')`. */
 export const docs = (lang: Lang, section = '') =>
-  `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}/docs${section ? `/${section}` : ''}`
+  `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}${section ? `/${section}` : ''}`
 export const shotLang = (lang: Lang) => (lang === 'en' ? 'en' : 'zh')

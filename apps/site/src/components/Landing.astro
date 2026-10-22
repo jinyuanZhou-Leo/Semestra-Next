@@ -31,7 +31,7 @@ import {
 import { Nav } from '@/components/Nav'
 import { ExploreButton, GitHubButton, StartButton, StartLink } from '@/components/Cta'
 import Shot from '@/components/Shot.astro'
-import { APP_URL, GITHUB_URL, copy, docs, home, shotLang, type Lang } from '@/i18n'
+import { APP_URL, GITHUB_URL, asset, copy, docs, home, shotLang, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
 
 interface Props {
@@ -73,7 +73,7 @@ const login = `${APP_URL}/login`
     <link rel="canonical" href={new URL(home(lang), Astro.site)} />
     <meta property="og:title" content={t.title} />
     <meta property="og:description" content={t.description} />
-    <meta property="og:image" content={new URL(`/shots/today-light-${l}.webp`, Astro.site)} />
+    <meta property="og:image" content={new URL(asset(`/shots/today-light-${l}.webp`), Astro.site)} />
     <script is:inline>
       // Follow the system theme, as shadcn's `.dark` class.
       const q = matchMedia('(prefers-color-scheme: dark)')

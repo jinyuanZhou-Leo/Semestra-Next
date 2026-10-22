@@ -6,10 +6,12 @@ import { defineConfig } from 'astro/config'
 // to render the shadcn components (Button, NavigationMenu) the app also uses.
 export default defineConfig({
   site: process.env.PUBLIC_SITE_URL ?? 'https://semestra.jyleo.cc',
+  // Served under /landing on the app's origin (see apps/site/README.md).
+  base: '/landing',
   integrations: [react()],
   i18n: {
-    locales: ['zh-CN', 'en'],
-    defaultLocale: 'zh-CN',
+    locales: ['en', { path: 'zh', codes: ['zh-CN'] }],
+    defaultLocale: 'en',
     routing: { prefixDefaultLocale: false },
   },
   vite: { plugins: [tailwindcss()] },
