@@ -1,12 +1,9 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+/* preset.css only covers the older layouts. */
+@import 'fumadocs-ui/css/generated/spacious.css';
 @import 'fumadocs-openapi/css/preset.css';
-
-/* Fumadocs centres the layout in 1400px; let the sidebar and TOC sit at the window edges. */
-:root {
-  --fd-layout-width: 100vw;
-}
 
 html {
   scrollbar-gutter: stable;
