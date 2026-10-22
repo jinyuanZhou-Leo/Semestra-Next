@@ -53,6 +53,7 @@
    | `DATABASE_URL`、`FRONTEND_URL`、`ALLOWED_HOSTS` 等 | 不用带 | 新项目由 compose 和 `SEMESTRA_PUBLIC_*` 决定 |
 5. **GitHub**：创建 Environment `production`（勾选 Required reviewers），配置 secrets：`DEPLOY_HOST`、`DEPLOY_USER`（`deploy`）、`DEPLOY_SSH_KEY`、`DEPLOY_SSH_KNOWN_HOSTS`；GHCR 镜像若为私有，VM 需要 `docker login ghcr.io`（`read:packages` token）。
 6. **监控**：UptimeRobot（或 GCP Uptime Check）监控 `https://semestra.jyleo.cc/healthz`、`https://semestra.jyleo.cc/landing/` 与 `https://semestra.jyleo.cc/docs/en`。
+   后端错误上报用 `.env` 的 `SEMESTRA_SENTRY_DSN`。前端的 `VITE_SENTRY_DSN`、`VITE_EMAIL_DOMAINS` 是构建参数，会打进前端包；发布的一体镜像托管版和自部署共用，所以 release 不传它们（否则自部署实例的前端错误会报到我们的 Sentry）。以前在 Vercel 上配的这两项目前没有对应设置，需要的话可以 `--build-arg` 自己构建。
 7. **演练**：按 [`hosted/RESTORE.md`](hosted/RESTORE.md) 做一次恢复演练，然后过一遍 [`SECURITY-CHECKLIST.md`](SECURITY-CHECKLIST.md)。
 8. **可选 staging**：见 `hosted/GCP-SETUP.md` 末尾；启用后把仓库变量 `STAGING_ENABLED` 设为 `true`。
 

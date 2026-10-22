@@ -86,7 +86,13 @@ COPY apps/web apps/web
 COPY packages/api-client packages/api-client
 # Empty origin = same-origin requests, which is what the all-in-one image serves.
 ARG VITE_API_ORIGIN=""
-ENV VITE_API_ORIGIN=${VITE_API_ORIGIN}
+# Optional, baked into the bundle. The published image is shared by the hosted and self-hosted
+# installs, so releases leave these empty; set them with --build-arg on your own build.
+ARG VITE_SENTRY_DSN=""
+ARG VITE_EMAIL_DOMAINS=""
+ENV VITE_API_ORIGIN=${VITE_API_ORIGIN} \
+    VITE_SENTRY_DSN=${VITE_SENTRY_DSN} \
+    VITE_EMAIL_DOMAINS=${VITE_EMAIL_DOMAINS}
 RUN pnpm --filter @semestra/web build
 
 # ---- all-in-one ----------------------------------------------------------------------------
@@ -108,8 +114,10 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter "@semestra/site..." --filter "@semestra/docs..."
 COPY apps/site apps/site
 COPY apps/docs apps/docs
-# The docs generate the API reference from the committed schema.
-COPY packages/api-client/openapi.json packages/api-client/openapi.json
+# The docs read these from outside apps/docs: the API reference is generated from the committed
+# schema, and the MCP catalog uses the capability list plus the app's capability titles.
+COPY packages/api-client/openapi.json packages/api-client/capabilities.json packages/api-client/
+COPY apps/web/messages/en.json apps/web/messages/zh-CN.json apps/web/messages/
 ARG SITE_URL=https://semestra.jyleo.cc
 ENV PUBLIC_SITE_URL=${SITE_URL} SITE_URL=${SITE_URL}
 RUN pnpm --filter @semestra/site build && pnpm --filter @semestra/docs build

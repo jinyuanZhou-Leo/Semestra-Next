@@ -10,6 +10,12 @@ on:
       - deploy/**
       - .dockerignore
       - .github/workflows/**
+      # Inputs of the edge image that can break its build.
+      - apps/site/package.json
+      - apps/site/astro.config.mjs
+      - apps/docs/package.json
+      - apps/docs/next.config.*
+      - apps/docs/src/components/mcp-catalog.tsx
   # Draft PRs skip this; marking the PR ready for review runs it.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -17,6 +23,12 @@ on:
       - deploy/**
       - .dockerignore
       - .github/workflows/**
+      # Inputs of the edge image that can break its build.
+      - apps/site/package.json
+      - apps/site/astro.config.mjs
+      - apps/docs/package.json
+      - apps/docs/next.config.*
+      - apps/docs/src/components/mcp-catalog.tsx
   workflow_dispatch:
 
 concurrency:
@@ -160,6 +172,10 @@ jobs:
           curl -fsS "$base/landing/zh/" | grep -q '<html lang="zh-CN"'
           curl -fsS "$base/docs/en" | grep -qi '<html'
           test "$(curl -s -o /dev/null -w '%{http_code}' "$base/docs/en/definitely-missing")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/landing/definitely-missing")" = 404
+          curl -s "$base/landing/definitely-missing" | grep -q 'Page not found'
+          curl -fsSI "$base/landing/" | grep -qi '^cache-control: public, max-age=0, must-revalidate'
+          curl -fsSI "$base/docs/en" | grep -qi '^cache-control: public, max-age=0, must-revalidate'
           curl -fsS -b semestra_session=x -H 'Accept: text/html' "$base/" | grep -qi '<div id="root">'
           curl -fsS -H 'Accept: text/html' "$base/login" | grep -qi '<div id="root">'
           curl -fsS "$base/readyz"

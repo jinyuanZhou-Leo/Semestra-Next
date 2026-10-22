@@ -6,10 +6,18 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
+		# Same-origin framing only: the Canvas tab previews files in an iframe from the app's origin.
+		X-Frame-Options SAMEORIGIN
 		Referrer-Policy strict-origin-when-cross-origin
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
+	}
+}
+
+(access_log) {
+	log {
+		output stdout
+		format json
 	}
 }
 
@@ -30,7 +38,7 @@
 	}
 
 	handle {
-		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/ https://*.ingest.sentry.io https://*.ingest.us.sentry.io; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/ https://*.ingest.sentry.io https://*.ingest.us.sentry.io; frame-src 'self' https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 		encode zstd gzip
 		reverse_proxy {args[0]} {
 			health_uri /healthz
@@ -53,6 +61,10 @@
 		root * /srv/landing
 		@hashed path /_astro/*
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		# Pages and unhashed files revalidate, so a release never leaves a page pointing at
+		# hashed assets the new image no longer has.
+		@unhashed not path /_astro/*
+		header @unhashed Cache-Control "public, max-age=0, must-revalidate"
 		encode zstd gzip
 		try_files {path} {path}/index.html
 		file_server
@@ -63,14 +75,25 @@
 	handle @docs {
 		# `header` runs before `uri`, so this matcher still sees the /docs prefix.
 		@hashed path /docs/_next/static/*
+		@unhashed not path /docs/_next/static/*
 		uri strip_prefix /docs
 		root * /srv/docs
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		header @unhashed Cache-Control "public, max-age=0, must-revalidate"
 		encode zstd gzip
 		try_files {path} {path}.html {path}/index.html
 		file_server
 	}
 	handle_errors 404 {
+		# Error responses start with fresh headers, and a missing hashed asset must not be cached.
+		import security_headers
+		header Cache-Control "public, max-age=0, must-revalidate"
+		@landing_missing path /landing/*
+		handle @landing_missing {
+			root * /srv/landing
+			rewrite * /404.html
+			file_server
+		}
 		@docs_missing path /docs /docs/*
 		handle @docs_missing {
 			root * /srv/docs
@@ -82,10 +105,7 @@
 
 {$SEMESTRA_DOMAIN:semestra.jyleo.cc} {
 	import security_headers
-	log {
-		output stdout
-		format json
-	}
+	import access_log
 	import static_sites
 	import app_site api:8000
 }
