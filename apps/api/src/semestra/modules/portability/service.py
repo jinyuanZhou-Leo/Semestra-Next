@@ -5,7 +5,6 @@ import os
 import tempfile
 from collections.abc import AsyncIterator, Callable
 from datetime import timedelta
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +15,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.datastructures import State
 
+from semestra import __version__
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue
@@ -59,13 +59,6 @@ UPLOAD_HEADROOM = 50 * 1024 * 1024
 UNLIMITED_QUOTA_UPLOAD = 1024 * 1024 * 1024
 # A deletion whose job did not finish is completed by the cleanup task after this long.
 DELETION_GRACE = timedelta(hours=1)
-
-
-def _app_version() -> str:
-    try:
-        return version("semestra")
-    except PackageNotFoundError:
-        return "0.0.0"
 
 
 def _matches(text: str | None, phrases: tuple[str, ...]) -> bool:
@@ -184,7 +177,7 @@ async def build_export(ctx: JobCtx, archive_id: str) -> int:
                 format="semestra-backup",
                 version=VERSION,
                 exported_at=ctx.now,
-                app_version=_app_version(),
+                app_version=__version__,
                 modules=modules,
                 include_files=row.include_files,
                 counts=counts,

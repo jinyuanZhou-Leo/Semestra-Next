@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from semestra import __version__
 from semestra.core import jobs, storage
 from semestra.core.backup import backup_loop
 from semestra.core.capability import mount_http
@@ -29,6 +30,7 @@ from semestra.modules.auth.avatar import UploadBodyLimit
 
 class Health(BaseModel):
     status: Literal["ok"]
+    version: str
 
 
 class Ready(BaseModel):
@@ -72,7 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # No Swagger UI or ReDoc: /docs belongs to the docs site on the same origin, which has the API
     # reference. The schema stays at /openapi.json.
     app = FastAPI(
-        title="Semestra API", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None
+        title="Semestra API", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None
     )
     app.state.settings = settings
     app.state.now = utcnow  # tests replace this clock
@@ -104,7 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/healthz", operation_id="healthz", response_model=Health, tags=["system"])
     async def healthz() -> Health:  # pyright: ignore[reportUnusedFunction]
-        return Health(status="ok")
+        return Health(status="ok", version=__version__)
 
     @app.get(
         "/readyz",

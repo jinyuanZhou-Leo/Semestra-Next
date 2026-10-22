@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
+  "baseBranch": "main",
+  "fixed": [["@semestra/*"]],
+  "privatePackages": { "version": true, "tag": false },
+  "changelog": false,
+  "commit": false,
+  "access": "restricted",
+  "ignore": []
+}

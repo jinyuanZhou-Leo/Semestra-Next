@@ -6,6 +6,7 @@ from pathlib import Path
 from httpx import AsyncClient
 from sqlalchemy import text
 
+from semestra import __version__
 from semestra.core.config import Settings
 from semestra.core.db import ensure_sqlite_dir, make_engine, new_id
 
@@ -13,7 +14,8 @@ from semestra.core.db import ensure_sqlite_dir, make_engine, new_id
 async def test_healthz(client: AsyncClient) -> None:
     r = await client.get("/healthz")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    assert r.json() == {"status": "ok", "version": __version__}
+    assert __version__ != "0.0.0"  # read from the installed semestra-api distribution
     assert r.headers["x-request-id"]
 
 

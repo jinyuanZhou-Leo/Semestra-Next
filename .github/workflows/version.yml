@@ -1,0 +1,56 @@
+name: Version
+# On every push to main: while changesets are pending, keep the "Version Packages" PR up to date
+# (new version numbers, release-notes/<version>.json, CHANGELOG.md). Once that PR is merged there
+# are no changesets left, so this tags v<version> and runs the release workflow. See
+# .changeset/README.md.
+on:
+  push: { branches: [main] }
+
+concurrency:
+  group: version
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with: { node-version: 26, cache: pnpm }
+      # `uv version` updates apps/api/pyproject.toml and uv.lock to the new version, and the
+      # OpenAPI export (which carries the version) needs the backend installed.
+      - uses: astral-sh/setup-uv@v7
+      - run: pnpm install --frozen-lockfile --filter .
+      - id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm release:version
+          pr-title: Release (version packages)
+          commit-message: "chore: version packages"
+      - id: tag
+        if: steps.changesets.outputs.has-changesets == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/release.mjs tag
+
+  release:
+    needs: version
+    if: needs.version.outputs.tag != ''
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+    secrets: inherit

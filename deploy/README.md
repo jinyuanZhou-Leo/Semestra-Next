@@ -23,11 +23,11 @@
 
 ## 发布流程（托管版）
 
-1. `main` 合并后，CI 全绿。
-2. 打 tag：`git tag v0.1.0 && git push origin v0.1.0`（tag 必须在 `main` 上，格式 `vMAJOR.MINOR.PATCH[-pre]`）。
+1. 功能 PR 各自带 changeset（见 [.changeset/README.md](../.changeset/README.md)）。合并到 `main` 后，`Version` 工作流自动维护一个「Release (version packages)」PR：新版本号、`release-notes/<版本>.json`、`CHANGELOG.md`。
+2. 想发版时，在这个 PR 里润色更新说明（中英两份都改），合并。`Version` 工作流随即打 tag `v<版本>` 并调用 `Release` 工作流（用 `GITHUB_TOKEN` 推的 tag 不会触发 `push` 事件，所以是直接调用）。仓库设置里要打开 Settings → Actions → General →「Allow GitHub Actions to create and approve pull requests」，否则开不了版本 PR。也可以手动打 tag：`git tag v1.2.3 && git push origin v1.2.3`（必须在 `main` 上，格式 `vMAJOR.MINOR.PATCH[-pre]`）。
 3. `Release` 工作流构建并推送镜像到 GHCR（`semestra-api`、`semestra-api:<版本>-office`、`semestra-allinone`、`semestra-edge`）。托管版用 `semestra-allinone`（API + 应用）和 `semestra-edge`（Caddy + 官网 + 文档），两者同一个版本号一起发布、一起回滚。
 4. `deploy` 任务等待 GitHub Environment `production` 的人工批准，批准后通过 SSH 把配置同步到 VM 并执行 `deploy.sh <版本>`：先做数据库快照，再拉镜像并启动，`/readyz` 不通过则自动回滚到上一个版本。
-5. 部署成功后工作流检查公网 `https://semestra.jyleo.cc/readyz`，然后创建 GitHub Release（自动生成变更日志）。
+5. 部署成功后工作流检查公网 `https://semestra.jyleo.cc/readyz`，然后创建 GitHub Release（正文取 `release-notes/<版本>.json` 的英文条目；手动打的 tag 没有这个文件时用 GitHub 自动生成的 PR 列表）。
 
 应用、官网和文档都在 `semestra.jyleo.cc` 一个域名下（`/`、`/landing/`、`/docs/`），随 tag 一起发布。规划见项目讨论 `2026-10-22-三站路由方案.md`。
 
