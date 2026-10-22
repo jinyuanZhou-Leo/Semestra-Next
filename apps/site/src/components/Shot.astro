@@ -1,0 +1,35 @@
+---
+// A capture of the real app (scripts/capture), in the visitor's theme and the page's language.
+// `cut` pieces keep their own rounded corners on a transparent background and only get a shadow;
+// the others come with a margin of the page and are framed. Inside a `.dark` band, pass `dark`.
+import { shotLang, type Lang } from '@/i18n'
+
+interface Props {
+  src: string
+  lang: Lang
+  width: number
+  height: number
+  cut?: boolean
+  dark?: boolean
+  class?: string
+  style?: string
+  depth?: number
+  z?: number
+  eager?: boolean
+}
+const { src, lang, width, height, cut, dark, class: className, style, depth, z, eager } = Astro.props
+const l = shotLang(lang)
+const loading = eager ? 'eager' : 'lazy'
+---
+<div class:list={[cut ? 'cut' : 'shot', className]} style={style} data-depth={depth} data-z={z}>
+  {
+    dark ? (
+      <img src={`/${src}-dark-${l}.webp`} alt="" width={width} height={height} decoding="async" loading={loading} />
+    ) : (
+      <picture>
+        <source srcset={`/${src}-dark-${l}.webp`} media="(prefers-color-scheme: dark)" />
+        <img src={`/${src}-light-${l}.webp`} alt="" width={width} height={height} decoding="async" loading={loading} />
+      </picture>
+    )
+  }
+</div>
