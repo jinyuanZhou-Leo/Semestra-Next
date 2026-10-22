@@ -9021,6 +9021,70 @@
         }
       }
     },
+    "/courses/{course_id}/lms/announcements/{announcement_id}:read": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Mark an announcement read on the LMS.",
+        "description": "Only when the user allows Semestra to change things on the platform (account\nsetting `lms.allow_writes`), otherwise lms.writes_disabled. Not for agents.",
+        "operationId": "lmsAnnouncementMarkRead",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          },
+          {
+            "name": "announcement_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "External announcement id",
+              "title": "Announcement Id"
+            },
+            "description": "External announcement id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementRead"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/imports:assignments": {
       "post": {
         "tags": [
@@ -9155,6 +9219,10 @@
                       "submission",
                       "published",
                       "updated_at",
+                      "locked",
+                      "lock_explanation",
+                      "allowed_attempts",
+                      "rubric",
                       "imported_as"
                     ],
                     "type": "string"
@@ -10127,10 +10195,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id: `target.ref` of a file in lms.module_item.list",
+              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
               "title": "File Id"
             },
-            "description": "External file id: `target.ref` of a file in lms.module_item.list"
+            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
           },
           {
             "name": "refresh",
@@ -10152,6 +10220,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FileMeta"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/files/{file_id}/preview": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
+        "description": "Reads it without saving it. To search it or cite it, save it with\nlms.file.save_to_course instead.",
+        "operationId": "lmsFilePreview",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
+              "title": "File Id"
+            },
+            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilePreview"
                 }
               }
             }
@@ -10206,10 +10353,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id: `target.ref` of a file in lms.module_item.list",
+              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
               "title": "File Id"
             },
-            "description": "External file id: `target.ref` of a file in lms.module_item.list"
+            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
           }
         ],
         "requestBody": {
@@ -10229,6 +10376,172 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SavedFile"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/files": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Find files of a linked course on the LMS by name.",
+        "operationId": "lmsFileSearch",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          },
+          {
+            "name": "term",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Part of the file name",
+              "title": "Term"
+            },
+            "description": "Part of the file name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/folders": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "A folder of a linked course's files on the LMS: its subfolders and files.",
+        "description": "Leave out folder_id for the root folder. Courses that hide their files from\nstudents fail with lms.forbidden; their files are still reachable through modules.",
+        "operationId": "lmsFolderGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "External folder id; the course's root folder when left out",
+              "title": "Folder Id"
+            },
+            "description": "External folder id; the course's root folder when left out"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderListing"
                 }
               }
             }
@@ -10884,7 +11197,12 @@
                       "unlock_at",
                       "lock_at",
                       "points",
-                      "question_count"
+                      "question_count",
+                      "time_limit",
+                      "allowed_attempts",
+                      "locked",
+                      "lock_explanation",
+                      "assignment_id"
                     ],
                     "type": "string"
                   }
@@ -10906,6 +11224,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuizList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/assignments/{assignment_id}/submission": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "The user's submission of one assignment on the LMS, with the teacher's feedback.",
+        "description": "Score, attempts, the teacher's comments and the rubric scores (match\n`rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).",
+        "operationId": "lmsSubmissionGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          },
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "External assignment id (`external_id` of lms.assignment.list)",
+              "title": "Assignment Id"
+            },
+            "description": "External assignment id (`external_id` of lms.assignment.list)"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionDetail"
                 }
               }
             }
@@ -15747,6 +16144,24 @@
         ],
         "title": "AnnouncementList"
       },
+      "AnnouncementRead": {
+        "properties": {
+          "announcement_id": {
+            "type": "string",
+            "title": "Announcement Id"
+          },
+          "unread": {
+            "type": "boolean",
+            "title": "Unread"
+          }
+        },
+        "type": "object",
+        "required": [
+          "announcement_id",
+          "unread"
+        ],
+        "title": "AnnouncementRead"
+      },
       "Assessment": {
         "properties": {
           "id": {
@@ -16809,6 +17224,42 @@
             ],
             "title": "Updated At"
           },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
+          },
+          "allowed_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Attempts",
+            "description": "None or -1: unlimited"
+          },
+          "rubric": {
+            "items": {
+              "$ref": "#/components/schemas/RubricCriterion"
+            },
+            "type": "array",
+            "title": "Rubric"
+          },
           "imported_as": {
             "items": {
               "$ref": "#/components/schemas/ImportTarget"
@@ -16845,7 +17296,7 @@
             },
             "type": "object",
             "title": "Changes",
-            "description": "title, due_at and/or points"
+            "description": "title, due_at, points, weight and/or score (the grade on the platform)"
           }
         },
         "type": "object",
@@ -18043,6 +18494,36 @@
           "failed"
         ],
         "title": "CommitResult"
+      },
+      "Completion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "min_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Score"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "Completion",
+        "description": "A module item's requirement (Canvas: must_view, must_submit, min_score, ...)."
       },
       "ConflictList": {
         "properties": {
@@ -19556,7 +20037,10 @@
                 "quizzes",
                 "syllabus",
                 "files",
-                "calendar"
+                "calendar",
+                "submissions",
+                "folders",
+                "mark_read"
               ]
             },
             "type": "array",
@@ -21371,6 +21855,27 @@
         "type": "object",
         "title": "FieldUpdate"
       },
+      "FileList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FileMeta"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "truncated"
+        ],
+        "title": "FileList"
+      },
       "FileMeta": {
         "properties": {
           "external_id": {
@@ -21451,6 +21956,45 @@
           "name"
         ],
         "title": "FileMeta"
+      },
+      "FilePreview": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "pdf, docx, pptx, xlsx, csv, html, text or markdown"
+          },
+          "pages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "Markdown per page (slide, sheet, logical page)"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "description": "Only the first pages are included"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "mime_type",
+          "kind",
+          "pages",
+          "truncated"
+        ],
+        "title": "FilePreview"
       },
       "FileSaveInputBody": {
         "properties": {
@@ -21540,6 +22084,80 @@
         ],
         "title": "FilesUsageGet"
       },
+      "Folder": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Full path below the course's root folder"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "files_count": {
+            "type": "integer",
+            "title": "Files Count",
+            "default": 0
+          },
+          "folders_count": {
+            "type": "integer",
+            "title": "Folders Count",
+            "default": 0
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "name",
+          "path"
+        ],
+        "title": "Folder"
+      },
       "FolderCreateInputBody": {
         "properties": {
           "name": {
@@ -21569,6 +22187,48 @@
           "name"
         ],
         "title": "FolderCreateInputBody"
+      },
+      "FolderListing": {
+        "properties": {
+          "folder": {
+            "$ref": "#/components/schemas/Folder"
+          },
+          "trail": {
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            },
+            "type": "array",
+            "title": "Trail",
+            "description": "From the root folder down to `folder`"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            },
+            "type": "array",
+            "title": "Folders"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileMeta"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder",
+          "trail",
+          "folders",
+          "files"
+        ],
+        "title": "FolderListing"
       },
       "FolderOut": {
         "properties": {
@@ -25078,7 +25738,8 @@
                 "type": "null"
               }
             ],
-            "title": "State"
+            "title": "State",
+            "description": "The user's progress: locked, unlocked, started or completed"
           },
           "unlock_at": {
             "anyOf": [
@@ -25096,6 +25757,30 @@
             "type": "integer",
             "title": "Item Count",
             "default": 0
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "prerequisite_module_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prerequisite Module Ids"
+          },
+          "require_sequential_progress": {
+            "type": "boolean",
+            "title": "Require Sequential Progress",
+            "default": false
           }
         },
         "type": "object",
@@ -25185,6 +25870,57 @@
               }
             ],
             "title": "External Url"
+          },
+          "completion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Completion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What finishing the item takes, and whether the user did"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
           }
         },
         "type": "object",
@@ -26016,6 +26752,18 @@
             "type": "boolean",
             "title": "Locked",
             "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
           }
         },
         "type": "object",
@@ -27428,7 +28176,10 @@
                 "quizzes",
                 "syllabus",
                 "files",
-                "calendar"
+                "calendar",
+                "submissions",
+                "folders",
+                "mark_read"
               ]
             },
             "type": "array",
@@ -27738,6 +28489,58 @@
               }
             ],
             "title": "Question Count"
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit",
+            "description": "Minutes; None for no limit"
+          },
+          "allowed_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Attempts",
+            "description": "None or -1: unlimited"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation",
+            "description": "Why it is locked, as the platform says"
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
           }
         },
         "type": "object",
@@ -27982,6 +28785,132 @@
         },
         "type": "object",
         "title": "RichText"
+      },
+      "RubricCriterion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "long_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Long Description"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "ratings": {
+            "items": {
+              "$ref": "#/components/schemas/RubricRating"
+            },
+            "type": "array",
+            "title": "Ratings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "RubricCriterion"
+      },
+      "RubricRating": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "title": "RubricRating"
+      },
+      "RubricScore": {
+        "properties": {
+          "criterion_id": {
+            "type": "string",
+            "title": "Criterion Id"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "rating_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Id"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "criterion_id"
+        ],
+        "title": "RubricScore"
       },
       "SaveToCourseInputBody": {
         "properties": {
@@ -29401,10 +30330,191 @@
             "type": "boolean",
             "title": "Missing",
             "default": false
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt",
+            "description": "Attempts made (quizzes, resubmissions)"
           }
         },
         "type": "object",
         "title": "Submission"
+      },
+      "SubmissionComment": {
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment",
+            "default": ""
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "title": "SubmissionComment"
+      },
+      "SubmissionDetail": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "assignment_id": {
+            "type": "string",
+            "title": "Assignment Id"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graded At"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "late": {
+            "type": "boolean",
+            "title": "Late",
+            "default": false
+          },
+          "missing": {
+            "type": "boolean",
+            "title": "Missing",
+            "default": false
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/SubmissionComment"
+            },
+            "type": "array",
+            "title": "Comments"
+          },
+          "rubric_scores": {
+            "items": {
+              "$ref": "#/components/schemas/RubricScore"
+            },
+            "type": "array",
+            "title": "Rubric Scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "assignment_id"
+        ],
+        "title": "SubmissionDetail",
+        "description": "The user's own submission of one assignment, with the teacher's feedback."
       },
       "SuggestInputBody": {
         "properties": {

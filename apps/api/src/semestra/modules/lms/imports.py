@@ -271,7 +271,9 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
         by_key[key] = {
             "external_id": external_id,
             "link_id": link.id,
-            "snapshot": snapshot(a, weights.get(external_id)),
+            # The import copies no score: a grade already on the platform is offered as an
+            # update right after it.
+            "snapshot": {**snapshot(a, weights.get(external_id)), "score": None},
             "updated_at": a.get("updated_at"),
         }
         refs.append(
@@ -282,13 +284,41 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
 
 def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
     """What update detection compares (M09 §4). The weight is the effective one from the
-    assignment's group, so a group weight or sibling change shows up as an update too."""
+    assignment's group, so a group weight or sibling change shows up as an update too. The
+    score is the grade on the platform, so a new or changed grade is offered once."""
     return {
         "title": a.get("name"),
         "due_at": a.get("due_at"),
         "points": a.get("points"),
         "weight": weight,
+        "score": platform_score(a),
     }
+
+
+def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
+    """The user's graded score on the platform as points, or None while there is none (not
+    graded, not posted, or an assignment worth no points)."""
+    submission = a.get("submission") or {}
+    score, points = submission.get("score"), a.get("points")
+    if score is None or not points or points <= 0 or score < 0:
+        return None
+    return {"points_earned": float(score), "points_possible": float(points)}
+
+
+def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
+    if row is None or row.points_earned is None or row.points_possible is None:
+        return None
+    return {"points_earned": row.points_earned, "points_possible": row.points_possible}
+
+
+def _has_score(row: GradingAssessment | None, score: dict[str, float]) -> bool:
+    """The gradebook already holds this grade, as points or as the same percentage."""
+    if row is None:
+        return False
+    if assessment_score(row) == score:
+        return True
+    percent = 100 * score["points_earned"] / score["points_possible"]
+    return row.score_percentage is not None and abs(row.score_percentage - percent) < 0.005
 
 
 # --- syllabus -------------------------------------------------------------------------------
@@ -345,6 +375,7 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
     data, _ = await reads.raw_assignments(ctx, course_id, refresh)
     by_id = {a["external_id"]: a for a in data}
     weights = _weights(data)
+    assessments = await _assessments(ctx, refs)
     items: list[AssignmentUpdate] = []
     for ref in refs:
         a = by_id.get(ref.external_id)
@@ -372,6 +403,16 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
             and now["weight"] != then["weight"]
         ):
             changes["weight"] = FieldUpdate(old=then["weight"], new=now["weight"])
+        # A grade is offered once per platform value (snapshots from before scores were recorded
+        # count as "no grade yet"), and not when the gradebook already has that score.
+        if (
+            ref.target_kind == "assessment"
+            and now["score"] is not None
+            and now["score"] != then.get("score")
+            and not _has_score(assessments.get(ref.target_id), now["score"])
+        ):
+            current = assessment_score(assessments.get(ref.target_id))
+            changes["score"] = FieldUpdate(old=current, new=now["score"])
         if changes:
             items.append(
                 AssignmentUpdate(
@@ -382,6 +423,18 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
                 )
             )
     return UpdatesOutput(course_id=course_id, count=len(items), items=items)
+
+
+async def _assessments(ctx: Ctx, refs: list[LmsImportedRef]) -> dict[str, GradingAssessment]:
+    ids = [r.target_id for r in refs if r.target_kind == "assessment"]
+    if not ids:
+        return {}
+    rows = await ctx.db.scalars(
+        select(GradingAssessment).where(
+            GradingAssessment.id.in_(ids), GradingAssessment.user_id == ctx.user_id
+        )
+    )
+    return {row.id: row for row in rows}
 
 
 async def _current_weight(ctx: Ctx, target: ImportTarget) -> float | None:
@@ -432,6 +485,11 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
             old = await _current_weight(ctx, update.target)
             if old != weights[update.external_id]:
                 changes["weight"] = {"old": old, "new": weights[update.external_id]}
+        if "score" in update.changes:
+            changes["score"] = {
+                "old": update.changes["score"].old,
+                "new": update.changes["score"].new,
+            }
         key = f"u{len(new)}"
         target = update.target
         id_field = "assessment_id" if target.kind == "assessment" else "task_id"

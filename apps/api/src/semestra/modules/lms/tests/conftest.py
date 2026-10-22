@@ -11,6 +11,7 @@ from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
+from semestra.core.errors import AppError
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
 from semestra.modules.lms.schemas.dto import (
@@ -19,6 +20,8 @@ from semestra.modules.lms.schemas.dto import (
     Assignment,
     ConnectionSummary,
     FileMeta,
+    Folder,
+    FolderListing,
     GradeItem,
     InternalRef,
     LmsCalendarEvent,
@@ -31,6 +34,9 @@ from semestra.modules.lms.schemas.dto import (
     PageSummary,
     Quiz,
     RichText,
+    RubricScore,
+    SubmissionComment,
+    SubmissionDetail,
 )
 from semestra.testing import MakeUser, UserHandle
 
@@ -204,6 +210,39 @@ class FakeProvider:
         yield b"he"
         yield b"llo"
 
+    async def submission(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> SubmissionDetail:
+        self.calls.append(("submission", assignment_id))
+        return SubmissionDetail(
+            external_id=f"s-{assignment_id}", assignment_id=assignment_id, score=8, attempt=1,
+            comments=[SubmissionComment(author="Prof", comment="Good work")],
+            rubric_scores=[RubricScore(criterion_id="c1", points=8)],
+        )  # fmt: skip
+
+    async def folder(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
+    ) -> FolderListing:
+        self.calls.append(("folder", folder_id))
+        root = Folder(external_id="f0", name="course files", path="", folders_count=1)
+        sub = Folder(external_id="f1", name="Lectures", path="Lectures", parent_id="f0")
+        if folder_id in (None, "f0"):
+            return FolderListing(folder=root, trail=[root], folders=[sub], files=[])
+        if folder_id == "f1":
+            notes = FileMeta(external_id="9", name="notes.txt", mime_type="text/plain")
+            return FolderListing(folder=sub, trail=[root, sub], folders=[], files=[notes])
+        raise AppError("common.not_found", 404)
+
+    async def search_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
+    ) -> list[FileMeta]:
+        return [FileMeta(external_id="9", name="notes.txt")] if term in "notes.txt" else []
+
+    async def mark_announcement_read(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, announcement_id: str
+    ) -> None:
+        self.calls.append(("mark_read", announcement_id))
+
     async def calendar_events(
         self,
         io: Io,
@@ -355,6 +394,15 @@ def canvas_api(router: respx.MockRouter) -> None:
     )
     router.get("https://cdn.inscloudgate.net/f/77").mock(
         return_value=Response(200, content=b"%PDF")
+    )
+    router.get(f"{api}/courses/101/assignments/11/submissions/self").mock(
+        return_value=ok({"id": 70, "score": 9, "workflow_state": "graded"})
+    )
+    root = {"id": 50, "name": "course files", "full_name": "course files"}
+    router.get(f"{api}/courses/101/folders/root").mock(return_value=ok(root))
+    router.get(f"{api}/folders/50/folders").mock(return_value=ok([]))
+    router.get(f"{api}/folders/50/files").mock(
+        return_value=ok([{"id": 77, "display_name": "slides.pdf"}])
     )
     router.get(f"{api}/calendar_events").mock(
         return_value=ok([

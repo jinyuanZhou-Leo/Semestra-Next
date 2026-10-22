@@ -22,6 +22,9 @@ STATUS = {
     "lms.course_link_exists": 409,
     "lms.assignment_already_imported": 409,
     "lms.credentials_missing": 409,
+    # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
+    "lms.writes_disabled": 409,
+    "lms.file_too_large": 413,
 }
 
 # Errors that say the connection itself is broken (they mark it `error`). `lms.invalid_config`
