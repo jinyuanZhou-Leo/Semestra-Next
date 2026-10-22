@@ -1,8 +1,0 @@
----
-"@semestra/web": patch
----
-
-<!-- en -->
-Calendar: exporting the weekly timetable right after opening Export no longer comes out empty, and editing a class from its details says so when it no longer exists.
-<!-- zh -->
-日历：打开导出后立即导出课表模板不会再是空白；从详情编辑已被删除的课程或日程时会给出提示。

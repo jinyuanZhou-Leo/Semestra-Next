@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.1.1 (2026-10-22)
+
+### Fixed
+
+- Calendar: exporting the weekly timetable right after opening Export no longer comes out empty, and editing a class from its details says so when it no longer exists.
+
 ## 1.1.0 (2026-10-22)
 
 ### New
