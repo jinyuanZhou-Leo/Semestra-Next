@@ -41,11 +41,12 @@ async def test_mark_read_needs_the_setting(api: Api, fake: FakeProvider):
     out = await api.call("POST", url, json={})
     assert out == {"announcement_id": "n1", "unread": False}
     assert ("mark_read", "n1") in fake.calls
-    # The cached list says read now, without asking the platform again.
+    # The cached list is dropped (keeping it would extend its freshness): the next read asks
+    # the platform, which now says read.
     calls = len(fake.calls)
     listed = await api.call("GET", f"/courses/{course}/lms/announcements")
     assert listed["items"][0]["unread"] is False
-    assert len(fake.calls) == calls
+    assert len(fake.calls) == calls + 1
 
 
 async def test_submission_folders_search_and_preview(api: Api, fake: FakeProvider):
@@ -137,3 +138,15 @@ async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
     await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 50})
     updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
     assert updates["count"] == 0
+    # ...and a later hand edit does not bring that same grade back.
+    await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 60})
+    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
+
+    # A different percentage is offered, with the percentage as the old value.
+    fake.course_assignments["101"][1] = fake.course_assignments["101"][1].model_copy(
+        update={"submission": Submission(state="graded", score=21)}
+    )
+    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
+    [change] = [u["changes"]["score"] for u in updates["items"]]
+    assert change["old"] == {"score_percentage": 60.0}
+    assert change["new"]["points_earned"] == 21.0

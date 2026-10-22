@@ -88,7 +88,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
             async for message in parse_isolated(
                 bytes(data),
                 detected,
-                max_pages=PREVIEW_MAX_PAGES,
+                max_pages=PREVIEW_MAX_PAGES + 1,
                 thumbnail_pages=0,
                 time_limit=min(ctx.settings.files_parse_timeout_seconds, PREVIEW_TIME_LIMIT),
                 memory_limit=ctx.settings.files_parse_memory_bytes,
@@ -100,7 +100,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         else:
             raw = bytes(data)
             document = await anyio.to_thread.run_sync(
-                lambda: parse(raw, detected, max_pages=PREVIEW_MAX_PAGES)
+                lambda: parse(raw, detected, max_pages=PREVIEW_MAX_PAGES + 1)
             )
     except ParseError as exc:
         raise AppError(exc.code, 422) from None
@@ -108,8 +108,9 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         name=meta.name,
         mime_type=detected.mime,
         kind=detected.kind,
-        pages=[p.markdown for p in document.pages],
-        truncated=len(document.pages) >= PREVIEW_MAX_PAGES,
+        # One page more than shown is read, so a file of exactly the limit is not "truncated".
+        pages=[p.markdown for p in document.pages[:PREVIEW_MAX_PAGES]],
+        truncated=len(document.pages) > PREVIEW_MAX_PAGES,
     )
     await cache.put(ctx, key, b.row.id, {"data": out.model_dump(mode="json"), "truncated": False})
     return out

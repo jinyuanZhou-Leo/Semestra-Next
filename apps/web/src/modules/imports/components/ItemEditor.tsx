@@ -293,6 +293,10 @@ function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }
 
 function display(value: unknown): string {
   if (value == null) return ''
+  if (typeof value === 'object' && 'score_percentage' in value) {
+    // A grade entered as a percentage, shown as the old value of a platform grade (M09).
+    return `${String((value as { score_percentage: unknown }).score_percentage)}%`
+  }
   if (typeof value === 'object' && 'points_earned' in value) {
     // A grade from the platform (M09): {points_earned, points_possible}.
     const { points_earned: earned, points_possible: possible } = value as {

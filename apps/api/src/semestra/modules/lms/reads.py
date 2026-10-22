@@ -10,7 +10,6 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.modules.lms import cache, html, service
-from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
     FileMeta,
@@ -32,7 +31,6 @@ from semestra.modules.lms.schemas.io import (
     QuizList,
 )
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.settings import writes_allowed
 
 
 async def _read(
@@ -308,12 +306,11 @@ async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> Fi
 
 
 async def mark_announcement_read(ctx: Ctx, course_id: str, announcement_id: str) -> None:
-    """Marks it read on the platform when the user allows writes (M09 设置 `lms.allow_writes`),
-    and in the cached list, so the unread dot goes away without asking the platform again."""
-    if not await writes_allowed(ctx):
-        raise lms_error("lms.writes_disabled")
+    """Marks it read on the platform when the user allows writes (M09 设置 `lms.allow_writes`).
+    The cached list is dropped (not rewritten, which would extend its 5 minutes); the app updates
+    its own copy."""
     link, b = await service.require_link(ctx, course_id)
-    service.require_feature(b, "mark_read")
+    await service.require_write(ctx, b, "mark_read")
     ext = link.external_course_id
     await service.call(
         ctx,
@@ -321,9 +318,4 @@ async def mark_announcement_read(ctx: Ctx, course_id: str, announcement_id: str)
         lambda i: b.provider.mark_announcement_read(i, b.cfg, b.creds, ext, announcement_id),
     )
     key = cache.cache_key(ctx.user_id, b.row.id, "announcements", {"course": ext, "since": None})
-    hit = await cache.get(ctx, key)
-    if hit is not None:
-        for item in hit["data"]:
-            if item.get("external_id") == announcement_id:
-                item["unread"] = False
-        await cache.put(ctx, key, b.row.id, hit)
+    await cache.drop(ctx, key)

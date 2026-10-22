@@ -2,8 +2,9 @@ import type { FileMeta, Folder as FolderOut } from '@semestra/api-client'
 import { lmsFileSearchOptions, lmsFolderGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { File, Folder, FolderOpen, Lock, Search } from 'lucide-react'
-import { Fragment, useDeferredValue, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { formatBytes, formatDateTime } from '@/lib/format'
+import { useDebounced } from '@/modules/files/hooks'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -29,7 +30,8 @@ const MIN_TERM = 2
  */
 export function FilesView({ selected }: { selected?: string }) {
   const [term, setTerm] = useState('')
-  const deferred = useDeferredValue(term.trim())
+  // Each search is a request to Canvas: wait until the user stops typing.
+  const deferred = useDebounced(term.trim(), 300)
   const searching = deferred.length >= MIN_TERM
   return (
     <div className="space-y-4">

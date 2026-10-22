@@ -90,6 +90,12 @@ async def put(ctx: Ctx, key: str, connection_id: str, payload: Any) -> None:
     )
 
 
+async def drop(ctx: Ctx, key: str) -> None:
+    """Forgets one entry, so the next read asks the platform (after a write changed it)."""
+    runtime(ctx.state).lru.pop(key, None)
+    await ctx.db.execute(delete(LmsCache).where(LmsCache.key == key))
+
+
 async def drop_connection(ctx: Ctx, connection_id: str) -> None:
     runtime(ctx.state).drop(connection_id)
     await ctx.db.execute(delete(LmsCache).where(LmsCache.connection_id == connection_id))

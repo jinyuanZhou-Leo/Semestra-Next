@@ -1,6 +1,17 @@
-import type { AssignmentOut, RubricCriterion, SubmissionDetail } from '@semestra/api-client'
+import type {
+  AssignmentOut,
+  RubricCriterion,
+  RubricScore,
+  SubmissionDetail,
+} from '@semestra/api-client'
 import { lmsSubmissionGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import {
+  type CellContext,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
 import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -128,6 +139,61 @@ function FeedbackBody({
   )
 }
 
+/** One rubric criterion with what the teacher gave for it, if it was assessed. */
+type RubricRow = { criterion: RubricCriterion; score?: RubricScore }
+
+const rubricFeatures = tableFeatures({})
+const rubricColumn = createColumnHelper<typeof rubricFeatures, RubricRow>()
+type RubricCell = CellContext<typeof rubricFeatures, RubricRow>
+
+function CriterionCell({ row }: RubricCell) {
+  const c = row.original.criterion
+  return (
+    <>
+      <p className="font-medium">{c.description}</p>
+      {c.long_description ? (
+        <p className="text-xs text-muted-foreground">{c.long_description}</p>
+      ) : null}
+    </>
+  )
+}
+
+function RatingCell({ row }: RubricCell) {
+  const { criterion: c, score } = row.original
+  const rating = c.ratings?.find((r) => r.id != null && r.id === score?.rating_id)
+  return (
+    <>
+      {rating?.description ?? '—'}
+      {score?.comments ? <p className="text-xs text-muted-foreground">{score.comments}</p> : null}
+    </>
+  )
+}
+
+function RubricPointsCell({ row }: RubricCell) {
+  const { criterion: c, score } = row.original
+  const earned = score?.points == null ? null : String(score.points)
+  const text = c.points == null ? (earned ?? '—') : `${earned ?? '–'} / ${c.points}`
+  return <span className="tabular-nums">{text}</span>
+}
+
+const rubricColumns = rubricColumn.columns([
+  rubricColumn.display({
+    id: 'criterion',
+    header: () => m.canvas_tab_rubric_criterion(),
+    cell: CriterionCell,
+  }),
+  rubricColumn.display({
+    id: 'rating',
+    header: () => m.canvas_tab_rubric_rating(),
+    cell: RatingCell,
+  }),
+  rubricColumn.display({
+    id: 'points',
+    header: () => m.canvas_tab_column_points(),
+    cell: RubricPointsCell,
+  }),
+])
+
 /** The rubric with the rating the teacher picked per criterion, when it was assessed. */
 function Rubric({
   criteria,
@@ -137,45 +203,39 @@ function Rubric({
   submission: SubmissionDetail
 }) {
   const scores = new Map((submission.rubric_scores ?? []).map((r) => [r.criterion_id, r]))
+  const data = criteria.map((criterion) => ({ criterion, score: scores.get(criterion.id) }))
+  const table = useTable({
+    features: rubricFeatures,
+    columns: rubricColumns,
+    data,
+    getRowId: (r) => r.criterion.id,
+  })
   return (
     <Table>
       <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead>{m.canvas_tab_rubric_criterion()}</TableHead>
-          <TableHead>{m.canvas_tab_rubric_rating()}</TableHead>
-          <TableHead className="text-right">{m.canvas_tab_column_points()}</TableHead>
-        </TableRow>
+        {table.getHeaderGroups().map((group) => (
+          <TableRow key={group.id} className="hover:bg-transparent">
+            {group.headers.map((h) => (
+              <TableHead key={h.id} className={h.column.id === 'points' ? 'text-right' : undefined}>
+                <table.FlexRender header={h} />
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
       </TableHeader>
       <TableBody>
-        {criteria.map((c) => {
-          const score = scores.get(c.id)
-          const rating = c.ratings?.find((r) => r.id != null && r.id === score?.rating_id)
-          const points =
-            score?.points == null
-              ? c.points == null
-                ? '—'
-                : `– / ${c.points}`
-              : c.points == null
-                ? String(score.points)
-                : `${score.points} / ${c.points}`
-          return (
-            <TableRow key={c.id} className="align-top">
-              <TableCell className="whitespace-normal">
-                <p className="font-medium">{c.description}</p>
-                {c.long_description ? (
-                  <p className="text-xs text-muted-foreground">{c.long_description}</p>
-                ) : null}
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id} className="align-top">
+            {row.getAllCells().map((cell) => (
+              <TableCell
+                key={cell.id}
+                className={cell.column.id === 'points' ? 'text-right' : 'whitespace-normal'}
+              >
+                <table.FlexRender cell={cell} />
               </TableCell>
-              <TableCell className="whitespace-normal">
-                {rating?.description ?? '—'}
-                {score?.comments ? (
-                  <p className="text-xs text-muted-foreground">{score.comments}</p>
-                ) : null}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{points}</TableCell>
-            </TableRow>
-          )
-        })}
+            ))}
+          </TableRow>
+        ))}
       </TableBody>
     </Table>
   )

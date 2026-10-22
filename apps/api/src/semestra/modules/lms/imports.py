@@ -306,9 +306,14 @@ def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
 
 
 def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
-    if row is None or row.points_earned is None or row.points_possible is None:
+    """The gradebook's score as the review shows it: points, else the percentage entered."""
+    if row is None:
         return None
-    return {"points_earned": row.points_earned, "points_possible": row.points_possible}
+    if row.points_earned is not None and row.points_possible is not None:
+        return {"points_earned": row.points_earned, "points_possible": row.points_possible}
+    if row.score_percentage is not None:
+        return {"score_percentage": row.score_percentage}
+    return None
 
 
 def _has_score(row: GradingAssessment | None, score: dict[str, float]) -> bool:
@@ -404,15 +409,18 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
         ):
             changes["weight"] = FieldUpdate(old=then["weight"], new=now["weight"])
         # A grade is offered once per platform value (snapshots from before scores were recorded
-        # count as "no grade yet"), and not when the gradebook already has that score.
+        # count as "no grade yet"). When the gradebook already has it, the snapshot moves on, so
+        # a later hand edit in the gradebook does not bring the same grade back.
         if (
             ref.target_kind == "assessment"
             and now["score"] is not None
             and now["score"] != then.get("score")
-            and not _has_score(assessments.get(ref.target_id), now["score"])
         ):
-            current = assessment_score(assessments.get(ref.target_id))
-            changes["score"] = FieldUpdate(old=current, new=now["score"])
+            row = assessments.get(ref.target_id)
+            if _has_score(row, now["score"]):
+                ref.snapshot = {**then, "score": now["score"]}
+            else:
+                changes["score"] = FieldUpdate(old=assessment_score(row), new=now["score"])
         if changes:
             items.append(
                 AssignmentUpdate(
