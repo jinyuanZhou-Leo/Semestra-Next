@@ -1387,7 +1387,7 @@
         "en": "Use the LMS",
         "zh-CN": "使用学习平台"
       },
-      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, pages, modules, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
+      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, feedback, pages, modules, files, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
       "tools": [
         "lms__course__link__get",
         "lms__course__overview",
@@ -1400,7 +1400,11 @@
         "lms__page__get",
         "lms__quiz__list",
         "lms__syllabus__get",
+        "lms__submission__get",
+        "lms__folder__get",
+        "lms__file__search",
         "lms__file__get",
+        "lms__file__preview",
         "lms__file__save_to_course",
         "lms__course__list",
         "lms__course__link__set",
