@@ -50,7 +50,7 @@ gcloud compute addresses describe semestra-api-ip --region=$REGION --format='val
 
 ## 3. DNS
 
-把 `api.semestra.jyleo.cc` 的 **A 记录**指向上面输出的静态 IP。生效后 Caddy 才能申请到证书。
+把 `semestra.jyleo.cc` 的 **A 记录**指向上面输出的静态 IP。生效后 Caddy 才能申请到证书。
 
 ## 4. 初始化 VM
 
@@ -76,10 +76,10 @@ gcloud compute ssh semestra-api --zone=$ZONE -- \
 
 ## 5. 可选：staging
 
-1. DNS：`api-staging.semestra.jyleo.cc` 指向同一个 IP。
+1. DNS：`semestra-staging.jyleo.cc` 指向同一个 IP。
 2. VM 上：`cp /srv/semestra/app/conf.d/staging.caddy.example /srv/semestra/app/conf.d/staging.caddy`；`/srv/semestra/app/.env.staging` 复制自 `.env` 并改为 staging 域名（`SEMESTRA_PUBLIC_*`、`SEMESTRA_CORS_ORIGINS`）、**换一组独立的密钥**、关掉 Sentry/Resend 的生产凭据。
 3. GitHub：创建 Environment `staging`（同样 4 个 secrets），仓库变量 `STAGING_ENABLED=true`。此后每次合并到 `main` 都会部署到 staging。
-4. Vercel 预览环境把 `VITE_API_ORIGIN` 指向 `https://api-staging.semestra.jyleo.cc`（见 `VERCEL.md`）。注意：Cookie 登录要求前后端同站，预览域名需要在 `jyleo.cc` 下（如 `staging.semestra.jyleo.cc`），`*.vercel.app` 的预览无法保持登录态。
+4. staging 只有应用（API + 前端同源），不带官网和文档。
 
 ## 日常运维速查
 

@@ -6,8 +6,8 @@
 - [ ] **`SEMESTRA_ENCRYPTION_KEY` 已离线备份**，且至少两处（密码管理器 + 另一介质）。丢失它，用户保存的第三方密钥无法恢复。
 - [ ] **生产环境拒绝弱密钥**：`SEMESTRA_ENV=prod`，缺少密钥时容器启动失败（`deploy-check` 工作流每次都会验证）。
 - [ ] **Cookie**：`Secure`、`HttpOnly`、`SameSite=Lax`，CSRF 校验生效（M01 实现；上线前用浏览器开发者工具确认 Set-Cookie，并确认无 `X-Semestra-CSRF` 的写请求被拒绝）。
-- [ ] **CORS** 只允许正式前端域名：`curl -si -H 'Origin: https://evil.example' https://api.semestra.jyleo.cc/healthz` 的响应里没有 `access-control-allow-origin`。
-- [ ] **Caddy 安全头与请求体上限**：`curl -sI https://api.semestra.jyleo.cc/healthz` 能看到 HSTS、`X-Content-Type-Options`、`X-Frame-Options`；超过 60 MB 的上传返回 413。前端同理检查 `https://semestra.jyleo.cc`（CSP 在 `apps/web/vercel.json`）。
+- [ ] **CORS** 不放行任何外部来源（托管版是同源）：`curl -si -H 'Origin: https://evil.example' https://semestra.jyleo.cc/healthz` 的响应里没有 `access-control-allow-origin`。
+- [ ] **Caddy 安全头与请求体上限**：`curl -sI https://semestra.jyleo.cc/healthz` 能看到 HSTS、`X-Content-Type-Options`、`X-Frame-Options`；超过 60 MB 的上传返回 413；应用页面（如 `/login`）带 CSP（在 `deploy/hosted/Caddyfile`），`/landing/` 与 `/docs/` 不带。
 - [ ] **出站私网拦截开启**：托管版 `.env` 中 `SEMESTRA_ALLOW_PRIVATE_EGRESS=false`（或未设置）；自部署才打开。
 - [ ] **限流生效**（登录、发码、上传、AI）：对各接口连续请求，确认返回 `common.rate_limited`。
 - [ ] **容器以非 root 运行**：`docker compose exec api id -u` 为 `10001`（`deploy-check` 也会验证）。

@@ -9,8 +9,9 @@ x-logging: &logging
     max-file: "5"
 
 services:
+  # The API and the web app on one origin (all-in-one image).
   api:
-    image: ghcr.io/jinyuanzhou-leo/semestra-api:${SEMESTRA_IMAGE_TAG:-latest}
+    image: ghcr.io/jinyuanzhou-leo/semestra-allinone:${SEMESTRA_IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     env_file: .env
@@ -23,10 +24,10 @@ services:
       - "8000"
     logging: *logging
 
-  # Optional second stack for Vercel previews: `docker compose --profile staging up -d`.
+  # Optional second stack: `docker compose --profile staging up -d` (conf.d/staging.caddy.example).
   api-staging:
     profiles: [staging]
-    image: ghcr.io/jinyuanzhou-leo/semestra-api:${SEMESTRA_STAGING_IMAGE_TAG:-latest}
+    image: ghcr.io/jinyuanzhou-leo/semestra-allinone:${SEMESTRA_STAGING_IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     env_file:
@@ -40,15 +41,16 @@ services:
       - "8000"
     logging: *logging
 
+  # Caddy with the landing page and the docs baked in, released together with the app.
   caddy:
-    image: caddy:2
+    image: ghcr.io/jinyuanzhou-leo/semestra-edge:${SEMESTRA_IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     environment:
-      API_DOMAIN: ${API_DOMAIN:-api.semestra.jyleo.cc}
+      SEMESTRA_DOMAIN: ${SEMESTRA_DOMAIN:-semestra.jyleo.cc}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

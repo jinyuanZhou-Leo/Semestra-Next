@@ -103,7 +103,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 | i18n | Paraglide JS (`en`, `zh-CN`) |
 | API client | Generated from the OpenAPI schema with `@hey-api/openapi-ts` |
 | Tooling | pnpm workspaces, oxlint and oxfmt, ruff, pyright, Vitest, pytest, Playwright |
-| Deployment | Docker; self-host compose, or Vercel (web) plus a GCP VM with Caddy and Litestream (API) |
+| Deployment | Docker; self-host compose, or a GCP VM with Caddy and Litestream serving the app, landing page and docs from one origin |
 
 ## Quick start
 
@@ -148,7 +148,7 @@ docker compose up -d    # then open http://localhost:8000
 
 The image isn't public yet: see [deploy/selfhost/README.md](deploy/selfhost/README.md) to log in to `ghcr.io` or build it locally.
 
-Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example). The hosted setup (Vercel and GCP) is in [deploy/README.md](deploy/README.md).
+Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example). The hosted setup (GCP) is in [deploy/README.md](deploy/README.md).
 
 ## Project structure
 
@@ -159,7 +159,7 @@ apps/
   docs/                Documentation site (Fumadocs, static): self-hosting, AI, MCP, LMS, API
 packages/
   api-client/          TypeScript client generated from OpenAPI (don't edit src/generated)
-deploy/                Dockerfile, self-host compose, hosted (GCP + Vercel) scripts
+deploy/                Dockerfile, self-host compose, hosted (GCP) scripts
 docs/
   specs/               One design spec per module, M00 to M16
 ```

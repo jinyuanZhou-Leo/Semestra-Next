@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy an image tag to the hosted stack and roll back automatically if it does not come up.
 #
-#   ./deploy.sh <image-tag>             production (service "api")
+#   ./deploy.sh <image-tag>             production (services "api" and "caddy", same tag)
 #   ./deploy.sh --staging <image-tag>   staging    (service "api-staging", profile "staging")
 #
 # Runs on the VM in /srv/semestra/app; the release workflow calls it over SSH.
@@ -11,10 +11,12 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 service=api
+pulled=(api caddy)
 tag_var=SEMESTRA_IMAGE_TAG
 compose=(docker compose)
 if [[ "${1:-}" == "--staging" ]]; then
     service=api-staging
+    pulled=(api-staging)
     tag_var=SEMESTRA_STAGING_IMAGE_TAG
     compose=(docker compose --profile staging)
     shift
@@ -39,11 +41,30 @@ set_tag() {
     fi
 }
 
+api_ready() {
+    "${compose[@]}" exec -T "$service" python -c \
+        "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)" \
+        >/dev/null 2>&1
+}
+
+# Production also swaps the edge image: Caddy must be running and route both the app and the
+# landing page. -k because a fresh certificate may still be on its way; this checks routing.
+edge_ready() {
+    [[ "$service" == api ]] || return 0
+    "${compose[@]}" ps --status running --quiet caddy | grep -q . || return 1
+    local domain
+    domain="$(sed -n 's/^SEMESTRA_DOMAIN=//p' .env | tail -n 1)"
+    domain="${domain:-semestra.jyleo.cc}"
+    local path
+    for path in /readyz /landing/; do
+        curl -fsSk -o /dev/null --max-time 5 --resolve "${domain}:443:127.0.0.1" \
+            "https://${domain}${path}" || return 1
+    done
+}
+
 wait_ready() {
     for _ in $(seq 1 30); do
-        if "${compose[@]}" exec -T "$service" python -c \
-            "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)" \
-            >/dev/null 2>&1; then
+        if api_ready && edge_ready; then
             return 0
         fi
         sleep 2
@@ -60,7 +81,7 @@ if [[ -n "$previous" ]] && "${compose[@]}" ps --status running --quiet "$service
 fi
 
 set_tag "$tag"
-if ! "${compose[@]}" pull "$service"; then
+if ! "${compose[@]}" pull "${pulled[@]}"; then
     echo "deploy: pulling ${tag} failed, nothing changed" >&2
     [[ -n "$previous" ]] && set_tag "$previous"
     exit 1
@@ -74,7 +95,7 @@ if wait_ready; then
 fi
 
 echo "deploy: ${tag} did not become ready, rolling back to ${previous:-<none>}" >&2
-"${compose[@]}" logs --tail 80 "$service" >&2 || true
+"${compose[@]}" logs --tail 80 "${pulled[@]}" >&2 || true
 if [[ -n "$previous" ]]; then
     set_tag "$previous"
     "${compose[@]}" up -d --remove-orphans

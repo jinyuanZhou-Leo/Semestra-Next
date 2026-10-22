@@ -1,6 +1,6 @@
 import { Check, ChevronDown, GraduationCap, Languages } from 'lucide-react'
 
-import { APP_URL, copy, home, langName, type Lang } from '@/i18n'
+import { APP_URL, copy, docs, home, langName, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
 import {
   DropdownMenu,
@@ -34,6 +34,7 @@ export function Nav({ lang }: { lang: Lang }) {
               ['#today', t.product],
               ['#sem', 'Sem'],
               ['#more', t.open],
+              [docs(lang), t.docs],
             ].map(([href, label]) => (
               <NavigationMenuItem key={label}>
                 <NavigationMenuLink href={href} className={navigationMenuTriggerStyle()}>
@@ -52,7 +53,10 @@ export function Nav({ lang }: { lang: Lang }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(Object.keys(langName) as Lang[]).map((l) => (
-                <DropdownMenuItem key={l} render={<a href={home(l)} hrefLang={l} />}>
+                <DropdownMenuItem
+                  key={l}
+                  render={<a href={home(l)} hrefLang={l} aria-label={langName[l]} />}
+                >
                   {langName[l]}
                   {l === lang && <Check className="ml-auto" />}
                 </DropdownMenuItem>

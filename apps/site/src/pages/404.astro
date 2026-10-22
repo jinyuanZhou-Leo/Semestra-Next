@@ -1,0 +1,32 @@
+---
+// Served by Caddy for any missing /landing/* path, in either language, so it says both.
+import '@/styles/site.css'
+import { home } from '@/i18n'
+import { buttonVariants } from '@/ui/button'
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <title>Page not found · Semestra</title>
+    <script is:inline>
+      const q = matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => document.documentElement.classList.toggle('dark', q.matches)
+      apply()
+      q.addEventListener('change', apply)
+    </script>
+  </head>
+  <body>
+    <main class="wrap not-found">
+      <p class="eyebrow">404</p>
+      <h1>Page not found</h1>
+      <p class="sub" lang="zh-CN">找不到这个页面</p>
+      <div class="ctas">
+        <a class={buttonVariants({ size: 'lg' })} href={home('en')}>Back to home</a>
+        <a class={buttonVariants({ variant: 'outline', size: 'lg' })} href={home('zh-CN')} lang="zh-CN">返回首页</a>
+      </div>
+    </main>
+  </body>
+</html>

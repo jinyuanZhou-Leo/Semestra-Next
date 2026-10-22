@@ -1,9 +1,11 @@
 export type Lang = 'zh-CN' | 'en'
 
-export const APP_URL = 'https://app.semestra.app'
-/** Docs site root (same host, /docs); override per environment, e.g. http://localhost:3001 in dev. */
-export const DOCS_URL = (import.meta.env.PUBLIC_DOCS_URL ?? 'https://semestra.jyleo.cc/docs').replace(/\/$/, '')
-export const docsUrl = (lang: Lang, path = '') => `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}${path}`
+// The app, the docs (/docs) and this site (/landing) share one origin in production, so links are
+// plain paths there. `pnpm site:dev` points at the other local dev servers; builds can override both.
+const env = import.meta.env
+export const APP_URL: string = env.PUBLIC_APP_URL ?? (env.DEV ? 'http://localhost:5173' : '')
+export const DOCS_URL: string =
+  env.PUBLIC_DOCS_URL ?? (env.DEV ? 'http://localhost:3001/docs' : '/docs')
 export const GITHUB_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
 
 /** A title and one line under it. */
@@ -17,6 +19,7 @@ export const copy = {
     nav: {
       product: '功能',
       open: '开源',
+      docs: '文档',
       login: '登录',
       start: '免费开始',
       other: 'English',
@@ -141,6 +144,11 @@ export const copy = {
       grades: '成绩与 GPA',
       open: '开源',
       selfHost: '私有化部署',
+      docs: '文档',
+      guide: '使用指南',
+      mcp: 'MCP',
+      api: 'API',
+      plugins: '插件开发',
       account: '账户',
       login: '登录',
       signup: '注册',
@@ -153,6 +161,7 @@ export const copy = {
     nav: {
       product: 'Product',
       open: 'Open source',
+      docs: 'Docs',
       login: 'Log in',
       start: 'Get started',
       other: '中文',
@@ -307,6 +316,11 @@ export const copy = {
       grades: 'Grades and GPA',
       open: 'Open source',
       selfHost: 'Self-hosting',
+      docs: 'Docs',
+      guide: 'Guides',
+      mcp: 'MCP',
+      api: 'API',
+      plugins: 'Plugin development',
       account: 'Account',
       login: 'Log in',
       signup: 'Sign up',
@@ -314,6 +328,13 @@ export const copy = {
   },
 } satisfies Record<Lang, unknown>
 
-export const langName: Record<Lang, string> = { 'zh-CN': '简体中文', en: 'English' }
-export const home = (lang: Lang) => (lang === 'en' ? '/en/' : '/')
+/** The site's base path, without a trailing slash (`/landing`). */
+export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+export const home = (lang: Lang) => (lang === 'en' ? `${BASE}/` : `${BASE}/zh/`)
+/** A file in `public/`, e.g. `asset('/parts/gpa-light-en.webp')`. */
+export const asset = (path: string) => `${BASE}${path}`
+/** A page of the docs site in the visitor's language, e.g. `docs('en', 'mcp')`. */
+export const docs = (lang: Lang, section = '') =>
+  `${DOCS_URL}/${lang === 'en' ? 'en' : 'zh'}${section ? `/${section}` : ''}`
+export const langName: Record<Lang, string> = { en: 'English', 'zh-CN': '简体中文' }
 export const shotLang = (lang: Lang) => (lang === 'en' ? 'en' : 'zh')
