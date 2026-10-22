@@ -3,7 +3,7 @@
   "baseBranch": "main",
   "fixed": [["@semestra/*"]],
   "privatePackages": { "version": true, "tag": false },
-  "changelog": false,
+  "changelog": "@changesets/cli/changelog",
   "commit": false,
   "access": "restricted",
   "ignore": []

@@ -7,3 +7,6 @@ files (in the feature PR, or on `main` before releasing). The version PR is rebu
 force-pushed after every push to `main`, so edits made there are lost unless nothing else merges
 before it. `date` is the day (America/Toronto) the version PR was last rebuilt; if the PR has sat
 for a while, run the Version workflow by hand (Actions → Version → Run workflow) before merging.
+
+Each package also gets a `CHANGELOG.md` from Changesets' default changelog. `changesets/action` needs
+those files to write the version PR's description; the notes users see come from the JSON here.
