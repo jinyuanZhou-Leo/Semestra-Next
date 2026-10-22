@@ -1,10 +1,10 @@
 export type Lang = 'zh-CN' | 'en'
 
-// Each site has its own subdomain (docs/2026-10-22 routing plan). Builds can override the
+// The app lives at semestra.jyleo.cc and the docs at docs.semestra.jyleo.cc. Builds can override the
 // addresses; `pnpm site:dev` points at the other local dev servers.
 const env = import.meta.env
 export const APP_URL: string =
-  env.PUBLIC_APP_URL ?? (env.DEV ? 'http://localhost:5173' : 'https://app.semestra.jyleo.cc')
+  env.PUBLIC_APP_URL ?? (env.DEV ? 'http://localhost:5173' : 'https://semestra.jyleo.cc')
 export const DOCS_URL: string =
   env.PUBLIC_DOCS_URL ?? (env.DEV ? 'http://localhost:3001' : 'https://docs.semestra.jyleo.cc')
 export const GITHUB_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
