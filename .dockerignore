@@ -3,6 +3,9 @@
 **/node_modules
 **/.venv
 **/dist
+**/.next
+apps/docs/out
+apps/site/scripts/capture/.out
 **/__pycache__
 **/.pytest_cache
 **/.ruff_cache

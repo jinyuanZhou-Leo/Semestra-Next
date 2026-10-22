@@ -202,7 +202,12 @@ function TokenCreatedDialog({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void copy(mcpConfig(token.token, client.getConfig().baseUrl ?? ''))}
+                // Same-origin builds have an empty base URL; MCP clients need an absolute one.
+                onClick={() =>
+                  void copy(
+                    mcpConfig(token.token, client.getConfig().baseUrl || window.location.origin),
+                  )
+                }
               >
                 {m.auth_account_tokens_copy_mcp()}
               </Button>

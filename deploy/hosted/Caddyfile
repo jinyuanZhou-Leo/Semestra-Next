@@ -13,18 +13,12 @@
 	}
 }
 
-# Usage: import api_site <upstream>
-(api_site) {
-	import security_headers
-
+# The app and the API (the all-in-one image serves both from one origin).
+# Usage: import app_site <upstream>
+(app_site) {
 	# 50 MB file quota per upload plus multipart overhead.
 	request_body {
 		max_size 60MB
-	}
-
-	log {
-		output stdout
-		format json
 	}
 
 	# Server-sent events must not be buffered or compressed.
@@ -36,6 +30,7 @@
 	}
 
 	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/ https://*.ingest.sentry.io https://*.ingest.us.sentry.io; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 		encode zstd gzip
 		reverse_proxy {args[0]} {
 			health_uri /healthz
@@ -44,8 +39,54 @@
 	}
 }
 
-{$API_DOMAIN:api.semestra.jyleo.cc} {
-	import api_site api:8000
+# The landing page and the docs, baked into the edge image (deploy/docker/Dockerfile).
+(static_sites) {
+	# Signed-out visitors to / see the landing page; signed-in ones go straight to the app.
+	@visitor {
+		path /
+		not header Cookie *semestra_session=*
+	}
+	redir @visitor /landing/ 302
+
+	redir /landing /landing/ 308
+	handle_path /landing/* {
+		root * /srv/landing
+		@hashed path /_astro/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		encode zstd gzip
+		try_files {path} {path}/index.html
+		file_server
+	}
+
+	# Next's static export: flat .html pages, 404.html for anything else.
+	@docs path /docs /docs/*
+	handle @docs {
+		uri strip_prefix /docs
+		root * /srv/docs
+		@hashed path /_next/static/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		encode zstd gzip
+		try_files {path} {path}.html {path}/index.html
+		file_server
+	}
+	handle_errors 404 {
+		@docs_missing path /docs /docs/*
+		handle @docs_missing {
+			root * /srv/docs
+			rewrite * /404.html
+			file_server
+		}
+	}
+}
+
+{$SEMESTRA_DOMAIN:semestra.jyleo.cc} {
+	import security_headers
+	log {
+		output stdout
+		format json
+	}
+	import static_sites
+	import app_site api:8000
 }
 
 # Extra sites (e.g. staging.caddy, copied from staging.caddy.example) are dropped in here.

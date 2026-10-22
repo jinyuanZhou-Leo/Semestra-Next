@@ -4,11 +4,14 @@
 #   docker build -f deploy/docker/Dockerfile --target api         -t semestra-api .
 #   docker build -f deploy/docker/Dockerfile --target api-office  -t semestra-api:office .
 #   docker build -f deploy/docker/Dockerfile --target allinone    -t semestra-allinone .
+#   docker build -f deploy/docker/Dockerfile --target edge        -t semestra-edge .
 #
 # Targets:
-#   api         FastAPI backend only (hosted deployment; the SPA lives on Vercel)
+#   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
-#   allinone    api + the built SPA served from the same origin (self-hosting)
+#   allinone    api + the built SPA served from the same origin (self-hosting and the hosted app)
+#   edge        Caddy with the landing page (/landing) and the docs (/docs) baked in; the hosted
+#               stack's reverse proxy in front of allinone (deploy/hosted/Caddyfile)
 
 ARG PYTHON_IMAGE=python:3.15-slim-bookworm
 ARG NODE_IMAGE=node:26-slim
@@ -91,3 +94,27 @@ FROM api AS allinone
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web
+
+# ---- landing page and docs (static) --------------------------------------------------------
+FROM ${NODE_IMAGE} AS sites-builder
+# Keep in sync with "packageManager" in the root package.json.
+ARG PNPM_VERSION=12.14.0
+RUN npm install --global "pnpm@${PNPM_VERSION}"
+WORKDIR /repo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/site/package.json apps/site/package.json
+COPY apps/docs/package.json apps/docs/package.json
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter "@semestra/site..." --filter "@semestra/docs..."
+COPY apps/site apps/site
+COPY apps/docs apps/docs
+# The docs generate the API reference from the committed schema.
+COPY packages/api-client/openapi.json packages/api-client/openapi.json
+ARG SITE_URL=https://semestra.jyleo.cc
+ENV PUBLIC_SITE_URL=${SITE_URL} SITE_URL=${SITE_URL}
+RUN pnpm --filter @semestra/site build && pnpm --filter @semestra/docs build
+
+# ---- hosted reverse proxy ------------------------------------------------------------------
+FROM caddy:2 AS edge
+COPY --from=sites-builder /repo/apps/site/dist /srv/landing
+COPY --from=sites-builder /repo/apps/docs/out /srv/docs

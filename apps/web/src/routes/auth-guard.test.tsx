@@ -3,9 +3,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
-import { landingFor } from './_authed'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, apiError, newQueryClient, server, user } from '@/test-utils'
 
@@ -44,21 +43,6 @@ test('signed-out visitors to a protected page are sent to /login?redirect=…', 
   expect(await screen.findByRole('heading', { name: 'Welcome to Semestra' })).toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/login')
   expect(router.state.location.search).toEqual({ redirect: '/settings/account?tab=tokens' })
-})
-
-test('without a landing page, signed-out visitors to / are sent to /login', async () => {
-  server.use(signedOut(), noGoogle, healthy)
-  const router = mount('/')
-  expect(await screen.findByRole('heading', { name: 'Welcome to Semestra' })).toBeInTheDocument()
-  expect(router.state.location.pathname).toBe('/login')
-})
-
-test('the landing page only replaces /login for the root path', () => {
-  vi.stubEnv('VITE_LANDING_URL', '/landing/')
-  expect(landingFor('/')).toBe('/landing/')
-  expect(landingFor('/settings/account')).toBeUndefined()
-  vi.unstubAllEnvs()
-  expect(landingFor('/')).toBeUndefined()
 })
 
 /** A new account: no Programs yet, so `/` leads to onboarding; no plugins in the catalog. */

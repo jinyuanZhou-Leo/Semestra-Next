@@ -1,7 +1,7 @@
 name: Release
 # Pushing a tag v* builds the images, deploys the hosted stack (after a manual approval on the
-# "production" environment) and creates the GitHub Release. The frontend deploys separately
-# through Vercel's Git integration.
+# "production" environment) and creates the GitHub Release. The hosted stack runs the all-in-one
+# image (API + web app) behind the edge image (Caddy + landing page + docs).
 on:
   push:
     tags: ["v*"]
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  API_URL: https://api.semestra.jyleo.cc
+  API_URL: https://semestra.jyleo.cc
 
 jobs:
   images:
@@ -29,6 +29,7 @@ jobs:
           - { image: semestra-api, target: api, suffix: "" }
           - { image: semestra-api, target: api-office, suffix: "-office" }
           - { image: semestra-allinone, target: allinone, suffix: "" }
+          - { image: semestra-edge, target: edge, suffix: "" }
     steps:
       - uses: actions/checkout@v6
         with: { fetch-depth: 0 }

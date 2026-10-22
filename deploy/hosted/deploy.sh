@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy an image tag to the hosted stack and roll back automatically if it does not come up.
 #
-#   ./deploy.sh <image-tag>             production (service "api")
+#   ./deploy.sh <image-tag>             production (services "api" and "caddy", same tag)
 #   ./deploy.sh --staging <image-tag>   staging    (service "api-staging", profile "staging")
 #
 # Runs on the VM in /srv/semestra/app; the release workflow calls it over SSH.
@@ -11,10 +11,12 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 service=api
+pulled=(api caddy)
 tag_var=SEMESTRA_IMAGE_TAG
 compose=(docker compose)
 if [[ "${1:-}" == "--staging" ]]; then
     service=api-staging
+    pulled=(api-staging)
     tag_var=SEMESTRA_STAGING_IMAGE_TAG
     compose=(docker compose --profile staging)
     shift
@@ -60,7 +62,7 @@ if [[ -n "$previous" ]] && "${compose[@]}" ps --status running --quiet "$service
 fi
 
 set_tag "$tag"
-if ! "${compose[@]}" pull "$service"; then
+if ! "${compose[@]}" pull "${pulled[@]}"; then
     echo "deploy: pulling ${tag} failed, nothing changed" >&2
     [[ -n "$previous" ]] && set_tag "$previous"
     exit 1
