@@ -61,9 +61,10 @@
 	# Next's static export: flat .html pages, 404.html for anything else.
 	@docs path /docs /docs/*
 	handle @docs {
+		# `header` runs before `uri`, so this matcher still sees the /docs prefix.
+		@hashed path /docs/_next/static/*
 		uri strip_prefix /docs
 		root * /srv/docs
-		@hashed path /_next/static/*
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
 		encode zstd gzip
 		try_files {path} {path}.html {path}/index.html
