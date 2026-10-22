@@ -5,7 +5,7 @@ import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
@@ -110,6 +110,9 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
                   <Lock aria-hidden />
                 </EmptyMedia>
                 <EmptyTitle>{m.canvas_tab_page_locked()}</EmptyTitle>
+                {p.lock_explanation ? (
+                  <EmptyDescription>{p.lock_explanation}</EmptyDescription>
+                ) : null}
               </EmptyHeader>
             </Empty>
           ) : p.html ? (

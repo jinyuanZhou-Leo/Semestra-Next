@@ -25,6 +25,9 @@ LmsFeature = Literal[
     "syllabus",
     "files",
     "calendar",
+    "submissions",
+    "folders",
+    "mark_read",
 ]
 ALL_FEATURES: frozenset[LmsFeature] = frozenset(
     (
@@ -39,8 +42,13 @@ ALL_FEATURES: frozenset[LmsFeature] = frozenset(
         "syllabus",
         "files",
         "calendar",
+        "submissions",
+        "folders",
+        "mark_read",
     )
 )
+# Features that change something on the platform: used only when the user allows writes.
+WRITE_FEATURES: frozenset[LmsFeature] = frozenset(("mark_read",))
 
 NavKind = Literal[
     "home",
@@ -117,6 +125,25 @@ class Submission(BaseModel):
     grade: str | None = None
     late: bool = False
     missing: bool = False
+    attempt: int | None = Field(default=None, description="Attempts made (quizzes, resubmissions)")
+
+
+class RubricRating(BaseModel):
+    id: str | None = None
+    description: str = ""
+    points: float | None = None
+
+
+class RubricCriterion(BaseModel):
+    id: str
+    description: str = ""
+    long_description: str | None = None
+    points: float | None = None
+    ratings: list[RubricRating] = Field(default_factory=list)
+
+
+# Lock explanations are short platform text (HTML stripped by the module).
+LockText = Annotated[str | None, Field(description="Why it is locked, as the platform says")]
 
 
 class Assignment(Dto):
@@ -134,6 +161,39 @@ class Assignment(Dto):
     submission: Submission | None = None
     published: bool = True
     updated_at: datetime | None = None
+    locked: bool = False
+    lock_explanation: LockText = None
+    allowed_attempts: int | None = Field(default=None, description="None or -1: unlimited")
+    rubric: list[RubricCriterion] = Field(default_factory=list)
+
+
+class SubmissionComment(BaseModel):
+    author: str | None = None
+    comment: str = ""
+    created_at: datetime | None = None
+
+
+class RubricScore(BaseModel):
+    criterion_id: str
+    points: float | None = None
+    rating_id: str | None = None
+    comments: str | None = None
+
+
+class SubmissionDetail(Dto):
+    """The user's own submission of one assignment, with the teacher's feedback."""
+
+    assignment_id: str
+    state: str | None = None
+    submitted_at: datetime | None = None
+    graded_at: datetime | None = None
+    score: float | None = None
+    grade: str | None = None
+    attempt: int | None = None
+    late: bool = False
+    missing: bool = False
+    comments: list[SubmissionComment] = Field(default_factory=list)
+    rubric_scores: list[RubricScore] = Field(default_factory=list)
 
 
 class GradeItem(Dto):
@@ -150,9 +210,14 @@ class GradeItem(Dto):
 class Module(Dto):
     name: str
     position: int = 0
-    state: str | None = None
+    state: str | None = Field(
+        default=None, description="The user's progress: locked, unlocked, started or completed"
+    )
     unlock_at: datetime | None = None
     item_count: int = 0
+    completed_at: datetime | None = None
+    prerequisite_module_ids: list[str] = Field(default_factory=list)
+    require_sequential_progress: bool = False
 
 
 class InternalRef(BaseModel):
@@ -160,6 +225,14 @@ class InternalRef(BaseModel):
 
     kind: Literal["page", "assignment", "quiz", "file", "module", "announcement", "discussion"]
     ref: str
+
+
+class Completion(BaseModel):
+    """A module item's requirement (Canvas: must_view, must_submit, min_score, ...)."""
+
+    type: str
+    min_score: float | None = None
+    completed: bool = False
 
 
 class ModuleItem(Dto):
@@ -179,6 +252,13 @@ class ModuleItem(Dto):
     indent: int = 0
     target: InternalRef | None = Field(default=None, description="Where the item opens in-app")
     external_url: str | None = None
+    completion: Completion | None = Field(
+        default=None, description="What finishing the item takes, and whether the user did"
+    )
+    locked: bool = False
+    lock_explanation: LockText = None
+    due_at: datetime | None = None
+    points: float | None = None
 
 
 # The `page_ref` that asks for the course's front page, whatever its slug.
@@ -195,6 +275,7 @@ class PageSummary(Dto):
 class PageDetail(PageSummary):
     html: Html = None
     locked: bool = False
+    lock_explanation: LockText = None
 
 
 class Quiz(Dto):
@@ -205,6 +286,12 @@ class Quiz(Dto):
     lock_at: datetime | None = None
     points: float | None = None
     question_count: int | None = None
+    time_limit: int | None = Field(default=None, description="Minutes; None for no limit")
+    allowed_attempts: int | None = Field(default=None, description="None or -1: unlimited")
+    locked: bool = False
+    lock_explanation: LockText = None
+    # The quiz's assignment: its submission (score, attempts) comes with the assignments.
+    assignment_id: str | None = None
 
 
 class RichText(BaseModel):
@@ -220,6 +307,23 @@ class FileMeta(Dto):
     locked: bool = False
     # Provider-internal download location; never sent to clients.
     download_url: str | None = Field(default=None, exclude=True)
+
+
+class Folder(Dto):
+    name: str
+    path: str = Field(description="Full path below the course's root folder")
+    parent_id: str | None = None
+    files_count: int = 0
+    folders_count: int = 0
+    locked: bool = False
+
+
+class FolderListing(BaseModel):
+    folder: Folder
+    trail: list[Folder] = Field(description="From the root folder down to `folder`")
+    folders: list[Folder]
+    files: list[FileMeta]
+    truncated: bool = False
 
 
 class LmsCalendarEvent(Dto):

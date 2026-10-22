@@ -38,6 +38,7 @@ import { AnnouncementsView } from './views/AnnouncementsView'
 import { AssignmentsView } from './views/AssignmentsView'
 import { OpenInCanvas } from './views/common'
 import { FilePreviewDialog } from './views/FilePreview'
+import { FilesView } from './views/FilesView'
 import { GradesView } from './views/GradesView'
 import { HomeView } from './views/HomeView'
 import { ModulesView } from './views/ModulesView'
@@ -173,6 +174,8 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
       return <AnnouncementsView selected={resolved.ref} />
     case 'assignments':
       return <AssignmentsView selected={resolved.ref} />
+    case 'files':
+      return <FilesView selected={resolved.ref} />
     case 'grades':
       return <GradesView />
     case 'modules':

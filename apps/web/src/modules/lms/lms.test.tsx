@@ -331,7 +331,9 @@ test('the updates banner shows changed assignments of a synced course', async ()
     ),
   )
   renderWithRouter(<LmsUpdatesBanner programId="p1" courseId="c1" />)
-  expect(await screen.findByText('2 imported assignments changed on Canvas')).toBeInTheDocument()
+  expect(
+    await screen.findByText('2 imported assignments have changes or new grades on Canvas'),
+  ).toBeInTheDocument()
   expect(screen.getByText('Lab 1 · Quiz 2')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Review changes' })).toBeInTheDocument()
 })

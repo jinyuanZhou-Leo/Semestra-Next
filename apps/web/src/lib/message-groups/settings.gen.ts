@@ -85,6 +85,8 @@ export const settingsMessages = {
   settings_level_course: m.settings_level_course,
   settings_level_program: m.settings_level_program,
   settings_level_term: m.settings_level_term,
+  settings_lms_allow_writes_description: m.settings_lms_allow_writes_description,
+  settings_lms_allow_writes_label: m.settings_lms_allow_writes_label,
   settings_memory_enabled_description: m.settings_memory_enabled_description,
   settings_memory_enabled_label: m.settings_memory_enabled_label,
   settings_motion_description: m.settings_motion_description,

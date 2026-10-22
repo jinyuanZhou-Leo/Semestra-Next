@@ -4,9 +4,17 @@ through agents or MCP clients."""
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.lms import imports, previews, reads, service
-from semestra.modules.lms.schemas.dto import FileMeta, PageDetail, RichText
+from semestra.modules.lms.schemas.dto import (
+    FileMeta,
+    FolderListing,
+    PageDetail,
+    RichText,
+    SubmissionDetail,
+)
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
+    AnnouncementRead,
+    AnnouncementReadInput,
     AnnouncementsInput,
     AssignmentList,
     AssignmentsImportInput,
@@ -28,7 +36,11 @@ from semestra.modules.lms.schemas.io import (
     ExternalCourseList,
     ExternalCourseListInput,
     FileInput,
+    FileList,
+    FilePreview,
     FileSaveInput,
+    FileSearchInput,
+    FolderInput,
     GradeList,
     ImportStarted,
     LinkSetInput,
@@ -44,6 +56,7 @@ from semestra.modules.lms.schemas.io import (
     QuizList,
     QuizzesInput,
     SavedFile,
+    SubmissionInput,
     UpdatesOutput,
 )
 
@@ -344,6 +357,21 @@ async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementL
 
 
 @capability(
+    name="lms.announcement.mark_read",
+    summary="Mark an announcement read on the LMS.",
+    description="""Only when the user allows Semestra to change things on the platform (account
+setting `lms.allow_writes`), otherwise lms.writes_disabled. Not for agents.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/lms/announcements/{announcement_id}:read"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> AnnouncementRead:
+    await reads.mark_announcement_read(ctx, inp.course_id, inp.announcement_id)
+    return AnnouncementRead(announcement_id=inp.announcement_id, unread=False)
+
+
+@capability(
     name="lms.assignment.list",
     untrusted=True,
     summary="Assignments of a linked course on Canvas or another LMS, marked when imported.",
@@ -356,6 +384,20 @@ the user), never the gradebook or task capabilities directly.""",
 )
 async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     return await reads.assignments(ctx, inp.course_id, inp.refresh)
+
+
+@capability(
+    name="lms.submission.get",
+    untrusted=True,
+    summary="The user's submission of one assignment on the LMS, with the teacher's feedback.",
+    description="""Score, attempts, the teacher's comments and the rubric scores (match
+`rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).""",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/lms/assignments/{assignment_id}/submission"),
+    tags=TAGS,
+)
+async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
+    return await reads.submission(ctx, inp.course_id, inp.assignment_id, inp.refresh)
 
 
 @capability(
@@ -489,6 +531,70 @@ async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
 )
 async def file_get(ctx: Ctx, inp: FileInput) -> FileMeta:
     return await reads.file(ctx, inp.course_id, inp.file_id, inp.refresh)
+
+
+@capability(
+    name="lms.folder.get",
+    summary="A folder of a linked course's files on the LMS: its subfolders and files.",
+    description="""Leave out folder_id for the root folder. Courses that hide their files from
+students fail with lms.forbidden; their files are still reachable through modules.""",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/lms/folders"),
+    tags=TAGS,
+    agent_output_fields=(
+        "truncated",
+        "folder.external_id",
+        "folder.name",
+        "folder.path",
+        "folders.external_id",
+        "folders.name",
+        "folders.files_count",
+        "folders.folders_count",
+        "files.external_id",
+        "files.name",
+        "files.mime_type",
+        "files.size_bytes",
+        "files.updated_at",
+        "files.locked",
+    ),
+)
+async def folder_get(ctx: Ctx, inp: FolderInput) -> FolderListing:
+    return await reads.folder(ctx, inp.course_id, inp.folder_id, inp.refresh)
+
+
+@capability(
+    name="lms.file.search",
+    summary="Find files of a linked course on the LMS by name.",
+    description="",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/lms/files"),
+    tags=TAGS,
+    agent_output_fields=(
+        "truncated",
+        *(
+            f"items.{f}"
+            for f in ("external_id", "name", "mime_type", "size_bytes", "updated_at", "locked")
+        ),
+    ),
+)
+async def file_search(ctx: Ctx, inp: FileSearchInput) -> FileList:
+    return await reads.search_files(ctx, inp.course_id, inp.term, inp.refresh)
+
+
+@capability(
+    name="lms.file.preview",
+    untrusted=True,
+    summary="The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
+    description="""Reads it without saving it. To search it or cite it, save it with
+lms.file.save_to_course instead.""",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/lms/files/{file_id}/preview"),
+    tags=TAGS,
+)
+async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
+    from semestra.modules.lms import files
+
+    return await files.preview(ctx, inp.course_id, inp.file_id, inp.refresh)
 
 
 @capability(

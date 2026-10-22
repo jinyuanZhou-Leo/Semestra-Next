@@ -36,8 +36,11 @@ from semestra.modules.lms.schemas.dto import (
     FRONT_PAGE_REF,
     Announcement,
     Assignment,
+    Completion,
     ConnectionSummary,
     FileMeta,
+    Folder,
+    FolderListing,
     GradeItem,
     InternalRef,
     LmsCalendarEvent,
@@ -51,7 +54,12 @@ from semestra.modules.lms.schemas.dto import (
     PageSummary,
     Quiz,
     RichText,
+    RubricCriterion,
+    RubricRating,
+    RubricScore,
     Submission,
+    SubmissionComment,
+    SubmissionDetail,
 )
 
 MAX_PAGES = 50
@@ -133,6 +141,53 @@ def _num(value: Any) -> float | None:
 def _int(value: Any, default: int = 0) -> int:
     number = _num(value)
     return int(number) if number is not None else default
+
+
+def _opt_int(value: Any) -> int | None:
+    number = _num(value)
+    return int(number) if number is not None else None
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return cast(dict[str, Any], value) if isinstance(value, dict) else {}
+
+
+def _submission(s: dict[str, Any]) -> Submission:
+    return Submission(
+        state=_text(s.get("workflow_state")),
+        submitted_at=s.get("submitted_at"),
+        graded_at=s.get("graded_at"),
+        score=_num(s.get("score")),
+        grade=_text(s.get("grade")),
+        late=bool(s.get("late")),
+        missing=bool(s.get("missing")),
+        attempt=_opt_int(s.get("attempt")),
+    )
+
+
+def _rubric(raw: Any) -> list[RubricCriterion]:
+    out: list[RubricCriterion] = []
+    for c in cast(list[Any], raw if isinstance(raw, list) else []):
+        c = _dict(c)
+        if not c.get("id"):
+            continue
+        out.append(
+            RubricCriterion(
+                id=str(c["id"]),
+                description=_text(c.get("description")) or "",
+                long_description=_text(c.get("long_description")),
+                points=_num(c.get("points")),
+                ratings=[
+                    RubricRating(
+                        id=_text(_dict(r).get("id")),
+                        description=_text(_dict(r).get("description")) or "",
+                        points=_num(_dict(r).get("points")),
+                    )
+                    for r in cast(list[Any], c.get("ratings") or [])
+                ],
+            )
+        )
+    return out
 
 
 DEFAULT_PORTS = {"https": 443, "http": 80}
@@ -260,13 +315,20 @@ class CanvasProvider:
     # --- transport ------------------------------------------------------------------------
 
     async def _send(
-        self, io: Io, url: str, token: str | None, params: Any = None, *, stream: bool = False
+        self,
+        io: Io,
+        url: str,
+        token: str | None,
+        params: Any = None,
+        *,
+        stream: bool = False,
+        method: str = "GET",
     ) -> httpx.Response:
         headers = {"Accept": "application/json"}
         if token is not None:
             headers["Authorization"] = f"Bearer {token}"
         try:
-            request = io.client.build_request("GET", url, params=params, headers=headers)
+            request = io.client.build_request(method, url, params=params, headers=headers)
             return await io.client.send(request, stream=stream)
         except AppError as exc:
             if exc.code == "common.egress_blocked":
@@ -451,19 +513,8 @@ class CanvasProvider:
         out: list[Assignment] = []
         for group in groups:
             for a in cast(list[dict[str, Any]], group.get("assignments") or []):
-                sub = a.get("submission") if isinstance(a.get("submission"), dict) else None
-                submission = None
-                if sub is not None:
-                    s = cast(dict[str, Any], sub)
-                    submission = Submission(
-                        state=_text(s.get("workflow_state")),
-                        submitted_at=s.get("submitted_at"),
-                        graded_at=s.get("graded_at"),
-                        score=_num(s.get("score")),
-                        grade=_text(s.get("grade")),
-                        late=bool(s.get("late")),
-                        missing=bool(s.get("missing")),
-                    )
+                sub = a.get("submission")
+                submission = _submission(_dict(sub)) if isinstance(sub, dict) else None
                 out.append(
                     Assignment(
                         external_id=str(a.get("id") or ""),
@@ -482,6 +533,10 @@ class CanvasProvider:
                         submission=submission,
                         published=a.get("published", True) is not False,
                         updated_at=a.get("updated_at"),
+                        locked=bool(a.get("locked_for_user")),
+                        lock_explanation=_text(a.get("lock_explanation")),
+                        allowed_attempts=_opt_int(a.get("allowed_attempts")),
+                        rubric=_rubric(a.get("rubric")),
                     )
                 )
         return out
@@ -543,6 +598,9 @@ class CanvasProvider:
                 state=_text(r.get("state")) or _text(r.get("workflow_state")),
                 unlock_at=r.get("unlock_at"),
                 item_count=_int(r.get("items_count")),
+                completed_at=r.get("completed_at"),
+                prerequisite_module_ids=[str(i) for i in r.get("prerequisite_module_ids") or []],
+                require_sequential_progress=bool(r.get("require_sequential_progress")),
             )
             for r in rows
         ]
@@ -566,6 +624,8 @@ class CanvasProvider:
                 target = InternalRef(kind="page", ref=str(r["page_url"]))
             elif kind in ("assignment", "quiz", "file", "discussion") and r.get("content_id"):
                 target = InternalRef(kind=kind, ref=str(r["content_id"]))  # pyright: ignore[reportArgumentType]
+            requirement = _dict(r.get("completion_requirement"))
+            details = _dict(r.get("content_details"))
             out.append(
                 ModuleItem(
                     external_id=str(r.get("id") or ""),
@@ -577,6 +637,17 @@ class CanvasProvider:
                     indent=_int(r.get("indent")),
                     target=target,
                     external_url=_text(r.get("external_url")),
+                    completion=Completion(
+                        type=str(requirement["type"]),
+                        min_score=_num(requirement.get("min_score")),
+                        completed=bool(requirement.get("completed")),
+                    )
+                    if requirement.get("type")
+                    else None,
+                    locked=bool(details.get("locked_for_user")),
+                    lock_explanation=_text(details.get("lock_explanation")),
+                    due_at=details.get("due_at"),
+                    points=_num(details.get("points_possible")),
                 )
             )
         return out
@@ -614,6 +685,7 @@ class CanvasProvider:
             **summary.model_dump(),
             html=_text(r.get("body")),
             locked=bool(r.get("locked_for_user")),
+            lock_explanation=_text(r.get("lock_explanation")),
         )
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
@@ -630,6 +702,11 @@ class CanvasProvider:
                 lock_at=r.get("lock_at"),
                 points=_num(r.get("points_possible")),
                 question_count=_int(r.get("question_count")) if r.get("question_count") else None,
+                time_limit=_opt_int(r.get("time_limit")),
+                allowed_attempts=_opt_int(r.get("allowed_attempts")),
+                locked=bool(r.get("locked_for_user")),
+                lock_explanation=_text(r.get("lock_explanation")),
+                assignment_id=_text(r.get("assignment_id")),
             )
             for r in rows
         ]
@@ -653,8 +730,14 @@ class CanvasProvider:
             dict[str, Any],
             await self._get(io, cfg, creds, f"/courses/{quote(course_id)}/files/{quote(file_id)}"),
         )
+        return self._file_meta(cfg, course_id, r, file_id)
+
+    def _file_meta(
+        self, cfg: BaseModel, course_id: str, r: dict[str, Any], file_id: str = ""
+    ) -> FileMeta:
+        file_id = str(r.get("id") or file_id)
         return FileMeta(
-            external_id=str(r.get("id") or file_id),
+            external_id=file_id,
             web_url=f"{_cfg(cfg).base_url}/courses/{course_id}/files/{file_id}",
             raw_kind="file",
             name=_text(r.get("display_name")) or _text(r.get("filename")) or file_id,
@@ -664,6 +747,118 @@ class CanvasProvider:
             locked=bool(r.get("locked_for_user")),
             download_url=_text(r.get("url")),
         )
+
+    def _folder(self, cfg: BaseModel, course_id: str, r: dict[str, Any]) -> Folder:
+        # `full_name` starts with the root folder's name ("course files/Lectures").
+        full = _text(r.get("full_name")) or ""
+        _, _, below = full.partition("/")
+        folder_id = str(r.get("id") or "")
+        return Folder(
+            external_id=folder_id,
+            web_url=f"{_cfg(cfg).base_url}/courses/{course_id}/files/folder/{quote(below)}"
+            if below
+            else f"{_cfg(cfg).base_url}/courses/{course_id}/files",
+            raw_kind="folder",
+            name=_text(r.get("name")) or folder_id,
+            path=below,
+            parent_id=_text(r.get("parent_folder_id")),
+            files_count=_int(r.get("files_count")),
+            folders_count=_int(r.get("folders_count")),
+            locked=bool(r.get("locked_for_user")),
+        )
+
+    async def folder(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
+    ) -> FolderListing:
+        """A folder of the course's files (the root when `folder_id` is None). The folder is
+        looked up under the course first, so only that course's folders can be listed."""
+        course = quote(course_id)
+        raw = await self._get(
+            io, cfg, creds, f"/courses/{course}/folders/{quote(folder_id or 'root')}"
+        )
+        current = self._folder(cfg, course_id, _dict(raw))
+        fid = quote(current.external_id)
+        folders = await self._list(io, cfg, creds, f"/folders/{fid}/folders")
+        files = await self._list(io, cfg, creds, f"/folders/{fid}/files", [("sort", "name")])
+        trail = [current]
+        if current.path:
+            # Every folder from the root down, in one request.
+            by_path = "/".join(quote(p, safe="") for p in current.path.split("/") if p)
+            rows = await self._get(io, cfg, creds, f"/courses/{course}/folders/by_path/{by_path}")
+            trail = [
+                self._folder(cfg, course_id, _dict(r))
+                for r in cast(list[Any], rows if isinstance(rows, list) else [])
+            ] or trail
+        return FolderListing(
+            folder=current,
+            trail=trail,
+            folders=[
+                self._folder(cfg, course_id, f) for f in folders if not f.get("hidden_for_user")
+            ],
+            files=[
+                self._file_meta(cfg, course_id, f) for f in files if not f.get("hidden_for_user")
+            ],
+        )
+
+    async def search_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
+    ) -> list[FileMeta]:
+        rows = await self._list(
+            io,
+            cfg,
+            creds,
+            f"/courses/{quote(course_id)}/files",
+            [("search_term", term), ("sort", "name")],
+        )
+        return [self._file_meta(cfg, course_id, r) for r in rows if not r.get("hidden_for_user")]
+
+    async def submission(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> SubmissionDetail:
+        r = _dict(
+            await self._get(
+                io,
+                cfg,
+                creds,
+                f"/courses/{quote(course_id)}/assignments/{quote(assignment_id)}/submissions/self",
+                [("include[]", "submission_comments"), ("include[]", "rubric_assessment")],
+            )
+        )
+        s = _submission(r)
+        return SubmissionDetail(
+            external_id=str(r.get("id") or assignment_id),
+            raw_kind="submission",
+            assignment_id=assignment_id,
+            **s.model_dump(),
+            comments=[
+                SubmissionComment(
+                    author=_text(_dict(c).get("author_name")),
+                    comment=_text(_dict(c).get("comment")) or "",
+                    created_at=_dict(c).get("created_at"),
+                )
+                for c in cast(list[Any], r.get("submission_comments") or [])
+            ],
+            rubric_scores=[
+                RubricScore(
+                    criterion_id=str(cid),
+                    points=_num(_dict(v).get("points")),
+                    rating_id=_text(_dict(v).get("rating_id")),
+                    comments=_text(_dict(v).get("comments")),
+                )
+                for cid, v in _dict(r.get("rubric_assessment")).items()
+            ],
+        )
+
+    async def mark_announcement_read(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, announcement_id: str
+    ) -> None:
+        url = (
+            f"{_cfg(cfg).base_url}{API_PREFIX}/courses/{quote(course_id)}"
+            f"/discussion_topics/{quote(announcement_id)}/read"
+        )
+        response = await self._send(io, url, _token(creds), method="PUT")
+        if error := _map_status(response):
+            raise error
 
     def _allowed_hop(self, base: str, url: str) -> bool:
         if _origin(url) == _origin(base):

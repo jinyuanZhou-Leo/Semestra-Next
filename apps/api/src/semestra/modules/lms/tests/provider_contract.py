@@ -71,6 +71,16 @@ async def check_provider(
         events = await provider.calendar_events(io, cfg, creds, [course_id], start, end)
         assert all(e.external_course_id == course_id for e in events)
         reads.append(("calendar", events))
+    if "submissions" in f and "assignments" in f:
+        listed = await provider.assignments(io, cfg, creds, course_id)
+        if listed:
+            detail = await provider.submission(io, cfg, creds, course_id, listed[0].external_id)
+            assert detail.assignment_id == listed[0].external_id
+    if "folders" in f:
+        root = await provider.folder(io, cfg, creds, course_id, None)
+        assert root.trail
+        assert root.trail[-1].external_id == root.folder.external_id
+        reads.append(("folders", [*root.folders, *root.files]))
     for feature, items in reads:
         assert isinstance(items, list), feature
         for item in items:  # pyright: ignore[reportUnknownVariableType]

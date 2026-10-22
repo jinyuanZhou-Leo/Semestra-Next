@@ -1,7 +1,8 @@
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { InternalLink } from '@/components/SafeHtml'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { useCanvasPage } from '../context'
 import { refLocation } from '../navigation'
@@ -67,4 +68,22 @@ export function useInternalLinks() {
     go(target)
     return true
   }
+}
+
+/** "Unlimited" for Canvas's -1 (or no value), else the number of attempts allowed. */
+export function attemptsLabel(allowed: number | null | undefined): string {
+  return allowed == null || allowed < 0
+    ? m.canvas_tab_attempts_unlimited()
+    : m.canvas_tab_attempts_allowed({ count: allowed })
+}
+
+/** Why Canvas keeps something locked, in its own words (`lock_explanation`). */
+export function LockNote({ title, explanation }: { title: string; explanation?: string | null }) {
+  return (
+    <Alert>
+      <Lock aria-hidden />
+      <AlertTitle>{title}</AlertTitle>
+      {explanation ? <AlertDescription>{explanation}</AlertDescription> : null}
+    </Alert>
+  )
 }

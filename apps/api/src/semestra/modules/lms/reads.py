@@ -9,13 +9,21 @@ from typing import Any
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
-from semestra.modules.lms import service
+from semestra.modules.lms import cache, html, service
 from semestra.modules.lms.models import LmsImportedRef
-from semestra.modules.lms.schemas.dto import FileMeta, LmsFeature, PageDetail, RichText
+from semestra.modules.lms.schemas.dto import (
+    FileMeta,
+    FolderListing,
+    LmsFeature,
+    PageDetail,
+    RichText,
+    SubmissionDetail,
+)
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
     AssignmentList,
     CourseOverview,
+    FileList,
     GradeList,
     ModuleItemList,
     ModuleList,
@@ -47,7 +55,15 @@ async def _read(
 def _cleaned(b: Bound, items: list[Any], field: str = "html") -> list[Any]:
     for item in items:
         setattr(item, field, b.clean(getattr(item, field)))
+        _lock_text(item)
     return items
+
+
+def _lock_text(item: Any) -> Any:
+    """Lock explanations come as HTML fragments ("…the module <b>Week 2</b>…"): shown as text."""
+    if getattr(item, "lock_explanation", None):
+        item.lock_explanation = html.to_text(item.lock_explanation)
+    return item
 
 
 async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
@@ -151,7 +167,10 @@ async def modules(ctx: Ctx, course_id: str, refresh: bool) -> ModuleList:
 
 async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) -> ModuleItemList:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return await b.provider.module_items(i, b.cfg, b.creds, ext, module_id)
+        return [
+            _lock_text(item)
+            for item in await b.provider.module_items(i, b.cfg, b.creds, ext, module_id)
+        ]
 
     data, truncated, *_ = await _read(
         ctx, course_id, "modules", "module_items", {"module": module_id}, fetch, refresh=refresh
@@ -171,7 +190,7 @@ async def page(ctx: Ctx, course_id: str, ref: str, refresh: bool) -> PageDetail:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         detail = await b.provider.page(i, b.cfg, b.creds, ext, ref)
         detail.html = b.clean(detail.html)
-        return detail
+        return _lock_text(detail)
 
     data, *_ = await _read(ctx, course_id, "pages", "page", {"ref": ref}, fetch, refresh=refresh)
     return PageDetail.model_validate(data)
@@ -243,3 +262,60 @@ async def open_file(
             await client.aclose()
 
     return meta, chunks()
+
+
+async def submission(
+    ctx: Ctx, course_id: str, assignment_id: str, refresh: bool
+) -> SubmissionDetail:
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        return await b.provider.submission(i, b.cfg, b.creds, ext, assignment_id)
+
+    data, *_ = await _read(
+        ctx,
+        course_id,
+        "submissions",
+        "submission",
+        {"assignment": assignment_id},
+        fetch,
+        refresh=refresh,
+    )
+    return SubmissionDetail.model_validate(data)
+
+
+async def folder(ctx: Ctx, course_id: str, folder_id: str | None, refresh: bool) -> FolderListing:
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        return await b.provider.folder(i, b.cfg, b.creds, ext, folder_id)
+
+    data, truncated, *_ = await _read(
+        ctx, course_id, "folders", "folder", {"folder": folder_id}, fetch, refresh=refresh
+    )
+    return FolderListing.model_validate({**data, "truncated": truncated})
+
+
+async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> FileList:
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        return await b.provider.search_files(i, b.cfg, b.creds, ext, term)
+
+    data, truncated, *_ = await _read(
+        ctx, course_id, "folders", "file_search", {"term": term}, fetch, refresh=refresh
+    )
+    return FileList.model_validate({"items": data, "truncated": truncated})
+
+
+# --- writes ---------------------------------------------------------------------------------
+
+
+async def mark_announcement_read(ctx: Ctx, course_id: str, announcement_id: str) -> None:
+    """Marks it read on the platform when the user allows writes (M09 设置 `lms.allow_writes`).
+    The cached list is dropped (not rewritten, which would extend its 5 minutes); the app updates
+    its own copy."""
+    link, b = await service.require_link(ctx, course_id)
+    await service.require_write(ctx, b, "mark_read")
+    ext = link.external_course_id
+    await service.call(
+        ctx,
+        b,
+        lambda i: b.provider.mark_announcement_read(i, b.cfg, b.creds, ext, announcement_id),
+    )
+    key = cache.cache_key(ctx.user_id, b.row.id, "announcements", {"course": ext, "since": None})
+    await cache.drop(ctx, key)

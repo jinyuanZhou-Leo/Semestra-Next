@@ -19,6 +19,7 @@ from semestra.modules.lms.schemas.dto import (
     Assignment,
     ConnectionSummary,
     FileMeta,
+    FolderListing,
     GradeItem,
     InternalRef,
     LmsCalendarEvent,
@@ -31,6 +32,7 @@ from semestra.modules.lms.schemas.dto import (
     PageSummary,
     Quiz,
     RichText,
+    SubmissionDetail,
 )
 
 
@@ -109,6 +111,28 @@ class LmsProvider(Protocol):
     def open_file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> AsyncIterator[bytes]: ...
+    async def submission(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
+    ) -> SubmissionDetail:
+        """The user's own submission with comments and rubric scores (feature `submissions`)."""
+        ...
+
+    async def folder(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
+    ) -> FolderListing:
+        """A folder of the course's files, the root for None (feature `folders`); a folder of
+        another course is `common.not_found`."""
+        ...
+
+    async def search_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
+    ) -> list[FileMeta]: ...
+    async def mark_announcement_read(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, announcement_id: str
+    ) -> None:
+        """Marks it read on the platform (feature `mark_read`, a write)."""
+        ...
+
     async def calendar_events(
         self,
         io: Io,

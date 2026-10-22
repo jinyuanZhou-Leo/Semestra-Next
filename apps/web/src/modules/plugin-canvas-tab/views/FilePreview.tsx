@@ -1,11 +1,12 @@
 import { lmsFileSaveToCourse } from '@semestra/api-client'
-import { lmsFileGetOptions } from '@semestra/api-client/react-query'
+import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
+import { Markdown } from '@/modules/files/components/Markdown'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -25,6 +26,65 @@ import { fileContentUrl } from '../open-in-canvas'
 /** What the browser shows inline; the backend streams anything else as a download (M09). */
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
 const FRAME = new Set(['application/pdf', 'text/plain'])
+/** Read on the server (M07's parser) and shown as text: Office files, CSV, Markdown. */
+const AS_TEXT = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'text/markdown',
+])
+const AS_TEXT_NAME = /\.(docx|pptx|xlsx|csv|md)$/i
+
+function previewKind(file: { name: string; mime_type?: string | null }) {
+  const mime = file.mime_type ?? ''
+  if (IMAGE.test(mime)) return 'image'
+  if (FRAME.has(mime)) return 'frame'
+  if (AS_TEXT.has(mime) || AS_TEXT_NAME.test(file.name)) return 'text'
+  return null
+}
+
+/** The text of an Office file, page by page (slides, sheets), read by the server. */
+function TextPreview({ fileId }: { fileId: string }) {
+  const { courseId, query } = useCanvasPage()
+  const preview = useQuery(
+    lmsFilePreviewOptions({ path: { course_id: courseId, file_id: fileId }, query }),
+  )
+  return (
+    <CanvasBoundary query={preview}>
+      {(p) => {
+        const label =
+          p.kind === 'pptx'
+            ? m.canvas_tab_preview_slide
+            : p.kind === 'xlsx'
+              ? m.canvas_tab_preview_sheet
+              : m.canvas_tab_preview_page
+        return (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">{m.canvas_tab_preview_text_only()}</p>
+            {p.pages.map((page, i) => (
+              // Pages have no id; their order never changes.
+              // oxlint-disable-next-line react/no-array-index-key
+              <section key={i} className="space-y-2 rounded-lg border p-4">
+                {p.pages.length > 1 ? (
+                  <h3 className="text-xs font-medium text-muted-foreground">
+                    {label({ number: i + 1 })}
+                  </h3>
+                ) : null}
+                <Markdown>{page}</Markdown>
+              </section>
+            ))}
+            {p.truncated ? (
+              <p className="text-xs text-muted-foreground">
+                {m.canvas_tab_preview_truncated({ count: p.pages.length })}
+              </p>
+            ) : null}
+          </div>
+        )
+      }}
+    </CanvasBoundary>
+  )
+}
 
 /** "Save to course files": the file is copied into the course's files (M07) and processed there. */
 function useSaveToCourse(fileId: string, name: string) {
@@ -130,19 +190,27 @@ function PreviewBody({ fileId }: { fileId: string }) {
       </DialogHeader>
       <div className="min-h-0 flex-1 overflow-auto">
         <CanvasBoundary query={meta}>
-          {(file) =>
-            IMAGE.test(file.mime_type ?? '') ? (
-              <img
-                src={src}
-                alt={file.name}
-                className="mx-auto max-h-[65vh] max-w-full object-contain"
-              />
-            ) : FRAME.has(file.mime_type ?? '') ? (
-              // The API serves it with `Content-Security-Policy: default-src 'none'`; a sandbox would
-              // stop the browser's PDF viewer.
-              // oxlint-disable-next-line react/iframe-missing-sandbox
-              <iframe src={src} title={file.name} className="h-[65vh] w-full rounded-lg border" />
-            ) : (
+          {(file) => {
+            const kind = previewKind(file)
+            if (kind === 'image') {
+              return (
+                <img
+                  src={src}
+                  alt={file.name}
+                  className="mx-auto max-h-[65vh] max-w-full object-contain"
+                />
+              )
+            }
+            if (kind === 'frame') {
+              return (
+                // The API serves it with `Content-Security-Policy: default-src 'none'`; a sandbox
+                // would stop the browser's PDF viewer.
+                // oxlint-disable-next-line react/iframe-missing-sandbox
+                <iframe src={src} title={file.name} className="h-[65vh] w-full rounded-lg border" />
+              )
+            }
+            if (kind === 'text') return <TextPreview fileId={fileId} />
+            return (
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
@@ -152,7 +220,7 @@ function PreviewBody({ fileId }: { fileId: string }) {
                 </EmptyHeader>
               </Empty>
             )
-          }
+          }}
         </CanvasBoundary>
       </div>
       <DialogFooter>

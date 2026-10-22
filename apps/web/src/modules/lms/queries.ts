@@ -21,6 +21,10 @@ export const LMS_QUERIES = [
   'lmsQuizList',
   'lmsSyllabusGet',
   'lmsFileGet',
+  'lmsSubmissionGet',
+  'lmsFolderGet',
+  'lmsFileSearch',
+  'lmsFilePreview',
 ]
 
 export function invalidateLms(queryClient: QueryClient) {

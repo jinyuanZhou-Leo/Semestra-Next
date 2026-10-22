@@ -10,7 +10,6 @@ import {
 import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
 import { AiAction } from '@/components/AiAction'
-import { SafeHtml } from '@/components/SafeHtml'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { openImport } from '@/modules/imports/launcher'
@@ -22,7 +21,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { OpenInCanvas, useInternalLinks } from './common'
+import { AssignmentDetail } from './AssignmentDetail'
 import { useScrollIntoView } from './scroll'
 
 const features = tableFeatures({})
@@ -155,7 +154,6 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
 function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?: string }) {
   const { programId, courseId, go } = useCanvasPage()
   const queryClient = useQueryClient()
-  const onLink = useInternalLinks()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
@@ -313,15 +311,8 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
                             {expanded ? (
                               <TableRow className="hover:bg-transparent">
                                 <TableCell colSpan={columns.length} className="whitespace-normal">
-                                  <div className="space-y-3 py-2 pl-8">
-                                    {a.html ? (
-                                      <SafeHtml html={a.html} onInternalLink={onLink} />
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground">
-                                        {m.canvas_tab_no_description()}
-                                      </p>
-                                    )}
-                                    {a.web_url ? <OpenInCanvas href={a.web_url} /> : null}
+                                  <div className="py-2 pl-8">
+                                    <AssignmentDetail assignment={a} />
                                   </div>
                                 </TableCell>
                               </TableRow>

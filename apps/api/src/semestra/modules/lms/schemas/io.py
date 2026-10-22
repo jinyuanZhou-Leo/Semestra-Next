@@ -10,6 +10,7 @@ from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
     ConnectionSummary,
+    FileMeta,
     GradeItem,
     LmsCourse,
     LmsFeature,
@@ -263,7 +264,7 @@ class AssignmentOut(Assignment):
 AssignmentField = Literal[
     "web_url", "name", "html", "markdown", "due_at", "unlock_at", "lock_at", "points", "group_id",
     "group_name", "group_weight", "submission_types", "submission", "published", "updated_at",
-    "imported_as",
+    "locked", "lock_explanation", "allowed_attempts", "rubric", "imported_as",
 ]  # fmt: skip
 
 
@@ -320,6 +321,11 @@ QuizField = Literal[
     "lock_at",
     "points",
     "question_count",
+    "time_limit",
+    "allowed_attempts",
+    "locked",
+    "lock_explanation",
+    "assignment_id",
 ]
 
 
@@ -334,17 +340,60 @@ class QuizList(BaseModel):
     truncated: bool
 
 
+FILE_ID = (
+    "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of "
+    "a file from lms.folder.get / lms.file.search"
+)
+
+
 class FileInput(CourseReadInput):
-    file_id: ExternalId = Field(
-        description="External file id: `target.ref` of a file in lms.module_item.list"
+    file_id: ExternalId = Field(description=FILE_ID)
+
+
+class SubmissionInput(CourseReadInput):
+    assignment_id: ExternalId = Field(
+        description="External assignment id (`external_id` of lms.assignment.list)"
     )
+
+
+class FolderInput(CourseReadInput):
+    folder_id: ExternalId | None = Field(
+        default=None, description="External folder id; the course's root folder when left out"
+    )
+
+
+class FileSearchInput(CourseReadInput):
+    term: Annotated[str, Field(min_length=2, max_length=100)] = Field(
+        description="Part of the file name"
+    )
+
+
+class FileList(BaseModel):
+    items: list[FileMeta]
+    truncated: bool
+
+
+class FilePreview(BaseModel):
+    name: str
+    mime_type: str
+    kind: str = Field(description="pdf, docx, pptx, xlsx, csv, html, text or markdown")
+    pages: list[str] = Field(description="Markdown per page (slide, sheet, logical page)")
+    truncated: bool = Field(description="Only the first pages are included")
+
+
+class AnnouncementReadInput(BaseModel):
+    course_id: Id = Field(description="Course id (must be linked)")
+    announcement_id: ExternalId = Field(description="External announcement id")
+
+
+class AnnouncementRead(BaseModel):
+    announcement_id: str
+    unread: bool
 
 
 class FileSaveInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
-    file_id: ExternalId = Field(
-        description="External file id: `target.ref` of a file in lms.module_item.list"
-    )
+    file_id: ExternalId = Field(description=FILE_ID)
     folder_id: Id | None = Field(default=None, description="Course folder, default root")
 
 
@@ -404,7 +453,9 @@ class AssignmentUpdate(BaseModel):
     external_id: str
     name: str
     target: ImportTarget
-    changes: dict[str, FieldUpdate] = Field(description="title, due_at and/or points")
+    changes: dict[str, FieldUpdate] = Field(
+        description="title, due_at, points, weight and/or score (the grade on the platform)"
+    )
 
 
 class UpdatesOutput(BaseModel):

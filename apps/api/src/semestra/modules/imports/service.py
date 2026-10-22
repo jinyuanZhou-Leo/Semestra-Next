@@ -1112,6 +1112,9 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
             changes.setdefault("due_time", old.get("due_time"))
             if not changes["due_date"]:
                 changes["due_time"] = None
+        if "score" in changes:  # {points_earned, points_possible}, or None to clear
+            score = changes.pop("score") or {"points_earned": None, "points_possible": None}
+            changes.update(score)
         name = "grading.assessment.update" if kind == "assessment" else "tasks.item.update"
         out = await deps.call(ctx, name, {f"{kind}_id": target_id, **changes})
         return {"updated_id": out.get("id", target_id)}

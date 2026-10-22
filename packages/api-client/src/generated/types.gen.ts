@@ -535,6 +535,20 @@ export type AnnouncementList = {
 };
 
 /**
+ * AnnouncementRead
+ */
+export type AnnouncementRead = {
+    /**
+     * Announcement Id
+     */
+    announcement_id: string;
+    /**
+     * Unread
+     */
+    unread: boolean;
+};
+
+/**
  * Assessment
  */
 export type Assessment = {
@@ -1062,6 +1076,26 @@ export type AssignmentOut = {
      */
     updated_at?: string | null;
     /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Rubric
+     */
+    rubric?: Array<RubricCriterion>;
+    /**
      * Imported As
      *
      * Where it was imported to, if anywhere
@@ -1085,7 +1119,7 @@ export type AssignmentUpdate = {
     /**
      * Changes
      *
-     * title, due_at and/or points
+     * title, due_at, points, weight and/or score (the grade on the platform)
      */
     changes: {
         [key: string]: FieldUpdate;
@@ -1839,6 +1873,26 @@ export type CommitResult = {
      * Failed
      */
     failed: number;
+};
+
+/**
+ * Completion
+ *
+ * A module item's requirement (Canvas: must_view, must_submit, min_score, ...).
+ */
+export type Completion = {
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Min Score
+     */
+    min_score?: number | null;
+    /**
+     * Completed
+     */
+    completed?: boolean;
 };
 
 /**
@@ -2687,7 +2741,7 @@ export type CourseOverview = {
     /**
      * Features
      */
-    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar'>;
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'mark_read'>;
     course: LmsCourse;
     /**
      * Navigation
@@ -3702,6 +3756,20 @@ export type FieldUpdate = {
 };
 
 /**
+ * FileList
+ */
+export type FileList = {
+    /**
+     * Items
+     */
+    items: Array<FileMeta>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * FileMeta
  */
 export type FileMeta = {
@@ -3741,6 +3809,38 @@ export type FileMeta = {
      * Locked
      */
     locked?: boolean;
+};
+
+/**
+ * FilePreview
+ */
+export type FilePreview = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Kind
+     *
+     * pdf, docx, pptx, xlsx, csv, html, text or markdown
+     */
+    kind: string;
+    /**
+     * Pages
+     *
+     * Markdown per page (slide, sheet, logical page)
+     */
+    pages: Array<string>;
+    /**
+     * Truncated
+     *
+     * Only the first pages are included
+     */
+    truncated: boolean;
 };
 
 /**
@@ -3804,6 +3904,54 @@ export type FilesUsageGet = {
 };
 
 /**
+ * Folder
+ */
+export type Folder = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Path
+     *
+     * Full path below the course's root folder
+     */
+    path: string;
+    /**
+     * Parent Id
+     */
+    parent_id?: string | null;
+    /**
+     * Files Count
+     */
+    files_count?: number;
+    /**
+     * Folders Count
+     */
+    folders_count?: number;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+};
+
+/**
  * FolderCreateInputBody
  */
 export type FolderCreateInputBody = {
@@ -3819,6 +3967,31 @@ export type FolderCreateInputBody = {
      * Parent folder (from files.item.list); null = course root
      */
     parent_id?: string | null;
+};
+
+/**
+ * FolderListing
+ */
+export type FolderListing = {
+    folder: Folder;
+    /**
+     * Trail
+     *
+     * From the root folder down to `folder`
+     */
+    trail: Array<Folder>;
+    /**
+     * Folders
+     */
+    folders: Array<Folder>;
+    /**
+     * Files
+     */
+    files: Array<FileMeta>;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
 };
 
 /**
@@ -5791,6 +5964,8 @@ export type Module = {
     position?: number;
     /**
      * State
+     *
+     * The user's progress: locked, unlocked, started or completed
      */
     state?: string | null;
     /**
@@ -5801,6 +5976,18 @@ export type Module = {
      * Item Count
      */
     item_count?: number;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Prerequisite Module Ids
+     */
+    prerequisite_module_ids?: Array<string>;
+    /**
+     * Require Sequential Progress
+     */
+    require_sequential_progress?: boolean;
 };
 
 /**
@@ -5847,6 +6034,28 @@ export type ModuleItem = {
      * External Url
      */
     external_url?: string | null;
+    /**
+     * What finishing the item takes, and whether the user did
+     */
+    completion?: Completion | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
 };
 
 /**
@@ -6321,6 +6530,12 @@ export type PageDetail = {
      * Locked
      */
     locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
 };
 
 /**
@@ -7116,7 +7331,7 @@ export type ProviderInfo = {
     /**
      * Features
      */
-    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar'>;
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'mark_read'>;
     /**
      * Config Schema
      *
@@ -7253,6 +7468,32 @@ export type Quiz = {
      * Question Count
      */
     question_count?: number | null;
+    /**
+     * Time Limit
+     *
+     * Minutes; None for no limit
+     */
+    time_limit?: number | null;
+    /**
+     * Allowed Attempts
+     *
+     * None or -1: unlimited
+     */
+    allowed_attempts?: number | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     *
+     * Why it is locked, as the platform says
+     */
+    lock_explanation?: string | null;
+    /**
+     * Assignment Id
+     */
+    assignment_id?: string | null;
 };
 
 /**
@@ -7403,6 +7644,72 @@ export type RichText = {
      * Web Url
      */
     web_url?: string | null;
+};
+
+/**
+ * RubricCriterion
+ */
+export type RubricCriterion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Long Description
+     */
+    long_description?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Ratings
+     */
+    ratings?: Array<RubricRating>;
+};
+
+/**
+ * RubricRating
+ */
+export type RubricRating = {
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Points
+     */
+    points?: number | null;
+};
+
+/**
+ * RubricScore
+ */
+export type RubricScore = {
+    /**
+     * Criterion Id
+     */
+    criterion_id: string;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Rating Id
+     */
+    rating_id?: string | null;
+    /**
+     * Comments
+     */
+    comments?: string | null;
 };
 
 /**
@@ -8237,6 +8544,98 @@ export type Submission = {
      * Missing
      */
     missing?: boolean;
+    /**
+     * Attempt
+     *
+     * Attempts made (quizzes, resubmissions)
+     */
+    attempt?: number | null;
+};
+
+/**
+ * SubmissionComment
+ */
+export type SubmissionComment = {
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Comment
+     */
+    comment?: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * SubmissionDetail
+ *
+ * The user's own submission of one assignment, with the teacher's feedback.
+ */
+export type SubmissionDetail = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * Assignment Id
+     */
+    assignment_id: string;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Submitted At
+     */
+    submitted_at?: string | null;
+    /**
+     * Graded At
+     */
+    graded_at?: string | null;
+    /**
+     * Score
+     */
+    score?: number | null;
+    /**
+     * Grade
+     */
+    grade?: string | null;
+    /**
+     * Attempt
+     */
+    attempt?: number | null;
+    /**
+     * Late
+     */
+    late?: boolean;
+    /**
+     * Missing
+     */
+    missing?: boolean;
+    /**
+     * Comments
+     */
+    comments?: Array<SubmissionComment>;
+    /**
+     * Rubric Scores
+     */
+    rubric_scores?: Array<RubricScore>;
 };
 
 /**
@@ -14927,6 +15326,44 @@ export type LmsAnnouncementListResponses = {
 
 export type LmsAnnouncementListResponse = LmsAnnouncementListResponses[keyof LmsAnnouncementListResponses];
 
+export type LmsAnnouncementMarkReadData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * Announcement Id
+         *
+         * External announcement id
+         */
+        announcement_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/announcements/{announcement_id}:read';
+};
+
+export type LmsAnnouncementMarkReadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAnnouncementMarkReadError = LmsAnnouncementMarkReadErrors[keyof LmsAnnouncementMarkReadErrors];
+
+export type LmsAnnouncementMarkReadResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnouncementRead;
+};
+
+export type LmsAnnouncementMarkReadResponse = LmsAnnouncementMarkReadResponses[keyof LmsAnnouncementMarkReadResponses];
+
 export type LmsAssignmentImportData = {
     body: AssignmentsImportInputBody;
     path: {
@@ -14981,7 +15418,7 @@ export type LmsAssignmentListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'imported_as'> | null;
+        fields?: Array<'web_url' | 'name' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'group_id' | 'group_name' | 'group_weight' | 'submission_types' | 'submission' | 'published' | 'updated_at' | 'locked' | 'lock_explanation' | 'allowed_attempts' | 'rubric' | 'imported_as'> | null;
     };
     url: '/courses/{course_id}/lms/assignments';
 };
@@ -15509,7 +15946,7 @@ export type LmsFileGetData = {
         /**
          * File Id
          *
-         * External file id: `target.ref` of a file in lms.module_item.list
+         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
          */
         file_id: string;
     };
@@ -15542,6 +15979,51 @@ export type LmsFileGetResponses = {
 
 export type LmsFileGetResponse = LmsFileGetResponses[keyof LmsFileGetResponses];
 
+export type LmsFilePreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * File Id
+         *
+         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
+         */
+        file_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/files/{file_id}/preview';
+};
+
+export type LmsFilePreviewErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFilePreviewError = LmsFilePreviewErrors[keyof LmsFilePreviewErrors];
+
+export type LmsFilePreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilePreview;
+};
+
+export type LmsFilePreviewResponse = LmsFilePreviewResponses[keyof LmsFilePreviewResponses];
+
 export type LmsFileSaveToCourseData = {
     body: FileSaveInputBody;
     path: {
@@ -15554,7 +16036,7 @@ export type LmsFileSaveToCourseData = {
         /**
          * File Id
          *
-         * External file id: `target.ref` of a file in lms.module_item.list
+         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
          */
         file_id: string;
     };
@@ -15579,6 +16061,96 @@ export type LmsFileSaveToCourseResponses = {
 };
 
 export type LmsFileSaveToCourseResponse = LmsFileSaveToCourseResponses[keyof LmsFileSaveToCourseResponses];
+
+export type LmsFileSearchData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+        /**
+         * Term
+         *
+         * Part of the file name
+         */
+        term: string;
+    };
+    url: '/courses/{course_id}/lms/files';
+};
+
+export type LmsFileSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFileSearchError = LmsFileSearchErrors[keyof LmsFileSearchErrors];
+
+export type LmsFileSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileList;
+};
+
+export type LmsFileSearchResponse = LmsFileSearchResponses[keyof LmsFileSearchResponses];
+
+export type LmsFolderGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+        /**
+         * Folder Id
+         *
+         * External folder id; the course's root folder when left out
+         */
+        folder_id?: string | null;
+    };
+    url: '/courses/{course_id}/lms/folders';
+};
+
+export type LmsFolderGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsFolderGetError = LmsFolderGetErrors[keyof LmsFolderGetErrors];
+
+export type LmsFolderGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderListing;
+};
+
+export type LmsFolderGetResponse = LmsFolderGetResponses[keyof LmsFolderGetResponses];
 
 export type LmsGradeListData = {
     body?: never;
@@ -15930,7 +16502,7 @@ export type LmsQuizListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its external_id); default all but web_url and html. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'question_count'> | null;
+        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'due_at' | 'unlock_at' | 'lock_at' | 'points' | 'question_count' | 'time_limit' | 'allowed_attempts' | 'locked' | 'lock_explanation' | 'assignment_id'> | null;
     };
     url: '/courses/{course_id}/lms/quizzes';
 };
@@ -15952,6 +16524,51 @@ export type LmsQuizListResponses = {
 };
 
 export type LmsQuizListResponse = LmsQuizListResponses[keyof LmsQuizListResponses];
+
+export type LmsSubmissionGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+        /**
+         * Assignment Id
+         *
+         * External assignment id (`external_id` of lms.assignment.list)
+         */
+        assignment_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/assignments/{assignment_id}/submission';
+};
+
+export type LmsSubmissionGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSubmissionGetError = LmsSubmissionGetErrors[keyof LmsSubmissionGetErrors];
+
+export type LmsSubmissionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SubmissionDetail;
+};
+
+export type LmsSubmissionGetResponse = LmsSubmissionGetResponses[keyof LmsSubmissionGetResponses];
 
 export type LmsSyllabusGetData = {
     body?: never;

@@ -721,11 +721,35 @@
       "plugin_id": null
     },
     {
+      "name": "lms__file__preview",
+      "capability": "lms.file.preview",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
+      "plugin_id": null
+    },
+    {
       "name": "lms__file__save_to_course",
       "capability": "lms.file.save_to_course",
       "module": "lms",
       "effect": "write",
       "summary": "Save a file of a linked course into the course's files.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__file__search",
+      "capability": "lms.file.search",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Find files of a linked course on the LMS by name.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__folder__get",
+      "capability": "lms.folder.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "A folder of a linked course's files on the LMS: its subfolders and files.",
       "plugin_id": null
     },
     {
@@ -806,6 +830,14 @@
       "module": "lms",
       "effect": "read",
       "summary": "Quizzes of a linked course.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__submission__get",
+      "capability": "lms.submission.get",
+      "module": "lms",
+      "effect": "read",
+      "summary": "The user's submission of one assignment on the LMS, with the teacher's feedback.",
       "plugin_id": null
     },
     {
@@ -1355,7 +1387,7 @@
         "en": "Use the LMS",
         "zh-CN": "使用学习平台"
       },
-      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, pages, modules, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
+      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, feedback, pages, modules, files, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
       "tools": [
         "lms__course__link__get",
         "lms__course__overview",
@@ -1368,7 +1400,11 @@
         "lms__page__get",
         "lms__quiz__list",
         "lms__syllabus__get",
+        "lms__submission__get",
+        "lms__folder__get",
+        "lms__file__search",
         "lms__file__get",
+        "lms__file__preview",
         "lms__file__save_to_course",
         "lms__course__list",
         "lms__course__link__set",

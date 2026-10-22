@@ -23,8 +23,11 @@ from semestra.modules.lms.cache import purge_expired, runtime
 from semestra.modules.lms.providers import register_lms_provider
 from semestra.modules.lms.providers.canvas import CanvasProvider
 from semestra.modules.lms.service import refresh_all
+from semestra.modules.lms.settings import LmsSettings
+from semestra.modules.settings import register_settings
 
 register_lms_provider(CanvasProvider())
+register_settings(namespace="lms", schema=LmsSettings, levels=("account",))
 
 
 @periodic("lms.refresh_status", every=timedelta(hours=6))
