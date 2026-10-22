@@ -1,0 +1,807 @@
+/* Layout follows a product page: a centred hero over a large app window that leans back and
+   straightens as it scrolls in, then sections of real UI pieces in split layouts, bento cards and a
+   carousel, a dark band for Sem, and a dark closing block. Colours come from the app's tokens. */
+@import './theme.css';
+
+:root {
+  --tint: color-mix(in oklab, var(--primary) 7%, var(--background));
+  --tint-2: color-mix(in oklab, var(--primary) 16%, var(--background));
+  --tint-border: color-mix(in oklab, var(--primary) 9%, var(--border));
+  --band: oklch(0.17 0.012 250);
+  --band-card: oklch(0.215 0.014 250);
+  --band-fg: oklch(0.97 0.003 250);
+  --band-muted: oklch(0.72 0.012 250);
+  --band-border: oklch(1 0 0 / 0.09);
+  --shot-shadow:
+    0 0 0 1px var(--border), 0 1px 2px oklch(0.25 0.03 250 / 0.08),
+    0 24px 48px -20px oklch(0.25 0.04 250 / 0.28);
+  --cut-shadow: drop-shadow(0 1px 2px oklch(0.25 0.03 250 / 0.08))
+    drop-shadow(0 16px 24px oklch(0.25 0.04 250 / 0.16));
+  --window-shadow:
+    0 0 0 1px var(--border), 0 2px 4px oklch(0.25 0.03 250 / 0.06),
+    0 60px 120px -40px oklch(0.3 0.08 245 / 0.45);
+  --outer-radius: 24px;
+}
+.dark {
+  --tint: color-mix(in oklab, var(--primary) 12%, var(--background));
+  --tint-2: color-mix(in oklab, var(--primary) 24%, var(--background));
+  --band: oklch(0.115 0.01 250);
+  --band-card: oklch(0.18 0.012 250);
+  --shot-shadow: 0 0 0 1px var(--border), 0 24px 48px -20px oklch(0 0 0 / 0.8);
+  --cut-shadow: drop-shadow(0 16px 24px oklch(0 0 0 / 0.55));
+  --window-shadow: 0 0 0 1px var(--border), 0 60px 120px -40px oklch(0 0 0 / 0.8);
+}
+
+html {
+  overflow-x: clip;
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+}
+p {
+  margin: 0;
+}
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.wrap {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+
+/* Nav */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 60;
+  background: var(--background);
+}
+.site-nav {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 50;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.site-nav.stuck {
+  border-bottom-color: var(--border);
+}
+
+/* Hero */
+.hero {
+  position: relative;
+  text-align: center;
+  padding-top: 88px;
+  isolation: isolate;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: -60px 0 auto;
+  height: 1100px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      60% 50% at 50% 0%,
+      color-mix(in oklab, var(--primary) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      40% 40% at 85% 30%,
+      color-mix(in oklab, var(--primary) 9%, transparent),
+      transparent 70%
+    );
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px 0 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  font-size: 13px;
+  font-weight: 500;
+}
+.badge b {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge svg,
+.small svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+}
+.hero h1 {
+  font-size: clamp(40px, 6.2vw, 76px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  margin: 28px auto 0;
+  max-width: 13em;
+}
+:lang(zh-CN) .hero h1 {
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+}
+.hero .lede {
+  margin: 24px auto 0;
+  max-width: 34em;
+  font-size: clamp(17px, 1.5vw, 19px);
+  color: var(--muted-foreground);
+}
+.ctas {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 34px;
+  flex-wrap: wrap;
+}
+.small {
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.small:hover {
+  color: var(--foreground);
+}
+
+/* The window leans back and straightens as it scrolls in; two real cards float in front of it. */
+.stage {
+  position: relative;
+  margin: 64px auto 0;
+  max-width: 1120px;
+  perspective: 1600px;
+  perspective-origin: 50% 0%;
+}
+.win {
+  position: relative;
+  transform-style: preserve-3d;
+  transform-origin: 50% 0%;
+  transform: rotateX(var(--rx, 0deg)) scale(var(--s, 1));
+  will-change: transform;
+}
+.win .screen {
+  border-radius: 16px;
+  box-shadow: var(--window-shadow);
+}
+.win .screen img {
+  width: 100%;
+  aspect-ratio: 1.6;
+  object-fit: cover;
+}
+.float {
+  position: absolute;
+  transform: translate3d(var(--fx, 0), var(--fy, 0), var(--fz, 0));
+  will-change: transform;
+}
+.float.a {
+  width: 31%;
+  left: -6%;
+  top: 46%;
+}
+.float.b {
+  width: 50%;
+  right: -7%;
+  top: 72%;
+}
+.stage-gap {
+  height: 120px;
+}
+
+/* Integrations, as plain names */
+.logos {
+  text-align: center;
+}
+.logos p {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.logos ul {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px 44px;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: color-mix(in oklab, var(--foreground) 55%, var(--background));
+}
+
+/* Real UI: framed snippets with a margin of the page, or cut-out pieces with their own corners. */
+.shot {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shot-shadow);
+  background: var(--background);
+}
+.cut {
+  filter: var(--cut-shadow);
+}
+.shot img,
+.cut img {
+  width: 100%;
+}
+
+/* Sections */
+section.s {
+  padding-top: 128px;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+.eyebrow svg {
+  width: 16px;
+  height: 16px;
+}
+.h2 {
+  font-size: clamp(30px, 3.6vw, 46px);
+  line-height: 1.08;
+  margin-top: 14px;
+}
+:lang(zh-CN) .h2 {
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.sub {
+  margin-top: 18px;
+  color: var(--muted-foreground);
+  font-size: 18px;
+  max-width: 34em;
+}
+.head-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* Split: words | layered panel */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 64px;
+  align-items: center;
+}
+.split.flip {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+.split.flip .words {
+  order: 2;
+}
+.bullets {
+  list-style: none;
+  padding: 0;
+  margin: 30px 0 0;
+  display: grid;
+  gap: 16px;
+}
+.bullets li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.bullets .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--tint-2);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+}
+.bullets .ic svg {
+  width: 16px;
+  height: 16px;
+}
+.bullets b {
+  display: block;
+  font-weight: 600;
+}
+.bullets span {
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+.words-cta {
+  margin-top: 32px;
+}
+.panel {
+  position: relative;
+  border-radius: var(--outer-radius);
+  background: linear-gradient(160deg, var(--tint-2), var(--tint) 60%);
+  overflow: hidden;
+  border: 1px solid var(--tint-border);
+}
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    60% 50% at 100% 0%,
+    color-mix(in oklab, var(--primary) 18%, transparent),
+    transparent 70%
+  );
+}
+.layered {
+  height: 540px;
+}
+.layered > div {
+  position: absolute;
+  z-index: 1;
+  will-change: transform;
+}
+
+/* Bento */
+.bento {
+  display: grid;
+  gap: 16px;
+  margin-top: 48px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.card {
+  position: relative;
+  border-radius: var(--outer-radius);
+  background: var(--tint);
+  border: 1px solid var(--tint-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+}
+.card .t {
+  padding: 28px 28px 0;
+}
+.card h3 {
+  font-size: 20px;
+  line-height: 1.25;
+}
+.card .t p {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+.card.text {
+  min-height: 0;
+}
+.span2 {
+  grid-column: span 2;
+}
+.row2 {
+  grid-row: span 2;
+}
+/* A piece of the real UI peeks in from the card's lower right. */
+.peek {
+  margin: 28px 0 0 28px;
+  flex: 1;
+  position: relative;
+  min-height: 160px;
+}
+.peek > div {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% + 40px);
+}
+.peek > .shot {
+  border-radius: 12px 0 0 0;
+}
+.peek.center {
+  margin: 24px 28px 28px;
+  display: grid;
+  place-items: center;
+}
+.peek.center > div {
+  position: static;
+  width: 100%;
+}
+.peek.center > .shot {
+  border-radius: 12px;
+}
+/* Tall pieces sit whole inside the card, scaled to its height. */
+.peek.fit {
+  margin: 24px 28px 28px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 0;
+}
+.peek.fit > div {
+  position: static;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+}
+.peek.fit img {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+.big-ic {
+  margin: auto 28px 28px;
+  padding-top: 28px;
+  box-sizing: content-box;
+  width: 48px;
+  height: 48px;
+}
+.big-ic svg {
+  width: 48px;
+  height: 48px;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--tint-2);
+  color: var(--primary);
+}
+
+/* Carousel: horizontal only, so nothing scrolls vertically inside it and swipes don't chain. */
+.car-nav {
+  display: flex;
+  gap: 8px;
+}
+.track-wrap {
+  margin-top: 48px;
+}
+.track {
+  --edge: max(20px, calc((100vw - 1200px) / 2 + 20px));
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(400px, 82vw);
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding-block: 2px 24px;
+  padding-inline: var(--edge);
+  scroll-padding-inline: var(--edge);
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+.track .card {
+  scroll-snap-align: start;
+  height: 540px;
+}
+
+/* Sem: a dark band (it sets `.dark`, so the shadcn tokens inside are the dark ones). */
+.band {
+  background: var(--band);
+  color: var(--band-fg);
+  margin-top: 128px;
+  padding-block: 112px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.band::before {
+  content: '';
+  position: absolute;
+  inset: -20% 10% auto;
+  height: 600px;
+  z-index: -1;
+  background: radial-gradient(
+    50% 50% at 50% 30%,
+    color-mix(in oklab, var(--primary) 34%, transparent),
+    transparent 70%
+  );
+  filter: blur(20px);
+}
+.band .eyebrow {
+  color: oklch(0.78 0.12 236);
+}
+.band .sub,
+.band .card .t p {
+  color: var(--band-muted);
+}
+.band .card {
+  background: var(--band-card);
+  border-color: var(--band-border);
+}
+.band .big-ic svg {
+  background: oklch(1 0 0 / 0.07);
+  color: oklch(0.8 0.11 236);
+}
+.band .shot {
+  box-shadow:
+    0 0 0 1px var(--band-border),
+    0 24px 48px -20px oklch(0 0 0 / 0.7);
+}
+.showcase {
+  margin-top: 96px;
+  text-align: center;
+}
+.showcase .h2 {
+  font-size: clamp(24px, 2.6vw, 34px);
+}
+.showcase .sub {
+  margin-inline: auto;
+  max-width: 40em;
+}
+.showcase .shot {
+  margin-top: 40px;
+  border-radius: 16px;
+}
+
+/* Everyday */
+.mini {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 48px;
+}
+.mini .card {
+  min-height: 0;
+  padding: 26px 26px 28px;
+  gap: 10px;
+  background: var(--background);
+  border-color: var(--border);
+}
+.mini .ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--tint-2);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+}
+.mini .ic svg {
+  width: 18px;
+  height: 18px;
+}
+.mini h3 {
+  font-size: 18px;
+}
+.mini p {
+  color: var(--muted-foreground);
+  font-size: 15px;
+}
+
+/* Closing */
+.close {
+  margin-top: 128px;
+}
+.close .box {
+  position: relative;
+  border-radius: var(--outer-radius);
+  background: var(--band);
+  color: var(--band-fg);
+  text-align: center;
+  padding: 96px 24px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.close .box::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 900px;
+  height: 520px;
+  transform: translate(-50%, -55%);
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--primary) 60%, transparent),
+    transparent
+  );
+  filter: blur(30px);
+}
+.close .tile {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  margin: 0 auto;
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--primary) 70%, white),
+    var(--primary)
+  );
+  color: var(--primary-foreground);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 16px 40px -12px color-mix(in oklab, var(--primary) 70%, transparent);
+}
+.close .tile svg {
+  width: 36px;
+  height: 36px;
+}
+.close h2 {
+  font-size: clamp(32px, 4.4vw, 56px);
+  margin-top: 32px;
+  line-height: 1.08;
+}
+.close p {
+  color: var(--band-muted);
+  margin-top: 16px;
+  font-size: 18px;
+}
+
+footer {
+  margin-top: 96px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+footer .cols {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr);
+  gap: 32px;
+  padding-block: 56px;
+}
+footer .mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+footer .mark svg {
+  width: 22px;
+  height: 22px;
+  color: var(--primary);
+}
+footer h4 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  color: var(--muted-foreground);
+}
+footer ul a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+footer ul a:hover {
+  color: var(--foreground);
+}
+footer ul svg {
+  width: 13px;
+  height: 13px;
+}
+footer .about p {
+  color: var(--muted-foreground);
+  margin-top: 12px;
+  max-width: 26em;
+}
+footer .legal {
+  border-top: 1px solid var(--border);
+  padding-block: 22px 32px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+/* Reveal on scroll */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--d, 0) * 90ms);
+}
+.js [data-reveal].in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    padding-top: 56px;
+  }
+  .float.a {
+    display: none;
+  }
+  .float.b {
+    width: 78%;
+    right: -4%;
+    top: 78%;
+  }
+  .stage-gap {
+    height: 72px;
+  }
+  section.s {
+    padding-top: 96px;
+  }
+  .split,
+  .split.flip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+  .split.flip .words {
+    order: 0;
+  }
+  .layered {
+    height: 380px;
+  }
+  .bento,
+  .mini {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .span2 {
+    grid-column: auto;
+  }
+  .row2 {
+    grid-row: auto;
+  }
+  .band {
+    margin-top: 96px;
+    padding-block: 88px;
+  }
+  footer .cols {
+    grid-template-columns: 1fr 1fr;
+  }
+  footer .about {
+    grid-column: 1 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .win,
+  .float,
+  .layered > div {
+    transform: none !important;
+  }
+}
