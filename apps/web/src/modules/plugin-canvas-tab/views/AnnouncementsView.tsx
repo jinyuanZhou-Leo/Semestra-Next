@@ -1,6 +1,12 @@
-import { lmsAnnouncementListOptions } from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { type AnnouncementList, lmsAnnouncementMarkRead } from '@semestra/api-client'
+import {
+  lmsAnnouncementListOptions,
+  lmsAnnouncementListQueryKey,
+  settingsValueGetOptions,
+} from '@semestra/api-client/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
+import { useEffect } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -10,6 +16,43 @@ import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { DetailHeader, useInternalLinks } from './common'
 
+/** The account setting `lms.allow_writes`: may Semestra change things on the platform (M09). */
+function useWritesAllowed(): boolean {
+  const values = useQuery({
+    ...settingsValueGetOptions({ path: { namespace: 'lms' } }),
+    staleTime: 60_000,
+  }).data?.values as { allow_writes?: boolean } | undefined
+  return values?.allow_writes ?? false
+}
+
+/**
+ * Opening an unread announcement marks it read on Canvas too, when the user allowed writes; the
+ * lists here and on the course board drop the dot without refetching.
+ */
+function useMarkRead(courseId: string, id: string | undefined, unread: boolean) {
+  const queryClient = useQueryClient()
+  const allowed = useWritesAllowed()
+  useEffect(() => {
+    if (!id || !unread || !allowed) return
+    lmsAnnouncementMarkRead({
+      path: { course_id: courseId, announcement_id: id },
+      throwOnError: true,
+    }).then(
+      () =>
+        queryClient.setQueriesData<AnnouncementList>(
+          { queryKey: lmsAnnouncementListQueryKey({ path: { course_id: courseId } }) },
+          (list) =>
+            list && {
+              ...list,
+              items: list.items.map((a) => (a.external_id === id ? { ...a, unread: false } : a)),
+            },
+        ),
+      // Best effort: the announcement is open either way, and stays unread on Canvas.
+      () => {},
+    )
+  }, [courseId, id, unread, allowed, queryClient])
+}
+
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
   const { courseId, query, go } = useCanvasPage()
@@ -18,6 +61,8 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
     ...lmsAnnouncementListOptions({ path: { course_id: courseId }, query }),
     placeholderData: keepPreviousData,
   })
+  const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined
+  useMarkRead(courseId, opened?.external_id, opened?.unread ?? false)
   return (
     <CanvasBoundary
       query={list}

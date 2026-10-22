@@ -1,14 +1,17 @@
-import type { Module, ModuleItem } from '@semestra/api-client'
+import type { Completion, Module, ModuleItem } from '@semestra/api-client'
 import { lmsModuleItemListOptions, lmsModuleListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   ChevronDown,
   ChevronRight,
+  Circle,
+  CircleCheck,
   ClipboardList,
   ExternalLink,
   FileText,
   Layers,
   Link as LinkIcon,
+  Lock,
   ListChecks,
   MessagesSquare,
   Paperclip,
@@ -29,7 +32,9 @@ import {
 } from '@/ui/alert-dialog'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
+import { Badge } from '@/ui/badge'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { refLocation } from '../navigation'
@@ -61,20 +66,24 @@ export function ModulesView({ selected }: { selected?: string }) {
           </Empty>
         }
       >
-        {(data) => (
-          <div className="space-y-2">
-            {data.items
-              .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
-              .map((module) => (
-                <ModuleSection
-                  key={module.external_id}
-                  module={module}
-                  focused={selected === module.external_id}
-                  onExternal={setConfirmUrl}
-                />
-              ))}
-          </div>
-        )}
+        {(data) => {
+          const names = new Map(data.items.map((mod) => [mod.external_id, mod.name]))
+          return (
+            <div className="space-y-2">
+              {data.items
+                .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                .map((module) => (
+                  <ModuleSection
+                    key={module.external_id}
+                    module={module}
+                    names={names}
+                    focused={selected === module.external_id}
+                    onExternal={setConfirmUrl}
+                  />
+                ))}
+            </div>
+          )
+        }}
       </CanvasBoundary>
       <AlertDialog open={confirmUrl !== null} onOpenChange={(open) => !open && setConfirmUrl(null)}>
         <AlertDialogContent>
@@ -99,12 +108,33 @@ export function ModulesView({ selected }: { selected?: string }) {
   )
 }
 
+/** The user's progress in a module, as Canvas reports it; nothing for "unlocked". */
+function ModuleState({ module }: { module: Module }) {
+  if (module.state === 'completed') {
+    return <Badge variant="secondary">{m.canvas_tab_module_completed()}</Badge>
+  }
+  if (module.state === 'started') {
+    return <Badge variant="outline">{m.canvas_tab_module_started()}</Badge>
+  }
+  if (module.state === 'locked') {
+    return (
+      <Badge variant="outline">
+        <Lock aria-hidden />
+        {m.canvas_tab_module_locked()}
+      </Badge>
+    )
+  }
+  return null
+}
+
 function ModuleSection({
   module,
+  names,
   focused,
   onExternal,
 }: {
   module: Module
+  names: ReadonlyMap<string, string>
   focused: boolean
   onExternal: (url: string) => void
 }) {
@@ -116,6 +146,15 @@ function ModuleSection({
   ]
     .filter(Boolean)
     .join(' · ')
+  const prerequisites = (module.prerequisite_module_ids ?? [])
+    .map((id) => names.get(id))
+    .filter((name): name is string => Boolean(name))
+  const notes = [
+    prerequisites.length > 0
+      ? m.canvas_tab_module_prerequisites({ names: prerequisites.join(', ') })
+      : null,
+    module.require_sequential_progress ? m.canvas_tab_module_sequential() : null,
+  ].filter(Boolean)
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div ref={ref} className="rounded-xl border">
@@ -134,10 +173,14 @@ function ModuleSection({
             <ChevronRight aria-hidden className="size-4 shrink-0" />
           )}
           <span className="min-w-0 flex-1 truncate font-medium">{module.name}</span>
+          <ModuleState module={module} />
           <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="border-t px-3 py-2">
+          <div className="space-y-2 border-t px-3 py-2">
+            {notes.length > 0 ? (
+              <p className="text-xs text-muted-foreground">{notes.join(' · ')}</p>
+            ) : null}
             <ModuleItems moduleId={module.external_id} onExternal={onExternal} />
           </div>
         </CollapsibleContent>
@@ -147,6 +190,7 @@ function ModuleSection({
 }
 
 const ICONS = {
+  subheader: FileText,
   page: FileText,
   assignment: ClipboardList,
   quiz: ListChecks,
@@ -191,6 +235,78 @@ function ModuleItems({
   )
 }
 
+/** What finishing an item takes in Canvas (`completion_requirement.type`). */
+function requirementLabel(c: Completion): string {
+  switch (c.type) {
+    case 'must_view':
+      return m.canvas_tab_requirement_view()
+    case 'must_submit':
+      return m.canvas_tab_requirement_submit()
+    case 'must_contribute':
+      return m.canvas_tab_requirement_contribute()
+    case 'must_mark_done':
+      return m.canvas_tab_requirement_mark_done()
+    case 'min_score':
+      return m.canvas_tab_requirement_min_score({ score: c.min_score ?? 0 })
+    default:
+      return m.canvas_tab_requirement_other()
+  }
+}
+
+/** Due date, points, the lock and the completion check after an item's title. */
+function ItemStatus({ item }: { item: ModuleItem }) {
+  const meta = [
+    item.due_at ? m.canvas_tab_due_at({ time: formatDateTime(item.due_at) }) : null,
+    item.points != null ? m.canvas_tab_points({ points: item.points }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const completion = item.completion
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+      {meta ? <span className="hidden sm:inline">{meta}</span> : null}
+      {item.locked ? (
+        <Tooltip>
+          <TooltipTrigger
+            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label={item.lock_explanation || m.canvas_tab_item_locked()}
+          >
+            <Lock aria-hidden className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            {item.lock_explanation || m.canvas_tab_item_locked()}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+      {completion ? (
+        <Tooltip>
+          <TooltipTrigger
+            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label={`${requirementLabel(completion)}: ${
+              completion.completed
+                ? m.canvas_tab_requirement_done()
+                : m.canvas_tab_requirement_todo()
+            }`}
+          >
+            {completion.completed ? (
+              <CircleCheck aria-hidden className="size-4 text-primary" />
+            ) : (
+              <Circle aria-hidden className="size-4" />
+            )}
+          </TooltipTrigger>
+          <TooltipContent>
+            {requirementLabel(completion)}
+            {' · '}
+            {completion.completed
+              ? m.canvas_tab_requirement_done()
+              : m.canvas_tab_requirement_todo()}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+    </span>
+  )
+}
+
 function ModuleItemRow({
   item,
   onExternal,
@@ -198,10 +314,27 @@ function ModuleItemRow({
   item: ModuleItem
   onExternal: (url: string) => void
 }) {
-  const { go } = useCanvasPage()
   if (item.kind === 'subheader') {
     return <p className="pt-2 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
   }
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <ModuleItemLink item={item} onExternal={onExternal} />
+      </div>
+      <ItemStatus item={item} />
+    </div>
+  )
+}
+
+function ModuleItemLink({
+  item,
+  onExternal,
+}: {
+  item: ModuleItem
+  onExternal: (url: string) => void
+}) {
+  const { go } = useCanvasPage()
   const Icon = ICONS[item.kind]
   const label = (
     <>

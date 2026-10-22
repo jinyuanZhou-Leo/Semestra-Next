@@ -293,6 +293,14 @@ function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }
 
 function display(value: unknown): string {
   if (value == null) return ''
+  if (typeof value === 'object' && 'points_earned' in value) {
+    // A grade from the platform (M09): {points_earned, points_possible}.
+    const { points_earned: earned, points_possible: possible } = value as {
+      points_earned: unknown
+      points_possible?: unknown
+    }
+    return possible == null ? String(earned) : `${String(earned)} / ${String(possible)}`
+  }
   if (Array.isArray(value)) {
     return value
       .map((v) =>

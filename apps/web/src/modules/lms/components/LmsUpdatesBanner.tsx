@@ -13,7 +13,7 @@ import { useProviderName } from '../providers'
 import { reviewUpdates } from '../import/sources'
 
 /**
- * "N imported assignments changed on {provider}" with a button to the review (M09 §7.2). Shared
+ * "N imported assignments have changes or new grades on {provider}" with a button to the review (M09 §7.2). Shared
  * by the gradebook and the Canvas tab (M16); renders nothing for unlinked or paused courses.
  */
 export function LmsUpdatesBanner({ programId, courseId }: { programId: string; courseId: string }) {

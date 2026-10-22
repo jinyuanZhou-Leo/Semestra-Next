@@ -5,6 +5,7 @@ export const NATIVE_VIEWS = [
   'home',
   'announcements',
   'assignments',
+  'files',
   'grades',
   'modules',
   'pages',
@@ -13,8 +14,8 @@ export const NATIVE_VIEWS = [
 ] as const
 export type NativeView = (typeof NATIVE_VIEWS)[number]
 
-/** Hidden like in the old Canvas tab: files are reached through modules, discussions in Canvas. */
-const HIDDEN_KINDS: ReadonlySet<string> = new Set(['files', 'discussions'])
+/** Discussions are read and written in Canvas. */
+const HIDDEN_KINDS: ReadonlySet<string> = new Set(['discussions'])
 
 function isNative(kind: string): kind is NativeView {
   return (NATIVE_VIEWS as readonly string[]).includes(kind)
@@ -30,7 +31,7 @@ export type NavEntry =
   | { key: NativeView; kind: 'native'; label: string; tab: NavTab }
   | { key: string; kind: 'external' | 'unknown'; label: string; tab: NavTab }
 
-/** The course menu as Canvas has it, minus hidden tabs, files and discussions. */
+/** The course menu as Canvas has it, minus hidden tabs and discussions. */
 export function navEntries(tabs: readonly NavTab[]): NavEntry[] {
   const seen = new Set<string>()
   const entries: NavEntry[] = []

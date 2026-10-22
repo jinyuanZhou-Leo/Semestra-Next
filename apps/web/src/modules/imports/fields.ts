@@ -61,4 +61,5 @@ export const PATCH_LABELS: Record<string, () => string> = {
   instructors: m.imports_field_instructors,
   description: m.imports_field_description,
   website_url: m.imports_field_website,
+  score: m.imports_field_score,
 }

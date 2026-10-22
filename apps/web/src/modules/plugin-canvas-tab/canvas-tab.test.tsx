@@ -111,10 +111,23 @@ const ANNOUNCEMENTS = {
 }
 
 let saved: Record<string, unknown> = {}
+let allowWrites = false
+
+function lmsSettings() {
+  return {
+    namespace: 'lms',
+    scope_type: 'account',
+    scope_id: null,
+    values: { allow_writes: allowWrites },
+    sources: { allow_writes: allowWrites ? 'account' : 'default' },
+    inherited: {},
+  }
+}
 const puts = vi.fn<(key: string, value: unknown) => void>()
 
 beforeEach(() => {
   saved = {}
+  allowWrites = false
   puts.mockClear()
   server.use(
     http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
@@ -139,6 +152,7 @@ beforeEach(() => {
     ),
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview())),
     http.get(`${API}/courses/c1/lms/announcements`, () => HttpResponse.json(ANNOUNCEMENTS)),
+    http.get(`${API}/settings/lms`, () => HttpResponse.json(lmsSettings())),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
         items: [
@@ -178,12 +192,13 @@ function renderPage(path = '/') {
 
 // --- pure rules ------------------------------------------------------------------------------
 
-test('the menu mirrors Canvas: native views, external tools, unknown tabs; files and discussions hidden', () => {
+test('the menu mirrors Canvas: native views, external tools, unknown tabs; discussions hidden', () => {
   const entries = navEntries(NAV)
   expect(entries.map((e) => e.label)).toEqual([
     'Home',
     'Announcements',
     'Assignments',
+    'Files',
     'Modules',
     'Pages',
     'Syllabus',
@@ -259,7 +274,7 @@ test('the home of a feed course lists announcements; HTML is cleaned and Canvas 
   )
   const { router } = renderPage()
   const nav = await screen.findByRole('navigation', { name: 'Course menu' })
-  expect(within(nav).queryByRole('button', { name: 'Files' })).toBeNull()
+  expect(within(nav).getByRole('button', { name: 'Files' })).toBeInTheDocument()
   expect(within(nav).queryByRole('button', { name: 'Discussions' })).toBeNull()
   expect(within(nav).getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
 
@@ -490,4 +505,217 @@ test('smart import of the syllabus opens its review', async () => {
     ),
   )
   expect(started).toHaveBeenCalledOnce()
+})
+
+async function openUnreadAnnouncement() {
+  const reads = vi.fn<() => void>()
+  server.use(
+    http.post(`${API}/courses/c1/lms/announcements/a1\\:read`, () => {
+      reads()
+      return HttpResponse.json({ announcement_id: 'a1', unread: false })
+    }),
+  )
+  const { queryClient } = renderPage('/?tab=announcements&ref=a1')
+  expect(await screen.findByRole('heading', { name: 'Midterm room change' })).toBeInTheDocument()
+  await waitFor(() =>
+    expect(queryClient.isFetching({ queryKey: [{ _id: 'settingsValueGet' }] })).toBe(0),
+  )
+  return reads
+}
+
+test('opening an unread announcement marks it read on Canvas when writes are allowed', async () => {
+  allowWrites = true
+  const reads = await openUnreadAnnouncement()
+  await waitFor(() => expect(reads).toHaveBeenCalledOnce())
+  await userEvent.click(screen.getByRole('button', { name: 'Back' }))
+  expect(await screen.findByText('Midterm room change')).toBeInTheDocument()
+  expect(screen.queryByText('Unread')).toBeNull()
+})
+
+test('without the setting, opening an announcement changes nothing on Canvas', async () => {
+  const reads = await openUnreadAnnouncement()
+  expect(reads).not.toHaveBeenCalled()
+})
+
+test('an opened assignment shows when and how to submit, the lock, the grade, comments and rubric', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/lms/assignments`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            external_id: 'x1',
+            name: 'Essay',
+            points: 20,
+            submission_types: ['online_upload', 'online_url'],
+            allowed_attempts: 2,
+            locked: true,
+            lock_explanation: 'This assignment was locked Oct 20 at 11:59pm.',
+            rubric: [
+              {
+                id: 'c1',
+                description: 'Argument',
+                points: 10,
+                ratings: [
+                  { id: 'r1', description: 'Strong', points: 10 },
+                  { id: 'r2', description: 'Weak', points: 4 },
+                ],
+              },
+            ],
+            submission: { state: 'graded', score: 17 },
+            imported_as: [],
+          },
+        ],
+        truncated: false,
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/assignments/x1/submission`, () =>
+      HttpResponse.json({
+        external_id: 's1',
+        assignment_id: 'x1',
+        state: 'graded',
+        score: 17,
+        grade: '17',
+        attempt: 1,
+        comments: [{ author: 'TA Kim', comment: 'Nice structure.' }],
+        rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1', comments: 'Clear' }],
+      }),
+    ),
+  )
+  renderPage('/?tab=assignments&ref=x1')
+  expect(await screen.findByText('File upload, Website URL')).toBeInTheDocument()
+  expect(screen.getByText('2 allowed')).toBeInTheDocument()
+  expect(screen.getByText('This assignment was locked Oct 20 at 11:59pm.')).toBeInTheDocument()
+  expect(await screen.findByText('Nice structure.')).toBeInTheDocument()
+  expect(screen.getByText('Score 17 / 20 · Attempt 1')).toBeInTheDocument()
+  const rubric = screen.getByRole('row', { name: /Argument/ })
+  expect(within(rubric).getByText('Strong')).toBeInTheDocument()
+  expect(within(rubric).getByText('8 / 10')).toBeInTheDocument()
+  expect(within(rubric).getByText('Clear')).toBeInTheDocument()
+})
+
+test('modules show progress, prerequisites, locks and what finishing an item takes', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/lms/modules`, () =>
+      HttpResponse.json({
+        items: [
+          { external_id: 'm1', name: 'Week 1', position: 1, item_count: 1, state: 'completed' },
+          {
+            external_id: 'm2',
+            name: 'Week 2',
+            position: 2,
+            item_count: 1,
+            state: 'locked',
+            prerequisite_module_ids: ['m1'],
+            require_sequential_progress: true,
+          },
+        ],
+        truncated: false,
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/modules/m2/items`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            external_id: 'i2',
+            title: 'Quiz 2',
+            kind: 'quiz',
+            target: { kind: 'quiz', ref: 'q2' },
+            locked: true,
+            lock_explanation: 'Finish Week 1 first.',
+            completion: { type: 'min_score', min_score: 7, completed: false },
+          },
+        ],
+        truncated: false,
+      }),
+    ),
+  )
+  renderPage('/?tab=modules&ref=m2')
+  expect(await screen.findByText('Completed')).toBeInTheDocument()
+  expect(screen.getByText('Locked')).toBeInTheDocument()
+  expect(
+    await screen.findByText('Finish first: Week 1 · Items must be done in order'),
+  ).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Finish Week 1 first.' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Score at least 7: not done yet' })).toBeInTheDocument()
+})
+
+test('the files tab browses folders and searches by name', async () => {
+  const root = {
+    external_id: 'f0',
+    name: 'course files',
+    path: '',
+    files_count: 0,
+    folders_count: 1,
+  }
+  const lectures = {
+    external_id: 'f1',
+    name: 'Lectures',
+    path: 'Lectures',
+    parent_id: 'f0',
+    files_count: 1,
+    folders_count: 0,
+  }
+  server.use(
+    http.get(`${API}/courses/c1/lms/folders`, ({ request }) => {
+      const id = new URL(request.url).searchParams.get('folder_id')
+      return HttpResponse.json(
+        id === 'f1'
+          ? {
+              folder: lectures,
+              trail: [root, lectures],
+              folders: [],
+              files: [{ external_id: 'd1', name: 'week1.pptx', size_bytes: 2048 }],
+            }
+          : { folder: root, trail: [root], folders: [lectures], files: [] },
+      )
+    }),
+    http.get(`${API}/courses/c1/lms/files`, () =>
+      HttpResponse.json({
+        items: [{ external_id: 'd9', name: 'syllabus.docx' }],
+        truncated: false,
+      }),
+    ),
+  )
+  renderPage('/?tab=files')
+  await userEvent.click(await screen.findByRole('button', { name: /Lectures/ }))
+  expect(await screen.findByText('week1.pptx')).toBeInTheDocument()
+  const trail = screen.getByRole('navigation', { name: 'breadcrumb' })
+  expect(within(trail).getByRole('button', { name: 'Files' })).toBeInTheDocument()
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search course files' }), 'syl')
+  expect(await screen.findByText('syllabus.docx')).toBeInTheDocument()
+})
+
+test('a PowerPoint opens as text, slide by slide', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/lms/files/d1`, () =>
+      HttpResponse.json({
+        external_id: 'd1',
+        name: 'week1.pptx',
+        mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/files/d1/preview`, () =>
+      HttpResponse.json({
+        name: 'week1.pptx',
+        mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        kind: 'pptx',
+        pages: ['# Intro', 'Pointers'],
+        truncated: false,
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/folders`, () =>
+      HttpResponse.json({
+        folder: { external_id: 'f0', name: 'course files', path: '' },
+        trail: [],
+        folders: [],
+        files: [{ external_id: 'd1', name: 'week1.pptx' }],
+      }),
+    ),
+  )
+  renderPage('/?tab=files')
+  await userEvent.click(await screen.findByRole('button', { name: 'Preview week1.pptx' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByRole('heading', { name: 'Intro' })).toBeInTheDocument()
+  expect(within(dialog).getByText('Slide 2')).toBeInTheDocument()
+  expect(within(dialog).getByText('Pointers')).toBeInTheDocument()
 })
