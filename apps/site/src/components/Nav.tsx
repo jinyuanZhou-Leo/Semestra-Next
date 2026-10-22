@@ -53,7 +53,10 @@ export function Nav({ lang }: { lang: Lang }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(Object.keys(langName) as Lang[]).map((l) => (
-                <DropdownMenuItem key={l} render={<a href={home(l)} hrefLang={l} aria-label={langName[l]} />}>
+                <DropdownMenuItem
+                  key={l}
+                  render={<a href={home(l)} hrefLang={l} aria-label={langName[l]} />}
+                >
                   {langName[l]}
                   {l === lang && <Check className="ml-auto" />}
                 </DropdownMenuItem>
