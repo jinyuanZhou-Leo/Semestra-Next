@@ -438,7 +438,7 @@
   "settings_whats_new_title": "Semestra {version} 更新了什么",
   "settings_whats_new_several": "你上次打开之后有 {count} 次更新",
   "settings_whats_new_more": "更早的更新在「设置 › 关于」里。",
-  "settings_whats_new_all": "完整更新日志",
+  "settings_whats_new_all": "查看全部更新",
   "settings_whats_new_close": "知道了",
   "error_settings_unknown_namespace": "没有这项设置。",
   "error_settings_level_not_allowed": "这项设置不能在该层级修改。",

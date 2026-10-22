@@ -32,9 +32,10 @@ export function ReleaseNotes({ release, className }: { release: Release; classNa
             {KIND_TITLES[kind]()}
           </h4>
           <ul className="space-y-1.5 text-sm">
-            {items.map((item) => (
+            {items.map((item, index) => (
               <li
-                key={item.en}
+                // Static list; two notes can share their text ("Fixed a typo.").
+                key={index}
                 className="relative pl-4 leading-relaxed before:absolute before:top-[calc(0.5lh-2px)] before:left-1 before:size-1 before:rounded-full before:bg-border"
               >
                 {itemText(item)}

@@ -111,7 +111,9 @@ export default function WhatsNewDialog({
           </DialogTitle>
           <DialogDescription>
             {several
-              ? m.settings_whats_new_several({ count: announcement.releases.length })
+              ? m.settings_whats_new_several({
+                  count: announcement.releases.length + announcement.more,
+                })
               : formatDate(latest.date)}
           </DialogDescription>
         </DialogHeader>

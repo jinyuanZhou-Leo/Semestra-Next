@@ -5,6 +5,8 @@ name: Version
 # .changeset/README.md.
 on:
   push: { branches: [main] }
+  # Run by hand right before merging an old version PR to refresh its release date.
+  workflow_dispatch:
 
 concurrency:
   group: version
@@ -35,10 +37,15 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm release:version
+        env:
+          # The release date in release-notes/<version>.json is a calendar day in this zone.
+          RELEASE_TIMEZONE: America/Toronto
           pr-title: Release (version packages)
           commit-message: "chore: version packages"
+      # Runs on every push: `tag` does nothing unless this commit's version has release notes and
+      # no tag yet. (`has-changesets` stays true while only empty changesets are pending, so
+      # gating on it could skip a release for good.)
       - id: tag
-        if: steps.changesets.outputs.has-changesets == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

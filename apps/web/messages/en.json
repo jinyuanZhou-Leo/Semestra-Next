@@ -438,7 +438,7 @@
   "settings_whats_new_title": "What's new in Semestra {version}",
   "settings_whats_new_several": "{count} updates since you last opened Semestra",
   "settings_whats_new_more": "Older updates are listed under Settings › About.",
-  "settings_whats_new_all": "Full changelog",
+  "settings_whats_new_all": "All updates",
   "settings_whats_new_close": "Got it",
   "error_settings_unknown_namespace": "That setting doesn't exist.",
   "error_settings_level_not_allowed": "This setting can't be changed at that level.",

@@ -23,6 +23,11 @@ const LEVELS = ['patch', 'minor', 'major']
 
 /** Splits a changeset body into `{ kind, en, zh }`; returns an error string when it is malformed. */
 export function parseNote(summary, bump) {
+  const markers = [...summary.matchAll(/<!--\s*([\s\S]*?)\s*-->/g)].map((m) => m[1])
+  const unknown = markers.filter((name) => name !== 'en' && name !== 'zh' && !KINDS.includes(name))
+  if (unknown.length > 0) {
+    return `has an unknown marker <!-- ${unknown[0]} --> (use ${KINDS.join(', ')})`
+  }
   const marker = summary.match(/<!--\s*(breaking|new|improved|fixed)\s*-->/)
   const en = summary.match(/<!--\s*en\s*-->([\s\S]*?)(?=<!--\s*zh\s*-->|$)/)
   const zh = summary.match(/<!--\s*zh\s*-->([\s\S]*?)(?=<!--\s*en\s*-->|$)/)
@@ -46,6 +51,11 @@ async function pendingNotes() {
     else notes.push({ ...note, bump })
   }
   return { notes, errors }
+}
+
+/** `YYYY-MM-DD` in `timeZone` (UTC when unset). */
+export function today(timeZone = 'UTC', now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(now)
 }
 
 function currentVersion() {
@@ -123,7 +133,7 @@ async function version() {
     .map(({ kind, en, zh }) => ({ kind, en, zh }))
   const notesFile = {
     version: next,
-    date: new Date().toISOString().slice(0, 10),
+    date: today(process.env.RELEASE_TIMEZONE),
     level,
     items,
   }

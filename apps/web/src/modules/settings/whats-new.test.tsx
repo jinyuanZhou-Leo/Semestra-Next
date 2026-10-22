@@ -146,3 +146,14 @@ test('waits while the tour is still due', async () => {
   await new Promise((resolve) => setTimeout(resolve, 900))
   expect(screen.queryByRole('dialog')).toBeNull()
 })
+
+test('counts the versions left out of the dialog', async () => {
+  const { default: WhatsNewDialog } = await import('./WhatsNewDialog')
+  const minors = RELEASES.filter((r) => r.level !== 'patch')
+  renderWithRouter(
+    <WhatsNewDialog announcement={{ releases: minors, more: 2 }} onClose={() => {}} />,
+  )
+  const dialog = await screen.findByRole('dialog')
+  expect(dialog).toHaveTextContent('5 updates since you last opened Semestra')
+  expect(dialog).toHaveTextContent('Older updates are listed under Settings › About.')
+})

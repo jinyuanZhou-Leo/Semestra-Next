@@ -86,6 +86,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --filter .
       - run: pnpm exec changeset status --since="origin/${{ github.base_ref }}"
       - run: pnpm release:check
+      - run: node --test scripts/release.test.mjs
 
   api:
     needs: changes
