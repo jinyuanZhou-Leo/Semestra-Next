@@ -21,8 +21,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
         with: { fetch-depth: 0 }
@@ -37,14 +35,29 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm release:version
+          pr-title: Release (version packages)
+          commit-message: "chore: version packages"
         env:
           # The release date in release-notes/<version>.json is a calendar day in this zone.
           RELEASE_TIMEZONE: America/Toronto
-          pr-title: Release (version packages)
-          commit-message: "chore: version packages"
-      # Runs on every push: `tag` does nothing unless this commit's version has release notes and
-      # no tag yet. (`has-changesets` stays true while only empty changesets are pending, so
-      # gating on it could skip a release for good.)
+
+  # Its own job with a fresh checkout of the pushed commit: changesets/action leaves the version
+  # PR's changes in the working tree above, which would make `tag` see the next version early.
+  # Runs on every push: `tag` does nothing unless this commit's version has release notes and no
+  # tag yet. (`has-changesets` stays true while only empty changesets are pending, so gating on
+  # it could skip a release for good.)
+  tag:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: "${{ github.sha }}" }
+      - uses: actions/setup-node@v6
+        with: { node-version: 26 }
       - id: tag
         run: |
           git config user.name "github-actions[bot]"
@@ -52,12 +65,12 @@ jobs:
           node scripts/release.mjs tag
 
   release:
-    needs: version
-    if: needs.version.outputs.tag != ''
+    needs: tag
+    if: needs.tag.outputs.tag != ''
     permissions:
       contents: write
       packages: write
     uses: ./.github/workflows/release.yml
     with:
-      tag: ${{ needs.version.outputs.tag }}
+      tag: ${{ needs.tag.outputs.tag }}
     secrets: inherit
