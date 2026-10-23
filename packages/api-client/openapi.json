@@ -859,7 +859,7 @@
         "tags": [
           "files"
         ],
-        "summary": "Download or preview a file; supports Range requests.",
+        "summary": "Download or preview a file; supports Range requests and If-None-Match.",
         "operationId": "filesContent",
         "security": [
           {
@@ -904,6 +904,9 @@
           },
           "206": {
             "description": "Partial Content"
+          },
+          "304": {
+            "description": "Not Modified"
           },
           "422": {
             "description": "Validation Error",
@@ -964,6 +967,9 @@
             "content": {
               "image/png": {}
             }
+          },
+          "304": {
+            "description": "Not Modified"
           },
           "422": {
             "description": "Validation Error",
@@ -5467,8 +5473,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Rename or move a folder, or change its order.",
-        "description": "Rename a folder, move it under another folder (parent_id null = course root) or\nset its position among its siblings. Only send the fields to change.",
+        "summary": "Rename or move a folder.",
+        "description": "Rename a folder or move it under another folder (parent_id null = course root).\nFolders are listed by name. Only send the fields to change.",
         "operationId": "filesFolderUpdate",
         "security": [
           {
@@ -7696,7 +7702,7 @@
           "imports"
         ],
         "summary": "Edit an import item's fields or accept/reject it.",
-        "description": "`data` is merged into the item (send null to clear a field); fields the item's\ntype does not have are refused. The item's issues are checked again afterwards. The assistant gets\nthe session's `summary` and the changed item.",
+        "description": "`data` is merged into the item (send null to clear a field); fields the item's\ntype does not have are refused. The item's issues are checked again afterwards. The assistant (and\nan HTTP caller with `only_touched`) gets the session's `summary` with only the items this change\ntouched: the edited one and those whose decision or issues changed with it.",
         "operationId": "importsItemUpdate",
         "security": [
           {
@@ -22816,10 +22822,6 @@
             "type": "string",
             "title": "Name"
           },
-          "position": {
-            "type": "integer",
-            "title": "Position"
-          },
           "item_count": {
             "type": "integer",
             "title": "Item Count",
@@ -22842,7 +22844,6 @@
           "course_id",
           "parent_id",
           "name",
-          "position",
           "item_count",
           "created_at",
           "updated_at"
@@ -22878,19 +22879,6 @@
             ],
             "title": "Parent Id",
             "description": "Move under this folder; null moves it to the course root"
-          },
-          "position": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Position",
-            "description": "Order among its siblings"
           }
         },
         "type": "object",
@@ -30844,6 +30832,7 @@
             "type": "string",
             "enum": [
               "pending",
+              "waiting",
               "extracting",
               "done",
               "failed"
@@ -34220,6 +34209,12 @@
             ],
             "title": "Type",
             "description": "Turn an assessment item into a task or back"
+          },
+          "only_touched": {
+            "type": "boolean",
+            "title": "Only Touched",
+            "description": "Return only the items this change touched instead of all of them",
+            "default": false
           }
         },
         "type": "object",

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.files import service
+from semestra.modules.files.chunking import HEADING
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.schemas import (
     MAX_READ_PAGES,
@@ -19,8 +20,6 @@ from semestra.modules.files.schemas import (
     DocumentRead,
     OutlineEntry,
 )
-
-_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
 
 async def _active_document(ctx: Ctx, item_id: str) -> tuple[FilesItem, FilesDocument]:
@@ -128,7 +127,7 @@ async def outline(ctx: Ctx, item_id: str) -> DocumentOutline:
         for line in markdown.split("\n"):
             if line.lstrip().startswith("```"):
                 fenced = not fenced
-            elif not fenced and (match := _HEADING.match(line)):
+            elif not fenced and (match := HEADING.match(line)):
                 entries.append(OutlineEntry(level=len(match[1]), title=match[2], page=page_no))
     return DocumentOutline(
         item_id=item.id,

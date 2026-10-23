@@ -7,16 +7,18 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Sequ
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+import anyio
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found, validation_error
 from semestra.core.events import events
 from semestra.core.jobs import enqueue
-from semestra.core.storage import get_storage
+from semestra.core.storage import get_storage, remaining_quota
+from semestra.core.storage import usage as storage_usage
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseListInput
@@ -44,7 +46,6 @@ log = structlog.get_logger()
 
 RETENTION = timedelta(days=30)
 UPLOAD_RETENTION = timedelta(days=1)
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 OPEN = ("extracting", "ready")
 WAIT_POLL_SECONDS = 0.5
 CLOSED = ("committed", "discarded")
@@ -232,15 +233,19 @@ async def _program_courses(ctx: Ctx, program_id: str) -> list[Any]:
 
 
 async def _existing_assessments(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, set[str]]:
-    if not course_ids or not deps.has_capability("grading.gradebook.get"):
+    """Normalised titles of the courses' assessments (the plain list: no gradebook maths, which
+    every review edit would otherwise pay for)."""
+    if not course_ids or not deps.has_capability("grading.assessment.list"):
         return {}
     out: dict[str, set[str]] = {}
     for course_id in course_ids:
         try:
-            book = await deps.call(ctx, "grading.gradebook.get", {"course_id": course_id})
+            page = await deps.call(
+                ctx, "grading.assessment.list", {"course_id": course_id, "limit": 500}
+            )
         except AppError:
             continue
-        out[course_id] = {build.norm_title(a["title"]) for a in book.get("assessments", [])}
+        out[course_id] = {build.norm_title(a["title"]) for a in page.get("items", [])}
     return out
 
 
@@ -373,12 +378,12 @@ async def _attachment_uploads(
     importers, "show source" and moving the file into the course work as for any upload."""
     uploads: list[ImportsUpload] = []
     for attachment_id in dict.fromkeys(attachment_ids):
-        filename, mime, data = await deps.read_attachment(ctx, attachment_id)
+        filename, _, data = await deps.read_attachment(ctx, attachment_id)
 
         async def chunks(data: bytes = data) -> AsyncIterator[bytes]:
             yield data
 
-        out = await store_upload(ctx, filename=filename, mime=mime, chunks=chunks())
+        out = await store_upload(ctx, filename=filename, chunks=chunks())
         upload = await get_upload(ctx, out.id)
         upload.session_id = session_id
         uploads.append(upload)
@@ -560,10 +565,45 @@ def _require_open(row: ImportsSession) -> None:
 
 
 async def store_upload(
-    ctx: Ctx, *, filename: str, mime: str, chunks: AsyncIterator[bytes]
+    ctx: Ctx,
+    *,
+    filename: str,
+    chunks: AsyncIterator[bytes],
+    allowed: Sequence[str] | None = None,
 ) -> Upload:
+    """Stores an import upload, cut off above the per-file limit or the quota left (imports
+    count against the user's storage quota like course files). The type comes from the content;
+    a type outside `allowed` is refused."""
+    cap = ctx.settings.files_max_upload_bytes
+    budget = await remaining_quota(ctx)
+    if budget is not None and budget <= 0:
+        raise await _quota_error(ctx)
     key = f"users/{ctx.user_id}/imports/{new_id()}"
-    stored = await get_storage(ctx).put(key, chunks, mime, max_bytes=MAX_UPLOAD_BYTES)
+    # The whole upload is kept for the type check: telling DOCX/XLSX/PPTX apart reads the zip's
+    # central directory at the end of the file (uploads are capped at the upload size limit).
+    seen = bytearray()
+
+    async def kept() -> AsyncIterator[bytes]:
+        async for chunk in chunks:
+            seen.extend(chunk)
+            yield chunk
+
+    storage = get_storage(ctx)
+    try:
+        stored = await storage.put(
+            key, kept(), "application/octet-stream",
+            max_bytes=cap if budget is None else min(cap, budget),
+        )  # fmt: skip
+    except AppError as exc:
+        if exc.code != "common.quota_exceeded":
+            raise
+        if budget is None or cap <= budget:
+            raise AppError("files.too_large", 413, max=cap) from None
+        raise await _quota_error(ctx) from None
+    mime = await anyio.to_thread.run_sync(deps.detect_mime, bytes(seen), filename)
+    if allowed is not None and mime not in allowed:
+        await storage.delete(stored.key)
+        raise AppError("import.file_unsupported", 415, filename=filename)
     upload = ImportsUpload(
         id=new_id(),
         user_id=ctx.user_id,
@@ -579,6 +619,13 @@ async def store_upload(
     return Upload(id=upload.id, filename=upload.filename, mime_type=mime, size_bytes=stored.size)
 
 
+async def _quota_error(ctx: Ctx) -> AppError:
+    current = await storage_usage(ctx)
+    return AppError(
+        "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
+    )
+
+
 async def get_upload(ctx: Ctx, upload_id: str) -> ImportsUpload:
     upload = await ctx.db.get(ImportsUpload, upload_id)
     if upload is None or upload.user_id != ctx.user_id:
@@ -590,6 +637,11 @@ async def _delete_uploads(ctx: Ctx, uploads: Sequence[ImportsUpload]) -> None:
     keys = [u.storage_key for u in uploads]
     for upload in uploads:
         await ctx.db.delete(upload)
+    _after_commit_delete(ctx, keys)
+
+
+def _after_commit_delete(ctx: Ctx, keys: Sequence[str]) -> None:
+    """Stored objects go once the transaction has committed, so a rollback never loses one."""
     storage = get_storage(ctx)
 
     async def _remove() -> None:
@@ -620,6 +672,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     item = next((i for i in items if i.id == inp.item_id), None)
     if item is None:
         raise not_found()
+    before = {i.id: (i.decision, list(i.issues or [])) for i in items}
     # After a commit only the items that failed can still be fixed and retried.
     failed = bool(item.result and item.result.get("error_code"))
     if not (row.status == "committed" and failed):
@@ -658,7 +711,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             if each is item or not _written(each):
                 each.decision = inp.decision
     await revalidate(ctx, row, items)
-    return await detail(ctx, row, item_ids={item.id} if for_agent(ctx) else None)
+    # The edited item and those whose decision or issues changed with it (a rejected course
+    # takes its items along; a weight fixes its course's total): a review list merges these.
+    touched = {item.id} | {
+        i.id for i in items if before[i.id] != (i.decision, list(i.issues or []))
+    }
+    return await detail(ctx, row, item_ids=touched if inp.only_touched or for_agent(ctx) else None)
 
 
 def _with_contents(items: list[ImportsItem], chosen: list[ImportsItem]) -> list[ImportsItem]:
@@ -939,224 +997,271 @@ def _local_iso(day: date, at: time | None) -> str:
     return datetime.combine(day, at or time(0, 0)).isoformat()
 
 
+async def _write_course(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates a course in the session's Program."""
+    ctx, data, program_id = c.ctx, item.data, c.row.program_id
+    term_ids = data.get("term_ids") or ([c.term_id] if c.term_id else [])
+    if not term_ids:
+        raise AppError("import.term_unresolved", 422)
+    fields = {
+        k: data[k]
+        for k in ("code", "title", "alias", "credits", "instructors", "description",
+                  "website_url", "planned_terms")
+        if data.get(k) is not None
+    }  # fmt: skip
+    out = await deps.call(
+        ctx,
+        "academics.course.create",
+        {"program_id": program_id, "term_ids": term_ids, **fields},
+    )
+    return {"created_id": out["id"]}
+
+
+async def _write_course_patch(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Applies the accepted field changes to an existing course."""
+    ctx, data = c.ctx, item.data
+    changes = {
+        name: change["new"] for name, change in data["changes"].items() if change.get("apply", True)
+    }
+    if not changes:
+        return {"updated_id": data["course_id"], "reused": True}
+    out = await deps.call(
+        ctx, "academics.course.update", {"course_id": data["course_id"], **changes}
+    )
+    return {"updated_id": out["id"]}
+
+
+async def _write_category(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates a grading category, or reuses the course's one with the same key."""
+    ctx, data = c.ctx, item.data
+    course_id = c.course_id(data.get("course_ref"))
+    assert course_id is not None
+    key = data.get("key") or build.slug_key(data["name"])
+    known = await c.category_ids(course_id)
+    if key in known:
+        return {"created_id": known[key], "reused": True}
+    out = await deps.call(
+        ctx,
+        "grading.category.create",
+        {"course_id": course_id, "name": data["name"], "key": key},
+    )
+    known[key] = out["id"]
+    return {"created_id": out["id"]}
+
+
+async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates an assessment; its category is a written item or a built-in key."""
+    ctx, data = c.ctx, item.data
+    course_id = c.course_id(data.get("course_ref"))
+    assert course_id is not None
+    category_id: str | None = None
+    ref = data.get("category_ref")
+    if isinstance(ref, str) and ref.startswith("item:"):
+        category_id = c.written(ref.removeprefix("item:"))
+    elif isinstance(ref, str) and ref.startswith("key:"):
+        key = ref.removeprefix("key:")
+        known = await c.category_ids(course_id)
+        category_id = known.get(key)
+        if category_id is None:
+            name = next((t["name"] for t in _builtin_categories() if t["key"] == key), key.title())
+            out = await deps.call(
+                ctx,
+                "grading.category.create",
+                {"course_id": course_id, "name": name, "key": key},
+            )
+            category_id = known[key] = out["id"]
+    assessment = {
+        "title": data["title"],
+        "category_id": category_id,
+        "weight": data.get("weight", 0),
+        "due_date": data.get("due_date"),
+        "due_time": data.get("due_time") if data.get("due_date") else None,
+        "note": data.get("note"),
+        "source_kind": "lms" if c.row.source_kind == "lms" else "syllabus",
+        "source_ref": data.get("source_ref") or f"import:{item.id}",
+    }
+    out = await deps.call(
+        ctx,
+        "grading.assessment.create_many",
+        {"course_id": course_id, "assessments": [assessment]},
+    )
+    if out["created"]:
+        return {"created_id": out["created"][0]["id"]}
+    return {"created_id": out["skipped"][0]["assessment_id"], "reused": True}
+
+
+async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates or updates a weekly meeting with its cancelled days."""
+    ctx, data = c.ctx, item.data
+    course_id = c.course_id(data.get("course_ref"))
+    assert course_id is not None
+    first = date.fromisoformat(data["first_date"]) if data.get("first_date") else None
+    last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
+    term_id = await c.term(data.get("term_ref"), course_id, first)
+    weeks = (await c.term_dates(term_id)).weeks
+    start_week, end_week, problem = dates.meeting_weeks(
+        first, last, data.get("start_week"), data.get("end_week"), weeks
+    )
+    if problem:
+        # Never placed in the term's first week instead; validation flags most of these.
+        raise AppError(problem, 422, term_id=term_id)
+    meeting = {
+        "term_id": term_id,
+        "section_code": data.get("section_code", ""),
+        "type_code": data.get("type_code", "LEC"),
+        "weekday": data["weekday"],
+        "start_time": data["start_time"],
+        "end_time": data["end_time"],
+        "recurrence": data.get("recurrence", "weekly"),
+        "start_week": start_week or 1,
+        "end_week": end_week,
+        "location": data.get("location"),
+        "instructor": data.get("instructor"),
+        "source_kind": c.row.source_kind,
+        "source_ref": data.get("source_ref") or f"import:{item.id}",
+    }
+    out = await deps.call(
+        ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
+    )
+    meeting_id = (out["created_ids"] or out["updated_ids"])[0]
+    cancelled = set(data.get("exceptions") or [])
+    # A repeated import takes back the cancellations it wrote before that the file no longer
+    # has; the user's own changes stay.
+    for exc in out["items"][0]["exceptions"]:
+        day = str(exc["original_date"])
+        if exc["imported"] and day not in cancelled:
+            await deps.call(
+                ctx,
+                "schedule.exception.delete",
+                {"meeting_id": meeting_id, "original_date": day},
+            )
+    skipped: list[dict[str, str]] = []
+    for day in data.get("exceptions") or []:
+        try:
+            await deps.call(
+                ctx,
+                "schedule.exception.upsert",
+                {
+                    "meeting_id": meeting_id,
+                    "original_date": day,
+                    "kind": "cancelled",
+                    "imported": True,
+                },
+            )
+        except AppError as exc:
+            # Not a class day of the meeting (a break week, outside its weeks): reported so
+            # the user is told which dates were left out.
+            skipped.append({"date": day, "code": exc.code})
+    result: dict[str, Any] = (
+        {"created_id": meeting_id} if out["created_ids"] else {"updated_id": meeting_id}
+    )
+    if skipped:
+        result["skipped_exceptions"] = skipped
+    return result
+
+
+async def _write_event(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates a calendar event (course or term scoped)."""
+    ctx, data, program_id = c.ctx, item.data, c.row.program_id
+    course_id = c.course_id(data.get("course_ref"))
+    if not data.get("date"):
+        raise AppError("import.date_unresolved", 422)
+    day = date.fromisoformat(data["date"])
+    end_day = date.fromisoformat(data["end_date"]) if data.get("end_date") else day
+    all_day = bool(data.get("all_day")) or not data.get("start_time")
+    start_at = _local_iso(day, None if all_day else time.fromisoformat(data["start_time"]))
+    end_time = str(data.get("end_time") or data.get("start_time") or "00:00")
+    # All-day: any time on the last day makes it inclusive.
+    end_at = _local_iso(end_day, time(12, 0) if all_day else time.fromisoformat(end_time))
+    term_ref = data.get("term_ref")
+    term_id = term_ref.removeprefix("term:") if term_ref else c.term_id
+    event = {
+        "title": data["title"],
+        "start_at": start_at,
+        "end_at": end_at,
+        "all_day": all_day,
+        "course_id": course_id,
+        "term_id": term_id if course_id is None else None,
+        "type_code": data.get("type_code"),
+        "location": data.get("location"),
+        "source_kind": c.row.source_kind,
+        "source_ref": data.get("source_ref") or f"import:{item.id}",
+    }
+    out = await deps.call(
+        ctx, "schedule.event.create_many", {"program_id": program_id, "events": [event]}
+    )
+    if out["created_ids"]:
+        return {"created_id": out["created_ids"][0]}
+    return {"updated_id": out["updated_ids"][0]}
+
+
+async def _write_patch(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Applies the accepted changes to an existing assessment or task."""
+    ctx, data = c.ctx, item.data
+    kind = item.type.removesuffix("_patch")
+    target_id = data[f"{kind}_id"]
+    changes = {
+        name: change.get("new")
+        for name, change in data["changes"].items()
+        if change.get("apply", True)
+    }
+    if not changes:
+        return {"updated_id": target_id, "reused": True}
+    if "due_date" in changes or "due_time" in changes:
+        old = {n: ch.get("old") for n, ch in data["changes"].items()}
+        changes.setdefault("due_date", old.get("due_date"))
+        changes.setdefault("due_time", old.get("due_time"))
+        if not changes["due_date"]:
+            changes["due_time"] = None
+    if "score" in changes:  # {points_earned, points_possible}, or None to clear
+        score = changes.pop("score") or {"points_earned": None, "points_possible": None}
+        changes.update(score)
+    name = "grading.assessment.update" if kind == "assessment" else "tasks.item.update"
+    out = await deps.call(ctx, name, {f"{kind}_id": target_id, **changes})
+    return {"updated_id": out.get("id", target_id)}
+
+
+async def _write_task(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Creates a task, or reuses the one with the same source."""
+    ctx, data, program_id = c.ctx, item.data, c.row.program_id
+    course_id = c.course_id(data.get("course_ref"))
+    task = {
+        "title": data["title"],
+        "notes": data.get("notes") or "",
+        "due_date": data.get("due_date"),
+        "due_time": data.get("due_time") if data.get("due_date") else None,
+        "priority": data.get("priority") if data.get("priority") != "none" else None,
+        "course_id": course_id,
+        "source_kind": {"lms": "lms", "agent": "agent"}.get(c.row.source_kind, "syllabus"),
+        "source_ref": (data.get("source_ref") or f"import:{item.id}")[:200],
+    }
+    out = await deps.call(
+        ctx, "tasks.item.create_many", {"program_id": program_id, "items": [task]}
+    )
+    if out["created"]:
+        return {"created_id": out["created"][0]["id"]}
+    return {"created_id": out["skipped"][0]["task_id"], "reused": True}
+
+
+_WRITERS: dict[str, Callable[[_Commit, ImportsItem], Awaitable[dict[str, Any]]]] = {
+    "course": _write_course,
+    "course_patch": _write_course_patch,
+    "category": _write_category,
+    "assessment": _write_assessment,
+    "meeting": _write_meeting,
+    "event": _write_event,
+    "assessment_patch": _write_patch,
+    "task_patch": _write_patch,
+    "task": _write_task,
+}
+
+
 async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     """Writes one item through its target capability; returns the item's result."""
-    ctx, data, program_id = c.ctx, item.data, c.row.program_id
-    if item.type == "course":
-        term_ids = data.get("term_ids") or ([c.term_id] if c.term_id else [])
-        if not term_ids:
-            raise AppError("import.term_unresolved", 422)
-        fields = {
-            k: data[k]
-            for k in ("code", "title", "alias", "credits", "instructors", "description",
-                      "website_url", "planned_terms")
-            if data.get(k) is not None
-        }  # fmt: skip
-        out = await deps.call(
-            ctx,
-            "academics.course.create",
-            {"program_id": program_id, "term_ids": term_ids, **fields},
-        )
-        return {"created_id": out["id"]}
-    if item.type == "course_patch":
-        changes = {
-            name: change["new"]
-            for name, change in data["changes"].items()
-            if change.get("apply", True)
-        }
-        if not changes:
-            return {"updated_id": data["course_id"], "reused": True}
-        out = await deps.call(
-            ctx, "academics.course.update", {"course_id": data["course_id"], **changes}
-        )
-        return {"updated_id": out["id"]}
-    course_id = c.course_id(data.get("course_ref"))
-    if item.type == "category":
-        assert course_id is not None
-        key = data.get("key") or build.slug_key(data["name"])
-        known = await c.category_ids(course_id)
-        if key in known:
-            return {"created_id": known[key], "reused": True}
-        out = await deps.call(
-            ctx,
-            "grading.category.create",
-            {"course_id": course_id, "name": data["name"], "key": key},
-        )
-        known[key] = out["id"]
-        return {"created_id": out["id"]}
-    if item.type == "assessment":
-        assert course_id is not None
-        category_id: str | None = None
-        ref = data.get("category_ref")
-        if isinstance(ref, str) and ref.startswith("item:"):
-            category_id = c.written(ref.removeprefix("item:"))
-        elif isinstance(ref, str) and ref.startswith("key:"):
-            key = ref.removeprefix("key:")
-            known = await c.category_ids(course_id)
-            category_id = known.get(key)
-            if category_id is None:
-                name = next(
-                    (t["name"] for t in _builtin_categories() if t["key"] == key), key.title()
-                )
-                out = await deps.call(
-                    ctx,
-                    "grading.category.create",
-                    {"course_id": course_id, "name": name, "key": key},
-                )
-                category_id = known[key] = out["id"]
-        assessment = {
-            "title": data["title"],
-            "category_id": category_id,
-            "weight": data.get("weight", 0),
-            "due_date": data.get("due_date"),
-            "due_time": data.get("due_time") if data.get("due_date") else None,
-            "note": data.get("note"),
-            "source_kind": "lms" if c.row.source_kind == "lms" else "syllabus",
-            "source_ref": data.get("source_ref") or f"import:{item.id}",
-        }
-        out = await deps.call(
-            ctx,
-            "grading.assessment.create_many",
-            {"course_id": course_id, "assessments": [assessment]},
-        )
-        if out["created"]:
-            return {"created_id": out["created"][0]["id"]}
-        return {"created_id": out["skipped"][0]["assessment_id"], "reused": True}
-    if item.type == "meeting":
-        assert course_id is not None
-        first = date.fromisoformat(data["first_date"]) if data.get("first_date") else None
-        last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
-        term_id = await c.term(data.get("term_ref"), course_id, first)
-        weeks = (await c.term_dates(term_id)).weeks
-        start_week, end_week, problem = dates.meeting_weeks(
-            first, last, data.get("start_week"), data.get("end_week"), weeks
-        )
-        if problem:
-            # Never placed in the term's first week instead; validation flags most of these.
-            raise AppError(problem, 422, term_id=term_id)
-        meeting = {
-            "term_id": term_id,
-            "section_code": data.get("section_code", ""),
-            "type_code": data.get("type_code", "LEC"),
-            "weekday": data["weekday"],
-            "start_time": data["start_time"],
-            "end_time": data["end_time"],
-            "recurrence": data.get("recurrence", "weekly"),
-            "start_week": start_week or 1,
-            "end_week": end_week,
-            "location": data.get("location"),
-            "instructor": data.get("instructor"),
-            "source_kind": c.row.source_kind,
-            "source_ref": data.get("source_ref") or f"import:{item.id}",
-        }
-        out = await deps.call(
-            ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
-        )
-        meeting_id = (out["created_ids"] or out["updated_ids"])[0]
-        cancelled = set(data.get("exceptions") or [])
-        # A repeated import takes back the cancellations it wrote before that the file no longer
-        # has; the user's own changes stay.
-        for exc in out["items"][0]["exceptions"]:
-            day = str(exc["original_date"])
-            if exc["imported"] and day not in cancelled:
-                await deps.call(
-                    ctx,
-                    "schedule.exception.delete",
-                    {"meeting_id": meeting_id, "original_date": day},
-                )
-        skipped: list[dict[str, str]] = []
-        for day in data.get("exceptions") or []:
-            try:
-                await deps.call(
-                    ctx,
-                    "schedule.exception.upsert",
-                    {
-                        "meeting_id": meeting_id,
-                        "original_date": day,
-                        "kind": "cancelled",
-                        "imported": True,
-                    },
-                )
-            except AppError as exc:
-                # Not a class day of the meeting (a break week, outside its weeks): reported so
-                # the user is told which dates were left out.
-                skipped.append({"date": day, "code": exc.code})
-        result: dict[str, Any] = (
-            {"created_id": meeting_id} if out["created_ids"] else {"updated_id": meeting_id}
-        )
-        if skipped:
-            result["skipped_exceptions"] = skipped
-        return result
-    if item.type == "event":
-        if not data.get("date"):
-            raise AppError("import.date_unresolved", 422)
-        day = date.fromisoformat(data["date"])
-        end_day = date.fromisoformat(data["end_date"]) if data.get("end_date") else day
-        all_day = bool(data.get("all_day")) or not data.get("start_time")
-        start_at = _local_iso(day, None if all_day else time.fromisoformat(data["start_time"]))
-        end_time = str(data.get("end_time") or data.get("start_time") or "00:00")
-        # All-day: any time on the last day makes it inclusive.
-        end_at = _local_iso(end_day, time(12, 0) if all_day else time.fromisoformat(end_time))
-        term_ref = data.get("term_ref")
-        term_id = term_ref.removeprefix("term:") if term_ref else c.term_id
-        event = {
-            "title": data["title"],
-            "start_at": start_at,
-            "end_at": end_at,
-            "all_day": all_day,
-            "course_id": course_id,
-            "term_id": term_id if course_id is None else None,
-            "type_code": data.get("type_code"),
-            "location": data.get("location"),
-            "source_kind": c.row.source_kind,
-            "source_ref": data.get("source_ref") or f"import:{item.id}",
-        }
-        out = await deps.call(
-            ctx, "schedule.event.create_many", {"program_id": program_id, "events": [event]}
-        )
-        if out["created_ids"]:
-            return {"created_id": out["created_ids"][0]}
-        return {"updated_id": out["updated_ids"][0]}
-    if item.type in ("assessment_patch", "task_patch"):
-        kind = item.type.removesuffix("_patch")
-        target_id = data[f"{kind}_id"]
-        changes = {
-            name: change.get("new")
-            for name, change in data["changes"].items()
-            if change.get("apply", True)
-        }
-        if not changes:
-            return {"updated_id": target_id, "reused": True}
-        if "due_date" in changes or "due_time" in changes:
-            old = {n: c.get("old") for n, c in data["changes"].items()}
-            changes.setdefault("due_date", old.get("due_date"))
-            changes.setdefault("due_time", old.get("due_time"))
-            if not changes["due_date"]:
-                changes["due_time"] = None
-        if "score" in changes:  # {points_earned, points_possible}, or None to clear
-            score = changes.pop("score") or {"points_earned": None, "points_possible": None}
-            changes.update(score)
-        name = "grading.assessment.update" if kind == "assessment" else "tasks.item.update"
-        out = await deps.call(ctx, name, {f"{kind}_id": target_id, **changes})
-        return {"updated_id": out.get("id", target_id)}
-    if item.type == "task":
-        task = {
-            "title": data["title"],
-            "notes": data.get("notes") or "",
-            "due_date": data.get("due_date"),
-            "due_time": data.get("due_time") if data.get("due_date") else None,
-            "priority": data.get("priority") if data.get("priority") != "none" else None,
-            "course_id": course_id,
-            "source_kind": {"lms": "lms", "agent": "agent"}.get(c.row.source_kind, "syllabus"),
-            "source_ref": (data.get("source_ref") or f"import:{item.id}")[:200],
-        }
-        out = await deps.call(
-            ctx, "tasks.item.create_many", {"program_id": program_id, "items": [task]}
-        )
-        if out["created"]:
-            return {"created_id": out["created"][0]["id"]}
-        return {"created_id": out["skipped"][0]["task_id"], "reused": True}
-    raise AppError("common.validation", 422)
+    writer = _WRITERS.get(item.type)
+    if writer is None:
+        raise AppError("common.validation", 422)
+    return await writer(c, item)
 
 
 def _builtin_categories() -> list[dict[str, str]]:
@@ -1171,6 +1276,30 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         raise AppError("import.session_closed", 409, state=row.status)
     if row.status in ("extracting", "failed"):
         raise AppError("import.session_not_ready", 409, state=row.status)
+    # Claims the session with a conditional write: a second commit sent at the same time (a
+    # double click, a repeated tool call) finds it taken instead of writing every item again.
+    # It is also the write before the first SAVEPOINT: SQLite (pysqlite) would otherwise make that
+    # savepoint the outer transaction and commit it on release, so a failing hook could not roll
+    # back.
+    claimed = await ctx.db.execute(
+        update(ImportsSession)
+        .where(
+            ImportsSession.id == row.id,
+            ImportsSession.status == row.status,
+            ImportsSession.updated_at == row.updated_at,
+        )
+        .values(status="committing", updated_at=ctx.now)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.rowcount != 1:  # pyright: ignore[reportAttributeAccessIssue]
+        now = await ctx.db.scalar(select(ImportsSession.status).where(ImportsSession.id == row.id))
+        if now != row.status:  # another commit took it (or the session was discarded)
+            raise AppError("import.session_closed", 409, state=now)
+        # Same status, newer version: an item was edited while this commit was sent. Nothing
+        # was written; sending it again commits what the session holds now.
+        raise AppError("import.session_changed", 409)
+    row.status = "committing"
+    row.updated_at = ctx.now
     items = await _items(ctx, row.id)
     by_id = {i.id: i for i in items}
     c = _Commit(ctx, row, items)
@@ -1219,11 +1348,6 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
     )
     created: dict[str, str] = {}
     counts = {"created": 0, "updated": 0, "failed": 0}
-    # A write before the first SAVEPOINT: SQLite (pysqlite) would otherwise make that savepoint
-    # the outer transaction and commit it on release, so a failing hook could not roll back.
-    row.status = "committing"
-    row.updated_at = ctx.now
-    await ctx.db.flush()
     for item in todo:
         pending = len(ctx.after_commit)
         try:
@@ -1282,32 +1406,40 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
     if len(course_ids) != 1:
         return  # several courses from several files: which file is whose is not tracked
     storage = get_storage(ctx)
+    refs = [dict(r) for r in row.source_refs]
     for upload in uploads:
+        key = upload.storage_key
         try:
-            moved = await deps.move_to_course(
-                ctx,
-                course_id=course_ids[0],
-                filename=upload.filename,
-                chunks=storage.open(upload.storage_key),
-            )
+            # The upload's row goes first, so the copy is not counted against the quota twice;
+            # the savepoint brings it back if the copy is refused.
+            async with ctx.db.begin_nested():
+                await ctx.db.delete(upload)
+                await ctx.db.flush()
+                moved = await deps.move_to_course(
+                    ctx, course_id=course_ids[0], filename=upload.filename, chunks=storage.open(key)
+                )
+                if moved is None:
+                    raise AppError("import.target_unavailable", 422, capability="files")
         except AppError as exc:
             log.info("import_upload_not_filed", code=exc.code)
+            for ref in refs:
+                if ref.get("upload_id") == upload.id:
+                    ref["warning_code"] = "import.upload_not_filed"
             continue
-        if moved is not None:
-            await _delete_uploads(ctx, [upload])
+        _after_commit_delete(ctx, [key])
+    row.source_refs = refs
 
 
 # --- retention ------------------------------------------------------------------------------
 
 
 async def cleanup(ctx: Ctx) -> None:
-    """Closed sessions are kept 30 days (import history); unused uploads one day."""
+    """Sessions are kept 30 days after their last change (import history), whatever their state:
+    one left for later and never finished must not hold its uploads (and quota) forever. Uploads
+    that never joined a session go after one day."""
     old = (
         await ctx.db.scalars(
-            select(ImportsSession).where(
-                ImportsSession.status.in_(("committed", "discarded", "failed")),
-                ImportsSession.updated_at < ctx.now - RETENTION,
-            )
+            select(ImportsSession).where(ImportsSession.updated_at < ctx.now - RETENTION)
         )
     ).all()
     keys: list[str] = []

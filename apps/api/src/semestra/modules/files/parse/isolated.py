@@ -152,13 +152,21 @@ async def parse_isolated(
     memory_limit: int,
 ) -> AsyncIterator[Parsed | Thumbnail]:
     """Yields the parsed document, then a preview per page (PDFs and images). Raises
-    `ParseError("files.too_complex")` when the child runs out of time or memory."""
+    `ParseError("files.too_complex")` when the child runs out of time or memory while parsing;
+    once the document is out, previews are best effort: a failure or the deadline only ends
+    them."""
     args = (data, detected, max_pages, thumbnail_pages, memory_limit)
+    parsed = False
     # Closed with this generator, so a caller that stops early still ends the child.
     async with aclosing(_run(_child, args, time_limit)) as messages:
-        async for message in messages:
-            if isinstance(message, Parsed | Thumbnail):
-                yield message
+        try:
+            async for message in messages:
+                if isinstance(message, Parsed | Thumbnail):
+                    parsed = parsed or isinstance(message, Parsed)
+                    yield message
+        except ParseError:
+            if not parsed:
+                raise
 
 
 async def _run(

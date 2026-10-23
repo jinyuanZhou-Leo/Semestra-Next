@@ -23,7 +23,6 @@ class FolderOut(BaseModel):
     course_id: str
     parent_id: str | None
     name: str
-    position: int
     item_count: int = Field(description="Files and links directly inside the folder")
     created_at: datetime
     updated_at: datetime
@@ -153,7 +152,6 @@ class FolderUpdateInput(BaseModel):
     parent_id: Id | None = Field(
         default=None, description="Move under this folder; null moves it to the course root"
     )
-    position: int | None = Field(default=None, ge=0, description="Order among its siblings")
 
 
 class FolderDeleteInput(BaseModel):

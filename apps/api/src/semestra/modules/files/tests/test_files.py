@@ -49,6 +49,11 @@ async def test_upload_is_processed_into_pages_and_chunks(fx: Fx):
     thumb = await fx.client.get(f"/files/{item['id']}/pages/1.png")
     assert thumb.status_code == 200
     assert thumb.content.startswith(b"\x89PNG")
+    again = await fx.client.get(
+        f"/files/{item['id']}/pages/1.png", headers={"If-None-Match": thumb.headers["etag"]}
+    )
+    assert again.status_code == 304
+    assert (await fx.client.get(f"/files/{item['id']}/pages/2.png")).status_code == 404
 
 
 async def test_unsupported_files_are_stored_but_not_indexed(fx: Fx):
@@ -97,6 +102,31 @@ async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
     hits = (await fx.search("photosynthesis"))["results"]
     assert hits[0]["item_id"] == item["id"]
     assert hits[0]["heading_path"] == ["Scanned heading"]
+
+
+async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("vision")
+    fake_ai.ocr_fail_calls = {2}
+    scanned = make_pdf(["scan one", "scan two", "scan three"], scanned={0, 1, 2})
+    item = await fx.upload_ready("scan.pdf", scanned)
+    assert item["doc_status"] == "ready"
+    assert item["ocr_skipped_pages"] == 1
+    assert fake_ai.ocr_calls == 3
+    assert (await fx.search("photosynthesis"))["results"]
+
+
+async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):
+    from semestra.modules.files import pipeline
+
+    monkeypatch.setattr(pipeline, "OCR_CONCURRENCY", 1)
+    fake_ai.enabled.add("vision")
+    fake_ai.ocr_fail_calls = {1}
+    fake_ai.ocr_fail_code = "ai.invalid_key"
+    scanned = make_pdf([f"scan {n}" for n in range(10)], scanned=set(range(10)))
+    item = await fx.upload_ready("scan.pdf", scanned)
+    assert item["doc_status"] == "ready"
+    assert item["ocr_skipped_pages"] == 10
+    assert fake_ai.ocr_calls == 1  # not once per page
 
 
 # --- listing, folders, links ------------------------------------------------------------------
@@ -199,6 +229,11 @@ async def test_content_headers_and_ranges(fx: Fx):
     # The browser's PDF viewer does not run in a sandboxed document.
     assert "content-security-policy" not in r.headers
     assert r.headers["accept-ranges"] == "bytes"
+    cached = await fx.client.get(
+        f"/files/{item['id']}/content", headers={"If-None-Match": r.headers["etag"]}
+    )
+    assert cached.status_code == 304
+    assert cached.content == b""
 
     part = await fx.client.get(f"/files/{item['id']}/content", headers={"Range": "bytes=0-9"})
     assert part.status_code == 206
@@ -245,6 +280,8 @@ async def test_keyword_search_finds_codes_and_chinese(fx: Fx):
     assert "<mark>考试时间</mark>" in chinese[0]["snippet"]
     # Two characters is below the trigram size and falls back to a substring scan.
     assert (await fx.search("地点"))["results"][0]["page_from"] == 3
+    # Like the index's terms, short ones match on any of them: a chunk with both comes first.
+    assert (await fx.search("地点 无关"))["results"][0]["page_from"] == 3
     assert (await fx.search("nothing-like-this"))["results"] == []
 
 
@@ -369,12 +406,93 @@ async def test_semantic_and_hybrid_search_with_embeddings(fx: Fx, fake_ai: FakeA
     assert fallback["mode_used"] == "keyword"
 
 
-async def test_embedding_failure_keeps_keyword_search(fx: Fx, fake_ai: FakeAi):
+async def test_semantic_search_within_files_and_repeated_queries(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.files import search
+
     fake_ai.enabled.add("embedding")
-    fake_ai.fail_embedding = True
+    syllabus = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    notes = await fx.upload_ready("notes.docx", make_docx([("Normal", "Recursion basics")]))
+    monkeypatch.setattr(search, "MAX_K", 1)  # the course-wide nearest chunk is the syllabus
+    within = await fx.search("grading midterm", mode="semantic", item_ids=[notes["id"]])
+    assert within["mode_used"] == "semantic"
+    assert [h["item_id"] for h in within["results"]] == [notes["id"]]
+    assert syllabus["id"] != notes["id"]
+
+    fake_ai.embed_calls.clear()
+    await fx.search("grading midterm", mode="semantic")
+    await fx.search("grading midterm", mode="semantic")
+    assert fake_ai.embed_calls == []  # the query was embedded by the first search
+
+
+async def test_embedding_failure_keeps_keyword_search_and_is_retried(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files import pipeline
+    from semestra.modules.files.vectors import get_vector_store
+
+    monkeypatch.setattr(pipeline, "BATCH_SIZE", 1)
+    fake_ai.enabled.add("embedding")
+
+    def fail_after_first(fake: FakeAi) -> None:
+        fake.fail_embedding = True
+
+    fake_ai.after_embed = fail_after_first
     item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
     assert item["doc_status"] == "ready"
     assert (await fx.search("midterm"))["results"]
+    store = get_vector_store()
+    async with fx.app.state.session_factory() as db:
+        # The batch stored before the failure is not left behind.
+        assert [await store.count(db, s) for s in await store.spaces(db)] in ([], [0])
+
+    fake_ai.fail_embedding, fake_ai.after_embed = False, None
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
+    fake_ai.embed_calls.clear()
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    assert fake_ai.embed_calls == []  # nothing is missing any more
+
+
+async def test_a_document_that_keeps_failing_to_embed_stops_being_retried(fx: Fx, fake_ai: FakeAi):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files import pipeline
+
+    fake_ai.enabled.add("embedding")
+    fake_ai.fail_embedding_on = "midterm"
+    item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    for _ in range(pipeline.VECTOR_RETRIES + 2):
+        fake_ai.embed_calls.clear()
+        await run_periodic(fx.app.state, "files.retry_vectors")
+        await fx.run_jobs()
+    assert fake_ai.embed_calls == []  # given up after VECTOR_RETRIES failed retries
+    # Reprocessing the file (or a new embedding model) tries again.
+    fake_ai.fail_embedding_on = None
+    await fx.call("POST", f"/files/{item['id']}:reprocess")
+    await fx.run_jobs()
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
+
+
+async def test_one_document_failing_to_embed_does_not_hold_up_the_others(fx: Fx, fake_ai: FakeAi):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files.models import FilesIndexState
+
+    fake_ai.enabled.add("embedding")
+    fake_ai.fail_embedding = True  # the provider was down while both were processed
+    bad = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    good = await fx.upload_ready("notes.pdf", make_pdf(["Photosynthesis in plant cells"]))
+    fake_ai.fail_embedding, fake_ai.fail_embedding_on = False, "midterm"
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    async with fx.app.state.session_factory() as db:
+        states = {i: await db.get(FilesIndexState, i) for i in (bad["id"], good["id"])}
+    assert states[good["id"]].vector_document_id is not None  # embedded in the same run
+    assert states[bad["id"]].vector_document_id is None
+    assert states[bad["id"]].vector_failures == 1
 
 
 async def test_changing_embedding_model_reindexes(fx: Fx, fake_ai: FakeAi):

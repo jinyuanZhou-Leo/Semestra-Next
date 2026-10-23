@@ -8,14 +8,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import structlog
-from sqlalchemy import and_, bindparam, func, select, text
+from sqlalchemy import ColumnElement, and_, bindparam, case, func, or_, select, text
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.files import service
-from semestra.modules.files.embeddings import embed_texts
+from semestra.modules.files.embeddings import embed_query
 from semestra.modules.files.models import FilesChunk, FilesItem
 from semestra.modules.files.schemas import (
     Citation,
@@ -124,13 +124,17 @@ async def _keyword(
 async def _substring(
     ctx: Ctx, terms: Sequence[str], course_ids: Sequence[str], item_ids: Sequence[str] | None
 ) -> list[str]:
-    """Chunk ids containing all of `terms`, the most occurrences first."""
+    """Chunk ids containing any of `terms` (like the index's OR), those with the most of the
+    terms first, then the most occurrences."""
     lowered = [t.lower() for t in terms]
     body = func.lower(FilesChunk.text)
     counts = [
         (func.length(body) - func.length(func.replace(body, t, ""))) / len(t) for t in lowered
     ]
     occurrences = functools.reduce(operator.add, counts)
+    likes = [FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms]
+    flags: list[ColumnElement[int]] = [case((like, 1), else_=0) for like in likes]
+    matched = functools.reduce(operator.add, flags)
     stmt = (
         select(FilesChunk.id)
         .join(
@@ -143,9 +147,9 @@ async def _substring(
         .where(
             FilesChunk.user_id == ctx.user_id,
             FilesChunk.course_id.in_(course_ids),
-            *[FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms],
+            or_(*likes),
         )
-        .order_by(occurrences.desc(), FilesChunk.id)
+        .order_by(matched.desc(), occurrences.desc(), FilesChunk.id)
         .limit(LIKE_LIMIT)
     )
     if item_ids is not None:
@@ -161,20 +165,33 @@ async def _semantic(
     try:
         if not await ai.available(ctx, "embedding") or not await store.available(ctx.db):
             return None
-        space, _, vectors = await embed_texts(ctx, [query])
+        space, vector = await embed_query(ctx, query)
     except AppError as exc:
         log.info("files_semantic_unavailable", code=exc.code)
         return None
     if space not in await store.spaces(ctx.db):
         return None
-    hits = await store.knn(
-        ctx.db,
-        space,
-        user_id=ctx.user_id,
-        vector=vectors[0],
-        k=min(MAX_K, max(top_k * 8, 40)),
-        course_ids=course_ids,
-    )
+    k = min(MAX_K, max(top_k * 8, 40))
+    if item_ids is not None:
+        # The nearest chunks of the whole course may all be in other files: search these only.
+        chunk_ids = await ctx.db.scalars(
+            select(FilesChunk.id)
+            .join(
+                FilesItem,
+                and_(
+                    FilesItem.id == FilesChunk.item_id,
+                    FilesItem.active_document_id == FilesChunk.document_id,
+                ),
+            )
+            .where(FilesChunk.user_id == ctx.user_id, FilesChunk.item_id.in_(item_ids))
+        )
+        hits = await store.nearest_of(
+            ctx.db, space, user_id=ctx.user_id, vector=vector, chunk_ids=list(chunk_ids), k=k
+        )
+    else:
+        hits = await store.knn(
+            ctx.db, space, user_id=ctx.user_id, vector=vector, k=k, course_ids=course_ids
+        )
     ordered = [chunk_id for chunk_id, _ in hits]
     if not ordered:
         return []

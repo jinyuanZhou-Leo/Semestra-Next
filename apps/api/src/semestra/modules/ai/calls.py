@@ -279,6 +279,22 @@ async def complete(
 ) -> Completion:
     """A chat completion. Raises `ai.not_configured` when nothing serves `purpose`."""
     resolved = await resolve_provider(ctx, purpose)
+    return await complete_with(
+        ctx, resolved, messages, source_module=source_module, source_ref=source_ref,
+        rasterize=rasterize,
+    )  # fmt: skip
+
+
+async def complete_with(
+    ctx: Ctx,
+    resolved: Resolved,
+    messages: Sequence[Message],
+    *,
+    source_module: str,
+    source_ref: str | None = None,
+    rasterize: Rasterize | None = None,
+) -> Completion:
+    """`complete` with the provider already resolved (many calls in a row, e.g. OCR pages)."""
     prepared = await _prepare_messages(resolved, messages, rasterize)
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
     history = convert.to_messages(prepared)

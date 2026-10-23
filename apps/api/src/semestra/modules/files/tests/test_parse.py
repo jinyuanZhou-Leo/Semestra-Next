@@ -132,6 +132,23 @@ def test_spreadsheets_become_markdown_tables():
     assert "| 1 | 2 |" in csv_doc.pages[0].markdown
 
 
+def test_spreadsheets_drop_empty_columns_and_long_tables_are_cut():
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.append(["Item", "Weight"])
+    sheet.cell(row=1, column=60, value=" ")  # formatted far to the right, but empty
+    for n in range(450):
+        sheet.append([f"Quiz {n}", 1])
+    out = io.BytesIO()
+    book.save(out)
+    doc = parse(out.getvalue(), detect(out.getvalue()), max_pages=3)
+    assert len(doc.pages) == 3
+    assert doc.pages[0].markdown.splitlines()[2] == "| Item | Weight |"
+
+
 def test_html_keeps_headings_and_drops_scripts():
     data = (
         b"<html><head><title>t</title><script>alert(1)</script></head>"
@@ -142,6 +159,22 @@ def test_html_keeps_headings_and_drops_scripts():
     assert "Be kind" in text
     assert "- One" in text
     assert "alert" not in text
+    table = b"<p>See <a href='https://q.ca'>Quercus</a></p><table><tr><th>A</th></tr><tr><td>1</td></tr></table>"
+    text = parse(table, detect(table, "x.html")).pages[0].markdown
+    assert "[Quercus](https://q.ca)" in text
+    assert "| A |" in text
+
+
+def test_text_encodings_are_guessed():
+    from semestra.modules.files.parse.detect import decode_text
+
+    notice = "期中考试时间和地点，请准时到场。"  # noqa: RUF001
+    assert decode_text(notice.encode("gbk")) == notice
+    assert decode_text("第一週課程".encode("big5")) == "第一週課程"
+    # A Western CSV is not read as Chinese (what trying gb18030 first did).
+    western = decode_text("Müller, Café, résumé".encode("cp1252")) or ""
+    assert western.startswith("M")
+    assert not any("\u4e00" <= ch <= "\u9fff" for ch in western)
 
 
 def test_images_are_one_page_waiting_for_ocr():

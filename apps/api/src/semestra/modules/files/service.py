@@ -101,7 +101,7 @@ async def _course_folders(ctx: Ctx, course_id: str) -> list[FilesFolder]:
             await ctx.db.scalars(
                 select(FilesFolder)
                 .where(FilesFolder.user_id == ctx.user_id, FilesFolder.course_id == course_id)
-                .order_by(FilesFolder.position, func.lower(FilesFolder.name))
+                .order_by(func.lower(FilesFolder.name), FilesFolder.id)
             )
         ).all()
     )
@@ -216,7 +216,6 @@ def folder_out(row: FilesFolder, counts: dict[str, int]) -> FolderOut:
         course_id=row.course_id,
         parent_id=row.parent_id,
         name=row.name,
-        position=row.position,
         item_count=counts.get(row.id, 0),
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -353,13 +352,11 @@ async def create_folder(ctx: Ctx, course_id: str, name: str, parent_id: str | No
         if _depth(parent, by_id) >= MAX_FOLDER_DEPTH:
             raise AppError("files.folder_depth", 422, max=MAX_FOLDER_DEPTH)
     await _check_free_name(ctx, course_id, parent_id, name)
-    siblings = [f for f in folders if f.parent_id == parent_id]
     row = FilesFolder(
         user_id=ctx.user_id,
         course_id=course_id,
         parent_id=parent_id,
         name=name,
-        position=max((f.position for f in siblings), default=-1) + 1,
         created_at=ctx.now,
         updated_at=ctx.now,
     )
@@ -392,7 +389,6 @@ async def update_folder(
     fields: set[str],
     name: str | None,
     parent_id: str | None,
-    position: int | None,
 ) -> FolderOut:
     if "name" in fields and name is None:
         _refuse_none(["name"])
@@ -414,8 +410,6 @@ async def update_folder(
     if new_name != row.name or new_parent != row.parent_id:
         await _check_free_name(ctx, row.course_id, new_parent, new_name, except_id=row.id)
     row.name, row.parent_id = new_name, new_parent
-    if position is not None and "position" in fields:
-        row.position = position
     row.updated_at = ctx.now
     await ctx.db.flush()
     await events.publish(

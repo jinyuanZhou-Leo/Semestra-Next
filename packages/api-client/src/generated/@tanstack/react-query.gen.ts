@@ -373,7 +373,7 @@ export const filesUploadMutation = (options?: Partial<Options<FilesUploadData>>)
 export const filesContentQueryKey = (options: Options<FilesContentData>) => createQueryKey('filesContent', options);
 
 /**
- * Download or preview a file; supports Range requests.
+ * Download or preview a file; supports Range requests and If-None-Match.
  */
 export const filesContentOptions = (options: Options<FilesContentData>) => queryOptions<FilesContentResponse, FilesContentError, FilesContentResponse, ReturnType<typeof filesContentQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2096,10 +2096,10 @@ export const filesFolderDeleteMutation = (options?: Partial<Options<FilesFolderD
 };
 
 /**
- * Rename or move a folder, or change its order.
+ * Rename or move a folder.
  *
- * Rename a folder, move it under another folder (parent_id null = course root) or
- * set its position among its siblings. Only send the fields to change.
+ * Rename a folder or move it under another folder (parent_id null = course root).
+ * Folders are listed by name. Only send the fields to change.
  */
 export const filesFolderUpdateMutation = (options?: Partial<Options<FilesFolderUpdateData>>): UseMutationOptions<FilesFolderUpdateResponse, FilesFolderUpdateError, Options<FilesFolderUpdateData>> => {
     const mutationOptions: UseMutationOptions<FilesFolderUpdateResponse, FilesFolderUpdateError, Options<FilesFolderUpdateData>> = {
@@ -2835,8 +2835,9 @@ export const importsItemDecideManyMutation = (options?: Partial<Options<ImportsI
  * Edit an import item's fields or accept/reject it.
  *
  * `data` is merged into the item (send null to clear a field); fields the item's
- * type does not have are refused. The item's issues are checked again afterwards. The assistant gets
- * the session's `summary` and the changed item.
+ * type does not have are refused. The item's issues are checked again afterwards. The assistant (and
+ * an HTTP caller with `only_touched`) gets the session's `summary` with only the items this change
+ * touched: the edited one and those whose decision or issues changed with it.
  */
 export const importsItemUpdateMutation = (options?: Partial<Options<ImportsItemUpdateData>>): UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> => {
     const mutationOptions: UseMutationOptions<ImportsItemUpdateResponse, ImportsItemUpdateError, Options<ImportsItemUpdateData>> = {

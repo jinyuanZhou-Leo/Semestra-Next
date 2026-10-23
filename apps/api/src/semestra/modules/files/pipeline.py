@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import anyio.to_thread
 import structlog
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -30,14 +30,25 @@ from semestra.modules.files.models import (
     FilesIndexState,
     FilesItem,
 )
-from semestra.modules.files.parse import PageRenderer, ParsedDocument, ParseError, detect
-from semestra.modules.files.parse.isolated import Parsed, parse_isolated
+from semestra.modules.files.parse import ParsedDocument, ParseError, detect
+from semestra.modules.files.parse.isolated import Parsed, parse_isolated, render_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
 
 log = structlog.get_logger()
 
-THUMBNAIL_PAGES = 200
+# The file list shows the first page only; OCR renders its own, larger images.
+THUMBNAIL_PAGES = 1
+# Scanned pages are rendered (in the child process) this many at a time, and this many are with
+# the vision model at once.
+OCR_BATCH = 8
+OCR_CONCURRENCY = 4
+# Errors that would be the same for every page or document: OCR stops and the rest are
+# skipped, a reindex stops.
+OCR_STOP_CODES = frozenset({
+    "ai.invalid_key", "ai.model_not_found", "ai.not_configured", "ai.capability_unsupported",
+    "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled",
+})  # fmt: skip
 OCR_PROMPT = (
     "Transcribe this page into markdown. Keep headings, lists and the reading order, and write "
     "tables as markdown tables. Output only the transcription, with no comments. The image is "
@@ -183,16 +194,8 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
     assert parsed is not None
     images += [None] * (len(parsed.pages) - len(images))
 
-    # --- OCR, page by page; each page image is bounded in size ---------------------------
-    renderer: PageRenderer | None = None
-    try:
-        if detected.kind in ("pdf", "image") and any(p.needs_ocr for p in parsed.pages):
-            pdf = detected.kind == "pdf"
-            renderer = await anyio.to_thread.run_sync(lambda: PageRenderer(data, pdf=pdf))
-        ocr_model, ocr_skipped = await _ocr(ctx, work, parsed, renderer)
-    finally:
-        if renderer is not None:
-            await anyio.to_thread.run_sync(renderer.close)
+    # --- OCR; page images are rendered in the child process, bounded in size --------------
+    ocr_model, ocr_skipped = await _ocr(ctx, work, parsed, data, detected.kind)
     await ctx.check_cancelled()
 
     # --- chunking and full-text index ----------------------------------------------------
@@ -259,35 +262,67 @@ async def _once(data: bytes):
 
 
 async def _ocr(
-    ctx: JobCtx, work: _Work, parsed: ParsedDocument, renderer: PageRenderer | None
+    ctx: JobCtx, work: _Work, parsed: ParsedDocument, data: bytes, kind: str
 ) -> tuple[str | None, int]:
-    """Fills in pages that need OCR; returns the model used and how many pages were skipped."""
+    """Fills in pages that need OCR; returns the model used and how many pages were skipped
+    (no vision model, or the model failed on that page: the rest of the file is still read)."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
-    if not needed or renderer is None:
+    if not needed or kind not in ("pdf", "image"):
         await ctx.skip_stage("ocr")
         return None, 0
     if not await ai.available(ctx, "vision"):
         await ctx.skip_stage("ocr")
         return None, len(needed)
-    model = (await ai.resolve_provider(ctx, "vision")).model
-    for count, index in enumerate(needed):
-        await ctx.check_cancelled()
-        await ctx.stage("ocr", current=count + 1, total=len(needed))
-        png = await anyio.to_thread.run_sync(lambda i=index: renderer.ocr_image(i))
-        completion = await ai.complete(
-            ctx,
-            "vision",
-            [
-                ai.Message.system(OCR_PROMPT),
-                ai.Message.user(ai.Image(png, "image/png")),
-            ],
-            source_module="files",
-            source_ref=work.item_id,
-        )
+    resolved = await ai.resolve_provider(ctx, "vision")
+    limiter = anyio.CapacityLimiter(OCR_CONCURRENCY)
+    read_pages = 0
+    stopped = False
+
+    async def read(index: int, png: bytes) -> None:
+        nonlocal read_pages, stopped
+        async with limiter:
+            if stopped:
+                return
+            try:
+                completion = await ai.complete_with(
+                    ctx,
+                    resolved,
+                    [ai.Message.system(OCR_PROMPT), ai.Message.user(ai.Image(png, "image/png"))],
+                    source_module="files",
+                    source_ref=work.item_id,
+                )
+            except AppError as exc:
+                log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
+                # The key, the model or the provider failing would fail every page alike.
+                stopped = stopped or exc.code in OCR_STOP_CODES
+                return
         assert isinstance(completion, ai.Completion)
         text = re.sub(r"^```(?:markdown|md)?\s*\n|\n```\s*$", "", completion.text.strip())
         parsed.pages[index].markdown = text.strip()
-    return model, 0
+        read_pages += 1
+
+    for start in range(0, len(needed), OCR_BATCH):
+        if stopped:
+            break
+        await ctx.check_cancelled()
+        await ctx.stage("ocr", current=start, total=len(needed))
+        batch = needed[start : start + OCR_BATCH]
+        try:
+            pngs = await render_isolated(
+                data,
+                pdf=kind == "pdf",
+                pages=batch,
+                time_limit=ctx.settings.files_parse_timeout_seconds,
+                memory_limit=ctx.settings.files_parse_memory_bytes,
+            )
+        except ParseError as exc:
+            log.warning("files_ocr_render_failed", code=exc.code)
+            continue
+        async with anyio.create_task_group() as group:
+            for index, png in zip(batch, pngs, strict=False):
+                group.start_soon(read, index, png)
+    await ctx.stage("ocr", current=len(needed), total=len(needed))
+    return resolved.model, len(needed) - read_pages
 
 
 async def _embed(
@@ -318,6 +353,10 @@ async def _embed(
             await _store_vectors(ctx, store, work, space, dim, batch, vectors)
     except AppError as exc:
         log.warning("files_embedding_failed", code=exc.code)
+        if space is not None:  # batches already stored would never be found nor removed
+            async with ctx.state.session_factory() as db:
+                await store.delete(db, [r[0] for r in refs], space)
+                await db.commit()
         return None
     return space
 
@@ -372,6 +411,7 @@ async def _activate(
         state.fts_document_id = document.id
         state.vector_document_id = document.id if space else None
         state.vector_fingerprint = space
+        state.vector_failures = 0  # a new document gets its own retries
         state.updated_at = ctx.state.now()
         if previous and previous != document.id:
             keys += await indexing.delete_documents(db, store, [previous])
@@ -395,12 +435,15 @@ class _SpaceChanged(Exception):
 
 
 REINDEX_RESTARTS = 3
+# Periodic retries per document before only the user can start another one.
+VECTOR_RETRIES = 3
 
 
-async def reindex_vectors(ctx: JobCtx) -> int:
+async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
     """Embeds every ready document of the user in the current embedding space; returns how many
     items were rebuilt. Documents already in that space cost nothing. If the model changes
-    while this runs, it starts over in the new space. Old spaces are dropped once empty."""
+    while this runs, it starts over in the new space. Old spaces are dropped once empty.
+    `retry` (the periodic retry) leaves out documents that already failed VECTOR_RETRIES times."""
     store = get_vector_store()
     if not await ai.available(ctx, "embedding"):
         await ctx.skip_stage("embedding")
@@ -413,7 +456,7 @@ async def reindex_vectors(ctx: JobCtx) -> int:
         # One short text tells which space the current model writes to.
         space, _, _ = await embed_texts(ctx, ["semestra"])
         try:
-            done += await _reindex_into(ctx, store, space)
+            done += await _reindex_into(ctx, store, space, retry=retry)
             break
         except _SpaceChanged:
             continue
@@ -425,7 +468,21 @@ async def reindex_vectors(ctx: JobCtx) -> int:
     return done
 
 
-async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
+def _retries_left() -> ColumnElement[bool]:
+    return func.coalesce(FilesIndexState.vector_failures, 0) < VECTOR_RETRIES
+
+
+async def _count_failure(ctx: JobCtx, item_id: str) -> None:
+    async with ctx.state.session_factory() as db:
+        await db.execute(
+            update(FilesIndexState)
+            .where(FilesIndexState.item_id == item_id)
+            .values(vector_failures=FilesIndexState.vector_failures + 1)
+        )
+        await db.commit()
+
+
+async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
     async with ctx.state.session_factory() as db:
         candidates = list(
             (
@@ -441,6 +498,7 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
                     .where(
                         FilesItem.user_id == ctx.user_id,
                         FilesItem.active_document_id.is_not(None),
+                        *([_retries_left()] if retry else []),
                     )
                     .order_by(FilesItem.id)
                 )
@@ -481,6 +539,12 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
             raise
+        except AppError as exc:
+            await _count_failure(ctx, item_id)
+            if exc.code in OCR_STOP_CODES:  # every other document would fail the same way
+                raise
+            log.warning("files_reindex_item_failed", code=exc.code, item_id=item_id)
+            continue  # only this document (e.g. a chunk the provider refuses): go on
         async with ctx.state.session_factory() as db:
             state = await db.get(FilesIndexState, item_id)
             item = await db.get(FilesItem, item_id)
@@ -494,6 +558,7 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
             if state.vector_fingerprint and state.vector_fingerprint != space:
                 await store.delete(db, [r[0] for r in refs], state.vector_fingerprint)
             state.vector_document_id, state.vector_fingerprint = document_id, space
+            state.vector_failures = 0
             state.updated_at = ctx.state.now()
             await db.commit()
         done += 1

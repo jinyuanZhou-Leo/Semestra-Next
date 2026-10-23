@@ -1,8 +1,5 @@
 import type { ImportItem, ImportSessionDetail } from '@semestra/api-client'
-import {
-  importsItemDecideManyMutation,
-  importsItemUpdateMutation,
-} from '@semestra/api-client/react-query'
+import { importsItemDecideManyMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, SearchX } from 'lucide-react'
 import { useId, useState } from 'react'
@@ -17,7 +14,7 @@ import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { issueText, itemDetail, itemTitle, TYPE_LABELS } from '../labels'
-import { storeSession } from '../queries'
+import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
 
 const TYPE_ORDER = [
@@ -105,11 +102,7 @@ export function ImportReview({
   const [onlyProblems, setOnlyProblems] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const update = useMutation({
-    ...importsItemUpdateMutation(),
-    onError: toastError,
-    onSuccess: (next) => storeSession(queryClient, next),
-  })
+  const update = useItemUpdate({ onError: toastError })
   const bulk = useMutation({
     ...importsItemDecideManyMutation(),
     onError: toastError,

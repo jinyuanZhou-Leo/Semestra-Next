@@ -1,12 +1,12 @@
 """File routes of imports: upload before a course exists, and read it back for "show source"."""
 
-import mimetypes
 from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, UploadFile
 from fastapi.responses import StreamingResponse
 
+from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse
 from semestra.core.storage import CHUNK_SIZE, get_storage
@@ -15,6 +15,16 @@ from semestra.modules.imports import service
 from semestra.modules.imports.schemas import Upload
 
 router = APIRouter(tags=["imports"])
+
+
+def _upload_limit(settings: Settings) -> tuple[int, AppError]:
+    """One file per upload, at most the per-file limit (checked before the body is parsed)."""
+    cap = settings.files_max_upload_bytes
+    return cap, AppError("files.too_large", 413, max=cap)
+
+
+limit_upload("/imports/uploads", _upload_limit)
+
 
 ALLOWED = (
     "text/calendar",
@@ -31,25 +41,8 @@ ALLOWED = (
     "image/heic",
 )
 
-limit_upload(
-    "/imports/uploads",
-    lambda _: (
-        service.MAX_UPLOAD_BYTES,
-        AppError("common.quota_exceeded", 413, limit_bytes=service.MAX_UPLOAD_BYTES),
-    ),
-)
 
 INLINE_UNSANDBOXED = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif")
-
-
-def _mime(file: UploadFile) -> str:
-    guessed, _ = mimetypes.guess_type(file.filename or "")
-    if (file.filename or "").lower().endswith(".ics"):
-        return "text/calendar"
-    if (file.filename or "").lower().endswith(".md"):
-        return "text/markdown"
-    declared = (file.content_type or "").split(";")[0].strip().lower()
-    return guessed or declared or "application/octet-stream"
 
 
 async def _chunks(file: UploadFile) -> AsyncIterator[bytes]:
@@ -65,11 +58,8 @@ async def _chunks(file: UploadFile) -> AsyncIterator[bytes]:
     summary="Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.",
 )
 async def upload_create(file: UploadFile, ctx: Annotated[Ctx, Depends(get_ctx)]) -> Upload:
-    mime = _mime(file)
-    if mime not in ALLOWED:
-        raise AppError("import.file_unsupported", 415, filename=file.filename or "")
     upload = await service.store_upload(
-        ctx, filename=file.filename or "file", mime=mime, chunks=_chunks(file)
+        ctx, filename=file.filename or "file", chunks=_chunks(file), allowed=ALLOWED
     )
     await ctx.db.commit()
     await run_after_commit(ctx)

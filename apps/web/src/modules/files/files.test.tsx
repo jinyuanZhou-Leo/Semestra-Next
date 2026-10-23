@@ -75,6 +75,12 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
   }
 }
 
+const CORS = {
+  'Access-Control-Allow-Origin': window.location.origin,
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': '*',
+}
+
 let items: ItemOut[] = []
 let uploads: string[] = []
 let prefs: { key: string; body: unknown }[] = []
@@ -116,9 +122,17 @@ beforeEach(() => {
         max_upload_bytes: 26_214_400,
       }),
     ),
+    // Uploads go through XHR for their progress: a cross-origin preflight in tests.
+    http.options(
+      `${API}/courses/c1/files`,
+      () => new HttpResponse(null, { status: 204, headers: CORS }),
+    ),
     http.post(`${API}/courses/c1/files`, async ({ request }) => {
       uploads.push(await request.text())
-      return HttpResponse.json({ items: [item({ id: 'new', display_name: 'notes.txt' })] })
+      return HttpResponse.json(
+        { items: [item({ id: 'new', display_name: 'notes.txt' })] },
+        { headers: CORS },
+      )
     }),
     http.post(`${API}/programs/p1/files\\:search`, () =>
       HttpResponse.json({
@@ -155,8 +169,8 @@ test('files dropped anywhere on the page are uploaded to the course', async () =
   fireEvent.drop(window, { dataTransfer })
 
   await waitFor(() => expect(uploads).toHaveLength(1))
-  expect(uploads[0]).toContain('filename="notes.txt"')
-  expect(uploads[0]).toContain('hello')
+  // jsdom's XMLHttpRequest does not encode FormData, so the panel row stands for the body.
+  expect(screen.getByText('notes.txt')).toBeInTheDocument()
   expect(screen.queryByText('Drop files to upload to All files')).not.toBeInTheDocument()
   expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
 })
@@ -267,4 +281,15 @@ test('the grid shows page images only for PDFs and images, and falls back to the
 
   fireEvent.error(container.querySelector('img') as HTMLImageElement)
   expect(images()).toEqual([])
+})
+
+test('a long file list renders only the rows near the screen', async () => {
+  items = Array.from({ length: 300 }, (_, n) =>
+    item({ id: `f${n}`, display_name: `week-${String(n).padStart(3, '0')}.pdf` }),
+  )
+  mount()
+  expect(await screen.findByRole('button', { name: 'week-000.pdf' })).toBeInTheDocument()
+  const shown = screen.getAllByRole('button', { name: /^week-\d+\.pdf$/ }).length
+  expect(shown).toBeGreaterThan(5)
+  expect(shown).toBeLessThan(100)
 })

@@ -8,6 +8,7 @@ import {
   useVirtualizer,
 } from '@tanstack/react-virtual'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { listOffset, scrollParent } from '@/lib/scroll'
 
 /** Row heights before they are measured: a title alone, or a title over a line of details. */
 const ROW_HEIGHT = 44
@@ -29,24 +30,6 @@ type RowCache = {
 
 /** A request to bring a row into view: a new object per arrow key, not the selection itself. */
 export type ScrollRequest = { id: string }
-
-/** The nearest ancestor that scrolls (the app shell's content column), else the page. */
-function scrollParent(node: Element | null): Element | null {
-  if (!node) return null
-  for (let el = node.parentElement; el; el = el.parentElement) {
-    const { overflowY } = getComputedStyle(el)
-    if (overflowY === 'auto' || overflowY === 'scroll') return el
-  }
-  return document.scrollingElement ?? document.documentElement
-}
-
-/** Where the list starts in the scrolled content (the add box and header sit above it). */
-function listOffset(list: Element | null, scroller: Element | null): number {
-  if (!list || !scroller) return 0
-  return (
-    list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
-  )
-}
 
 /** Mirrors `TaskRow`'s second line (note, due date or course). */
 function estimate(task: Task | undefined): number {

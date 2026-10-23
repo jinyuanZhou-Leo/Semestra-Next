@@ -5,7 +5,7 @@ import { m } from '@/paraglide/messages'
 export type FileRow = {
   key: string
   name: string
-  status: 'pending' | 'uploading' | 'extracting' | 'done' | 'failed'
+  status: 'pending' | 'waiting' | 'uploading' | 'extracting' | 'done' | 'failed'
 }
 
 /** A session's files as rows. */
@@ -19,6 +19,7 @@ export function sessionRows(refs: SourceRef[]): FileRow[] {
 
 const STATUS_LABEL = {
   pending: () => m.imports_file_pending(),
+  waiting: () => m.imports_file_waiting(),
   uploading: () => m.imports_file_uploading(),
   extracting: () => m.imports_file_extracting(),
   done: () => m.imports_file_done(),

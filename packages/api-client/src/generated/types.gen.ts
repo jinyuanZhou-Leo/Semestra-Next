@@ -4147,10 +4147,6 @@ export type FolderOut = {
      */
     name: string;
     /**
-     * Position
-     */
-    position: number;
-    /**
      * Item Count
      *
      * Files and links directly inside the folder
@@ -4182,12 +4178,6 @@ export type FolderUpdateInputBody = {
      * Move under this folder; null moves it to the course root
      */
     parent_id?: string | null;
-    /**
-     * Position
-     *
-     * Order among its siblings
-     */
-    position?: number | null;
 };
 
 /**
@@ -8659,7 +8649,7 @@ export type SourceRef = {
     /**
      * Status
      */
-    status?: 'pending' | 'extracting' | 'done' | 'failed';
+    status?: 'pending' | 'waiting' | 'extracting' | 'done' | 'failed';
     /**
      * Error Code
      */
@@ -10639,6 +10629,12 @@ export type SemestraCoreCapabilityItemUpdateInputBody2 = {
      * Turn an assessment item into a task or back
      */
     type?: 'assessment' | 'task' | null;
+    /**
+     * Only Touched
+     *
+     * Return only the items this change touched instead of all of them
+     */
+    only_touched?: boolean;
 };
 
 /**

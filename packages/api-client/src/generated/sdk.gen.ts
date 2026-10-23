@@ -217,7 +217,7 @@ export const filesUpload = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * Download or preview a file; supports Range requests.
+ * Download or preview a file; supports Range requests and If-None-Match.
  */
 export const filesContent = <ThrowOnError extends boolean = false>(options: Options<FilesContentData, ThrowOnError>): RequestResult<FilesContentResponses, FilesContentErrors, ThrowOnError> => (options.client ?? client).get<FilesContentResponses, FilesContentErrors, ThrowOnError>({
     security: [{
@@ -2119,10 +2119,10 @@ export const filesFolderDelete = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * Rename or move a folder, or change its order.
+ * Rename or move a folder.
  *
- * Rename a folder, move it under another folder (parent_id null = course root) or
- * set its position among its siblings. Only send the fields to change.
+ * Rename a folder or move it under another folder (parent_id null = course root).
+ * Folders are listed by name. Only send the fields to change.
  */
 export const filesFolderUpdate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderUpdateData, ThrowOnError>): RequestResult<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError> => (options.client ?? client).patch<FilesFolderUpdateResponses, FilesFolderUpdateErrors, ThrowOnError>({
     security: [{
@@ -3112,8 +3112,9 @@ export const importsItemDecideMany = <ThrowOnError extends boolean = false>(opti
  * Edit an import item's fields or accept/reject it.
  *
  * `data` is merged into the item (send null to clear a field); fields the item's
- * type does not have are refused. The item's issues are checked again afterwards. The assistant gets
- * the session's `summary` and the changed item.
+ * type does not have are refused. The item's issues are checked again afterwards. The assistant (and
+ * an HTTP caller with `only_touched`) gets the session's `summary` with only the items this change
+ * touched: the edited one and those whose decision or issues changed with it.
  */
 export const importsItemUpdate = <ThrowOnError extends boolean = false>(options: Options<ImportsItemUpdateData, ThrowOnError>): RequestResult<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError>({
     security: [

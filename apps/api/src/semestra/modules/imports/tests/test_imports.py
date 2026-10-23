@@ -13,6 +13,7 @@ from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
+from semestra.modules.files.tests.conftest import make_png
 from semestra.modules.imports import extraction, service
 from semestra.modules.imports.tests.test_imports_rules import ACORN, ics, vevent
 from semestra.testing import MakeUser, UserHandle
@@ -233,7 +234,8 @@ async def test_bad_uploads_and_sources(api: Api):
     program_id = await api.program()
     term_id = await api.term(program_id)
     r = await api.client.post(
-        "/imports/uploads", files={"file": ("a.exe", b"MZ", "application/x-msdownload")}
+        "/imports/uploads",
+        files={"file": ("a.exe", b"MZ\x90\x00\x03\x00", "application/x-msdownload")},
     )
     assert r.status_code == 415
     upload = await api.upload("bad.ics", b"garbage", "text/calendar")
@@ -633,7 +635,7 @@ async def test_timetable_screenshot(api: Api, fake_ai: list[dict[str, Any]], run
             ]
         }
     )  # fmt: skip
-    upload = await api.upload("week.png", b"\x89PNG fake", "image/png")
+    upload = await api.upload("week.png", make_png(), "image/png")
     session = await api.create(
         program_id, source_kind="timetable_image", target={"kind": "term", "term_id": term_id},
         upload_ids=[upload],
@@ -728,7 +730,7 @@ async def test_course_page_timetable_keeps_other_courses_off(
             ]
         }
     )  # fmt: skip
-    upload = await api.upload("week.png", b"\x89PNG fake", "image/png")
+    upload = await api.upload("week.png", make_png(), "image/png")
     session = await api.create(
         program_id, source_kind="timetable_image",
         target={"kind": "course", "course_id": course["id"], "term_id": term_id},
@@ -755,7 +757,7 @@ async def test_image_syllabus_goes_to_the_vision_model(
 
     monkeypatch.setattr(extraction, "run_extract", spy)
     program_id = await api.program()
-    upload = await api.upload("syllabus.png", b"\x89PNG fake", "image/png")
+    upload = await api.upload("syllabus.png", make_png(), "image/png")
     session = await api.create(
         program_id, source_kind="syllabus",
         target={"kind": "term_wizard", "start_date": "2026-01-05", "end_date": "2026-04-24"},

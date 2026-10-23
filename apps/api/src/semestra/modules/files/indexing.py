@@ -1,7 +1,8 @@
 """Writing and removing the searchable copies of a document: chunks, the FTS5 table and vectors.
 
-`files_chunks_fts` has its own rowids; `files_chunks.fts_rowid` points at the row, so removing a
-document's text from the index is an indexed lookup instead of a scan.
+`files_chunks_fts` is a contentless FTS5 table (the text lives only in `files_chunks.text`) with
+its own rowids; `files_chunks.fts_rowid` points at the row, so removing a document's text from
+the index is an indexed lookup instead of a scan.
 """
 
 from collections.abc import Sequence

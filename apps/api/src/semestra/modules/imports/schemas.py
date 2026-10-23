@@ -299,7 +299,8 @@ class SourceRef(BaseModel):
     file_item_id: str | None = None
     filename: str | None = None
     lms_course_id: str | None = None
-    status: Literal["pending", "extracting", "done", "failed"] = "pending"
+    # waiting: a course file that is still being processed; reading starts when it is ready.
+    status: Literal["pending", "waiting", "extracting", "done", "failed"] = "pending"
     error_code: str | None = None
     warning_code: str | None = Field(
         default=None, description="Read with a caveat, e.g. 'import.ics_truncated'"
@@ -460,6 +461,10 @@ class ItemUpdateInput(BaseModel):
     decision: Decision | None = Field(default=None, description="accept, reject or pending")
     type: Literal["assessment", "task"] | None = Field(
         default=None, description="Turn an assessment item into a task or back"
+    )
+    only_touched: bool = Field(
+        default=False,
+        description="Return only the items this change touched instead of all of them",
     )
 
 

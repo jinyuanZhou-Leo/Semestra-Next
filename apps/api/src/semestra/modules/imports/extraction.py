@@ -163,6 +163,58 @@ def _text(leaf: ai.Evidenced[Any]) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _cancel_meetings(builder: Builder, course_ref: str, day: date) -> bool:
+    """Adds `day` to the exceptions of the course's meetings on that weekday; False when the
+    course has none (the date then stays an event)."""
+    meetings = [
+        i
+        for i in builder.items
+        if i.type == "meeting"
+        and i.data.get("course_ref") == course_ref
+        and i.data.get("weekday") == day.isoweekday()
+    ]
+    for meeting in meetings:
+        dates_ = meeting.data.setdefault("exceptions", [])
+        if day.isoformat() not in dates_:
+            dates_.append(day.isoformat())
+    return bool(meetings)
+
+
+def _share_category_weights(builder: Builder, course_ref: str) -> None:
+    """ "Quizzes 20% (4 quizzes)": M03 counts each assessment by its own weight, so what the
+    category's total leaves over is shared evenly by its assessments without one (marked
+    medium, with the category's total as the source)."""
+    categories = {
+        f"item:{i.key}": i
+        for i in builder.items
+        if i.type == "category"
+        and i.data.get("course_ref") == course_ref
+        and i.data.get("weight_total") is not None
+    }
+    for ref, category in categories.items():
+        members = [
+            i
+            for i in builder.items
+            if i.type == "assessment"
+            and i.data.get("course_ref") == course_ref
+            and i.data.get("category_ref") == ref
+        ]
+        open_ = [i for i in members if i.data.get("weight") is None]
+        left = float(category.data["weight_total"]) - sum(
+            float(i.data.get("weight") or 0) for i in members
+        )
+        if not open_ or left <= 0:
+            continue
+        # Rounded shares, the last one taking the remainder, so they add up to the category.
+        share = round(left / len(open_), 2)
+        shares = [share] * (len(open_) - 1) + [round(left - share * (len(open_) - 1), 2)]
+        for item, weight in zip(open_, shares, strict=True):
+            item.data["weight"] = weight
+            item.confidence["weight"] = "medium"
+            if "weight_total" in category.evidence:
+                item.evidence["weight"] = category.evidence["weight_total"]
+
+
 def from_syllabus(
     ext: SyllabusExtraction,
     ctx: BuildContext,
@@ -264,6 +316,8 @@ def from_syllabus(
             decision="reject" if normalized in existing else "accept",
         )
 
+    _share_category_weights(builder, ref)
+
     for m in ext.meetings:
         if not (m.start_time.value and m.end_time.value and m.weekday.value):
             continue
@@ -299,10 +353,20 @@ def from_syllabus(
             fields.data["course_ref"] = ref
             if day is not None:
                 fields.put("due_date", d.date if d.date.value else d.date_text, day)
-            fields.data["due_text"] = fields.data.pop("date_text", None)
+            # A task calls it due_text; its source and certainty move with it.
+            if "date_text" in fields.data:
+                fields.data["due_text"] = fields.data.pop("date_text")
+            if "date_text" in fields.evidence:
+                fields.evidence["due_text"] = fields.evidence.pop("date_text")
+            if "date_text" in fields.confidence:
+                fields.confidence["due_text"] = fields.confidence.pop("date_text")
             builder.add("task", fields.data, evidence=fields.evidence, confidence=fields.confidence)
             continue
+        if kind == "no_class" and day is not None and _cancel_meetings(builder, ref, day):
+            continue  # "no class on Oct 14": a cancelled date of the course's meetings
         fields.data.update(course_ref=ref, kind=kind, all_day=True)
+        if kind == "exam" and "EXAM" in {c.upper() for c in ctx.type_codes}:
+            fields.data["type_code"] = "EXAM"
         if day is not None:
             fields.put("date", d.date if d.date.value else d.date_text, day)
         builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)

@@ -1,12 +1,12 @@
 import type { ImportSessionDetail, Upload } from '@semestra/api-client'
-import { client, importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
+import { importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { FileUp, X } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { AiAction, type AiActionState } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
 import { useJob } from '@/hooks/use-job'
-import { csrfHeaders, invalidateOperations, toApiError } from '@/app/api'
+import { invalidateOperations, postWithProgress } from '@/app/api'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -23,34 +23,11 @@ import { SUCCESS_HOLD_MS } from './SessionView'
 /** Upload takes the first fifth of the bar; the extraction job fills the rest. */
 const UPLOAD_SHARE = 20
 
-/**
- * One file as a multipart upload with real byte progress, which `fetch` cannot report. Stays
- * outside the generated client, so it adds the CSRF header itself.
- */
+/** One file of the import, with byte progress. */
 function uploadFile(file: File, signal: AbortSignal, onProgress: (loaded: number) => void) {
-  return new Promise<Upload>((resolve, reject) => {
-    const request = new XMLHttpRequest()
-    request.open('POST', `${client.getConfig().baseUrl ?? ''}/imports/uploads`)
-    request.withCredentials = true
-    for (const [name, value] of Object.entries(csrfHeaders())) request.setRequestHeader(name, value)
-    request.upload.onprogress = (event) => onProgress(event.loaded)
-    request.onload = () => {
-      let body: unknown = null
-      try {
-        body = JSON.parse(request.responseText)
-      } catch {
-        // not JSON: handled as an unknown error below
-      }
-      if (request.status >= 200 && request.status < 300) resolve(body as Upload)
-      else reject(toApiError(body, request.status))
-    }
-    request.onerror = () => reject(toApiError(null))
-    request.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
-    signal.addEventListener('abort', () => request.abort(), { once: true })
-    const form = new FormData()
-    form.append('file', file)
-    request.send(form)
-  })
+  const form = new FormData()
+  form.append('file', file)
+  return postWithProgress<Upload>('/imports/uploads', form, { signal, onProgress })
 }
 
 /** Uploads the files one by one, then starts the session (ICS is parsed right away). */
