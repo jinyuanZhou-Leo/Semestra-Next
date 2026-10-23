@@ -139,9 +139,9 @@ async def folder_create(ctx: Ctx, inp: FolderCreateInput) -> FolderOut:
 
 @capability(
     name="files.folder.update",
-    summary="Rename or move a folder, or change its order.",
-    description="""Rename a folder, move it under another folder (parent_id null = course root) or
-set its position among its siblings. Only send the fields to change.""",
+    summary="Rename or move a folder.",
+    description="""Rename a folder or move it under another folder (parent_id null = course root).
+Folders are listed by name. Only send the fields to change.""",
     effect="write",
     http=Http("PATCH", "/folders/{folder_id}"),
     expose=("http",),
@@ -149,7 +149,7 @@ set its position among its siblings. Only send the fields to change.""",
 )
 async def folder_update(ctx: Ctx, inp: FolderUpdateInput) -> FolderOut:
     return await service.update_folder(
-        ctx, inp.folder_id, set(inp.model_fields_set), inp.name, inp.parent_id, inp.position
+        ctx, inp.folder_id, set(inp.model_fields_set), inp.name, inp.parent_id
     )
 
 

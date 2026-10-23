@@ -2096,10 +2096,10 @@ export const filesFolderDeleteMutation = (options?: Partial<Options<FilesFolderD
 };
 
 /**
- * Rename or move a folder, or change its order.
+ * Rename or move a folder.
  *
- * Rename a folder, move it under another folder (parent_id null = course root) or
- * set its position among its siblings. Only send the fields to change.
+ * Rename a folder or move it under another folder (parent_id null = course root).
+ * Folders are listed by name. Only send the fields to change.
  */
 export const filesFolderUpdateMutation = (options?: Partial<Options<FilesFolderUpdateData>>): UseMutationOptions<FilesFolderUpdateResponse, FilesFolderUpdateError, Options<FilesFolderUpdateData>> => {
     const mutationOptions: UseMutationOptions<FilesFolderUpdateResponse, FilesFolderUpdateError, Options<FilesFolderUpdateData>> = {

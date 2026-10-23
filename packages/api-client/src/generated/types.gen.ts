@@ -3995,10 +3995,6 @@ export type FolderOut = {
      */
     name: string;
     /**
-     * Position
-     */
-    position: number;
-    /**
      * Item Count
      *
      * Files and links directly inside the folder
@@ -4030,12 +4026,6 @@ export type FolderUpdateInputBody = {
      * Move under this folder; null moves it to the course root
      */
     parent_id?: string | null;
-    /**
-     * Position
-     *
-     * Order among its siblings
-     */
-    position?: number | null;
 };
 
 /**

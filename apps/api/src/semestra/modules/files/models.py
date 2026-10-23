@@ -43,7 +43,6 @@ class FilesFolder(Base, OwnedMixin, TimestampMixin):
         String, ForeignKey("files_folders.id", ondelete="CASCADE"), default=None
     )
     name: Mapped[str] = mapped_column(String)
-    position: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class FilesItem(Base, OwnedMixin, TimestampMixin):
