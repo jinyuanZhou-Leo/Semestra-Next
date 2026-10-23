@@ -247,6 +247,7 @@ def test_term_figures(rule: str) -> None:
         assert agg.credits_counted == expected["credits_counted"], term
         assert agg.credits_earned == expected["earned"], term
         assert agg.excluded_count == expected["excluded"], term
+        assert agg.in_progress_count == expected.get("in_progress", 0), term
 
 
 @pytest.mark.parametrize("rule", ["end_term", "split_evenly"])
@@ -437,3 +438,62 @@ def test_property_each_course_counts_once_in_the_program(
     assert abs(total - program.credits_counted) < 0.01
     series = engine.program_series(graded, terms, rule)  # type: ignore[arg-type]
     assert series[-1].cumulative_gpa == program.gpa
+
+
+# --- rounding before lookup, category breakdown, courses without terms ----------------------
+
+
+def rounded_uoft() -> engine.Scale:
+    return engine.replace_rounding(uoft(), True)
+
+
+def test_rounding_reads_the_scale_with_whole_numbers() -> None:
+    # 30/30/40 at 85, 85, 84.9 is 84.96: shown as 85 %, so it must not be an A- either.
+    assert (engine.points_for(uoft(), 84.96), engine.letter_for(uoft(), 84.96)) == (3.7, "A-")
+    scale = rounded_uoft()
+    assert (engine.points_for(scale, 84.96), engine.letter_for(scale, 84.96)) == (4.0, "A")
+    assert engine.points_for(scale, 84.5) == 4.0  # half up
+    assert engine.points_for(scale, 84.49) == 3.7
+    assert engine.points_for(scale, 89.6) == 4.0
+    assert engine.letter_for(scale, 89.5) == "A+"
+
+
+def test_rounding_lowers_the_percentage_a_target_needs() -> None:
+    assert engine.min_percentage_for(uoft(), 4.0) == 85
+    assert engine.min_percentage_for(rounded_uoft(), 4.0) == 84.5
+    assert engine.min_percentage_for(rounded_uoft(), 0.0) == 0
+
+
+def test_rounding_in_the_term_what_if() -> None:
+    scale = rounded_uoft()
+    course = engine.CourseInput("a", 1.0, True, ("t",), gradebook_enabled=False)
+    graded = [engine.GradedCourse(course, engine.course_grade(course, scale))]
+    result = engine.simulate_term(graded, "t", "end_term", scale, {}, 4.0)
+    assert (result.reachable, result.required_percentage) == (True, 84.5)
+
+
+def test_category_breakdown() -> None:
+    items = [
+        engine.Item("a", "q", 10, 80),
+        engine.Item("b", "q", 10, None),
+        engine.Item("c", "q", 10, 50, dropped=True),
+        engine.Item("d", None, 70, 90),
+    ]
+    calc = engine.compute_course(items)
+    by = {c.category: c for c in calc.categories}
+    assert by["q"] == engine.CategoryCalc("q", 20, 10, 80, 8)
+    assert by[None] == engine.CategoryCalc(None, 70, 70, 90, 63)
+    # Still there when the weights do not add up, so the table's group rows always have figures.
+    assert engine.compute_course(items[:1]).categories[0].average == 80
+
+
+def test_courses_without_terms_join_the_last_cumulative_point() -> None:
+    scale = uoft()
+    courses = [
+        engine.CourseInput("a", 1.0, True, ("t1",), gradebook_enabled=False, manual_percentage=90),
+        engine.CourseInput("b", 1.0, True, (), gradebook_enabled=False, manual_percentage=70),
+    ]
+    graded = [engine.GradedCourse(c, engine.course_grade(c, scale)) for c in courses]
+    series = engine.program_series(graded, ["t1", "t2"], "end_term")
+    assert series[0].cumulative_gpa == 4.0
+    assert series[-1].cumulative_gpa == engine.program_aggregate(graded).gpa

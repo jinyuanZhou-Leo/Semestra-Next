@@ -1411,6 +1411,7 @@
   "capability_grading_assessment_create_many_title": "Add assessments",
   "capability_grading_assessment_delete_title": "Delete an assessment",
   "capability_grading_assessment_find_title": "Find an assessment",
+  "capability_grading_assessment_upcoming_title": "List upcoming assessments",
   "capability_grading_assessment_list_title": "List assessments",
   "capability_grading_assessment_reorder_title": "Reorder assessments",
   "capability_grading_assessment_update_title": "Update an assessment",

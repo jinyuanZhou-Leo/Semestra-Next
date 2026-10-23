@@ -61,8 +61,18 @@ async def assessments_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     return out
 
 
+# What the calendar shows of an assessment: anything else (weight, category) leaves it as it is.
+_SHOWN = {"title", "due_at", "due_has_time", "score_percentage", "dropped", "note"}
+
+
 @events.subscribe("grading.assessment.created")
 @events.subscribe("grading.assessment.updated")
 @events.subscribe("grading.assessment.deleted")
 async def on_assessment_changed(ctx: Ctx, event: Event) -> None:
-    await events.publish(ctx, "calendar.changed", {"program_id": event.data["program_id"]})
+    data = event.data
+    if event.type == "grading.assessment.updated":
+        shown = bool(_SHOWN & set(data.get("changed") or ()))
+    else:  # created or deleted: only one with a deadline was ever on the calendar
+        shown = bool(data.get("due_changed"))
+    if shown:
+        await events.publish(ctx, "calendar.changed", {"program_id": data["program_id"]})

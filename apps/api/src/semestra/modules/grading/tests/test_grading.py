@@ -221,8 +221,9 @@ async def test_recording_scores_and_the_figures(api: Api):
     assert summary["current_percentage"] == 80
     assert summary["locked_contribution"] == 48
     assert summary["final_percentage"] is None
-    assert summary["required_average"] == 92.5  # target defaults to the scale's 4.0
-    assert (summary["target_percentage"], summary["reachable"]) == (85, True)
+    # The target defaults to the scale's 4.0: 85 %, or 84.5 % as percentages round to whole ones.
+    assert summary["required_average"] == 91.25
+    assert (summary["target_percentage"], summary["reachable"]) == (84.5, True)
     assert summary["forecast_percentage"] == 80
     assert summary["predictions"] == {final["id"]: 80}
     assert summary["current_letter"] == "A-"
@@ -251,9 +252,11 @@ async def test_final_grade_override_and_pass_fail(api: Api):
     await api.assessment(cid, "Everything", 100, score_percentage=79.5)
     summary = (await api.gradebook(cid))["summary"]
     assert (summary["status"], summary["final_percentage"], summary["final_points"]) == (
-        "completed", 79.5, 3.3
-    )  # fmt: skip
-    assert (summary["final_letter"], summary["final_source"]) == ("B+", "computed")
+        "completed",
+        79.5,
+        3.7,
+    )  # fmt: skip  (79.5 rounds to 80: A-)
+    assert (summary["final_letter"], summary["final_source"]) == ("A-", "computed")
 
     result = await api.call(
         "PATCH", f"/courses/{cid}/grade", json={"final_override_percentage": 91}
@@ -329,10 +332,10 @@ async def test_what_if_and_suggestions_need_complete_weights(api: Api):
         f"/courses/{cid}/gradebook:suggest",
         json={"target": {"kind": "points", "value": 3.0}},
     )
-    assert suggestion["target_percentage"] == 73
+    assert suggestion["target_percentage"] == 72.5  # 73 for a B, less half a mark of rounding
     assert suggestion["reachable"] is True
     assert {i["assessment_id"] for i in suggestion["items"]} == {final["id"], other["id"]}
-    assert suggestion["resulting_percentage"] >= 73
+    assert suggestion["resulting_percentage"] >= 72.5
     # A target the scale cannot give.
     out = await api.call(
         "POST", f"/courses/{cid}/gradebook:suggest", json={"target": {"kind": "points", "value": 9}}
@@ -615,7 +618,8 @@ async def test_term_and_program_summaries(api: Api):
     assert (t2["gpa"], t2["average_percentage"], t2["excluded_count"]) == (2.767, 71.333, 1)
     assert (t2["credits_total"], t2["credits_earned"]) == (2.0, 2.0)
     t3 = await api.call("GET", f"/terms/{terms['T3']}/grade-summary")
-    assert (t3["gpa"], t3["credits_earned"], t3["excluded_count"]) == (None, 0.5, 2)
+    assert (t3["gpa"], t3["credits_earned"], t3["excluded_count"]) == (None, 0.5, 1)
+    assert t3["in_progress_count"] == 1
     assert [c["status"] for c in t3["courses"]] == ["in_progress", "passed"]
 
     program = await api.call("GET", f"/programs/{pid}/grade-summary")
@@ -677,7 +681,7 @@ async def test_term_what_if_over_http(api: Api):
     result = await api.call(
         "POST", f"/terms/{t3}/grade-summary:simulate", json={"scores": {}, "target_gpa": 3.7}
     )
-    assert (result["gpa"], result["required_percentage"]) == (None, 80)
+    assert (result["gpa"], result["required_percentage"]) == (None, 79.5)
 
 
 async def test_hidden_gpa_flag_travels_with_the_figures(api: Api):
@@ -909,3 +913,93 @@ async def test_ungraded_deadlines_show_in_the_calendar(api: Api, app: FastAPI):
     assert {"type": "calendar.changed", "data": {"program_id": pid}} in [
         {"type": e["type"], "data": e["data"]} for e in pushed
     ]
+
+
+async def test_rounding_before_lookup_can_be_turned_off(api: Api):
+    program, course = await one_course(api)
+    cid = course["id"]
+    await api.assessment(cid, "Everything", 100, score_percentage=84.6)
+    summary = (await api.gradebook(cid))["summary"]
+    assert (summary["final_points"], summary["final_letter"]) == (4.0, "A")
+    scale = await api.call(
+        "PUT", f"/programs/{program['id']}/grading-scale", json={"round_before_lookup": False}
+    )
+    assert scale["round_before_lookup"] is False
+    summary = (await api.gradebook(cid))["summary"]
+    assert (summary["final_points"], summary["final_letter"]) == (3.7, "A-")
+    assert summary["target_percentage"] == 85
+
+
+async def test_a_score_is_a_percentage_or_points_never_both(api: Api):
+    _, course = await one_course(api)
+    a = await api.assessment(course["id"], "Quiz", 100, points_earned=18, points_possible=20)
+    await api.call(
+        "PATCH",
+        f"/assessments/{a['id']}",
+        422,
+        json={"score_percentage": 50, "points_possible": 40},
+    )
+    r = await api.call("PATCH", f"/assessments/{a['id']}", json={"score_percentage": 50})
+    assert (r["score_percentage"], r["points_earned"], r["points_possible"]) == (50, None, None)
+    # Points possible alone cannot turn a plain percentage into points.
+    await api.call("PATCH", f"/assessments/{a['id']}", 422, json={"points_possible": 40})
+    r = await api.call("PATCH", f"/assessments/{a['id']}", json={"score_percentage": None})
+    assert r["score_percentage"] is None
+
+
+async def test_upcoming_assessments(api: Api):
+    program, course = await one_course(api)
+    cid = course["id"]
+    late = await api.assessment(cid, "Late", 10, due_date="2026-12-10")
+    soon = await api.assessment(cid, "Soon", 10, due_date="2026-11-01")
+    await api.assessment(cid, "Undated", 10)
+    await api.assessment(cid, "Done", 10, due_date="2026-10-01", score_percentage=80)
+    await api.assessment(cid, "Dropped", 10, due_date="2026-10-02", dropped=True)
+    out = await api.call(
+        "GET", f"/programs/{program['id']}/upcoming-assessments", params={"course_id": cid}
+    )
+    assert [a["id"] for a in out["items"]] == [soon["id"], late["id"]]
+    out = await api.call(
+        "GET", f"/programs/{program['id']}/upcoming-assessments", params={"limit": 1}
+    )
+    assert [a["title"] for a in out["items"]] == ["Soon"]
+
+
+async def test_category_figures_in_the_summary(api: Api):
+    _, course = await one_course(api)
+    cid = course["id"]
+    book = await api.gradebook(cid)
+    quiz = next(c for c in book["categories"] if c["key"] == "quiz")
+    await api.assessment(cid, "Q1", 20, category_id=quiz["id"], score_percentage=80)
+    await api.assessment(cid, "Q2", 20, category_id=quiz["id"])
+    await api.assessment(cid, "Final", 60)
+    summary = (await api.gradebook(cid))["summary"]
+    by = {c["category_id"]: c for c in summary["categories"]}
+    assert by[quiz["id"]] == {
+        "category_id": quiz["id"], "weight": 40, "graded_weight": 20, "average": 80,
+        "contribution": 16,
+    }  # fmt: skip
+    assert by[None]["graded_weight"] == 0
+
+
+async def test_a_batch_is_one_event_and_the_calendar_hears_only_what_it_shows(
+    api: Api, app: FastAPI
+):
+    _, course = await one_course(api)
+    async with app.state.session_factory() as db:
+        owner = await db.scalar(select(models.GradingScale.user_id))
+    assert owner
+    items = [
+        {"title": f"Lab {i}", "weight": 5, "due_date": "2026-11-0" + str(i)} for i in (1, 2, 3)
+    ]
+    with collect_events(app, owner) as pushed:
+        out = await api.call(
+            "POST", f"/courses/{course['id']}/assessments:batch", json={"assessments": items}
+        )
+        lab = out["created"][0]["id"]
+        await api.call("PATCH", f"/assessments/{lab}", json={"weight": 7})  # not on the calendar
+        await api.call("PATCH", f"/assessments/{lab}", json={"title": "Lab one"})
+    created = [e for e in pushed if e["type"] == "grading.assessment.created"]
+    assert len(created) == 1
+    assert created[0]["data"]["assessment_ids"] == [a["id"] for a in out["created"]]
+    assert sum(e["type"] == "calendar.changed" for e in pushed) == 2  # the batch, the title

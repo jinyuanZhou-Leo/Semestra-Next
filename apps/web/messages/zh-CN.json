@@ -1411,6 +1411,7 @@
   "capability_grading_assessment_create_many_title": "批量添加考核",
   "capability_grading_assessment_delete_title": "删除考核",
   "capability_grading_assessment_find_title": "查找考核",
+  "capability_grading_assessment_upcoming_title": "列出即将截止的考核",
   "capability_grading_assessment_list_title": "列出考核",
   "capability_grading_assessment_reorder_title": "调整考核顺序",
   "capability_grading_assessment_update_title": "修改考核",

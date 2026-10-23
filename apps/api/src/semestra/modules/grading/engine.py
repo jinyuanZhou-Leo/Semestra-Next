@@ -11,7 +11,7 @@ types; intermediate arithmetic uses full precision.
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
-from math import ceil
+from math import ceil, floor
 from typing import Literal
 
 WEIGHT_TOLERANCE = 0.01
@@ -46,6 +46,9 @@ class Band:
 class Scale:
     bands: tuple[Band, ...]  # highest `min` first
     max_points: float
+    # Round a percentage to a whole number (half up) before looking up its band, the way most
+    # schools turn 84.6 into 85; off, 84.6 stays in the 80-84 band (M03 §3.8).
+    round_to_whole: bool = False
 
 
 class ScaleError(ValueError):
@@ -56,8 +59,8 @@ class ScaleError(ValueError):
         self.reason = reason
 
 
-def make_scale(bands: Sequence[Band], max_points: float) -> Scale:
-    return Scale(tuple(sorted(bands, key=lambda b: (-b.min, -b.max))), max_points)
+def make_scale(bands: Sequence[Band], max_points: float, *, round_to_whole: bool = False) -> Scale:
+    return Scale(tuple(sorted(bands, key=lambda b: (-b.min, -b.max))), max_points, round_to_whole)
 
 
 def validate_bands(bands: Sequence[Band], max_points: float) -> None:
@@ -89,12 +92,30 @@ def validate_bands(bands: Sequence[Band], max_points: float) -> None:
         raise ScaleError("not_to_hundred")
 
 
+def replace_rounding(scale: Scale, round_to_whole: bool) -> Scale:
+    return Scale(scale.bands, scale.max_points, round_to_whole)
+
+
+def lookup_percentage(scale: Scale, percentage: float) -> float:
+    """The percentage the scale is read with: rounded half up when the scale says so."""
+    return float(floor(percentage + 0.5 + _EPS)) if scale.round_to_whole else percentage
+
+
 def band_for(scale: Scale, percentage: float) -> Band:
     """The highest band whose `min` is at or below the percentage (M03 §3.8)."""
+    value = lookup_percentage(scale, percentage)
     for band in scale.bands:  # highest min first
-        if percentage >= band.min - _EPS:
+        if value >= band.min - _EPS:
             return band
     return scale.bands[-1]  # below every band (negative input): the lowest one
+
+
+def band_threshold(scale: Scale, band: Band) -> float:
+    """The lowest percentage that lands in the band: its `min`, or with rounding the point that
+    rounds up to it (84.5 for a band from 85)."""
+    if not scale.round_to_whole:
+        return band.min
+    return max(0.0, ceil(band.min - _EPS) - 0.5)
 
 
 def points_for(scale: Scale, percentage: float) -> float:
@@ -107,7 +128,7 @@ def letter_for(scale: Scale, percentage: float) -> str | None:
 
 def min_percentage_for(scale: Scale, target_points: float) -> float | None:
     """The lowest percentage worth at least `target_points`; None if the scale never gets there."""
-    qualifying = [b.min for b in scale.bands if b.points >= target_points - _EPS]
+    qualifying = [band_threshold(scale, b) for b in scale.bands if b.points >= target_points - _EPS]
     return min(qualifying) if qualifying else None
 
 
@@ -123,6 +144,17 @@ class Item:
     weight: float
     score: float | None
     dropped: bool = False
+
+
+@dataclass(frozen=True)
+class CategoryCalc:
+    """One category's share of the course: what the gradebook shows per category."""
+
+    category: str | None
+    weight: float  # of the counted (not dropped) items
+    graded_weight: float
+    average: float | None  # weighted average of the scored items
+    contribution: float  # percentage points the scored items add to the course grade
 
 
 @dataclass(frozen=True)
@@ -148,6 +180,7 @@ class CourseCalc:
     target_percentage: float | None = None
     required_average: float | None = None
     reachable: bool | None = None
+    categories: tuple[CategoryCalc, ...] = ()
 
 
 def weight_status(items: Sequence[Item]) -> tuple[float, float, bool]:
@@ -163,6 +196,27 @@ def _weighted_mean(items: Sequence[Item]) -> float | None:
     if weight <= 0:  # only zero-weight history: fall back to a plain average
         return sum(i.score or 0 for i in graded) / len(graded)
     return sum(i.weight * (i.score or 0) for i in graded) / weight
+
+
+def category_breakdown(items: Sequence[Item]) -> tuple[CategoryCalc, ...]:
+    """Per category, in order of first appearance; dropped items do not count."""
+    groups: dict[str | None, list[Item]] = {}
+    for item in items:
+        if not item.dropped:
+            groups.setdefault(item.category, []).append(item)
+    out: list[CategoryCalc] = []
+    for category, group in groups.items():
+        graded = [i for i in group if i.score is not None]
+        out.append(
+            CategoryCalc(
+                category=category,
+                weight=round(sum(i.weight for i in group), PRECISION),
+                graded_weight=round(sum(i.weight for i in graded), PRECISION),
+                average=_round(_weighted_mean(graded)),
+                contribution=round(sum(i.weight * (i.score or 0) for i in graded) / 100, PRECISION),
+            )
+        )
+    return tuple(out)
 
 
 def compute_course(
@@ -188,6 +242,7 @@ def compute_course(
         "graded_weight": graded_weight,
         "remaining_weight": remaining_weight,
         "target_percentage": target_percentage,
+        "categories": category_breakdown(active),
     }
     if not ok:  # §3.1: nothing is calculated, but an official grade still stands
         return _rounded(
@@ -274,6 +329,7 @@ def _rounded(calc: CourseCalc) -> CourseCalc:
         target_percentage=_round(calc.target_percentage),
         required_average=_round(calc.required_average),
         reachable=calc.reachable,
+        categories=calc.categories,
     )
 
 
@@ -397,7 +453,12 @@ def course_grade(
 
     current: float | None = None
     if course.gradebook_enabled:
-        calc = calc or compute_course(course.items, override=course.final_override)
+        calc = calc or compute_course(
+            # Summaries need the final and current grade only, not a forecast.
+            course.items,
+            override=course.final_override,
+            forecast_model="simple_minimum_needed",
+        )
         final = calc.final_percentage
         current = calc.current_percentage
     else:
@@ -447,7 +508,10 @@ class Aggregate:
     average_percentage: float | None
     credits_counted: float  # credits of the courses behind the GPA
     credits_earned: float
-    excluded_count: int  # courses of the scope that do not count towards the GPA
+    # Courses of the scope outside the GPA: finished ones that do not count (pass/fail, not in
+    # the GPA, no credits) and, separately, those still waiting for their grade.
+    excluded_count: int
+    in_progress_count: int = 0
 
 
 def _aggregate(parts: Sequence[tuple[GradedCourse, float]]) -> Aggregate:
@@ -458,12 +522,18 @@ def _aggregate(parts: Sequence[tuple[GradedCourse, float]]) -> Aggregate:
         sum((g.grade.percentage or 0) * c for g, c in counted) / weight if weight > 0 else None
     )
     earned = sum(c for g, c in parts if g.grade.earns_credits)
+    waiting = sum(
+        1
+        for g, c in parts
+        if not (g.grade.counts_in_gpa and c > 0) and g.grade.status == "in_progress"
+    )
     return Aggregate(
         _round(gpa),
         _round(average),
         round(weight, PRECISION),
         round(earned, PRECISION),
-        len(parts) - len(counted),
+        len(parts) - len(counted) - waiting,
+        waiting,
     )
 
 
@@ -492,19 +562,28 @@ def program_aggregate(graded: Sequence[GradedCourse]) -> Aggregate:
 
 
 def _cumulative_parts(
-    graded: Sequence[GradedCourse], terms_so_far: Sequence[str], rule: YearAttribution
+    graded: Sequence[GradedCourse],
+    terms_so_far: Sequence[str],
+    rule: YearAttribution,
+    *,
+    last: bool = False,
 ) -> list[tuple[GradedCourse, float]]:
     """Each course once, with the credits that landed in the terms so far.
 
     A course whose credits have all landed counts with exactly its own credits, and courses keep
     the order of `program_aggregate`, so the last cumulative GPA is the Program GPA to the last
     decimal (summing split credits term by term drifts in float and can flip the rounding).
+    A course without terms belongs to no term, so it joins at the `last` one only.
     """
     done = set(terms_so_far)
     parts: list[tuple[GradedCourse, float]] = []
     for g in graded:
         landed = attribute_credits(g.course.credits, g.course.term_ids, rule)
-        if landed and done.issuperset(landed):
+        if not landed:
+            if last:
+                parts.append((g, g.course.credits))
+            continue
+        if done.issuperset(landed):
             parts.append((g, g.course.credits))
         else:
             credits = sum(c for t, c in landed.items() if t in done)
@@ -528,7 +607,9 @@ def program_series(
     points: list[TermPoint] = []
     for k, term_id in enumerate(term_order):
         term_parts = _term_parts(graded, term_id, rule)
-        cumulative = _aggregate(_cumulative_parts(graded, term_order[: k + 1], rule))
+        cumulative = _aggregate(
+            _cumulative_parts(graded, term_order[: k + 1], rule, last=k == len(term_order) - 1)
+        )
         points.append(
             TermPoint(term_id, _aggregate(term_parts), cumulative.gpa, cumulative.credits_counted)
         )
@@ -607,10 +688,10 @@ def simulate_term(
         reachable = best is not None and best >= target_gpa - _EPS
         if reachable and blank:
             # The GPA only changes at band boundaries: the first one that gets there is the answer.
-            for band_min in sorted({b.min for b in scale.bands}):
-                gpa = term_aggregate(with_blank(band_min), term_id, rule).gpa
+            for threshold in sorted({band_threshold(scale, b) for b in scale.bands}):
+                gpa = term_aggregate(with_blank(threshold), term_id, rule).gpa
                 if gpa is not None and gpa >= target_gpa - _EPS:
-                    required = band_min
+                    required = threshold
                     break
     in_term = {
         g.course.course_id: _open(g)
