@@ -252,6 +252,21 @@ class AnnouncementList(BaseModel):
     truncated: bool
 
 
+class TermAnnouncementsInput(BaseModel):
+    term_id: Id = Field(description="Term id")
+    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
+
+
+class TermAnnouncement(Announcement):
+    course_id: str = Field(description="The app's course it was posted in")
+
+
+class TermAnnouncementList(BaseModel):
+    items: list[TermAnnouncement] = Field(description="Newest first")
+    linked_course_ids: list[str] = Field(description="The term's courses linked to an LMS")
+    truncated: bool
+
+
 class ImportTarget(BaseModel):
     kind: Literal["assessment", "task", "event"]
     id: str

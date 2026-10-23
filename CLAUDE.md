@@ -132,7 +132,7 @@ docs/                设计稿与模块规格
   给其它模块的约定：**新表要注册进本模块的适配器**（覆盖测试会检查每张带 `user_id` 的表），细节见 M13 规格第 11 节。
 
 - M09 LMS 集成：后端 `apps/api/src/semestra/modules/lms/`（表 `lms_connections`/`_program_bindings`/`_course_links`/`_imported_refs`/`_cache`；provider 注册 `providers/base.py` 的 `register_lms_provider`，Canvas 在 `providers/canvas/`；HTML 清洗 `html.py`（nh3）；读接口 `reads.py`，导入 `imports.py`（M08 提交钩子），日历源 `calendar.py`；provider 契约测试 `tests/provider_contract.py`，模块测试用假 provider）。前端 `apps/web/src/modules/lms/`：账户/学业项目/课程设置的"集成"分区、学期向导与成绩册的导入来源、`LmsUpdatesBanner`、公告卡片。
-  给其它模块的约定：新 provider 只需实现 `LmsProvider` 并通过 `check_provider` 契约测试，前端贡献 `lms.providerUi`；凭证只经 `service._seal/_open` 加解密，任何输出只给 `credentials_hint`；provider 只抛 `lms.*` 错误码。读平台内容一律走 `lms.*` capability（带缓存与功能标志检查），返回的 HTML 已清洗，但对 agent 仍是不可信数据。细节与偏离见 M09 规格末尾的"实现说明"。
+  给其它模块的约定：新 provider 只需实现 `LmsProvider` 并通过 `check_provider` 契约测试，前端贡献 `lms.providerUi`；凭证只经 `service._seal/_open` 加解密，任何输出只给 `credentials_hint`；provider 只抛 `lms.*` 错误码。读平台内容一律走 `lms.*` capability（带缓存与功能标志检查），返回的 HTML 已清洗，但对 agent 仍是不可信数据。读接口不在请求事务里写库（`cache.put` 的库表写入在提交后单独进行，别在读路径里加写入，SQLite 只有一个写者）。前端改了 LMS 数据后用 `invalidateLms(qc, { courseId })`，不要调用无参数的 `invalidateQueries()`。细节与偏离见 M09 规格末尾的"实现说明"。
 - M16 Canvas Tab（插件 `canvas-tab`）：只有前端 `apps/web/src/modules/plugin-canvas-tab/`，数据全部来自 M09 的 `lms.*` 读接口；后端只在 `plugins_builtin` 登记 `PluginInfo`。共享的 HTML 渲染组件 `components/SafeHtml.tsx`（DOMPurify）。
   给其它模块的约定：Page 需要额外数据才能判断是否可用时，用 `availabilityQuery(scope)` + `isAvailable(scope, data)`（M10 扩展，数据走查询缓存）；课程 Page 路由保留字符串 search 参数，Page 可以用 `useSearch({ strict: false })` 存自己的状态。细节见 M16 规格末尾的"实现说明"。
 

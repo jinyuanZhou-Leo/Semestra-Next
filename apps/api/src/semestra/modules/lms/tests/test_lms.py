@@ -184,7 +184,7 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     await api.call("GET", f"/courses/{course}/lms/announcements")
     assert fake.calls == []  # from the cache
     await api.call("GET", f"/courses/{course}/lms/announcements?refresh=true")
-    assert fake.calls == [("announcements", "101")]
+    assert fake.calls == [("announcements", ["101"])]
 
     overview = await api.call("GET", f"/courses/{course}/lms")
     assert overview["provider"] == "fake"

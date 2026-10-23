@@ -459,9 +459,11 @@ async def cached(
     fn: Callable[[Io], Awaitable[Any]],
     *,
     refresh: bool = False,
+    scope: str | None = None,
 ) -> tuple[Any, bool]:
     """A read through the cache. `fn` returns DTOs (or lists of them); what comes back is their
-    JSON form, the same whether it came from the LMS or the cache."""
+    JSON form, the same whether it came from the LMS or the cache. `scope` groups entries that
+    are dropped together (`cache.course_scope`)."""
     key = cache.cache_key(ctx.user_id, b.row.id, method, params)
     if not refresh:
         hit = await cache.get(ctx, key)
@@ -471,7 +473,7 @@ async def cached(
         raise NotCached
     result, truncated = await call(ctx, b, fn)
     data = _dump(result)
-    await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated})
+    await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated}, scope=scope)
     return data, truncated
 
 
@@ -599,7 +601,7 @@ async def program_links(ctx: Ctx, program_id: str) -> list[LmsCourseLink]:
 async def external_courses(
     ctx: Ctx, program_id: str, *, include_past: bool, refresh: bool = False
 ) -> ExternalCourseList:
-    await academics.get_program_row(ctx, program_id)
+    program = await academics.get_program_row(ctx, program_id)
     b = await bound(ctx, await program_connection(ctx, program_id))
     require_feature(b, "courses")
     data, truncated = await cached(
@@ -613,8 +615,7 @@ async def external_courses(
     links = {link.external_course_id: link for link in await program_links(ctx, program_id)}
     titles: dict[str, str] = {}
     if links:
-        program = await academics.get_program_row(ctx, program_id)
-        rows = [await academics.get_course_row(ctx, li.course_id) for li in links.values()]
+        rows = await academics.courses_by_id(ctx, [li.course_id for li in links.values()])
         titles = {
             c.id: c.alias or c.code or c.title
             for c in await academics.courses_out(ctx, program, rows)
@@ -764,6 +765,7 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
         {"course": inp.external_course_id},
         lambda i: b.provider.get_course(i, b.cfg, b.creds, inp.external_course_id),
         refresh=True,
+        scope=cache.course_scope(inp.external_course_id),
     )
     await create_link(
         ctx,
@@ -799,7 +801,12 @@ async def sync_link(ctx: Ctx, course_id: str) -> CourseLinkState:
         _apply_meta(link, external.model_dump(mode="json"))
         link.last_error_code = None
         link.last_synced_at = ctx.now
-        await cache.drop_connection(ctx, b.row.id)
+        # Only what shows the course's own details; its content is not affected.
+        for method in ("overview", "course"):
+            key = cache.cache_key(
+                ctx.user_id, b.row.id, method, {"course": link.external_course_id}
+            )
+            await cache.drop(ctx, key)
     link.updated_at = ctx.now
     await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
     return await link_state(ctx, course_id)

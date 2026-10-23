@@ -18,9 +18,9 @@ export function PagesView({ selected }: { selected?: string }) {
 }
 
 function PageList() {
-  const { courseId, query, go } = useCanvasPage()
+  const { courseId, go } = useCanvasPage()
   const list = useQuery({
-    ...lmsPageListOptions({ path: { course_id: courseId }, query }),
+    ...lmsPageListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -76,10 +76,10 @@ function PageList() {
 
 /** One page as cleaned HTML; also the home view of courses whose Canvas home is a page. */
 export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: boolean }) {
-  const { courseId, query, go } = useCanvasPage()
+  const { courseId, go } = useCanvasPage()
   const onLink = useInternalLinks()
   const page = useQuery({
-    ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef }, query }),
+    ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef } }),
     placeholderData: keepPreviousData,
   })
   return (

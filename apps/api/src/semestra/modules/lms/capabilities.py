@@ -57,6 +57,8 @@ from semestra.modules.lms.schemas.io import (
     QuizzesInput,
     SavedFile,
     SubmissionInput,
+    TermAnnouncementList,
+    TermAnnouncementsInput,
     UpdatesOutput,
 )
 
@@ -343,6 +345,21 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
 
 
 @capability(
+    name="lms.course.refresh",
+    summary="Forget what the app cached about a linked course, so its next reads ask the LMS.",
+    description="""The Canvas tab's "Refresh". Reads with `refresh` do the same for one read.
+Not for agents.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/lms:refresh"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
+    await reads.refresh_course(ctx, inp.course_id)
+    return await service.link_state(ctx, inp.course_id)
+
+
+@capability(
     name="lms.announcement.list",
     untrusted=True,
     summary="Recent announcements of a linked course on Canvas or another LMS, newest first.",
@@ -354,6 +371,21 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
 )
 async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementList:
     return await reads.announcements(ctx, inp.course_id, inp.since, inp.refresh)
+
+
+@capability(
+    name="lms.term.announcement.list",
+    untrusted=True,
+    summary="Recent announcements of every LMS-linked course of a term, newest first.",
+    description="""One request per connection (the term board's card); each item names its
+`course_id`. Not for agents: they read one course with lms.announcement.list.""",
+    effect="read",
+    http=Http("GET", "/terms/{term_id}/lms/announcements"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def term_announcements_list(ctx: Ctx, inp: TermAnnouncementsInput) -> TermAnnouncementList:
+    return await reads.term_announcements(ctx, inp.term_id, inp.refresh)
 
 
 @capability(
@@ -523,7 +555,8 @@ async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
 @capability(
     name="lms.file.get",
     summary="Details of a file of a linked course.",
-    description="To read or search its text, save it with lms.file.save_to_course.",
+    description="""Read its text with lms.file.preview; to search or cite it, save it with
+lms.file.save_to_course.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}"),
     tags=TAGS,
@@ -659,8 +692,9 @@ async def import_syllabus(ctx: Ctx, inp: CourseRef) -> ImportStarted:
 
 @capability(
     name="lms.course.check_updates",
-    summary="Imported assignments whose title, due date or points changed on the LMS.",
-    description="Put them up for the user's review with lms.course.queue_updates.",
+    summary="Imported assignments whose title, due, points, weight or grade changed on the LMS.",
+    description="""A `score` change is a grade the gradebook does not have yet. Put them up for
+the user's review with lms.course.queue_updates.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/updates"),
     tags=TAGS,
