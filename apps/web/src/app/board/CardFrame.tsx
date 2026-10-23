@@ -221,6 +221,7 @@ export function CardFrame({
       {contribution.settings ? (
         <CardSettingsDialog
           card={contribution}
+          scope={scope}
           value={settings}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}

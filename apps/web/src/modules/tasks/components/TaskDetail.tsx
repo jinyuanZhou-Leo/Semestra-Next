@@ -7,6 +7,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
+import { isoDay, localDay } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -55,16 +56,6 @@ function draftOf(task: Task): Draft {
     list_id: task.list_id,
     course_id: task.course_id,
   }
-}
-
-function toDate(iso: string): Date {
-  const [y, mo, d] = iso.split('-').map(Number)
-  return new Date(y!, (mo ?? 1) - 1, d ?? 1)
-}
-
-function toIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 /**
@@ -153,14 +144,14 @@ export function TaskDetail({
                   render={<Button variant="outline" className="flex-1 justify-start font-normal" />}
                 >
                   <CalendarDays aria-hidden />
-                  {draft.due_date ? formatDate(toDate(draft.due_date)) : m.tasks_due_none()}
+                  {draft.due_date ? formatDate(localDay(draft.due_date)) : m.tasks_due_none()}
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={draft.due_date ? toDate(draft.due_date) : undefined}
-                    defaultMonth={draft.due_date ? toDate(draft.due_date) : undefined}
-                    onSelect={(date) => set('due_date', date ? toIso(date) : null)}
+                    selected={draft.due_date ? localDay(draft.due_date) : undefined}
+                    defaultMonth={draft.due_date ? localDay(draft.due_date) : undefined}
+                    onSelect={(date) => set('due_date', date ? isoDay(date) : null)}
                   />
                 </PopoverContent>
               </Popover>

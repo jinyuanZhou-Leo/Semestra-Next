@@ -2091,6 +2091,8 @@
   "tasks_empty_title": "No tasks here",
   "tasks_empty_description": "Type in the box above to add one.",
   "tasks_completed_count": "{count} completed",
+  "tasks_show_more": "Show more",
+  "tasks_lists_all_terms": "All terms",
   "tasks_completed_empty": "Nothing completed yet",
   "tasks_today_empty": "Nothing due today",
   "tasks_list_empty": "No tasks",

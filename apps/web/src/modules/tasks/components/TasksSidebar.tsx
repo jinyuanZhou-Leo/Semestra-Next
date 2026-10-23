@@ -33,7 +33,7 @@ import { SUB_ACTION } from '@/app/host/sidebar-classes'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { useCourses } from '@/modules/academics/queries'
+import { useCourses, useTerms } from '@/modules/academics/queries'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -61,9 +61,10 @@ import { type TaskActions, useTaskActions } from '../actions'
 import { useTaskCounts, useTaskLists } from '../queries'
 import {
   INBOX,
+  type ListGroup,
   type Selection,
   SMART_VIEWS,
-  orderLists,
+  groupLists,
   parseSelection,
   selectionKey,
 } from '../types'
@@ -76,9 +77,25 @@ export function useTaskSelection(scopeId: string) {
   return [selection, (next: Selection) => setPref(selectionKey(next))] as const
 }
 
-/** Lists of a term page: its own and the Program-wide ones; the Program page shows all. */
-function visibleLists(lists: readonly TaskList[], termId: string | undefined): TaskList[] {
-  return orderLists(lists.filter((l) => !termId || l.term_id === null || l.term_id === termId))
+/**
+ * The list groups a page shows: on a term's page its own lists and the Program-wide ones; on the
+ * Program's page every term's, under the term's name.
+ */
+function useListGroups(
+  programId: string,
+  termId: string | undefined,
+  lists: readonly TaskList[],
+): { groups: ListGroup[]; label: (group: ListGroup) => string | undefined } {
+  const terms = useTerms(programId).data?.items ?? []
+  const groups = groupLists(lists, termId ? [termId] : terms.map((t) => t.id))
+  // One group needs no heading.
+  const label = (group: ListGroup) =>
+    groups.length < 2
+      ? undefined
+      : group.termId === null
+        ? m.tasks_lists_all_terms()
+        : terms.find((t) => t.id === group.termId)?.name
+  return { groups, label }
 }
 
 /** New list, rename and delete, with their dialogs; shared by the sidebar and the page's menu. */
@@ -160,7 +177,7 @@ function useListEditing({
   }
 }
 
-/** Moves one list in the order; lists of other terms keep their place after the visible ones. */
+/** Moves one list within its group; the other lists keep their order after it. */
 function reorder(
   actions: TaskActions,
   programId: string,
@@ -330,15 +347,17 @@ export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-  const shown = visibleLists(lists, undefined)
-  const ids = shown.map((l) => l.id)
+  const { groups, label } = useListGroups(programId, undefined, lists)
   const active = selectionKey(selection)
 
-  const onDragEnd = ({ active: dragged, over }: DragEndEvent) => {
-    if (!over || dragged.id === over.id) return
-    const from = ids.indexOf(String(dragged.id))
-    reorder(actions, programId, lists, ids, from, ids.indexOf(String(over.id)))
-  }
+  const onDragEnd =
+    (ids: string[]) =>
+    ({ active: dragged, over }: DragEndEvent) => {
+      if (!over || dragged.id === over.id) return
+      const from = ids.indexOf(String(dragged.id))
+      const to = ids.indexOf(String(over.id))
+      if (from >= 0 && to >= 0) reorder(actions, programId, lists, ids, from, to)
+    }
 
   return (
     <SidebarMenuSub aria-label={m.tasks_name()}>
@@ -362,21 +381,39 @@ export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
           onClick={() => onSelect({ kind: 'inbox' })}
         />
       </SidebarMenuSubItem>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          {shown.map((list) => (
-            <SidebarListEntry
-              key={list.id}
-              list={list}
-              active={active === `list:${list.id}`}
-              count={counts?.lists[list.id] ?? 0}
-              onSelect={() => onSelect({ kind: 'list', listId: list.id })}
-              onRename={() => editing.rename(list)}
-              onDelete={() => editing.remove(list)}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
+      {groups.map((group) => {
+        const ids = group.lists.map((l) => l.id)
+        const heading = label(group)
+        return (
+          <DndContext
+            key={group.termId ?? 'program'}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd(ids)}
+          >
+            {heading ? (
+              <SidebarMenuSubItem className="mt-2">
+                <span className="block truncate px-2 py-1 text-xs text-muted-foreground">
+                  {heading}
+                </span>
+              </SidebarMenuSubItem>
+            ) : null}
+            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+              {group.lists.map((list) => (
+                <SidebarListEntry
+                  key={list.id}
+                  list={list}
+                  active={active === `list:${list.id}`}
+                  count={counts?.lists[list.id] ?? 0}
+                  onSelect={() => onSelect({ kind: 'list', listId: list.id })}
+                  onRename={() => editing.rename(list)}
+                  onDelete={() => editing.remove(list)}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )
+      })}
       <SidebarMenuSubItem>
         <SubEntry icon={Plus} label={m.tasks_list_new()} muted onClick={editing.create} />
       </SidebarMenuSubItem>
@@ -455,10 +492,16 @@ export function TasksViewMenu({
   actions: TaskActions
 }) {
   const editing = useListEditing({ programId, termId, selection, onSelect, actions })
-  const shown = visibleLists(lists, termId)
-  const ids = shown.map((l) => l.id)
-  const current =
-    selection.kind === 'list' ? shown.find((l) => l.id === selection.listId) : undefined
+  const { groups, label } = useListGroups(programId, termId, lists)
+  const currentGroup =
+    selection.kind === 'list'
+      ? groups.find((g) => g.lists.some((l) => l.id === selection.listId))
+      : undefined
+  // Moving up and down stays within the list's group.
+  const ids = currentGroup?.lists.map((l) => l.id) ?? []
+  const current = currentGroup?.lists.find(
+    (l) => selection.kind === 'list' && l.id === selection.listId,
+  )
   const at = current ? ids.indexOf(current.id) : -1
 
   return (
@@ -492,15 +535,23 @@ export function TasksViewMenu({
                 count={counts?.inbox}
               />
             </DropdownMenuRadioItem>
-            {shown.map((list) => (
-              <DropdownMenuRadioItem key={list.id} value={`list:${list.id}`}>
-                <MenuEntry
-                  lead={<List aria-hidden />}
-                  label={list.name}
-                  count={counts?.lists[list.id]}
-                />
-              </DropdownMenuRadioItem>
-            ))}
+            {groups.map((group) => {
+              const heading = label(group)
+              return (
+                <DropdownMenuGroup key={group.termId ?? 'program'}>
+                  {heading ? <DropdownMenuLabel>{heading}</DropdownMenuLabel> : null}
+                  {group.lists.map((list) => (
+                    <DropdownMenuRadioItem key={list.id} value={`list:${list.id}`}>
+                      <MenuEntry
+                        lead={<List aria-hidden />}
+                        label={list.name}
+                        count={counts?.lists[list.id]}
+                      />
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuGroup>
+              )
+            })}
             {courses.length > 0 ? (
               <DropdownMenuGroup>
                 <DropdownMenuSeparator />

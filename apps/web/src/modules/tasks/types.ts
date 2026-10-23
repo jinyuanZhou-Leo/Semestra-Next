@@ -61,9 +61,17 @@ export function parseSelection(key: string | null | undefined): Selection {
   return { kind: 'smart', view: view?.view ?? 'all' }
 }
 
-/** Lists of the term first, then the Program-wide ones, each in its own order. */
-export function orderLists(lists: readonly TaskList[]): TaskList[] {
-  return [...lists].sort(
-    (a, b) => Number(a.term_id === null) - Number(b.term_id === null) || a.position - b.position,
-  )
+/** The lists of one term, or the Program-wide ones (`termId` null), in their order. */
+export type ListGroup = { termId: string | null; lists: TaskList[] }
+
+/**
+ * Lists grouped by term, in the order of `termIds` (the Program's terms, or just the term a
+ * page shows), then the Program-wide lists. Empty groups are left out. Lists are reordered
+ * within their group only, so a drag never crosses into another term.
+ */
+export function groupLists(lists: readonly TaskList[], termIds: readonly string[]): ListGroup[] {
+  const sorted = [...lists].sort((a, b) => a.position - b.position)
+  return [...termIds, null]
+    .map((termId) => ({ termId, lists: sorted.filter((l) => l.term_id === termId) }))
+    .filter((group) => group.lists.length > 0)
 }

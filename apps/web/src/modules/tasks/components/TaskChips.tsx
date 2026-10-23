@@ -19,14 +19,10 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
+import { isoDay } from '@/modules/schedule/time'
 import { dueLabel, localDate } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'
-
-function toIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
 
 /** A chip: outlined and muted while unset, filled once it has a value. */
 function chipClass(set: boolean) {
@@ -85,7 +81,7 @@ export function TaskChips({
             selected={task.due_date ? localDate(task.due_date) : undefined}
             defaultMonth={task.due_date ? localDate(task.due_date) : undefined}
             onSelect={(date) => {
-              if (date) onChange({ due_date: toIso(date) })
+              if (date) onChange({ due_date: isoDay(date) })
               setDateOpen(false)
             }}
           />
@@ -166,23 +162,11 @@ export function TaskChips({
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => onChange({ course_id: null })}>
-                {m.tasks_course_none()}
-                {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
-              </DropdownMenuItem>
-              {courses.map((c) => (
-                <DropdownMenuItem key={c.id} onClick={() => onChange({ course_id: c.id })}>
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: courseColor(c) }}
-                  />
-                  <span className="truncate">{courseLabel(c)}</span>
-                  {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
+            <CourseMenuItems
+              courseId={task.course_id}
+              courses={courses}
+              onPick={(courseId) => onChange({ course_id: courseId })}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
       )}
@@ -198,6 +182,37 @@ export function TaskChips({
         {task.flagged ? m.tasks_flagged() : m.tasks_flag()}
       </Button>
     </div>
+  )
+}
+
+/** The items of a course picker menu: none, then each course with its color; the current one checked. */
+export function CourseMenuItems({
+  courseId,
+  courses,
+  onPick,
+}: {
+  courseId: string | null
+  courses: readonly Course[]
+  onPick: (courseId: string | null) => void
+}) {
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuItem onClick={() => onPick(null)}>
+        {m.tasks_course_none()}
+        {courseId === null ? <Check aria-hidden className="ml-auto" /> : null}
+      </DropdownMenuItem>
+      {courses.map((c) => (
+        <DropdownMenuItem key={c.id} onClick={() => onPick(c.id)}>
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: courseColor(c) }}
+          />
+          <span className="truncate">{courseLabel(c)}</span>
+          {courseId === c.id ? <Check aria-hidden className="ml-auto" /> : null}
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuGroup>
   )
 }
 

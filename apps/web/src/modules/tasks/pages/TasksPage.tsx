@@ -65,6 +65,9 @@ const SORT_NAMES: Record<SortKey, () => string> = {
 
 type ViewPref = { sort: SortKey; doneOpen: boolean | null }
 const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
+/** Tasks loaded at a time; "Show more" loads the next as many. */
+const PAGE = 500
+const DONE_PAGE = 200
 
 /**
  * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the add box and the tasks of
@@ -92,11 +95,20 @@ export default function TasksPage({ scope }: PageProps) {
   const counts = useTaskCounts(taskScope)
   const courses = useCourses(programId, termId).data?.items ?? []
   const completedView = selection.kind === 'smart' && selection.view === 'completed'
-  const tasks = useTasks(taskScope, selection, { sort: viewPref.sort, completed: 'hide' })
+  const doneOpen = viewPref.doneOpen ?? settings.show_completed_in_lists
+  // How many rows are loaded; a new selection starts over (see `select`).
+  const [openLimit, setOpenLimit] = useState(PAGE)
+  const [doneLimit, setDoneLimit] = useState(DONE_PAGE)
+  const tasks = useTasks(taskScope, selection, {
+    sort: viewPref.sort,
+    completed: 'hide',
+    limit: completedView ? doneLimit : openLimit,
+  })
+  // Folded, the finished tasks are only counted: one row is fetched for the total.
   const finished = useTasks(
     taskScope,
     selection,
-    { sort: 'created', completed: 'only' },
+    { sort: 'created', completed: 'only', limit: doneOpen ? doneLimit : 1 },
     !completedView,
   )
   const today = useProgramToday(programId)
@@ -117,9 +129,10 @@ export default function TasksPage({ scope }: PageProps) {
   )
 
   const open = completedView ? [] : (tasks.data?.items ?? [])
-  const done = (completedView ? tasks.data?.items : finished.data?.items) ?? []
+  const donePage = completedView ? tasks.data : finished.data
+  const done = completedView || doneOpen ? (donePage?.items ?? []) : []
+  const doneTotal = donePage?.total ?? 0
   const items = [...open, ...done]
-  const doneOpen = viewPref.doneOpen ?? settings.show_completed_in_lists
   const selected = items.find((t) => t.id === selectedId) ?? null
   const detail = items.find((t) => t.id === detailId) ?? null
   const sortableRows =
@@ -129,6 +142,8 @@ export default function TasksPage({ scope }: PageProps) {
 
   const select = (next: Selection) => {
     setSelection(next)
+    setOpenLimit(PAGE)
+    setDoneLimit(DONE_PAGE)
     setSelectedId(null)
     setDetailId(null)
     setEditing(null)
@@ -137,6 +152,7 @@ export default function TasksPage({ scope }: PageProps) {
   const rowProps = (task: Task) => ({
     task,
     courses,
+    today,
     selected: task.id === selectedId,
     onSelect: () => setSelectedId(task.id),
     editing: editing?.id === task.id ? editing.focus : null,
@@ -198,7 +214,11 @@ export default function TasksPage({ scope }: PageProps) {
     { enabled: selected !== null, ignoreEventWhen: outsideList },
   )
 
-  const defaultDue = selection.kind === 'smart' && selection.view === 'today' ? today : undefined
+  // Like Reminders, a task added to Today or Scheduled is due today unless the text says when.
+  const defaultDue =
+    selection.kind === 'smart' && (selection.view === 'today' || selection.view === 'scheduled')
+      ? today
+      : undefined
   const add = (task: {
     title: string
     due_date?: string
@@ -316,18 +336,12 @@ export default function TasksPage({ scope }: PageProps) {
           </DropdownMenu>
         </div>
         {completedView ? null : (
-          <QuickAdd
-            inputRef={quickAdd}
-            today={today}
-            defaultDue={defaultDue}
-            disabled={actions.pending}
-            onAdd={add}
-          />
+          <QuickAdd inputRef={quickAdd} programId={programId} defaultDue={defaultDue} onAdd={add} />
         )}
         <AsyncBoundary query={tasks}>
           {() => (
             <>
-              {!completedView && open.length === 0 && done.length === 0 ? (
+              {!completedView && open.length === 0 && doneTotal === 0 ? (
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
@@ -374,6 +388,9 @@ export default function TasksPage({ scope }: PageProps) {
                     />
                   )}
                   {completedView || !newRow ? null : <ul>{newRow}</ul>}
+                  {tasks.data?.next_cursor ? (
+                    <ShowMore onClick={() => setOpenLimit(openLimit + PAGE)} />
+                  ) : null}
                 </div>
               ) : null}
               {completedView ? (
@@ -381,9 +398,11 @@ export default function TasksPage({ scope }: PageProps) {
                   rows={done}
                   rowProps={rowProps}
                   editingId={editing?.id}
+                  more={Boolean(donePage?.next_cursor)}
+                  onMore={() => setDoneLimit(doneLimit + DONE_PAGE)}
                   onClear={() => setClearing(true)}
                 />
-              ) : completedView || done.length === 0 ? null : (
+              ) : doneTotal === 0 ? null : (
                 <Collapsible
                   open={doneOpen}
                   onOpenChange={(next) => setViewPref({ ...viewPref, doneOpen: next })}
@@ -398,7 +417,7 @@ export default function TasksPage({ scope }: PageProps) {
                         aria-hidden
                         className={cn('transition-transform', doneOpen && 'rotate-90')}
                       />
-                      {m.tasks_completed_count({ count: done.length })}
+                      {m.tasks_completed_count({ count: doneTotal })}
                     </CollapsibleTrigger>
                     {canClear ? (
                       <Button variant="destructive" size="sm" onClick={() => setClearing(true)}>
@@ -414,6 +433,9 @@ export default function TasksPage({ scope }: PageProps) {
                         <TaskRow key={task.id} {...rowProps(task)} virtual={row} />
                       )}
                     />
+                    {donePage?.next_cursor ? (
+                      <ShowMore onClick={() => setDoneLimit(doneLimit + DONE_PAGE)} />
+                    ) : null}
                   </CollapsibleContent>
                 </Collapsible>
               )}
@@ -454,7 +476,7 @@ export default function TasksPage({ scope }: PageProps) {
         open={clearing}
         onOpenChange={setClearing}
         title={m.tasks_clear_title()}
-        description={m.tasks_clear_description({ count: done.length })}
+        description={m.tasks_clear_description({ count: doneTotal })}
         confirmLabel={m.tasks_clear_completed()}
         pending={actions.pending}
         onConfirm={() => {
@@ -465,15 +487,31 @@ export default function TasksPage({ scope }: PageProps) {
   )
 }
 
+/** Loads the next page of a list that has more tasks than are shown. */
+function ShowMore({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="px-2 pt-1">
+      <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onClick}>
+        {m.tasks_show_more()}
+      </Button>
+    </div>
+  )
+}
+
 function CompletedRows({
   rows,
   rowProps,
   editingId,
+  more,
+  onMore,
   onClear,
 }: {
   rows: readonly Task[]
   rowProps: (task: Task) => React.ComponentProps<typeof TaskRow>
   editingId: string | undefined
+  /** More finished tasks than are loaded. */
+  more: boolean
+  onMore: () => void
   onClear: () => void
 }) {
   if (rows.length === 0) {
@@ -495,6 +533,7 @@ function CompletedRows({
         keepId={editingId}
         renderRow={(task, row) => <TaskRow key={task.id} {...rowProps(task)} virtual={row} />}
       />
+      {more ? <ShowMore onClick={onMore} /> : null}
       <div className="px-2">
         <Button variant="destructive" size="sm" onClick={onClear}>
           {m.tasks_clear_completed()}
