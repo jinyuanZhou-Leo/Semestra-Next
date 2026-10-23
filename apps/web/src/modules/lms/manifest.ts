@@ -17,12 +17,9 @@ const CONNECTION_EVENTS = [
   'lms.connection.deleted',
   'lms.connection.status_changed',
 ] as const
-const STATE_EVENTS = [
-  'lms.program.bound',
-  'lms.course.linked',
-  'lms.course.unlinked',
-  'lms.course.link_updated',
-] as const
+const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
+// Linking or unlinking also changes which courses the term announcements card reads.
+const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
 
@@ -115,5 +112,8 @@ export default defineModule({
   realtimeInvalidations: {
     ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),
     ...Object.fromEntries(STATE_EVENTS.map((event) => [event, LMS_STATE_QUERIES])),
+    ...Object.fromEntries(
+      LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
+    ),
   },
 })

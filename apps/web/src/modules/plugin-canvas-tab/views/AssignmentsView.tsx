@@ -1,6 +1,6 @@
 import type { AssignmentOut } from '@semestra/api-client'
 import { lmsAssignmentListOptions } from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
   createColumnHelper,
@@ -156,7 +156,6 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
 
 function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?: string }) {
   const { programId, courseId, go } = useCanvasPage()
-  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
@@ -186,9 +185,8 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
       .then((sessionId) => {
         setStarting(null)
         setSelected(new Set())
-        return reviewAssignmentImport(queryClient, {
+        return reviewAssignmentImport({
           programId,
-          courseId,
           sessionId,
           title: () => m.lms_import_assignments_from({ provider: m.lms_canvas() }),
         })

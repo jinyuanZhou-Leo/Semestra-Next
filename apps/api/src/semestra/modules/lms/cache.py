@@ -121,34 +121,46 @@ async def put(
     scope: str | None = None,
     ttl: timedelta = TTL,
 ) -> None:
-    """Memory now; `lms_cache` once the request has committed (see the module docstring)."""
+    """Memory now; `lms_cache` once the request has committed (see the module docstring), all of
+    a request's entries in one transaction."""
     expires = ctx.now + ttl
     runtime(ctx.state).put(key, connection_id, scope, expires, payload)
-    state, user_id = ctx.state, ctx.user_id
+    store = next((cb for cb in ctx.after_commit if isinstance(cb, _Store)), None)
+    if store is None:
+        store = _Store(ctx.state)
+        ctx.after_commit.append(store)
+    store.rows[key] = {
+        "key": key,
+        "user_id": ctx.user_id,
+        "connection_id": connection_id,
+        "scope": scope,
+        "payload": payload,
+        "expires_at": expires,
+    }
 
-    async def _store() -> None:
+
+class _Store:
+    """The deferred `lms_cache` write of one request (an `after_commit` callback)."""
+
+    def __init__(self, state: State) -> None:
+        self.state = state
+        self.rows: dict[str, dict[str, Any]] = {}
+
+    async def __call__(self) -> None:
         try:
-            async with system_ctx(state) as sys:
-                stmt = sqlite_insert(LmsCache).values(
-                    key=key,
-                    user_id=user_id,
-                    connection_id=connection_id,
-                    scope=scope,
-                    payload=payload,
-                    expires_at=expires,
-                )
-                await sys.db.execute(
-                    stmt.on_conflict_do_update(
-                        index_elements=[LmsCache.key],
-                        set_={"payload": payload, "expires_at": expires, "scope": scope},
+            async with system_ctx(self.state) as sys:
+                for row in self.rows.values():
+                    stmt = sqlite_insert(LmsCache).values(**row)
+                    await sys.db.execute(
+                        stmt.on_conflict_do_update(
+                            index_elements=[LmsCache.key],
+                            set_={k: row[k] for k in ("payload", "expires_at", "scope")},
+                        )
                     )
-                )
                 await sys.db.commit()
         except Exception:
             # The connection may be gone by now (deleted meanwhile): memory still has it.
             log.warning("lms_cache_store_failed", exc_info=True)
-
-    ctx.after_commit.append(_store)
 
 
 async def drop(ctx: Ctx, key: str) -> None:

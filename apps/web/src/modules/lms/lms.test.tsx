@@ -462,3 +462,24 @@ test('the term announcements card reads the whole term at once, newest first', a
   ])
   expect(reads).toHaveBeenCalledOnce()
 })
+
+test('the term announcements card says when the platform could not be read', async () => {
+  server.use(
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
+    http.get(`${API}/terms/t1/lms/announcements`, () => {
+      const { status, body } = apiError('lms.forbidden', 403)
+      return HttpResponse.json(body, { status })
+    }),
+  )
+  renderWithRouter(
+    <AnnouncementsCard
+      scope={{ kind: 'term', programId: 'p1', termId: 't1' }}
+      size="m"
+      instanceId="i1"
+      settings={{}}
+    />,
+  )
+  expect(await screen.findByText("Couldn't load this.")).toBeInTheDocument()
+})

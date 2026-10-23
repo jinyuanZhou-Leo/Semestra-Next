@@ -1,7 +1,5 @@
 import { lmsAssignmentImport } from '@semestra/api-client'
-import type { QueryClient } from '@tanstack/react-query'
 import { openImport } from '@/modules/imports/launcher'
-import { invalidateLms } from '../queries'
 
 export type AssignmentImportKind = 'assessment' | 'task'
 
@@ -19,21 +17,15 @@ export async function startAssignmentImport(
   return data.session_id
 }
 
-/** Opens the review of a started import; the course's LMS reads refetch once it closes. */
-export async function reviewAssignmentImport(
-  queryClient: QueryClient,
-  {
-    programId,
-    courseId,
-    sessionId,
-    title,
-  }: {
-    programId: string
-    courseId: string
-    sessionId: string
-    title: () => string
-  },
-) {
+/** Opens the review of a started import (committing it refetches everything, M08). */
+export async function reviewAssignmentImport({
+  programId,
+  sessionId,
+  title,
+}: {
+  programId: string
+  sessionId: string
+  title: () => string
+}) {
   await openImport({ programId, mode: 'direct', source: 'session', sessionId, title })
-  await invalidateLms(queryClient, { courseId })
 }

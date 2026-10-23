@@ -120,7 +120,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         key,
         b.row.id,
         {"data": out.model_dump(mode="json"), "truncated": False},
-        scope=cache.course_scope(link.external_course_id),
+        # The key names the file's version, so "Refresh" has nothing to renew here.
         ttl=PREVIEW_TTL,
     )
     return out

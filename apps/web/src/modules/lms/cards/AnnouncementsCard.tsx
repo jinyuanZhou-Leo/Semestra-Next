@@ -28,7 +28,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : undefined
   const own = useCourseAnnouncements(courseId)
   const term = useTermAnnouncements(scope.programId, termId)
-  const { rows: all, linked, loading } = courseId ? own : term
+  const { rows: all, linked, loading, failed } = courseId ? own : term
   const rows = all.slice(0, LIMIT[size] ?? 8)
 
   if (loading && rows.length === 0) {
@@ -46,7 +46,11 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
             <Megaphone aria-hidden />
           </EmptyMedia>
           <EmptyTitle>
-            {!linked ? m.lms_announcements_unlinked() : m.lms_announcements_empty()}
+            {failed
+              ? m.common_load_failed()
+              : !linked
+                ? m.lms_announcements_unlinked()
+                : m.lms_announcements_empty()}
           </EmptyTitle>
         </EmptyHeader>
       </Empty>
@@ -105,7 +109,12 @@ function useCourseAnnouncements(courseId: string | undefined) {
     retry: false,
   })
   const rows: Row[] = course ? (list.data?.items ?? []).map((item) => ({ item, course })) : []
-  return { rows, linked, loading: link.isPending || (linked && list.isPending) }
+  return {
+    rows,
+    linked,
+    loading: link.isPending || (linked && list.isPending),
+    failed: list.isError,
+  }
 }
 
 function useTermAnnouncements(programId: string, termId: string | undefined) {
@@ -122,5 +131,5 @@ function useTermAnnouncements(programId: string, termId: string | undefined) {
     return course ? [{ item, course }] : []
   })
   const linked = (list.data?.linked_course_ids.length ?? 0) > 0
-  return { rows, linked, loading: list.isPending || !courses }
+  return { rows, linked, loading: list.isPending || !courses, failed: list.isError }
 }

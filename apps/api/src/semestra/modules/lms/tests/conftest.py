@@ -187,6 +187,7 @@ class FakeProvider:
     async def module_items(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, module_id: str
     ) -> list[ModuleItem]:
+        self.calls.append(("module_items", module_id))
         return [ModuleItem(external_id="i1", title="Intro", kind="page",
                            target=InternalRef(kind="page", ref="intro"))]  # fmt: skip
 

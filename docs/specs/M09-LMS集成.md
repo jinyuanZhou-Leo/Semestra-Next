@@ -239,12 +239,12 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - **写操作开关**：账户级设置命名空间 `lms`（`allow_writes`，默认关）。目前唯一的写操作是 `lms.announcement.mark_read`（`PUT /courses/:id/discussion_topics/:id/read`，只开放 HTTP），所有写操作都经 `service.require_write`（先查设置，再查 feature 是否在 `WRITE_FEATURES` 里），关闭时报 `lms.writes_disabled`（409）；成功后删掉该课程公告列表的缓存（改写缓存会把 5 分钟有效期重新计时），前端自己把那条改成已读。单元的"标记完成"没有做。
   - **成绩进更新审核**：导入快照新增 `score`（平台上的 `points_earned/points_possible`）；`check_updates` 对考核比较平台成绩与快照，平台有成绩且成绩册里还没有相同成绩时给出 `score` 变更（旧值是成绩册当前值：有分数时是分数，只有百分比时是 `{score_percentage}`）；成绩册已经有相同成绩时直接把快照推进到这个平台成绩，之后在成绩册里手动改分不会让同一个平台成绩再次出现。导入时快照的 `score` 记为空，所以导入时已出的成绩会马上作为更新提示。应用时 M08 把 `score` 展开为 `points_earned`/`points_possible`。不做静默自动同步。
 - **模块评审修复（2026-10-23，评审文档 `2026-10-22-模块评审-LMS.md` 的 17 条）**：
-  - 缓存（迁移 0021）：`lms_cache` 加 `scope` 列和 `(connection_id, scope)` 索引（升级时清空旧缓存）；`cache.put` 先写内存，库表在 `ctx.after_commit` 里用 `system_ctx` 单独写入，失败只记日志。文件下载 / 预览的接口（`file_content`）提交而不是回滚，好让缓存落库。内存 LRU 改用 `cachetools.LRUCache`，按 JSON 大小计，单条超过上限只放第二层。
+  - 缓存（迁移 0021）：`lms_cache` 加 `scope` 列和 `(connection_id, scope)` 索引（升级时清空旧缓存）；`cache.put` 先写内存，库表在 `ctx.after_commit` 里用 `system_ctx` 单独写入（一个请求的所有条目合并成一次事务），失败只记日志。文件下载 / 预览的接口（`file_content`）提交而不是回滚，好让缓存落库。内存 LRU 改用 `cachetools.LRUCache`，按 JSON 大小计，单条超过上限只放第二层。
   - 新 capability `lms.course.refresh`（`POST /courses/{id}/lms:refresh`，只开放 HTTP）：清掉这门课范围内的缓存和日历缓存，之后的读取照常走缓存。Canvas Tab 的"刷新"只调用它一次（见 M16）。
   - `sync_link` 只清 `overview` 和 `course` 两个键，不再清整个连接的缓存。
-  - 文件预览缓存 7 天（键里已有文件 `updated_at`，文件变了键也变）；`file`、`save_to_course`、`preview` 各只取一次文件元数据，Provider 的 `open_file` 直接收 `FileMeta`。
+  - 文件预览缓存 7 天（键里已有文件 `updated_at`，文件变了键也变，所以不挂课程范围，"刷新"不清它）；下载用缓存里的文件元数据（Canvas 下载地址带不过期的 verifier）；`file`、`save_to_course`、`preview` 各只取一次文件元数据，Provider 的 `open_file` 直接收 `FileMeta`。
   - Provider 协议：`announcements(course_ids, since)` 一次取多门课（Canvas 每次最多 10 个 `context_codes[]`），每条带 `external_course_id`；`grades` 改为 `grade_totals`，只返回总成绩（名称 "Course total"），作业行由 `lms.grade.list` 复用作业列表；`modules` 带 `include[]=items&include[]=content_details`，单元里直接有 `items`（太多时 Canvas 不带，前端再按单元取）；分页用 httpx 的 `response.links`。
-  - 新 capability `lms.term.announcement.list`（`GET /terms/{id}/lms/announcements`，只开放 HTTP，不可信内容）：学期内所有已关联课程的公告，按连接一次请求，按课程分别缓存，最新的在前；返回 `linked_course_ids` 供卡片区分"没有关联"和"没有公告"。公告卡片学期作用域用它。
+  - 新 capability `lms.term.announcement.list`（`GET /terms/{id}/lms/announcements`，只开放 HTTP，不可信内容）：学期内所有已关联课程的公告，按连接一次请求，按课程分别缓存，最新的在前；返回 `linked_course_ids` 供卡片区分"没有关联"和"没有公告"。某个连接请求失败时跳过它，其余照常返回；一条都拿不到时报那个错误，卡片显示加载失败。`lms.module_item.list` 先看缓存里的单元列表有没有带这个单元的条目。公告卡片学期作用域用它。
   - `check_updates` 不再在 read capability 的事务里写：推进快照里的 `score` 放到提交后单独写；`preview_apply_updates` 调用时不推进。删除没人读的 `lms_imported_refs.external_updated_at`（M13 适配器不涉及该字段）。
   - 前端查询分两组（`modules/lms/queries.ts`）：`LMS_STATE_QUERIES`（连接、绑定、关联、外部课程、更新检测、概览）和 `LMS_CONTENT_QUERIES`。`invalidateLms(qc, { courseId })` 刷状态组和这门课的内容，`{ all: true }`（改连接）刷全部；SSE 的连接事件刷全部，其余 LMS 事件只刷状态组。立即同步、更新提示条不再调用无参数的 `invalidateQueries()`。
   - 作业导入的发起共用 `lms/import/assignments.ts`（`startAssignmentImport`、`reviewAssignmentImport`），成绩簿的选择器和 Canvas Tab 都用它。

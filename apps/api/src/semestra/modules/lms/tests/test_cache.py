@@ -2,10 +2,11 @@
 
 import pytest
 from fastapi import FastAPI
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from semestra.core.context import system_ctx
 from semestra.modules.lms.cache import LRU_BYTES, LmsRuntime
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCache
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -128,3 +129,44 @@ def test_memory_level_is_bounded_by_size():
     rt.drop("c", "course:1")
     assert rt.get("a", datetime.now(UTC)) is None
     assert rt.get("b", datetime.now(UTC)) == "b"
+
+
+async def test_term_announcements_keep_what_the_cache_has_when_the_platform_fails(
+    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, term_id, _ = await setup_program(api)
+    first = await api.course(program_id, term_id)
+    second = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
+    await api.link(first, "101")
+    await api.link(second, "102")
+    await api.call("GET", f"/courses/{first}/lms/announcements")
+
+    async def down(*_args: object, **_kwargs: object) -> list[object]:
+        raise lms_error("lms.forbidden")
+
+    monkeypatch.setattr(fake, "announcements", down)
+    out = await api.call("GET", f"/terms/{term_id}/lms/announcements")
+    assert [a["course_id"] for a in out["items"]] == [first]
+    assert sorted(out["linked_course_ids"]) == sorted([first, second])
+    # Nothing at all to show: the error, so the card does not say "no announcements".
+    app.state.lms = LmsRuntime()
+    async with system_ctx(app.state) as ctx:
+        await ctx.db.execute(delete(LmsCache))
+        await ctx.db.commit()
+    r = await api.client.get(f"/terms/{term_id}/lms/announcements")
+    assert r.status_code >= 400
+    assert r.json()["error"]["code"] == "lms.forbidden"
+
+
+async def test_module_items_come_from_the_cached_modules(api: Api, fake: FakeProvider):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    await api.call("GET", f"/courses/{course}/lms/modules")
+    fake.calls.clear()
+    out = await api.call("GET", f"/courses/{course}/lms/modules/m1/items")
+    assert [i["title"] for i in out["items"]] == ["Intro"]
+    assert fake.calls == []
+    # A module the platform sent without items is still asked for.
+    await api.call("GET", f"/courses/{course}/lms/modules/m2/items")
+    assert _count(fake, "module_items") == 1

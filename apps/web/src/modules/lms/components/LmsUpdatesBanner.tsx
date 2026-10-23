@@ -2,7 +2,7 @@ import {
   lmsCourseCheckUpdatesOptions,
   lmsCourseLinkGetOptions,
 } from '@semestra/api-client/react-query'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toastError } from '@/lib/errors'
@@ -11,14 +11,12 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { useProviderName } from '../providers'
 import { reviewUpdates } from '../import/sources'
-import { invalidateLms } from '../queries'
 
 /**
  * "N imported assignments have changes or new grades on {provider}" with a button to the review (M09 §7.2). Shared
  * by the gradebook and the Canvas tab (M16); renders nothing for unlinked or paused courses.
  */
 export function LmsUpdatesBanner({ programId, courseId }: { programId: string; courseId: string }) {
-  const queryClient = useQueryClient()
   const state = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data
   const link = state?.link
   const updates = useQuery({
@@ -32,12 +30,10 @@ export function LmsUpdatesBanner({ programId, courseId }: { programId: string; c
 
   const review = () => {
     setOpening(true)
+    // Committing the review refetches everything (M08), so nothing to refetch here.
     reviewUpdates(programId, courseId)
-      .then(() => invalidateLms(queryClient, { courseId }), toastError)
-      .then(
-        () => setOpening(false),
-        () => setOpening(false),
-      )
+      .catch(toastError)
+      .finally(() => setOpening(false))
   }
 
   return (

@@ -150,6 +150,7 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
     params = _announcement_params(None)
     items: list[TermAnnouncement] = []
     truncated = False
+    failed: AppError | None = None
     by_connection: dict[str, list[LmsCourseLink]] = {}
     for link in links:
         by_connection.setdefault(link.connection_id, []).append(link)
@@ -172,11 +173,17 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
                 truncated |= bool(hit["truncated"])
         if missing:
             exts = [li.external_course_id for li in missing]
-            fetched, cut = await service.call(
-                ctx,
-                b,
-                lambda i, b=b, exts=exts: b.provider.announcements(i, b.cfg, b.creds, exts),
-            )
+            try:
+                fetched, cut = await service.call(
+                    ctx,
+                    b,
+                    lambda i, b=b, exts=exts: b.provider.announcements(i, b.cfg, b.creds, exts),
+                )
+            except AppError as exc:
+                # One connection down must not hide the others' announcements.
+                failed = exc
+                missing = []
+                fetched, cut = [], False
             truncated |= cut
             dumped = [a.model_dump(mode="json") for a in _cleaned(b, fetched)]
             for link in missing:
@@ -195,6 +202,8 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
                 found[link.course_id] = mine
         for course_id, data in found.items():
             items += [TermAnnouncement.model_validate({**a, "course_id": course_id}) for a in data]
+    if failed is not None and not items:
+        raise failed  # nothing to show: the card shows the error, not "no announcements"
     items.sort(key=lambda a: a.posted_at.timestamp() if a.posted_at else 0, reverse=True)
     return TermAnnouncementList(
         items=items, linked_course_ids=sorted(li.course_id for li in links), truncated=truncated
@@ -281,6 +290,17 @@ async def modules(ctx: Ctx, course_id: str, refresh: bool) -> ModuleList:
 
 
 async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) -> ModuleItemList:
+    linked = await service.require_link(ctx, course_id)
+    link, b = linked
+    service.require_feature(b, "modules")
+    if not refresh:
+        # The module list usually came with its items: no platform request for them.
+        key = cache.cache_key(ctx.user_id, b.row.id, "modules", {"course": link.external_course_id})
+        hit = await cache.get(ctx, key)
+        for module in (hit or {}).get("data", []):
+            if module.get("external_id") == module_id and module.get("items") is not None:
+                return ModuleItemList.model_validate({"items": module["items"], "truncated": False})
+
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return [
             _lock_text(item)
@@ -288,7 +308,14 @@ async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) 
         ]
 
     data, truncated, *_ = await _read(
-        ctx, course_id, "modules", "module_items", {"module": module_id}, fetch, refresh=refresh
+        ctx,
+        course_id,
+        "modules",
+        "module_items",
+        {"module": module_id},
+        fetch,
+        refresh=refresh,
+        linked=linked,
     )
     return ModuleItemList.model_validate({"items": data, "truncated": truncated})
 
@@ -364,6 +391,8 @@ async def open_file(
     service.require_feature(b, "files")
     ext = link.external_course_id
     if meta is None:
+        # A cached address is fine: Canvas's download URL carries the file's own verifier, which
+        # does not expire, and the request is sent with the user's token anyway.
         meta = await file(ctx, course_id, file_id, refresh=False, linked=linked)
 
     from semestra.core.http import safe_client
