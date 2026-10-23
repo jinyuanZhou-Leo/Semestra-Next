@@ -6,7 +6,7 @@ import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import UpcomingCard from './cards/UpcomingCard'
 import TermGradesPage from './pages/TermGradesPage'
-import { assessment, gradebook } from './test-data'
+import { assessment } from './test-data'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
