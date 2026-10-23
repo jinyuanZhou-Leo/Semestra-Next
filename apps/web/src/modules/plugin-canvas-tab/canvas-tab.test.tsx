@@ -639,6 +639,54 @@ test('modules show progress, prerequisites, locks and what finishing an item tak
   expect(screen.getByRole('button', { name: 'Score at least 7: not done yet' })).toBeInTheDocument()
 })
 
+test('inline module items show without asking for them again', async () => {
+  const itemReads = vi.fn<() => void>()
+  server.use(
+    http.get(`${API}/courses/c1/lms/modules`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            external_id: 'm1',
+            name: 'Week 1',
+            position: 1,
+            item_count: 1,
+            items: [{ external_id: 'i1', title: 'Reading list', kind: 'page' }],
+          },
+        ],
+        truncated: false,
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/modules/:id/items`, () => {
+      itemReads()
+      return HttpResponse.json({ items: [], truncated: false })
+    }),
+  )
+  renderPage('/?tab=modules&ref=m1')
+  expect(await screen.findByText('Reading list')).toBeInTheDocument()
+  expect(itemReads).not.toHaveBeenCalled()
+})
+
+test('Refresh drops the course cache once; later reads use the cache again', async () => {
+  const refreshes = vi.fn<() => void>()
+  const reads: string[] = []
+  server.use(
+    http.post(`${API}/courses/c1/lms\\:refresh`, () => {
+      refreshes()
+      return HttpResponse.json({ course_id: 'c1', link: LINK, program_connection_id: 'k1' })
+    }),
+    http.get(`${API}/courses/c1/lms/announcements`, ({ request }) => {
+      reads.push(new URL(request.url).search)
+      return HttpResponse.json(ANNOUNCEMENTS)
+    }),
+  )
+  renderPage('/?tab=announcements')
+  await screen.findByRole('button', { name: /^Unread Midterm room change/ })
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  await waitFor(() => expect(reads).toHaveLength(2))
+  expect(refreshes).toHaveBeenCalledOnce()
+  expect(reads).toEqual(['', ''])
+})
+
 test('the files tab browses folders and searches by name', async () => {
   const root = {
     external_id: 'f0',

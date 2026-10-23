@@ -6,7 +6,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from semestra.core.context import Ctx, get_ctx
+from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.modules.lms import reads
 
 router = APIRouter(tags=["lms"])
@@ -27,8 +27,10 @@ async def file_content(
     download: Annotated[bool, Query(description="Send as an attachment")] = False,
 ) -> StreamingResponse:
     meta, chunks = await reads.open_file(ctx, course_id, file_id)
-    # The read only touched the cache; nothing to keep.
-    await ctx.db.rollback()
+    # End the transaction before streaming (the connection is not held while the file flows);
+    # what the read cached is stored after it.
+    await ctx.db.commit()
+    await run_after_commit(ctx)
     mime = meta.mime_type or "application/octet-stream"
     inline = not download and mime in INLINE
     disposition = "inline" if inline else "attachment"

@@ -1,6 +1,6 @@
-import { type AssignmentOut, lmsAssignmentImport } from '@semestra/api-client'
+import type { AssignmentOut } from '@semestra/api-client'
 import { lmsAssignmentListOptions } from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
   createColumnHelper,
@@ -12,8 +12,11 @@ import { createContext, Fragment, use, useState } from 'react'
 import { AiAction } from '@/components/AiAction'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
-import { openImport } from '@/modules/imports/launcher'
-import { invalidateLms } from '@/modules/lms/queries'
+import {
+  type AssignmentImportKind,
+  reviewAssignmentImport,
+  startAssignmentImport,
+} from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Checkbox } from '@/ui/checkbox'
@@ -101,16 +104,16 @@ const columns = column.columns([
   }),
 ])
 
-type Kind = 'assessment' | 'task'
+type Kind = AssignmentImportKind
 
 /**
  * Assignments by group (M16 §4): tick several and import them into the gradebook or the tasks
  * through the M08 review (`lms.assignment.import`); a row opens its description.
  */
 export function AssignmentsView({ selected }: { selected?: string }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const list = useQuery({
-    ...lmsAssignmentListOptions({ path: { course_id: courseId }, query }),
+    ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -153,7 +156,6 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
 
 function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?: string }) {
   const { programId, courseId, go } = useCanvasPage()
-  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
@@ -179,23 +181,16 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
 
   const start = (kind: Kind) => {
     setStarting(kind)
-    lmsAssignmentImport({
-      path: { course_id: courseId },
-      body: { external_ids: picked, as_kind: kind },
-      throwOnError: true,
-    })
-      .then(({ data }) => {
+    startAssignmentImport(courseId, picked, kind)
+      .then((sessionId) => {
         setStarting(null)
         setSelected(new Set())
-        return openImport({
+        return reviewAssignmentImport({
           programId,
-          mode: 'direct',
-          source: 'session',
-          sessionId: data.session_id,
+          sessionId,
           title: () => m.lms_import_assignments_from({ provider: m.lms_canvas() }),
         })
       })
-      .then(() => invalidateLms(queryClient))
       .catch((error: unknown) => {
         setStarting(null)
         toastError(error)

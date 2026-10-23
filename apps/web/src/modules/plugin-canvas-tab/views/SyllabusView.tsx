@@ -53,10 +53,10 @@ export function SyllabusImportButton() {
 }
 
 export function SyllabusView() {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const onLink = useInternalLinks()
   const syllabus = useQuery({
-    ...lmsSyllabusGetOptions({ path: { course_id: courseId }, query }),
+    ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (

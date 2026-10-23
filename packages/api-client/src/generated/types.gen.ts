@@ -495,6 +495,12 @@ export type Announcement = {
      */
     raw_kind?: string | null;
     /**
+     * External Course Id
+     *
+     * The course it was posted in
+     */
+    external_course_id?: string;
+    /**
      * Title
      */
     title: string;
@@ -6014,6 +6020,12 @@ export type Module = {
      * Require Sequential Progress
      */
     require_sequential_progress?: boolean;
+    /**
+     * Items
+     *
+     * The module's items when the platform sent them along (None: ask for them)
+     */
+    items?: Array<ModuleItem> | null;
 };
 
 /**
@@ -9408,6 +9420,86 @@ export type Term = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * TermAnnouncement
+ */
+export type TermAnnouncement = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * External Course Id
+     *
+     * The course it was posted in
+     */
+    external_course_id?: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Posted At
+     */
+    posted_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Unread
+     */
+    unread?: boolean;
+    /**
+     * Course Id
+     *
+     * The app's course it was posted in
+     */
+    course_id: string;
+};
+
+/**
+ * TermAnnouncementList
+ */
+export type TermAnnouncementList = {
+    /**
+     * Items
+     *
+     * Newest first
+     */
+    items: Array<TermAnnouncement>;
+    /**
+     * Linked Course Ids
+     *
+     * The term's courses linked to an LMS
+     */
+    linked_course_ids: Array<string>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
 };
 
 /**
@@ -16009,6 +16101,38 @@ export type LmsCourseQueueUpdatesResponses = {
 
 export type LmsCourseQueueUpdatesResponse = LmsCourseQueueUpdatesResponses[keyof LmsCourseQueueUpdatesResponses];
 
+export type LmsCourseRefreshData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms:refresh';
+};
+
+export type LmsCourseRefreshErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseRefreshError = LmsCourseRefreshErrors[keyof LmsCourseRefreshErrors];
+
+export type LmsCourseRefreshResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseRefreshResponse = LmsCourseRefreshResponses[keyof LmsCourseRefreshResponses];
+
 export type LmsFileGetData = {
     body?: never;
     path: {
@@ -16715,6 +16839,45 @@ export type LmsSyllabusImportResponses = {
 };
 
 export type LmsSyllabusImportResponse = LmsSyllabusImportResponses[keyof LmsSyllabusImportResponses];
+
+export type LmsTermAnnouncementListData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/terms/{term_id}/lms/announcements';
+};
+
+export type LmsTermAnnouncementListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsTermAnnouncementListError = LmsTermAnnouncementListErrors[keyof LmsTermAnnouncementListErrors];
+
+export type LmsTermAnnouncementListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermAnnouncementList;
+};
+
+export type LmsTermAnnouncementListResponse = LmsTermAnnouncementListResponses[keyof LmsTermAnnouncementListResponses];
 
 export type PluginsCatalogListData = {
     body?: never;

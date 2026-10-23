@@ -79,12 +79,9 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
 }
 
 function Feedback({ assignment: a }: { assignment: AssignmentOut }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const submission = useQuery({
-    ...lmsSubmissionGetOptions({
-      path: { course_id: courseId, assignment_id: a.external_id },
-      query,
-    }),
+    ...lmsSubmissionGetOptions({ path: { course_id: courseId, assignment_id: a.external_id } }),
     placeholderData: keepPreviousData,
   })
   return (
