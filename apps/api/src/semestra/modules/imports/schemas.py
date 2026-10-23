@@ -299,7 +299,8 @@ class SourceRef(BaseModel):
     file_item_id: str | None = None
     filename: str | None = None
     lms_course_id: str | None = None
-    status: Literal["pending", "extracting", "done", "failed"] = "pending"
+    # waiting: a course file that is still being processed; reading starts when it is ready.
+    status: Literal["pending", "waiting", "extracting", "done", "failed"] = "pending"
     error_code: str | None = None
     # Read fine but something after it went wrong (e.g. the upload could not be filed).
     warning_code: str | None = None

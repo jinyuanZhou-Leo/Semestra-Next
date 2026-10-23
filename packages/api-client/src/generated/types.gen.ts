@@ -8469,11 +8469,15 @@ export type SourceRef = {
     /**
      * Status
      */
-    status?: 'pending' | 'extracting' | 'done' | 'failed';
+    status?: 'pending' | 'waiting' | 'extracting' | 'done' | 'failed';
     /**
      * Error Code
      */
     error_code?: string | null;
+    /**
+     * Warning Code
+     */
+    warning_code?: string | null;
 };
 
 /**

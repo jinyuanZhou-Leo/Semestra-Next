@@ -373,7 +373,7 @@ export const filesUploadMutation = (options?: Partial<Options<FilesUploadData>>)
 export const filesContentQueryKey = (options: Options<FilesContentData>) => createQueryKey('filesContent', options);
 
 /**
- * Download or preview a file; supports Range requests.
+ * Download or preview a file; supports Range requests and If-None-Match.
  */
 export const filesContentOptions = (options: Options<FilesContentData>) => queryOptions<FilesContentResponse, FilesContentError, FilesContentResponse, ReturnType<typeof filesContentQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

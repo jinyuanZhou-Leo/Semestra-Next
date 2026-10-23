@@ -373,12 +373,12 @@ async def _attachment_uploads(
     importers, "show source" and moving the file into the course work as for any upload."""
     uploads: list[ImportsUpload] = []
     for attachment_id in dict.fromkeys(attachment_ids):
-        filename, mime, data = await deps.read_attachment(ctx, attachment_id)
+        filename, _, data = await deps.read_attachment(ctx, attachment_id)
 
         async def chunks(data: bytes = data) -> AsyncIterator[bytes]:
             yield data
 
-        out = await store_upload(ctx, filename=filename, mime=mime, chunks=chunks())
+        out = await store_upload(ctx, filename=filename, chunks=chunks())
         upload = await get_upload(ctx, out.id)
         upload.session_id = session_id
         uploads.append(upload)
@@ -558,25 +558,43 @@ def _require_open(row: ImportsSession) -> None:
 
 
 async def store_upload(
-    ctx: Ctx, *, filename: str, mime: str, chunks: AsyncIterator[bytes]
+    ctx: Ctx,
+    *,
+    filename: str,
+    chunks: AsyncIterator[bytes],
+    allowed: Sequence[str] | None = None,
 ) -> Upload:
     """Stores an import upload, cut off above the per-file limit or the quota left (imports
-    count against the user's storage quota like course files)."""
+    count against the user's storage quota like course files). The type comes from the content;
+    a type outside `allowed` is refused."""
     cap = ctx.settings.files_max_upload_bytes
     budget = await remaining_quota(ctx)
     if budget is not None and budget <= 0:
         raise await _quota_error(ctx)
     key = f"users/{ctx.user_id}/imports/{new_id()}"
+    seen = bytearray()
+
+    async def kept() -> AsyncIterator[bytes]:
+        async for chunk in chunks:
+            seen.extend(chunk)
+            yield chunk
+
+    storage = get_storage(ctx)
     try:
-        stored = await get_storage(ctx).put(
-            key, chunks, mime, max_bytes=cap if budget is None else min(cap, budget)
-        )
+        stored = await storage.put(
+            key, kept(), "application/octet-stream",
+            max_bytes=cap if budget is None else min(cap, budget),
+        )  # fmt: skip
     except AppError as exc:
         if exc.code != "common.quota_exceeded":
             raise
         if budget is None or cap <= budget:
             raise AppError("files.too_large", 413, max=cap) from None
         raise await _quota_error(ctx) from None
+    mime = deps.detect_mime(bytes(seen), filename)
+    if allowed is not None and mime not in allowed:
+        await storage.delete(stored.key)
+        raise AppError("import.file_unsupported", 415, filename=filename)
     upload = ImportsUpload(
         id=new_id(),
         user_id=ctx.user_id,

@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import structlog
-from sqlalchemy import and_, bindparam, func, select, text
+from sqlalchemy import ColumnElement, and_, bindparam, case, func, or_, select, text
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -124,13 +124,17 @@ async def _keyword(
 async def _substring(
     ctx: Ctx, terms: Sequence[str], course_ids: Sequence[str], item_ids: Sequence[str] | None
 ) -> list[str]:
-    """Chunk ids containing all of `terms`, the most occurrences first."""
+    """Chunk ids containing any of `terms` (like the index's OR), those with the most of the
+    terms first, then the most occurrences."""
     lowered = [t.lower() for t in terms]
     body = func.lower(FilesChunk.text)
     counts = [
         (func.length(body) - func.length(func.replace(body, t, ""))) / len(t) for t in lowered
     ]
     occurrences = functools.reduce(operator.add, counts)
+    likes = [FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms]
+    flags: list[ColumnElement[int]] = [case((like, 1), else_=0) for like in likes]
+    matched = functools.reduce(operator.add, flags)
     stmt = (
         select(FilesChunk.id)
         .join(
@@ -143,9 +147,9 @@ async def _substring(
         .where(
             FilesChunk.user_id == ctx.user_id,
             FilesChunk.course_id.in_(course_ids),
-            *[FilesChunk.text.like(f"%{_like_escape(t)}%", escape="\\") for t in terms],
+            or_(*likes),
         )
-        .order_by(occurrences.desc(), FilesChunk.id)
+        .order_by(matched.desc(), occurrences.desc(), FilesChunk.id)
         .limit(LIKE_LIMIT)
     )
     if item_ids is not None:

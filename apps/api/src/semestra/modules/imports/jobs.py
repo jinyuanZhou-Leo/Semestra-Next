@@ -2,12 +2,14 @@
 
 from typing import Any
 
+import anyio
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.core.jobs import JOB_PROGRESS, JobCtx, job_handler
+from semestra.core.jobs import JOB_PROGRESS, JobCtx, enqueue, job_handler
 from semestra.modules import ai
 from semestra.modules.imports import build, deps, extraction, service
 from semestra.modules.imports.models import ImportsSession, ImportsUpload
@@ -25,6 +27,10 @@ class ExtractResult(BaseModel):
 
 
 STAGES = [("reading", 15), ("extracting", 75), ("checking", 10)]
+# Model errors that may pass: a file that hits one is read once more before it counts as failed.
+TRANSIENT = {"ai.timeout", "ai.rate_limited", "ai.provider_unreachable"}
+SOURCE_ATTEMPTS = 2
+SOURCE_RETRY_SECONDS = 20.0
 
 
 async def _source_input(
@@ -53,48 +59,80 @@ async def _source_input(
     return deps.text_pages(row.text or ""), [], {}
 
 
+async def _extract_source(
+    ctx: JobCtx,
+    row: ImportsSession,
+    ref: dict[str, Any],
+    context: build.BuildContext,
+    builder: build.Builder,
+    index: int,
+    total: int,
+) -> None:
+    texts, images, source = await _source_input(ctx, row, ref)
+    if not texts and not images:
+        raise AppError("import.no_content", 422)
+
+    async def on_segment(done: int, parts: int) -> None:
+        await ctx.stage("extracting", fraction=(index + done / max(parts, 1)) / total)
+
+    await ctx.stage("extracting", fraction=index / total)
+    label = ref.get("filename") or "document"
+    if row.source_kind == "timetable_image":
+        timetable = await extraction.extract_timetable(
+            ctx, images, source_ref=row.id, on_segment=on_segment
+        )
+        added = extraction.from_timetable(timetable, context, builder, source)
+    else:
+        syllabus = await extraction.extract_syllabus(
+            ctx, texts, images=images, label=label, source_ref=row.id, on_segment=on_segment
+        )
+        added = extraction.from_syllabus(syllabus, context, builder, source)
+    if added == 0:
+        raise AppError("import.no_content", 422)
+
+
 @job_handler("imports.extract", stages=STAGES, max_attempts=6)
 async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
     row = await ctx.db.get(ImportsSession, payload.session_id)
     if row is None or row.status != "extracting":
         return ExtractResult(session_id=payload.session_id, items=0, failed_sources=0)
+    refs = [dict(r) for r in row.source_refs]
+    # Course files M07 is still processing: nothing is read (or paid for) until all are ready;
+    # `on_course_file_done` starts the job again when they are.
+    waiting = {
+        r["file_item_id"]
+        for r in refs
+        if r.get("file_item_id") and not await deps.course_file_ready(ctx, r["file_item_id"])
+    }
+    if waiting:
+        for ref in refs:
+            ref["status"] = "waiting" if ref.get("file_item_id") in waiting else "pending"
+        row.source_refs = refs
+        row.job_id = None
+        row.updated_at = ctx.now
+        return ExtractResult(session_id=row.id, items=0, failed_sources=0)
     context = await service.build_context(ctx, row)
     builder = build.Builder(context)
-    refs = [dict(r) for r in row.source_refs]
     total = len(refs)
     failed = 0
     for index, ref in enumerate(refs):
         await ctx.check_cancelled()
         await ctx.stage("reading", current=index, total=total)
         ref["status"] = "extracting"
-        try:
-            texts, images, source = await _source_input(ctx, row, ref)
-            if not texts and not images:
-                raise AppError("import.no_content", 422)
-
-            async def on_segment(done: int, parts: int, index: int = index) -> None:
-                await ctx.stage("extracting", fraction=(index + done / max(parts, 1)) / total)
-
-            await ctx.stage("extracting", fraction=index / total)
-            label = ref.get("filename") or "document"
-            if row.source_kind == "timetable_image":
-                timetable = await extraction.extract_timetable(
-                    ctx, images, source_ref=row.id, on_segment=on_segment
-                )
-                added = extraction.from_timetable(timetable, context, builder, source)
-            else:
-                syllabus = await extraction.extract_syllabus(
-                    ctx, texts, images=images, label=label, source_ref=row.id,
-                    on_segment=on_segment,
-                )  # fmt: skip
-                added = extraction.from_syllabus(syllabus, context, builder, source)
-            if added == 0:
-                raise AppError("import.no_content", 422)
-            ref["status"] = "done"
-        except AppError as exc:
-            ref["status"] = "failed"
-            ref["error_code"] = exc.code
-            failed += 1
+        for attempt in range(SOURCE_ATTEMPTS):
+            try:
+                await _extract_source(ctx, row, ref, context, builder, index, total)
+                ref["status"] = "done"
+                break
+            except AppError as exc:
+                if exc.code in TRANSIENT and attempt + 1 < SOURCE_ATTEMPTS:
+                    # The provider already retried; one more try after a pause, for this file
+                    # only (the ones before it are not read again).
+                    await anyio.sleep(SOURCE_RETRY_SECONDS)
+                    continue
+                ref["status"] = "failed"
+                ref["error_code"] = exc.code
+                failed += 1
     await ctx.stage("checking")
     # Discarded while the model was reading: leave it discarded.
     await ctx.db.refresh(row, ["status"])
@@ -139,8 +177,6 @@ async def on_job_progress(ctx: Ctx, event: Event) -> None:
     data = event.data
     if data.get("kind") != "imports.extract" or data.get("status") not in ("failed", "cancelled"):
         return
-    from sqlalchemy import select
-
     row = await ctx.db.scalar(
         select(ImportsSession).where(
             ImportsSession.job_id == data["job_id"], ImportsSession.status == "extracting"
@@ -155,3 +191,32 @@ async def on_job_progress(ctx: Ctx, event: Event) -> None:
     await events.publish(
         ctx, "imports.session.failed", service.event_data(row), user_id=row.user_id
     )
+
+
+@events.subscribe("files.document.ready")
+@events.subscribe("files.document.failed")
+@events.subscribe("files.item.deleted")
+async def on_course_file_done(ctx: Ctx, event: Event) -> None:
+    """Sessions waiting for this course file start reading."""
+    item_id = event.data.get("item_id")
+    if not isinstance(item_id, str) or ctx.user_id is None:
+        return
+    rows = await ctx.db.scalars(
+        select(ImportsSession).where(
+            ImportsSession.user_id == ctx.user_id,
+            ImportsSession.status == "extracting",
+            ImportsSession.job_id.is_(None),
+        )
+    )
+    for row in rows:
+        refs = row.source_refs
+        if not any(r.get("file_item_id") == item_id and r.get("status") == "waiting" for r in refs):
+            continue
+        job = await enqueue(
+            ctx,
+            "imports.extract",
+            ExtractPayload(session_id=row.id),
+            dedupe_key=f"extract:{row.id}",
+        )
+        row.job_id = job.id
+        row.updated_at = ctx.now

@@ -266,6 +266,8 @@ async def test_keyword_search_finds_codes_and_chinese(fx: Fx):
     assert "<mark>考试时间</mark>" in chinese[0]["snippet"]
     # Two characters is below the trigram size and falls back to a substring scan.
     assert (await fx.search("地点"))["results"][0]["page_from"] == 3
+    # Like the index's terms, short ones match on any of them: a chunk with both comes first.
+    assert (await fx.search("地点 无关"))["results"][0]["page_from"] == 3
     assert (await fx.search("nothing-like-this"))["results"] == []
 
 

@@ -7,6 +7,7 @@ missing piece fails its item or file, not the whole app.
 """
 
 import importlib
+import mimetypes
 from collections.abc import AsyncIterator, Sequence
 from types import ModuleType
 from typing import Any
@@ -23,8 +24,13 @@ from semestra.modules import ai
 MAX_READ_PAGES = 60
 LOGICAL_PAGE_CHARS = 4000
 TEXT_MIMES = ("text/plain", "text/markdown", "text/csv")
-IMAGE_MIMES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+IMAGE_MIMES = ("image/png", "image/jpeg", "image/webp", "image/gif", "image/heic")
+# Searched with OR, so a chunk with any of the words is found (Chinese words of two characters
+# are matched as substrings).
 SEARCH_QUERIES = ("grading assessment weight", "schedule lecture tutorial", "成绩 评分 考核 课表")
+
+
+PROCESSING = ("pending", "processing", "queued")
 
 
 class NotReady(Exception):
@@ -94,15 +100,30 @@ SCAN_PAGES = 8
 TIMETABLE_PAGES = 4
 
 
+def detect_mime(data: bytes, filename: str) -> str:
+    """The type of an upload by its content (M07's detection), not by its name."""
+    detect = _files("parse.detect")
+    if detect is None:
+        guessed, _ = mimetypes.guess_type(filename)
+        return guessed or "application/octet-stream"
+    return detect.detect(data, filename).mime
+
+
+def decode_text(data: bytes) -> str:
+    detect = _files("parse.detect")
+    text = detect.decode_text(data) if detect is not None else None
+    return text if text is not None else data.decode("utf-8", errors="replace")
+
+
 async def read_upload(
     settings: Settings, data: bytes, filename: str, mime: str
 ) -> tuple[list[ai.PageText], list[ai.Image]]:
     """Page texts of an uploaded document, plus page images of pages without a text layer
     (scans). Plain text needs nothing else; other formats use M07's parser."""
-    if mime in TEXT_MIMES or filename.lower().endswith((".txt", ".md")):
-        return text_pages(data.decode("utf-8", errors="replace")), []
+    if mime in TEXT_MIMES:
+        return text_pages(decode_text(data)), []
     if mime in IMAGE_MIMES:
-        return [], [ai.Image(data, mime)]
+        return [], await _image(settings, data, filename)
     parse, isolated = _files("parse"), _files("parse.isolated")
     if parse is None or isolated is None:
         raise AppError("import.file_unsupported", 422, filename=filename)
@@ -132,10 +153,23 @@ async def read_upload(
     return texts, [ai.Image(png, "image/png") for png in pngs]
 
 
+async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Image]:
+    """A photo or screenshot as the vision model gets it: upright, at most 2400 px a side, as
+    PNG (HEIC included), drawn in M07's child process."""
+    parse, isolated = _files("parse"), _files("parse.isolated")
+    if parse is None or isolated is None:
+        raise AppError("import.file_unsupported", 422, filename=filename)
+    try:
+        pngs = await isolated.render_isolated(data, pdf=False, pages=1, **_limits(settings))
+    except parse.ParseError as exc:
+        raise _unreadable(exc, filename) from exc
+    return [ai.Image(png, "image/png") for png in pngs]
+
+
 async def render_pages(settings: Settings, data: bytes, mime: str, filename: str) -> list[ai.Image]:
     """Images of a timetable: the image itself, or the first pages of a PDF (M07 renderer)."""
     if mime in IMAGE_MIMES:
-        return [ai.Image(data, mime)]
+        return await _image(settings, data, filename)
     parse, isolated = _files("parse"), _files("parse.isolated")
     if parse is None or isolated is None or mime != "application/pdf":
         raise AppError("import.file_unsupported", 422, filename=filename)
@@ -161,11 +195,21 @@ def _limits(settings: Settings) -> dict[str, Any]:
     }
 
 
+async def course_file_ready(ctx: Ctx, item_id: str) -> bool:
+    """False while M07 is still processing the file (a missing file is "ready": reading it
+    fails that file with its own error)."""
+    try:
+        item = await call(ctx, "files.item.get", {"item_id": item_id})
+    except AppError:
+        return True
+    return item.get("doc_status") not in PROCESSING
+
+
 async def read_course_file(ctx: Ctx, item_id: str, program_id: str) -> list[ai.PageText]:
     """Text of a course file that M07 has processed; long files only the relevant pages."""
     item = await call(ctx, "files.item.get", {"item_id": item_id})
     status = item.get("doc_status")
-    if status in ("pending", "processing", "queued"):
+    if status in PROCESSING:
         raise NotReady
     if status != "ready":
         raise AppError("import.file_unsupported", 422, filename=item.get("display_name"))
@@ -184,14 +228,28 @@ async def read_course_file(ctx: Ctx, item_id: str, program_id: str) -> list[ai.P
                 for page in range(int(hit["page_from"]) - 1, int(hit["page_to"]) + 2):
                     if 1 <= page <= count:
                         pages.add(page)
-        wanted = [(p, p) for p in sorted(pages)[:MAX_READ_PAGES]] or [(1, MAX_READ_PAGES)]
+        wanted = _ranges(sorted(pages)[:MAX_READ_PAGES]) or [(1, MAX_READ_PAGES)]
     out: list[ai.PageText] = []
     for start, end in wanted:
-        read = await call(
-            ctx, "files.document.read", {"item_id": item_id, "page_from": start, "page_to": end}
-        )
-        out += [ai.PageText(int(p["page_no"]), str(p["markdown"])) for p in read["pages"]]
+        page: int | None = start
+        while page is not None and page <= end:  # one read returns at most 30 pages
+            read = await call(
+                ctx, "files.document.read", {"item_id": item_id, "page_from": page, "page_to": end}
+            )
+            out += [ai.PageText(int(p["page_no"]), str(p["markdown"])) for p in read["pages"]]
+            page = read.get("next_page")
     return out
+
+
+def _ranges(pages: Sequence[int]) -> list[tuple[int, int]]:
+    """Sorted page numbers as runs of consecutive pages, one read each."""
+    runs: list[tuple[int, int]] = []
+    for page in pages:
+        if runs and page == runs[-1][1] + 1:
+            runs[-1] = (runs[-1][0], page)
+        else:
+            runs.append((page, page))
+    return runs
 
 
 async def read_attachment(ctx: Ctx, attachment_id: str) -> tuple[str, str, bytes]:

@@ -1,6 +1,5 @@
 """File routes of imports: upload before a course exists, and read it back for "show source"."""
 
-import mimetypes
 import re
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -43,16 +42,6 @@ ALLOWED = (
 INLINE_UNSANDBOXED = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif")
 
 
-def _mime(file: UploadFile) -> str:
-    guessed, _ = mimetypes.guess_type(file.filename or "")
-    if (file.filename or "").lower().endswith(".ics"):
-        return "text/calendar"
-    if (file.filename or "").lower().endswith(".md"):
-        return "text/markdown"
-    declared = (file.content_type or "").split(";")[0].strip().lower()
-    return guessed or declared or "application/octet-stream"
-
-
 async def _chunks(file: UploadFile) -> AsyncIterator[bytes]:
     while chunk := await file.read(CHUNK_SIZE):
         yield chunk
@@ -66,11 +55,8 @@ async def _chunks(file: UploadFile) -> AsyncIterator[bytes]:
     summary="Upload a file for an import (ICS, syllabus, timetable screenshot), up to 25 MB.",
 )
 async def upload_create(file: UploadFile, ctx: Annotated[Ctx, Depends(get_ctx)]) -> Upload:
-    mime = _mime(file)
-    if mime not in ALLOWED:
-        raise AppError("import.file_unsupported", 415, filename=file.filename or "")
     upload = await service.store_upload(
-        ctx, filename=file.filename or "file", mime=mime, chunks=_chunks(file)
+        ctx, filename=file.filename or "file", chunks=_chunks(file), allowed=ALLOWED
     )
     await ctx.db.commit()
     await run_after_commit(ctx)

@@ -1897,6 +1897,7 @@
   "imports_extracting": "Reading your files…",
   "imports_file": "File",
   "imports_file_pending": "Waiting",
+  "imports_file_waiting": "Waiting for the file to be processed",
   "imports_file_uploading": "Uploading",
   "imports_file_extracting": "Reading",
   "imports_file_done": "Done",

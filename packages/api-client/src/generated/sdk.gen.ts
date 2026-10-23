@@ -217,7 +217,7 @@ export const filesUpload = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * Download or preview a file; supports Range requests.
+ * Download or preview a file; supports Range requests and If-None-Match.
  */
 export const filesContent = <ThrowOnError extends boolean = false>(options: Options<FilesContentData, ThrowOnError>): RequestResult<FilesContentResponses, FilesContentErrors, ThrowOnError> => (options.client ?? client).get<FilesContentResponses, FilesContentErrors, ThrowOnError>({
     security: [{

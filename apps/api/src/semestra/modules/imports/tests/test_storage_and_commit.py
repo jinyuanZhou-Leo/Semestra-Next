@@ -144,3 +144,34 @@ async def test_syllabus_not_filed_is_reported(
     assert done["session"]["source_refs"][0]["warning_code"] == "import.upload_not_filed"
     # The upload stays with the session (its "show source" still works).
     assert (await api.client.get(f"/imports/uploads/{upload}/content")).status_code == 200
+
+
+async def test_upload_type_comes_from_the_content(app: FastAPI, api: Api):
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    pdf = await api.call(
+        "POST", "/imports/uploads", files={"file": ("notes.txt", make_pdf(["x"]), "text/plain")}
+    )
+    assert pdf["mime_type"] == "application/pdf"
+    text = await api.call(
+        "POST", "/imports/uploads", files={"file": ("s.pdf", b"plain words", "application/pdf")}
+    )
+    assert text["mime_type"] == "text/plain"
+
+
+async def test_gbk_text_and_large_photos_are_read_as_the_model_needs(app: FastAPI):
+    import io
+
+    from PIL import Image
+
+    from semestra.modules.imports import deps
+
+    settings = app.state.settings
+    pages, _ = await deps.read_upload(settings, "期中考试".encode("gbk"), "a.txt", "text/plain")
+    assert pages[0].text == "期中考试"
+    photo = io.BytesIO()
+    Image.new("RGB", (4000, 3000), "white").save(photo, "JPEG")
+    _, images = await deps.read_upload(settings, photo.getvalue(), "a.jpg", "image/jpeg")
+    (image,) = images
+    assert image.mime == "image/png"
+    assert max(Image.open(io.BytesIO(image.data)).size) <= 2400

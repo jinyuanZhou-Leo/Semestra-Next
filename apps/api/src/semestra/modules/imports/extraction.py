@@ -163,6 +163,39 @@ def _text(leaf: ai.Evidenced[Any]) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _share_category_weights(builder: Builder, course_ref: str) -> None:
+    """ "Quizzes 20% (4 quizzes)": M03 counts each assessment by its own weight, so what the
+    category's total leaves over is shared evenly by its assessments without one (marked
+    medium, with the category's total as the source)."""
+    categories = {
+        f"item:{i.key}": i
+        for i in builder.items
+        if i.type == "category"
+        and i.data.get("course_ref") == course_ref
+        and i.data.get("weight_total") is not None
+    }
+    for ref, category in categories.items():
+        members = [
+            i
+            for i in builder.items
+            if i.type == "assessment"
+            and i.data.get("course_ref") == course_ref
+            and i.data.get("category_ref") == ref
+        ]
+        open_ = [i for i in members if i.data.get("weight") is None]
+        left = float(category.data["weight_total"]) - sum(
+            float(i.data.get("weight") or 0) for i in members
+        )
+        if not open_ or left <= 0:
+            continue
+        share = round(left / len(open_), 2)
+        for item in open_:
+            item.data["weight"] = share
+            item.confidence["weight"] = "medium"
+            if "weight_total" in category.evidence:
+                item.evidence["weight"] = category.evidence["weight_total"]
+
+
 def from_syllabus(
     ext: SyllabusExtraction,
     ctx: BuildContext,
@@ -263,6 +296,8 @@ def from_syllabus(
             confidence=fields.confidence,
             decision="reject" if normalized in existing else "accept",
         )
+
+    _share_category_weights(builder, ref)
 
     for m in ext.meetings:
         if not (m.start_time.value and m.end_time.value and m.weekday.value):

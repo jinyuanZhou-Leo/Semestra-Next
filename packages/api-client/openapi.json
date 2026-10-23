@@ -859,7 +859,7 @@
         "tags": [
           "files"
         ],
-        "summary": "Download or preview a file; supports Range requests.",
+        "summary": "Download or preview a file; supports Range requests and If-None-Match.",
         "operationId": "filesContent",
         "security": [
           {
@@ -904,6 +904,9 @@
           },
           "206": {
             "description": "Partial Content"
+          },
+          "304": {
+            "description": "Not Modified"
           },
           "422": {
             "description": "Validation Error",
@@ -964,6 +967,9 @@
             "content": {
               "image/png": {}
             }
+          },
+          "304": {
+            "description": "Not Modified"
           },
           "422": {
             "description": "Validation Error",
@@ -30191,6 +30197,7 @@
             "type": "string",
             "enum": [
               "pending",
+              "waiting",
               "extracting",
               "done",
               "failed"
@@ -30208,6 +30215,17 @@
               }
             ],
             "title": "Error Code"
+          },
+          "warning_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Code"
           }
         },
         "type": "object",
