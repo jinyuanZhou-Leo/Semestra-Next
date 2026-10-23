@@ -1,6 +1,5 @@
-import type { Assessment } from '@semestra/api-client'
-import { gradingGradebookGetOptions } from '@semestra/api-client/react-query'
-import { useQueries } from '@tanstack/react-query'
+import { gradingAssessmentUpcomingOptions } from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { CalendarClock } from 'lucide-react'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -21,25 +20,18 @@ export default function UpcomingCard({ scope, size }: CardProps) {
   const termCourses = useCourses(scope.programId, termId).data?.items
   const thisCourse = useCourse(courseId ?? '').data
   const courses = courseId ? (thisCourse ? [thisCourse] : []) : (termCourses ?? [])
-  const lists = useQueries({
-    queries: courses.map((course) => ({
-      // The gradebook carries every assessment (the list endpoint pages) and shares its cache
-      // with the other grading cards.
-      ...gradingGradebookGetOptions({ path: { course_id: course.id } }),
-    })),
+  // One request for the whole scope; the server picks and orders them.
+  const upcoming = useQuery(
+    gradingAssessmentUpcomingOptions({
+      path: { program_id: scope.programId },
+      query: { term_id: termId, course_id: courseId, limit: LIMIT[size] ?? 8 },
+    }),
+  )
+  const byId = new Map(courses.map((course) => [course.id, course]))
+  const rows = (upcoming.data?.items ?? []).flatMap((assessment) => {
+    const course = byId.get(assessment.course_id)
+    return course ? [{ assessment, course }] : []
   })
-  const rows = lists
-    .flatMap((list, i) =>
-      (list.data?.assessments ?? []).map((assessment) => ({ assessment, course: courses[i]! })),
-    )
-    .filter(
-      ({ assessment: a }: { assessment: Assessment }) =>
-        a.status !== 'graded' && !a.dropped && a.due_at !== null,
-    )
-    .toSorted(
-      (a, b) => Date.parse(a.assessment.due_at ?? '') - Date.parse(b.assessment.due_at ?? ''),
-    )
-    .slice(0, LIMIT[size] ?? 8)
   if (rows.length === 0) {
     return (
       <Empty className="border-0 p-0">

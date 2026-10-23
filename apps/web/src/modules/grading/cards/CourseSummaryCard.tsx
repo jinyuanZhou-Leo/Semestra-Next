@@ -5,7 +5,7 @@ import { m } from '@/paraglide/messages'
 import { GpaValue } from '../components/GpaValue'
 import { requiredText } from '../components/Stat'
 import { AnimatedPercent } from '../components/AnimatedPercent'
-import { dueText } from '../display'
+import { dueText, headline } from '../display'
 import { useGradebook } from '../queries'
 
 /** Current or final grade, GPA, the average still needed and the next deadline (M03 §5.3). */
@@ -14,9 +14,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
   const { data } = useGradebook(courseId)
   if (!data) return null
   const { summary: s, scale, result } = data
-  const grade = s.final_percentage ?? s.current_percentage
-  const letter = s.final_percentage === null ? s.current_letter : s.final_letter
-  const points = s.final_percentage === null ? s.current_points : s.final_points
+  const { final, percentage: grade, letter, points } = headline(s)
   const next = data.assessments
     .filter((a) => a.status !== 'graded' && !a.dropped && a.due_at !== null)
     .toSorted((a, b) => Date.parse(a.due_at ?? '') - Date.parse(b.due_at ?? ''))[0]
@@ -27,7 +25,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
     >
       <div>
         <p className="text-xs text-muted-foreground">
-          {s.final_percentage === null ? m.grading_current() : m.grading_final()}
+          {final ? m.grading_final() : m.grading_current()}
         </p>
         <p className="text-3xl font-semibold tabular-nums">
           {s.status === 'passed' || s.status === 'failed' ? (
@@ -43,8 +41,14 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
           )}
         </p>
         <p className="text-sm text-muted-foreground">
-          {letter ? `${letter} · ` : null}
-          {m.grading_gpa()} <GpaValue value={points} hidden={scale.hide_gpa} animated />
+          {m.grading_gpa()}{' '}
+          <GpaValue
+            value={points}
+            hidden={scale.hide_gpa}
+            letter={letter}
+            letterClassName="ml-1.5"
+            animated
+          />
         </p>
       </div>
       {size === 'm' && result.basis === 'percentage' ? (

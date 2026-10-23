@@ -1,4 +1,4 @@
-import type { Assessment, AssessmentCategory } from '@semestra/api-client'
+import type { Assessment, AssessmentCategory, CategorySummary } from '@semestra/api-client'
 import {
   gradingAssessmentCreateMutation,
   gradingAssessmentDeleteMutation,
@@ -20,7 +20,7 @@ import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
-import { parseScore, scorePatch } from '../score'
+import { parseDecimal, parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
 import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
@@ -32,6 +32,7 @@ import {
   features,
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
+import { useHighlightedAssessment } from './use-highlight'
 
 const toSorting = (pref: SortPref): SortingState =>
   pref.key === 'manual' ? [] : [{ id: pref.key, desc: pref.dir === 'desc' }]
@@ -39,21 +40,6 @@ const toSorting = (pref: SortPref): SortingState =>
 function fromSorting(sorting: SortingState): SortPref {
   const first = sorting[0]
   return first ? { key: first.id as SortKey, dir: first.desc ? 'desc' : 'asc' } : DEFAULT_SORT
-}
-
-/** Weight of the items that count, and the weighted average of their real scores. */
-function groupFigures(items: readonly Assessment[]) {
-  const counted = items.filter((a) => !a.dropped)
-  const graded = counted.filter((a) => a.score_percentage !== null)
-  const gradedWeight = graded.reduce((sum, a) => sum + a.weight, 0)
-  return {
-    weight: counted.reduce((sum, a) => sum + a.weight, 0),
-    graded: gradedWeight,
-    average:
-      gradedWeight === 0
-        ? null
-        : graded.reduce((sum, a) => sum + a.weight * (a.score_percentage ?? 0), 0) / gradedWeight,
-  }
 }
 
 /**
@@ -66,6 +52,7 @@ export function AssessmentTable({
   courseId,
   assessments,
   categories,
+  figures,
   whatIf,
   onAssume,
   grouped,
@@ -74,6 +61,8 @@ export function AssessmentTable({
   courseId: string
   assessments: readonly Assessment[]
   categories: readonly AssessmentCategory[]
+  /** The engine's per-category figures from the real (not simulated) summary. */
+  figures: readonly CategorySummary[]
   whatIf: WhatIf
   /** Set (percent) or clear (null) the assumed score of one assessment. */
   onAssume: (assessmentId: string, percent: number | null) => void
@@ -88,6 +77,7 @@ export function AssessmentTable({
   const [editing, setEditing] = useState<Assessment | null>(null)
   const [deleting, setDeleting] = useState<Assessment | null>(null)
   const [quickTitle, setQuickTitle] = useState('')
+  const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
     ...gradingAssessmentUpdateMutation(),
@@ -120,8 +110,8 @@ export function AssessmentTable({
     return true
   }
   const saveWeight = (a: Assessment, text: string): boolean => {
-    const weight = text.trim() === '' ? 0 : Number(text.replace(',', '.'))
-    if (!(weight >= 0 && weight <= 100)) return false
+    const weight = text.trim() === '' ? 0 : parseDecimal(text)
+    if (weight === null || weight > 100) return false
     update.mutate({ path: { assessment_id: a.id }, body: { weight } })
     return true
   }
@@ -260,7 +250,10 @@ export function AssessmentTable({
                     {grouped ? (
                       <GroupRow
                         category={group.category}
-                        items={group.items.map((r) => r.original)}
+                        count={group.items.length}
+                        figures={figures.find(
+                          (f) => f.category_id === (group.category?.id ?? null),
+                        )}
                         collapsed={isCollapsed}
                         planning={whatIf.plan}
                         onToggle={() => toggleGroup(groupId)}
@@ -272,7 +265,9 @@ export function AssessmentTable({
                           <TableRow
                             key={row.id}
                             data-assessment={row.id}
+                            data-highlighted={row.id === highlighted ? true : undefined}
                             className={cn(
+                              'transition-colors duration-700 data-highlighted:bg-primary/10',
                               row.original.dropped &&
                                 'text-muted-foreground line-through decoration-1',
                             )}
@@ -335,19 +330,24 @@ export function AssessmentTable({
 /** A category's heading row in grouped view: its weight and the average of its real scores. */
 function GroupRow({
   category,
-  items,
+  count,
+  figures,
   collapsed,
   planning,
   onToggle,
 }: {
   category: AssessmentCategory | null
-  items: readonly Assessment[]
+  count: number
+  /** Missing when none of the group's items count (all dropped). */
+  figures: CategorySummary | undefined
   collapsed: boolean
   /** In plan mode the rows show assumptions; the group's average stays the real one. */
   planning: boolean
   onToggle: () => void
 }) {
-  const figures = groupFigures(items)
+  const graded = figures?.graded_weight ?? 0
+  const weight = figures?.weight ?? 0
+  const average = figures?.average ?? null
   return (
     <TableRow className="bg-muted/40 hover:bg-muted/40">
       <TableCell colSpan={3} className="py-1.5">
@@ -366,26 +366,26 @@ function GroupRow({
           <CategoryBadge category={category} />
           <span className="text-xs font-normal text-muted-foreground tabular-nums">
             {m.grading_group_summary({
-              count: items.length,
-              graded: formatCredits(figures.graded),
+              count,
+              graded: formatCredits(graded),
             })}
           </span>
         </Button>
       </TableCell>
       <TableCell className="py-1.5">
         <span className="block pr-3 text-right font-medium tabular-nums">
-          {formatCredits(figures.weight)}
+          {formatCredits(weight)}
         </span>
       </TableCell>
       <TableCell className="py-1.5">
         {planning ? (
           <span className="block pr-16 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-            {m.grading_actual({ value: percentText(figures.average) })}
+            {m.grading_actual({ value: percentText(average) })}
           </span>
         ) : (
           <span className="block pr-16 text-right font-medium tabular-nums">
             <span className="sr-only">{m.grading_average()}: </span>
-            {percentText(figures.average)}
+            {percentText(average)}
           </span>
         )}
       </TableCell>

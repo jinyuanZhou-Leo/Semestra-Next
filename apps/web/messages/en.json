@@ -2571,5 +2571,9 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "View full screen",
   "assistant_md_zoom_in": "Zoom in",
-  "assistant_md_zoom_out": "Zoom out"
+  "assistant_md_zoom_out": "Zoom out",
+  "grading_plan_unassumed": "Not yet assumed: {count}. Assume a score for each to see the planned grade.",
+  "grading_excluded_in_progress": "Not counted yet: {count} in progress",
+  "grading_round_before_lookup": "Round before the letter grade",
+  "grading_round_before_lookup_hint": "Rounds the course percentage to a whole number before looking up its band, as most transcripts do: 84.5% counts as 85%."
 }
