@@ -2,7 +2,7 @@
 name = "manage-terms-and-courses"
 title = { en = "Manage terms and courses", zh-CN = "管理学期与课程" }
 command = "/terms"
-description = "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, reorder courses, or make a course year-long."
+description = "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, or make a course year-long."
 tools = [
   "academics.program.get",
   "academics.program.update",
@@ -21,7 +21,6 @@ tools = [
   "academics.course.create_many",
   "academics.course.set_terms",
   "academics.course.update",
-  "academics.course.reorder",
   "academics.course.delete",
 ]
 +++
@@ -55,8 +54,7 @@ returns every term with its dates and breaks and marks the current one (`is_curr
   send change; `breaks` replaces the whole list, so start from the list in `academics.term.list`).
   Never delete and re-create a term to change it: deleting takes its courses with it.
 - "Which dates is week 6?" or "the Friday of week 3": `academics.term.get_weeks`.
-- Course fields: `academics.course.update`. The order of courses in a term:
-  `academics.course.reorder`. A subject's color for all its courses:
+- Course fields: `academics.course.update`. A subject's color for all its courses:
   `academics.program.set_subject_color`.
 - Make a course year-long or move it: `academics.course.set_terms` with all its terms, which must
   be consecutive terms of the Program.

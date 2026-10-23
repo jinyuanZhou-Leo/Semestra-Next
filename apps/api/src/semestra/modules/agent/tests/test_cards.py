@@ -59,21 +59,20 @@ async def test_clearing_the_official_grade_says_so(agent: Agent):
 
 
 async def test_a_reorder_shows_the_new_order_by_name(agent: Agent):
-    program, course, _ = await agent.course_with_lab()
-    term_id = course["term_ids"][0]
-    other = await agent.call(
-        "POST",
-        f"/programs/{program['id']}/courses",
-        json={"title": "Calculus", "code": "MAT186H1", "term_ids": [term_id]},
-    )
+    program = await agent.program()
+    pid = program["id"]
+    lists = [
+        await agent.call("POST", f"/programs/{pid}/task-lists", json={"name": name})
+        for name in ("Errands", "Reading")
+    ]
     card = await _card(
         agent,
-        "academics.course.reorder",
-        {"term_id": term_id, "course_ids": [other["id"], course["id"]]},
+        "tasks.list.reorder",
+        {"program_id": pid, "list_ids": [lists[1]["id"], lists[0]["id"]]},
     )
     assert card == {
-        "target": "Fall 2026",
-        "changes": [{"field": "order", "after": ["MAT186H1", "APS105H1"]}],
+        "target": program["name"],
+        "changes": [{"field": "order", "after": ["Reading", "Errands"]}],
     }
 
 

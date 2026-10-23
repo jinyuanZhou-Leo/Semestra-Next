@@ -15,8 +15,6 @@ from semestra.modules.academics.schemas import (
     CourseFindInput,
     CourseList,
     CourseListInput,
-    CourseOrder,
-    CourseOrderInput,
     CoursePage,
     CourseRef,
     CourseSetTermsInput,
@@ -370,15 +368,3 @@ async def course_set_terms(ctx: Ctx, inp: CourseSetTermsInput) -> Course:
 async def course_delete(ctx: Ctx, inp: CourseRef) -> Deleted:
     await service.delete_course(ctx, inp.course_id)
     return Deleted()
-
-
-@capability(
-    name="academics.course.reorder",
-    summary="Set the display order of the courses within a term.",
-    description="Courses not listed keep their default order after the listed ones.",
-    effect="write",
-    http=Http("PUT", "/terms/{term_id}/course-order"),
-    tags=TAGS,
-)
-async def course_reorder(ctx: Ctx, inp: CourseOrderInput) -> CourseOrder:
-    return await service.reorder_courses(ctx, inp.term_id, inp.course_ids)

@@ -503,6 +503,12 @@ export type Announcement = {
      */
     raw_kind?: string | null;
     /**
+     * External Course Id
+     *
+     * The course it was posted in
+     */
+    external_course_id?: string;
+    /**
      * Title
      */
     title: string;
@@ -2708,32 +2714,6 @@ export type CourseList = {
 };
 
 /**
- * CourseOrder
- */
-export type CourseOrder = {
-    /**
-     * Term Id
-     */
-    term_id: string;
-    /**
-     * Course Ids
-     */
-    course_ids: Array<string>;
-};
-
-/**
- * CourseOrderInputBody
- */
-export type CourseOrderInputBody = {
-    /**
-     * Course Ids
-     *
-     * Courses of the term in display order
-     */
-    course_ids: Array<string>;
-};
-
-/**
  * CourseOverview
  */
 export type CourseOverview = {
@@ -2956,7 +2936,7 @@ export type CourseUpdateInputBody = {
     /**
      * Sort Order
      *
-     * Default position within a term
+     * Display position (then code, title)
      */
     sort_order?: number | null;
 };
@@ -5996,6 +5976,12 @@ export type Module = {
      * Require Sequential Progress
      */
     require_sequential_progress?: boolean;
+    /**
+     * Items
+     *
+     * The module's items when the platform sent them along (None: ask for them)
+     */
+    items?: Array<ModuleItem> | null;
 };
 
 /**
@@ -9381,6 +9367,86 @@ export type Term = {
 };
 
 /**
+ * TermAnnouncement
+ */
+export type TermAnnouncement = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Web Url
+     *
+     * Opens the item on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Raw Kind
+     *
+     * The platform's own type (debugging)
+     */
+    raw_kind?: string | null;
+    /**
+     * External Course Id
+     *
+     * The course it was posted in
+     */
+    external_course_id?: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Posted At
+     */
+    posted_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Unread
+     */
+    unread?: boolean;
+    /**
+     * Course Id
+     *
+     * The app's course it was posted in
+     */
+    course_id: string;
+};
+
+/**
+ * TermAnnouncementList
+ */
+export type TermAnnouncementList = {
+    /**
+     * Items
+     *
+     * Newest first
+     */
+    items: Array<TermAnnouncement>;
+    /**
+     * Linked Course Ids
+     *
+     * The term's courses linked to an LMS
+     */
+    linked_course_ids: Array<string>;
+    /**
+     * Truncated
+     */
+    truncated: boolean;
+};
+
+/**
  * TermCreateInputBody
  */
 export type TermCreateInputBody = {
@@ -11529,38 +11595,6 @@ export type AcademicsCourseUpdateResponses = {
 };
 
 export type AcademicsCourseUpdateResponse = AcademicsCourseUpdateResponses[keyof AcademicsCourseUpdateResponses];
-
-export type AcademicsCourseReorderData = {
-    body: CourseOrderInputBody;
-    path: {
-        /**
-         * Term Id
-         *
-         * Term id
-         */
-        term_id: string;
-    };
-    query?: never;
-    url: '/terms/{term_id}/course-order';
-};
-
-export type AcademicsCourseReorderErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type AcademicsCourseReorderError = AcademicsCourseReorderErrors[keyof AcademicsCourseReorderErrors];
-
-export type AcademicsCourseReorderResponses = {
-    /**
-     * Successful Response
-     */
-    200: CourseOrder;
-};
-
-export type AcademicsCourseReorderResponse = AcademicsCourseReorderResponses[keyof AcademicsCourseReorderResponses];
 
 export type AcademicsCourseSetTermsData = {
     body: CourseSetTermsInputBody;
@@ -15942,6 +15976,38 @@ export type LmsCourseQueueUpdatesResponses = {
 
 export type LmsCourseQueueUpdatesResponse = LmsCourseQueueUpdatesResponses[keyof LmsCourseQueueUpdatesResponses];
 
+export type LmsCourseRefreshData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms:refresh';
+};
+
+export type LmsCourseRefreshErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseRefreshError = LmsCourseRefreshErrors[keyof LmsCourseRefreshErrors];
+
+export type LmsCourseRefreshResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkState;
+};
+
+export type LmsCourseRefreshResponse = LmsCourseRefreshResponses[keyof LmsCourseRefreshResponses];
+
 export type LmsFileGetData = {
     body?: never;
     path: {
@@ -16648,6 +16714,45 @@ export type LmsSyllabusImportResponses = {
 };
 
 export type LmsSyllabusImportResponse = LmsSyllabusImportResponses[keyof LmsSyllabusImportResponses];
+
+export type LmsTermAnnouncementListData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: {
+        /**
+         * Refresh
+         *
+         * Skip the 5-minute cache and ask again
+         */
+        refresh?: boolean;
+    };
+    url: '/terms/{term_id}/lms/announcements';
+};
+
+export type LmsTermAnnouncementListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsTermAnnouncementListError = LmsTermAnnouncementListErrors[keyof LmsTermAnnouncementListErrors];
+
+export type LmsTermAnnouncementListResponses = {
+    /**
+     * Successful Response
+     */
+    200: TermAnnouncementList;
+};
+
+export type LmsTermAnnouncementListResponse = LmsTermAnnouncementListResponses[keyof LmsTermAnnouncementListResponses];
 
 export type PluginsCatalogListData = {
     body?: never;

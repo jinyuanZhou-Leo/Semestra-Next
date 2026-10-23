@@ -66,9 +66,9 @@ const columns = column.columns([
  * gradebook, where GPA, targets and "what do I need" are worked out.
  */
 export function GradesView() {
-  const { programId, courseId, query } = useCanvasPage()
+  const { programId, courseId } = useCanvasPage()
   const list = useQuery({
-    ...lmsGradeListOptions({ path: { course_id: courseId }, query }),
+    ...lmsGradeListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (

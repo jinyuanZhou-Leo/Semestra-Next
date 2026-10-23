@@ -147,17 +147,18 @@ class FakeProvider:
         io: Io,
         cfg: BaseModel,
         creds: BaseModel,
-        course_id: str,
+        course_ids: Sequence[str],
         *,
         since: datetime | None = None,
     ) -> list[Announcement]:
-        self.calls.append(("announcements", course_id))
+        self.calls.append(("announcements", list(course_ids)))
         return [
             Announcement(
-                external_id="n1", title="Welcome",
+                external_id=f"n{course_id}", external_course_id=course_id, title="Welcome",
                 html='<p>Hi <script>alert(1)</script><a href="https://fake/courses/1/pages/intro">'
                      "intro</a></p>",
             )
+            for course_id in course_ids
         ]  # fmt: skip
 
     async def assignments(
@@ -166,19 +167,27 @@ class FakeProvider:
         self.calls.append(("assignments", course_id))
         return [a.model_copy() for a in self.course_assignments.get(course_id, [])]
 
-    async def grades(
+    async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[GradeItem]:
+        self.calls.append(("grade_totals", course_id))
         return [GradeItem(external_id="t", name="total", score=91.5, kind="total")]
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
-        return [Module(external_id="m1", name="Week 1", item_count=1)]
+        self.calls.append(("modules", course_id))
+        intro = ModuleItem(external_id="i1", title="Intro", kind="page",
+                           lock_explanation="<p>Opens <b>Monday</b></p>")  # fmt: skip
+        return [
+            Module(external_id="m1", name="Week 1", item_count=1, items=[intro]),
+            Module(external_id="m2", name="Week 2", item_count=40),  # too many to send along
+        ]
 
     async def module_items(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, module_id: str
     ) -> list[ModuleItem]:
+        self.calls.append(("module_items", module_id))
         return [ModuleItem(external_id="i1", title="Intro", kind="page",
                            target=InternalRef(kind="page", ref="intro"))]  # fmt: skip
 
@@ -202,10 +211,11 @@ class FakeProvider:
     async def file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
+        self.calls.append(("file", file_id))
         return FileMeta(external_id=file_id, name="notes.txt", mime_type="text/plain", size_bytes=5)
 
     async def open_file(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file: FileMeta
     ) -> AsyncIterator[bytes]:
         yield b"he"
         yield b"llo"

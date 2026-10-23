@@ -1317,7 +1317,6 @@
   "capability_academics_course_find_title": "查找课程",
   "capability_academics_course_get_title": "读取课程",
   "capability_academics_course_list_title": "列出课程",
-  "capability_academics_course_reorder_title": "调整课程顺序",
   "capability_academics_course_set_terms_title": "修改课程所在学期",
   "capability_academics_course_update_title": "修改课程",
   "capability_academics_program_create_title": "创建学业项目",

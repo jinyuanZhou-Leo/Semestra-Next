@@ -80,7 +80,7 @@ export function ConnectionForm({
     const result = await save.catch(() => null) // the error is shown below the form
     if (!result) return
     setCredentials({})
-    await invalidateLms(queryClient)
+    await invalidateLms(queryClient, { all: true })
     onSaved(result)
   }
 

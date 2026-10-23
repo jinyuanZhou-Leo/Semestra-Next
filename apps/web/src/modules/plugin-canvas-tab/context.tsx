@@ -4,8 +4,6 @@ import type { CanvasLocation } from './navigation'
 export type CanvasPage = {
   programId: string
   courseId: string
-  /** Sent with every read after "Refresh": skips the LMS cache (M09 `refresh=true`). */
-  query: { refresh: true } | undefined
   go: (next: CanvasLocation) => void
   /** Opens the preview of a Canvas file. */
   openFile: (fileId: string) => void
