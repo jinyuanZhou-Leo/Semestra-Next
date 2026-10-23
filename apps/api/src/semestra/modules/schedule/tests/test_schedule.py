@@ -949,3 +949,10 @@ async def test_ics_sequence_grows_when_a_class_changes(api: Api, clock: Clock):
         json={"kind": "moved", "new_location": "BA 1130"},
     )
     assert await sequence() > before
+
+
+def test_only_imports_can_mark_an_exception_as_imported():
+    from semestra.modules.schedule.schemas import ExceptionUpsertInput
+
+    # Not offered to the assistant, MCP or the API clients (and ignored from the assistant).
+    assert "imported" not in ExceptionUpsertInput.model_json_schema()["properties"]

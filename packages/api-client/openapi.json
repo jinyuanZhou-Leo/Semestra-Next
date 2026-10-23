@@ -21808,12 +21808,6 @@
             ],
             "title": "Note",
             "description": "Note shown with the class"
-          },
-          "imported": {
-            "type": "boolean",
-            "title": "Imported",
-            "description": "Set by importers; an imported change never replaces the user's own one",
-            "default": false
           }
         },
         "type": "object",

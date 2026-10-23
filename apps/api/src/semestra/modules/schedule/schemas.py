@@ -2,6 +2,7 @@ from datetime import date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
+from pydantic.json_schema import SkipJsonSchema
 
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceKind
 
@@ -226,10 +227,9 @@ class ExceptionUpsertInput(BaseModel):
         default=None, description='Moved: new location; null keeps the meeting\'s, "" means none'
     )
     note: Note | None = Field(default=None, description="Note shown with the class")
-    imported: bool = Field(
-        default=False,
-        description="Set by importers; an imported change never replaces the user's own one",
-    )
+    # Only the import commit sets it (not in the schema the assistant, MCP or clients see; ignored
+    # from them too): an imported change never replaces the user's own one.
+    imported: SkipJsonSchema[bool] = Field(default=False, description="Written by an import")
 
 
 class ExceptionRef(BaseModel):

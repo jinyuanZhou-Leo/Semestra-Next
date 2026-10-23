@@ -3598,12 +3598,6 @@ export type ExceptionUpsertInputBody = {
      * Note shown with the class
      */
     note?: string | null;
-    /**
-     * Imported
-     *
-     * Set by importers; an imported change never replaces the user's own one
-     */
-    imported?: boolean;
 };
 
 /**
