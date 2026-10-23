@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
-import { Check, Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
+import { Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
@@ -26,10 +26,9 @@ import {
 } from '@/ui/dropdown-menu'
 import type { TaskActions } from '../actions'
 import { dueLabel } from '../due'
-import { useProgramToday } from '../queries'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
-import { TaskChips } from './TaskChips'
+import { CourseMenuItems, TaskChips } from './TaskChips'
 import type { VirtualRow } from './VirtualTaskList'
 
 /** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
@@ -67,6 +66,7 @@ function focusAt(el: HTMLInputElement | HTMLTextAreaElement | null, caret?: numb
 function RowEditor({
   task,
   courses,
+  today,
   hideCourse,
   focus,
   rowRef,
@@ -75,6 +75,7 @@ function RowEditor({
 }: {
   task: Task
   courses: readonly Course[]
+  today: string
   hideCourse?: boolean
   focus: EditFocus
   rowRef: RefObject<HTMLLIElement | null>
@@ -82,7 +83,6 @@ function RowEditor({
   /** `refocus`: closed from the keyboard, so focus goes back to the row's title. */
   onClose: (refocus: boolean) => void
 }) {
-  const today = useProgramToday(task.program_id)
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes)
   const closed = useRef(false)
@@ -230,16 +230,21 @@ function CourseTag({
 }) {
   const course = courses.find((c) => c.id === task.course_id)
   if (!course) return null
+  const dot = (
+    <>
+      <span
+        aria-hidden
+        className="size-2 shrink-0 rounded-full"
+        style={{ backgroundColor: courseColor(course) }}
+      />
+      <span className="truncate">{courseLabel(course)}</span>
+    </>
+  )
   // An assessment's task stays in the assessment's course.
   if (task.source_kind === 'assessment') {
     return (
       <Badge variant="outline" className="max-w-40 shrink-0 border-0 bg-muted/70">
-        <span
-          aria-hidden
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: courseColor(course) }}
-        />
-        <span className="truncate">{courseLabel(course)}</span>
+        {dot}
       </Badge>
     )
   }
@@ -255,40 +260,14 @@ function CourseTag({
           />
         }
       >
-        {course ? (
-          <>
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full"
-              style={{ backgroundColor: courseColor(course) }}
-            />
-            <span className="truncate">{courseLabel(course)}</span>
-          </>
-        ) : (
-          m.tasks_course_none()
-        )}
+        {dot}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => void actions.update(task.id, { course_id: null })}>
-            {m.tasks_course_none()}
-            {task.course_id === null ? <Check aria-hidden className="ml-auto" /> : null}
-          </DropdownMenuItem>
-          {courses.map((c) => (
-            <DropdownMenuItem
-              key={c.id}
-              onClick={() => void actions.update(task.id, { course_id: c.id })}
-            >
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: courseColor(c) }}
-              />
-              <span className="truncate">{courseLabel(c)}</span>
-              {task.course_id === c.id ? <Check aria-hidden className="ml-auto" /> : null}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
+        <CourseMenuItems
+          courseId={task.course_id}
+          courses={courses}
+          onPick={(courseId) => void actions.update(task.id, { course_id: courseId })}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -304,6 +283,8 @@ type Sortable = {
 type Props = {
   task: Task
   courses: readonly Course[]
+  /** The Program's today (`useProgramToday`), for "Today"/"Tomorrow" labels. */
+  today: string
   selected: boolean
   onSelect: () => void
   /** Set while the row is open for editing in place; only one row is open at a time. */
@@ -331,6 +312,7 @@ type Props = {
 export function TaskRow({
   task,
   courses,
+  today,
   selected,
   onSelect,
   editing,
@@ -343,7 +325,6 @@ export function TaskRow({
   hideCourse,
   virtual,
 }: Props) {
-  const today = useProgramToday(task.program_id)
   const rowRef = useRef<HTMLLIElement | null>(null)
   // Set when the editor closes from the keyboard; the title button takes focus as it returns.
   const refocusTitle = useRef(false)
@@ -393,6 +374,7 @@ export function TaskRow({
           <RowEditor
             task={task}
             courses={courses}
+            today={today}
             hideCourse={hideCourse}
             focus={editing}
             rowRef={rowRef}

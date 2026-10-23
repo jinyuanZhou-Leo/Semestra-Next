@@ -7,11 +7,13 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
-import type { CardContribution } from '../extensions'
+import type { CardContribution, Scope } from '../extensions'
 import { cardNamespace } from './settings'
 
 type Props = {
   card: CardContribution
+  /** The board the card is on, for a custom form (`card.settings.component`). */
+  scope: Scope
   value: unknown
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -64,7 +66,7 @@ function GeneratedForm({
 }
 
 /** Settings of one card instance (M10 §5.2): the card's own component or a generated form. */
-export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }: Props) {
+export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onSubmit }: Props) {
   const [draft, setDraft] = useState(value)
   const [invalid, setInvalid] = useState(false)
   const [pending, setPending] = useState(false)
@@ -105,7 +107,7 @@ export function CardSettingsDialog({ card, value, open, onOpenChange, onSubmit }
         </DialogHeader>
         <form noValidate onSubmit={(event) => void submit(event)} className="space-y-4">
           {Custom ? (
-            <Custom value={draft} onChange={setDraft} />
+            <Custom value={draft} onChange={setDraft} scope={scope} />
           ) : (
             <GeneratedForm
               card={card}

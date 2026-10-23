@@ -1,11 +1,17 @@
 import type { Task } from '@semestra/api-client'
 import { formatDate, formatTime } from '@/lib/format'
+import { toWall } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 
 /** A calendar date (`YYYY-MM-DD`) as a local `Date` at noon, so no time zone shifts the day. */
 export function localDate(iso: string): Date {
   const [y, mo, d] = iso.split('-').map(Number)
   return new Date(y!, (mo ?? 1) - 1, d ?? 1, 12)
+}
+
+/** The wall-clock time now in `timezone`, as a browser-local `Date` (what chrono reads). */
+export function wallNow(timezone: string): Date {
+  return new Date(toWall(new Date().toISOString(), timezone))
 }
 
 function dayDiff(iso: string, today: string): number {

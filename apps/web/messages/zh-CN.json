@@ -2096,6 +2096,8 @@
   "tasks_empty_title": "这里没有任务",
   "tasks_empty_description": "在上方输入框里添加。",
   "tasks_completed_count": "已完成 {count} 项",
+  "tasks_show_more": "显示更多",
+  "tasks_lists_all_terms": "所有学期",
   "tasks_completed_empty": "还没有已完成的任务",
   "tasks_today_empty": "今天没有要做的",
   "tasks_list_empty": "没有任务",

@@ -263,9 +263,15 @@ async def test_updates_are_published(
             f"{NS}/keys/default_view", params={"scope_type": "term", "scope_id": "T1"}
         )
         await client.get(NS)
+    # Both name the key that changed: set, then reset to what the term inherits.
+    published = {
+        "namespace": "demo_calendar",
+        "scope": {"type": "term", "id": "T1"},
+        "changed": ["default_view"],
+    }
     assert [m["data"] for m in messages if m["type"] == "settings.values.updated"] == [
-        {"namespace": "demo_calendar", "scope": {"type": "term", "id": "T1"}},
-        {"namespace": "demo_calendar", "scope": {"type": "term", "id": "T1"}},
+        published,
+        published,
     ]
 
 

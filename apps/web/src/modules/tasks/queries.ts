@@ -19,6 +19,7 @@ export function useTaskLists(programId: string) {
   return useQuery({
     ...tasksListListOptions({ path: { program_id: programId } }),
     staleTime: STALE,
+    enabled: programId !== '',
   })
 }
 
@@ -34,43 +35,56 @@ export function useTaskCounts(scope: TaskScope) {
 
 /**
  * The tasks of a selection (smart list, Unsorted or list) within a scope: the open ones, or with
- * `completed: 'only'` the finished ones the selection would show.
+ * `completed: 'only'` the finished ones the selection would show. The first `limit` of them;
+ * `total` counts them all.
  */
 export function useTasks(
   scope: TaskScope,
   selection: Selection,
-  { sort, completed }: { sort: SortKey; completed: 'hide' | 'only' },
+  { sort, completed, limit = 500 }: { sort: SortKey; completed: 'hide' | 'only'; limit?: number },
   enabled = true,
 ) {
+  const options = tasksItemQueryOptions({
+    path: { program_id: scope.programId },
+    query: {
+      view:
+        selection.kind === 'smart' ? selection.view : selection.kind === 'inbox' ? 'inbox' : 'all',
+      list_id: selection.kind === 'list' ? selection.listId : undefined,
+      term_id: scope.termId,
+      course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
+      sort,
+      only_completed: completed === 'only' ? true : undefined,
+      limit,
+    },
+  })
   return useQuery({
-    ...tasksItemQueryOptions({
-      path: { program_id: scope.programId },
-      query: {
-        view:
-          selection.kind === 'smart'
-            ? selection.view
-            : selection.kind === 'inbox'
-              ? 'inbox'
-              : 'all',
-        list_id: selection.kind === 'list' ? selection.listId : undefined,
-        term_id: scope.termId,
-        course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
-        sort,
-        only_completed: completed === 'only' ? true : undefined,
-        limit: 500,
-      },
-    }),
+    ...options,
     staleTime: STALE,
     enabled,
+    // Showing more keeps the rows already shown while the longer page loads; any other change
+    // (another list, sort or scope) starts empty rather than showing the wrong tasks.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && sameButLimit(previousQuery.queryKey, options.queryKey)
+        ? previous
+        : undefined,
   })
 }
 
-/** The unfinished tasks due today or overdue, for the Today card. */
-export function useTodayTasks(programId: string) {
+function sameButLimit(a: readonly unknown[], b: readonly unknown[]): boolean {
+  const strip = (key: readonly unknown[]) => {
+    const head = key[0] as KeyHead
+    const { limit: _limit, ...query } = head?.query ?? {}
+    return JSON.stringify([{ ...head, query }, ...key.slice(1)])
+  }
+  return strip(a) === strip(b)
+}
+
+/** The unfinished tasks due today or overdue, for the Today card (of a term: that term's). */
+export function useTodayTasks(programId: string, termId?: string) {
   return useQuery({
     ...tasksItemQueryOptions({
       path: { program_id: programId },
-      query: { view: 'today', sort: 'due', limit: 100 },
+      query: { view: 'today', term_id: termId, sort: 'due', limit: 100 },
     }),
     staleTime: STALE,
   })
@@ -131,8 +145,12 @@ function deviceTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-/** Today's date in the Program's time zone, which is how the backend counts today and overdue. */
+/** The Program's time zone, which the backend counts today and overdue in. */
+export function useProgramTimezone(programId: string): string {
+  return useProgram(programId).data?.timezone ?? deviceTimeZone()
+}
+
+/** Today's date in the Program's time zone. */
 export function useProgramToday(programId: string): string {
-  const timezone = useProgram(programId).data?.timezone
-  return todayIn(timezone ?? deviceTimeZone())
+  return todayIn(useProgramTimezone(programId))
 }

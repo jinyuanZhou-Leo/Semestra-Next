@@ -9384,6 +9384,12 @@ export type TaskPage = {
      * Next Cursor
      */
     next_cursor: string | null;
+    /**
+     * Total
+     *
+     * How many tasks match, over all pages
+     */
+    total: number;
 };
 
 /**

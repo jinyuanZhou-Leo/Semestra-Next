@@ -7,7 +7,8 @@ import { useProgramToday, useTodayTasks } from '../queries'
 
 /** Tasks due today and overdue ones, with quick add (M05 §5.3). */
 export default function TodayCard({ scope, size }: CardProps) {
-  const tasks = useTodayTasks(scope.programId).data?.items
+  const termId = scope.kind === 'term' ? scope.termId : undefined
+  const tasks = useTodayTasks(scope.programId, termId).data?.items
   const actions = useTaskActions()
   const today = useProgramToday(scope.programId)
   if (!tasks) return null
@@ -23,16 +24,9 @@ export default function TodayCard({ scope, size }: CardProps) {
       </div>
       {size === 'm' ? null : (
         <QuickAdd
-          today={today}
+          programId={scope.programId}
           defaultDue={today}
-          disabled={actions.pending}
-          onAdd={(task) =>
-            actions.create(scope.programId, {
-              ...task,
-              term_id: scope.kind === 'term' ? scope.termId : undefined,
-              course_id: scope.kind === 'course' ? scope.courseId : undefined,
-            })
-          }
+          onAdd={(task) => actions.create(scope.programId, { ...task, term_id: termId })}
         />
       )}
     </div>

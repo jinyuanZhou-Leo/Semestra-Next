@@ -1,7 +1,7 @@
 import type { Task, TaskList } from '@semestra/api-client'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { ShellSidebarOpen } from '@/app/host/ShellToolbar'
@@ -52,13 +52,17 @@ type Log = {
   completes: { id: string; body: unknown }[]
   updates: { id: string; body: Record<string, unknown> }[]
   deletes: string[]
+  queries: Record<string, string>[]
 }
 let log: Log
 let items: Task[]
 let lists: TaskList[]
+/** Holds task pages back, to see what the page shows while they load. */
+let slow: boolean
 
 beforeEach(() => {
-  log = { creates: [], completes: [], updates: [], deletes: [] }
+  slow = false
+  log = { creates: [], completes: [], updates: [], deletes: [], queries: [] }
   items = [task({ id: 't1', title: 'Read chapter 3' }), task({ id: 't2', title: 'Lab report' })]
   lists = []
   server.use(
@@ -80,11 +84,18 @@ beforeEach(() => {
         courses: {},
       }),
     ),
-    http.get(`${API}/programs/p1/tasks`, ({ request }) => {
+    http.get(`${API}/programs/p1/tasks`, async ({ request }) => {
+      if (slow) await delay(200)
       const params = new URL(request.url).searchParams
       const finished = params.get('view') === 'completed' || params.get('only_completed') === 'true'
       const rows = items.filter((t) => (t.completed_at !== null) === finished)
-      return HttpResponse.json({ items: rows, next_cursor: null })
+      const limit = Number(params.get('limit') ?? 200)
+      log.queries.push(Object.fromEntries(params))
+      return HttpResponse.json({
+        items: rows.slice(0, limit),
+        next_cursor: rows.length > limit ? String(limit) : null,
+        total: rows.length,
+      })
     }),
     http.post(`${API}/programs/p1/tasks`, async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
@@ -187,6 +198,25 @@ test('clearing completed tasks is offered only where it deletes what is listed',
   expect(screen.queryByRole('button', { name: 'Clear completed' })).toBeNull()
   await pickList('All', /^Completed/)
   expect(await screen.findByRole('button', { name: 'Clear completed' })).toBeTruthy()
+})
+
+test('folded completed tasks are only counted, and long lists load more on demand', async () => {
+  items = [
+    ...Array.from({ length: 3 }, (_, n) => task({ id: `o${n}`, title: `Open ${n}` })),
+    ...Array.from({ length: 4 }, (_, n) =>
+      task({ id: `d${n}`, title: `Done ${n}`, completed_at: stamp }),
+    ),
+  ]
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  // The total comes from the server, not from the rows loaded: one row is fetched for it.
+  const folded = await screen.findByRole('button', { name: /4 completed/ })
+  slow = true
+  await userEvent.click(folded)
+  // While the rows load the section stays where it is.
+  expect(screen.getByRole('button', { name: /4 completed/ })).toBeTruthy()
+  expect(log.queries.some((q) => q.only_completed === 'true' && q.limit === '1')).toBe(true)
+  expect(await screen.findByText('Done 3')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
 })
 
 test('clicking a title edits it in place without opening the side panel', async () => {

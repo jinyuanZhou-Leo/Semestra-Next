@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.grading.models import GradingAssessment
@@ -52,9 +51,18 @@ async def enabled(ctx: Ctx, program_id: str) -> bool:
     return (await service.program_settings(ctx, program_id)).auto_tasks_from_assessments
 
 
-async def sync_assessment(ctx: Ctx, info: AssessmentInfo | None, assessment_id: str) -> None:
-    """Brings the task of one assessment in line with it. `info` is None once it is deleted."""
+async def sync_assessment(
+    ctx: Ctx, info: AssessmentInfo | None, assessment_id: str, *, create: bool = True
+) -> None:
+    """Brings the task of one assessment in line with it. `info` is None once it is deleted.
+    Without `create` only an existing task is updated or removed."""
     existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
+    await _sync(ctx, info, existing, create=create)
+
+
+async def _sync(
+    ctx: Ctx, info: AssessmentInfo | None, existing: TasksItem | None, *, create: bool
+) -> None:
     if info is None or info.due_at is None:
         # Gone or no longer scheduled: an unfinished task goes, a finished one stays.
         if existing is not None and existing.completed_at is None:
@@ -66,7 +74,7 @@ async def sync_assessment(ctx: Ctx, info: AssessmentInfo | None, assessment_id: 
     due_time = local.time().replace(tzinfo=None) if info.due_has_time else None
     title = rules.auto_title(info.course_code, info.title)
     if existing is None:
-        if info.scored:
+        if info.scored or not create:
             return  # nothing left to do for an assessment that is already marked
         fields = TaskFields(
             title=title,
@@ -81,7 +89,7 @@ async def sync_assessment(ctx: Ctx, info: AssessmentInfo | None, assessment_id: 
             row = await service.create_task_row(ctx, program, fields, default_priority="medium")
         except AppError:
             return  # the course vanished meanwhile; its deletion cleans up on its own
-        await _announce(ctx, "created", row)
+        await service.announce_item(ctx, "created", row, calendar=False)
         return
     changed: list[str] = []
     if existing.title != title:
@@ -102,34 +110,27 @@ async def sync_assessment(ctx: Ctx, info: AssessmentInfo | None, assessment_id: 
     if changed:
         existing.updated_at = ctx.now
         await ctx.db.flush()
-        await _announce(ctx, "updated", existing, changed)
-
-
-async def _announce(ctx: Ctx, kind: str, row: TasksItem, changed: list[str] | None = None) -> None:
-    data = {
-        "task_id": row.id,
-        "program_id": row.program_id,
-        "course_id": row.course_id,
-        "changed": changed or [],
-    }
-    await events.publish(ctx, f"tasks.item.{kind}", data)
-    await events.publish(ctx, "calendar.changed", {"program_id": row.program_id})
+        await service.announce_item(ctx, "updated", existing, calendar=False, changed=changed)
 
 
 async def _drop(ctx: Ctx, row: TasksItem) -> None:
     await ctx.db.delete(row)
     await ctx.db.flush()
-    await _announce(ctx, "deleted", row)
+    await service.announce_item(ctx, "deleted", row, calendar=False)
 
 
 async def on_assessment_event(ctx: Ctx, kind: str, program_id: str, assessment_id: str) -> None:
-    if not await enabled(ctx, program_id):
+    """The switch only decides whether new tasks are made: tasks made while it was on keep
+    following their assessment, since they stay read-only where the assessment decides."""
+    create = await enabled(ctx, program_id)
+    existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
+    if not create and existing is None:
         return
     row = None if kind == "deleted" else await ctx.db.get(GradingAssessment, assessment_id)
     info = None
     if row is not None and row.user_id == ctx.user_id:
         info = await _info(ctx, row)
-    await sync_assessment(ctx, info, assessment_id)
+    await _sync(ctx, info, existing, create=create)
 
 
 async def backfill(ctx: Ctx, program_id: str) -> int:
@@ -154,11 +155,11 @@ async def backfill(ctx: Ctx, program_id: str) -> int:
 
 
 async def _count(ctx: Ctx, program_id: str) -> int:
-    rows = await ctx.db.scalars(
-        select(TasksItem.id).where(
+    count = await ctx.db.scalar(
+        select(func.count()).where(
             TasksItem.user_id == ctx.user_id,
             TasksItem.program_id == program_id,
             TasksItem.source_kind == SOURCE_KIND,
         )
     )
-    return len(rows.all())
+    return count or 0

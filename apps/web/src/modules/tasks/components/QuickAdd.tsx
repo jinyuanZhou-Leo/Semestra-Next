@@ -1,12 +1,14 @@
 import { CalendarDays, Plus, X } from 'lucide-react'
 import { type Ref, useState } from 'react'
 import { m } from '@/paraglide/messages'
+import { todayIn } from '@/modules/schedule/time'
 import { getLocale } from '@/paraglide/runtime'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
-import { dueLabel, localDate } from '../due'
+import { dueLabel, wallNow } from '../due'
 import { parseQuickAdd } from '../parse'
+import { useProgramTimezone } from '../queries'
 import { type Priority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
@@ -24,30 +26,30 @@ export type NewTask = {
  */
 export function QuickAdd({
   inputRef,
-  today,
+  programId,
   defaultDue,
-  disabled,
   onAdd,
 }: {
   inputRef?: Ref<HTMLInputElement>
-  /** The Program's today (`useProgramToday`): "tomorrow" is read relative to it. */
-  today: string
+  /** Dates and times ("tomorrow", "in 2 hours") are read in this Program's time zone. */
+  programId: string
   /** Due date when the text has none, e.g. today in the Today list. */
   defaultDue?: string
-  disabled?: boolean
   onAdd: (task: NewTask) => Promise<unknown>
 }) {
+  const timezone = useProgramTimezone(programId)
+  const today = todayIn(timezone)
   const [text, setText] = useState('')
   // The words the user chose to keep as plain text; the choice holds while those words stay.
   const [keptDate, setKeptDate] = useState<string | null>(null)
   const [keptMark, setKeptMark] = useState<string | null>(null)
-  const now = localDate(today)
-  const first = parseQuickAdd(text, now, getLocale())
+  // The clock is read with the text, so relative times count from the last keystroke.
+  const first = parseQuickAdd(text, wallNow(timezone), getLocale())
   const ignoreDate = first.dateText !== null && first.dateText === keptDate
   const ignorePriority = first.priorityText !== null && first.priorityText === keptMark
   const parsed =
     ignoreDate || ignorePriority
-      ? parseQuickAdd(text, now, getLocale(), { ignoreDate, ignorePriority })
+      ? parseQuickAdd(text, wallNow(timezone), getLocale(), { ignoreDate, ignorePriority })
       : first
   const dueDate = parsed.dueDate ?? defaultDue ?? null
   const reset = () => {
@@ -55,14 +57,15 @@ export function QuickAdd({
     setKeptDate(null)
     setKeptMark(null)
   }
+  // Not blocked while an earlier add is saving, so tasks can be typed one after another.
   const submit = async () => {
-    if (!parsed.title || disabled) return
+    if (!parsed.title) return
     const task: NewTask = { title: parsed.title }
     if (dueDate) task.due_date = dueDate
     if (parsed.dueTime && parsed.dueDate) task.due_time = parsed.dueTime
     if (parsed.priority) task.priority = parsed.priority
     reset()
-    await onAdd(task).catch(() => setText(text))
+    await onAdd(task).catch(() => setText((current) => current || text))
   }
   return (
     <div className="rounded-2xl bg-muted/50 px-3 py-2.5 focus-within:bg-muted">

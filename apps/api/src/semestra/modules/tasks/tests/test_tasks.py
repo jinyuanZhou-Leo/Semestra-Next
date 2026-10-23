@@ -815,3 +815,129 @@ async def test_a_second_run_of_the_backfill_creates_nothing(
     async with system_ctx(app.state, user.id) as ctx:
         assert await auto.backfill(ctx, pid) == 0
     assert len(await api.titles(pid)) == 1
+
+
+# --- review fixes (2026-10-22 module review) ------------------------------------------------
+
+
+async def test_deleting_a_course_settles_the_tasks_of_its_assessments(api: Api):
+    s = await api.setup()
+    pid, aps = s["program"], s["courses"]["aps"]
+    await enable_auto(api, pid)
+    await assessment(api, aps, "Midterm", due_date="2026-02-10")
+    done = await assessment(api, aps, "Quiz", due_date="2026-02-01")
+    await api.call("PATCH", f"/assessments/{done['id']}", json={"score_percentage": 80})
+    own = await api.task(pid, "Own", course_id=aps)
+    await api.call("DELETE", f"/courses/{aps}")
+    # The unfinished assessment task goes with the assessment; the finished one stays as an
+    # ordinary task that can be edited; the user's own task only loses the course.
+    page = await api.call("GET", f"/programs/{pid}/tasks", params={"include_completed": True})
+    rows = {t["title"]: t for t in page["items"]}
+    assert sorted(rows) == ["APS105H1 · Quiz", "Own"]
+    quiz = rows["APS105H1 · Quiz"]
+    assert (quiz["source_kind"], quiz["source_ref"], quiz["course_id"]) == ("manual", None, None)
+    await api.call("PATCH", f"/tasks/{quiz['id']}", json={"title": "Quiz notes"})
+    assert rows["Own"]["id"] == own["id"]
+    assert rows["Own"]["course_id"] is None
+
+
+async def test_tasks_made_while_the_switch_was_on_keep_following_their_assessment(api: Api):
+    s = await api.setup()
+    pid, aps = s["program"], s["courses"]["aps"]
+    await enable_auto(api, pid)
+    a = await assessment(api, aps, "Essay", due_date="2026-02-10")
+    await api.call(
+        "PATCH",
+        "/me/settings/tasks",
+        json={
+            "scope_type": "program",
+            "scope_id": pid,
+            "values": {"auto_tasks_from_assessments": False},
+        },
+    )
+    await api.call("PATCH", f"/assessments/{a['id']}", json={"due_date": "2026-02-20"})
+    [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
+    assert task["due_date"] == "2026-02-20"
+    await assessment(api, aps, "New one", due_date="2026-03-01")  # no new task while off
+    assert len(await api.titles(pid)) == 1
+    await api.call("DELETE", f"/assessments/{a['id']}")
+    assert await api.titles(pid) == []
+
+
+async def test_only_turning_the_switch_on_brings_back_deleted_assessment_tasks(api: Api):
+    s = await api.setup()
+    pid, aps = s["program"], s["courses"]["aps"]
+    await enable_auto(api, pid)
+    await assessment(api, aps, "Essay", due_date="2026-02-10")
+    [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
+    await api.call("DELETE", f"/tasks/{task['id']}")
+    for values in ({"default_priority": "low"}, {"auto_tasks_from_assessments": True}):
+        await api.call(
+            "PATCH",
+            "/me/settings/tasks",
+            json={"scope_type": "program", "scope_id": pid, "values": values},
+        )
+    assert await api.titles(pid) == []  # another setting, or the switch saved as it was
+
+
+async def test_deleting_a_list_with_its_tasks_announces_them(
+    api: Api, app: FastAPI, user: UserHandle
+):
+    s = await api.setup()
+    pid = s["program"]
+    drop = await api.call("POST", f"/programs/{pid}/task-lists", json={"name": "Drop"})
+    a = await api.task(pid, "a", list_id=drop["id"], due_date="2026-02-01")
+    b = await api.task(pid, "b", list_id=drop["id"])
+    with collect_events(app, user.id) as messages:
+        await api.call("DELETE", f"/task-lists/{drop['id']}", params={"delete_tasks": True})
+    [deleted] = [m["data"] for m in messages if m["type"] == "tasks.item.deleted"]
+    assert sorted(deleted["task_ids"]) == sorted([a["id"], b["id"]])
+    assert "calendar.changed" in [m["type"] for m in messages]
+
+
+async def test_a_term_list_shows_its_tasks_whatever_term_their_course_gives_them(api: Api):
+    s = await api.setup()
+    pid, fall, winter = s["program"], s["terms"]["fall"], s["terms"]["winter"]
+    aps = s["courses"]["aps"]  # a winter course
+    fall_list = await api.call(
+        "POST", f"/programs/{pid}/task-lists", json={"name": "Fall list", "term_id": fall}
+    )
+    shared = await api.call("POST", f"/programs/{pid}/task-lists", json={"name": "Shared"})
+    task = await api.task(pid, "Winter work", list_id=fall_list["id"], course_id=aps)
+    assert task["term_id"] == winter
+    assert await api.titles(pid, list_id=fall_list["id"], term_id=fall) == ["Winter work"]
+    counts = await api.call("GET", f"/programs/{pid}/task-counts", params={"term_id": fall})
+    assert counts["lists"] == {fall_list["id"]: 1}
+    # A Program-wide list still shows only the term's tasks on a term page.
+    await api.task(pid, "Winter errand", list_id=shared["id"], term_id=winter)
+    assert await api.titles(pid, list_id=shared["id"], term_id=fall) == []
+
+
+async def test_pages_report_the_total(api: Api):
+    s = await api.setup()
+    pid = s["program"]
+    for n in range(5):
+        task = await api.task(pid, f"t{n}")
+        if n < 3:
+            await api.call("POST", f"/tasks/{task['id']}:complete", json={})
+    page = await api.call(
+        "GET", f"/programs/{pid}/tasks", params={"only_completed": True, "limit": 2}
+    )
+    assert (len(page["items"]), page["total"], page["next_cursor"]) == (2, 3, "2")
+    open_page = await api.call("GET", f"/programs/{pid}/tasks", params={"limit": 10})
+    assert (open_page["total"], open_page["next_cursor"]) == (2, None)
+    searched = await api.call("GET", f"/programs/{pid}/tasks", params={"search": "t1"})
+    assert searched["total"] == len(searched["items"])
+
+
+async def test_moving_into_a_used_up_gap_spaces_the_list_out(api: Api):
+    s = await api.setup()
+    pid = s["program"]
+    await api.task(pid, "first")
+    last = await api.task(pid, "last")
+    names = []
+    for n in range(60):  # each move halves the gap between `first` and the one before it
+        task = await api.task(pid, f"m{n}")
+        await api.call("POST", f"/tasks/{task['id']}:move", json={"before_task_id": last["id"]})
+        names.append(f"m{n}")
+    assert await api.titles(pid, view="inbox") == ["first", *names, "last"]

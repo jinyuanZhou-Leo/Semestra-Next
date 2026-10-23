@@ -32151,12 +32151,18 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "How many tasks match, over all pages"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "next_cursor"
+          "next_cursor",
+          "total"
         ],
         "title": "TaskPage"
       },

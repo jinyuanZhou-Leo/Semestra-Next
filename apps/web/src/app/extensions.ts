@@ -118,11 +118,12 @@ export type CardContribution = {
    * form generated from `schema` (texts `settings_card_<card id>_<field>_label|_description`,
    * dots and dashes as underscores). `fields` hides fields the card itself writes (a counter's
    * value) or orders them. The schema's JSON Schema is exported to the backend for validation.
+   * `component` also gets the board's `scope`.
    */
   settings?: {
     schema: ZodType
     // oxlint-disable-next-line no-explicit-any
-    component?: ComponentType<{ value: any; onChange: (value: any) => void }>
+    component?: ComponentType<{ value: any; onChange: (value: any) => void; scope?: Scope }>
     fields?: FieldOverrides
   }
   multiple: boolean
