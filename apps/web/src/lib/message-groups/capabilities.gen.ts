@@ -11,7 +11,6 @@ export const capabilityMessages = {
   capability_academics_course_find_title: m.capability_academics_course_find_title,
   capability_academics_course_get_title: m.capability_academics_course_get_title,
   capability_academics_course_list_title: m.capability_academics_course_list_title,
-  capability_academics_course_reorder_title: m.capability_academics_course_reorder_title,
   capability_academics_course_set_terms_title: m.capability_academics_course_set_terms_title,
   capability_academics_course_update_title: m.capability_academics_course_update_title,
   capability_academics_program_create_title: m.capability_academics_program_create_title,

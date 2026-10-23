@@ -424,7 +424,7 @@ class CourseUpdateInput(BaseModel):
     planned_terms: Annotated[int, Field(ge=1, le=6)] | None = Field(
         default=None, description="Consecutive terms the course spans"
     )
-    sort_order: int | None = Field(default=None, description="Default position within a term")
+    sort_order: int | None = Field(default=None, description="Display position (then code, title)")
 
 
 class CourseSetTermsInput(BaseModel):
@@ -432,13 +432,3 @@ class CourseSetTermsInput(BaseModel):
     term_ids: list[Id] = Field(
         max_length=6, description="All terms of the course; must be consecutive"
     )
-
-
-class CourseOrderInput(BaseModel):
-    term_id: Id = Field(description="Term id")
-    course_ids: list[Id] = Field(max_length=200, description="Courses of the term in display order")
-
-
-class CourseOrder(BaseModel):
-    term_id: str
-    course_ids: list[str]

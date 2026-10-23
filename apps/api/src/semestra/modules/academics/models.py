@@ -85,17 +85,3 @@ class AcademicsCourseTerm(Base, OwnedMixin):
     term_id: Mapped[str] = mapped_column(
         String, ForeignKey("academics_terms.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-
-
-class AcademicsTermCourseOrder(Base, OwnedMixin):
-    """The user's display order of the courses within one term."""
-
-    __tablename__ = "academics_term_course_order"
-
-    term_id: Mapped[str] = mapped_column(
-        String, ForeignKey("academics_terms.id", ondelete="CASCADE"), primary_key=True
-    )
-    course_id: Mapped[str] = mapped_column(
-        String, ForeignKey("academics_courses.id", ondelete="CASCADE"), primary_key=True
-    )
-    position: Mapped[int] = mapped_column(Integer)

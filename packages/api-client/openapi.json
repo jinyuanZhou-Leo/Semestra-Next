@@ -1771,72 +1771,6 @@
         }
       }
     },
-    "/terms/{term_id}/course-order": {
-      "put": {
-        "tags": [
-          "academics"
-        ],
-        "summary": "Set the display order of the courses within a term.",
-        "description": "Courses not listed keep their default order after the listed ones.",
-        "operationId": "academicsCourseReorder",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "term_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Term id",
-              "title": "Term Id"
-            },
-            "description": "Term id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CourseOrderInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CourseOrder"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/courses/{course_id}/terms": {
       "put": {
         "tags": [
@@ -19969,47 +19903,6 @@
         ],
         "title": "CourseList"
       },
-      "CourseOrder": {
-        "properties": {
-          "term_id": {
-            "type": "string",
-            "title": "Term Id"
-          },
-          "course_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Course Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "term_id",
-          "course_ids"
-        ],
-        "title": "CourseOrder"
-      },
-      "CourseOrderInputBody": {
-        "properties": {
-          "course_ids": {
-            "items": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 200,
-            "title": "Course Ids",
-            "description": "Courses of the term in display order"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_ids"
-        ],
-        "title": "CourseOrderInputBody"
-      },
       "CourseOverview": {
         "properties": {
           "link": {
@@ -20499,7 +20392,7 @@
               }
             ],
             "title": "Sort Order",
-            "description": "Default position within a term"
+            "description": "Display position (then code, title)"
           }
         },
         "type": "object",

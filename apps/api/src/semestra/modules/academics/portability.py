@@ -1,4 +1,7 @@
-"""M13 export/import adapter: Programs, terms, courses and their order."""
+"""M13 export/import adapter: Programs, terms and courses.
+
+Backups made before per-term course order was dropped still carry `term_course_order`; the
+adapter only reads the tables it lists, so that key is ignored."""
 
 from typing import Any
 
@@ -10,7 +13,6 @@ from semestra.modules.academics.models import (
     AcademicsCourseTerm,
     AcademicsProgram,
     AcademicsTerm,
-    AcademicsTermCourseOrder,
 )
 from semestra.modules.portability import ImportOptions, Table, table_adapter
 
@@ -45,12 +47,6 @@ ADAPTER = table_adapter(
             "course_terms",
             id_column=None,
             refs={"course_id": "required", "term_id": "required"},
-        ),
-        Table(
-            AcademicsTermCourseOrder,
-            "term_course_order",
-            id_column=None,
-            refs={"term_id": "required", "course_id": "required"},
         ),
     ),
 )

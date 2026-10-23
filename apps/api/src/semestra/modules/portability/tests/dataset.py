@@ -11,7 +11,6 @@ from semestra.modules.academics.models import (
     AcademicsCourseTerm,
     AcademicsProgram,
     AcademicsTerm,
-    AcademicsTermCourseOrder,
 )
 from semestra.modules.agent.models import (
     AgentAttachment,
@@ -210,7 +209,6 @@ async def populate(
     db.add_all(
         [
             AcademicsCourseTerm(**u, course_id=course.id, term_id=term.id),
-            AcademicsTermCourseOrder(**u, term_id=term.id, course_id=course.id, position=0),
             GradingScale(
                 **u,
                 program_id=program.id,
