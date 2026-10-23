@@ -74,6 +74,9 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
 
     detail = await agent.detail(session["id"])
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant", "tool", "assistant"]
+    # The transcript leaves the result text out: the UI never shows it.
+    [result] = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert "content" not in result
     assert detail["session"]["title"] == "Lab score"
     assert detail["generating"] is False
 
@@ -192,6 +195,7 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
 
     [proposal] = events_named(events, "proposal")
     assert proposal["status"] == "pending"
+    assert proposal["input_schema"]["properties"]["points_earned"]
     assert proposal["preview"]["target"] == "Lab 3 · APS105H1 Programming"
     assert proposal["preview"]["link"]["to"].endswith(f"/c/{course['id']}/grades")
     changes = {c["field"]: c for c in proposal["preview"]["changes"]}
@@ -205,6 +209,8 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
 
     updated = events_named(events, "proposal")[0]
     assert updated["status"] == "executed"
+    assert updated["input_schema"] is None  # only a pending card can be edited
+    assert updated["display"]["target"] == ["Lab 3"]
     assert [r["ok"] for r in events_named(events, "tool_result")] == [True]
     assert "Saved" in texts(events)
     after = await agent.call("GET", f"/courses/{course['id']}/assessments")
@@ -220,6 +226,9 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
     assert again[0][1]["error"]["code"] == "agent.proposal_not_pending"
     detail = await agent.detail(session["id"])
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant", "tool", "assistant"]
+    # The step keeps its names after a reload.
+    [result] = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert result["display"]["target"] == ["Lab 3"]
 
 
 async def test_rejection_reason_goes_back_to_the_model(agent: Agent, model: FakeModel):

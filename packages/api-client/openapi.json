@@ -15500,10 +15500,17 @@
             "title": "Args"
           },
           "input_schema": {
-            "additionalProperties": true,
-            "type": "object",
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Input Schema",
-            "description": "JSON schema of `args`, for the edit form."
+            "description": "JSON schema of `args`, for the edit form; only while the card is pending."
           },
           "preview": {
             "anyOf": [
@@ -15531,6 +15538,19 @@
           },
           "result": {
             "title": "Result"
+          },
+          "display": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display",
+            "description": "Names and counts for the step's line once it ran (as in `tool_result`)."
           },
           "error_code": {
             "anyOf": [

@@ -94,19 +94,31 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
     const proposal = proposalByCall.get(callId)
     let status: StepStatus = generating ? 'running' : 'error'
     if (result) status = result.is_error ? 'error' : 'done'
+    // A card decided while another still waits, or after the conversation moved on, has no
+    // result row: what it did is on the card.
+    else if (proposal?.status === 'executed') status = 'done'
+    else if (proposal?.status === 'failed') status = 'error'
     if (proposal?.status === 'pending') status = 'waiting'
     else if (proposal?.status === 'rejected') status = 'rejected'
     else if (proposal?.status === 'expired') status = 'expired'
+    const ranCard = !result && (proposal?.status === 'executed' || proposal?.status === 'failed')
     return {
       callId,
       name: capabilityName(str(call.name)),
       args: (call.args as Record<string, unknown> | undefined) ?? {},
       status,
-      errorCode: result ? ((result.error_code as string | null) ?? null) : null,
+      errorCode: result
+        ? ((result.error_code as string | null) ?? null)
+        : ranCard
+          ? (proposal?.error_code ?? null)
+          : null,
       proposal: proposal ?? null,
       memory: (result?.memory as RememberedMemory | undefined) ?? null,
-      display: (result?.display as StepDisplay | undefined) ?? null,
-      changed: result?.changed === true,
+      display:
+        (result?.display as StepDisplay | undefined) ??
+        (proposal?.display as StepDisplay | null | undefined) ??
+        null,
+      changed: result ? result.changed === true : proposal?.status === 'executed',
     }
   }
 

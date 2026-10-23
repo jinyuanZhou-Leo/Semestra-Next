@@ -186,11 +186,13 @@ async def _display(ctx: Ctx, name: str, args: dict[str, Any], payload: Any) -> d
 def _proposal_outcome(row: AgentProposal) -> Outcome:
     """What a decided proposal gave, as the tool's result."""
     if row.status == "executed":
-        return Outcome(True, row.result, citations=_citations(row.result))
+        return Outcome(
+            True, row.result, citations=_citations(row.result), display=row.display or {}
+        )
     if row.status == "failed":
         code = row.error_code or "agent.interrupted"
         payload = row.result if row.result is not None else {"error": {"code": code, "params": {}}}
-        return Outcome(False, payload, code)
+        return Outcome(False, payload, code, display=row.display or {})
     if row.status == "rejected":
         message = (row.result or {}).get("message") if isinstance(row.result, dict) else None
         return Outcome(True, {"rejected": True, "message": message or REJECTED}, ran=False)
@@ -1381,6 +1383,7 @@ async def _record(
             fresh.executed_at = ctx.now
         fresh.result = outcome.payload
         fresh.error_code = outcome.error_code
+        fresh.display = outcome.display or None
         await ctx.db.commit()
 
 

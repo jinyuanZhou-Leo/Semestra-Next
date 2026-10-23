@@ -1,9 +1,11 @@
 """Sessions, transcript rows, proposals, attachments and preferences (M12 §2, §4)."""
 
+import functools
 from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -219,11 +221,16 @@ def add_message(
     return row
 
 
+# What the transcript leaves out of a tool result: the text the model got (`content`, kept in
+# `model_parts`) and the uncut text `read_tool_result` reads (`full`). The UI shows neither, and
+# a long conversation would send megabytes of them on every reload.
+_MODEL_ONLY = frozenset({"content", "full"})
+
+
 def _public_block(block: dict[str, Any]) -> dict[str, Any]:
-    # The uncut text of a long tool result is for `read_tool_result`, not the transcript.
     # (Signatures and other provider data of reasoning live in `model_parts`, never sent here.)
-    if block.get("type") == "tool_result" and "full" in block:
-        return {k: v for k, v in block.items() if k != "full"}
+    if block.get("type") == "tool_result":
+        return {k: v for k, v in block.items() if k not in _MODEL_ONLY}
     return block
 
 
@@ -363,6 +370,11 @@ def capability(name: str) -> Capability | None:
         return None
 
 
+@functools.cache
+def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    return model.model_json_schema()
+
+
 def proposal_out(row: AgentProposal) -> AgentProposalOut:
     cap = capability(row.capability)
     return AgentProposalOut(
@@ -373,10 +385,11 @@ def proposal_out(row: AgentProposal) -> AgentProposalOut:
         capability=row.capability,
         effect=cap.effect if cap else "write",
         args=row.args,
-        input_schema=cap.input_model.model_json_schema() if cap else {},
+        input_schema=_json_schema(cap.input_model) if cap and row.status == "pending" else None,
         preview=row.preview,
         status=row.status,  # pyright: ignore[reportArgumentType]
         result=row.result,
+        display=row.display,
         error_code=row.error_code,
         created_at=row.created_at,
         decided_at=row.decided_at,
