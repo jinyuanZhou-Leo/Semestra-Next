@@ -1,10 +1,18 @@
----
-name: setup-gradebook
-title: { en: "Set up a gradebook", zh-CN: "设置成绩簿" }
-command: /gradebook
-description: Use when the user tells you a course's grading scheme in the chat ("2 midterms 25% each, final 40%") and wants the gradebook built from it. A scheme in a file or syllabus is imported instead.
-tools: [academics.course.find, grading.gradebook.get, grading.category.create, grading.category.update, grading.assessment.create_many, grading.assessment.update, grading.course_result.update]
----
++++
+name = "setup-gradebook"
+title = { en = "Set up a gradebook", zh-CN = "设置成绩簿" }
+command = "/gradebook"
+description = "Use when the user tells you a course's grading scheme in the chat (\"2 midterms 25% each, final 40%\") and wants the gradebook built from it. A scheme in a file or syllabus is imported instead."
+tools = [
+  "academics.course.find",
+  "grading.gradebook.get",
+  "grading.category.create",
+  "grading.category.update",
+  "grading.assessment.create_many",
+  "grading.assessment.update",
+  "grading.course_result.update",
+]
++++
 
 # Setting up a gradebook
 

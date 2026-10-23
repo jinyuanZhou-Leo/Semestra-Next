@@ -1,10 +1,30 @@
----
-name: manage-terms-and-courses
-title: { en: "Manage terms and courses", zh-CN: "管理学期与课程" }
-command: /terms
-description: Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, reorder courses, or make a course year-long.
-tools: [academics.program.get, academics.program.update, academics.program.set_subject_color, academics.term.list, academics.term.get, academics.term.get_weeks, academics.term.create, academics.term.update, academics.term.preview_delete, academics.term.delete, academics.course.find, academics.course.list, academics.course.get, academics.course.create, academics.course.create_many, academics.course.set_terms, academics.course.update, academics.course.reorder, academics.course.delete]
----
++++
+name = "manage-terms-and-courses"
+title = { en = "Manage terms and courses", zh-CN = "管理学期与课程" }
+command = "/terms"
+description = "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, reorder courses, or make a course year-long."
+tools = [
+  "academics.program.get",
+  "academics.program.update",
+  "academics.program.set_subject_color",
+  "academics.term.list",
+  "academics.term.get",
+  "academics.term.get_weeks",
+  "academics.term.create",
+  "academics.term.update",
+  "academics.term.preview_delete",
+  "academics.term.delete",
+  "academics.course.find",
+  "academics.course.list",
+  "academics.course.get",
+  "academics.course.create",
+  "academics.course.create_many",
+  "academics.course.set_terms",
+  "academics.course.update",
+  "academics.course.reorder",
+  "academics.course.delete",
+]
++++
 
 # Managing terms and courses
 

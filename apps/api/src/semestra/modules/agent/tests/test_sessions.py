@@ -260,8 +260,8 @@ def test_skills_that_create_something_can_also_change_it():
 
 def test_frontmatter_parser():
     meta, body = skills.parse_frontmatter(
-        '---\nname: x\ntitle: { en: "A, b", zh-CN: "甲" }\ncommand: /x   # comment\n'
-        "tools: [a.b, c.d]\ndescription: |\n  Line one\n  line two\n---\nBody"
+        '+++\nname = "x"\ntitle = { en = "A, b", zh-CN = "甲" }\ncommand = "/x"  # comment\n'
+        'tools = ["a.b", "c.d"]\ndescription = """\nLine one\nline two"""\n+++\nBody'
     )
     assert meta == {
         "name": "x",
@@ -271,6 +271,8 @@ def test_frontmatter_parser():
         "description": "Line one\nline two",
     }
     assert body == "Body"
+    with pytest.raises(skills.SkillFormatError):
+        skills.parse_frontmatter("+++\nname = x\n+++\nBody")
 
 
 def test_every_agent_capability_has_a_title_in_both_languages():

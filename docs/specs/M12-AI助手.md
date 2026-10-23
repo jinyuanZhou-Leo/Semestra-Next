@@ -55,16 +55,15 @@ agent_preferences
 
 ### 3.3 Skill
 - 来源：每个模块 `modules/<m>/skills/*.md`，构建时汇总；插件 skill 只在已安装时可见。
-- 格式（frontmatter + 正文）：
+- 格式（`+++` 包住的 TOML frontmatter + 正文，用标准库 `tomllib` 读，2026-10-23 起取代手写的 YAML 子集）：
   ```markdown
-  ---
-  name: record-grades
-  title: { en: "Record grades", zh-CN: "录入成绩" }
-  command: /grade            # 可选，斜杠命令
-  description: |
-    Use when the user reports a score ... Do not use for ...
-  tools: [academics.course.find, grading.assessment.find, grading.assessment.update]
-  ---
+  +++
+  name = "record-grades"
+  title = { en = "Record grades", zh-CN = "录入成绩" }
+  command = "/grade"            # 可选，斜杠命令
+  description = "Use when the user reports a score ... Do not use for ..."
+  tools = ["academics.course.find", "grading.assessment.find", "grading.assessment.update"]
+  +++
   ## Objective / ## Use When / ## Do Not Use When / ## Workflow（步骤） / ## Output（回答格式） / ## Notes
   ```
 - `skills_read` 返回正文并自动 `tools_load` 其声明的 tools。
