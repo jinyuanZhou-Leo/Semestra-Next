@@ -2,6 +2,7 @@ import type {
   CategoryTemplate,
   GradingScale,
   ScaleBand,
+  ScalePreset,
   ScaleUpdateInputBody,
 } from '@semestra/api-client'
 import { gradingScaleUpdateMutation } from '@semestra/api-client/react-query'
@@ -166,7 +167,20 @@ const toRows = (bands: readonly ScaleBand[]): BandRow[] =>
       letter: b.letter ?? '',
     }))
 
-/** The conversion table: a bar showing the ranges, an editable table, and preset reset. */
+/** The preset the table is, or `custom` once it no longer matches one. */
+const presetOf = (
+  presets: readonly ScalePreset[] | undefined,
+  rows: readonly BandRow[],
+  maxPoints: string,
+): string => {
+  const table = JSON.stringify([rows, maxPoints])
+  return (
+    presets?.find((p) => JSON.stringify([toRows(p.bands), String(p.max_points)]) === table)?.id ??
+    'custom'
+  )
+}
+
+/** The conversion table: a bar showing the ranges, an editable table, and the preset it is. */
 function BandEditor({ scale }: { scale: GradingScale }) {
   const maxPointsId = useId()
   const queryClient = useQueryClient()
@@ -174,12 +188,15 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const [rows, setRows] = useState(() => toRows(scale.bands))
   const [removingBand, setRemovingBand] = useState<number | null>(null)
   const [maxPoints, setMaxPoints] = useState(String(scale.max_points))
-  const [presetId, setPresetId] = useState('uoft_4_0')
+  const [switching, setSwitching] = useState<ScalePreset | null>(null)
   const [confirming, setConfirming] = useState(false)
   const save = useMutation({
     ...gradingScaleUpdateMutation(),
     onError: toastError,
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
+      // Unsaved edits go too: the saved table can equal the old one, which keeps this mounted.
+      setRows(toRows(saved.bands))
+      setMaxPoints(String(saved.max_points))
       setConfirming(false)
       await invalidateGrading(queryClient)
     },
@@ -200,7 +217,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
     JSON.stringify([toRows(scale.bands), String(scale.max_points)])
   const edit = (i: number, patch: Partial<BandRow>) =>
     setRows(rows.map((r, index) => (index === i ? { ...r, ...patch } : r)))
-  const preset = presets?.find((p) => p.id === presetId)
+  const presetId = presetOf(presets, rows, maxPoints)
 
   return (
     <SettingsBlock title={m.grading_scale()} description={m.grading_scale_hint()}>
@@ -312,12 +329,13 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           label={m.grading_preset()}
           options={presetOptions(presets?.map((p) => p.id) ?? [presetId])}
           value={presetId}
-          onChange={setPresetId}
+          onChange={(id) => {
+            setSwitching(presets?.find((p) => p.id === id) ?? null)
+            setConfirming(true)
+          }}
+          disabled={save.isPending}
           selectClassName="w-52"
         />
-        <Button variant="outline" size="sm" disabled={!preset} onClick={() => setConfirming(true)}>
-          {m.grading_preset_reset()}
-        </Button>
       </div>
       <ConfirmDialog
         open={removingBand !== null}
@@ -331,17 +349,19 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         }}
       />
       <ConfirmDialog
-        open={confirming}
+        open={confirming && switching !== null}
         onOpenChange={setConfirming}
-        title={m.grading_preset_reset()}
-        description={m.grading_preset_reset_confirm()}
-        confirmLabel={m.grading_preset_reset()}
+        title={m.grading_preset_switch_title({
+          name: presetOptions(switching ? [switching.id] : [])[0]?.label ?? '',
+        })}
+        description={m.grading_preset_switch_confirm()}
+        confirmLabel={m.grading_preset_switch()}
         pending={save.isPending}
         onConfirm={() =>
-          preset &&
+          switching &&
           save.mutate({
             path: { program_id: scale.program_id },
-            body: { bands: preset.bands, max_points: preset.max_points },
+            body: { bands: switching.bands, max_points: switching.max_points },
           })
         }
       />
