@@ -6378,6 +6378,114 @@
         }
       }
     },
+    "/programs/{program_id}/upcoming-assessments": {
+      "get": {
+        "tags": [
+          "grading"
+        ],
+        "summary": "Ungraded assessments with a deadline, soonest first, for a Program, term or course.",
+        "description": "Use for \"what is due next\". Overdue ones come first; graded and dropped ones are\nleft out.",
+        "operationId": "gradingAssessmentUpcoming",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the courses of this term",
+              "title": "Term Id"
+            },
+            "description": "Only the courses of this term"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this course",
+              "title": "Course Id"
+            },
+            "description": "Only this course"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Max assessments",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Max assessments"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpcomingAssessments"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/grading-categories": {
       "post": {
         "tags": [
@@ -18471,6 +18579,58 @@
         ],
         "title": "CategoryOrderInputBody"
       },
+      "CategorySummary": {
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id",
+            "description": "Null holds the assessments without a category"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "graded_weight": {
+            "type": "number",
+            "title": "Graded Weight",
+            "description": "Weight that has a score"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average",
+            "description": "Weighted average of the scores"
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution",
+            "description": "Percentage points the scores add to the grade"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category_id",
+          "weight",
+          "graded_weight",
+          "average",
+          "contribution"
+        ],
+        "title": "CategorySummary",
+        "description": "One category's share of the course, from its counted (not dropped) assessments."
+      },
       "CategoryTemplate": {
         "properties": {
           "key": {
@@ -23169,6 +23329,14 @@
             ],
             "title": "Reachable",
             "description": "False when the target needs more than 100%"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategorySummary"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Per category; in a simulation assumed scores count as scores"
           }
         },
         "type": "object",
@@ -23198,7 +23366,8 @@
           "target_points",
           "target_percentage",
           "required_average",
-          "reachable"
+          "reachable",
+          "categories"
         ],
         "title": "GradebookSummary",
         "description": "Every figure of M03 §3 for one course; null where it cannot be calculated."
@@ -23251,6 +23420,11 @@
             "type": "boolean",
             "title": "Hide Gpa"
           },
+          "round_before_lookup": {
+            "type": "boolean",
+            "title": "Round Before Lookup",
+            "description": "Percentages are rounded to whole numbers (half up) before the band lookup"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -23266,6 +23440,7 @@
           "default_forecast_model",
           "default_categories",
           "hide_gpa",
+          "round_before_lookup",
           "updated_at"
         ],
         "title": "GradingScale"
@@ -23279,12 +23454,17 @@
           "hide_gpa": {
             "type": "boolean",
             "title": "Hide Gpa"
+          },
+          "round_before_lookup": {
+            "type": "boolean",
+            "title": "Round Before Lookup"
           }
         },
         "type": "object",
         "required": [
           "max_points",
-          "hide_gpa"
+          "hide_gpa",
+          "round_before_lookup"
         ],
         "title": "GradingScaleInfo"
       },
@@ -29535,6 +29715,18 @@
             ],
             "title": "Hide Gpa",
             "description": "Mask GPA figures in the interface"
+          },
+          "round_before_lookup": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Round Before Lookup",
+            "description": "Round percentages to whole numbers before reading the scale (84.6 → 85)"
           }
         },
         "type": "object",
@@ -30464,6 +30656,14 @@
             "title": "Reachable",
             "description": "False when the target needs more than 100%"
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategorySummary"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Per category; in a simulation assumed scores count as scores"
+          },
           "ignored": {
             "items": {
               "$ref": "#/components/schemas/IgnoredScore"
@@ -30501,6 +30701,7 @@
           "target_percentage",
           "required_average",
           "reachable",
+          "categories",
           "ignored"
         ],
         "title": "SimulatedGradebook"
@@ -32732,7 +32933,12 @@
           "excluded_count": {
             "type": "integer",
             "title": "Excluded Count",
-            "description": "Courses not counted towards the GPA"
+            "description": "Finished courses outside the GPA (pass/fail, not counted, no credits)"
+          },
+          "in_progress_count": {
+            "type": "integer",
+            "title": "In Progress Count",
+            "description": "Courses still waiting for their grade"
           },
           "courses": {
             "items": {
@@ -32753,6 +32959,7 @@
           "credits_total",
           "credits_earned",
           "excluded_count",
+          "in_progress_count",
           "courses"
         ],
         "title": "TermGrades"
@@ -33381,6 +33588,23 @@
           "doc_error_code"
         ],
         "title": "UnreadableItem"
+      },
+      "UpcomingAssessments": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Assessment"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Ungraded, with a deadline, soonest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UpcomingAssessments"
       },
       "UpdatesOutput": {
         "properties": {

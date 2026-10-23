@@ -29,7 +29,7 @@ import {
 import { Textarea } from '@/ui/textarea'
 import { categoryName } from '../display'
 import { invalidateGrading } from '../queries'
-import { parseScore, scorePatch, scoreText } from '../score'
+import { parseDecimal, parseScore, scorePatch, scoreText } from '../score'
 
 const NO_CATEGORY = '__none__'
 
@@ -122,8 +122,9 @@ function AssessmentForm({
   })
   const pending = create.isPending || update.isPending
 
-  const weightValue = weight.trim() === '' ? 0 : Number(weight)
-  const weightInvalid = !(weightValue >= 0 && weightValue <= 100)
+  const parsedWeight = weight.trim() === '' ? 0 : parseDecimal(weight)
+  const weightInvalid = parsedWeight === null || parsedWeight > 100
+  const weightValue = parsedWeight ?? 0
   const parsed = parseScore(score)
   const scoreInvalid = parsed.kind === 'invalid'
   const titleMissing = title.trim() === ''

@@ -1411,6 +1411,7 @@
   "capability_grading_assessment_create_many_title": "批量添加考核",
   "capability_grading_assessment_delete_title": "删除考核",
   "capability_grading_assessment_find_title": "查找考核",
+  "capability_grading_assessment_upcoming_title": "列出即将截止的考核",
   "capability_grading_assessment_list_title": "列出考核",
   "capability_grading_assessment_reorder_title": "调整考核顺序",
   "capability_grading_assessment_update_title": "修改考核",
@@ -2572,5 +2573,9 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "全屏查看",
   "assistant_md_zoom_in": "放大",
-  "assistant_md_zoom_out": "缩小"
+  "assistant_md_zoom_out": "缩小",
+  "grading_plan_unassumed": "还有 {count} 项没有假设分数，全部填上后显示规划成绩。",
+  "grading_excluded_in_progress": "另有 {count} 门进行中，暂未计入",
+  "grading_round_before_lookup": "先取整再定等级",
+  "grading_round_before_lookup_hint": "先把课程百分比四舍五入到整数，再查对应的等级，和多数成绩单一致：84.5% 按 85% 算。"
 }

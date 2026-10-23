@@ -55,6 +55,9 @@ class GradingScale(BaseModel):
         description="Categories every new course of the Program starts with"
     )
     hide_gpa: bool
+    round_before_lookup: bool = Field(
+        description="Percentages are rounded to whole numbers (half up) before the band lookup"
+    )
     updated_at: datetime
 
 
@@ -80,6 +83,10 @@ class ScaleUpdateInput(BaseModel):
         default=None, max_length=30, description="Category template for new courses"
     )
     hide_gpa: bool | None = Field(default=None, description="Mask GPA figures in the interface")
+    round_before_lookup: bool | None = Field(
+        default=None,
+        description="Round percentages to whole numbers before reading the scale (84.6 → 85)",
+    )
 
 
 class ScalePreset(BaseModel):
@@ -294,6 +301,17 @@ class AssessmentPage(BaseModel):
     next_cursor: str | None
 
 
+class UpcomingInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+    term_id: Id | None = Field(default=None, description="Only the courses of this term")
+    course_id: Id | None = Field(default=None, description="Only this course")
+    limit: Annotated[int, Field(ge=1, le=50)] = Field(default=10, description="Max assessments")
+
+
+class UpcomingAssessments(BaseModel):
+    items: list[Assessment] = Field(description="Ungraded, with a deadline, soonest first")
+
+
 class AssessmentOrderInput(BaseModel):
     course_id: Id = Field(description="Course id")
     assessment_ids: list[Id] = Field(max_length=500, description="Assessment ids in order")
@@ -380,6 +398,16 @@ class CourseResultUpdateInput(BaseModel):
     )
 
 
+class CategorySummary(BaseModel):
+    """One category's share of the course, from its counted (not dropped) assessments."""
+
+    category_id: str | None = Field(description="Null holds the assessments without a category")
+    weight: float
+    graded_weight: float = Field(description="Weight that has a score")
+    average: float | None = Field(description="Weighted average of the scores")
+    contribution: float = Field(description="Percentage points the scores add to the grade")
+
+
 class GradebookSummary(BaseModel):
     """Every figure of M03 §3 for one course; null where it cannot be calculated."""
 
@@ -417,11 +445,15 @@ class GradebookSummary(BaseModel):
         description="Average the remaining items need to reach the target"
     )
     reachable: bool | None = Field(description="False when the target needs more than 100%")
+    categories: list[CategorySummary] = Field(
+        description="Per category; in a simulation assumed scores count as scores"
+    )
 
 
 class GradingScaleInfo(BaseModel):
     max_points: float
     hide_gpa: bool
+    round_before_lookup: bool
 
 
 class Gradebook(BaseModel):
@@ -528,7 +560,10 @@ class TermGrades(BaseModel):
     credits_counted: float = Field(description="Credits behind the GPA")
     credits_total: float = Field(description="Credits of all courses landing in the term")
     credits_earned: float
-    excluded_count: int = Field(description="Courses not counted towards the GPA")
+    excluded_count: int = Field(
+        description="Finished courses outside the GPA (pass/fail, not counted, no credits)"
+    )
+    in_progress_count: int = Field(description="Courses still waiting for their grade")
     courses: list[CourseGrade]
 
 

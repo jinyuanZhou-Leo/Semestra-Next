@@ -6,15 +6,23 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { GPA_MASK } from '../display'
 
-/** A GPA number; with `hidden` (the Program hides GPA) it shows "•••" until clicked (M03 §5.3). */
+/**
+ * A GPA number and its letter grade; with `hidden` (the Program hides GPA) both show as one
+ * "•••" until clicked (M03 §5.3).
+ */
 export function GpaValue({
   value,
   hidden,
+  letter,
+  letterClassName,
   animated = false,
   className,
 }: {
   value: number | null | undefined
   hidden: boolean
+  /** The band's letter, shown after the number and masked with it. */
+  letter?: string | null
+  letterClassName?: string
   /** Roll the digits (headline figures on overview cards, not tables). */
   animated?: boolean
   className?: string
@@ -42,6 +50,16 @@ export function GpaValue({
       </Button>
     )
   }
-  if (animated) return <AnimatedNumber value={value} format={formatGpa} className={className} />
-  return <span className={className}>{formatGpa(value)}</span>
+  const number = animated ? (
+    <AnimatedNumber value={value} format={formatGpa} className={className} />
+  ) : (
+    <span className={className}>{formatGpa(value)}</span>
+  )
+  if (!letter) return number
+  return (
+    <>
+      {number}
+      <span className={letterClassName}>{letter}</span>
+    </>
+  )
 }
