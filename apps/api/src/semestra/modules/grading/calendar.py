@@ -16,7 +16,7 @@ from semestra.modules.schedule.calendar import (
 )
 
 
-@calendar_source("grading.assessments")
+@calendar_source("grading.assessments", kinds=("deadline",))
 async def assessments_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     """Ungraded deadlines; one known only by date is an all-day item on that day."""
     program = await academics.get_program_row(ctx, q.program_id)

@@ -14,7 +14,7 @@ from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.imports import extraction, service
-from semestra.modules.imports.tests.test_imports_rules import ACORN
+from semestra.modules.imports.tests.test_imports_rules import ACORN, ics, vevent
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -184,6 +184,49 @@ async def test_ics_import_creates_courses_and_meetings_once(api: Api):
     assert len(courses["items"]) == 2
     meetings = (await api.call("GET", f"/courses/{aps['id']}/meetings"))["items"]
     assert len(meetings) == 3
+
+
+async def test_a_repeated_import_takes_back_only_its_own_cancellations(api: Api):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+
+    def lecture(exdate: str) -> bytes:
+        return ics(
+            vevent(
+                uid=":lec",
+                summary=":APS105H1 LEC0101",
+                dtstart=";TZID=America/Toronto:20260105T100000",
+                dtend=";TZID=America/Toronto:20260105T110000",
+                rrule=":FREQ=WEEKLY;UNTIL=20260410T235959Z;BYDAY=MO",
+                exdate=f";TZID=America/Toronto:{exdate}T100000",
+            )
+        )
+
+    async def run(data: bytes) -> None:
+        upload = await api.upload("acorn.ics", data, "text/calendar")
+        session = await api.create(
+            program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+            upload_ids=[upload],
+        )  # fmt: skip
+        assert (await api.commit(session["id"]))["failed"] == 0
+
+    await run(lecture("20260126"))
+    courses = await api.call("GET", f"/programs/{program_id}/courses")
+    course_id = courses["items"][0]["id"]
+    (meeting,) = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    # The user's own changes: one more cancellation, and a move of a date the file cancels later.
+    for day, body in (
+        ("2026-02-02", {"kind": "cancelled"}),
+        ("2026-02-09", {"kind": "moved", "new_location": "BA 1130"}),
+    ):
+        await api.call("PUT", f"/meetings/{meeting['id']}/exceptions/{day}", json=body)
+
+    await run(lecture("20260209"))
+    (meeting,) = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    assert [(e["original_date"], e["kind"], e["imported"]) for e in meeting["exceptions"]] == [
+        ("2026-02-02", "cancelled", False),
+        ("2026-02-09", "moved", False),
+    ]
 
 
 async def test_bad_uploads_and_sources(api: Api):

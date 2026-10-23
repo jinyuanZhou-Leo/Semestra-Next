@@ -17,7 +17,7 @@ from semestra.modules.schedule.calendar import (
 from semestra.modules.tasks import rules, service
 
 
-@calendar_source("tasks.due")
+@calendar_source("tasks.due", kinds=("task",))
 async def due_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     """A task with a time is a point in time; one with only a date is an all-day item. With
     `include_overdue` the unfinished ones before the range come along, marked `overdue`."""

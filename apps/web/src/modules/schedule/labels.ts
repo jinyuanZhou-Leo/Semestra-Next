@@ -1,5 +1,4 @@
 import type { EventType, Meeting, Occurrence } from '@semestra/api-client'
-import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { localDay } from './time'
@@ -44,8 +43,6 @@ export function dayLabel(day: string): string {
 export function longDayLabel(day: string): string {
   return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'full' }).format(localDay(day))
 }
-
-export { formatDate }
 
 /** A meeting named by its section: "LEC0101", or "TUT 2" when the code doesn't carry the type. */
 export function sectionLabel(meeting: Pick<Meeting, 'type_code' | 'section_code'>): string {

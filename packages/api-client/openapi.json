@@ -12403,6 +12403,72 @@
         }
       }
     },
+    "/programs/{program_id}/events:batch": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Add several one-off events to a Program at once (importers).",
+        "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting event of the Program updates it instead of adding a duplicate.",
+        "operationId": "scheduleEventCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCreateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventCreateManyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/events/{event_id}": {
       "delete": {
         "tags": [
@@ -12442,6 +12508,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "One one-off event.",
+        "description": "Use schedule.event.list or calendar.occurrence.list to find events.",
+        "operationId": "scheduleEventGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Event id",
+              "title": "Event Id"
+            },
+            "description": "Event id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OneOffEvent"
                 }
               }
             }
@@ -13466,13 +13583,66 @@
         }
       }
     },
+    "/terms/{term_id}/meetings": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "List the weekly class times of every course in a term.",
+        "description": "For the term timetable; schedule.meeting.list is per course.",
+        "operationId": "scheduleMeetingListForTerm",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/meetings:enabled": {
       "put": {
         "tags": [
           "schedule"
         ],
         "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
-        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). Disabled meetings stay in the course but are left out of the calendar.\nReturns only the meetings whose state changed (empty when they already were as asked).",
+        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). To keep only one section, pass its meetings with enabled=true and the\nother sections' meetings as other_meeting_ids. Disabled meetings stay in the course but are left\nout of the calendar. Returns only the meetings whose state changed (empty when they already were\nas asked).",
         "operationId": "scheduleMeetingSetEnabled",
         "security": [
           {
@@ -21170,6 +21340,186 @@
         ],
         "title": "EventCreateInputBody"
       },
+      "EventCreateManyInputBody": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventFields"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Events",
+            "description": "Events; same source_kind+source_ref updates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "title": "EventCreateManyInputBody"
+      },
+      "EventCreateManyResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OneOffEvent"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "updated_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "created_ids",
+          "updated_ids"
+        ],
+        "title": "EventCreateManyResult"
+      },
+      "EventFields": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title",
+            "description": "E.g. 'Midterm'"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At",
+            "description": "Start; without an offset it is read in the Program's time zone"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At",
+            "description": "End (not before the start)"
+          },
+          "all_day": {
+            "type": "boolean",
+            "title": "All Day",
+            "description": "Whole days; times are ignored",
+            "default": false
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course it belongs to"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term it belongs to"
+          },
+          "type_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{1,8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Code",
+            "description": "Event type code, e.g. 'TUT'"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "Location"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Note"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind",
+            "description": "Importer that created it"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref",
+            "description": "Id in the import source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "start_at",
+          "end_at"
+        ],
+        "title": "EventFields"
+      },
       "EventType": {
         "properties": {
           "id": {
@@ -25198,6 +25548,11 @@
               }
             ],
             "title": "Note"
+          },
+          "imported": {
+            "type": "boolean",
+            "title": "Imported",
+            "description": "Written by an import (a repeated import may remove it)"
           }
         },
         "type": "object",
@@ -25210,7 +25565,8 @@
           "new_start_time",
           "new_end_time",
           "new_location",
-          "note"
+          "note",
+          "imported"
         ],
         "title": "MeetingException"
       },
@@ -25424,6 +25780,17 @@
             "type": "boolean",
             "title": "Enabled",
             "description": "True to show them, false to hide them"
+          },
+          "other_meeting_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Other Meeting Ids",
+            "description": "Meetings set to the opposite state in the same change, e.g. the other sections when keeping only one"
           }
         },
         "type": "object",
@@ -26639,6 +27006,19 @@
             ],
             "title": "Url",
             "description": "Link to the item elsewhere (e.g. the LMS)"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "When the item (or, for a class, one of its dates) last changed"
           }
         },
         "type": "object",
@@ -30441,6 +30821,18 @@
               }
             ],
             "title": "Error Code"
+          },
+          "warning_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Code",
+            "description": "Read with a caveat, e.g. 'import.ics_truncated'"
           }
         },
         "type": "object",

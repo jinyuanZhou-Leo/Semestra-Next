@@ -199,7 +199,7 @@ async def _category(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str,
 
 @resolver("meeting")
 async def _meeting(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
-    from semestra.modules.schedule import service as schedule
+    from semestra.modules.schedule import meetings as schedule
 
     async def label(id_: str) -> str:
         return await schedule.meeting_label(ctx, id_)

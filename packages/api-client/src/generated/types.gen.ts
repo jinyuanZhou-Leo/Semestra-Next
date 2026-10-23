@@ -3289,6 +3289,108 @@ export type EventCreateInputBody = {
 };
 
 /**
+ * EventCreateManyInputBody
+ */
+export type EventCreateManyInputBody = {
+    /**
+     * Events
+     *
+     * Events; same source_kind+source_ref updates
+     */
+    events: Array<EventFields>;
+};
+
+/**
+ * EventCreateManyResult
+ */
+export type EventCreateManyResult = {
+    /**
+     * Items
+     */
+    items: Array<OneOffEvent>;
+    /**
+     * Created Ids
+     */
+    created_ids: Array<string>;
+    /**
+     * Updated Ids
+     */
+    updated_ids: Array<string>;
+};
+
+/**
+ * EventFields
+ */
+export type EventFields = {
+    /**
+     * Title
+     *
+     * E.g. 'Midterm'
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * Start; without an offset it is read in the Program's time zone
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * End (not before the start)
+     */
+    end_at: string;
+    /**
+     * All Day
+     *
+     * Whole days; times are ignored
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     *
+     * Course it belongs to
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term it belongs to
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, e.g. 'TUT'
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Importer that created it
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id in the import source
+     */
+    source_ref?: string | null;
+};
+
+/**
  * EventType
  */
 export type EventType = {
@@ -5596,6 +5698,12 @@ export type MeetingException = {
      * Note
      */
     note: string | null;
+    /**
+     * Imported
+     *
+     * Written by an import (a repeated import may remove it)
+     */
+    imported: boolean;
 };
 
 /**
@@ -5734,6 +5842,12 @@ export type MeetingSetEnabledInputBody = {
      * True to show them, false to hide them
      */
     enabled: boolean;
+    /**
+     * Other Meeting Ids
+     *
+     * Meetings set to the opposite state in the same change, e.g. the other sections when keeping only one
+     */
+    other_meeting_ids?: Array<string>;
 };
 
 /**
@@ -6370,6 +6484,12 @@ export type OccurrenceMeta = {
      * Link to the item elsewhere (e.g. the LMS)
      */
     url?: string | null;
+    /**
+     * Updated At
+     *
+     * When the item (or, for a class, one of its dates) last changed
+     */
+    updated_at?: string | null;
 };
 
 /**
@@ -8524,6 +8644,12 @@ export type SourceRef = {
      * Error Code
      */
     error_code?: string | null;
+    /**
+     * Warning Code
+     *
+     * Read with a caveat, e.g. 'import.ics_truncated'
+     */
+    warning_code?: string | null;
 };
 
 /**
@@ -17305,6 +17431,38 @@ export type ScheduleEventCreateResponses = {
 
 export type ScheduleEventCreateResponse = ScheduleEventCreateResponses[keyof ScheduleEventCreateResponses];
 
+export type ScheduleEventCreateManyData = {
+    body: EventCreateManyInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/events:batch';
+};
+
+export type ScheduleEventCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventCreateManyError = ScheduleEventCreateManyErrors[keyof ScheduleEventCreateManyErrors];
+
+export type ScheduleEventCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventCreateManyResult;
+};
+
+export type ScheduleEventCreateManyResponse = ScheduleEventCreateManyResponses[keyof ScheduleEventCreateManyResponses];
+
 export type ScheduleEventDeleteData = {
     body?: never;
     path: {
@@ -17336,6 +17494,38 @@ export type ScheduleEventDeleteResponses = {
 };
 
 export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
+
+export type ScheduleEventGetData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventGetError = ScheduleEventGetErrors[keyof ScheduleEventGetErrors];
+
+export type ScheduleEventGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OneOffEvent;
+};
+
+export type ScheduleEventGetResponse = ScheduleEventGetResponses[keyof ScheduleEventGetResponses];
 
 export type ScheduleEventUpdateData = {
     body: EventUpdateInputBody;
@@ -17867,6 +18057,38 @@ export type ScheduleMeetingUpdateResponses = {
 };
 
 export type ScheduleMeetingUpdateResponse = ScheduleMeetingUpdateResponses[keyof ScheduleMeetingUpdateResponses];
+
+export type ScheduleMeetingListForTermData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/meetings';
+};
+
+export type ScheduleMeetingListForTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingListForTermError = ScheduleMeetingListForTermErrors[keyof ScheduleMeetingListForTermErrors];
+
+export type ScheduleMeetingListForTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingListForTermResponse = ScheduleMeetingListForTermResponses[keyof ScheduleMeetingListForTermResponses];
 
 export type ScheduleMeetingSetEnabledData = {
     body: MeetingSetEnabledInputBody;

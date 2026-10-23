@@ -129,6 +129,19 @@ export function SessionView({
   const committed = session.status === 'committed'
   const wizardPending = session.target.kind === 'term_wizard' && !committed
   const issues = issueSummary(session)
+  // A file read with a caveat (e.g. cut short): one line each, in review and after the commit.
+  const warnings = session.source_refs.flatMap((ref) =>
+    ref.warning_code
+      ? [
+          errorMessage({
+            error: {
+              code: ref.warning_code,
+              params: { filename: ref.filename ?? m.imports_file() },
+            },
+          }),
+        ]
+      : [],
+  )
 
   const runCommit = async (itemIds?: string[]) => {
     const body = itemIds ? { item_ids: itemIds } : {}
@@ -184,6 +197,11 @@ export function SessionView({
               })
           : (issues ?? m.imports_no_issues())}
       </p>
+      {warnings.map((warning) => (
+        <p key={warning} className="text-sm text-muted-foreground">
+          {warning}
+        </p>
+      ))}
       <ImportReview session={session} className="min-h-0 flex-1" />
       <div className="flex flex-wrap items-center justify-end gap-2">
         {committed ? (

@@ -1,38 +1,14 @@
-import type {
-  Course,
-  EventType,
-  Meeting,
-  MeetingException,
-  OneOffEvent,
-} from '@semestra/api-client'
+import type { Course, Meeting, OneOffEvent } from '@semestra/api-client'
 import {
-  scheduleEventDeleteMutation,
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
-import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  CalendarClock,
-  CalendarOff,
-  CalendarPlus,
-  ChevronDown,
-  Import,
-  ListFilter,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { CalendarClock, CalendarOff, CalendarPlus, ChevronDown, Import, Plus } from 'lucide-react'
+import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
-import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useExtensions } from '@/app/registry'
 import { toastError } from '@/lib/errors'
-import { formatTime } from '@/lib/format'
-import { subjectColor } from '@/lib/subject-color'
-import { cn } from '@/lib/utils'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -48,17 +24,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Switch } from '@/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { EventDialog } from '../components/EventDialog'
+import { EventsTable } from '../components/EventsTable'
+import { ExceptionsTable } from '../components/ExceptionsTable'
 import { MeetingDialog } from '../components/MeetingDialog'
+import { MeetingGroup } from '../components/MeetingGroup'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
-import { dayLabel, sectionLabel, timeRange, typeName } from '../labels'
 import {
   invalidateSchedule,
   useCalendarSettingsState,
@@ -66,7 +42,6 @@ import {
   useEventTypes,
   useMeetings,
 } from '../queries'
-import { wallDate, weekdayName } from '../time'
 import { MEETING_IMPORT_SOURCES, type MeetingImportSource } from '../types'
 
 /** A course's schedule (M04 §5.3): meetings per term and type, one-off events, exceptions. */
@@ -149,6 +124,11 @@ function TermSchedule({
   })
   const toggle = (ids: string[], enabled: boolean) =>
     setEnabled.mutate({ path: { course_id: course.id }, body: { meeting_ids: ids, enabled } })
+  const keepOnly = (keep: string[], others: string[]) =>
+    setEnabled.mutate({
+      path: { course_id: course.id },
+      body: { meeting_ids: keep, enabled: true, other_meeting_ids: others },
+    })
 
   const typeCodes = [
     ...types.map((t) => t.code).filter((code) => meetings.some((mt) => mt.type_code === code)),
@@ -271,6 +251,7 @@ function TermSchedule({
               conflicting={conflicting}
               busy={setEnabled.isPending}
               onToggle={toggle}
+              onKeepOnly={keepOnly}
               onEdit={setEditing}
             />
           ))}
@@ -341,458 +322,5 @@ function TermSchedule({
         />
       ) : null}
     </div>
-  )
-}
-
-const features = settingsTableFeatures
-const column = createColumnHelper<typeof features, Meeting>()
-
-function weeksText(mt: Meeting): string {
-  const range = mt.end_week
-    ? m.schedule_weeks_range({ start: mt.start_week, end: mt.end_week })
-    : m.schedule_weeks_from({ start: mt.start_week })
-  return mt.recurrence === 'biweekly'
-    ? `${m.schedule_recurrence_biweekly()} (${m.schedule_week_number({ number: mt.anchor_week })}) · ${range}`
-    : range
-}
-
-type MeetingGroupState = {
-  code: string
-  meetings: Meeting[]
-  conflicting: ReadonlySet<string>
-  busy: boolean
-  onToggle: (ids: string[], enabled: boolean) => void
-  onEdit: (meeting: Meeting) => void
-}
-
-/** What the cells of one `MeetingGroup` table need; the columns live outside the component. */
-const MeetingGroupContext = createContext<MeetingGroupState | null>(null)
-
-function useMeetingGroup(): MeetingGroupState {
-  const group = use(MeetingGroupContext)
-  if (!group) throw new Error('Meeting cells render inside a MeetingGroup')
-  return group
-}
-
-type CellProps = CellContext<typeof features, Meeting>
-
-const EnabledHeader = () => <span className="sr-only">{m.schedule_enabled()}</span>
-
-/** A disabled meeting's text is dimmed; its switch and menu stay readable. */
-const dim = (mt: Meeting) => cn(!mt.enabled && 'text-muted-foreground opacity-60')
-
-function EnabledCell({ row }: CellProps) {
-  const { code, busy, onToggle } = useMeetingGroup()
-  return (
-    <Switch
-      aria-label={m.schedule_enable_section({ name: row.original.section_code || code })}
-      checked={row.original.enabled}
-      disabled={busy}
-      onCheckedChange={(on) => onToggle([row.original.id], on)}
-    />
-  )
-}
-
-function SectionCell({ row }: CellProps) {
-  const { conflicting } = useMeetingGroup()
-  return (
-    <span className={cn('font-medium', dim(row.original))}>
-      {row.original.section_code || '—'}
-      {conflicting.has(row.original.id) ? (
-        <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
-      ) : null}
-    </span>
-  )
-}
-
-const TimeCell = ({ row }: CellProps) => (
-  <span className={cn('tabular-nums', dim(row.original))}>
-    {formatTime(row.original.start_time)} – {formatTime(row.original.end_time)}
-  </span>
-)
-
-const ActionsHeader = () => <span className="sr-only">{m.schedule_actions()}</span>
-
-function ActionsCell({ row }: CellProps) {
-  const { code, meetings, onToggle, onEdit } = useMeetingGroup()
-  return (
-    <RowMenu
-      label={m.schedule_meeting_actions({
-        section: row.original.section_code || code,
-        day: weekdayName(row.original.weekday),
-      })}
-    >
-      <DropdownMenuItem onClick={() => onEdit(row.original)}>
-        <Pencil aria-hidden />
-        {m.schedule_meeting_edit()}
-      </DropdownMenuItem>
-      {meetings.length > 1 ? (
-        <DropdownMenuItem
-          onClick={() => {
-            onToggle([row.original.id], true)
-            onToggle(
-              meetings.filter((mt) => mt.id !== row.original.id).map((mt) => mt.id),
-              false,
-            )
-          }}
-        >
-          <ListFilter aria-hidden />
-          {m.schedule_keep_only_this()}
-        </DropdownMenuItem>
-      ) : null}
-    </RowMenu>
-  )
-}
-
-const columns = column.columns([
-  column.display({ id: 'enabled', header: EnabledHeader, cell: EnabledCell }),
-  column.accessor((mt) => mt.section_code, {
-    id: 'section',
-    header: () => m.schedule_section_code(),
-    cell: SectionCell,
-  }),
-  column.accessor((mt) => mt.weekday, {
-    id: 'weekday',
-    header: () => m.schedule_weekday(),
-    cell: ({ row }) => (
-      <span className={dim(row.original)}>{weekdayName(row.original.weekday)}</span>
-    ),
-  }),
-  column.accessor((mt) => mt.start_time, {
-    id: 'time',
-    header: () => m.schedule_time(),
-    cell: TimeCell,
-  }),
-  column.accessor((mt) => mt.start_week, {
-    id: 'weeks',
-    header: () => m.schedule_weeks(),
-    cell: ({ row }) => <span className={dim(row.original)}>{weeksText(row.original)}</span>,
-  }),
-  column.accessor((mt) => mt.location ?? '', {
-    id: 'location',
-    header: () => m.schedule_location(),
-    cell: ({ row }) => (
-      <span className={cn('block truncate', dim(row.original))}>
-        {row.original.location || '—'}
-      </span>
-    ),
-  }),
-  column.accessor((mt) => mt.instructor ?? '', {
-    id: 'instructor',
-    header: () => m.schedule_instructor(),
-    cell: ({ row }) => (
-      <span className={cn('block truncate', dim(row.original))}>
-        {row.original.instructor || '—'}
-      </span>
-    ),
-  }),
-  column.display({ id: 'actions', header: ActionsHeader, cell: ActionsCell }),
-])
-
-const MEETING_COLUMN_CLASS: Record<string, string> = {
-  enabled: 'w-12',
-  location: 'w-full max-w-0',
-  instructor: 'max-w-40',
-  actions: 'w-10',
-}
-
-/** The meetings of one type (e.g. all TUT sections) with enable switches. */
-function MeetingGroup({
-  type,
-  code,
-  meetings,
-  conflicting,
-  busy,
-  onToggle,
-  onEdit,
-}: {
-  type?: EventType
-  code: string
-  meetings: Meeting[]
-  conflicting: ReadonlySet<string>
-  busy: boolean
-  onToggle: (ids: string[], enabled: boolean) => void
-  onEdit: (meeting: Meeting) => void
-}) {
-  const sorted = meetings.toSorted(
-    (a, b) =>
-      a.section_code.localeCompare(b.section_code, undefined, { numeric: true }) ||
-      a.weekday - b.weekday ||
-      a.start_time.localeCompare(b.start_time),
-  )
-  const state = { code, meetings, conflicting, busy, onToggle, onEdit }
-  return (
-    <MeetingGroupContext value={state}>
-      <section className="space-y-2">
-        <h3 className="text-sm font-medium">
-          {code}
-          {type ? (
-            <span className="font-normal text-muted-foreground"> · {typeName(type)}</span>
-          ) : null}
-        </h3>
-        <SettingsTable
-          label={type ? `${code} · ${typeName(type)}` : code}
-          data={sorted}
-          columns={columns}
-          getRowId={(mt) => mt.id}
-          columnClassName={MEETING_COLUMN_CLASS}
-        />
-      </section>
-    </MeetingGroupContext>
-  )
-}
-
-const eventColumn = createColumnHelper<typeof features, OneOffEvent>()
-
-/**
- * Cells live at module level and read the page's state from context (see CoursesTable): a cell
- * defined inside the component would be a new component on every render and remount.
- */
-type EventsState = {
-  types: EventType[]
-  timezone: string
-  onEdit: (event: OneOffEvent) => void
-  onDelete: (event: OneOffEvent) => void
-}
-const EventsContext = createContext<EventsState | null>(null)
-
-function useEventsState(): EventsState {
-  const state = use(EventsContext)
-  if (!state) throw new Error('EventsTable cells must render inside EventsTable')
-  return state
-}
-
-type EventCell = CellContext<typeof features, OneOffEvent>
-
-/** Type color dot and title, with the type and location below; the title opens the editor. */
-function EventTitleCell({ row }: EventCell) {
-  const { types, onEdit } = useEventsState()
-  const event = row.original
-  const type = types.find((t) => t.code === event.type_code)
-  const typeLabel = type ? typeName(type) : event.type_code
-  const detail = [typeLabel, event.location].filter(Boolean).join(' · ')
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        aria-hidden
-        className="size-2.5 shrink-0 rounded-full"
-        style={{
-          backgroundColor: type?.color ? subjectColor(type.color) : 'var(--muted-foreground)',
-        }}
-      />
-      <span className="min-w-0 flex-1">
-        <button
-          type="button"
-          className="block max-w-full cursor-pointer truncate rounded-sm text-left font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          onClick={() => onEdit(event)}
-        >
-          {event.title}
-        </button>
-        {detail ? (
-          <span className="block truncate text-xs text-muted-foreground">{detail}</span>
-        ) : null}
-      </span>
-    </div>
-  )
-}
-
-function EventWhenCell({ row }: EventCell) {
-  const { timezone } = useEventsState()
-  return (
-    <span className="block">
-      <span className="block">{dayLabel(wallDate(row.original.start_at, timezone))}</span>
-      <span className="block text-xs text-muted-foreground tabular-nums">
-        {timeRange(row.original, timezone)}
-      </span>
-    </span>
-  )
-}
-
-function EventActionsCell({ row }: EventCell) {
-  const { onEdit, onDelete } = useEventsState()
-  return (
-    <RowMenu label={m.schedule_event_actions({ title: row.original.title })}>
-      <DropdownMenuItem onClick={() => onEdit(row.original)}>
-        <Pencil aria-hidden />
-        {m.schedule_event_edit()}
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onClick={() => onDelete(row.original)}>
-        <Trash2 aria-hidden />
-        {m.schedule_event_delete()}
-      </DropdownMenuItem>
-    </RowMenu>
-  )
-}
-
-const eventColumns = eventColumn.columns([
-  eventColumn.accessor((e) => e.title, {
-    id: 'title',
-    header: () => m.schedule_event_title(),
-    cell: EventTitleCell,
-  }),
-  eventColumn.accessor((e) => e.start_at, {
-    id: 'when',
-    header: () => m.schedule_date_time(),
-    cell: EventWhenCell,
-  }),
-  eventColumn.display({ id: 'actions', header: ActionsHeader, cell: EventActionsCell }),
-])
-
-const EVENT_COLUMN_CLASS: Record<string, string> = {
-  title: 'w-full max-w-0',
-  actions: 'w-10',
-}
-
-/** The course's one-off events (exams, extra sessions) in the shared settings-table style. */
-function EventsTable({
-  events,
-  types,
-  timezone,
-  onEdit,
-  onAdd,
-}: {
-  events: OneOffEvent[]
-  types: EventType[]
-  timezone: string
-  onEdit: (event: OneOffEvent) => void
-  onAdd: () => void
-}) {
-  const queryClient = useQueryClient()
-  const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
-  const remove = useMutation({
-    ...scheduleEventDeleteMutation(),
-    onError: toastError,
-    onSuccess: () => setDeleting(null),
-    onSettled: () => invalidateSchedule(queryClient),
-  })
-  const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
-  return (
-    <EventsContext value={{ types, timezone, onEdit, onDelete: setDeleting }}>
-      <SettingsTable
-        label={m.schedule_events()}
-        data={sorted}
-        columns={eventColumns}
-        getRowId={(e) => e.id}
-        columnClassName={EVENT_COLUMN_CLASS}
-        footer={
-          <ActionRow icon={Plus} onClick={onAdd}>
-            {m.schedule_event_add()}
-          </ActionRow>
-        }
-      />
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={m.schedule_event_delete_title()}
-        description={m.schedule_event_delete_description()}
-        confirmLabel={m.schedule_event_delete()}
-        pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { event_id: deleting.id } })}
-      />
-    </EventsContext>
-  )
-}
-
-type ExceptionRow = { meeting: Meeting; exc: MeetingException }
-const exceptionColumn = createColumnHelper<typeof features, ExceptionRow>()
-
-type ExceptionsState = {
-  busy: boolean
-  onRestore: (meeting: Meeting, exc: MeetingException) => void
-}
-const ExceptionsContext = createContext<ExceptionsState | null>(null)
-
-type ExceptionCell = CellContext<typeof features, ExceptionRow>
-
-function ExceptionDateCell({ row }: ExceptionCell) {
-  return dayLabel(row.original.exc.original_date)
-}
-
-function ExceptionSectionCell({ row }: ExceptionCell) {
-  return sectionLabel(row.original.meeting)
-}
-
-function ExceptionChangeCell({ row }: ExceptionCell) {
-  const { exc } = row.original
-  return (
-    <span className="whitespace-normal">
-      {exc.kind === 'cancelled'
-        ? m.schedule_status_cancelled()
-        : m.schedule_moved_to({
-            when: [
-              exc.new_date ? dayLabel(exc.new_date) : null,
-              exc.new_start_time ? formatTime(exc.new_start_time) : null,
-              exc.new_location,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          })}
-      {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
-    </span>
-  )
-}
-
-function ExceptionRestoreCell({ row }: ExceptionCell) {
-  const state = use(ExceptionsContext)
-  if (!state) throw new Error('ExceptionsTable cells must render inside ExceptionsTable')
-  return (
-    <div className="flex justify-end">
-      <Button
-        size="xs"
-        variant="ghost"
-        disabled={state.busy}
-        onClick={() => state.onRestore(row.original.meeting, row.original.exc)}
-      >
-        <RotateCcw aria-hidden />
-        {m.schedule_restore()}
-      </Button>
-    </div>
-  )
-}
-
-const exceptionColumns = exceptionColumn.columns([
-  exceptionColumn.accessor((r) => r.exc.original_date, {
-    id: 'date',
-    header: () => m.schedule_date(),
-    cell: ExceptionDateCell,
-  }),
-  exceptionColumn.accessor((r) => r.meeting.section_code, {
-    id: 'section',
-    header: () => m.schedule_section_code(),
-    cell: ExceptionSectionCell,
-  }),
-  exceptionColumn.display({
-    id: 'change',
-    header: () => m.schedule_exception_change(),
-    cell: ExceptionChangeCell,
-  }),
-  exceptionColumn.display({ id: 'actions', header: ActionsHeader, cell: ExceptionRestoreCell }),
-])
-
-const EXCEPTION_COLUMN_CLASS: Record<string, string> = {
-  change: 'w-full max-w-0',
-}
-
-/** Cancelled and moved classes, each with a button that puts the class back. */
-function ExceptionsTable({
-  exceptions,
-  busy,
-  onRestore,
-}: {
-  exceptions: ExceptionRow[]
-  busy: boolean
-  onRestore: (meeting: Meeting, exc: MeetingException) => void
-}) {
-  return (
-    <ExceptionsContext value={{ busy, onRestore }}>
-      <SettingsTable
-        label={m.schedule_exceptions()}
-        data={exceptions}
-        columns={exceptionColumns}
-        getRowId={(r) => r.exc.id}
-        columnClassName={EXCEPTION_COLUMN_CLASS}
-      />
-    </ExceptionsContext>
   )
 }
