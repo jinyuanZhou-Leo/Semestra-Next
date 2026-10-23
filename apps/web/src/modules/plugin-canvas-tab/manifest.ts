@@ -45,4 +45,5 @@ export default defineModule({
       run: ({ scope }) => (scope?.kind === 'course' ? openLinkedCourse(scope.courseId) : undefined),
     },
   ],
+  uiPrefPrefixes: ['canvas-tab.'],
 })

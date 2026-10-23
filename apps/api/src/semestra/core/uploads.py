@@ -1,12 +1,14 @@
-"""Refusing an upload body that is too big before multipart parsing spools it to disk.
+"""Limiting upload size before the body is parsed.
 
-Starlette writes every uploaded file to a temporary file before the route runs, so a size check
-in the route comes after the disk has been filled. `BodyLimit` answers 413 as soon as the
-declared or received body passes the limit of the route it matches.
+FastAPI parses a multipart body into a spooled temporary file before the route runs, so a size
+check in the route comes after the whole upload is on disk. `UploadBodyLimit` counts the body as
+it arrives and answers 413 as soon as it passes the limit of its path. Modules declare their
+upload routes with `limit_upload`; `main.py` installs the middleware once.
 """
 
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
@@ -17,27 +19,44 @@ from semestra.core.errors import AppError
 
 FRAMING_BYTES = 64 * 1024  # multipart boundaries and part headers
 
-# The largest body a route accepts (without framing) and the error to answer with.
-Limit = Callable[[Settings], tuple[int, AppError]]
+# The largest acceptable upload in bytes (without framing) and the error past it.
+LimitFn = Callable[[Settings], tuple[int, AppError]]
 
 
-class BodyLimit:
-    """ASGI middleware for POST routes whose path matches `path` (full match)."""
+@dataclass(frozen=True)
+class _Rule:
+    path: re.Pattern[str]
+    limit: LimitFn
 
-    def __init__(self, app: ASGIApp, *, path: re.Pattern[str], limit: Limit) -> None:
+
+_rules: list[_Rule] = []
+
+
+def limit_upload(path: str, limit: LimitFn) -> None:
+    """Bounds POST bodies to paths matching the regular expression `path` (whole path)."""
+    _rules.append(_Rule(re.compile(path), limit))
+
+
+def _rule_for(path: str) -> _Rule | None:
+    return next((r for r in _rules if r.path.fullmatch(path)), None)
+
+
+class UploadBodyLimit:
+    """ASGI middleware enforcing the `limit_upload` rules."""
+
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
-        self.path = path
-        self.limit = limit
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if (
-            scope["type"] != "http"
-            or scope["method"] != "POST"
-            or not self.path.fullmatch(scope["path"])
-        ):
+        rule = (
+            _rule_for(scope["path"])
+            if scope["type"] == "http" and scope["method"] == "POST"
+            else None
+        )
+        if rule is None:
             return await self.app(scope, receive, send)
-        limit, error = self.limit(scope["app"].state.settings)
-        limit += FRAMING_BYTES
+        content, error = rule.limit(scope["app"].state.settings)
+        limit = content + FRAMING_BYTES
         declared = Headers(scope=scope).get("content-length")
         if declared is not None and declared.isdigit() and int(declared) > limit:
             return await _reject(scope, receive, send, error)
@@ -50,6 +69,7 @@ class BodyLimit:
             if message["type"] == "http.request" and not rejected:
                 received += len(message.get("body", b""))
                 if received > limit:
+                    # Answer here: an exception would be rewritten by the body parser downstream.
                     rejected = True
                     await _reject(scope, receive, send, error)
                     return {"type": "http.disconnect"}

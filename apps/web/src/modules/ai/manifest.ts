@@ -65,5 +65,6 @@ export default defineModule({
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },
+  uiPrefPrefixes: ['ai.'],
   realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, AI_QUERIES])),
 })

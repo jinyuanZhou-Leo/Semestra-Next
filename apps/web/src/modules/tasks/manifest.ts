@@ -94,6 +94,7 @@ export default defineModule({
       },
     },
   ],
+  uiPrefPrefixes: ['tasks.'],
   realtimeInvalidations: Object.fromEntries([
     ...[
       'tasks.item.created',

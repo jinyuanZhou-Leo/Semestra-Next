@@ -1,18 +1,24 @@
 import type { JobOut, JobPage } from '@semestra/api-client'
-import { type Query, type QueryClient, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import {
+  partialMatchKey,
+  type Query,
+  type QueryClient,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { eventsStreamUrl } from '@/lib/api-extras'
-import type { QueryKeyPrefix } from './extensions'
-import { mergeInvalidations, useModules } from './registry'
+import { CLIENT_ID } from './api'
+import type { InvalidationTarget, QueryMatch } from './extensions'
+import { mergeInvalidations, mergeSkipOwn, useModules } from './registry'
 
 /**
- * Live updates (M00 §4.7): the API pushes `{type, data}` over SSE when the user's data changes
- * (another tab, the agent, a background job); matching queries are refetched.
+ * Live updates (M00 §4.7): the API pushes `{type, data, origin?}` over SSE when the user's data
+ * changes (another tab, the agent, a background job); matching queries are refetched.
  */
 
 export const JOB_PROGRESS = 'core.job.progress'
 
-type Message = { type: string; data: unknown }
+type Message = { type: string; data: unknown; origin?: string }
 
 type JobProgressEvent = Pick<
   JobOut,
@@ -60,17 +66,68 @@ function applyJobProgress(queryClient: QueryClient, event: JobProgressEvent) {
   if (refetch) void queryClient.invalidateQueries({ predicate: isThisJob })
 }
 
+/** Events arriving this close together are applied with one refetch per query. */
+export const COALESCE_MS = 50
+
+type Pending = { all: boolean; operations: Set<string>; matches: QueryMatch[] }
+
+function collect(
+  pending: Pending,
+  targets: readonly InvalidationTarget[],
+  data: Readonly<Record<string, unknown>>,
+) {
+  for (const target of targets) {
+    for (const item of typeof target === 'function' ? target(data) : [target]) {
+      if (typeof item === 'string') pending.operations.add(item)
+      else pending.matches.push(item)
+    }
+  }
+}
+
+function invalidate(queryClient: QueryClient, pending: Pending) {
+  // `cancelRefetch: false`: a request already on its way (a mutation's own refetch, say) is
+  // kept instead of being cancelled and sent again.
+  if (pending.all) {
+    void queryClient.invalidateQueries(undefined, { cancelRefetch: false })
+    return
+  }
+  if (!pending.operations.size && !pending.matches.length) return
+  void queryClient.invalidateQueries(
+    {
+      predicate: (query) =>
+        pending.operations.has(operationId(query.queryKey) as string) ||
+        pending.matches.some((match) => partialMatchKey(query.queryKey, [match])),
+    },
+    { cancelRefetch: false },
+  )
+}
+
+export type RealtimeConfig = {
+  invalidations: Readonly<Record<string, readonly InvalidationTarget[]>>
+  /** Event types skipped when this tab caused them (`ModuleManifest.realtimeSkipOwn`). */
+  skipOwn?: ReadonlySet<string>
+}
+
+/**
+ * Opens the SSE connection. `config` is read when each event arrives, so it may change (a
+ * plugin installed) without reconnecting. A burst of events (deleting a course sends several)
+ * is coalesced into one refetch. The server replays what a reconnecting stream missed, or sends
+ * `core.resync` when it cannot, so a reconnect itself refetches nothing.
+ */
 export function connectRealtime(
   queryClient: QueryClient,
-  invalidations: Readonly<Record<string, readonly QueryKeyPrefix[]>>,
+  config: RealtimeConfig | (() => RealtimeConfig),
   url = eventsStreamUrl(),
 ): () => void {
+  const read = typeof config === 'function' ? config : () => config
   const source = new EventSource(url, { withCredentials: true })
-  let connectedBefore = false
-  source.onopen = () => {
-    // Events sent while we were disconnected are lost: refetch everything once.
-    if (connectedBefore) void queryClient.invalidateQueries()
-    connectedBefore = true
+  let pending: Pending = { all: false, operations: new Set(), matches: [] }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const flush = () => {
+    timer = undefined
+    const batch = pending
+    pending = { all: false, operations: new Set(), matches: [] }
+    invalidate(queryClient, batch)
   }
   source.onmessage = (event: MessageEvent<string>) => {
     let message: Message
@@ -80,23 +137,32 @@ export function connectRealtime(
       return
     }
     if (message.type === 'core.resync') {
-      void queryClient.invalidateQueries()
-      return
+      pending.all = true
+    } else {
+      if (message.type === JOB_PROGRESS)
+        applyJobProgress(queryClient, message.data as JobProgressEvent)
+      const { invalidations, skipOwn } = read()
+      const targets = invalidations[message.type]
+      if (!targets?.length) return
+      if (message.origin === CLIENT_ID && skipOwn?.has(message.type)) return
+      collect(pending, targets, (message.data ?? {}) as Record<string, unknown>)
     }
-    if (message.type === JOB_PROGRESS)
-      applyJobProgress(queryClient, message.data as JobProgressEvent)
-    const ids = invalidations[message.type]
-    if (!ids?.length) return
-    void queryClient.invalidateQueries({
-      predicate: (query) => ids.includes(operationId(query.queryKey) as string),
-    })
+    timer ??= setTimeout(flush, COALESCE_MS)
   }
-  return () => source.close()
+  return () => {
+    if (timer !== undefined) clearTimeout(timer)
+    source.close()
+  }
 }
 
 /** Keeps the SSE connection open while mounted (inside the signed-in layout). */
 export function useRealtime() {
   const queryClient = useQueryClient()
   const modules = useModules()
-  useEffect(() => connectRealtime(queryClient, mergeInvalidations(modules)), [queryClient, modules])
+  const config = useRef<RealtimeConfig>({ invalidations: {} })
+  useEffect(() => {
+    config.current = { invalidations: mergeInvalidations(modules), skipOwn: mergeSkipOwn(modules) }
+  }, [modules])
+  // One connection for the session: installing a plugin only changes what events refetch.
+  useEffect(() => connectRealtime(queryClient, () => config.current), [queryClient])
 }

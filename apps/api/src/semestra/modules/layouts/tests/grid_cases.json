@@ -1,0 +1,42 @@
+{
+  "//": "Board geometry cases shared by layouts/tests/test_grid.py and apps/web/src/app/board/layout.test.ts: both sides must place cards the same way (M10 §5.2). Cards are [id, size, x, y].",
+  "compact": [
+    {
+      "name": "moves cards up and keeps their column",
+      "cards": [["a", "m", 0, 3], ["b", "s", 3, 5], ["c", "xl", 0, 6]],
+      "expected": [["a", "m", 0, 0], ["b", "s", 3, 0], ["c", "xl", 0, 1]]
+    },
+    {
+      "name": "pushes later cards down past overlaps",
+      "cards": [["a", "l", 0, 0], ["b", "m", 1, 1], ["c", "m", 3, 0]],
+      "expected": [["a", "l", 0, 0], ["c", "m", 2, 0], ["b", "m", 1, 2]]
+    },
+    {
+      "name": "clamps cards into the 4 columns",
+      "cards": [["a", "xl", 2, 0], ["b", "s", -1, 4], ["c", "m", 9, 1]],
+      "expected": [["a", "xl", 0, 0], ["c", "m", 2, 2], ["b", "s", 0, 2]]
+    },
+    {
+      "name": "reading order breaks ties by column",
+      "cards": [["b", "l", 1, 0], ["a", "l", 0, 0]],
+      "expected": [["a", "l", 0, 0], ["b", "l", 1, 2]]
+    }
+  ],
+  "first_free": [
+    {
+      "name": "top-most, then left-most",
+      "cards": [["a", "m", 0, 0], ["b", "s", 3, 0]],
+      "sizes": { "s": [2, 0], "m": [0, 1], "l": [0, 1], "xl": [0, 1] }
+    },
+    {
+      "name": "an empty board starts at the corner",
+      "cards": [],
+      "sizes": { "s": [0, 0], "m": [0, 0], "l": [0, 0], "xl": [0, 0] }
+    },
+    {
+      "name": "a gap too narrow is skipped",
+      "cards": [["a", "s", 0, 0], ["b", "s", 2, 0], ["c", "xl", 0, 1]],
+      "sizes": { "s": [1, 0], "m": [0, 3], "l": [0, 3], "xl": [0, 3] }
+    }
+  ]
+}

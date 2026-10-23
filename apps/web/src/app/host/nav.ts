@@ -1,10 +1,8 @@
 import type { Nav } from '@semestra/api-client'
-import { layoutsNavUpdate } from '@semestra/api-client'
-import { layoutsNavGetOptions } from '@semestra/api-client/react-query'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { layoutsNavGetOptions, layoutsNavUpdateMutation } from '@semestra/api-client/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { toastError } from '@/lib/errors'
-import { inOrder } from '@/lib/in-order'
 import type { PageContribution, Scope, ScopeKind } from '../extensions'
 import { usePages } from '../registry'
 
@@ -54,6 +52,13 @@ export function useScopePages(scope: Scope) {
  */
 export function useSaveNav(kind: ScopeKind) {
   const queryClient = useQueryClient()
+  // One scope per scope type: TanStack Query runs its saves one after another, in order.
+  const mutationKey = ['layouts.nav', kind]
+  const { mutateAsync } = useMutation({
+    ...layoutsNavUpdateMutation(),
+    mutationKey,
+    scope: { id: `layouts.nav.${kind}` },
+  })
   return useCallback(
     async (next: { order: string[]; hidden: string[] }) => {
       const { queryKey } = navOptions(kind)
@@ -72,21 +77,20 @@ export function useSaveNav(kind: ScopeKind) {
         hidden: [...next.hidden, ...keep(previous.hidden, [...next.order, ...next.hidden])],
       }
       queryClient.setQueryData<Nav>(queryKey, { scope_type: kind, ...merged })
-      const save = inOrder(`layouts.nav.${kind}`, () =>
-        layoutsNavUpdate({ path: { scope_type: kind }, body: merged, throwOnError: true }),
-      )
+      // Whether no newer save of this scope type is still waiting or running.
+      const isLatest = () => queryClient.isMutating({ mutationKey: ['layouts.nav', kind] }) === 0
       try {
-        const { data } = await save.result
-        if (save.isLatest()) queryClient.setQueryData(queryKey, data)
+        const data = await mutateAsync({ path: { scope_type: kind }, body: merged })
+        if (isLatest()) queryClient.setQueryData(queryKey, data)
       } catch (err) {
         // A newer change is on its way and carries this one's state; let it settle the cache.
-        if (save.isLatest()) {
+        if (isLatest()) {
           queryClient.setQueryData(queryKey, previous)
           void queryClient.invalidateQueries({ queryKey })
         }
         toastError(err)
       }
     },
-    [kind, queryClient],
+    [kind, mutateAsync, queryClient],
   )
 }

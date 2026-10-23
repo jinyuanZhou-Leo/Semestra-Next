@@ -139,7 +139,7 @@ test('uninstalling from a card asks first and can delete the data', async () => 
 /** The template plugin's account settings (namespace `plugin.template`). */
 function templateSettings() {
   server.use(
-    http.get(`${API}/settings/schemas`, () =>
+    http.get(`${API}/me/settings-schemas`, () =>
       HttpResponse.json({
         items: [
           {
@@ -154,7 +154,7 @@ function templateSettings() {
         ],
       }),
     ),
-    http.get(`${API}/settings/plugin.template`, () =>
+    http.get(`${API}/me/settings/plugin.template`, () =>
       HttpResponse.json({
         namespace: 'plugin.template',
         scope_type: 'account',

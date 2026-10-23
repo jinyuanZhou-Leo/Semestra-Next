@@ -93,6 +93,9 @@ class SettingsSchemaOut(BaseModel):
     namespace: str
     levels: list[Level] = Field(description="Levels where values may be set")
     plugin_id: str | None
+    agent_writable: bool = Field(
+        description="False when only the user may change these, in the settings page"
+    )
     json_schema: dict[str, Any] = Field(description="JSON Schema of the namespace's fields")
 
 

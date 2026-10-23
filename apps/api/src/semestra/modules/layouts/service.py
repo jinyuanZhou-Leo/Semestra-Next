@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.sqlite import insert
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -200,9 +201,16 @@ async def get_template(ctx: Ctx, scope_type: BoardScopeType) -> Template:
 
 async def _generated(ctx: Ctx, scope_type: str, scope_id: str, installed: set[str]) -> list[Placed]:
     """The board a scope gets from the template: visible cards only, one of each single card."""
+    template = await _template_cards(ctx, scope_type)
+    return _from_template(template, scope_type, scope_id, installed)
+
+
+def _from_template(
+    template: list[TemplateCard], scope_type: str, scope_id: str, installed: set[str]
+) -> list[Placed]:
     placed: list[Placed] = []
     seen: set[str] = set()
-    for i, c in enumerate(await _template_cards(ctx, scope_type)):
+    for i, c in enumerate(template):
         card = catalog.card(c.card_id)
         if card is None or (not card.multiple and card.id in seen):
             continue
@@ -262,7 +270,11 @@ async def _board_row(ctx: Ctx, scope_type: str, scope_id: str) -> LayoutsBoard |
 
 
 async def _ensure_board(ctx: Ctx, scope_type: str, scope_id: str) -> LayoutsBoard:
-    """The stored board, created from the template (keeping the generated ids) if needed."""
+    """The stored board, created from the template (keeping the generated ids) if needed.
+
+    Two requests can store the same board for the first time at once (two tabs, or a card
+    saving its settings while the user drags another): the second insert is skipped and reads
+    the board the first one stored."""
     row = await _board_row(ctx, scope_type, scope_id)
     if row is not None:
         return row
@@ -270,22 +282,33 @@ async def _ensure_board(ctx: Ctx, scope_type: str, scope_id: str) -> LayoutsBoar
     # until reinstalled), as they would be on a board stored before the uninstall.
     every_module = {m.id for m in catalog.modules()}
     placed = await _generated(ctx, scope_type, scope_id, every_module)
-    row = LayoutsBoard(
-        user_id=ctx.user_id, scope_type=scope_type, scope_id=scope_id, cards=_entries(placed)
-    )
-    ctx.db.add(row)
-    for p in placed:
-        ctx.db.add(
-            LayoutsCardSetting(
-                instance_id=p.instance_id,
-                user_id=ctx.user_id,
-                card_id=p.card_id,
-                scope_type=scope_type,
-                scope_id=scope_id,
-                settings={},
-            )
+    created = await ctx.db.execute(
+        insert(LayoutsBoard)
+        .values(
+            user_id=ctx.user_id, scope_type=scope_type, scope_id=scope_id, cards=_entries(placed)
         )
-    await ctx.db.flush()
+        .on_conflict_do_nothing()
+    )
+    if created.rowcount and placed:  # pyright: ignore[reportAttributeAccessIssue]
+        await ctx.db.execute(
+            insert(LayoutsCardSetting)
+            .values(
+                [
+                    {
+                        "instance_id": p.instance_id,
+                        "user_id": ctx.user_id,
+                        "card_id": p.card_id,
+                        "scope_type": scope_type,
+                        "scope_id": scope_id,
+                        "settings": {},
+                    }
+                    for p in placed
+                ]
+            )
+            .on_conflict_do_nothing()
+        )
+    row = await _board_row(ctx, scope_type, scope_id)
+    assert row is not None
     return row
 
 
@@ -469,18 +492,25 @@ async def get_card_instance(ctx: Ctx, instance_id: str) -> CardInstance:
     return CardInstance(row.instance_id, row.card_id, row.scope_type, row.scope_id, row.settings)
 
 
+NAME_CHARS = 40
+
+
 def card_name(settings: dict[str, Any] | None) -> str | None:
-    """What the user calls a card: a habit's or counter's name, else a note's first line."""
+    """What the user calls a card, for confirmation cards and the assistant's card list: a
+    habit's or counter's name, else a note's first line."""
     settings = settings or {}
-    for key in ("name", "label"):
+    for key in ("name", "title", "label"):
         value = settings.get(key)
         if isinstance(value, str) and value.strip():
-            return value.strip()
+            return _clip(value.strip())
     content = settings.get("content")
     if isinstance(content, str) and content.strip():
-        line = content.strip().splitlines()[0].strip()
-        return line if len(line) <= 40 else f"{line[:39]}…"
+        return _clip(content.strip().splitlines()[0].strip())
     return None
+
+
+def _clip(text: str) -> str:
+    return text if len(text) <= NAME_CHARS else f"{text[: NAME_CHARS - 1]}…"
 
 
 async def _scope_name(ctx: Ctx, scope_type: str, scope_id: str) -> str | None:
@@ -542,27 +572,12 @@ async def list_card_instances(
     ]
 
 
-LABEL_CHARS = 80
-
-
-def _label(settings: dict[str, Any]) -> str | None:
-    """How the user tells cards of one kind apart: a name, else the first line of the text."""
-    for key in ("name", "title", "label"):
-        value = settings.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()[:LABEL_CHARS]
-    content = settings.get("content")
-    if isinstance(content, str) and content.strip():
-        return content.strip().split("\n", 1)[0][:LABEL_CHARS]
-    return None
-
-
 async def list_program_cards(ctx: Ctx, inp: CardInstanceListInput) -> CardInstanceList:
     """Every card on the boards of a Program (its overview, Today, its terms and courses), so
     the assistant finds a card without guessing its board. Generated boards are read, not
-    stored. Courses have no archived state, so every course of every term is searched: one board
-    read each (a few queries), fine for a Program's tens of courses; past terms are kept because
-    the user may name a card on one."""
+    stored. Courses have no archived state, so every course of every term is searched (past
+    terms too, the user may name a card on one): stored boards, card settings and templates are
+    read once for all of them."""
     from semestra.modules.academics import service as academics
     from semestra.modules.academics.schemas import CourseListInput
 
@@ -581,20 +596,43 @@ async def list_program_cards(ctx: Ctx, inp: CardInstanceListInput) -> CardInstan
         cursor = page.next_cursor
         if cursor is None:
             break
+    installed = await installed_ids(ctx)
+    ids = {scope_id for _, scope_id, _ in boards}
+    stored = {
+        (r.scope_type, r.scope_id): r
+        for r in await ctx.db.scalars(
+            select(LayoutsBoard).where(
+                LayoutsBoard.user_id == ctx.user_id, LayoutsBoard.scope_id.in_(ids)
+            )
+        )
+    }
+    settings: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
+    for r in await ctx.db.scalars(
+        select(LayoutsCardSetting).where(
+            LayoutsCardSetting.user_id == ctx.user_id, LayoutsCardSetting.scope_id.in_(ids)
+        )
+    ):
+        settings.setdefault((r.scope_type, r.scope_id), {})[r.instance_id] = r.settings
+    templates = {t: await _template_cards(ctx, t) for t in {b[0] for b in boards}}
     items: list[CardInstanceSummary] = []
     for scope_type, scope_id, name in boards:
-        board = await get_board(ctx, BoardRef(scope_type=scope_type, scope_id=scope_id))  # pyright: ignore[reportArgumentType]
+        row = stored.get((scope_type, scope_id))
+        if row is None:
+            placed = _from_template(templates[scope_type], scope_type, scope_id, installed)
+        else:
+            placed = grid.compact(_visible(_placed(row.cards), scope_type, installed))
+        values = settings.get((scope_type, scope_id), {})
         items += [
             CardInstanceSummary(
-                instance_id=card.instance_id,
-                card_id=card.card_id,
-                scope_type=board.scope_type,
+                instance_id=p.instance_id,
+                card_id=p.card_id,
+                scope_type=scope_type,  # pyright: ignore[reportArgumentType]
                 scope_id=scope_id,
                 board_name=name,
-                label=_label(card.settings),
+                label=card_name(values.get(p.instance_id)),
             )
-            for card in board.cards
-            if inp.card_id is None or card.card_id == inp.card_id
+            for p in placed
+            if inp.card_id is None or p.card_id == inp.card_id
         ]
     return CardInstanceList(items=items)
 

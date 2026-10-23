@@ -37,7 +37,7 @@ async def test_mark_read_needs_the_setting(api: Api, fake: FakeProvider):
         listed = await api.call("GET", f"/courses/{course}/lms/announcements")
     assert listed["items"][0]["unread"] is True
 
-    await api.call("PATCH", "/settings/lms", json={"values": {"allow_writes": True}})
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"allow_writes": True}})
     out = await api.call("POST", url, json={})
     assert out == {"announcement_id": "n1", "unread": False}
     assert ("mark_read", "n1") in fake.calls

@@ -12,7 +12,7 @@ import anyio
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import Table, func, select
+from sqlalchemy import Table, func, select, text, update
 
 from semestra import __version__
 from semestra.core.context import Ctx, system_ctx
@@ -544,6 +544,171 @@ async def test_course_files_travel_with_their_contents(
     assert done["report"]["skipped"] == {"files": {"items": 1}}
 
 
+async def test_replacing_counts_the_quota_without_the_files_it_removes(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    alice = await make_user()
+    ids = await _seed(app, alice)
+    item_id = new_id()
+    key = files_service.storage_key(alice.id, item_id)
+    await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
+    async with app.state.session_factory() as db:
+        db.add(
+            FilesItem(
+                id=item_id,
+                user_id=alice.id,
+                course_id=ids["course"],
+                kind="file",
+                display_name="notes.txt",
+                original_name="notes.txt",
+                mime_type="text/plain",
+                size_bytes=12,
+                storage_key=key,
+                doc_status="ready",
+            )
+        )
+        await db.commit()
+    await login_as(client, alice)
+    archive = await _export(client, run_jobs, include_files=True)
+    # 8 bytes are left, but the restore replaces the file's 12 bytes with the backup's 12.
+    used = (await client.get("/storage/usage")).json()["used_bytes"]
+    app.state.settings.user_storage_quota_bytes = used + 8
+    upload_id = (await _upload(client, archive)).json()["id"]
+    started = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": "Replace my data"},
+    )
+    assert started.status_code == 200, started.text
+    await run_jobs()
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "imported", done["error_code"]
+    async with app.state.session_factory() as db:
+        sizes = list(
+            await db.scalars(
+                select(FilesItem.size_bytes).where(
+                    FilesItem.user_id == alice.id, FilesItem.kind == "file"
+                )
+            )
+        )
+    assert sizes == [12]
+
+
+async def test_copying_stops_once_the_files_pass_the_quota(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored: list[str] = []
+
+    async def export(ctx: Ctx, writer: Any) -> None:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b"file body"
+
+        writer.write_json({"schema_version": 1})
+        for name in ("note-1", "note-2", "note-3"):
+            await writer.add_file(name, chunks())
+
+    async def import_files(ctx: Ctx, payload: Any, id_map: Any, options: Any) -> ImportReport:
+        for name in ("note-1", "note-2", "note-3"):
+            await options.files.store(name, f"users/{ctx.user_id}/aa/{name}", "text/plain")
+            stored.append(name)
+        return ImportReport({"notes": 3})
+
+    async def preview(payload: Any) -> dict[str, int]:
+        return {}
+
+    async def nothing(ctx: Ctx) -> None:
+        return None
+
+    async def nothing_content(ctx: Ctx, preferences: bool) -> None:
+        return None
+
+    adapter = Adapter(
+        "aa_files", 1, (), export, import_files, preview, nothing, nothing_content, ()
+    )
+    monkeypatch.setitem(registry._adapters, "aa_files", adapter)  # pyright: ignore[reportPrivateUsage]
+    await login_as(client, await make_user())
+    archive = await _export(client, run_jobs, include_files=True)
+    app.state.settings.user_storage_quota_bytes = 10
+    upload_id = (await _upload(client, archive)).json()["id"]
+    # A replace is not refused up front, since the old files make room.
+    started = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": "Replace my data"},
+    )
+    assert started.status_code == 200, started.text
+    await run_jobs()
+
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert (done["status"], done["error_code"]) == ("failed", "common.quota_exceeded")
+    assert stored == ["note-1"]  # the second copy was cut off, the third never started
+
+
+async def test_files_are_copied_before_the_import_takes_the_write_lock(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alice = await make_user(email="alice@example.com")
+    ids = await _seed(app, alice)
+    item_id = new_id()
+    key = files_service.storage_key(alice.id, item_id)
+    await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
+    async with app.state.session_factory() as db:
+        db.add(
+            FilesItem(
+                id=item_id,
+                user_id=alice.id,
+                course_id=ids["course"],
+                kind="file",
+                display_name="notes.txt",
+                original_name="notes.txt",
+                mime_type="text/plain",
+                size_bytes=12,
+                storage_key=key,
+                doc_status="ready",
+            )
+        )
+        await db.commit()
+    await login_as(client, alice)
+    archive = await _export(client, run_jobs, include_files=True)
+
+    bob = await make_user(email="bob@example.com")
+    storage = app.state.storage
+    put = storage.put
+    saved_meanwhile: list[str] = []
+
+    async def put_while_someone_saves(target: str, *args: Any, **kwargs: Any) -> Any:
+        if target.startswith(f"users/{bob.id}/files/"):
+            # Another user's save while the file is copied: it must not wait for the import.
+            async with app.state.session_factory() as db:
+                await db.execute(
+                    text("PRAGMA busy_timeout = 100")
+                )  # fail fast instead of waiting 5 s
+                await db.execute(
+                    update(AuthUser).where(AuthUser.id == alice.id).values(display_name="Saved")
+                )
+                await db.commit()
+            saved_meanwhile.append(target)
+        return await put(target, *args, **kwargs)
+
+    monkeypatch.setattr(storage, "put", put_while_someone_saves)
+    async with _client(app) as other:
+        await login_as(other, bob)
+        upload_id = (await _upload(other, archive)).json()["id"]
+        await other.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})
+        await run_jobs()
+        done = (await other.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "imported", done
+    assert saved_meanwhile
+
+
 async def test_rejects_old_and_broken_backups(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ) -> None:
@@ -615,6 +780,74 @@ async def test_upload_over_the_limit_is_refused(
         monkey.undo()
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "portability.too_large"
+
+
+async def test_an_oversized_upload_is_refused_while_it_arrives(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    app.state.settings.user_storage_quota_bytes = 10
+    await login_as(client, await make_user())
+    seen = 0
+
+    async def body() -> AsyncIterator[bytes]:
+        nonlocal seen
+        yield b'--b\r\nContent-Disposition: form-data; name="file"; filename="a.zip"\r\n\r\n'
+        for _ in range(64):
+            seen += 1
+            yield b"0" * (1024 * 1024)
+        yield b"\r\n--b--\r\n"
+
+    with pytest.MonkeyPatch.context() as monkey:
+        monkey.setattr("semestra.modules.portability.service.UPLOAD_HEADROOM", 10)
+        r = await client.post(
+            "/me/imports",
+            content=body(),
+            headers={"Content-Type": "multipart/form-data; boundary=b"},
+        )
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "portability.too_large")
+    assert seen < 64  # stopped reading long before the end
+
+
+async def test_backups_do_not_pile_up(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    from semestra.modules.portability.models import PortabilityArchive
+
+    user = await make_user()
+    await login_as(client, user)
+    first = (await client.post("/me/exports", json={"include_files": False})).json()
+    again = (await client.post("/me/exports", json={"include_files": False})).json()
+    assert again["id"] == first["id"]  # still being built: the same export comes back
+    await run_jobs()
+    for _ in range(4):
+        await _export(client, run_jobs)
+    archive = await _export(client, run_jobs)
+
+    async def archives(kind: str) -> list[PortabilityArchive]:
+        async with app.state.session_factory() as db:
+            rows = await db.scalars(
+                select(PortabilityArchive).where(
+                    PortabilityArchive.user_id == user.id, PortabilityArchive.kind == kind
+                )
+            )
+            return list(rows.all())
+
+    kept = await archives("export")
+    assert len(kept) == 3
+    for row in kept:
+        assert row.storage_key is not None
+        assert await app.state.storage.exists(row.storage_key)
+
+    one = (await _upload(client, archive)).json()
+    two = (await _upload(client, archive)).json()
+    uploads = await archives("import")
+    assert [u.id for u in uploads] == [two["id"]]  # the earlier upload was replaced
+    assert (await client.get(f"/me/imports/{one['id']}")).status_code == 404
+
+    for _ in range(8):
+        await _upload(client, archive)
+    limited = await _upload(client, archive)
+    assert limited.json()["error"]["code"] == "common.rate_limited"
 
 
 async def test_downloads_expire_and_are_private(
@@ -704,6 +937,10 @@ async def test_account_deletion(
         assert (await fresh.get("/account/me", headers=native)).status_code == 401
         pat_headers = {"Authorization": f"Bearer {pat}"}
         assert (await fresh.get("/programs", headers=pat_headers)).status_code == 401
+    async with app.state.session_factory() as db:  # the address is free to sign up again
+        locked = await db.get(AuthUser, user.id)
+        assert locked is not None
+        assert locked.email == f"deleted+{user.id}@invalid"
 
     await run_jobs()
     for table in _user_tables():

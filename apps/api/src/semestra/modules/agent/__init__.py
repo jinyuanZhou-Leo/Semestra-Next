@@ -17,7 +17,10 @@ from semestra.modules.agent.settings import AssistantSettings
 from semestra.modules.settings import register_settings
 
 register_settings(namespace="assistant", schema=AssistantSettings, levels=("account",))
-register_settings(namespace="memory", schema=memory.MemorySettings, levels=("account",))
+# Sem must not turn its own memory back on after the user switched it off.
+register_settings(
+    namespace="memory", schema=memory.MemorySettings, levels=("account",), agent_writable=False
+)
 
 
 def register(app: FastAPI) -> None:

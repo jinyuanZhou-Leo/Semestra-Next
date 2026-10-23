@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -11,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from semestra import __version__
-from semestra.core import jobs, storage
+from semestra.core import events, jobs, storage
 from semestra.core.backup import backup_loop
 from semestra.core.capability import mount_http
 from semestra.core.config import Settings, get_settings
@@ -22,10 +23,12 @@ from semestra.core.logging import configure_logging
 from semestra.core.observability import init_sentry
 from semestra.core.realtime import Broadcaster
 from semestra.core.realtime import router as realtime_router
+from semestra.core.uploads import UploadBodyLimit
 from semestra.core.webapp import install_web
 from semestra.modules import register_all
 from semestra.modules.ai.adapters import sdk
-from semestra.modules.auth.avatar import UploadBodyLimit
+
+_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
 class Health(BaseModel):
@@ -65,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if warm_up:
             await asyncio.gather(warm_up, return_exceptions=True)
         await runner.stop()
+        await events.drain(app.state)  # subscribers of events already committed
         # M06 writes usage and provider health in background tasks; let them land first.
         if (ai := getattr(app.state, "ai", None)) is not None:
             await ai.drain()
@@ -81,7 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.realtime = Broadcaster()
     app.state.storage = storage.LocalStorage(settings.storage_local_root)
 
-    app.add_middleware(UploadBodyLimit)
+    app.add_middleware(UploadBodyLimit)  # the limits modules declare with `limit_upload`
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -94,7 +98,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def request_context(  # pyright: ignore[reportUnusedFunction]
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request_id = request.headers.get("x-request-id") or str(uuid.uuid7())
+        # A caller's id is kept for tracing across proxies, but only if it looks like one: it
+        # goes into every log line and back out in a header.
+        incoming = request.headers.get("x-request-id", "")
+        request_id = incoming if _REQUEST_ID.fullmatch(incoming) else str(uuid.uuid7())
         request.state.request_id = request_id
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)

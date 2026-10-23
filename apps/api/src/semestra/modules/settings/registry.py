@@ -20,7 +20,6 @@ ScopeType = Literal["account", "program", "term", "course"]
 LEVELS: tuple[ScopeType, ...] = ("account", "program", "term", "course")
 
 _NAMESPACE = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_-]*)*")
-_RESERVED = {"schemas"}  # would collide with GET /settings/schemas
 
 
 @dataclass(frozen=True)
@@ -29,6 +28,7 @@ class SettingsDef:
     schema: type[BaseModel]
     levels: tuple[ScopeType, ...]
     plugin_id: str | None
+    agent_writable: bool = True
 
 
 class SettingsRegistry:
@@ -59,6 +59,7 @@ def register_settings(
     schema: type[BaseModel],
     levels: tuple[ScopeType, ...] = ("account",),
     plugin_id: str | None = None,
+    agent_writable: bool = True,
     target: SettingsRegistry | None = None,
 ) -> None:
     """Declare a configuration namespace.
@@ -66,8 +67,11 @@ def register_settings(
     `schema` is a Pydantic model whose fields all have defaults. `levels` are the scope levels
     where a value may be set (a deeper level can always *read* the inherited result). Plugin
     namespaces are `plugin.<plugin_id>` so that uninstalling with purge can find them.
+    `agent_writable=False` keeps Sem and MCP clients from changing the namespace: use it for
+    switches that widen what they may do (letting Semestra write to an LMS, turning memory on),
+    which only the user should flip in the settings page.
     """
-    if not _NAMESPACE.fullmatch(namespace) or namespace in _RESERVED:
+    if not _NAMESPACE.fullmatch(namespace):
         raise ValueError(f"invalid settings namespace {namespace!r}")
     if not levels or any(level not in LEVELS for level in levels):
         raise ValueError(f"{namespace}: levels must be a subset of {LEVELS}")
@@ -79,7 +83,13 @@ def register_settings(
         if field.is_required():
             raise ValueError(f"{namespace}.{name}: every settings field needs a default")
     (target or settings_registry).register(
-        SettingsDef(namespace, schema, tuple(sorted(set(levels), key=LEVELS.index)), plugin_id)
+        SettingsDef(
+            namespace,
+            schema,
+            tuple(sorted(set(levels), key=LEVELS.index)),
+            plugin_id,
+            agent_writable,
+        )
     )
 
 

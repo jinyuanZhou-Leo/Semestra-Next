@@ -4841,6 +4841,8 @@ export const settingsValueGetOptions = (options: Options<SettingsValueGetData>) 
  * Use when the user wants to change a module setting, e.g. make the calendar
  * open in month view. Only the given fields are set at that level; deeper levels still override them.
  * Look up namespace and field names with settings.schema.list first.
+ * Namespaces whose schema says agent_writable false can only be changed by the user in the settings
+ * page: tell the user where to find it instead.
  * Do not use to change language, theme or other personal preferences.
  */
 export const settingsValueUpdateMutation = (options?: Partial<Options<SettingsValueUpdateData>>): UseMutationOptions<SettingsValueUpdateResponse, SettingsValueUpdateError, Options<SettingsValueUpdateData>> => {

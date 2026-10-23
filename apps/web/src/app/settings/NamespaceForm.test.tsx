@@ -57,13 +57,13 @@ function backend(initial: Resolved) {
     inherited: state.inherited ?? {},
   })
   server.use(
-    http.get(`${API}/settings/schemas`, () => HttpResponse.json(schemas)),
-    http.get(`${API}/settings/${NAMESPACE}`, ({ request }) => {
+    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json(schemas)),
+    http.get(`${API}/me/settings/${NAMESPACE}`, ({ request }) => {
       const type = new URL(request.url).searchParams.get('scope_type') ?? 'account'
       state.scopes.push(type)
       return HttpResponse.json(resolved(type))
     }),
-    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+    http.patch(`${API}/me/settings/${NAMESPACE}`, async ({ request }) => {
       const body = (await request.json()) as {
         scope_type: string
         values: Record<string, unknown>
@@ -75,7 +75,7 @@ function backend(initial: Resolved) {
       }
       return HttpResponse.json(resolved(body.scope_type))
     }),
-    http.delete(`${API}/settings/${NAMESPACE}/keys/:key`, ({ params, request }) => {
+    http.delete(`${API}/me/settings/${NAMESPACE}/keys/:key`, ({ params, request }) => {
       const key = String(params.key)
       state.resets.push(key)
       state.values[key] = key === 'compact' ? false : state.values[key]
@@ -152,7 +152,7 @@ test('a server error shows a retry that sends the same change again', async () =
   const store = backend(defaults())
   let fail = true
   server.use(
-    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+    http.patch(`${API}/me/settings/${NAMESPACE}`, async ({ request }) => {
       const body = (await request.json()) as { values: Record<string, unknown> }
       if (fail) return HttpResponse.error()
       store.patches.push(body.values)
@@ -236,7 +236,7 @@ test('following drops a value that failed to save, so it is not sent again later
   const store = backend(scoped())
   let failures = 1
   server.use(
-    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+    http.patch(`${API}/me/settings/${NAMESPACE}`, async ({ request }) => {
       const body = (await request.json()) as { values: Record<string, unknown> }
       store.patches.push(body.values)
       if (failures-- > 0) {
@@ -287,7 +287,7 @@ test('Follow waits for a save that is still running, so the reset is applied las
   let release: () => void = () => {}
   const gate = new Promise<void>((resolve) => (release = resolve))
   server.use(
-    http.patch(`${API}/settings/${NAMESPACE}`, async ({ request }) => {
+    http.patch(`${API}/me/settings/${NAMESPACE}`, async ({ request }) => {
       const body = (await request.json()) as { values: Record<string, unknown> }
       order.push(`patch ${JSON.stringify(body.values)}`)
       await gate
@@ -304,7 +304,7 @@ test('Follow waits for a save that is still running, so the reset is applied las
         inherited: store.inherited,
       })
     }),
-    http.delete(`${API}/settings/${NAMESPACE}/keys/:key`, () => {
+    http.delete(`${API}/me/settings/${NAMESPACE}/keys/:key`, () => {
       order.push('reset')
       return HttpResponse.json({
         namespace: NAMESPACE,

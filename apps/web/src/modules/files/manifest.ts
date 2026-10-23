@@ -75,5 +75,6 @@ export default defineModule({
     { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
   ],
+  uiPrefPrefixes: ['files.'],
   realtimeInvalidations: INVALIDATIONS,
 })

@@ -33,12 +33,20 @@ class Writer(Protocol):
 
 
 class FileSource(Protocol):
-    """The archive's `files/` during an import. `store` copies one file into storage under
-    `final_key`; a failed import deletes everything stored this way."""
+    """The archive's `files/` during an import.
+
+    Copying files must not happen while the import holds SQLite's write lock (every user's
+    saves would wait), so it happens first: an adapter's `prepare` calls `store` for each file,
+    under a key it chooses (pre-assigning the new row id in the `IdMap` if the key needs it).
+    Its `import_` then calls `claim` for each file it keeps; claimed files count against the
+    user's quota, and files nobody claimed (their rows were skipped) are deleted afterwards, as
+    is everything stored when the import fails."""
 
     def has(self, key: str) -> bool: ...
 
     async def store(self, key: str, final_key: str, content_type: str) -> int: ...
+
+    def claim(self, final_key: str) -> int | None: ...
 
 
 @dataclass
@@ -72,6 +80,8 @@ class ImportReport:
 
 
 ExportFn = Callable[[Ctx, Writer], Awaitable[None]]
+# Runs before any row is written, outside the import's write transaction (see `FileSource`).
+PrepareFn = Callable[[Ctx, dict[str, Any], IdMap, ImportOptions], Awaitable[None]]
 ImportFn = Callable[[Ctx, dict[str, Any], Mapping[str, str], Any], Awaitable[Report]]
 PreviewFn = Callable[[dict[str, Any]], Awaitable[dict[str, int]]]
 PurgeFn = Callable[[Ctx], Awaitable[None]]
@@ -89,6 +99,7 @@ class Adapter:
     purge: PurgeFn
     purge_content: PurgeContentFn
     tables: tuple[str, ...]
+    prepare: PrepareFn | None = None
 
 
 _adapters: dict[str, Adapter] = {}
@@ -105,6 +116,7 @@ def register_portability(
     purge: PurgeFn,
     purge_content: PurgeContentFn | None = None,
     tables: tuple[str, ...] = (),
+    prepare: PrepareFn | None = None,
 ) -> None:
     if module in _adapters:
         raise ValueError(f"duplicate portability adapter {module!r}")
@@ -123,6 +135,7 @@ def register_portability(
         purge=purge,
         purge_content=purge_content or purge_all,
         tables=tuple(tables),
+        prepare=prepare,
     )
 
 

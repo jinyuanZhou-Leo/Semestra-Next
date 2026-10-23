@@ -1,6 +1,5 @@
 """File routes of imports: upload before a course exists, and read it back for "show source"."""
 
-import re
 from collections.abc import AsyncIterator
 from typing import Annotated
 
@@ -11,17 +10,20 @@ from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.core.uploads import limit_upload
 from semestra.modules.imports import service
 from semestra.modules.imports.schemas import Upload
 
 router = APIRouter(tags=["imports"])
-UPLOAD_PATH = re.compile(r"/imports/uploads")
 
 
-def upload_limit(settings: Settings) -> tuple[int, AppError]:
+def _upload_limit(settings: Settings) -> tuple[int, AppError]:
     """One file per upload, at most the per-file limit (checked before the body is parsed)."""
     cap = settings.files_max_upload_bytes
     return cap, AppError("files.too_large", 413, max=cap)
+
+
+limit_upload("/imports/uploads", _upload_limit)
 
 
 ALLOWED = (
@@ -38,6 +40,7 @@ ALLOWED = (
     "image/gif",
     "image/heic",
 )
+
 
 INLINE_UNSANDBOXED = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif")
 

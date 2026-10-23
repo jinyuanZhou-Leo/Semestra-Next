@@ -47,6 +47,8 @@ EMAIL_START_PER_IP = (30, timedelta(hours=1))
 LOGIN_PER_EMAIL = (10, timedelta(minutes=15))
 LOGIN_PER_IP = (50, timedelta(minutes=15))
 CHANGE_EMAIL_PER_USER = (10, timedelta(hours=1))
+# Characters of a personal access token after its prefix kept to tell tokens apart in the list.
+TOKEN_HINT_CHARS = 6
 
 Client = Literal["web", "native"]
 
@@ -349,14 +351,7 @@ async def revoke_sessions(
 async def revoke_all_for_user(db: AsyncSession, user_id: str, now: datetime) -> None:
     """Revokes every session and personal access token (used by account deletion, M13)."""
     await revoke_sessions(db, user_id, now)
-    await db.execute(
-        update(AuthPersonalAccessToken)
-        .where(
-            AuthPersonalAccessToken.user_id == user_id,
-            AuthPersonalAccessToken.revoked_at.is_(None),
-        )
-        .values(revoked_at=now)
-    )
+    await revoke_tokens(db, user_id, now)
 
 
 # A rotated-out refresh token presented this soon after its rotation is a concurrent request
@@ -440,7 +435,7 @@ async def _notify_new_sign_in(ctx: Ctx, user: AuthUser, meta: RequestMeta) -> No
             "time": ctx.now.strftime("%Y-%m-%d %H:%M"),
             "device": meta.user_agent or "-",
             "ip": meta.ip or "-",
-            "settings_url": f"{ctx.settings.public_web_origin}/settings/account",
+            "settings_url": f"{ctx.settings.public_web_origin}/?settings=account/security",
         },
     )
 
@@ -541,7 +536,8 @@ async def reset_password(
     user.password_hash = await crypto.hash_password(new_password)
     if user.email_verified_at is None:
         user.email_verified_at = ctx.now
-    await revoke_sessions(ctx.db, user.id, ctx.now)
+    # Whoever knew the old password may have left a token behind: everything goes.
+    await revoke_all_for_user(ctx.db, user.id, ctx.now)
     await _after_password_change(ctx, user)
     return await create_session(ctx, user, client, meta)
 
@@ -597,6 +593,43 @@ async def logout(ctx: Ctx) -> None:
             .where(AuthSession.id == ctx.auth.session_id, AuthSession.revoked_at.is_(None))
             .values(revoked_at=ctx.now)
         )
+
+
+async def require_recent_auth(ctx: Ctx, password: str | None, *, scope: str) -> None:
+    """Sensitive account actions need a sign-in in the last 10 minutes or the password.
+
+    Raises `auth.reauth_required` (`password` says whether typing it would do) or
+    `auth.invalid_credentials`; password guesses are rate limited per user and `scope`.
+    """
+    user = _require_user(ctx)
+    created = ctx.auth.session_created_at if ctx.auth else None
+    if created is not None and ctx.now - created <= REAUTH_WINDOW:
+        return
+    if password and user.password_hash is not None:
+        await ratelimit.hit(
+            ctx.db,
+            ctx.settings,
+            ctx.now,
+            f"{scope}_user",
+            user.id,
+            limit=10,
+            window=timedelta(minutes=15),
+        )
+        if await crypto.verify_password(password, user.password_hash):
+            return
+        raise AppError("auth.invalid_credentials", 401)
+    raise AppError("auth.reauth_required", 403, password=user.password_hash is not None)
+
+
+async def revoke_tokens(db: AsyncSession, user_id: str, now: datetime) -> None:
+    await db.execute(
+        update(AuthPersonalAccessToken)
+        .where(
+            AuthPersonalAccessToken.user_id == user_id,
+            AuthPersonalAccessToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now)
+    )
 
 
 # --- account management (capabilities) ------------------------------------------------------
@@ -661,13 +694,17 @@ async def change_password(ctx: Ctx, current_password: str | None, new_password: 
     await revoke_sessions(
         ctx.db, user.id, ctx.now, except_id=ctx.auth.session_id if ctx.auth else None
     )
+    await revoke_tokens(ctx.db, user.id, ctx.now)
     await _after_password_change(ctx, user)
     await ctx.db.flush()
     return await user_out(ctx.db, user)
 
 
-async def change_email_start(ctx: Ctx, new_email: str, meta: RequestMeta) -> EmailStartResult:
+async def change_email_start(
+    ctx: Ctx, new_email: str, meta: RequestMeta, password: str | None = None
+) -> EmailStartResult:
     user = _require_user(ctx)
+    await require_recent_auth(ctx, password, scope="change_email")
     if new_email == user.email:
         raise AppError("auth.email_in_use", 409)
     if await user_by_email(ctx.db, new_email) is not None:
@@ -709,8 +746,20 @@ async def change_email_confirm(ctx: Ctx, code: str) -> UserOut:
     if await user_by_email(ctx.db, challenge.email) is not None:
         raise AppError("auth.email_in_use", 409)
     challenge.verified_at = challenge.consumed_at = ctx.now
+    old_email = user.email
     user.email = challenge.email
     user.email_verified_at = ctx.now
+    await revoke_sessions(
+        ctx.db, user.id, ctx.now, except_id=ctx.auth.session_id if ctx.auth else None
+    )
+    # The old address is the one place the real owner still hears about a takeover.
+    await _send_later(
+        ctx,
+        old_email,
+        "email_changed",
+        user.locale or ctx.locale,
+        {"name": user.display_name, "new_email": user.email},
+    )
     await ctx.db.flush()
     return await user_out(ctx.db, user)
 
@@ -843,9 +892,15 @@ async def list_tokens(ctx: Ctx) -> list[TokenOut]:
 
 
 async def create_token(
-    ctx: Ctx, name: str, scopes: list[TokenScope], expires_in_days: int | None
+    ctx: Ctx,
+    name: str,
+    scopes: list[TokenScope],
+    expires_in_days: int | None,
+    password: str | None = None,
 ) -> TokenCreated:
     user = _require_user(ctx)
+    # A token outlives the session that made it: a stolen cookie must not be able to mint one.
+    await require_recent_auth(ctx, password, scope="token_create")
     plaintext = crypto.new_token(crypto.PAT_PREFIX)
     # `write` implies `read`; store the canonical set.
     canonical: list[TokenScope] = ["read", "write"] if "write" in scopes else ["read"]
@@ -853,7 +908,7 @@ async def create_token(
         user_id=user.id,
         name=name,
         token_hash=crypto.hash_token(plaintext),
-        prefix=plaintext[:8],
+        prefix=plaintext[: len(crypto.PAT_PREFIX) + TOKEN_HINT_CHARS],
         scopes=list(canonical),
         expires_at=ctx.now + timedelta(days=expires_in_days) if expires_in_days else None,
         created_at=ctx.now,

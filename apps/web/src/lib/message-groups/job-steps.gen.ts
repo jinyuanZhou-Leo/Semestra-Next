@@ -18,6 +18,7 @@ export const jobStepMessages = {
   job_step_portability_account_delete_deleting: m.job_step_portability_account_delete_deleting,
   job_step_portability_export_collecting: m.job_step_portability_export_collecting,
   job_step_portability_export_saving: m.job_step_portability_export_saving,
+  job_step_portability_import_copying: m.job_step_portability_import_copying,
   job_step_portability_import_importing: m.job_step_portability_import_importing,
   job_step_portability_import_reading: m.job_step_portability_import_reading,
   job_step_template_countdown_counting: m.job_step_template_countdown_counting,

@@ -28,8 +28,6 @@ async def _cleanup(ctx: Ctx) -> None:
 
 
 def register(app: FastAPI) -> None:
-    from semestra.core.uploads import BodyLimit
-    from semestra.modules.imports.routes import UPLOAD_PATH, router, upload_limit
+    from semestra.modules.imports.routes import router
 
-    app.add_middleware(BodyLimit, path=UPLOAD_PATH, limit=upload_limit)
     app.include_router(router)

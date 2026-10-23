@@ -13799,7 +13799,7 @@
         ]
       }
     },
-    "/settings/schemas": {
+    "/me/settings-schemas": {
       "get": {
         "tags": [
           "settings"
@@ -13955,7 +13955,7 @@
         }
       }
     },
-    "/settings/{namespace}": {
+    "/me/settings/{namespace}": {
       "get": {
         "tags": [
           "settings"
@@ -14051,7 +14051,7 @@
           "settings"
         ],
         "summary": "Change settings of a module or plugin at one scope level.",
-        "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schema.list first.\nDo not use to change language, theme or other personal preferences.",
+        "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schema.list first.\nNamespaces whose schema says agent_writable false can only be changed by the user in the settings\npage: tell the user where to find it instead.\nDo not use to change language, theme or other personal preferences.",
         "operationId": "settingsValueUpdate",
         "security": [
           {
@@ -14111,7 +14111,7 @@
         }
       }
     },
-    "/settings/{namespace}/keys/{key}": {
+    "/me/settings/{namespace}/keys/{key}": {
       "delete": {
         "tags": [
           "settings"
@@ -21108,6 +21108,20 @@
             "type": "string",
             "title": "New Email",
             "description": "The new email address; a code is sent to it"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
@@ -30362,6 +30376,11 @@
             ],
             "title": "Plugin Id"
           },
+          "agent_writable": {
+            "type": "boolean",
+            "title": "Agent Writable",
+            "description": "False when only the user may change these, in the settings page"
+          },
           "json_schema": {
             "additionalProperties": true,
             "type": "object",
@@ -30374,6 +30393,7 @@
           "namespace",
           "levels",
           "plugin_id",
+          "agent_writable",
           "json_schema"
         ],
         "title": "SettingsSchemaOut"
@@ -33262,6 +33282,20 @@
             ],
             "title": "Expires In Days",
             "description": "Lifetime in days; omit for no expiry"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
