@@ -87,6 +87,8 @@ export function SessionView({
 }) {
   const queryClient = useQueryClient()
   const [discarding, setDiscarding] = useState(false)
+  // Set before the pending edits are awaited, so a second click cannot start a second commit.
+  const [submitting, setSubmitting] = useState(false)
   const commit = useMutation({ ...importsSessionCommitMutation(), onError: toastError })
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
 
@@ -131,6 +133,8 @@ export function SessionView({
   const issues = issueSummary(session)
 
   const runCommit = async (itemIds?: string[]) => {
+    if (submitting) return
+    setSubmitting(true)
     const body = itemIds ? { item_ids: itemIds } : {}
     await settleEdits()
     try {
@@ -139,13 +143,14 @@ export function SessionView({
       await invalidateAfterCommit(queryClient)
       if (result.failed > 0) {
         toast.error(m.imports_commit_partial({ failed: result.failed }))
-        return
+      } else {
+        toast.success(m.imports_committed({ created: result.created, updated: result.updated }))
+        onDone(result.session)
       }
-      toast.success(m.imports_committed({ created: result.created, updated: result.updated }))
-      onDone(result.session)
     } catch {
       // toastError already showed it
     }
+    setSubmitting(false)
   }
   // The wizard takes the courses as they are once the last edits are saved.
   const addToWizard = async () => {
@@ -192,7 +197,7 @@ export function SessionView({
               {m.common_close()}
             </Button>
             {failedIds.length > 0 ? (
-              <Button disabled={commit.isPending} onClick={() => void runCommit(failedIds)}>
+              <Button disabled={submitting} onClick={() => void runCommit(failedIds)}>
                 {m.imports_retry_failed({ count: failedIds.length })}
               </Button>
             ) : null}
@@ -211,10 +216,10 @@ export function SessionView({
               </Button>
             ) : wizardPending ? null : (
               <Button
-                disabled={toWrite.length === 0 || commit.isPending}
+                disabled={toWrite.length === 0 || submitting}
                 onClick={() => void runCommit()}
               >
-                {commit.isPending
+                {submitting
                   ? m.common_loading()
                   : m.imports_commit({ count: toWrite.length })}
               </Button>

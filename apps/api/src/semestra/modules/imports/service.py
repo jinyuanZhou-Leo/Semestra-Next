@@ -9,14 +9,15 @@ from typing import Any
 
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found, validation_error
 from semestra.core.events import events
 from semestra.core.jobs import enqueue
-from semestra.core.storage import get_storage
+from semestra.core.storage import get_storage, remaining_quota
+from semestra.core.storage import usage as storage_usage
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseListInput
@@ -44,7 +45,6 @@ log = structlog.get_logger()
 
 RETENTION = timedelta(days=30)
 UPLOAD_RETENTION = timedelta(days=1)
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 OPEN = ("extracting", "ready")
 WAIT_POLL_SECONDS = 0.5
 CLOSED = ("committed", "discarded")
@@ -560,8 +560,23 @@ def _require_open(row: ImportsSession) -> None:
 async def store_upload(
     ctx: Ctx, *, filename: str, mime: str, chunks: AsyncIterator[bytes]
 ) -> Upload:
+    """Stores an import upload, cut off above the per-file limit or the quota left (imports
+    count against the user's storage quota like course files)."""
+    cap = ctx.settings.files_max_upload_bytes
+    budget = await remaining_quota(ctx)
+    if budget is not None and budget <= 0:
+        raise await _quota_error(ctx)
     key = f"users/{ctx.user_id}/imports/{new_id()}"
-    stored = await get_storage(ctx).put(key, chunks, mime, max_bytes=MAX_UPLOAD_BYTES)
+    try:
+        stored = await get_storage(ctx).put(
+            key, chunks, mime, max_bytes=cap if budget is None else min(cap, budget)
+        )
+    except AppError as exc:
+        if exc.code != "common.quota_exceeded":
+            raise
+        if budget is None or cap <= budget:
+            raise AppError("files.too_large", 413, max=cap) from None
+        raise await _quota_error(ctx) from None
     upload = ImportsUpload(
         id=new_id(),
         user_id=ctx.user_id,
@@ -577,6 +592,13 @@ async def store_upload(
     return Upload(id=upload.id, filename=upload.filename, mime_type=mime, size_bytes=stored.size)
 
 
+async def _quota_error(ctx: Ctx) -> AppError:
+    current = await storage_usage(ctx)
+    return AppError(
+        "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
+    )
+
+
 async def get_upload(ctx: Ctx, upload_id: str) -> ImportsUpload:
     upload = await ctx.db.get(ImportsUpload, upload_id)
     if upload is None or upload.user_id != ctx.user_id:
@@ -588,6 +610,11 @@ async def _delete_uploads(ctx: Ctx, uploads: Sequence[ImportsUpload]) -> None:
     keys = [u.storage_key for u in uploads]
     for upload in uploads:
         await ctx.db.delete(upload)
+    _after_commit_delete(ctx, keys)
+
+
+def _after_commit_delete(ctx: Ctx, keys: Sequence[str]) -> None:
+    """Stored objects go once the transaction has committed, so a rollback never loses one."""
     storage = get_storage(ctx)
 
     async def _remove() -> None:
@@ -1150,6 +1177,25 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         raise AppError("import.session_closed", 409, state=row.status)
     if row.status in ("extracting", "failed"):
         raise AppError("import.session_not_ready", 409, state=row.status)
+    # Claims the session with a conditional write: a second commit sent at the same time (a
+    # double click, a repeated tool call) finds it taken instead of writing every item again.
+    # It is also the write before the first SAVEPOINT: SQLite (pysqlite) would otherwise make that
+    # savepoint the outer transaction and commit it on release, so a failing hook could not roll
+    # back.
+    claimed = await ctx.db.execute(
+        update(ImportsSession)
+        .where(
+            ImportsSession.id == row.id,
+            ImportsSession.status == row.status,
+            ImportsSession.updated_at == row.updated_at,
+        )
+        .values(status="committing", updated_at=ctx.now)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.rowcount != 1:  # pyright: ignore[reportAttributeAccessIssue]
+        raise AppError("import.session_closed", 409, state="committing")
+    row.status = "committing"
+    row.updated_at = ctx.now
     items = await _items(ctx, row.id)
     by_id = {i.id: i for i in items}
     c = _Commit(ctx, row, items)
@@ -1198,11 +1244,6 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
     )
     created: dict[str, str] = {}
     counts = {"created": 0, "updated": 0, "failed": 0}
-    # A write before the first SAVEPOINT: SQLite (pysqlite) would otherwise make that savepoint
-    # the outer transaction and commit it on release, so a failing hook could not roll back.
-    row.status = "committing"
-    row.updated_at = ctx.now
-    await ctx.db.flush()
     for item in todo:
         pending = len(ctx.after_commit)
         try:
@@ -1261,32 +1302,40 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
     if len(course_ids) != 1:
         return  # several courses from several files: which file is whose is not tracked
     storage = get_storage(ctx)
+    refs = [dict(r) for r in row.source_refs]
     for upload in uploads:
+        key = upload.storage_key
         try:
-            moved = await deps.move_to_course(
-                ctx,
-                course_id=course_ids[0],
-                filename=upload.filename,
-                chunks=storage.open(upload.storage_key),
-            )
+            # The upload's row goes first, so the copy is not counted against the quota twice;
+            # the savepoint brings it back if the copy is refused.
+            async with ctx.db.begin_nested():
+                await ctx.db.delete(upload)
+                await ctx.db.flush()
+                moved = await deps.move_to_course(
+                    ctx, course_id=course_ids[0], filename=upload.filename, chunks=storage.open(key)
+                )
+                if moved is None:
+                    raise AppError("import.target_unavailable", 422, capability="files")
         except AppError as exc:
             log.info("import_upload_not_filed", code=exc.code)
+            for ref in refs:
+                if ref.get("upload_id") == upload.id:
+                    ref["warning_code"] = "import.upload_not_filed"
             continue
-        if moved is not None:
-            await _delete_uploads(ctx, [upload])
+        _after_commit_delete(ctx, [key])
+    row.source_refs = refs
 
 
 # --- retention ------------------------------------------------------------------------------
 
 
 async def cleanup(ctx: Ctx) -> None:
-    """Closed sessions are kept 30 days (import history); unused uploads one day."""
+    """Sessions are kept 30 days after their last change (import history), whatever their state:
+    one left for later and never finished must not hold its uploads (and quota) forever. Uploads
+    that never joined a session go after one day."""
     old = (
         await ctx.db.scalars(
-            select(ImportsSession).where(
-                ImportsSession.status.in_(("committed", "discarded", "failed")),
-                ImportsSession.updated_at < ctx.now - RETENTION,
-            )
+            select(ImportsSession).where(ImportsSession.updated_at < ctx.now - RETENTION)
         )
     ).all()
     keys: list[str] = []

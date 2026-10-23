@@ -2009,6 +2009,7 @@
   "error_import_session_not_ready": "This import is still being read",
   "error_import_session_closed": "This import is already finished",
   "error_import_file_too_complex": "{filename} is too large or complex to process",
+  "error_import_upload_not_filed": "{filename} was imported but could not be saved to the course files (not enough storage or too large)",
   "error_import_file_unsupported": "{filename} can't be read",
   "error_import_target_unavailable": "This kind of item can't be saved yet",
   "error_import_extraction_failed": "Reading the files failed",

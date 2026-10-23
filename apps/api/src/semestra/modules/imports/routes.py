@@ -1,12 +1,14 @@
 """File routes of imports: upload before a course exists, and read it back for "show source"."""
 
 import mimetypes
+import re
 from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, UploadFile
 from fastapi.responses import StreamingResponse
 
+from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse
 from semestra.core.storage import CHUNK_SIZE, get_storage
@@ -14,6 +16,13 @@ from semestra.modules.imports import service
 from semestra.modules.imports.schemas import Upload
 
 router = APIRouter(tags=["imports"])
+UPLOAD_PATH = re.compile(r"/imports/uploads")
+
+
+def upload_limit(settings: Settings) -> tuple[int, AppError]:
+    """One file per upload, at most the per-file limit (checked before the body is parsed)."""
+    cap = settings.files_max_upload_bytes
+    return cap, AppError("files.too_large", 413, max=cap)
 
 ALLOWED = (
     "text/calendar",

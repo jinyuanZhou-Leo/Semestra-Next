@@ -301,6 +301,8 @@ class SourceRef(BaseModel):
     lms_course_id: str | None = None
     status: Literal["pending", "extracting", "done", "failed"] = "pending"
     error_code: str | None = None
+    # Read fine but something after it went wrong (e.g. the upload could not be filed).
+    warning_code: str | None = None
 
 
 class SessionTarget(BaseModel):
