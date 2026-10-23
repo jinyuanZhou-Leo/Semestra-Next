@@ -101,6 +101,7 @@ export const errorMessages = {
   error_import_session_not_ready: m.error_import_session_not_ready,
   error_import_target_unavailable: m.error_import_target_unavailable,
   error_import_term_unresolved: m.error_import_term_unresolved,
+  error_import_upload_not_filed: m.error_import_upload_not_filed,
   error_import_weights_not_100: m.error_import_weights_not_100,
   error_lms_assignment_already_imported: m.error_lms_assignment_already_imported,
   error_lms_blocked_address: m.error_lms_blocked_address,

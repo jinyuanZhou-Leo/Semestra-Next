@@ -3115,8 +3115,9 @@ export const importsItemDecideMany = <ThrowOnError extends boolean = false>(opti
  * Edit an import item's fields or accept/reject it.
  *
  * `data` is merged into the item (send null to clear a field); fields the item's
- * type does not have are refused. The item's issues are checked again afterwards. The assistant gets
- * the session's `summary` and the changed item.
+ * type does not have are refused. The item's issues are checked again afterwards. The assistant (and
+ * an HTTP caller with `only_touched`) gets the session's `summary` with only the items this change
+ * touched: the edited one and those whose decision or issues changed with it.
  */
 export const importsItemUpdate = <ThrowOnError extends boolean = false>(options: Options<ImportsItemUpdateData, ThrowOnError>): RequestResult<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ImportsItemUpdateResponses, ImportsItemUpdateErrors, ThrowOnError>({
     security: [

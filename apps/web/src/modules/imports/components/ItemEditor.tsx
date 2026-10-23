@@ -1,6 +1,4 @@
 import type { ImportItem } from '@semestra/api-client'
-import { importsItemUpdateMutation } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
@@ -15,7 +13,7 @@ import { Switch } from '@/ui/switch'
 import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, itemTitle, TYPE_LABELS } from '../labels'
-import { storeSession, trackEdit } from '../queries'
+import { trackEdit, useItemUpdate } from '../queries'
 import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
@@ -66,12 +64,7 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
 
 /** Imports the item as an assessment of the course or as a task (M09 LMS assignments). */
 function TypeSwitch({ item }: { item: ImportItem }) {
-  const queryClient = useQueryClient()
-  const save = useMutation({
-    ...importsItemUpdateMutation(),
-    onError: toastError,
-    onSuccess: (session) => storeSession(queryClient, session),
-  })
+  const save = useItemUpdate({ onError: toastError })
   return (
     <ChoiceControl<'assessment' | 'task'>
       label={m.imports_import_as()}
@@ -102,11 +95,7 @@ function TypeSwitch({ item }: { item: ImportItem }) {
  * so what the review shows is what the commit writes; the commit waits for saves in flight.
  */
 function FieldsEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
-  const queryClient = useQueryClient()
-  const save = useMutation({
-    ...importsItemUpdateMutation(),
-    onSuccess: (session) => storeSession(queryClient, session),
-  })
+  const save = useItemUpdate()
   const specs = FIELDS[item.type as keyof typeof FIELDS]
   const [values, setValues] = useState<Values>(() => pick(item.data, specs))
 
@@ -250,18 +239,17 @@ function FieldInput({
  * out (`changes[field].apply`, M08 §6.2).
  */
 function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
-  const queryClient = useQueryClient()
-  const save = useMutation({
-    ...importsItemUpdateMutation(),
-    onError: toastError,
-    onSuccess: (session) => storeSession(queryClient, session),
-  })
+  const save = useItemUpdate({ onError: toastError })
   const { changes } = item.data as TargetPatchData
   const toggle = (field: string, change: FieldChange, apply: boolean) =>
-    save.mutate({
-      path: { session_id: item.session_id, item_id: item.id },
-      body: { data: { changes: { [field]: { ...change, apply } } } },
-    })
+    trackEdit(
+      save
+        .mutateAsync({
+          path: { session_id: item.session_id, item_id: item.id },
+          body: { data: { changes: { [field]: { ...change, apply } } } },
+        })
+        .catch(() => undefined), // reported by onError
+    )
   return (
     <ul className="divide-y rounded-2xl border">
       {Object.entries(changes).map(([field, change]) => {

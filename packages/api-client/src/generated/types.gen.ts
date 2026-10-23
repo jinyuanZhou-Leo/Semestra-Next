@@ -10337,6 +10337,12 @@ export type SemestraCoreCapabilityItemUpdateInputBody2 = {
      * Turn an assessment item into a task or back
      */
     type?: 'assessment' | 'task' | null;
+    /**
+     * Only Touched
+     *
+     * Return only the items this change touched instead of all of them
+     */
+    only_touched?: boolean;
 };
 
 /**

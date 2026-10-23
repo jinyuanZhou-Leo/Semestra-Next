@@ -232,15 +232,19 @@ async def _program_courses(ctx: Ctx, program_id: str) -> list[Any]:
 
 
 async def _existing_assessments(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, set[str]]:
-    if not course_ids or not deps.has_capability("grading.gradebook.get"):
+    """Normalised titles of the courses' assessments (the plain list: no gradebook maths, which
+    every review edit would otherwise pay for)."""
+    if not course_ids or not deps.has_capability("grading.assessment.list"):
         return {}
     out: dict[str, set[str]] = {}
     for course_id in course_ids:
         try:
-            book = await deps.call(ctx, "grading.gradebook.get", {"course_id": course_id})
+            page = await deps.call(
+                ctx, "grading.assessment.list", {"course_id": course_id, "limit": 500}
+            )
         except AppError:
             continue
-        out[course_id] = {build.norm_title(a["title"]) for a in book.get("assessments", [])}
+        out[course_id] = {build.norm_title(a["title"]) for a in page.get("items", [])}
     return out
 
 
@@ -663,6 +667,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     item = next((i for i in items if i.id == inp.item_id), None)
     if item is None:
         raise not_found()
+    before = {i.id: (i.decision, list(i.issues or [])) for i in items}
     # After a commit only the items that failed can still be fixed and retried.
     failed = bool(item.result and item.result.get("error_code"))
     if not (row.status == "committed" and failed):
@@ -701,7 +706,12 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             if each is item or not _written(each):
                 each.decision = inp.decision
     await revalidate(ctx, row, items)
-    return await detail(ctx, row, item_ids={item.id} if for_agent(ctx) else None)
+    # The edited item and those whose decision or issues changed with it (a rejected course
+    # takes its items along; a weight fixes its course's total): a review list merges these.
+    touched = {item.id} | {
+        i.id for i in items if before[i.id] != (i.decision, list(i.issues or []))
+    }
+    return await detail(ctx, row, item_ids=touched if inp.only_touched or for_agent(ctx) else None)
 
 
 def _with_contents(items: list[ImportsItem], chosen: list[ImportsItem]) -> list[ImportsItem]:

@@ -127,7 +127,9 @@ test('turning an item off rejects it', async () => {
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
   const group = await screen.findByRole('region', { name: 'MAT137Y1 · Calculus' })
   await userEvent.click(within(group).getByRole('switch', { name: 'Import Final exam' }))
-  await waitFor(() => expect(update).toHaveBeenCalledWith({ decision: 'reject' }))
+  await waitFor(() =>
+    expect(update).toHaveBeenCalledWith({ decision: 'reject', only_touched: true }),
+  )
 })
 
 test('discarding asks first', async () => {
@@ -228,7 +230,9 @@ test('an edit is saved on blur and the commit waits for it', async () => {
   await userEvent.clear(weight)
   await userEvent.type(weight, '35')
   await userEvent.click(screen.getByRole('button', { name: 'Save 2 items' }))
-  await waitFor(() => expect(calls).toEqual(['patch {"data":{"weight":35}}', 'commit']))
+  await waitFor(() =>
+    expect(calls).toEqual(['patch {"data":{"weight":35},"only_touched":true}', 'commit']),
+  )
 })
 
 test('a meeting shows how many of its dates are cancelled', () => {
@@ -491,3 +495,34 @@ test('a session started elsewhere shows its check before the review opens', asyn
   expect(await screen.findByRole('button', { name: 'Done' }, { timeout: 8000 })).toBeInTheDocument()
   expect((await screen.findAllByText('Midterm', {}, { timeout: 8000 })).length).toBeGreaterThan(0)
 }, 20_000)
+
+test('edits are saved one after another and merged into the session', async () => {
+  server.use(courses())
+  const order: string[] = []
+  let release: () => void = () => {}
+  const first = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  server.use(
+    http.patch(`${API}/imports/s1/items/a1`, async ({ request }) => {
+      const body = (await request.json()) as { data: { weight: number } }
+      order.push(`start ${body.data.weight}`)
+      if (body.data.weight === 35) await first
+      order.push(`end ${body.data.weight}`)
+      // Only the touched item comes back; the others stay as they are.
+      const touched = session().items.filter((i) => i.id === 'a1')
+      return HttpResponse.json({ ...session(), items: touched })
+    }),
+  )
+  renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
+  const weight = await screen.findByLabelText('Weight (%)')
+  await userEvent.clear(weight)
+  await userEvent.type(weight, '35')
+  await userEvent.tab()
+  await userEvent.clear(weight)
+  await userEvent.type(weight, '40')
+  await userEvent.tab()
+  release()
+  await waitFor(() => expect(order).toEqual(['start 35', 'end 35', 'start 40', 'end 40']))
+  expect(screen.getByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
+})

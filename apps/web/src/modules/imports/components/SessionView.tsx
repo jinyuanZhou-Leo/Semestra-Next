@@ -219,9 +219,7 @@ export function SessionView({
                 disabled={toWrite.length === 0 || submitting}
                 onClick={() => void runCommit()}
               >
-                {submitting
-                  ? m.common_loading()
-                  : m.imports_commit({ count: toWrite.length })}
+                {submitting ? m.common_loading() : m.imports_commit({ count: toWrite.length })}
               </Button>
             )}
           </>

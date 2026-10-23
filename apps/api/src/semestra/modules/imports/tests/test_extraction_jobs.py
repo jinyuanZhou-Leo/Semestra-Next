@@ -155,3 +155,35 @@ async def test_a_category_weight_is_shared_by_its_assessments(
     assert {q["confidence"]["weight"] for q in quizzes} == {"medium"}
     codes = [i["code"] for item in session["items"] for i in item["issues"]]
     assert "import.weights_not_100" not in codes
+
+
+async def test_an_edit_can_return_only_the_items_it_touched(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    from semestra.modules.imports.tests.test_imports import by_type
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    upload = (
+        await api.call(
+            "POST", "/imports/uploads", files={"file": ("s.txt", b"APS105", "text/plain")}
+        )
+    )["id"]
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    assessments = {a["data"]["title"]: a for a in by_type(session, "assessment")}
+    flagged = next(a for a in assessments.values() if a["issues"])
+    final = assessments["Final exam"]
+    # 85 + 15 = 100: the weight issue on the first assessment goes away too.
+    patched = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{final['id']}",
+        json={"data": {"weight": 50}, "only_touched": True},
+    )  # fmt: skip
+    assert {i["id"] for i in patched["items"]} == {final["id"], flagged["id"]}
+    assert patched["summary"] == (await api.call("GET", f"/imports/{session['id']}"))["summary"]

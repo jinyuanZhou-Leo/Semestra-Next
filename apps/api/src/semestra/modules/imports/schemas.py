@@ -461,6 +461,10 @@ class ItemUpdateInput(BaseModel):
     type: Literal["assessment", "task"] | None = Field(
         default=None, description="Turn an assessment item into a task or back"
     )
+    only_touched: bool = Field(
+        default=False,
+        description="Return only the items this change touched instead of all of them",
+    )
 
 
 class BulkDecideInput(BaseModel):
