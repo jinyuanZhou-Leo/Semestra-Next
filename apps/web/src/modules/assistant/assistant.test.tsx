@@ -1412,3 +1412,27 @@ test('on the page, opening the panel hands over the conversation, its temporary 
   expect(navigate).toHaveBeenCalledWith('/p/p1/today')
   panel.reset()
 })
+
+test('earlier items are reused while the last answer streams', () => {
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+      msg('a1', 'assistant', [{ type: 'text', text: 'Hello' }]),
+      msg('u2', 'user', [{ type: 'text', text: 'More' }]),
+      msg('a2', 'assistant', [{ type: 'text', text: 'Su' }]),
+    ],
+    proposals: [],
+    attachments: [],
+    generating: true,
+  }
+  const before = buildItems(detail, true)
+  const after = buildItems(
+    applyEvent(detail, { event: 'text_delta', data: { message_id: 'a2', text: 're' } }),
+    true,
+  )
+  expect(after.slice(0, 3)).toEqual(before.slice(0, 3))
+  after.slice(0, 3).forEach((item, i) => expect(item).toBe(before[i]))
+  expect(after[3]).not.toBe(before[3])
+  expect(after[3]).toMatchObject({ answer: 'Sure' })
+})
