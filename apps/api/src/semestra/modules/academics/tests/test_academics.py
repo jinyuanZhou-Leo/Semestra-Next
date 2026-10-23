@@ -383,9 +383,13 @@ async def test_course_list_filters_search_order_and_paging(api: Api):
     rest = await api.call("GET", url, params={"limit": 2, "cursor": page["next_cursor"]})
     assert (names(rest), rest["next_cursor"]) == (["MAT186"], None)
 
-    # A term lists its courses in the same order as the Program does.
+    # A term lists its courses in the same order as the Program does, sort_order first.
     in_term = await api.call("GET", url, params={"term_id": fall["id"]})
     assert [i["id"] for i in in_term["items"]] == [a["id"], c["id"], b["id"]]
+    await api.call("PATCH", f"/courses/{b['id']}", json={"sort_order": -1})
+    for params in ({}, {"term_id": fall["id"]}):
+        listed = await api.call("GET", url, params=params)
+        assert [i["id"] for i in listed["items"]] == [b["id"], a["id"], c["id"]], params
 
 
 async def test_agent_surface_find_and_field_selection(api: Api, app: FastAPI, make_user: MakeUser):

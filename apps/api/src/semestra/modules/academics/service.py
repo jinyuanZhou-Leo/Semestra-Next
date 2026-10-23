@@ -833,8 +833,9 @@ async def create_courses(
     return await courses_out(ctx, program, rows)
 
 
-def _default_key(c: AcademicsCourse) -> tuple[int, str, str]:
-    return (c.sort_order, rules.normalize(c.code) or "~", rules.normalize(c.title))
+def _default_key(c: AcademicsCourse) -> tuple[int, str, str, str]:
+    """The one course order everywhere: sort_order, then code, then title."""
+    return (c.sort_order, rules.normalize(c.code) or "~", rules.normalize(c.title), c.id)
 
 
 async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
@@ -874,7 +875,7 @@ async def _list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:
                     )
                 )
             ).all(),
-            key=lambda c: (rules.normalize(c.code) or "~", rules.normalize(c.title), c.id),
+            key=_default_key,
         )
     if inp.subject_code:
         rows = [r for r in rows if r.subject_code == inp.subject_code.strip().upper()]

@@ -20392,7 +20392,7 @@
               }
             ],
             "title": "Sort Order",
-            "description": "Default position within a term"
+            "description": "Display position (then code, title)"
           }
         },
         "type": "object",

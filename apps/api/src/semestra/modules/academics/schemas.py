@@ -424,7 +424,7 @@ class CourseUpdateInput(BaseModel):
     planned_terms: Annotated[int, Field(ge=1, le=6)] | None = Field(
         default=None, description="Consecutive terms the course spans"
     )
-    sort_order: int | None = Field(default=None, description="Default position within a term")
+    sort_order: int | None = Field(default=None, description="Display position (then code, title)")
 
 
 class CourseSetTermsInput(BaseModel):

@@ -2922,7 +2922,7 @@ export type CourseUpdateInputBody = {
     /**
      * Sort Order
      *
-     * Default position within a term
+     * Display position (then code, title)
      */
     sort_order?: number | null;
 };
