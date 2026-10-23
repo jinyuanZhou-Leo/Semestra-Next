@@ -4,8 +4,8 @@ import { useId, useState } from 'react'
 import { DangerZone, SettingRow } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/modules/auth/useAuth'
-import { errorCode, errorMessage } from '@/lib/errors'
-import { toApiError } from '@/app/api'
+import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
+import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
@@ -41,9 +41,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
     onSuccess: () => signOut({ to: '/account-deleted', flush: false }),
   })
   const error = remove.error
-  const reauth = error && errorCode(error) === 'auth.reauth_required'
-  const needsPassword = Boolean(reauth && toApiError(error).params.password)
-  const passwordWrong = error ? errorCode(error) === 'auth.invalid_credentials' : false
+  const { needsPassword } = reauthState(error)
   const matches = phrase.trim().toLowerCase() === m.portability_delete_phrase().toLowerCase()
 
   return (
@@ -80,34 +78,8 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
               {m.portability_delete_acknowledge()}
             </FieldLabel>
           </Field>
-          {needsPassword || passwordWrong ? (
-            <Field data-invalid={passwordWrong || undefined}>
-              <FieldLabel htmlFor={`${id}-password`}>{m.portability_delete_password()}</FieldLabel>
-              <Input
-                id={`${id}-password`}
-                type="password"
-                autoComplete="current-password"
-                aria-invalid={passwordWrong || undefined}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <FieldError>{passwordWrong ? errorMessage(error) : null}</FieldError>
-            </Field>
-          ) : null}
-          {reauth && !needsPassword ? (
-            <Field>
-              <FieldError>{m.portability_delete_reauth()}</FieldError>
-              <Button
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() => void signOut()}
-              >
-                {m.portability_delete_sign_in_again()}
-              </Button>
-            </Field>
-          ) : null}
-          {error && !reauth && !passwordWrong ? (
+          <ReauthFields error={error} password={password} onPasswordChange={setPassword} />
+          {error && !reauthState(error).handled ? (
             <FieldError>{errorMessage(error)}</FieldError>
           ) : null}
         </FieldGroup>

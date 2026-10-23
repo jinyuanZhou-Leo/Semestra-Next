@@ -152,7 +152,7 @@ beforeEach(() => {
     ),
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview())),
     http.get(`${API}/courses/c1/lms/announcements`, () => HttpResponse.json(ANNOUNCEMENTS)),
-    http.get(`${API}/settings/lms`, () => HttpResponse.json(lmsSettings())),
+    http.get(`${API}/me/settings/lms`, () => HttpResponse.json(lmsSettings())),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
         items: [

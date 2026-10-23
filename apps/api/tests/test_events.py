@@ -7,7 +7,7 @@ from httpx import AsyncClient
 
 from semestra.core import realtime
 from semestra.core.context import Ctx, run_after_commit, system_ctx
-from semestra.core.events import Event, events
+from semestra.core.events import Event, drain, events
 from semestra.core.realtime import Broadcaster, stream
 from semestra.testing import MakeUser, collect_events
 
@@ -35,6 +35,8 @@ async def test_events_are_dispatched_after_commit_to_subscribers_and_sse(
             assert seen == []  # nothing before commit
             await ctx.db.commit()
         await run_after_commit(ctx)
+        assert seen == []  # the publisher does not wait for the subscribers
+        await drain(app.state)
 
     assert seen == [("system", user.email, {"n": 1})]  # the failing subscriber did not stop it
     assert mine == [{"type": "test.thing.happened", "data": {"n": 1}}]
@@ -46,8 +48,30 @@ async def test_slow_listener_gets_a_resync_instead_of_a_backlog():
     with broadcaster.listen("u") as queue:
         for n in range(3):
             broadcaster.send("u", {"type": "x", "data": {"n": n}})
-        assert queue.get_nowait() == realtime.RESYNC
+        assert queue.get_nowait()[1]["type"] == realtime.RESYNC_TYPE
         assert queue.empty()
+
+
+async def test_a_reconnecting_listener_gets_what_it_missed():
+    broadcaster = Broadcaster(replay_size=3)
+    with broadcaster.listen("u") as queue:
+        broadcaster.send("u", {"type": "a", "data": {}})
+        last_id, _ = queue.get_nowait()
+    for kind in ("b", "c"):
+        broadcaster.send("u", {"type": kind, "data": {}})
+    broadcaster.send("other", {"type": "theirs", "data": {}})
+    with broadcaster.listen("u", last_id) as queue:
+        assert [queue.get_nowait()[1]["type"] for _ in range(2)] == ["b", "c"]
+        assert queue.empty()
+    # A new connection replays nothing; an id from before the buffer or a restart resyncs.
+    with broadcaster.listen("u") as queue:
+        assert queue.empty()
+    for kind in ("d", "e", "f"):
+        broadcaster.send("u", {"type": kind, "data": {}})
+    for stale in (last_id, "restarted-1", "garbage"):
+        with broadcaster.listen("u", stale) as queue:
+            assert queue.get_nowait()[1]["type"] == realtime.RESYNC_TYPE
+            assert queue.empty()
 
 
 async def test_stream_yields_messages_and_ends_after_max_time():
@@ -63,6 +87,21 @@ async def test_stream_yields_messages_and_ends_after_max_time():
     broadcaster.send("u", {"type": "x", "data": {}})
     await asyncio.wait_for(task, 1)
     assert [json.loads(r["data"]) for r in received] == [{"type": "x", "data": {}}]
+    assert received[0]["id"].endswith("-1")
+
+
+async def test_events_carry_the_tab_that_caused_them(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: object
+):
+    user = await make_user()
+    await login_as(client, user)  # pyright: ignore[reportCallIssue]
+    url, body = "/me/settings/calendar", {"values": {"default_view": "month"}}
+    with collect_events(app, user.id) as mine:
+        r = await client.patch(url, json=body, headers={"X-Semestra-Client": "tab-1"})
+        assert r.status_code == 200, r.text
+        await client.patch(url, json=body)
+        await client.patch(url, json=body, headers={"X-Semestra-Client": "not a tab id!"})
+    assert [m.get("origin") for m in mine] == ["tab-1", None, None]
 
 
 async def test_events_stream_requires_login(client: AsyncClient):

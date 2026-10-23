@@ -1,37 +1,41 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, test } from 'vitest'
+import type { CardSize } from '../extensions'
 import { compact, firstFree, type LayoutItem, moveItem, resizeItem, rows } from './layout'
 
 const at = (items: LayoutItem[]) =>
   Object.fromEntries(items.map((i) => [i.id, [i.size, i.x, i.y].join(' ')]))
 
-describe('compact', () => {
-  test('moves cards up and keeps their column', () => {
-    const items: LayoutItem[] = [
-      { id: 'a', size: 'm', x: 0, y: 3 },
-      { id: 'b', size: 's', x: 3, y: 5 },
-      { id: 'c', size: 'xl', x: 0, y: 6 },
-    ]
-    expect(at(compact(items))).toEqual({ a: 'm 0 0', b: 's 3 0', c: 'xl 0 1' })
-  })
+type Row = [id: string, size: CardSize, x: number, y: number]
+type Cases = {
+  compact: { name: string; cards: Row[]; expected: Row[] }[]
+  first_free: { name: string; cards: Row[]; sizes: Record<CardSize, [number, number]> }[]
+}
+// The same cases the backend's grid.py is tested on: both sides must place cards alike.
+const cases = JSON.parse(
+  readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      '../../../../api/src/semestra/modules/layouts/tests/grid_cases.json',
+    ),
+    'utf8',
+  ),
+) as Cases
+const toItems = (list: Row[]): LayoutItem[] => list.map(([id, size, x, y]) => ({ id, size, x, y }))
 
-  test('resolves overlaps by pushing later cards down and clamps to 4 columns', () => {
-    const items: LayoutItem[] = [
-      { id: 'a', size: 'l', x: 0, y: 0 },
-      { id: 'b', size: 'm', x: 1, y: 1 },
-      { id: 'c', size: 'm', x: 3, y: 0 },
-    ]
-    expect(at(compact(items))).toEqual({ a: 'l 0 0', c: 'm 2 0', b: 'm 1 2' })
+describe('compact', () => {
+  test.each(cases.compact)('$name', ({ cards, expected }) => {
+    expect(compact(toItems(cards))).toEqual(toItems(expected))
   })
 })
 
-test('first free spot is top-most, then left-most', () => {
-  const items: LayoutItem[] = [
-    { id: 'a', size: 'm', x: 0, y: 0 },
-    { id: 'b', size: 's', x: 3, y: 0 },
-  ]
-  expect(firstFree(items, 's')).toEqual({ x: 2, y: 0 })
-  expect(firstFree(items, 'm')).toEqual({ x: 0, y: 1 })
-  expect(firstFree([], 'xl')).toEqual({ x: 0, y: 0 })
+describe('first free spot', () => {
+  test.each(cases.first_free)('$name', ({ cards, sizes }) => {
+    for (const [size, [x, y]] of Object.entries(sizes)) {
+      expect(firstFree(toItems(cards), size as CardSize)).toEqual({ x, y })
+    }
+  })
 })
 
 describe('moving', () => {

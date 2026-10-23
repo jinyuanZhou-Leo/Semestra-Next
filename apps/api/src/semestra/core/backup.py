@@ -22,6 +22,7 @@ log = structlog.get_logger()
 BACKUP_INTERVAL_SECONDS = 24 * 3600
 _DB_SUBDIR = "db"
 _STORAGE_SUBDIR = "storage"
+_REMOVED_SUBDIR = "storage-removed"
 
 
 def _snapshot(src: Path, dest: Path) -> None:
@@ -40,21 +41,40 @@ def _sqlite_sources(settings: Settings) -> dict[str, Path]:
     return {name: path for name, path in sources.items() if path.is_file()}
 
 
-def _mirror_storage(src: Path, dest: Path) -> None:
-    """Copy new or changed files; never deletes from the backup."""
-    if not src.is_dir():
-        return
-    for file in src.rglob("*"):
-        if not file.is_file():
-            continue
-        target = dest / file.relative_to(src)
-        stat = file.stat()
-        if target.is_file():
-            existing = target.stat()
-            if existing.st_size == stat.st_size and int(existing.st_mtime) == int(stat.st_mtime):
+def _mirror_storage(src: Path, dest: Path, removed: Path, stamp: str, oldest: str) -> None:
+    """Copy new or changed files. A file no longer in `src` (a deleted account's, say) moves to
+    `removed/<stamp>/` and stays while a database snapshot older than its removal (`oldest` is
+    the oldest snapshot's stamp) may still refer to it; then it is gone from the backup too."""
+    present: set[Path] = set()
+    if src.is_dir():
+        for file in src.rglob("*"):
+            if not file.is_file():
                 continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(file, target)
+            relative = file.relative_to(src)
+            present.add(relative)
+            target = dest / relative
+            stat = file.stat()
+            if target.is_file():
+                existing = target.stat()
+                if existing.st_size == stat.st_size and int(existing.st_mtime) == int(
+                    stat.st_mtime
+                ):
+                    continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(file, target)
+    if dest.is_dir():
+        for file in sorted(dest.rglob("*"), reverse=True):  # children before their folders
+            relative = file.relative_to(dest)
+            if file.is_file() and relative not in present:
+                target = removed / stamp / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                file.replace(target)
+            elif file.is_dir() and not any(file.iterdir()):
+                file.rmdir()
+    if removed.is_dir():
+        for old in removed.iterdir():
+            if old.name <= oldest:
+                shutil.rmtree(old)
 
 
 def run_backup(
@@ -73,7 +93,13 @@ def run_backup(
         for old in sorted(db_dir.glob(f"{name}-*.sqlite"))[: -max(settings.backup_keep, 1)]:
             old.unlink()
     if include_storage:
-        _mirror_storage(settings.storage_local_root, root / _STORAGE_SUBDIR)
+        _mirror_storage(
+            settings.storage_local_root,
+            root / _STORAGE_SUBDIR,
+            root / _REMOVED_SUBDIR,
+            stamp,
+            min((p.stem.rsplit("-", 1)[1] for p in db_dir.glob("*.sqlite")), default=stamp),
+        )
     return created
 
 

@@ -110,6 +110,7 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
         name: 'Claude Desktop',
         scopes: ['read', 'write'],
         expires_in_days: 90,
+        password: null,
       })
       items.push(token)
       return HttpResponse.json({ ...token, scopes: ['read', 'write'], token: 'spat_SECRET' })
@@ -131,6 +132,38 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
   await waitFor(() => expect(screen.queryByTestId('new-token')).not.toBeInTheDocument())
   expect(await screen.findByText('Claude Desktop')).toBeInTheDocument()
   expect(screen.queryByText('spat_SECRET')).not.toBeInTheDocument() // only the prefix is listed
+})
+
+test('after the re-authentication window, creating a token asks for the password', async () => {
+  const bodies: unknown[] = []
+  server.use(
+    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
+    http.post(`${API}/account/tokens`, async ({ request }) => {
+      const body = (await request.json()) as { password: string | null }
+      bodies.push(body)
+      if (body.password !== 'hunter22hunter22') {
+        return HttpResponse.json(
+          { error: { code: 'auth.reauth_required', params: { password: true }, request_id: 'r' } },
+          { status: 403 },
+        )
+      }
+      return HttpResponse.json({ ...token, token: 'spat_SECRET' })
+    }),
+  )
+  mount()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
+  const form = await screen.findByRole('dialog')
+  await userEvent.type(within(form).getByLabelText('Name'), 'CLI')
+  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
+  const password = await within(form).findByLabelText('Password')
+  expect(within(form).getByRole('button', { name: 'Create API token' })).toBeDisabled()
+  await userEvent.type(password, 'hunter22hunter22')
+  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
+
+  expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
+  expect(bodies).toMatchObject([{ password: null }, { password: 'hunter22hunter22' }])
 })
 
 test('revoking a token asks for confirmation first', async () => {

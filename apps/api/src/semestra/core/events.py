@@ -1,10 +1,11 @@
 """Domain events (M00 §3.8).
 
 `await events.publish(ctx, "academics.course.deleted", {"course_id": ...})` queues the event on
-the ctx; it is dispatched only after the transaction commits (`run_after_commit`). Dispatch
-pushes it to the user's live connections (SSE, see `core.realtime`) and runs every subscriber in
-its own system ctx and transaction, so one failing subscriber cannot affect the others or the
-publisher.
+the ctx; it is dispatched only after the transaction commits (`run_after_commit`), in a
+background task so the response does not wait for it (`drain` waits, e.g. at shutdown). Dispatch
+runs every subscriber in its own system ctx and transaction, so one failing subscriber cannot
+affect the others or the publisher, then pushes the event to the user's live connections (SSE,
+see `core.realtime`): a tab that refetches on the message sees what the subscribers changed.
 
 A few events must run *inside* the publisher's transaction instead, e.g. `academics.course.deleting`
 lets other modules delete their rows together with the course. Those are subscribed with
@@ -12,6 +13,7 @@ lets other modules delete their rows together with the course. Those are subscri
 with the publisher's ctx, and an exception aborts the whole operation.
 """
 
+import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -31,6 +33,8 @@ class Event:
     data: dict[str, Any]
     # The user the event concerns; only then is it pushed over SSE.
     user_id: str | None
+    # The browser tab whose request caused it (`Ctx.client_id`), sent along over SSE.
+    origin: str | None = None
 
 
 Subscriber = Callable[[Ctx, Event], Awaitable[None]]
@@ -66,19 +70,16 @@ class EventBus:
     ) -> None:
         """Queue an event for after commit. `user_id` defaults to the ctx user."""
         target = user_id if user_id is not None else (ctx.user.id if ctx.user else None)
-        event = Event(event_type, data, target)
-        state = ctx.state
-
-        async def _dispatch() -> None:
-            await self.dispatch(state, event)
-
-        ctx.after_commit.append(_dispatch)
+        event = Event(event_type, data, target, ctx.client_id)
+        # One dispatcher per transaction, so its events reach subscribers and SSE in order.
+        for callback in ctx.after_commit:
+            if isinstance(callback, _Dispatcher):
+                callback.events.append(event)
+                return
+        ctx.after_commit.append(_Dispatcher(self, ctx.state, [event]))
 
     async def dispatch(self, state: State, event: Event) -> None:
         """Deliver an already committed event. Never raises."""
-        realtime = getattr(state, "realtime", None)
-        if realtime is not None and event.user_id is not None:
-            realtime.send(event.user_id, {"type": event.type, "data": event.data})
         for subscriber in self._subscribers.get(event.type, []):
             try:
 
@@ -88,6 +89,46 @@ class EventBus:
                 await run_as_system(state, event.user_id, _run)
             except Exception:
                 log.exception("event_subscriber_failed", event_type=event.type)
+        realtime = getattr(state, "realtime", None)
+        if realtime is not None and event.user_id is not None:
+            message: dict[str, Any] = {"type": event.type, "data": event.data}
+            if event.origin is not None:
+                message["origin"] = event.origin
+            realtime.send(event.user_id, message)
+
+
+@dataclass
+class _Dispatcher:
+    """The after-commit callback that dispatches a transaction's events in a background task."""
+
+    bus: EventBus
+    state: State
+    events: list[Event]
+
+    async def __call__(self) -> None:
+        task = asyncio.create_task(self._run())
+        pending = _pending(self.state)
+        pending.add(task)
+        task.add_done_callback(pending.discard)
+
+    async def _run(self) -> None:
+        for event in self.events:
+            await self.bus.dispatch(self.state, event)
+
+
+def _pending(state: State) -> set[asyncio.Task[None]]:
+    pending: set[asyncio.Task[None]] | None = getattr(state, "event_tasks", None)
+    if pending is None:
+        pending = set[asyncio.Task[None]]()
+        state.event_tasks = pending
+    return pending
+
+
+async def drain(state: State) -> None:
+    """Wait for every dispatch started so far, including the ones those start."""
+    pending = _pending(state)
+    while pending:
+        await asyncio.gather(*list(pending), return_exceptions=True)
 
 
 events = EventBus()

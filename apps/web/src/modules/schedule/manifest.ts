@@ -198,6 +198,7 @@ export default defineModule({
       },
     },
   ],
+  uiPrefPrefixes: ['calendar.'],
   realtimeInvalidations: Object.fromEntries([
     ['calendar.changed', CALENDAR_QUERIES],
     ...SCHEDULE_EVENTS.map((event) => [event, [...SCHEDULE_QUERIES, ...CALENDAR_QUERIES]]),

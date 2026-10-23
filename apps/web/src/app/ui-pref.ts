@@ -8,27 +8,12 @@ import { useCallback } from 'react'
  * setting and never appears on a settings page.
  *
  * Reads share the TanStack Query cache (one entry per key). Keys requested in the same tick are
- * fetched in a single request, and the common prefixes are prefetched when the signed-in layout
- * loads. Writes update the cache at once and are sent 300 ms after the last change.
+ * fetched in a single request, and the prefixes modules declare (`uiPrefPrefixes`) are
+ * prefetched when the signed-in layout loads. Writes update the cache at once and are sent 300 ms after the last change.
  */
 
 const WRITE_DELAY_MS = 300
 const MAX_KEYS_PER_REQUEST = 200
-export const UI_PREF_PREFETCH_PREFIXES = [
-  'layout.',
-  'calendar.',
-  'tasks.',
-  'academics.',
-  'onboarding.',
-  'commands.',
-  'canvas-tab.',
-  'files.',
-  'grading.',
-  'ai.',
-  'portability.',
-  'pomodoro.',
-  'release.',
-] as const
 
 type Entry = { found: boolean; value: unknown }
 
@@ -119,7 +104,7 @@ async function load(queryClient: QueryClient, key: string): Promise<Entry> {
  */
 export function prefetchUiPrefs(
   queryClient: QueryClient,
-  prefixes: readonly string[] = UI_PREF_PREFETCH_PREFIXES,
+  prefixes: readonly string[],
 ): Promise<void> {
   const store = storeOf(queryClient)
   if (store.prefetch) return store.prefetch
@@ -158,6 +143,10 @@ export function resetUiPrefs(queryClient: QueryClient) {
   store.prefetch = null
   store.prefetchedPrefixes = []
   store.writes.clear()
+  // Normally empty (sign-out flushes first); not after deleting the account, which does not.
+  for (const timer of store.timers.values()) clearTimeout(timer)
+  store.timers.clear()
+  store.pending.clear()
 }
 
 async function send(queryClient: QueryClient, key: string) {

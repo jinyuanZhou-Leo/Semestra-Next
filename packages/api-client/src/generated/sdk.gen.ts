@@ -5471,7 +5471,7 @@ export const settingsSchemaList = <ThrowOnError extends boolean = false>(options
             type: 'http'
         }
     ],
-    url: '/settings/schemas',
+    url: '/me/settings-schemas',
     ...options
 });
 
@@ -5548,7 +5548,7 @@ export const settingsValueGet = <ThrowOnError extends boolean = false>(options: 
             type: 'http'
         }
     ],
-    url: '/settings/{namespace}',
+    url: '/me/settings/{namespace}',
     ...options
 });
 
@@ -5558,6 +5558,8 @@ export const settingsValueGet = <ThrowOnError extends boolean = false>(options: 
  * Use when the user wants to change a module setting, e.g. make the calendar
  * open in month view. Only the given fields are set at that level; deeper levels still override them.
  * Look up namespace and field names with settings.schema.list first.
+ * Namespaces whose schema says agent_writable false can only be changed by the user in the settings
+ * page: tell the user where to find it instead.
  * Do not use to change language, theme or other personal preferences.
  */
 export const settingsValueUpdate = <ThrowOnError extends boolean = false>(options: Options<SettingsValueUpdateData, ThrowOnError>): RequestResult<SettingsValueUpdateResponses, SettingsValueUpdateErrors, ThrowOnError> => (options.client ?? client).patch<SettingsValueUpdateResponses, SettingsValueUpdateErrors, ThrowOnError>({
@@ -5578,7 +5580,7 @@ export const settingsValueUpdate = <ThrowOnError extends boolean = false>(option
             type: 'http'
         }
     ],
-    url: '/settings/{namespace}',
+    url: '/me/settings/{namespace}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -5602,7 +5604,7 @@ export const settingsValueReset = <ThrowOnError extends boolean = false>(options
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/settings/{namespace}/keys/{key}',
+    url: '/me/settings/{namespace}/keys/{key}',
     ...options
 });
 
