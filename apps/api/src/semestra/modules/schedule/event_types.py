@@ -30,8 +30,7 @@ BUILTIN_TYPES = (
 
 
 async def ensure_event_types(ctx: Ctx, program_id: str) -> None:
-    """A Program always has the built-in LEC/PRA/TUT (written on creation; also on first use
-    for Programs created before this module)."""
+    """A new Program gets the built-in LEC/PRA/TUT (`academics.program.created`)."""
     count = await ctx.db.scalar(
         select(func.count())
         .select_from(ScheduleEventType)
@@ -56,13 +55,8 @@ async def ensure_event_types(ctx: Ctx, program_id: str) -> None:
 
 
 async def type_rows(ctx: Ctx, program_id: str) -> list[ScheduleEventType]:
-    """The Program's types, the built-in ones written first if missing (not for read paths
-    that run on every calendar request: `stored_types`)."""
-    await ensure_event_types(ctx, program_id)
-    return await stored_types(ctx, program_id)
-
-
-async def stored_types(ctx: Ctx, program_id: str) -> list[ScheduleEventType]:
+    """The Program's types, in order. Reads only: the built-in ones are written once, when the
+    Program is created."""
     return list(
         (
             await ctx.db.scalars(

@@ -854,12 +854,16 @@ async def test_a_repeated_import_keeps_hidden_sections_and_does_not_duplicate_ev
     }
     url = f"/programs/{program_id}/events:batch"
     made = await api.call("POST", url, json={"events": [exam]})
+    # The user's note survives a repeated import, which does not send one.
+    await api.call(
+        "PATCH", f"/events/{made['created_ids'][0]}", json={"note": "Bring a calculator"}
+    )
     redo = await api.call("POST", url, json={"events": [{**exam, "location": "EX 100"}]})
     assert (redo["created_ids"], redo["updated_ids"]) == ([], made["created_ids"])
     events = (await api.call("GET", f"/programs/{program_id}/events"))["items"]
     assert [(e["title"], e["location"]) for e in events] == [("Midterm", "EX 100")]
     one = await api.call("GET", f"/events/{made['created_ids'][0]}")
-    assert one["location"] == "EX 100"
+    assert (one["location"], one["note"]) == ("EX 100", "Bring a calculator")
 
 
 async def test_deleting_a_term_keeps_the_events_of_courses_that_stay(api: Api):
@@ -897,7 +901,9 @@ async def test_deleting_a_term_keeps_the_events_of_courses_that_stay(api: Api):
     assert [(e["id"], e["term_id"]) for e in events] == [(kept["id"], None)]
 
 
-async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(api: Api):
+async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(
+    api: Api, monkeypatch: pytest.MonkeyPatch
+):
     program_id, term_id, course_id = await api.setup()
     await api.meeting(course_id, term_id)
     await api.call(
@@ -909,6 +915,17 @@ async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(api: Ap
     assert [len(o["meta"]["conflicts_with"]) for o in both["items"]] == [1, 1]
     only = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["class"])
     assert [o["meta"]["conflicts_with"] for o in only["items"]] == [[]]
+
+    # Asking only for deadlines does not expand the classes or events at all.
+    async def must_not_run(*_: object) -> list[object]:
+        raise AssertionError("source should be skipped")
+
+    from semestra.modules.schedule.calendar import sources
+
+    monkeypatch.setitem(sources._items, "schedule.meetings", must_not_run)
+    monkeypatch.setitem(sources._items, "schedule.events", must_not_run)
+    due = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["deadline"])
+    assert due["items"] == []
 
 
 async def test_ics_sequence_grows_when_a_class_changes(api: Api, clock: Clock):
@@ -925,7 +942,7 @@ async def test_ics_sequence_grows_when_a_class_changes(api: Api, clock: Clock):
         return int(event.decoded("sequence"))
 
     before = await sequence()
-    clock.advance(minutes=5)
+    clock.advance(seconds=5)
     await api.call(
         "PUT",
         f"/meetings/{meeting['id']}/exceptions/2026-01-12",

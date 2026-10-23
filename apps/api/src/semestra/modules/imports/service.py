@@ -1053,13 +1053,29 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
             ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
         )
         meeting_id = (out["created_ids"] or out["updated_ids"])[0]
+        cancelled = set(data.get("exceptions") or [])
+        # A repeated import takes back the cancellations it wrote before that the file no longer
+        # has; the user's own changes stay.
+        for exc in out["items"][0]["exceptions"]:
+            day = str(exc["original_date"])
+            if exc["imported"] and day not in cancelled:
+                await deps.call(
+                    ctx,
+                    "schedule.exception.delete",
+                    {"meeting_id": meeting_id, "original_date": day},
+                )
         skipped: list[dict[str, str]] = []
         for day in data.get("exceptions") or []:
             try:
                 await deps.call(
                     ctx,
                     "schedule.exception.upsert",
-                    {"meeting_id": meeting_id, "original_date": day, "kind": "cancelled"},
+                    {
+                        "meeting_id": meeting_id,
+                        "original_date": day,
+                        "kind": "cancelled",
+                        "imported": True,
+                    },
                 )
             except AppError as exc:
                 # Not a class day of the meeting (a break week, outside its weeks): reported so

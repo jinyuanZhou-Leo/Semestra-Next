@@ -21684,6 +21684,12 @@
             ],
             "title": "Note",
             "description": "Note shown with the class"
+          },
+          "imported": {
+            "type": "boolean",
+            "title": "Imported",
+            "description": "Set by importers; an imported change never replaces the user's own one",
+            "default": false
           }
         },
         "type": "object",
@@ -25244,6 +25250,11 @@
               }
             ],
             "title": "Note"
+          },
+          "imported": {
+            "type": "boolean",
+            "title": "Imported",
+            "description": "Written by an import (a repeated import may remove it)"
           }
         },
         "type": "object",
@@ -25256,7 +25267,8 @@
           "new_start_time",
           "new_end_time",
           "new_location",
-          "note"
+          "note",
+          "imported"
         ],
         "title": "MeetingException"
       },

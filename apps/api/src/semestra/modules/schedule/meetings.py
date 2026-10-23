@@ -390,11 +390,15 @@ async def upsert_exception(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
             ScheduleMeetingException.original_date == inp.original_date,
         )
     )
+    if exc is not None and inp.imported and not exc.imported:
+        # The user changed this class themselves: their change stays.
+        return (await meetings_out(ctx, [row]))[0]
     if exc is None:
         exc = ScheduleMeetingException(
             id=new_id(), user_id=ctx.user_id, meeting_id=row.id, original_date=inp.original_date
         )
         ctx.db.add(exc)
+    exc.imported = inp.imported
     moved = inp.kind == "moved"
     exc.kind = inp.kind
     exc.new_date = inp.new_date if moved else None

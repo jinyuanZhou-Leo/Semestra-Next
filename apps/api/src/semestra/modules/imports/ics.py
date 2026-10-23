@@ -30,6 +30,8 @@ TYPE_ALIASES = {"DIS": "TUT", "REC": "TUT", "STU": "LAB"}
 _WEEKDAYS = {"MO": 1, "TU": 2, "WE": 3, "TH": 4, "FR": 5, "SA": 6, "SU": 7}
 MAX_EVENTS = 5000  # dates after expansion; the rest is dropped and the import says so
 HORIZON_DAYS = 366
+WINDOW_DAYS = 28  # expanded a window at a time, stopping at MAX_EVENTS
+SUB_DAILY = {"SECONDLY", "MINUTELY", "HOURLY"}
 # Missing occurrences in a row still read as cancellations; more is a break (see `parse`).
 MAX_MISSED_IN_A_ROW = 2
 
@@ -154,7 +156,7 @@ class _Raw:
 def _read(data: bytes, tz: ZoneInfo) -> tuple[list[_Raw], bool]:
     """Every occurrence in the file, recurring events expanded by `recurring-ical-events` (RRULE,
     RDATE, EXDATE and RECURRENCE-ID overrides), cancelled ones left out. The second value says
-    the file had more than `MAX_EVENTS` occurrences and the rest were dropped."""
+    some dates were dropped: past `MAX_EVENTS`, or a rule repeating more often than daily."""
     try:
         calendar = Calendar.from_ical(data)
         starts = [
@@ -167,38 +169,63 @@ def _read(data: bytes, tz: ZoneInfo) -> tuple[list[_Raw], bool]:
     days = [s.date() if isinstance(s, datetime) else s for s in starts]
     # Rules without an end stop a year after the last event starts: past any term in the file.
     first, horizon = min(days), max(days) + timedelta(days=HORIZON_DAYS)
+    # Classes never repeat more often than daily: a finer rule keeps only its first date (and
+    # the import says it was cut), so a FREQ=MINUTELY file cannot expand half a million dates.
+    cut = False
+    for component in calendar.walk("VEVENT"):
+        rule = component.get("rrule")
+        if rule and str((rule.get("FREQ") or [""])[0]).upper() in SUB_DAILY:
+            del component["rrule"]
+            cut = True
     try:
-        occurrences = recurring_ical_events.of(calendar, skip_bad_series=True).between(
-            first, horizon + timedelta(days=1)
-        )
+        query = recurring_ical_events.of(calendar, skip_bad_series=True)
     except Exception as exc:
         raise AppError("import.ics_invalid", 422) from exc
     raws: list[_Raw] = []
-    for component in occurrences:
-        if str(component.get("status", "")).upper() == "CANCELLED":
-            continue
+    seen: set[tuple[str, str]] = set()
+    # In windows, in time order, so a large file stops at the cap with its earliest dates.
+    window = first
+    while window <= horizon:
+        until = min(window + timedelta(days=WINDOW_DAYS), horizon + timedelta(days=1))
         try:
-            start = _local(component.decoded("dtstart"), tz)
-        except KeyError, ValueError:
-            continue
-        try:
-            end = _local(component.decoded("dtend"), tz)
-        except KeyError, ValueError:
-            end = start
-        if len(raws) >= MAX_EVENTS:
-            return raws, True
-        raws.append(
-            _Raw(
-                uid=_text(component, "uid") or f"event-{len(raws)}",
-                summary=_text(component, "summary") or "",
-                start=start,
-                end=end,
-                location=_text(component, "location"),
-                instructor=_instructor(component),
+            components = sorted(
+                query.between(window, until), key=lambda c: _day(_local(c.decoded("dtstart"), tz))
             )
-        )
-    raws.sort(key=lambda r: _day(r.start))
-    return raws, False
+        except Exception as exc:
+            raise AppError("import.ics_invalid", 422) from exc
+        window = until
+        for component in components:
+            if str(component.get("status", "")).upper() == "CANCELLED":
+                continue
+            try:
+                start = _local(component.decoded("dtstart"), tz)
+            except KeyError, ValueError:
+                continue
+            key = (_text(component, "uid") or "", start.isoformat())
+            if key in seen:  # an event spanning two windows comes back in both
+                continue
+            seen.add(key)
+            try:
+                end = _local(component.decoded("dtend"), tz)
+            except KeyError, ValueError:
+                end = start
+            if len(raws) >= MAX_EVENTS:
+                return _sorted(raws), True
+            raws.append(
+                _Raw(
+                    uid=_text(component, "uid") or f"event-{len(raws)}",
+                    summary=_text(component, "summary") or "",
+                    start=start,
+                    end=end,
+                    location=_text(component, "location"),
+                    instructor=_instructor(component),
+                )
+            )
+    return _sorted(raws), cut
+
+
+def _sorted(raws: list[_Raw]) -> list[_Raw]:
+    return sorted(raws, key=lambda r: _day(r.start))
 
 
 def _day(value: datetime | date) -> date:

@@ -104,24 +104,29 @@ async def get_event(ctx: Ctx, event_id: str) -> OneOffEvent:
 async def _write_event(
     ctx: Ctx, program: AcademicsProgram, inp: EventFields, row: ScheduleEvent | None = None
 ) -> ScheduleEvent:
-    """A new event, or `row` overwritten with `inp` (a repeated import)."""
-    await _check_event_links(ctx, program.id, inp.course_id, inp.term_id)
-    await check_type_code(ctx, program.id, inp.type_code)
-    start, end = _normalize_times(inp.start_at, inp.end_at, inp.all_day, program_tz(program))
+    """A new event, or `row` updated with what `inp` sets (a repeated import: fields the
+    importer leaves out, such as the user's note, stay as they are)."""
+    sent = inp.model_fields_set if row is not None else set(EventFields.model_fields)
+    links = {
+        name: getattr(inp, name) if name in sent or row is None else getattr(row, name)
+        for name in ("course_id", "term_id", "type_code")
+    }
+    course_id, term_id, type_code = links["course_id"], links["term_id"], links["type_code"]
+    await _check_event_links(ctx, program.id, course_id, term_id)
+    await check_type_code(ctx, program.id, type_code)
     if row is None:
         row = ScheduleEvent(id=new_id(), user_id=ctx.user_id, created_at=ctx.now)
         ctx.db.add(row)
+    if sent & {"start_at", "end_at", "all_day"}:
+        row.start_at, row.end_at = _normalize_times(
+            inp.start_at, inp.end_at, inp.all_day, program_tz(program)
+        )
+        row.all_day = inp.all_day
     row.program_id = program.id
-    row.term_id = inp.term_id
-    row.course_id = inp.course_id
-    row.type_code = inp.type_code
-    row.title = inp.title
-    row.start_at, row.end_at = start, end
-    row.all_day = inp.all_day
-    row.location = inp.location
-    row.note = inp.note
-    row.source_kind = inp.source_kind
-    row.source_ref = inp.source_ref
+    row.course_id, row.term_id, row.type_code = course_id, term_id, type_code
+    for name in ("title", "location", "note", "source_kind", "source_ref"):
+        if name in sent:
+            setattr(row, name, getattr(inp, name))
     row.updated_at = ctx.now
     return row
 

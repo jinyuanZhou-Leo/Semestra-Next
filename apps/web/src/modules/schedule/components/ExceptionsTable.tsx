@@ -30,24 +30,21 @@ function ExceptionSectionCell({ row }: ExceptionCell) {
 }
 
 function ExceptionChangeCell({ row }: ExceptionCell) {
-  const { exc } = row.original
+  const { meeting, exc } = row.original
+  // A changed start or end shows the class's new time range (the other end as it was).
+  const retimed = exc.new_start_time || exc.new_end_time
+  const when = [
+    exc.new_date ? dayLabel(exc.new_date) : null,
+    retimed
+      ? `${formatTime(exc.new_start_time ?? meeting.start_time)} – ${formatTime(exc.new_end_time ?? meeting.end_time)}`
+      : null,
+    exc.new_location,
+  ]
   return (
     <span className="whitespace-normal">
       {exc.kind === 'cancelled'
         ? m.schedule_status_cancelled()
-        : m.schedule_moved_to({
-            when: [
-              exc.new_date ? dayLabel(exc.new_date) : null,
-              exc.new_start_time
-                ? exc.new_end_time
-                  ? `${formatTime(exc.new_start_time)} – ${formatTime(exc.new_end_time)}`
-                  : formatTime(exc.new_start_time)
-                : null,
-              exc.new_location,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-          })}
+        : m.schedule_moved_to({ when: when.filter(Boolean).join(' · ') })}
       {exc.note ? <span className="text-muted-foreground"> · {exc.note}</span> : null}
     </span>
   )

@@ -3592,6 +3592,12 @@ export type ExceptionUpsertInputBody = {
      * Note shown with the class
      */
     note?: string | null;
+    /**
+     * Imported
+     *
+     * Set by importers; an imported change never replaces the user's own one
+     */
+    imported?: boolean;
 };
 
 /**
@@ -5640,6 +5646,12 @@ export type MeetingException = {
      * Note
      */
     note: string | null;
+    /**
+     * Imported
+     *
+     * Written by an import (a repeated import may remove it)
+     */
+    imported: boolean;
 };
 
 /**

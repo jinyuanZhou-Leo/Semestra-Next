@@ -28,7 +28,7 @@ from semestra.modules.schedule.common import (
     program_tz,
     term_info,
 )
-from semestra.modules.schedule.event_types import stored_types
+from semestra.modules.schedule.event_types import type_rows
 from semestra.modules.schedule.meetings import exceptions_of, meeting_dates
 from semestra.modules.schedule.models import (
     ScheduleEvent,
@@ -73,7 +73,7 @@ async def _range_terms(ctx: Ctx, q: OccurrenceQuery, tz: ZoneInfo) -> list[Acade
     ]
 
 
-@calendar_source("schedule.meetings")
+@calendar_source("schedule.meetings", kinds=("class",))
 async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     program = await academics.get_program_row(ctx, q.program_id)
     tz = program_tz(program)
@@ -146,7 +146,7 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     return out
 
 
-@calendar_source("schedule.events")
+@calendar_source("schedule.events", kinds=("event",))
 async def events_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     await academics.get_program_row(ctx, q.program_id)
     rows = (
@@ -164,7 +164,7 @@ async def events_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     if q.course_ids is not None:
         rows = [r for r in rows if q.wants_course(r.course_id)]
     courses = await program_courses(ctx, q.program_id) if any(r.course_id for r in rows) else {}
-    type_colors = {t.code: t.color for t in await stored_types(ctx, q.program_id)}
+    type_colors = {t.code: t.color for t in await type_rows(ctx, q.program_id)}
     out: list[Occurrence] = []
     for r in rows:
         # A point-in-time event that ends exactly at the range start is outside it.

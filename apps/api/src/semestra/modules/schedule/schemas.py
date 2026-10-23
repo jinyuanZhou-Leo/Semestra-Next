@@ -86,6 +86,7 @@ class MeetingException(BaseModel):
     new_end_time: time | None
     new_location: str | None
     note: str | None
+    imported: bool = Field(description="Written by an import (a repeated import may remove it)")
 
 
 class Meeting(BaseModel):
@@ -225,6 +226,10 @@ class ExceptionUpsertInput(BaseModel):
         default=None, description='Moved: new location; null keeps the meeting\'s, "" means none'
     )
     note: Note | None = Field(default=None, description="Note shown with the class")
+    imported: bool = Field(
+        default=False,
+        description="Set by importers; an imported change never replaces the user's own one",
+    )
 
 
 class ExceptionRef(BaseModel):

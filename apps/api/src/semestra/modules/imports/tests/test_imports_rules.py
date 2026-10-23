@@ -176,6 +176,22 @@ def test_too_many_dates_are_cut_and_say_so(monkeypatch: pytest.MonkeyPatch):
     assert not parse_ics(ics(party), TZ).truncated
 
 
+def test_a_rule_repeating_every_minute_stops_at_the_cap_quickly():
+    import time as clock
+
+    minutely = vevent(
+        uid=":m",
+        summary=":Ping",
+        dtstart=":20260105T090000",
+        dtend=":20260105T090100",
+        rrule=":FREQ=MINUTELY",
+    )
+    began = clock.monotonic()
+    result = parse_ics(ics(minutely), TZ)
+    assert result.truncated
+    assert clock.monotonic() - began < 30
+
+
 def test_invalid_ics():
     import pytest
 

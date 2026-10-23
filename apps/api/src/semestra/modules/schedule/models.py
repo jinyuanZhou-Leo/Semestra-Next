@@ -13,6 +13,7 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
 )
+from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from semestra.core.db import Base, OwnedMixin, TimestampMixin, UTCDateTime, new_id
@@ -90,6 +91,9 @@ class ScheduleMeetingException(Base, OwnedMixin):
     new_end_time: Mapped[time | None] = mapped_column(Time, default=None)
     new_location: Mapped[str | None] = mapped_column(String, default=None)
     note: Mapped[str | None] = mapped_column(String, default=None)
+    # Written by an importer: a repeated import may remove it; the user's own changes it never
+    # touches.
+    imported: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
 
 
 class ScheduleEvent(Base, OwnedMixin, TimestampMixin):
