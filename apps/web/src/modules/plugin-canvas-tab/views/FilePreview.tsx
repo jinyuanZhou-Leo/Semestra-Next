@@ -46,9 +46,9 @@ function previewKind(file: { name: string; mime_type?: string | null }) {
 
 /** The text of an Office file, page by page (slides, sheets), read by the server. */
 function TextPreview({ fileId }: { fileId: string }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const preview = useQuery(
-    lmsFilePreviewOptions({ path: { course_id: courseId, file_id: fileId }, query }),
+    lmsFilePreviewOptions({ path: { course_id: courseId, file_id: fileId } }),
   )
   return (
     <CanvasBoundary query={preview}>
@@ -172,10 +172,8 @@ export function FilePreviewDialog({
 }
 
 function PreviewBody({ fileId }: { fileId: string }) {
-  const { courseId, query } = useCanvasPage()
-  const meta = useQuery(
-    lmsFileGetOptions({ path: { course_id: courseId, file_id: fileId }, query }),
-  )
+  const { courseId } = useCanvasPage()
+  const meta = useQuery(lmsFileGetOptions({ path: { course_id: courseId, file_id: fileId } }))
   const name = meta.data?.name ?? ''
   const { saving, save } = useSaveToCourse(fileId, name)
   const mime = meta.data?.mime_type ?? ''

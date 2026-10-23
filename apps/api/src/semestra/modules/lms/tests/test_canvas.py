@@ -125,10 +125,9 @@ async def test_reads_map_canvas_payloads(settings: Settings, io: Io, mock: respx
         {"kind": "page", "ref": "intro"},
         {"kind": "file", "ref": "77"},
     ]
-    grades = await p.grades(io, cfg, creds, "101")
-    assert grades[0].kind == "total"
-    assert grades[0].score == 90
-    assert grades[1].graded_at == datetime(2026, 2, 10, 12, tzinfo=UTC)
+    [total] = await p.grade_totals(io, cfg, creds, "101")
+    assert (total.kind, total.name, total.score) == ("total", "Course total", 90)
+    assert a.submission.graded_at == datetime(2026, 2, 10, 12, tzinfo=UTC)
     # The bearer token goes to Canvas, and only there.
     sent = mock.calls[0].request
     assert sent.headers["authorization"] == f"Bearer {TOKEN}"
@@ -235,7 +234,14 @@ async def test_file_download_follows_cdn_redirect(
 ):
     canvas_api(mock)
     p, cfg, creds = _cfg(settings)
-    body = b"".join([c async for c in p.open_file(io, cfg, creds, "101", "77")])
+    body = b"".join(
+        [
+            c
+            async for c in p.open_file(
+                io, cfg, creds, "101", await p.file(io, cfg, creds, "101", "77")
+            )
+        ]
+    )
     assert body == b"%PDF"
     cdn = next(c.request for c in mock.calls if c.request.url.host == "cdn.inscloudgate.net")
     assert "authorization" not in cdn.headers  # the token stays with Canvas
@@ -250,7 +256,12 @@ async def test_file_redirect_to_private_address_is_refused(
     )
     p, cfg, creds = _cfg(settings)
     with pytest.raises(AppError) as exc:
-        _ = [c async for c in p.open_file(io, cfg, creds, "101", "77")]
+        _ = [
+            c
+            async for c in p.open_file(
+                io, cfg, creds, "101", await p.file(io, cfg, creds, "101", "77")
+            )
+        ]
     assert exc.value.code == "lms.blocked_address"
 
 
@@ -265,7 +276,12 @@ async def test_file_redirect_with_a_bad_port_is_refused(
     )
     p, cfg, creds = _cfg(settings)
     with pytest.raises(AppError) as exc:
-        _ = [c async for c in p.open_file(io, cfg, creds, "101", "77")]
+        _ = [
+            c
+            async for c in p.open_file(
+                io, cfg, creds, "101", await p.file(io, cfg, creds, "101", "77")
+            )
+        ]
     assert exc.value.code == "lms.blocked_address"
 
 
@@ -278,7 +294,12 @@ async def test_file_redirect_elsewhere_is_refused(
     )
     p, cfg, creds = _cfg(settings)
     with pytest.raises(AppError) as exc:
-        _ = [c async for c in p.open_file(io, cfg, creds, "101", "77")]
+        _ = [
+            c
+            async for c in p.open_file(
+                io, cfg, creds, "101", await p.file(io, cfg, creds, "101", "77")
+            )
+        ]
     assert exc.value.code == "lms.blocked_address"
 
 

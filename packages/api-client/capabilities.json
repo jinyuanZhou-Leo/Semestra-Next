@@ -629,7 +629,7 @@
       "capability": "lms.course.check_updates",
       "module": "lms",
       "effect": "read",
-      "summary": "Imported assignments whose title, due date or points changed on the LMS.",
+      "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
       "plugin_id": null
     },
     {

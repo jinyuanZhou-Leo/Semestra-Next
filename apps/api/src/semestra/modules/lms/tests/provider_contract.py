@@ -44,14 +44,21 @@ async def check_provider(
     if "navigation" in f:
         reads.append(("navigation", await provider.navigation(io, cfg, creds, course_id)))
     if "announcements" in f:
-        reads.append(("announcements", await provider.announcements(io, cfg, creds, course_id)))
+        found = await provider.announcements(io, cfg, creds, [course_id])
+        assert all(a.external_course_id == course_id for a in found)
+        reads.append(("announcements", found))
     if "assignments" in f:
         reads.append(("assignments", await provider.assignments(io, cfg, creds, course_id)))
     if "grades" in f:
-        reads.append(("grades", await provider.grades(io, cfg, creds, course_id)))
+        totals = await provider.grade_totals(io, cfg, creds, course_id)
+        assert all(t.kind == "total" for t in totals)
+        reads.append(("grades", totals))
     if "modules" in f:
         modules = await provider.modules(io, cfg, creds, course_id)
         reads.append(("modules", modules))
+        for module in modules:
+            if module.items is not None:
+                reads.append(("modules", module.items))
         if modules:
             items = await provider.module_items(io, cfg, creds, course_id, modules[0].external_id)
             reads.append(("modules", items))
