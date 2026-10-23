@@ -81,6 +81,8 @@ class AgentProposal(Base, OwnedMixin):
     status: Mapped[str] = mapped_column(String, default="pending")
     result: Mapped[Any] = mapped_column(JSON, default=None, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, default=None)
+    # The chat's names and counts for the step once it ran (`display.describe`).
+    display: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None, nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(default=None)
     executed_at: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column()

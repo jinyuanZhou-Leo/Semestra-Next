@@ -1,7 +1,7 @@
 """files: drop folder position, contentless FTS index, count failed vector retries
 
 Revision ID: 0025
-Revises: 0023
+Revises: 0024
 Create Date: 2026-10-23 04:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0025"
-down_revision: str | Sequence[str] | None = "0023"
+down_revision: str | Sequence[str] | None = "0024"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -15,6 +15,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     calendar,
     capabilities,
     imports,
+    labels,
     models,
     portability,
     subscribers,

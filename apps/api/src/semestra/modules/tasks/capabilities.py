@@ -3,7 +3,9 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.labels import owned_row
 from semestra.modules.tasks import service
+from semestra.modules.tasks.models import TasksItem, TasksList
 from semestra.modules.tasks.schemas import (
     ProgramRef,
     Task,
@@ -74,6 +76,7 @@ async def list_create(ctx: Ctx, inp: TaskListCreateInput) -> TaskList:
 
 @capability(
     name="tasks.list.update",
+    record=("list_id", owned_row(TasksList)),
     summary="Rename a task list or change its color or icon.",
     description="Partial update: only the fields that are sent change.",
     effect="write",
@@ -191,6 +194,7 @@ async def item_create_many(ctx: Ctx, inp: TaskCreateManyInput) -> TaskCreateMany
 
 @capability(
     name="tasks.item.update",
+    record=("task_id", owned_row(TasksItem)),
     agent_core=True,
     summary="Change a task's title, notes, due date and time, priority, flag, list or course.",
     description="""Partial update: only the fields that are sent change; null clears the nullable
@@ -224,6 +228,7 @@ async def item_complete(ctx: Ctx, inp: TaskCompleteInput) -> Task:
 
 @capability(
     name="tasks.item.move",
+    record=("task_id", owned_row(TasksItem)),
     summary="Move a task to another list (or the inbox) and/or to a place within the list.",
     description="""Send list_id (null = inbox) to change list; leave it out to reorder inside the
 current one. before_task_id places the task right before that task, otherwise it goes last.""",

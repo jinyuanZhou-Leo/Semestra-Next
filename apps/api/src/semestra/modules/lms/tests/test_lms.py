@@ -804,7 +804,7 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
     # The confirmation cards (M12 §3.5) say which LMS course, assignments and connection, by
     # name, from the cached reads only; never an external id, never a call to the LMS.
     from semestra.core.capability import registry
-    from semestra.modules.agent.loop import make_preview
+    from semestra.modules.agent.decisions import make_preview
 
     program_id, term_id, conn = await setup_program(api)
     course_id = await api.course(program_id, term_id)

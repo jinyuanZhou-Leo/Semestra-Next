@@ -1,10 +1,16 @@
----
-name: answer-from-course-files
-title: { en: "Answer from course files", zh-CN: "根据课程文件回答" }
-command: /files
-description: Use when the user asks what a course's material says (syllabus rules, lecture notes, assignment handouts) and the answer should come from their uploaded files, with citations.
-tools: [files.document.search, files.document.read, files.document.outline, files.item.list, academics.course.find]
----
++++
+name = "answer-from-course-files"
+title = { en = "Answer from course files", zh-CN = "根据课程文件回答" }
+command = "/files"
+description = "Use when the user asks what a course's material says (syllabus rules, lecture notes, assignment handouts) and the answer should come from their uploaded files, with citations."
+tools = [
+  "files.document.search",
+  "files.document.read",
+  "files.document.outline",
+  "files.item.list",
+  "academics.course.find",
+]
++++
 
 # Answering from course files
 

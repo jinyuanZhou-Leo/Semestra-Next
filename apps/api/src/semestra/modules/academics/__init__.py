@@ -4,7 +4,12 @@ from fastapi import FastAPI
 
 from semestra.core.agent_output import set_zone_resolver
 from semestra.core.capability import registry
-from semestra.modules.academics import capabilities, models, portability  # noqa: F401  (registers on import)
+from semestra.modules.academics import (  # noqa: F401  (registers on import)
+    capabilities,
+    labels,
+    models,
+    portability,
+)
 from semestra.modules.academics.scopes import resolve_scope
 from semestra.modules.academics.service import default_program_id
 from semestra.modules.academics.zone import output_zone

@@ -329,7 +329,8 @@ async def extract[T: BaseModel](
     if not texts and not images:
         raise AppError("common.validation", 422, errors=[{"loc": ["texts"], "code": "missing"}])
     resolved = await resolve_provider(ctx, purpose)
-    window = catalog.context_window(resolved.model)
+    ep = resolved.endpoint
+    window = catalog.context_window(resolved.model, ep.kind, ep.base_url)
     overhead = estimate_tokens(instructions) + estimate_tokens(
         json.dumps(schema.model_json_schema())
     )

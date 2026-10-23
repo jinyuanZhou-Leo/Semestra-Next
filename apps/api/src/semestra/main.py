@@ -68,6 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if warm_up:
             await asyncio.gather(warm_up, return_exceptions=True)
         await runner.stop()
+        # Assistant turns run in the background (M12): stopped here, each keeps what it did.
+        if (agent := getattr(app.state, "agent", None)) is not None:
+            await agent.shutdown()
         await events.drain(app.state)  # subscribers of events already committed
         # M06 writes usage and provider health in background tasks; let them land first.
         if (ai := getattr(app.state, "ai", None)) is not None:

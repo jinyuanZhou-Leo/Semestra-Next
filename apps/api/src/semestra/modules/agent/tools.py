@@ -102,23 +102,27 @@ def search(
         raise ModelRetry("Search with English words, such as 'grade' or 'task'.")
     if not defs:
         return []
-    db = sqlite3.connect(":memory:")
-    try:
-        db.execute("CREATE VIRTUAL TABLE t USING fts5(name, body, tokenize='porter unicode61')")
-        db.executemany(
-            "INSERT INTO t(rowid, name, body) VALUES (?, ?, ?)",
-            [(i, d.name.replace("_", " "), d.description or "") for i, d in enumerate(defs)],
-        )
-        rows = db.execute(
-            "SELECT rowid FROM t WHERE t MATCH ? ORDER BY bm25(t, 4.0, 1.0) LIMIT ?",
-            (" OR ".join(f'"{t}"' for t in terms), SEARCH_LIMIT),
-        ).fetchall()
-    finally:
-        db.close()
-    return [defs[rowid].name for (rowid,) in rows]
+    rows = _index(tuple((d.name, d.description or "") for d in defs)).execute(
+        "SELECT rowid FROM t WHERE t MATCH ? ORDER BY bm25(t, 4.0, 1.0) LIMIT ?",
+        (" OR ".join(f'"{t}"' for t in terms), SEARCH_LIMIT),
+    )
+    return [defs[rowid].name for (rowid,) in rows.fetchall()]
 
 
 SEARCH_LIMIT = 10
+
+
+@functools.lru_cache(maxsize=16)
+def _index(docs: tuple[tuple[str, str], ...]) -> sqlite3.Connection:
+    """The search index of one set of tools. The set only changes with the registry or the
+    user's plugins, so it is built once rather than on every search."""
+    db = sqlite3.connect(":memory:", check_same_thread=False)
+    db.execute("CREATE VIRTUAL TABLE t USING fts5(name, body, tokenize='porter unicode61')")
+    db.executemany(
+        "INSERT INTO t(rowid, name, body) VALUES (?, ?, ?)",
+        [(i, name.replace("_", " "), body) for i, (name, body) in enumerate(docs)],
+    )
+    return db
 
 
 def core_capabilities(available: list[Capability]) -> list[Capability]:

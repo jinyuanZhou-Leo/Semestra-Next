@@ -25,6 +25,7 @@ export const errorMessages = {
   error_agent_proposal_expired: m.error_agent_proposal_expired,
   error_agent_proposal_not_pending: m.error_agent_proposal_not_pending,
   error_agent_repeated_call: m.error_agent_repeated_call,
+  error_agent_stopped: m.error_agent_stopped,
   error_agent_tool_limit_reached: m.error_agent_tool_limit_reached,
   error_ai_cancelled: m.error_ai_cancelled,
   error_ai_capability_unsupported: m.error_ai_capability_unsupported,

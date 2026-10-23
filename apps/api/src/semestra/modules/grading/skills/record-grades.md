@@ -1,10 +1,18 @@
----
-name: record-grades
-title: { en: "Record grades", zh-CN: "录入成绩" }
-command: /grade
-description: Use when the user reports a score they got ("I got 82 on the midterm", "Lab 3: 18/20") or an official final grade, to record it on the right assessment or course.
-tools: [academics.course.find, grading.assessment.find, grading.assessment.list, grading.assessment.create, grading.assessment.update, grading.gradebook.get, grading.course_result.update]
----
++++
+name = "record-grades"
+title = { en = "Record grades", zh-CN = "录入成绩" }
+command = "/grade"
+description = "Use when the user reports a score they got (\"I got 82 on the midterm\", \"Lab 3: 18/20\") or an official final grade, to record it on the right assessment or course."
+tools = [
+  "academics.course.find",
+  "grading.assessment.find",
+  "grading.assessment.list",
+  "grading.assessment.create",
+  "grading.assessment.update",
+  "grading.gradebook.get",
+  "grading.course_result.update",
+]
++++
 
 # Recording grades
 

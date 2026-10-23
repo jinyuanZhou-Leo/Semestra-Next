@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from genai_prices import Usage, calc_price
+from genai_prices.data_snapshot import get_snapshot
 from genai_prices.types import PriceCalculation
 
 from semestra.modules.ai.llm import ProviderCapability, Purpose
@@ -100,11 +101,35 @@ def default_model(kind: str, purpose: Purpose) -> str | None:
     return table.get(purpose)
 
 
-def context_window(model: str) -> int:
+def context_window(model: str, kind: str | None = None, base_url: str | None = None) -> int:
+    """How many tokens the model takes: genai-prices' model data first (it knows gateways such
+    as OpenRouter by their URL, and `vendor/model` names), then `defaults.toml`'s prefixes,
+    tried again without a `vendor/` prefix, then its default."""
+    found = _known_window(model, kind, base_url)
+    if found is not None:
+        return found
     table: dict[str, int] = dict(_load("defaults.toml")["context_window"])
     default = table.pop("default")
-    found = _longest_prefix(table, model.lower())
+    name = model.lower()
+    found = _longest_prefix(table, name) or _longest_prefix(table, name.rpartition("/")[2])
     return int(found) if found is not None else default
+
+
+def _known_window(model: str, kind: str | None, base_url: str | None) -> int | None:
+    snapshot = get_snapshot()
+    lookups: list[tuple[str | None, str | None]] = []
+    if base_url:
+        lookups.append((None, base_url))
+    if kind and (provider_id := _PRICE_PROVIDERS.get(kind)):
+        lookups.append((provider_id, None))
+    for provider_id, url in lookups:
+        try:
+            _, info = snapshot.find_provider_model(model, None, provider_id, url)
+        except LookupError:
+            continue
+        if info.context_window:
+            return info.context_window
+    return None
 
 
 # genai-prices provider ids for the first-party kinds; other kinds are matched by their base URL.

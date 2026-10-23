@@ -1,10 +1,40 @@
----
-name: use-lms
-title: { en: "Use the LMS", zh-CN: "使用学习平台" }
-command: /lms
-description: Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, feedback, pages, modules, files, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.
-tools: [lms.course.link.get, lms.course.overview, lms.announcement.list, lms.assignment.list, lms.grade.list, lms.module.list, lms.module_item.list, lms.page.list, lms.page.get, lms.quiz.list, lms.syllabus.get, lms.submission.get, lms.folder.get, lms.file.search, lms.file.get, lms.file.preview, lms.file.save_to_course, lms.course.list, lms.course.link.set, lms.course.import, lms.assignment.import, lms.syllabus.import, lms.course.check_updates, lms.course.queue_updates, imports.session.get, imports.item.update, imports.item.decide_many, imports.session.commit, imports.session.discard]
----
++++
+name = "use-lms"
+title = { en = "Use the LMS", zh-CN = "使用学习平台" }
+command = "/lms"
+description = "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, feedback, pages, modules, files, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app."
+tools = [
+  "lms.course.link.get",
+  "lms.course.overview",
+  "lms.announcement.list",
+  "lms.assignment.list",
+  "lms.grade.list",
+  "lms.module.list",
+  "lms.module_item.list",
+  "lms.page.list",
+  "lms.page.get",
+  "lms.quiz.list",
+  "lms.syllabus.get",
+  "lms.submission.get",
+  "lms.folder.get",
+  "lms.file.search",
+  "lms.file.get",
+  "lms.file.preview",
+  "lms.file.save_to_course",
+  "lms.course.list",
+  "lms.course.link.set",
+  "lms.course.import",
+  "lms.assignment.import",
+  "lms.syllabus.import",
+  "lms.course.check_updates",
+  "lms.course.queue_updates",
+  "imports.session.get",
+  "imports.item.update",
+  "imports.item.decide_many",
+  "imports.session.commit",
+  "imports.session.discard",
+]
++++
 
 # Using the LMS
 

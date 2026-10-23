@@ -177,11 +177,11 @@ export type AgentProposalOut = {
     /**
      * Input Schema
      *
-     * JSON schema of `args`, for the edit form.
+     * JSON schema of `args`, for the edit form; only while the card is pending.
      */
     input_schema: {
         [key: string]: unknown;
-    };
+    } | null;
     /**
      * Preview
      */
@@ -196,6 +196,14 @@ export type AgentProposalOut = {
      * Result
      */
     result: unknown;
+    /**
+     * Display
+     *
+     * Names and counts for the step's line once it ran (as in `tool_result`).
+     */
+    display?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Error Code
      */

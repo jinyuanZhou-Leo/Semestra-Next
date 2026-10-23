@@ -1,4 +1,5 @@
 import type { AgentProposalOut, MemoryOut } from '@semestra/api-client'
+import { EventSourceParserStream } from 'eventsource-parser/stream'
 import { csrfHeaders, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
@@ -46,6 +47,8 @@ export type RememberedMemory = {
 }
 
 export type AgentEvent =
+  /** First of every turn: the last row stored before it (what following from the start rebuilds). */
+  | { event: 'start'; data: { after: string | null } }
   | { event: 'message_start'; data: { message_id: string } }
   | { event: 'text_delta'; data: { message_id: string; text: string } }
   | { event: 'reasoning_delta'; data: { message_id: string; text: string } }
@@ -79,36 +82,49 @@ export type AgentEvent =
   | { event: 'paused'; data: { message_id: string; reason: PauseReason } }
   | { event: 'error'; data: { code: string; params: Record<string, unknown> } }
 
-/** Splits an SSE body into events; `rest` is an incomplete block to prepend to the next chunk. */
-export function parseSse(buffer: string): { events: AgentEvent[]; rest: string } {
-  const blocks = buffer.split(/\r?\n\r?\n/)
-  const rest = blocks.pop() ?? ''
-  const events: AgentEvent[] = []
-  for (const block of blocks) {
-    let name = 'message'
-    const data: string[] = []
-    for (const line of block.split(/\r?\n/)) {
-      if (line.startsWith('event:')) name = line.slice(6).trim()
-      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
-    }
-    if (data.length === 0) continue // a keep-alive comment
+/** Reads an SSE response until it ends, calling `onEvent` for each event; returns the id of the
+ * last one, for picking the turn up again (`followAgent`). */
+async function readEvents(
+  response: Response,
+  onEvent: (event: AgentEvent) => void,
+  onId: (id: string) => void,
+): Promise<void> {
+  if (!response.body) return
+  // A reader rather than `for await`, which Safari's streams lacked until recently.
+  const reader = response.body
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new EventSourceParserStream())
+    .getReader()
+  for (;;) {
+    const { value: message, done } = await reader.read()
+    if (done) return
+    if (message.id) onId(message.id)
+    if (!message.event) continue
+    let data: unknown
     try {
-      events.push({ event: name, data: JSON.parse(data.join('\n')) } as AgentEvent)
+      data = JSON.parse(message.data)
     } catch {
-      // A malformed event is skipped; the transcript is re-read when the turn ends.
+      continue // A malformed event is skipped; the transcript is re-read when the turn ends.
     }
+    onEvent({ event: message.event, data } as AgentEvent)
   }
-  return { events, rest }
+}
+
+async function failed(response: Response): Promise<never> {
+  const json: unknown = await response.json().catch(() => undefined)
+  throw toApiError(json, response.status)
 }
 
 /**
  * POSTs to one of the streaming endpoints (send, decide, regenerate) and calls `onEvent` for
- * every event until the turn ends. Errors before the stream starts are thrown as `ApiError`.
+ * every event until the turn ends. Errors before the stream starts are thrown as `ApiError`; a
+ * lost connection throws as `fetch` does, and `onId` has the last event seen.
  */
 export async function streamAgent(
   path: string,
   body: unknown,
   onEvent: (event: AgentEvent) => void,
+  onId: (id: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(apiUrl(path), {
@@ -118,18 +134,31 @@ export async function streamAgent(
     body: JSON.stringify(body),
     signal,
   })
-  if (!response.ok || !response.body) {
-    const json: unknown = await response.json().catch(() => undefined)
-    throw toApiError(json, response.status)
-  }
-  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
-  let buffer = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    const parsed = parseSse(buffer + value)
-    buffer = parsed.rest
-    for (const event of parsed.events) onEvent(event)
-  }
-  for (const event of parseSse(`${buffer}\n\n`).events) onEvent(event)
+  if (!response.ok) await failed(response)
+  await readEvents(response, onEvent, onId)
+}
+
+/**
+ * Follows the conversation's running turn: after `lastEventId`, or from its start (whose `start`
+ * event says which rows the events rebuild). False when no turn is running.
+ */
+export async function followAgent(
+  sessionId: string,
+  lastEventId: string | null,
+  onEvent: (event: AgentEvent) => void,
+  onId: (id: string) => void,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const response = await fetch(apiUrl(`/agent/sessions/${sessionId}/events`), {
+    credentials: 'include',
+    headers: {
+      Accept: 'text/event-stream',
+      ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
+    },
+    signal,
+  })
+  if (response.status === 204) return false
+  if (!response.ok) await failed(response)
+  await readEvents(response, onEvent, onId)
+  return true
 }

@@ -3,7 +3,9 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.labels import owned_row
 from semestra.modules.academics import service
+from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram, AcademicsTerm
 from semestra.modules.academics.schemas import (
     CalendarInfo,
     Course,
@@ -97,6 +99,7 @@ async def program_create(ctx: Ctx, inp: ProgramCreateInput) -> Program:
 
 @capability(
     name="academics.program.update",
+    record=("program_id", owned_row(AcademicsProgram)),
     summary="Change a Program's name, school, time zone or credit settings.",
     description="Partial update: only the fields that are sent change.",
     effect="write",
@@ -205,6 +208,7 @@ async def term_create(ctx: Ctx, inp: TermCreateInput) -> TermCreateResult:
 
 @capability(
     name="academics.term.update",
+    record=("term_id", owned_row(AcademicsTerm)),
     summary="Change a term's name, dates, breaks or week numbering.",
     description="""Partial update. `breaks` replaces the whole list; keep the ids of breaks that
 stay. Fails with academics.course_terms_not_adjacent when new dates would separate the terms of
@@ -324,6 +328,7 @@ async def course_create_many(ctx: Ctx, inp: CourseCreateManyInput) -> CourseList
 
 @capability(
     name="academics.course.update",
+    record=("course_id", owned_row(AcademicsCourse)),
     summary="Change a course's code, title, alias, credits, color, instructors or other fields.",
     description="""Partial update: only the fields that are sent change. To move a course to other
 terms or make it year-long, use academics.course.set_terms.""",

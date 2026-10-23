@@ -78,6 +78,23 @@ function timingOf(message: AgentMessageOut): number | null {
   return typeof ms === 'number' ? ms : null
 }
 
+/**
+ * Items already built, by their first message. The query cache shares unchanged objects between
+ * updates, so an item whose messages, results and cards are the same objects is reused as is:
+ * while an answer streams, only the last item is new and the earlier ones skip rendering.
+ */
+const built = new WeakMap<AgentMessageOut, { deps: unknown[]; item: ViewItem }>()
+
+function reuse(key: AgentMessageOut, deps: unknown[], make: () => ViewItem): ViewItem {
+  const hit = built.get(key)
+  if (hit && hit.deps.length === deps.length && hit.deps.every((d, i) => d === deps[i])) {
+    return hit.item
+  }
+  const item = make()
+  built.set(key, { deps, item })
+  return item
+}
+
 /** The stored transcript as the conversation shows it: tool messages fold into their steps. */
 export function buildItems(detail: AgentSessionDetail, generating = false): ViewItem[] {
   const results = new Map<string, Block>()
@@ -94,55 +111,87 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
     const proposal = proposalByCall.get(callId)
     let status: StepStatus = generating ? 'running' : 'error'
     if (result) status = result.is_error ? 'error' : 'done'
+    // A card decided while another still waits, or after the conversation moved on, has no
+    // result row: what it did is on the card.
+    else if (proposal?.status === 'executed') status = 'done'
+    else if (proposal?.status === 'failed') status = 'error'
     if (proposal?.status === 'pending') status = 'waiting'
     else if (proposal?.status === 'rejected') status = 'rejected'
     else if (proposal?.status === 'expired') status = 'expired'
+    const ranCard = !result && (proposal?.status === 'executed' || proposal?.status === 'failed')
     return {
       callId,
       name: capabilityName(str(call.name)),
       args: (call.args as Record<string, unknown> | undefined) ?? {},
       status,
-      errorCode: result ? ((result.error_code as string | null) ?? null) : null,
+      errorCode: result
+        ? ((result.error_code as string | null) ?? null)
+        : ranCard
+          ? (proposal?.error_code ?? null)
+          : null,
       proposal: proposal ?? null,
       memory: (result?.memory as RememberedMemory | undefined) ?? null,
-      display: (result?.display as StepDisplay | undefined) ?? null,
-      changed: result?.changed === true,
+      display:
+        (result?.display as StepDisplay | undefined) ??
+        (proposal?.display as StepDisplay | null | undefined) ??
+        null,
+      changed: result ? result.changed === true : proposal?.status === 'executed',
     }
   }
 
   const items: ViewItem[] = []
   let turn: AgentMessageOut[] = []
   const closeTurn = () => {
-    if (turn.length > 0) items.push(assistantItem(turn, detail.proposals, stepOf))
+    const messages = turn
     turn = []
+    if (messages.length === 0) return
+    const calls = messages.flatMap((m) => m.content.filter((b) => b.type === 'tool_call'))
+    const ids = new Set(messages.map((m) => m.id))
+    const deps = [
+      ...messages,
+      ...calls.flatMap((c) => [results.get(str(c.id)), proposalByCall.get(str(c.id))]),
+      ...detail.proposals.filter((p) => ids.has(p.message_id)),
+      // A call without a result is running or failed depending on it.
+      calls.length > 0 && generating,
+    ]
+    items.push(
+      reuse(messages[0] as AgentMessageOut, deps, () =>
+        assistantItem(messages, detail.proposals, stepOf),
+      ),
+    )
   }
   for (const message of detail.messages) {
     if (message.role === 'user') {
       const content = message.content
       if (content.every((b) => b.type === 'note')) continue
       closeTurn()
-      items.push({
-        kind: 'user',
-        id: message.id,
-        text: content
-          .filter((b) => b.type === 'text')
-          .map((b) => str(b.text))
-          .join('\n'),
-        skill: (content.find((b) => b.type === 'skill')?.title as Record<string, string>) ?? null,
-        attachments: content
-          .filter((b) => b.type === 'image_ref' || b.type === 'file_ref')
-          .map((b) => ({
-            id: str(b.attachment_id),
-            name: str(b.name),
-            kind: b.type === 'image_ref' ? 'image' : 'file',
-          })),
-      })
+      items.push(reuse(message, [message], () => userItem(message)))
     } else if (message.role === 'assistant') {
       turn.push(message)
     }
   }
   closeTurn()
   return items
+}
+
+function userItem(message: AgentMessageOut): ViewItem {
+  const content = message.content
+  return {
+    kind: 'user',
+    id: message.id,
+    text: content
+      .filter((b) => b.type === 'text')
+      .map((b) => str(b.text))
+      .join('\n'),
+    skill: (content.find((b) => b.type === 'skill')?.title as Record<string, string>) ?? null,
+    attachments: content
+      .filter((b) => b.type === 'image_ref' || b.type === 'file_ref')
+      .map((b) => ({
+        id: str(b.attachment_id),
+        name: str(b.name),
+        kind: b.type === 'image_ref' ? 'image' : 'file',
+      })),
+  }
 }
 
 function assistantItem(
@@ -193,7 +242,9 @@ function assistantItem(
   }
 }
 
-/** Every file quoted in the conversation, by id. */
+let lastCitations = new Map<string, Citation>()
+
+/** Every file quoted in the conversation, by id; the same Map while they stay the same. */
 export function citationsOf(detail: AgentSessionDetail): Map<string, Citation> {
   const out = new Map<string, Citation>()
   for (const message of detail.messages) {
@@ -203,7 +254,10 @@ export function citationsOf(detail: AgentSessionDetail): Map<string, Citation> {
       }
     }
   }
-  return out
+  const same =
+    out.size === lastCitations.size && [...out].every(([id, c]) => lastCitations.get(id) === c)
+  if (!same) lastCitations = out
+  return lastCitations
 }
 
 function now(): string {
@@ -287,6 +341,16 @@ function stopTimer(content: Block[], again: boolean): Block[] {
 }
 
 /** Applies one streamed event to the cached transcript (the server copy is re-read after). */
+/**
+ * Following a turn from its start (a reload, another tab): what came after the row stored before
+ * the turn is dropped, as the replayed events rebuild it. Unchanged when that row is not here.
+ */
+export function restartFrom(detail: AgentSessionDetail, after: string | null): AgentSessionDetail {
+  const at = after === null ? -1 : detail.messages.findIndex((m) => m.id === after)
+  if (after !== null && at < 0) return detail
+  return { ...detail, messages: detail.messages.slice(0, at + 1) }
+}
+
 export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): AgentSessionDetail {
   switch (event.event) {
     case 'message_start':

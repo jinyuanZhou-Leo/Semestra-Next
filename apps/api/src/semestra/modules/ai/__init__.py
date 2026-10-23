@@ -25,7 +25,6 @@ from semestra.modules.ai.extraction import (
     extract,
 )
 from semestra.modules.ai.llm import (
-    Chunk,
     Completion,
     Document,
     EmbeddingResult,
@@ -34,11 +33,7 @@ from semestra.modules.ai.llm import (
     PageText,
     Purpose,
     Rasterize,
-    Reasoning,
     Text,
-    Tool,
-    ToolCall,
-    ToolResult,
     Usage,
 )
 from semestra.modules.ai.resolve import resolve_provider
@@ -47,7 +42,6 @@ from semestra.modules.ai.runtime import AiRuntime
 __all__ = [
     "UNTRUSTED_NOTICE",
     "AgentModel",
-    "Chunk",
     "Completion",
     "Document",
     "EmbeddingResult",
@@ -60,11 +54,7 @@ __all__ = [
     "PageText",
     "Purpose",
     "Rasterize",
-    "Reasoning",
     "Text",
-    "Tool",
-    "ToolCall",
-    "ToolResult",
     "Usage",
     "agent_model",
     "available",

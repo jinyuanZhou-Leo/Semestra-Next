@@ -1,16 +1,23 @@
 """Process-wide assistant state: running generations, stop signals and the model hooks.
 
+A generation runs as its own task, not inside the request that started it: a client that goes
+away (a reload, a lost connection, another page) does not stop it. Its events are buffered with
+sequential ids, so any client can follow it from the start or pick up after the last event it
+saw (`Generation.follow`); only Stop ends it early.
+
 Tests replace `chat_model`, `chat_available`, `small_complete` and `memory_model` with scripted
 fakes.
 """
 
 import asyncio
+import json
 import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Awaitable, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Protocol
 
+import structlog
 from pydantic_ai.models import Model
 from starlette.datastructures import State
 
@@ -21,6 +28,11 @@ from semestra.modules.agent.memory import MemoryUpdates
 from semestra.modules.ai import Message
 
 MAX_GENERATIONS_PER_USER = 2
+KEEP_FINISHED_SECONDS = 60  # a client reconnecting just after the end still gets the tail
+
+log = structlog.get_logger()
+
+SseItem = dict[str, str]
 
 
 class ChatLike(Protocol):
@@ -82,6 +94,44 @@ class Claim:
             self._rt._release(self)  # pyright: ignore[reportPrivateUsage]
 
 
+class Generation:
+    """The events of one running (or just finished) generation."""
+
+    def __init__(self, session_id: str) -> None:
+        self.id = uuid.uuid4().hex[:12]
+        self.session_id = session_id
+        self.items: list[SseItem] = []
+        self.done = False
+        self.task: asyncio.Task[None] | None = None
+        self._changed = asyncio.Condition()
+
+    async def push(self, item: SseItem) -> None:
+        async with self._changed:
+            self.items.append({**item, "id": f"{self.id}:{len(self.items)}"})
+            self._changed.notify_all()
+
+    async def close(self) -> None:
+        async with self._changed:
+            self.done = True
+            self._changed.notify_all()
+
+    def position(self, last_event_id: str | None) -> int:
+        """The index after `Last-Event-ID`; the start for an id of another generation."""
+        gen, _, n = (last_event_id or "").partition(":")
+        return int(n) + 1 if gen == self.id and n.isdigit() else 0
+
+    async def follow(self, start: int = 0) -> AsyncIterator[SseItem]:
+        i = start
+        while True:
+            while i < len(self.items):
+                yield self.items[i]
+                i += 1
+            if self.done:
+                return
+            async with self._changed:
+                await self._changed.wait_for(lambda seen=i: len(self.items) > seen or self.done)
+
+
 class AgentRuntime:
     def __init__(self) -> None:
         self.chat_model: Callable[[Ctx], AbstractAsyncContextManager[ChatLike]] = _chat_model
@@ -90,6 +140,7 @@ class AgentRuntime:
         self.memory_model: Callable[[Ctx, list[Message]], Awaitable[MemoryUpdates]] = _memory_model
         self._per_user: defaultdict[str, int] = defaultdict(int)
         self._running: dict[str, asyncio.Event] = {}
+        self._generations: dict[str, Generation] = {}
 
     def generating(self, session_id: str) -> bool:
         return session_id in self._running
@@ -120,6 +171,47 @@ class AgentRuntime:
             yield claim.cancel
         finally:
             claim.release()
+
+    def start(self, claim: Claim, events: AsyncIterator[SseItem]) -> Generation:
+        """Runs `events` as the session's generation; the claim is released when it ends."""
+        gen = Generation(claim.session_id)
+        self._generations[claim.session_id] = gen
+        gen.task = asyncio.create_task(self._drive(gen, events, claim))
+        return gen
+
+    async def _drive(self, gen: Generation, events: AsyncIterator[SseItem], claim: Claim) -> None:
+        try:
+            async for item in events:
+                await gen.push(item)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The run itself reports its errors; this is anything before it or around it. No one
+            # awaits this task, so without the event the chat would wait for nothing.
+            log.exception("agent_turn_failed", session_id=gen.session_id)
+            await gen.push(
+                {"event": "error", "data": json.dumps({"code": "common.internal", "params": {}})}
+            )
+        finally:
+            claim.release()
+            await asyncio.shield(gen.close())
+            loop = asyncio.get_running_loop()
+            loop.call_later(KEEP_FINISHED_SECONDS, self._forget, gen)
+
+    def _forget(self, gen: Generation) -> None:
+        if self._generations.get(gen.session_id) is gen:
+            del self._generations[gen.session_id]
+
+    def generation(self, session_id: str) -> Generation | None:
+        """The session's running generation, or the one that just ended."""
+        return self._generations.get(session_id)
+
+    async def shutdown(self) -> None:
+        """Stops every generation; each keeps what it said and did so far."""
+        tasks = [g.task for g in self._generations.values() if g.task and not g.task.done()]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     def stop(self, session_id: str) -> bool:
         cancel = self._running.get(session_id)

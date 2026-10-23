@@ -6,7 +6,7 @@ import pytest
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
-from semestra.modules.agent.loop import make_preview
+from semestra.modules.agent.decisions import make_preview
 from semestra.modules.agent.tests.conftest import Agent
 
 
@@ -238,3 +238,24 @@ async def test_the_same_moment_in_another_offset_is_no_change(agent: Agent):
     by_field = {c["field"]: c for c in card["changes"]}
     assert "before" not in by_field["start_at"]
     assert by_field["end_at"]["before"].startswith("2026-10-20T20:00")
+
+
+# Updates whose card names its changes without a before: a scale's input names its Program, not
+# the scale; a setting's value is shown by the settings page itself.
+_NO_RECORD = {"grading.scale.update", "settings.value.update"}
+
+
+def test_every_update_card_can_show_before_and_after():
+    """A new `*.update` capability declares its record (`@capability(record=...)`) or its own
+    preview, or its card would show only the new values."""
+    missing = [
+        name
+        for name in sorted(registry.names())
+        if name.rsplit(".", 1)[-1] in ("update", "move")
+        and (cap := registry.get(name)).effect != "read"
+        and "agent" in cap.expose
+        and cap.record is None
+        and cap.preview is None
+        and name not in _NO_RECORD
+    ]
+    assert missing == []

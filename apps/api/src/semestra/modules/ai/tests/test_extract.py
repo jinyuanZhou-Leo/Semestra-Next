@@ -38,11 +38,12 @@ def ev(value: Any, page: int | None, quote: str, confidence: float = 0.9) -> dic
 
 
 def tool_reply(payload: dict[str, Any]) -> Response:
+    """Claude's JSON schema mode: the result is the text of the reply."""
     return Response(
         200,
         json={
-            "content": [{"type": "tool_use", "id": "x", "name": "Syllabus", "input": payload}],
-            "stop_reason": "tool_use",
+            "content": [{"type": "text", "text": json.dumps(payload)}],
+            "stop_reason": "end_turn",
             "usage": {"input_tokens": 100, "output_tokens": 20},
         },
     )
@@ -124,7 +125,7 @@ async def test_long_documents_are_split_and_merged(
     await ai.provider("anthropic")
     monkeypatch.setattr(extraction, "MIN_SEGMENT_TOKENS", 40)
     monkeypatch.setattr(extraction, "OUTPUT_RESERVE_TOKENS", 0)
-    monkeypatch.setattr(catalog, "context_window", lambda model: 1)  # budget = the minimum
+    monkeypatch.setattr(catalog, "context_window", lambda *_: 1)  # budget = the minimum
     pages = [PageText(1, "Course APS105H1 " * 6), PageText(2, "Instructor Jane Doe " * 6)]
     replies = [
         tool_reply(

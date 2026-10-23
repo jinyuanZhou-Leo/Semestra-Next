@@ -47,6 +47,8 @@ NAME_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 IDLE = timedelta(minutes=30)
 # Conversations idle for longer than this when consolidation first sees them are left alone.
 LOOKBACK = timedelta(days=7)
+# Failed passes over the same messages before they are given up.
+MAX_FAILURES = 3
 BATCH = 50
 TRANSCRIPT_CHARS = 12_000
 # How much of each body the consolidation model sees.
@@ -439,21 +441,27 @@ def _listing(rows: list[AgentMemory]) -> str:
 
 
 async def consolidate(ctx: Ctx, session: AgentSession) -> None:
-    """One pass over what was said since the last pass; marks the conversation as read."""
+    """One pass over what was said since the last pass; marks the conversation as read.
+
+    Nothing is written before the model answers: a pending write would hold SQLite's write lock
+    for the whole call and every other write would fail with `database is locked`. A call that
+    fails leaves the conversation unread, so the same messages are read again next round."""
     since = session.memory_processed_at
-    session.memory_processed_at = ctx.now
     query = select(AgentMessage).where(AgentMessage.session_id == session.id)
     if since is not None:
         query = query.where(AgentMessage.created_at > since)
     rows = list(await ctx.db.scalars(query.order_by(AgentMessage.created_at, AgentMessage.id)))
+    # Read up to the newest message seen, not `now`: one written while the model runs is read
+    # next time.
+    read_until = max((r.created_at for r in rows), default=ctx.now)
     if (session.state or {}).get("memory") is None:
         # Started with memory off (or temporary): that conversation stays out of memory even
         # when memory is turned back on later.
-        return
-    if not any(r.role == "user" for r in rows) or not await active(ctx, session):
+        session.memory_processed_at = read_until
         return
     transcript = _transcript(rows)
-    if not transcript:
+    if not transcript or not await active(ctx, session):
+        session.memory_processed_at = read_until
         return
     listing = _listing(await memories(ctx))
     today = ctx.now.date().isoformat()
@@ -468,9 +476,25 @@ async def consolidate(ctx: Ctx, session: AgentSession) -> None:
                 ),
             ],
         )
-    except AppError as exc:  # no model set up, provider down: try again after the next message
-        log.info("agent.memory.consolidate_failed", session_id=session.id, code=exc.code)
+    except AppError as exc:
+        # No model set up, provider down: read again next round. A failure that keeps coming
+        # back (an answer the model cannot shape, a conversation too long) gives that window
+        # up after `MAX_FAILURES` rounds rather than calling the model every round for a week.
+        state = dict(session.state or {})
+        failures = int(state.get("memory_failures", 0)) + 1
+        log.info(
+            "agent.memory.consolidate_failed", session_id=session.id, code=exc.code, n=failures
+        )
+        if failures >= MAX_FAILURES:
+            state.pop("memory_failures", None)
+            session.memory_processed_at = read_until
+        else:
+            state["memory_failures"] = failures
+        session.state = state
         return
+    if "memory_failures" in (session.state or {}):
+        session.state = {k: v for k, v in session.state.items() if k != "memory_failures"}
+    session.memory_processed_at = read_until
     await apply(ctx, updates, session_id=session.id)
 
 
