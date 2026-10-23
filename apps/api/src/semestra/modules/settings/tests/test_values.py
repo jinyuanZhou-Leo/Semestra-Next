@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -14,7 +15,7 @@ from semestra.modules.settings.models import SettingsValue
 from semestra.testing import MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
-NS = "/settings/demo_calendar"
+NS = "/me/settings/demo_calendar"
 
 
 async def signed_in(client: AsyncClient, make_user: MakeUser, login_as: LoginAs) -> UserHandle:
@@ -166,22 +167,22 @@ async def test_a_rule_across_fields_sees_inherited_values(
 ):
     await signed_in(client, make_user, login_as)
     ok = await client.patch(
-        "/settings/demo_hours", json={"scope_type": "account", "values": {"end": 10}}
+        "/me/settings/demo_hours", json={"scope_type": "account", "values": {"end": 10}}
     )
     assert ok.status_code == 200
 
     # Alone, start=12 would pass against the default end (20); with the inherited end=10 it is not.
     program = {"scope_type": "program", "scope_id": "P1", "values": {"start": 12}}
-    r = await client.patch("/settings/demo_hours", json=program)
+    r = await client.patch("/me/settings/demo_hours", json=program)
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "settings.invalid_value"
     after = await client.get(
-        "/settings/demo_hours", params={"scope_type": "program", "scope_id": "P1"}
+        "/me/settings/demo_hours", params={"scope_type": "program", "scope_id": "P1"}
     )
     assert after.json()["values"] == {"start": 8, "end": 10}  # nothing was stored
 
     program["values"] = {"start": 6}
-    assert (await client.patch("/settings/demo_hours", json=program)).status_code == 200
+    assert (await client.patch("/me/settings/demo_hours", json=program)).status_code == 200
 
 
 async def test_level_not_allowed_and_unknown_namespace(
@@ -200,7 +201,7 @@ async def test_level_not_allowed_and_unknown_namespace(
     )
     assert r.json()["error"]["code"] == "settings.level_not_allowed"
 
-    r = await client.get("/settings/nope")
+    r = await client.get("/me/settings/nope")
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "settings.unknown_namespace"
 
@@ -227,7 +228,7 @@ async def test_values_are_per_user(client: AsyncClient, make_user: MakeUser, log
 
 async def test_requires_login(client: AsyncClient):
     assert (await client.get(NS)).status_code == 401
-    assert (await client.get("/settings/schemas")).status_code == 401
+    assert (await client.get("/me/settings-schemas")).status_code == 401
 
 
 async def test_stale_stored_data_falls_back_to_defaults(
@@ -278,7 +279,7 @@ async def test_schemas_list_describes_every_namespace(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ):
     await signed_in(client, make_user, login_as)
-    r = await client.get("/settings/schemas")
+    r = await client.get("/me/settings-schemas")
     assert r.status_code == 200
     by_name = {i["namespace"]: i for i in r.json()["items"]}
     calendar = by_name["demo_calendar"]
@@ -296,7 +297,8 @@ async def test_scope_deletion_and_plugin_purge_remove_values(
     await patch(client, ("program", "P1"), {"show_weekends": False})
     await patch(client, ("term", "T1"), {"default_view": "day"})
     await client.patch(
-        "/settings/plugin.demo-timer", json={"scope_type": "account", "values": {"focus_min": 50}}
+        "/me/settings/plugin.demo-timer",
+        json={"scope_type": "account", "values": {"focus_min": 50}},
     )
 
     async def rows() -> set[tuple[str, str, str]]:
@@ -348,10 +350,34 @@ async def test_an_uninstalled_plugins_settings_are_refused(
 
     registry.set_plugin_gate(nothing_installed)
     try:
-        url = "/settings/plugin.demo-timer"
+        url = "/me/settings/plugin.demo-timer"
         r = await client.get(url, params={"scope_type": "account"})
         assert r.json()["error"]["code"] == "plugins.not_installed"
         r = await client.patch(url, json={"scope_type": "account", "values": {"focus_min": 5}})
         assert r.json()["error"]["code"] == "plugins.not_installed"
     finally:
         registry.set_plugin_gate(previous)
+
+
+async def test_sem_and_mcp_cannot_flip_user_only_switches(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    from semestra.core.context import system_ctx
+    from semestra.core.errors import AppError
+
+    user = await signed_in(client, make_user, login_as)
+    schemas = (await client.get("/me/settings-schemas")).json()["items"]
+    by_ns = {s["namespace"]: s["agent_writable"] for s in schemas}
+    assert by_ns["lms"] is False
+    assert by_ns["memory"] is False
+    assert by_ns["calendar"] is True
+
+    args = {"namespace": "lms", "scope_type": "account", "values": {"allow_writes": True}}
+    for surface in ("agent", "mcp"):
+        async with system_ctx(app.state, user.id) as ctx:
+            with pytest.raises(AppError) as refused:
+                await registry.invoke(ctx, "settings.value.update", args, surface)
+        assert refused.value.code == "settings.user_only"
+    r = await client.patch("/me/settings/lms", json={"values": {"allow_writes": True}})
+    assert r.status_code == 200
+    assert r.json()["values"]["allow_writes"] is True

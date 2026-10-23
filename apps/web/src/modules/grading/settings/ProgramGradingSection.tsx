@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { presetOptions } from '../presets'
 import { invalidateGrading, useGradingScale, useScalePresets } from '../queries'
+import { forecastOptions } from './forecast-options'
 
 /** Program "GPA and grades" settings (M03 §5.4): conversion table, year courses, defaults, privacy. */
 export function ProgramGradingSection({ scope }: SettingsSectionProps) {
@@ -64,17 +65,12 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
   const attributionId = useId()
   const forecastId = useId()
   const hideId = useId()
+  const roundId = useId()
   const [attribution, setAttribution] = useState(scale.year_course_attribution)
   const [forecast, setForecast] = useState(scale.default_forecast_model)
   const [hide, setHide] = useState(scale.hide_gpa)
-  const forecastItems = [
-    { value: 'auto', label: m.grading_forecast_auto(), hint: m.grading_forecast_auto_hint() },
-    {
-      value: 'simple_minimum_needed',
-      label: m.grading_forecast_simple(),
-      hint: m.grading_forecast_simple_hint(),
-    },
-  ] as const
+  const [round, setRound] = useState(scale.round_before_lookup)
+  const forecastItems = forecastOptions()
   const attributionItems = [
     {
       value: 'end_term',
@@ -118,6 +114,20 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
             onChange={(model) => {
               setForecast(model)
               queue({ default_forecast_model: model })
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          label={m.grading_round_before_lookup()}
+          labelId={roundId}
+          description={m.grading_round_before_lookup_hint()}
+        >
+          <Switch
+            aria-labelledby={roundId}
+            checked={round}
+            onCheckedChange={(on) => {
+              setRound(on)
+              queue({ round_before_lookup: on })
             }}
           />
         </SettingRow>

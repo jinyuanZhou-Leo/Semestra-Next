@@ -7,6 +7,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "alembic>=1.20.0",
     "argon2-cffi>=25.1.0",
+    "cachetools>=7.2.4",
     "cryptography>=50.0.2",
     "fastapi>=0.143.3",
     "genai-prices>=0.1.13",
@@ -29,6 +30,7 @@ dependencies = [
     "python-dotenv>=1.2.4",
     "python-multipart>=0.0.32",
     "python-pptx>=1.0.2",
+    "recurring-ical-events>=3.8.2",
     "sentry-sdk>=2.72.0",
     "sqlalchemy[asyncio]>=2.1.5",
     "sqlite-vec>=0.1.9",
@@ -60,6 +62,7 @@ dev = [
     "pytest-xdist>=3.8.0",
     "respx>=0.23.1",
     "ruff>=0.17.1",
+    "types-cachetools>=7.0.0.20260713",
 ]
 
 [tool.pytest.ini_options]

@@ -5,6 +5,7 @@ import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { ChoiceControl } from '@/app/settings/choice'
 import { percentText } from '../display'
+import { parseDecimal } from '../score'
 import { invalidateGrading } from '../queries'
 import { GpaValue } from './GpaValue'
 import { InlineInput } from './InlineInput'
@@ -43,7 +44,7 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Stat label={m.grading_final_grade()} hint={s.final_letter}>
+      <Stat label={m.grading_final_grade()} hint={scale.hide_gpa ? null : s.final_letter}>
         <InlineInput
           key={`m-${result.manual_percentage ?? ''}`}
           label={m.grading_final_grade()}
@@ -54,8 +55,8 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
               patch({ manual_percentage: null })
               return true
             }
-            const value = Number(text.replace('%', '').replace(',', '.'))
-            if (!(value >= 0 && value <= 1000)) return false
+            const value = parseDecimal(text)
+            if (value === null || value > 1000) return false
             patch({ manual_percentage: value })
             return true
           }}

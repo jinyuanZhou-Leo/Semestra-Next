@@ -55,10 +55,10 @@ function useMarkRead(courseId: string, id: string | undefined, unread: boolean) 
 
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
-  const { courseId, query, go } = useCanvasPage()
+  const { courseId, go } = useCanvasPage()
   const onLink = useInternalLinks()
   const list = useQuery({
-    ...lmsAnnouncementListOptions({ path: { course_id: courseId }, query }),
+    ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined

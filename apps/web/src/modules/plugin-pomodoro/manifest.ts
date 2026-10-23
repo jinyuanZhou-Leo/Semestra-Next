@@ -28,4 +28,5 @@ export default defineModule({
     },
   ],
   statusItems: [{ id: 'pomodoro.running', order: 50, useStatus: usePomodoroStatus }],
+  uiPrefPrefixes: ['pomodoro.'],
 })

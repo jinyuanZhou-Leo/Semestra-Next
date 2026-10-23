@@ -269,6 +269,8 @@ async def test_reset_password_signs_in_and_revokes_old_sessions(
     async with AsyncClient(transport=ASGITransport(app), base_url="https://test") as old_device:
         await login_as(old_device, user)
         assert (await old_device.get("/account/me")).status_code == 200
+        pat = await old_device.post("/account/tokens", json={"name": "cli"})
+        pat_headers = {"Authorization": f"Bearer {pat.json()['token']}"}
 
         await start(client, "reset@example.com", "reset_password")
         code = last_code(mailer, "reset@example.com")
@@ -280,6 +282,7 @@ async def test_reset_password_signs_in_and_revokes_old_sessions(
         assert r.json()["status"] == "signed_in"
         assert (await client.get("/account/me")).status_code == 200  # auto-login
         assert (await old_device.get("/account/me")).status_code == 401  # old session revoked
+        assert (await old_device.get("/account/me", headers=pat_headers)).status_code == 401
 
     login = await client.post(
         "/auth/password/login",

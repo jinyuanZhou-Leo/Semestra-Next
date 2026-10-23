@@ -73,7 +73,8 @@ def test_acorn_rrules_group_by_course_and_section():
     ]
     lec = aps.meetings[0]
     assert (lec.start_time, lec.end_time, lec.location) == (time(10), time(11), "BA 1180")
-    assert (lec.first_date, lec.last_date) == (date(2026, 1, 5), date(2026, 4, 10))
+    # The last Monday before UNTIL, not UNTIL itself.
+    assert (lec.first_date, lec.last_date) == (date(2026, 1, 5), date(2026, 4, 6))
     assert aps.meetings[1].first_date == date(2026, 1, 7)
     tut = aps.meetings[2]
     assert tut.recurrence == "biweekly"
@@ -100,6 +101,95 @@ def test_one_event_per_class_is_merged_and_survives_dst():
     assert (meeting.weekday, meeting.start_time, meeting.recurrence) == (1, time(14), "weekly")
     assert (meeting.first_date, meeting.last_date) == (date(2026, 3, 2), date(2026, 3, 16))
     assert build.year_long(course.code, None)
+
+
+def test_moved_and_cancelled_dates_of_a_recurring_event():
+    # Calendar apps export a change to one date as an override with the same UID and a
+    # RECURRENCE-ID: 26 Jan is cancelled, 2 Feb moves to the afternoon.
+    series = vevent(
+        uid=":s1",
+        summary=":CSC108H1 LEC0101",
+        dtstart=";TZID=America/Toronto:20260112T100000",
+        dtend=";TZID=America/Toronto:20260112T110000",
+        rrule=":FREQ=WEEKLY;UNTIL=20260406T235959Z",
+    )
+    cancelled = vevent(
+        uid=":s1",
+        recurrence_id=";TZID=America/Toronto:20260126T100000",
+        summary=":CSC108H1 LEC0101",
+        dtstart=";TZID=America/Toronto:20260126T100000",
+        dtend=";TZID=America/Toronto:20260126T110000",
+        status=":CANCELLED",
+    )
+    moved = vevent(
+        uid=":s1",
+        recurrence_id=";TZID=America/Toronto:20260202T100000",
+        summary=":CSC108H1 LEC0101",
+        dtstart=";TZID=America/Toronto:20260202T140000",
+        dtend=";TZID=America/Toronto:20260202T150000",
+        location=":BA 1130",
+    )
+    (course,) = parse_ics(ics(series, cancelled, moved), TZ).courses
+    (meeting,) = course.meetings
+    assert meeting.start_time == time(10)
+    assert meeting.exceptions == [date(2026, 1, 26), date(2026, 2, 2)]
+    assert meeting.source_ref == "s1:1"
+    (event,) = course.events
+    assert (event.day, event.start_time, event.location) == (date(2026, 2, 2), time(14), "BA 1130")
+
+
+def test_other_rule_shapes_expand_to_their_real_dates():
+    every_third = vevent(
+        uid=":t3",
+        summary=":ECE297H1 PRA0101",
+        dtstart=";TZID=America/Toronto:20260105T150000",
+        dtend=";TZID=America/Toronto:20260105T170000",
+        rrule=":FREQ=WEEKLY;INTERVAL=3;COUNT=4",
+    )
+    counted = vevent(
+        uid=":c5",
+        summary=":MAT188H1 TUT0101",
+        dtstart=";TZID=America/Toronto:20260105T090000",
+        dtend=";TZID=America/Toronto:20260105T100000",
+        rrule=":FREQ=WEEKLY;COUNT=5;BYDAY=MO,WE",
+    )
+    courses = parse_ics(ics(every_third, counted), TZ).courses
+    (pra,) = courses[0].meetings
+    # Every third week: weekly with the two weeks between missing.
+    assert pra.recurrence == "weekly"
+    assert (pra.first_date, pra.last_date) == (date(2026, 1, 5), date(2026, 3, 9))
+    assert len(pra.exceptions) == 6
+    mon, wed = courses[1].meetings
+    # Five dates in all: Mon, Wed, Mon, Wed, Mon.
+    assert (mon.last_date, wed.last_date) == (date(2026, 1, 19), date(2026, 1, 14))
+
+
+def test_too_many_dates_are_cut_and_say_so(monkeypatch: pytest.MonkeyPatch):
+    from semestra.modules.imports import ics as ics_module
+
+    monkeypatch.setattr(ics_module, "MAX_EVENTS", 3)
+    result = parse_ics(ACORN, TZ)
+    assert result.truncated
+    party = vevent(
+        uid=":x", summary=":Party", dtstart=";VALUE=DATE:20260301", dtend=";VALUE=DATE:20260302"
+    )
+    assert not parse_ics(ics(party), TZ).truncated
+
+
+def test_a_rule_repeating_every_minute_stops_at_the_cap_quickly():
+    import time as clock
+
+    minutely = vevent(
+        uid=":m",
+        summary=":Ping",
+        dtstart=":20260105T090000",
+        dtend=":20260105T090100",
+        rrule=":FREQ=MINUTELY",
+    )
+    began = clock.monotonic()
+    result = parse_ics(ics(minutely), TZ)
+    assert result.truncated
+    assert clock.monotonic() - began < 30
 
 
 def test_invalid_ics():

@@ -353,6 +353,14 @@
       "plugin_id": null
     },
     {
+      "name": "grading__assessment__upcoming",
+      "capability": "grading.assessment.upcoming",
+      "module": "grading",
+      "effect": "read",
+      "summary": "Ungraded assessments with a deadline, soonest first, for a Program, term or course.",
+      "plugin_id": null
+    },
+    {
       "name": "grading__assessment__update",
       "capability": "grading.assessment.update",
       "module": "grading",
@@ -629,7 +637,7 @@
       "capability": "lms.course.check_updates",
       "module": "lms",
       "effect": "read",
-      "summary": "Imported assignments whose title, due date or points changed on the LMS.",
+      "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
       "plugin_id": null
     },
     {
@@ -878,6 +886,14 @@
       "module": "schedule",
       "effect": "write",
       "summary": "Add a one-off event: an exam, office hour, make-up class or appointment.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__event__create_many",
+      "capability": "schedule.event.create_many",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add several one-off events to a Program at once (importers).",
       "plugin_id": null
     },
     {

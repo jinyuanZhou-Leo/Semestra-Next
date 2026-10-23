@@ -14,10 +14,11 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.grading.models import GradingAssessment
+from semestra.modules.grading import service as grading
+from semestra.modules.grading.service import AssessmentSnapshot
 from semestra.modules.imports import register_commit_hook
 from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsItem, ImportsSession
@@ -274,7 +275,6 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
             # The import copies no score: a grade already on the platform is offered as an
             # update right after it.
             "snapshot": {**snapshot(a, weights.get(external_id)), "score": None},
-            "updated_at": a.get("updated_at"),
         }
         refs.append(
             {"lms_course_id": link.external_course_id, "filename": a["name"], "status": "done"}
@@ -305,7 +305,7 @@ def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
     return {"points_earned": float(score), "points_possible": float(points)}
 
 
-def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
+def assessment_score(row: AssessmentSnapshot | None) -> dict[str, float] | None:
     """The gradebook's score as the review shows it: points, else the percentage entered."""
     if row is None:
         return None
@@ -316,7 +316,7 @@ def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
     return None
 
 
-def _has_score(row: GradingAssessment | None, score: dict[str, float]) -> bool:
+def _has_score(row: AssessmentSnapshot | None, score: dict[str, float]) -> bool:
     """The gradebook already holds this grade, as points or as the same percentage."""
     if row is None:
         return False
@@ -372,7 +372,13 @@ def _same_time(a: Any, b: Any) -> bool:
     return datetime.fromisoformat(a).astimezone(UTC) == datetime.fromisoformat(b).astimezone(UTC)
 
 
-async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> UpdatesOutput:
+async def check_updates(
+    ctx: Ctx, course_id: str, refresh: bool = False, *, acknowledge: bool = True
+) -> UpdatesOutput:
+    """What changed on the platform since each import. A grade the gradebook already holds is
+    not a change; with `acknowledge` the snapshot then moves on to it (so a later hand edit in
+    the gradebook does not bring the same grade back), in a transaction of its own after this
+    read: the read itself writes nothing."""
     link, _ = await service.require_link(ctx, course_id)
     refs = await _refs(ctx, link.id)
     if not link.sync_enabled or not refs:
@@ -381,6 +387,7 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
     by_id = {a["external_id"]: a for a in data}
     weights = _weights(data)
     assessments = await _assessments(ctx, refs)
+    seen: dict[str, dict[str, float]] = {}  # ref id -> platform grade the gradebook holds
     items: list[AssignmentUpdate] = []
     for ref in refs:
         a = by_id.get(ref.external_id)
@@ -418,7 +425,7 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
         ):
             row = assessments.get(ref.target_id)
             if _has_score(row, now["score"]):
-                ref.snapshot = {**then, "score": now["score"]}
+                seen[ref.id] = now["score"]
             else:
                 changes["score"] = FieldUpdate(old=assessment_score(row), new=now["score"])
         if changes:
@@ -430,27 +437,39 @@ async def check_updates(ctx: Ctx, course_id: str, refresh: bool = False) -> Upda
                     changes=changes,
                 )
             )
+    if seen and acknowledge:
+        _acknowledge(ctx, seen)
     return UpdatesOutput(course_id=course_id, count=len(items), items=items)
 
 
-async def _assessments(ctx: Ctx, refs: list[LmsImportedRef]) -> dict[str, GradingAssessment]:
+def _acknowledge(ctx: Ctx, scores: dict[str, dict[str, float]]) -> None:
+    """Moves the snapshots' grade on, after the request and outside its transaction."""
+    state, user_id = ctx.state, ctx.user_id
+
+    async def _store() -> None:
+        async with system_ctx(state, user_id) as sys:
+            for ref in await sys.db.scalars(
+                select(LmsImportedRef).where(
+                    LmsImportedRef.id.in_(list(scores)), LmsImportedRef.user_id == user_id
+                )
+            ):
+                ref.snapshot = {**ref.snapshot, "score": scores[ref.id]}
+            await sys.db.commit()
+
+    ctx.after_commit.append(_store)
+
+
+async def _assessments(ctx: Ctx, refs: list[LmsImportedRef]) -> dict[str, AssessmentSnapshot]:
     ids = [r.target_id for r in refs if r.target_kind == "assessment"]
-    if not ids:
-        return {}
-    rows = await ctx.db.scalars(
-        select(GradingAssessment).where(
-            GradingAssessment.id.in_(ids), GradingAssessment.user_id == ctx.user_id
-        )
-    )
-    return {row.id: row for row in rows}
+    return await grading.assessment_snapshots(ctx, ids)
 
 
 async def _current_weight(ctx: Ctx, target: ImportTarget) -> float | None:
     """The assessment's weight now, so the review shows what a new weight replaces."""
     if target.kind != "assessment":
         return None
-    row = await ctx.db.get(GradingAssessment, target.id)
-    return row.weight if row is not None and row.user_id == ctx.user_id else None
+    row = (await grading.assessment_snapshots(ctx, [target.id])).get(target.id)
+    return row.weight if row is not None else None
 
 
 async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
@@ -505,7 +524,6 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
             "external_id": update.external_id,
             "link_id": link.id,
             "snapshot": snapshot(a, weights.get(update.external_id)),
-            "updated_at": a.get("updated_at"),
         }
         if not changes:  # points or weight moved but the assessment already has that weight
             by_key[key]["dismiss_only"] = True
@@ -523,10 +541,6 @@ async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:
 
 
 # --- commit hook ----------------------------------------------------------------------------
-
-
-def _parse_time(value: Any) -> datetime | None:
-    return datetime.fromisoformat(value) if isinstance(value, str) and value else None
 
 
 async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> None:
@@ -600,7 +614,6 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             failed = bool(item.result and item.result.get("error_code"))
             if ref is not None and item.decision != "pending" and not failed:
                 ref.snapshot = info["snapshot"]
-                ref.external_updated_at = _parse_time(info.get("updated_at"))
             continue
         target_id = created.get(item_id)
         if target_id is None or item.type not in ("assessment", "task"):
@@ -628,7 +641,6 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                 target_kind=item.type,
                 target_id=target_id,
                 snapshot=info["snapshot"],
-                external_updated_at=_parse_time(info.get("updated_at")),
                 imported_at=ctx.now,
             )
         )

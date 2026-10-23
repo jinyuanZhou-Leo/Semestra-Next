@@ -7,10 +7,11 @@ import {
   scheduleEventListOptions,
   scheduleEventTypeListOptions,
   scheduleFeedListOptions,
+  scheduleMeetingListForTermOptions,
   scheduleMeetingListOptions,
   settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
-import { type QueryClient, keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
+import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
 import { readUiPref } from '@/app/ui-pref'
 import { courseListOptions } from '@/modules/academics/queries'
@@ -30,19 +31,16 @@ export function useMeetings(courseId: string, termId?: string) {
   })
 }
 
-/** The meetings of several courses in one term (there is no term-wide list; terms are small). */
-export function useTermMeetings(courseIds: readonly string[], termId: string, enabled = true) {
-  return useQueries({
-    queries: courseIds.map((courseId) => ({
-      ...scheduleMeetingListOptions({ path: { course_id: courseId }, query: { term_id: termId } }),
-      enabled,
-    })),
-    combine: (results) => ({
-      items: results.flatMap((r) => r.data?.items ?? []) as Meeting[],
-      isPending: results.some((r) => r.isPending),
-    }),
+/** Every meeting of the term's courses (the timetable and the export). */
+export function useTermMeetings(termId: string, enabled = true) {
+  const query = useQuery({
+    ...scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+    enabled,
   })
+  return { items: query.data?.items ?? NO_MEETINGS, isPending: query.isPending }
 }
+
+const NO_MEETINGS: Meeting[] = []
 
 export function useConflicts(termId: string) {
   return useQuery({
@@ -133,7 +131,7 @@ export function prefetchCalendarPage(
   void queryClient.prefetchQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } }))
   const settings = queryClient.fetchQuery(calendarSettingsOptions(termId))
   const courses = queryClient.fetchQuery(courseListOptions(scope.programId, termId))
-  // A hovered link stops here: the meetings (one request per course) wait for the click.
+  // A hovered link stops here: the meetings wait for the click.
   const meetings = preload
     ? Promise.resolve()
     : Promise.all([
@@ -142,21 +140,15 @@ export function prefetchCalendarPage(
           queryClient,
           `calendar.nav.${termId}`,
         ),
-        courses,
-      ]).then(([values, nav, list]) => {
+      ]).then(([values, nav]) => {
         const view =
           nav?.view ??
           { ...DEFAULT_CALENDAR_SETTINGS, ...(values.values as Partial<CalendarSettings>) }
             .default_view
         if (view !== 'timetable') return
-        for (const course of list.items) {
-          void queryClient.prefetchQuery(
-            scheduleMeetingListOptions({
-              path: { course_id: course.id },
-              query: { term_id: termId },
-            }),
-          )
-        }
+        return queryClient.prefetchQuery(
+          scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+        )
       })
   // The page's own queries report errors.
   Promise.all([settings, courses, meetings]).catch(() => undefined)

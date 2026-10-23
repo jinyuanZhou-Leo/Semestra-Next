@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
+import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
@@ -92,7 +93,9 @@ function CreateTokenDialog({
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('never')
+  const [password, setPassword] = useState('')
   const create = useMutation(accountTokenCreateMutation())
+  const { needsPassword } = reauthState(create.error)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -103,6 +106,7 @@ function CreateTokenDialog({
           name: name.trim(),
           scopes: scope === 'write' ? ['read', 'write'] : ['read'],
           expires_in_days: days === 'never' ? null : Number(days),
+          password: password === '' ? null : password,
         },
       },
       {
@@ -110,6 +114,7 @@ function CreateTokenDialog({
           setName('')
           setScope('read')
           setDays('never')
+          setPassword('')
           onCreated(token)
         },
       },
@@ -162,9 +167,14 @@ function CreateTokenDialog({
                 options={expiryItems}
               />
             </Field>
-            <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
+            <ReauthFields error={create.error} password={password} onPasswordChange={setPassword} />
+            <FieldError>
+              {create.error && !reauthState(create.error).handled
+                ? errorMessage(create.error)
+                : null}
+            </FieldError>
             <DialogFooter>
-              <Button type="submit" disabled={!name.trim()}>
+              <Button type="submit" disabled={!name.trim() || (needsPassword && password === '')}>
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
               </Button>
             </DialogFooter>

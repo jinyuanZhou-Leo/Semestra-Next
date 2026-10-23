@@ -24,7 +24,7 @@ async def export(ctx: JobCtx, payload: ExportJobInput) -> ExportJobResult:
 @job_handler(
     "portability.import",
     max_attempts=1,
-    stages=[("reading", 20), ("importing", 80)],
+    stages=[("reading", 10), ("copying", 50), ("importing", 40)],
 )
 async def import_(ctx: JobCtx, payload: ImportJobInput) -> ImportJobResult:
     options = ImportOptions(

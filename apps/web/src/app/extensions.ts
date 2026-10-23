@@ -324,6 +324,17 @@ export type JobKindContribution = {
 /** `operationId` of a generated query (e.g. `coreJobList`): all its cached queries are refetched. */
 export type QueryKeyPrefix = string
 
+/**
+ * Part of a generated query key: the cached queries whose key contains it are refetched, e.g.
+ * `{ _id: 'gradingGradebookGet', path: { course_id } }` refetches one course's gradebook only.
+ */
+export type QueryMatch = { readonly _id: QueryKeyPrefix } & Readonly<Record<string, unknown>>
+
+/** What an SSE event refetches: whole operations, or what a function of its data names. */
+export type InvalidationTarget =
+  | QueryKeyPrefix
+  | ((data: Readonly<Record<string, unknown>>) => readonly (QueryKeyPrefix | QueryMatch)[])
+
 export type ModuleManifest = {
   id: string
   /** 'core' cannot be uninstalled; 'plugin' is installed per account (M10). */
@@ -353,8 +364,15 @@ export type ModuleManifest = {
   extensions?: Readonly<Record<string, readonly unknown[]>>
   /** Cards placed on new boards of each kind, appended in registry order (M10 §2). */
   defaultBoard?: Readonly<Partial<Record<BoardKind, readonly BoardSlot[]>>>
+  /** Prefixes of the UI state keys the module reads (`useUiPref`), prefetched at sign-in. */
+  uiPrefPrefixes?: readonly string[]
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */
-  realtimeInvalidations?: Readonly<Record<string, readonly QueryKeyPrefix[]>>
+  realtimeInvalidations?: Readonly<Record<string, readonly InvalidationTarget[]>>
+  /**
+   * Event types this tab ignores when its own request caused them: list one only if every
+   * mutation behind it already updates or invalidates its queries (`app/realtime.ts`).
+   */
+  realtimeSkipOwn?: readonly string[]
 }
 
 export function defineModule<const M extends ModuleManifest>(manifest: M): M {

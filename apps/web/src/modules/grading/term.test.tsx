@@ -6,7 +6,7 @@ import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import UpcomingCard from './cards/UpcomingCard'
 import TermGradesPage from './pages/TermGradesPage'
-import { assessment, gradebook } from './test-data'
+import { assessment } from './test-data'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -39,6 +39,7 @@ function termGrades(courses: CourseGrade[], hide: boolean): TermGrades {
     term_id: 't1',
     max_points: 4,
     hide_gpa: hide,
+    in_progress_count: 0,
     gpa: 3.5,
     average_percentage: 80,
     credits_counted: 0,
@@ -120,25 +121,24 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
   expect(result).not.toHaveTextContent('0.50')
 })
 
-test('the Upcoming card reads the whole gradebook, so a late list position still counts', async () => {
-  const many = Array.from({ length: 250 }, (_, i) =>
-    assessment({ id: `a${i}`, title: `Task ${i}`, position: i }),
-  )
-  many.push(
-    assessment({
-      id: 'soon',
-      title: 'Due first',
-      position: 250,
-      status: 'pending',
-      due_at: '2026-10-19T03:59:59Z',
-      due_date: '2026-10-18',
-      due_time: null,
-    }),
-  )
+test('the Upcoming card asks the server for the scope in one request', async () => {
+  const seen: URLSearchParams[] = []
   server.use(
-    http.get(`${API}/courses/c1/gradebook`, () =>
-      HttpResponse.json(gradebook({ assessments: many })),
-    ),
+    http.get(`${API}/programs/p1/upcoming-assessments`, ({ request }) => {
+      seen.push(new URL(request.url).searchParams)
+      return HttpResponse.json({
+        items: [
+          assessment({
+            id: 'soon',
+            title: 'Due first',
+            status: 'pending',
+            due_at: '2026-10-19T03:59:59Z',
+            due_date: '2026-10-18',
+            due_time: null,
+          }),
+        ],
+      })
+    }),
     http.get(`${API}/courses/c1`, () =>
       HttpResponse.json({ id: 'c1', program_id: 'p1', title: 'Course c1', code: 'C1' }),
     ),
@@ -158,4 +158,7 @@ test('the Upcoming card reads the whole gradebook, so a late list position still
     />,
   )
   expect(await screen.findByText('Due first')).toBeInTheDocument()
+  expect(seen).toHaveLength(1)
+  expect(seen[0]?.get('course_id')).toBe('c1')
+  expect(seen[0]?.get('limit')).toBe('4')
 })

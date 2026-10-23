@@ -1,6 +1,7 @@
 import type { Feed } from '@semestra/api-client'
 import {
   scheduleFeedCreateMutation,
+  scheduleFeedListQueryKey,
   scheduleFeedRevokeMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Field, FieldLabel } from '@/ui/field'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { Input } from '@/ui/input'
-import { invalidateSchedule, useFeeds } from '../queries'
+import { useFeeds } from '../queries'
 
 type FeedSource = Feed['sources'][number]
 const FEED_SOURCES: readonly FeedSource[] = ['schedule', 'assessments', 'tasks', 'lms']
@@ -61,7 +62,9 @@ export function FeedsDialog({
     onSuccess: async (created) => {
       setUrl(created.url)
       setName('')
-      await invalidateSchedule(queryClient)
+      await queryClient.invalidateQueries({
+        queryKey: scheduleFeedListQueryKey({ path: { program_id: programId } }),
+      })
     },
   })
   const revoke = useMutation({
@@ -69,7 +72,9 @@ export function FeedsDialog({
     onError: toastError,
     onSuccess: async () => {
       setRevoking(null)
-      await invalidateSchedule(queryClient)
+      await queryClient.invalidateQueries({
+        queryKey: scheduleFeedListQueryKey({ path: { program_id: programId } }),
+      })
     },
   })
 
@@ -159,7 +164,9 @@ export function FeedsDialog({
                   <ItemDescription>
                     {feed.sources.map(sourceLabel).join(' · ')} ·{' '}
                     {feed.last_fetched_at
-                      ? m.schedule_feed_last_fetched({ when: formatDateTime(feed.last_fetched_at) })
+                      ? m.schedule_feed_last_fetched({
+                          when: formatDateTime(feed.last_fetched_at),
+                        })
                       : m.schedule_feed_never_fetched()}
                   </ItemDescription>
                 </ItemContent>

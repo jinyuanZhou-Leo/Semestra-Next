@@ -56,7 +56,7 @@ async def preferences_update(ctx: Ctx, inp: PreferencesUpdateInput) -> Preferenc
 their allowed values and the levels (account, program, term, course) where they can be set.
 Do not use to read current values; use settings.value.get.""",
     effect="read",
-    http=Http("GET", "/settings/schemas"),
+    http=Http("GET", "/me/settings-schemas"),
     tags=("settings",),
 )
 async def schemas_list(ctx: Ctx, inp: NoInput) -> SettingsSchemaList:
@@ -71,7 +71,7 @@ view. Returns the effective value of every field and the level it is inherited f
 (default, account, program, term or course).
 Do not use for personal preferences such as language or theme; use settings.preference.get.""",
     effect="read",
-    http=Http("GET", "/settings/{namespace}"),
+    http=Http("GET", "/me/settings/{namespace}"),
     tags=("settings",),
 )
 async def values_get(ctx: Ctx, inp: ValuesGetInput) -> ResolvedSettings:
@@ -84,10 +84,13 @@ async def values_get(ctx: Ctx, inp: ValuesGetInput) -> ResolvedSettings:
     description="""Use when the user wants to change a module setting, e.g. make the calendar
 open in month view. Only the given fields are set at that level; deeper levels still override them.
 Look up namespace and field names with settings.schema.list first.
+Namespaces whose schema says agent_writable false can only be changed by the user in the settings
+page: tell the user where to find it instead.
 Do not use to change language, theme or other personal preferences.""",
     effect="write",
-    http=Http("PATCH", "/settings/{namespace}"),
+    http=Http("PATCH", "/me/settings/{namespace}"),
     tags=("settings",),
+    check=service.check_update,
     agent_output_fields=("namespace", "scope_type", "scope_id", "values"),
 )
 async def values_update(ctx: Ctx, inp: ValuesUpdateInput) -> ResolvedSettings:
@@ -100,7 +103,7 @@ async def values_update(ctx: Ctx, inp: ValuesUpdateInput) -> ResolvedSettings:
     description="""Restores a field to the value of the level above (or the default).
 Not available to agents.""",
     effect="write",
-    http=Http("DELETE", "/settings/{namespace}/keys/{key}"),
+    http=Http("DELETE", "/me/settings/{namespace}/keys/{key}"),
     expose=HTTP_ONLY,
     tags=("settings",),
 )

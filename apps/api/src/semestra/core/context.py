@@ -11,7 +11,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Literal, Protocol
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
 import structlog
 from fastapi import Depends, Request, Response
@@ -83,6 +83,12 @@ class Ctx:
     # Where the running capability was called from ("http", "agent", "mcp"); set by
     # `Registry.invoke`. Output shaping keys on this, not on `actor`: a token over HTTP is "mcp".
     surface: str = "http"
+    # The browser tab that sent the request (`X-Semestra-Client`); events it causes carry it as
+    # `origin`, so that tab can skip echoes of its own changes (M00 §3.8).
+    client_id: str | None = None
+    # Values worked out once per request (e.g. the installed plugins); whoever changes the
+    # underlying data drops its key.
+    cache: dict[object, Any] = field(default_factory=lambda: {})
     # Side effects (emails, ...) to run once the transaction has been committed.
     after_commit: list[Callable[[], Awaitable[None]]] = field(default_factory=lambda: [])
     # `app.state`: settings, session factory and module runtimes (mailer, ...) hang off it.
@@ -178,7 +184,15 @@ async def _build_ctx(
         request_id=request_id,
         auth=auth,
         state=request.app.state,
+        client_id=_client_id(request.headers.get("x-semestra-client")),
     )
+
+
+_CLIENT_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
+
+
+def _client_id(value: str | None) -> str | None:
+    return value if value and _CLIENT_ID.fullmatch(value) else None
 
 
 async def get_ctx(
@@ -234,9 +248,6 @@ async def get_http_capability_ctx(
     """`get_capability_ctx` for capabilities not exposed to MCP. Same behaviour; the schema just
     does not offer personal access tokens, which `Registry.invoke` would refuse."""
     return await _build_ctx(request, response, db, required=False, allow_pat=True)
-
-
-NowFn = Callable[[], datetime]
 
 
 @asynccontextmanager

@@ -301,6 +301,9 @@ class SourceRef(BaseModel):
     lms_course_id: str | None = None
     status: Literal["pending", "extracting", "done", "failed"] = "pending"
     error_code: str | None = None
+    warning_code: str | None = Field(
+        default=None, description="Read with a caveat, e.g. 'import.ics_truncated'"
+    )
 
 
 class SessionTarget(BaseModel):

@@ -7,14 +7,13 @@ import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import type { Meeting, OneOffEvent, Occurrence, Term } from '@semestra/api-client'
 import {
-  scheduleEventListOptions,
+  scheduleEventGetOptions,
   scheduleEventUpdateMutation,
   scheduleExceptionUpsertMutation,
   scheduleMeetingListOptions,
   scheduleMeetingUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
 import { toast } from 'sonner'
 import {
   ChevronLeft,
@@ -64,7 +63,7 @@ import {
   useOccurrences,
   useTermMeetings,
 } from '../queries'
-import { hhmm, isoDay, isoWeekday, markerDay, plusDays, toWall, todayIn } from '../time'
+import { hhmm, isoDay, isoWeekday, markerDay, plusDays, toWall, todayIn, wall } from '../time'
 
 export type CalendarView = CalendarSettings['default_view']
 type Nav = { view: CalendarView; date: string }
@@ -78,8 +77,6 @@ const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
 // Module constants: FullCalendar resets its view (and reports the dates again) when these change.
 const PLUGINS = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
 const LOCALES = [zhCnLocale]
-
-const wall = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm:ss")
 
 /** The term calendar (M04 §5.2). */
 export default function CalendarPage({ scope }: PageProps) {
@@ -134,11 +131,7 @@ function TermCalendar({
   const [feeds, setFeeds] = useState(false)
   // Only the timetable and the export show meetings; the other views show occurrences, and
   // editing one fetches its meeting or event when asked.
-  const termMeetings = useTermMeetings(
-    courses.map((c) => c.id),
-    term.id,
-    view === 'timetable' || exporting,
-  )
+  const termMeetings = useTermMeetings(term.id, view === 'timetable' || exporting)
   const meetings = termMeetings.items
 
   // The meeting or event behind an occurrence, for its editor: fetched when its details open,
@@ -150,12 +143,12 @@ function TermCalendar({
         query: { term_id: term.id },
       }),
     )
-  const programEvents = () =>
-    queryClient.fetchQuery(scheduleEventListOptions({ path: { program_id: programId }, query: {} }))
+  const eventOf = (o: Occurrence) =>
+    queryClient.fetchQuery(scheduleEventGetOptions({ path: { event_id: o.ref.id } }))
   const showDetails = (o: Occurrence) => {
     setDetails(o)
     if (isMeeting(o) && o.course_id) void meetingsOf(o).catch(() => undefined)
-    else if (isOneOff(o)) void programEvents().catch(() => undefined)
+    else if (isOneOff(o)) void eventOf(o).catch(() => undefined)
   }
 
   const wanted = visibleSources(filters, sources)
@@ -178,10 +171,10 @@ function TermCalendar({
   const saveNav = (next: Nav) => {
     if (next.view !== nav?.view || next.date !== nav?.date) setNav(next)
   }
+  // The calendar is keyed by its view, so storing the new one is the switch (one mount).
   const changeView = (next: CalendarView) => {
-    const api = calendarRef.current?.getApi()
-    if (next !== 'timetable' && api) api.changeView(FC_VIEW[next])
-    else saveNav({ view: next, date: anchor })
+    const date = calendarRef.current?.getApi().getDate()
+    saveNav({ view: next, date: date ? isoDay(date) : anchor })
   }
 
   const fcEvents: EventInput[] = [
@@ -433,8 +426,7 @@ function TermCalendar({
           <div className="overflow-x-auto">
             <div className="semestra-calendar" style={{ minWidth }}>
               <FullCalendar
-                // A view chosen elsewhere (the stored one arriving, or the timetable toggle)
-                // starts a fresh calendar on it.
+                // A new view (the toggle, or the stored one arriving) starts a fresh calendar.
                 key={view}
                 ref={calendarRef}
                 plugins={PLUGINS}
@@ -529,12 +521,10 @@ function TermCalendar({
               .catch(toastError)
           }}
           onEditEvent={(o) => {
-            programEvents()
-              .then((list) => {
-                const event = list.items.find((e) => e.id === o.ref.id)
+            eventOf(o)
+              .then((event) => {
                 setDetails(null)
-                if (event) setEventEdit({ event })
-                else toast.error(m.error_common_not_found())
+                setEventEdit({ event })
               })
               .catch(toastError)
           }}

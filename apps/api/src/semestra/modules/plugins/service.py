@@ -50,10 +50,19 @@ async def _installations(ctx: Ctx) -> dict[str, PluginsInstallation]:
     return {row.plugin_id: row for row in rows}
 
 
+_CACHE_KEY = "plugins.installed_ids"
+
+
 async def installed_ids(ctx: Ctx) -> set[str]:
-    """Ids of the plugins the ctx user can use: installed plugins and every core module."""
-    installed = set(await _installations(ctx))
-    return installed | {m.id for m in catalog.modules() if m.info.kind == "core"}
+    """Ids of the plugins the ctx user can use: installed plugins and every core module.
+    Worked out once per request: the capability gate, plugin settings and boards all ask."""
+    key = (_CACHE_KEY, ctx.user_id)
+    cached = ctx.cache.get(key)
+    if cached is None:
+        installed = set(await _installations(ctx))
+        cached = installed | {m.id for m in catalog.modules() if m.info.kind == "core"}
+        ctx.cache[key] = cached
+    return set(cached)
 
 
 async def is_installed(ctx: Ctx, module_id: str) -> bool:
@@ -109,6 +118,7 @@ async def _out(ctx: Ctx, plugin_id: str) -> PluginOut:
 
 async def install(ctx: Ctx, plugin_id: str) -> PluginOut:
     _plugin(plugin_id)
+    ctx.cache.pop((_CACHE_KEY, ctx.user_id), None)
     installs = await _installations(ctx)
     if plugin_id not in installs:
         await ctx.db.execute(
@@ -126,6 +136,7 @@ async def uninstall(ctx: Ctx, inp: UninstallInput) -> PluginOut:
     module that keeps data for the plugin (settings, card instances, the plugin's own tables), so
     a failing cleanup fails the whole uninstall instead of leaving half the data behind."""
     _plugin(inp.plugin_id)
+    ctx.cache.pop((_CACHE_KEY, ctx.user_id), None)
     installs = await _installations(ctx)
     if inp.plugin_id in installs:
         await ctx.db.execute(

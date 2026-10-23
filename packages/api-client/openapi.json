@@ -6378,6 +6378,114 @@
         }
       }
     },
+    "/programs/{program_id}/upcoming-assessments": {
+      "get": {
+        "tags": [
+          "grading"
+        ],
+        "summary": "Ungraded assessments with a deadline, soonest first, for a Program, term or course.",
+        "description": "Use for \"what is due next\". Overdue ones come first; graded and dropped ones are\nleft out.",
+        "operationId": "gradingAssessmentUpcoming",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the courses of this term",
+              "title": "Term Id"
+            },
+            "description": "Only the courses of this term"
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this course",
+              "title": "Course Id"
+            },
+            "description": "Only this course"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Max assessments",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Max assessments"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpcomingAssessments"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/grading-categories": {
       "post": {
         "tags": [
@@ -9465,8 +9573,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Imported assignments whose title, due date or points changed on the LMS.",
-        "description": "Put them up for the user's review with lms.course.queue_updates.",
+        "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
+        "description": "A `score` change is a grade the gradebook does not have yet. Put them up for\nthe user's review with lms.course.queue_updates.",
         "operationId": "lmsCourseCheckUpdates",
         "security": [
           {
@@ -10092,13 +10200,66 @@
         }
       }
     },
+    "/courses/{course_id}/lms:refresh": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Forget what the app cached about a linked course, so its next reads ask the LMS.",
+        "description": "The Canvas tab's \"Refresh\". Reads with `refresh` do the same for one read.\nNot for agents.",
+        "operationId": "lmsCourseRefresh",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseLinkState"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/files/{file_id}": {
       "get": {
         "tags": [
           "lms"
         ],
         "summary": "Details of a file of a linked course.",
-        "description": "To read or search its text, save it with lms.file.save_to_course.",
+        "description": "Read its text with lms.file.preview; to search or cite it, save it with\nlms.file.save_to_course.",
         "operationId": "lmsFileGet",
         "security": [
           {
@@ -11378,6 +11539,71 @@
         }
       }
     },
+    "/terms/{term_id}/lms/announcements": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Recent announcements of every LMS-linked course of a term, newest first.",
+        "description": "One request per connection (the term board's card); each item names its\n`course_id`. Not for agents: they read one course with lms.announcement.list.",
+        "operationId": "lmsTermAnnouncementList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermAnnouncementList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/plugins/catalog": {
       "get": {
         "tags": [
@@ -12177,6 +12403,72 @@
         }
       }
     },
+    "/programs/{program_id}/events:batch": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Add several one-off events to a Program at once (importers).",
+        "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting event of the Program updates it instead of adding a duplicate.",
+        "operationId": "scheduleEventCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCreateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventCreateManyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/events/{event_id}": {
       "delete": {
         "tags": [
@@ -12216,6 +12508,57 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "One one-off event.",
+        "description": "Use schedule.event.list or calendar.occurrence.list to find events.",
+        "operationId": "scheduleEventGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Event id",
+              "title": "Event Id"
+            },
+            "description": "Event id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OneOffEvent"
                 }
               }
             }
@@ -13240,13 +13583,66 @@
         }
       }
     },
+    "/terms/{term_id}/meetings": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "List the weekly class times of every course in a term.",
+        "description": "For the term timetable; schedule.meeting.list is per course.",
+        "operationId": "scheduleMeetingListForTerm",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/meetings:enabled": {
       "put": {
         "tags": [
           "schedule"
         ],
         "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
-        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). Disabled meetings stay in the course but are left out of the calendar.\nReturns only the meetings whose state changed (empty when they already were as asked).",
+        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). To keep only one section, pass its meetings with enabled=true and the\nother sections' meetings as other_meeting_ids. Disabled meetings stay in the course but are left\nout of the calendar. Returns only the meetings whose state changed (empty when they already were\nas asked).",
         "operationId": "scheduleMeetingSetEnabled",
         "security": [
           {
@@ -13397,7 +13793,7 @@
         ]
       }
     },
-    "/settings/schemas": {
+    "/me/settings-schemas": {
       "get": {
         "tags": [
           "settings"
@@ -13553,7 +13949,7 @@
         }
       }
     },
-    "/settings/{namespace}": {
+    "/me/settings/{namespace}": {
       "get": {
         "tags": [
           "settings"
@@ -13649,7 +14045,7 @@
           "settings"
         ],
         "summary": "Change settings of a module or plugin at one scope level.",
-        "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schema.list first.\nDo not use to change language, theme or other personal preferences.",
+        "description": "Use when the user wants to change a module setting, e.g. make the calendar\nopen in month view. Only the given fields are set at that level; deeper levels still override them.\nLook up namespace and field names with settings.schema.list first.\nNamespaces whose schema says agent_writable false can only be changed by the user in the settings\npage: tell the user where to find it instead.\nDo not use to change language, theme or other personal preferences.",
         "operationId": "settingsValueUpdate",
         "security": [
           {
@@ -13709,7 +14105,7 @@
         }
       }
     },
-    "/settings/{namespace}/keys/{key}": {
+    "/me/settings/{namespace}/keys/{key}": {
       "delete": {
         "tags": [
           "settings"
@@ -15994,6 +16390,12 @@
             "title": "Raw Kind",
             "description": "The platform's own type (debugging)"
           },
+          "external_course_id": {
+            "type": "string",
+            "title": "External Course Id",
+            "description": "The course it was posted in",
+            "default": ""
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -18176,6 +18578,58 @@
           "category_ids"
         ],
         "title": "CategoryOrderInputBody"
+      },
+      "CategorySummary": {
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id",
+            "description": "Null holds the assessments without a category"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "graded_weight": {
+            "type": "number",
+            "title": "Graded Weight",
+            "description": "Weight that has a score"
+          },
+          "average": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average",
+            "description": "Weighted average of the scores"
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution",
+            "description": "Percentage points the scores add to the grade"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category_id",
+          "weight",
+          "graded_weight",
+          "average",
+          "contribution"
+        ],
+        "title": "CategorySummary",
+        "description": "One category's share of the course, from its counted (not dropped) assessments."
       },
       "CategoryTemplate": {
         "properties": {
@@ -20648,6 +21102,20 @@
             "type": "string",
             "title": "New Email",
             "description": "The new email address; a code is sent to it"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
@@ -20885,6 +21353,186 @@
           "end_at"
         ],
         "title": "EventCreateInputBody"
+      },
+      "EventCreateManyInputBody": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventFields"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Events",
+            "description": "Events; same source_kind+source_ref updates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "title": "EventCreateManyInputBody"
+      },
+      "EventCreateManyResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OneOffEvent"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "updated_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "created_ids",
+          "updated_ids"
+        ],
+        "title": "EventCreateManyResult"
+      },
+      "EventFields": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title",
+            "description": "E.g. 'Midterm'"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start At",
+            "description": "Start; without an offset it is read in the Program's time zone"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End At",
+            "description": "End (not before the start)"
+          },
+          "all_day": {
+            "type": "boolean",
+            "title": "All Day",
+            "description": "Whole days; times are ignored",
+            "default": false
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Course it belongs to"
+          },
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Term it belongs to"
+          },
+          "type_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{1,8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Code",
+            "description": "Event type code, e.g. 'TUT'"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "Location"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Note"
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind",
+            "description": "Importer that created it"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref",
+            "description": "Id in the import source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "start_at",
+          "end_at"
+        ],
+        "title": "EventFields"
       },
       "EventType": {
         "properties": {
@@ -22695,6 +23343,14 @@
             ],
             "title": "Reachable",
             "description": "False when the target needs more than 100%"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategorySummary"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Per category; in a simulation assumed scores count as scores"
           }
         },
         "type": "object",
@@ -22724,7 +23380,8 @@
           "target_points",
           "target_percentage",
           "required_average",
-          "reachable"
+          "reachable",
+          "categories"
         ],
         "title": "GradebookSummary",
         "description": "Every figure of M03 §3 for one course; null where it cannot be calculated."
@@ -22777,6 +23434,11 @@
             "type": "boolean",
             "title": "Hide Gpa"
           },
+          "round_before_lookup": {
+            "type": "boolean",
+            "title": "Round Before Lookup",
+            "description": "Percentages are rounded to whole numbers (half up) before the band lookup"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -22792,6 +23454,7 @@
           "default_forecast_model",
           "default_categories",
           "hide_gpa",
+          "round_before_lookup",
           "updated_at"
         ],
         "title": "GradingScale"
@@ -22805,12 +23468,17 @@
           "hide_gpa": {
             "type": "boolean",
             "title": "Hide Gpa"
+          },
+          "round_before_lookup": {
+            "type": "boolean",
+            "title": "Round Before Lookup"
           }
         },
         "type": "object",
         "required": [
           "max_points",
-          "hide_gpa"
+          "hide_gpa",
+          "round_before_lookup"
         ],
         "title": "GradingScaleInfo"
       },
@@ -24894,6 +25562,11 @@
               }
             ],
             "title": "Note"
+          },
+          "imported": {
+            "type": "boolean",
+            "title": "Imported",
+            "description": "Written by an import (a repeated import may remove it)"
           }
         },
         "type": "object",
@@ -24906,7 +25579,8 @@
           "new_start_time",
           "new_end_time",
           "new_location",
-          "note"
+          "note",
+          "imported"
         ],
         "title": "MeetingException"
       },
@@ -25120,6 +25794,17 @@
             "type": "boolean",
             "title": "Enabled",
             "description": "True to show them, false to hide them"
+          },
+          "other_meeting_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Other Meeting Ids",
+            "description": "Meetings set to the opposite state in the same change, e.g. the other sections when keeping only one"
           }
         },
         "type": "object",
@@ -25674,6 +26359,21 @@
             "type": "boolean",
             "title": "Require Sequential Progress",
             "default": false
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModuleItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items",
+            "description": "The module's items when the platform sent them along (None: ask for them)"
           }
         },
         "type": "object",
@@ -26320,6 +27020,19 @@
             ],
             "title": "Url",
             "description": "Link to the item elsewhere (e.g. the LMS)"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "When the item (or, for a class, one of its dates) last changed"
           }
         },
         "type": "object",
@@ -29016,6 +29729,18 @@
             ],
             "title": "Hide Gpa",
             "description": "Mask GPA figures in the interface"
+          },
+          "round_before_lookup": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Round Before Lookup",
+            "description": "Round percentages to whole numbers before reading the scale (84.6 → 85)"
           }
         },
         "type": "object",
@@ -29663,6 +30388,11 @@
             ],
             "title": "Plugin Id"
           },
+          "agent_writable": {
+            "type": "boolean",
+            "title": "Agent Writable",
+            "description": "False when only the user may change these, in the settings page"
+          },
           "json_schema": {
             "additionalProperties": true,
             "type": "object",
@@ -29675,6 +30405,7 @@
           "namespace",
           "levels",
           "plugin_id",
+          "agent_writable",
           "json_schema"
         ],
         "title": "SettingsSchemaOut"
@@ -29945,6 +30676,14 @@
             "title": "Reachable",
             "description": "False when the target needs more than 100%"
           },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategorySummary"
+            },
+            "type": "array",
+            "title": "Categories",
+            "description": "Per category; in a simulation assumed scores count as scores"
+          },
           "ignored": {
             "items": {
               "$ref": "#/components/schemas/IgnoredScore"
@@ -29982,6 +30721,7 @@
           "target_percentage",
           "required_average",
           "reachable",
+          "categories",
           "ignored"
         ],
         "title": "SimulatedGradebook"
@@ -30101,6 +30841,18 @@
               }
             ],
             "title": "Error Code"
+          },
+          "warning_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Code",
+            "description": "Read with a caveat, e.g. 'import.ics_truncated'"
           }
         },
         "type": "object",
@@ -31699,6 +32451,142 @@
         ],
         "title": "Term"
       },
+      "TermAnnouncement": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "external_course_id": {
+            "type": "string",
+            "title": "External Course Id",
+            "description": "The course it was posted in",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "unread": {
+            "type": "boolean",
+            "title": "Unread",
+            "default": false
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id",
+            "description": "The app's course it was posted in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "title",
+          "course_id"
+        ],
+        "title": "TermAnnouncement"
+      },
+      "TermAnnouncementList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TermAnnouncement"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Newest first"
+          },
+          "linked_course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Course Ids",
+            "description": "The term's courses linked to an LMS"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "linked_course_ids",
+          "truncated"
+        ],
+        "title": "TermAnnouncementList"
+      },
       "TermCreateInputBody": {
         "properties": {
           "name": {
@@ -32071,7 +32959,12 @@
           "excluded_count": {
             "type": "integer",
             "title": "Excluded Count",
-            "description": "Courses not counted towards the GPA"
+            "description": "Finished courses outside the GPA (pass/fail, not counted, no credits)"
+          },
+          "in_progress_count": {
+            "type": "integer",
+            "title": "In Progress Count",
+            "description": "Courses still waiting for their grade"
           },
           "courses": {
             "items": {
@@ -32092,6 +32985,7 @@
           "credits_total",
           "credits_earned",
           "excluded_count",
+          "in_progress_count",
           "courses"
         ],
         "title": "TermGrades"
@@ -32405,6 +33299,20 @@
             ],
             "title": "Expires In Days",
             "description": "Lifetime in days; omit for no expiry"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password",
+            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
@@ -32720,6 +33628,23 @@
           "doc_error_code"
         ],
         "title": "UnreadableItem"
+      },
+      "UpcomingAssessments": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Assessment"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Ungraded, with a deadline, soonest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UpcomingAssessments"
       },
       "UpdatesOutput": {
         "properties": {

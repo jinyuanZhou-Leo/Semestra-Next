@@ -1,7 +1,7 @@
 """Board geometry (M10 §5.2): a 4-column grid of cards sized s=1x1, m=2x1, l=2x2, xl=4x2.
 
 Mirrors `apps/web/src/app/board/layout.ts`; both sides compact the same way so a layout the
-frontend saves comes back unchanged.
+frontend saves comes back unchanged. Both are tested on `tests/grid_cases.json`.
 """
 
 from collections.abc import Iterable, Sequence

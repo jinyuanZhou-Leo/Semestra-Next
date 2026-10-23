@@ -14,6 +14,7 @@ import { ScalePresetField } from './extensions/SetupField'
 const GRADING_QUERIES = [
   'gradingGradebookGet',
   'gradingAssessmentList',
+  'gradingAssessmentUpcoming',
   'gradingScaleGet',
   'gradingSummaryTerm',
   'gradingSummaryProgram',
@@ -144,7 +145,9 @@ export default defineModule({
       icon: CalendarClock,
       defaultVisible: true,
       onOpen: (o, navigate, { programId }) => {
-        if (o.course_id) navigate(coursePath(programId, o.course_id, 'grades'))
+        if (!o.course_id) return
+        const path = coursePath(programId, o.course_id, 'grades')
+        navigate(o.ref?.id ? `${path}?assessment=${encodeURIComponent(o.ref.id)}` : path)
       },
     },
   ],
@@ -152,6 +155,7 @@ export default defineModule({
     [COURSE_COLUMNS]: courseColumns,
     [PROGRAM_SETUP_FIELDS]: [setupField],
   },
+  uiPrefPrefixes: ['grading.'],
   realtimeInvalidations: Object.fromEntries(
     GRADING_EVENTS.map((event) => [event, GRADING_QUERIES]),
   ),

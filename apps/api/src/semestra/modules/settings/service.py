@@ -29,6 +29,7 @@ from semestra.modules.settings.schemas import (
     SettingsSchemaList,
     SettingsSchemaOut,
     UiStateItems,
+    ValuesUpdateInput,
 )
 
 # --- preferences ----------------------------------------------------------------------------
@@ -297,6 +298,12 @@ async def _publish_values_updated(
     )
 
 
+async def check_update(ctx: Ctx, inp: ValuesUpdateInput) -> None:
+    """Sem and MCP clients cannot change namespaces registered with `agent_writable=False`."""
+    if ctx.surface != "http" and not settings_registry.get(inp.namespace).agent_writable:
+        raise AppError("settings.user_only", 403, namespace=inp.namespace)
+
+
 def list_schemas() -> SettingsSchemaList:
     return SettingsSchemaList(
         items=[
@@ -304,6 +311,7 @@ def list_schemas() -> SettingsSchemaList:
                 namespace=d.namespace,
                 levels=list(d.levels),
                 plugin_id=d.plugin_id,
+                agent_writable=d.agent_writable,
                 json_schema=d.schema.model_json_schema(),
             )
             for d in settings_registry.list()

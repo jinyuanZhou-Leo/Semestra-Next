@@ -23,8 +23,14 @@ async def on_program_deleting(ctx: Ctx, event: Event) -> None:
 async def _on_assessment(ctx: Ctx, event: Event) -> None:
     kind = event.type.rsplit(".", 1)[1]
     data = event.data
-    if isinstance(data.get("program_id"), str) and isinstance(data.get("assessment_id"), str):
-        await auto.on_assessment_event(ctx, kind, data["program_id"], data["assessment_id"])
+    program_id = data.get("program_id")
+    # A batch create sends one event with every id.
+    ids = data.get("assessment_ids") or [data.get("assessment_id")]
+    if not isinstance(program_id, str):
+        return
+    for assessment_id in ids:
+        if isinstance(assessment_id, str):
+            await auto.on_assessment_event(ctx, kind, program_id, assessment_id)
 
 
 for _kind in ("created", "updated", "deleted"):

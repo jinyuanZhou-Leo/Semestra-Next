@@ -1,4 +1,5 @@
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -105,6 +106,28 @@ def test_run_backup_snapshots_and_prunes(settings: Settings, tmp_path: Path) -> 
     with sqlite3.connect(snapshots[-1]) as conn:
         assert conn.execute("SELECT v FROM t").fetchone() == ("hello",)
     assert (dest / "storage" / "users" / "u1" / "file.bin").read_bytes() == b"abc"
+
+
+def test_storage_mirror_lets_removed_files_go_with_the_last_snapshot(tmp_path: Path) -> None:
+    from semestra.core.backup import _mirror_storage  # pyright: ignore[reportPrivateUsage]
+
+    src, dest, removed = tmp_path / "st", tmp_path / "mirror", tmp_path / "removed"
+    (src / "users" / "gone").mkdir(parents=True)
+    (src / "users" / "gone" / "f").write_bytes(b"1")
+    (src / "users" / "kept").mkdir(parents=True)
+    (src / "users" / "kept" / "f").write_bytes(b"2")
+    _mirror_storage(src, dest, removed, "20260101T000000Z", "20260101T000000Z")
+    assert (dest / "users" / "gone" / "f").exists()
+
+    shutil.rmtree(src / "users" / "gone")  # the account was deleted
+    _mirror_storage(src, dest, removed, "20260102T000000Z", "20260101T000000Z")
+    assert not (dest / "users" / "gone").exists()
+    assert (dest / "users" / "kept" / "f").read_bytes() == b"2"
+    # An older snapshot still knows the file, so it is kept aside...
+    assert (removed / "20260102T000000Z" / "users" / "gone" / "f").exists()
+    # ...until the oldest snapshot was taken after it was removed.
+    _mirror_storage(src, dest, removed, "20260109T000000Z", "20260102T000000Z")
+    assert not (removed / "20260102T000000Z").exists()
 
 
 def test_run_backup_db_only_skips_storage(settings: Settings, tmp_path: Path) -> None:

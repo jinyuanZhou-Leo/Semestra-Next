@@ -3,11 +3,12 @@
 ```python
 from semestra.modules.schedule.calendar import calendar_source, Occurrence, OccurrenceQuery
 
-@calendar_source("grading.assessments")
+@calendar_source("grading.assessments", kinds=("deadline",))
 async def assessments(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]: ...
 ```
-A source returns the occurrences of its Program that start in `[range_start, range_end)` (and,
-with `include_overdue`, unfinished overdue items before the range: tasks). It publishes
+`kinds` lists what the source can return, so a query for other kinds skips it. A source returns
+the occurrences of its Program that start in `[range_start, range_end)` (and, with
+`include_overdue`, unfinished overdue items before the range: tasks). It publishes
 `calendar.changed` with `{program_id}` whenever its data changes.
 """
 
@@ -50,6 +51,9 @@ class OccurrenceMeta(BaseModel):
     instructor: str | None = None
     note: str | None = None
     url: str | None = Field(default=None, description="Link to the item elsewhere (e.g. the LMS)")
+    updated_at: datetime | None = Field(
+        default=None, description="When the item (or, for a class, one of its dates) last changed"
+    )
 
 
 class Occurrence(BaseModel):
@@ -90,11 +94,15 @@ Source = Callable[[Ctx, OccurrenceQuery], Awaitable[list[Occurrence]]]
 class SourceRegistry:
     def __init__(self) -> None:
         self._items: dict[str, Source] = {}
+        self._kinds: dict[str, frozenset[str] | None] = {}
 
-    def register(self, name: str, fn: Source) -> None:
+    def register(
+        self, name: str, fn: Source, kinds: Iterable[OccurrenceKind] | None = None
+    ) -> None:
         if name in self._items:
             raise ValueError(f"duplicate calendar source {name!r}")
         self._items[name] = fn
+        self._kinds[name] = frozenset(kinds) if kinds is not None else None
 
     def names(self) -> list[str]:
         return sorted(self._items)
@@ -102,13 +110,20 @@ class SourceRegistry:
     def get(self, name: str) -> Source | None:
         return self._items.get(name)
 
+    def may_return(self, name: str, kinds: Iterable[str]) -> bool:
+        """Whether the source can return any of `kinds` (unknown: it may)."""
+        own = self._kinds.get(name)
+        return own is None or not own.isdisjoint(kinds)
+
 
 sources = SourceRegistry()
 
 
-def calendar_source(name: str) -> Callable[[Source], Source]:
+def calendar_source(
+    name: str, *, kinds: Iterable[OccurrenceKind] | None = None
+) -> Callable[[Source], Source]:
     def decorate(fn: Source) -> Source:
-        sources.register(name, fn)
+        sources.register(name, fn, kinds)
         return fn
 
     return decorate
@@ -146,19 +161,25 @@ def mark_conflicts(items: Sequence[Occurrence]) -> None:
 
 
 async def collect(
-    ctx: Ctx, q: OccurrenceQuery, wanted: Iterable[str] | None = None
+    ctx: Ctx,
+    q: OccurrenceQuery,
+    wanted: Iterable[str] | None = None,
+    kinds: Iterable[OccurrenceKind] | None = None,
 ) -> list[Occurrence]:
-    """Occurrences of the wanted sources (all registered ones by default), sorted, with
-    conflicts marked. Sources that are not registered (e.g. a module that is not built yet) are
-    skipped."""
+    """Occurrences of the wanted sources (all registered ones by default) and kinds (all by
+    default), sorted, with conflicts marked among them. Sources that are not registered (e.g. a
+    module that is not built yet) or cannot return the kinds are skipped."""
     names = sources.names() if wanted is None else [n for n in dict.fromkeys(wanted)]
+    kept = frozenset(kinds) if kinds is not None else None
     items: list[Occurrence] = []
     # Every source reads the Program's terms and courses: once is enough.
     with academics.read_memo():
         for name in names:
             fn = sources.get(name)
-            if fn is not None:
+            if fn is not None and (kept is None or sources.may_return(name, kept)):
                 items.extend(await fn(ctx, q))
+    if kept is not None:
+        items = [o for o in items if o.kind in kept]
     items.sort(key=_sort_key)
     mark_conflicts(items)
     return items

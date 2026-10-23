@@ -15,7 +15,7 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import html, service
+from semestra.modules.lms import cache, html, service
 from semestra.modules.lms.models import LmsImportedRef
 from semestra.modules.schedule.calendar import (
     Occurrence,
@@ -29,7 +29,7 @@ log = structlog.get_logger()
 SOURCE = "lms.events"
 
 
-@calendar_source(SOURCE)
+@calendar_source(SOURCE, kinds=("deadline", "event"))
 async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     links = [
         li
@@ -77,6 +77,7 @@ async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
                 lambda i, b=b, ids=ids, start=start, end=end: b.provider.calendar_events(
                     i, b.cfg, b.creds, ids, start, end
                 ),
+                scope=cache.CALENDAR_SCOPE,
             )
         except AppError as exc:
             log.info("lms_calendar_unavailable", connection_id=connection_id, code=exc.code)

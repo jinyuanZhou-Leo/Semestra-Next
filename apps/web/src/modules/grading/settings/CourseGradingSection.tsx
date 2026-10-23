@@ -36,6 +36,7 @@ import { Switch } from '@/ui/switch'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { categoryName } from '../display'
 import { invalidateGrading, useGradebook } from '../queries'
+import { forecastOptions } from './forecast-options'
 
 /** Course "Grades" settings (M03 §5.1): how it is graded, the forecast model, categories. */
 export function CourseGradingSection({ scope }: SettingsSectionProps) {
@@ -60,14 +61,7 @@ function CourseGrading({ gradebook }: { gradebook: Gradebook }) {
   })
   const patch = (body: Parameters<typeof update.mutate>[0]['body']) =>
     update.mutate({ path: { course_id: gradebook.course_id }, body })
-  const forecastItems = [
-    { value: 'auto', label: m.grading_forecast_auto(), hint: m.grading_forecast_auto_hint() },
-    {
-      value: 'simple_minimum_needed',
-      label: m.grading_forecast_simple(),
-      hint: m.grading_forecast_simple_hint(),
-    },
-  ] as const
+  const forecastItems = forecastOptions()
   const basisItems = [
     {
       value: 'percentage',

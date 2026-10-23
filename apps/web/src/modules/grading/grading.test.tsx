@@ -258,13 +258,50 @@ test('grouped view heads each category with its weight and average', async () =>
 })
 
 test('hide_gpa shows a mask until it is clicked', async () => {
-  book = gradebook({ scale: { max_points: 4, hide_gpa: true } })
+  book = gradebook({ scale: { max_points: 4, hide_gpa: true, round_before_lookup: true } })
   mount()
   const mask = await screen.findByRole('button', { name: 'Show GPA' })
   expect(mask).toHaveTextContent('•••')
   expect(screen.queryByText('3.70')).not.toBeInTheDocument()
+  // The letter would give the GPA away, so it is masked with it.
+  expect(screen.queryByText('A-')).not.toBeInTheDocument()
   await userEvent.click(mask)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
+  expect(screen.getByText('A-')).toBeInTheDocument()
+})
+
+test('plan mode shows no planned grade while some items have no assumption', async () => {
+  server.use(
+    http.post(`${API}/courses/c1/gradebook\\:simulate`, () =>
+      HttpResponse.json(summary({ current_percentage: 80, remaining_count: 1 })),
+    ),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  const result = await screen.findByTestId('plan-result')
+  expect(await within(result).findByText(/Not yet assumed: 1/)).toBeInTheDocument()
+  // The average of the graded part (80%) is not a planned grade.
+  expect(result.querySelector('.text-xl')).toHaveTextContent('—')
+})
+
+test('a link to an assessment marks its row', async () => {
+  const { router } = mount()
+  await screen.findByRole('textbox', { name: 'Weight (%): Final exam' })
+  await router.navigate({ to: '/', search: { assessment: 'a2' } })
+  const row = screen.getByRole('textbox', { name: 'Weight (%): Final exam' }).closest('tr')
+  await waitFor(() => expect(row).toHaveAttribute('data-highlighted'))
+})
+
+test('a link to an assessment in a collapsed group shows its row', async () => {
+  const { router } = mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('button', { name: /Exam/ }))
+  await waitFor(() =>
+    expect(screen.queryByRole('textbox', { name: 'Weight (%): Final exam' })).toBeNull(),
+  )
+  await router.navigate({ to: '/', search: { assessment: 'a2' } })
+  const field = await screen.findByRole('textbox', { name: 'Weight (%): Final exam' })
+  expect(field.closest('tr')).toHaveAttribute('data-highlighted')
 })
 
 test('dropped items stay in the table but are crossed out', async () => {

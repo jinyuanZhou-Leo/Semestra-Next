@@ -16,6 +16,7 @@ import {
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { invalidateGrading } from '../queries'
+import { parseDecimal } from '../score'
 
 /** The official final grade, which replaces the computed one (M03 §5.1). */
 export function OfficialGradeDialog({
@@ -59,8 +60,8 @@ function OfficialGradeForm({ result, onDone }: { result: CourseResult; onDone: (
       onDone()
     },
   })
-  const value = Number(text.replace('%', '').replace(',', '.'))
-  const invalid = text.trim() === '' || !(value >= 0 && value <= 1000)
+  const value = parseDecimal(text)
+  const invalid = value === null || value > 1000
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setTouched(true)

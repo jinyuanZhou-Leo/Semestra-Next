@@ -42,12 +42,15 @@ import { openExternal } from '../open-in-canvas'
 import { FileActions } from './FilePreview'
 import { useScrollIntoView } from './scroll'
 
-/** Modules of the course; a module's items load when it is opened (M16 §4). */
+/**
+ * Modules of the course, with their items when the platform sends them along; otherwise a
+ * module's items load when it is opened (M16 §4).
+ */
 export function ModulesView({ selected }: { selected?: string }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null)
   const list = useQuery({
-    ...lmsModuleListOptions({ path: { course_id: courseId }, query }),
+    ...lmsModuleListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -181,7 +184,11 @@ function ModuleSection({
             {notes.length > 0 ? (
               <p className="text-xs text-muted-foreground">{notes.join(' · ')}</p>
             ) : null}
-            <ModuleItems moduleId={module.external_id} onExternal={onExternal} />
+            {module.items ? (
+              <ItemList items={module.items} onExternal={onExternal} />
+            ) : (
+              <ModuleItems moduleId={module.external_id} onExternal={onExternal} />
+            )}
           </div>
         </CollapsibleContent>
       </div>
@@ -208,9 +215,9 @@ function ModuleItems({
   moduleId: string
   onExternal: (url: string) => void
 }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const items = useQuery({
-    ...lmsModuleItemListOptions({ path: { course_id: courseId, module_id: moduleId }, query }),
+    ...lmsModuleItemListOptions({ path: { course_id: courseId, module_id: moduleId } }),
     placeholderData: keepPreviousData,
   })
   return (
@@ -220,18 +227,31 @@ function ModuleItems({
       isEmpty={(data) => data.items.length === 0}
       empty={<p className="py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>}
     >
-      {(data) => (
-        <ul className="space-y-0.5">
-          {data.items
-            .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
-            .map((item) => (
-              <li key={item.external_id} style={{ paddingLeft: `${(item.indent ?? 0) * 1.25}rem` }}>
-                <ModuleItemRow item={item} onExternal={onExternal} />
-              </li>
-            ))}
-        </ul>
-      )}
+      {(data) => <ItemList items={data.items} onExternal={onExternal} />}
     </CanvasBoundary>
+  )
+}
+
+function ItemList({
+  items,
+  onExternal,
+}: {
+  items: ModuleItem[]
+  onExternal: (url: string) => void
+}) {
+  if (items.length === 0) {
+    return <p className="py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>
+  }
+  return (
+    <ul className="space-y-0.5">
+      {items
+        .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
+        .map((item) => (
+          <li key={item.external_id} style={{ paddingLeft: `${(item.indent ?? 0) * 1.25}rem` }}>
+            <ModuleItemRow item={item} onExternal={onExternal} />
+          </li>
+        ))}
+    </ul>
   )
 }
 

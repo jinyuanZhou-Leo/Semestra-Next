@@ -22,8 +22,10 @@ from alembic.config import Config
 from argon2 import PasswordHasher
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from semestra.core.config import Settings
+from semestra.core.events import drain
 from semestra.main import create_app
 from semestra.modules.auth import crypto, service
 from semestra.modules.auth.google import GoogleClaims
@@ -118,9 +120,23 @@ def google() -> FakeGoogle:
     return FakeGoogle()
 
 
+class _DrainEvents:
+    """Event subscribers run in the background (`core.events`); tests read their effects right
+    after a request, so each request here returns only once they are done."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self.app(scope, receive, send)
+        if scope["type"] == "http":
+            await drain(scope["app"].state)
+
+
 @pytest.fixture
 def app(settings: Settings, clock: Clock, mailer: MemoryMailer, google: FakeGoogle) -> FastAPI:
     app = create_app(settings)
+    app.add_middleware(_DrainEvents)
     app.state.now = clock
     app.state.auth_runtime.mailer = mailer
     app.state.auth_runtime.google = google
@@ -139,7 +155,12 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 @pytest.fixture
 def run_jobs(app: FastAPI) -> Callable[[], Awaitable[None]]:
     async def _run() -> None:
-        await app.state.jobs.run_until_idle()
+        # Jobs publish events whose subscribers may enqueue more jobs.
+        while True:
+            await app.state.jobs.run_until_idle()
+            if not getattr(app.state, "event_tasks", None):
+                return
+            await drain(app.state)
 
     return _run
 
@@ -153,7 +174,7 @@ def collect_events(app: FastAPI, user_id: str) -> Generator[list[dict[str, Any]]
             yield messages
         finally:
             while not queue.empty():
-                messages.append(queue.get_nowait())
+                messages.append(queue.get_nowait()[1])
 
 
 @dataclass

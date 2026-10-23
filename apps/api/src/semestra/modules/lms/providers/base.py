@@ -74,19 +74,31 @@ class LmsProvider(Protocol):
         io: Io,
         cfg: BaseModel,
         creds: BaseModel,
-        course_id: str,
+        course_ids: Sequence[str],
         *,
         since: datetime | None = None,
-    ) -> list[Announcement]: ...
+    ) -> list[Announcement]:
+        """Announcements of several courses at once (a term's board), each naming its course in
+        `external_course_id`."""
+        ...
+
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]: ...
-    async def grades(
+    async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
-    ) -> list[GradeItem]: ...
+    ) -> list[GradeItem]:
+        """The course total(s) (`kind="total"`). Per-assignment grades come from `assignments`
+        (their `submission`), so the module builds them without asking the platform again."""
+        ...
+
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
-    ) -> list[Module]: ...
+    ) -> list[Module]:
+        """Modules, with their `items` when the platform can include them (None otherwise:
+        then `module_items` is asked)."""
+        ...
+
     async def module_items(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, module_id: str
     ) -> list[ModuleItem]: ...
@@ -109,8 +121,11 @@ class LmsProvider(Protocol):
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta: ...
     def open_file(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
-    ) -> AsyncIterator[bytes]: ...
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file: FileMeta
+    ) -> AsyncIterator[bytes]:
+        """The file's bytes, from the metadata `file` returned (the module fetched it already)."""
+        ...
+
     async def submission(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, assignment_id: str
     ) -> SubmissionDetail:
