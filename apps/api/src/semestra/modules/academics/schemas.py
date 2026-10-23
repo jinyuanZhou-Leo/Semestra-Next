@@ -432,13 +432,3 @@ class CourseSetTermsInput(BaseModel):
     term_ids: list[Id] = Field(
         max_length=6, description="All terms of the course; must be consecutive"
     )
-
-
-class CourseOrderInput(BaseModel):
-    term_id: Id = Field(description="Term id")
-    course_ids: list[Id] = Field(max_length=200, description="Courses of the term in display order")
-
-
-class CourseOrder(BaseModel):
-    term_id: str
-    course_ids: list[str]

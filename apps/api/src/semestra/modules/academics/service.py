@@ -21,7 +21,6 @@ from semestra.modules.academics.models import (
     AcademicsCourseTerm,
     AcademicsProgram,
     AcademicsTerm,
-    AcademicsTermCourseOrder,
 )
 from semestra.modules.academics.schemas import (
     Break,
@@ -34,7 +33,6 @@ from semestra.modules.academics.schemas import (
     CourseCandidates,
     CourseFields,
     CourseListInput,
-    CourseOrder,
     CoursePage,
     CourseRef,
     CourseSetTermsInput,
@@ -675,9 +673,6 @@ async def delete_term(ctx: Ctx, term_id: str) -> TermDeleteResult:
     if only:
         await ctx.db.execute(delete(AcademicsCourse).where(AcademicsCourse.id.in_(only)))
     await ctx.db.execute(delete(AcademicsCourseTerm).where(AcademicsCourseTerm.term_id == term.id))
-    await ctx.db.execute(
-        delete(AcademicsTermCourseOrder).where(AcademicsTermCourseOrder.term_id == term.id)
-    )
     await ctx.db.delete(term)
     await ctx.db.flush()
     await events.publish(ctx, "academics.term.deleted", data)
@@ -838,24 +833,12 @@ async def create_courses(
     return await courses_out(ctx, program, rows)
 
 
-async def _term_order(ctx: Ctx, term_id: str) -> dict[str, int]:
-    rows = (
-        await ctx.db.execute(
-            select(AcademicsTermCourseOrder.course_id, AcademicsTermCourseOrder.position).where(
-                AcademicsTermCourseOrder.user_id == ctx.user_id,
-                AcademicsTermCourseOrder.term_id == term_id,
-            )
-        )
-    ).all()
-    return {course_id: position for course_id, position in rows}
-
-
 def _default_key(c: AcademicsCourse) -> tuple[int, str, str]:
     return (c.sort_order, rules.normalize(c.code) or "~", rules.normalize(c.title))
 
 
 async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
-    """The term's courses in display order: the user's order, then the default order."""
+    """The term's courses in the default order (the same everywhere they are listed)."""
     rows = (
         await ctx.db.scalars(
             select(AcademicsCourse)
@@ -865,9 +848,7 @@ async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
             )
         )
     ).all()
-    positions = await _term_order(ctx, term_id)
-    big = len(positions) + 1
-    return sorted(rows, key=lambda c: (positions.get(c.id, big), *_default_key(c)))
+    return sorted(rows, key=_default_key)
 
 
 async def list_courses(ctx: Ctx, inp: CourseListInput) -> CoursePage:
@@ -991,12 +972,6 @@ async def _link(ctx: Ctx, course: AcademicsCourse, added: set[str], removed: set
                 AcademicsCourseTerm.term_id.in_(removed),
             )
         )
-        await ctx.db.execute(
-            delete(AcademicsTermCourseOrder).where(
-                AcademicsTermCourseOrder.course_id == course.id,
-                AcademicsTermCourseOrder.term_id.in_(removed),
-            )
-        )
     ctx.db.add_all(
         AcademicsCourseTerm(course_id=course.id, term_id=t, user_id=ctx.user_id) for t in added
     )
@@ -1036,28 +1011,3 @@ async def delete_course(ctx: Ctx, course_id: str) -> None:
     await _announce_course_deleting(ctx, course.id, course.program_id, links.get(course.id), order)
     await ctx.db.delete(course)
     await ctx.db.flush()
-
-
-async def reorder_courses(ctx: Ctx, term_id: str, course_ids: Sequence[str]) -> CourseOrder:
-    term = await get_term_row(ctx, term_id)
-    in_term = {c.id for c in await _courses_in_term(ctx, term.id)}
-    wanted = [c for c in dict.fromkeys(course_ids) if c in in_term]
-    await ctx.db.execute(
-        delete(AcademicsTermCourseOrder).where(
-            AcademicsTermCourseOrder.user_id == ctx.user_id,
-            AcademicsTermCourseOrder.term_id == term.id,
-        )
-    )
-    ctx.db.add_all(
-        AcademicsTermCourseOrder(term_id=term.id, course_id=c, position=i, user_id=ctx.user_id)
-        for i, c in enumerate(wanted)
-    )
-    await ctx.db.flush()
-    await events.publish(
-        ctx,
-        "academics.term.updated",
-        {"term_id": term.id, "program_id": term.program_id, "fields": ["course_order"]},
-    )
-    return CourseOrder(
-        term_id=term.id, course_ids=[c.id for c in await _courses_in_term(ctx, term.id)]
-    )

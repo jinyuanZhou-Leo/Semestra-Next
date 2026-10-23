@@ -2700,32 +2700,6 @@ export type CourseList = {
 };
 
 /**
- * CourseOrder
- */
-export type CourseOrder = {
-    /**
-     * Term Id
-     */
-    term_id: string;
-    /**
-     * Course Ids
-     */
-    course_ids: Array<string>;
-};
-
-/**
- * CourseOrderInputBody
- */
-export type CourseOrderInputBody = {
-    /**
-     * Course Ids
-     *
-     * Courses of the term in display order
-     */
-    course_ids: Array<string>;
-};
-
-/**
  * CourseOverview
  */
 export type CourseOverview = {
@@ -11521,38 +11495,6 @@ export type AcademicsCourseUpdateResponses = {
 };
 
 export type AcademicsCourseUpdateResponse = AcademicsCourseUpdateResponses[keyof AcademicsCourseUpdateResponses];
-
-export type AcademicsCourseReorderData = {
-    body: CourseOrderInputBody;
-    path: {
-        /**
-         * Term Id
-         *
-         * Term id
-         */
-        term_id: string;
-    };
-    query?: never;
-    url: '/terms/{term_id}/course-order';
-};
-
-export type AcademicsCourseReorderErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type AcademicsCourseReorderError = AcademicsCourseReorderErrors[keyof AcademicsCourseReorderErrors];
-
-export type AcademicsCourseReorderResponses = {
-    /**
-     * Successful Response
-     */
-    200: CourseOrder;
-};
-
-export type AcademicsCourseReorderResponse = AcademicsCourseReorderResponses[keyof AcademicsCourseReorderResponses];
 
 export type AcademicsCourseSetTermsData = {
     body: CourseSetTermsInputBody;
