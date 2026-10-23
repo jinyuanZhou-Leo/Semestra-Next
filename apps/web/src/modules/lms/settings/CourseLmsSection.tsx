@@ -111,7 +111,7 @@ function LinkedCourse({
   const provider = useProviderName(link.provider) ?? link.provider
   const Logo = ui?.logo ?? Link2
   const [unlinking, setUnlinking] = useState(false)
-  const refresh = () => invalidateLms(queryClient)
+  const refresh = () => invalidateLms(queryClient, { courseId })
   const update = useMutation({
     ...lmsCourseLinkUpdateMutation(),
     onSuccess: refresh,
@@ -120,7 +120,8 @@ function LinkedCourse({
   const sync = useMutation({
     ...lmsCourseLinkSyncMutation(),
     onSuccess: async (out) => {
-      await queryClient.invalidateQueries()
+      // Only the link's own details change (its content stays cached).
+      await refresh()
       const code = out.link?.last_error_code
       if (code) toast.error(errorMessage({ error: { code } }))
       else toast.success(m.lms_course_synced())

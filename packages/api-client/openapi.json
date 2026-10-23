@@ -1777,72 +1777,6 @@
         }
       }
     },
-    "/terms/{term_id}/course-order": {
-      "put": {
-        "tags": [
-          "academics"
-        ],
-        "summary": "Set the display order of the courses within a term.",
-        "description": "Courses not listed keep their default order after the listed ones.",
-        "operationId": "academicsCourseReorder",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "term_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Term id",
-              "title": "Term Id"
-            },
-            "description": "Term id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CourseOrderInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CourseOrder"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/courses/{course_id}/terms": {
       "put": {
         "tags": [
@@ -9537,8 +9471,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Imported assignments whose title, due date or points changed on the LMS.",
-        "description": "Put them up for the user's review with lms.course.queue_updates.",
+        "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
+        "description": "A `score` change is a grade the gradebook does not have yet. Put them up for\nthe user's review with lms.course.queue_updates.",
         "operationId": "lmsCourseCheckUpdates",
         "security": [
           {
@@ -10164,13 +10098,66 @@
         }
       }
     },
+    "/courses/{course_id}/lms:refresh": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Forget what the app cached about a linked course, so its next reads ask the LMS.",
+        "description": "The Canvas tab's \"Refresh\". Reads with `refresh` do the same for one read.\nNot for agents.",
+        "operationId": "lmsCourseRefresh",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseLinkState"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/files/{file_id}": {
       "get": {
         "tags": [
           "lms"
         ],
         "summary": "Details of a file of a linked course.",
-        "description": "To read or search its text, save it with lms.file.save_to_course.",
+        "description": "Read its text with lms.file.preview; to search or cite it, save it with\nlms.file.save_to_course.",
         "operationId": "lmsFileGet",
         "security": [
           {
@@ -11433,6 +11420,71 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImportStarted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/lms/announcements": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Recent announcements of every LMS-linked course of a term, newest first.",
+        "description": "One request per connection (the term board's card); each item names its\n`course_id`. Not for agents: they read one course with lms.announcement.list.",
+        "operationId": "lmsTermAnnouncementList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Skip the 5-minute cache and ask again",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Skip the 5-minute cache and ask again"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TermAnnouncementList"
                 }
               }
             }
@@ -16066,6 +16118,12 @@
             "title": "Raw Kind",
             "description": "The platform's own type (debugging)"
           },
+          "external_course_id": {
+            "type": "string",
+            "title": "External Course Id",
+            "description": "The course it was posted in",
+            "default": ""
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -19975,47 +20033,6 @@
         ],
         "title": "CourseList"
       },
-      "CourseOrder": {
-        "properties": {
-          "term_id": {
-            "type": "string",
-            "title": "Term Id"
-          },
-          "course_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Course Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "term_id",
-          "course_ids"
-        ],
-        "title": "CourseOrder"
-      },
-      "CourseOrderInputBody": {
-        "properties": {
-          "course_ids": {
-            "items": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 200,
-            "title": "Course Ids",
-            "description": "Courses of the term in display order"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_ids"
-        ],
-        "title": "CourseOrderInputBody"
-      },
       "CourseOverview": {
         "properties": {
           "link": {
@@ -20505,7 +20522,7 @@
               }
             ],
             "title": "Sort Order",
-            "description": "Default position within a term"
+            "description": "Display position (then code, title)"
           }
         },
         "type": "object",
@@ -25787,6 +25804,21 @@
             "type": "boolean",
             "title": "Require Sequential Progress",
             "default": false
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModuleItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items",
+            "description": "The module's items when the platform sent them along (None: ask for them)"
           }
         },
         "type": "object",
@@ -31817,6 +31849,142 @@
           "updated_at"
         ],
         "title": "Term"
+      },
+      "TermAnnouncement": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "web_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Url",
+            "description": "Opens the item on the platform"
+          },
+          "raw_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Kind",
+            "description": "The platform's own type (debugging)"
+          },
+          "external_course_id": {
+            "type": "string",
+            "title": "External Course Id",
+            "description": "The course it was posted in",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "unread": {
+            "type": "boolean",
+            "title": "Unread",
+            "default": false
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id",
+            "description": "The app's course it was posted in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "title",
+          "course_id"
+        ],
+        "title": "TermAnnouncement"
+      },
+      "TermAnnouncementList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TermAnnouncement"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Newest first"
+          },
+          "linked_course_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Course Ids",
+            "description": "The term's courses linked to an LMS"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "linked_course_ids",
+          "truncated"
+        ],
+        "title": "TermAnnouncementList"
       },
       "TermCreateInputBody": {
         "properties": {

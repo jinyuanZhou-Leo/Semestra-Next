@@ -49,14 +49,6 @@
       "plugin_id": null
     },
     {
-      "name": "academics__course__reorder",
-      "capability": "academics.course.reorder",
-      "module": "academics",
-      "effect": "write",
-      "summary": "Set the display order of the courses within a term.",
-      "plugin_id": null
-    },
-    {
       "name": "academics__course__set_terms",
       "capability": "academics.course.set_terms",
       "module": "academics",
@@ -637,7 +629,7 @@
       "capability": "lms.course.check_updates",
       "module": "lms",
       "effect": "read",
-      "summary": "Imported assignments whose title, due date or points changed on the LMS.",
+      "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
       "plugin_id": null
     },
     {
@@ -1324,7 +1316,7 @@
         "en": "Manage terms and courses",
         "zh-CN": "管理学期与课程"
       },
-      "description": "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, reorder courses, or make a course year-long.",
+      "description": "Use when the user wants to add, rename, re-date or delete a semester or course, set reading weeks and holidays, or make a course year-long.",
       "tools": [
         "academics__program__get",
         "academics__program__update",
@@ -1343,7 +1335,6 @@
         "academics__course__create_many",
         "academics__course__set_terms",
         "academics__course__update",
-        "academics__course__reorder",
         "academics__course__delete"
       ]
     },

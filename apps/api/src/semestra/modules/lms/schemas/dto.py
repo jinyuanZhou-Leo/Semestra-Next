@@ -109,6 +109,7 @@ class NavTab(Dto):
 
 
 class Announcement(Dto):
+    external_course_id: str = Field(default="", description="The course it was posted in")
     title: str
     html: Html = None
     author: str | None = None
@@ -207,19 +208,6 @@ class GradeItem(Dto):
     kind: Literal["total", "assignment"] = "assignment"
 
 
-class Module(Dto):
-    name: str
-    position: int = 0
-    state: str | None = Field(
-        default=None, description="The user's progress: locked, unlocked, started or completed"
-    )
-    unlock_at: datetime | None = None
-    item_count: int = 0
-    completed_at: datetime | None = None
-    prerequisite_module_ids: list[str] = Field(default_factory=list)
-    require_sequential_progress: bool = False
-
-
 class InternalRef(BaseModel):
     """A platform link the app can open itself (M16)."""
 
@@ -259,6 +247,23 @@ class ModuleItem(Dto):
     lock_explanation: LockText = None
     due_at: datetime | None = None
     points: float | None = None
+
+
+class Module(Dto):
+    name: str
+    position: int = 0
+    state: str | None = Field(
+        default=None, description="The user's progress: locked, unlocked, started or completed"
+    )
+    unlock_at: datetime | None = None
+    item_count: int = 0
+    completed_at: datetime | None = None
+    prerequisite_module_ids: list[str] = Field(default_factory=list)
+    require_sequential_progress: bool = False
+    items: list[ModuleItem] | None = Field(
+        default=None,
+        description="The module's items when the platform sent them along (None: ask for them)",
+    )
 
 
 # The `page_ref` that asks for the course's front page, whatever its slug.

@@ -35,7 +35,7 @@ defineModule({
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
 ## 3. 页面结构
-- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。顶部栏：课程外部名称和代码、"在 Canvas 中打开"、"刷新"（调用接口时带 `refresh=true`）、M09 导出的 `<LmsUpdatesBanner>`。
+- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。顶部栏：课程外部名称和代码、"在 Canvas 中打开"、"刷新"（调用 `lms.course.refresh`）、M09 导出的 `<LmsUpdatesBanner>`。
 - 导航栏数据：`lms.course.overview.navigation`。显示规则：
   - 内置类型 `home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus` 使用本插件的原生视图。
   - `files`、`discussions` 隐藏（与旧版一致）。
@@ -84,7 +84,7 @@ defineModule({
 **位置与刷新**
 - 课程 Page 路由（`_authed.p.$programId.c.$courseId.$page`）现在保留所有字符串 search 参数，属于 Page 自己；插件用 `?tab=&ref=`。`tab` 是原生视图名（`announcements` 等），外部工具和未知页签是 `tab:<external_id>`；原生视图即使在 Canvas 里隐藏了也能打开（单元条目可能指向它），找不到的页签回到首页。
 - 位置同时存 `useUiPref('canvas-tab.location.<courseId>')`；URL 里有位置时以 URL 为准并记下来，没有时把记住的位置写回 URL（replace）。`canvas-tab.` 加入了 UI 状态预取前缀，避免先闪一下首页。
-- "刷新"第一次点击把所有读接口切换为带 `refresh=true` 的查询（键变化即重新请求，期间保留旧数据），之后再点击就重新请求当前页面上的这些查询；同时刷新 M09 的关联、变更检测等查询。
+- "刷新"调用一次 `lms.course.refresh`（服务端清掉这门课的缓存），然后让这门课的 LMS 查询和 M09 的状态查询重新请求；查询键里不带 `refresh`，之后的读取照常走缓存（2026-10-23 评审修复，之前是切换为永久 `refresh=true`）。单元列表带了条目时直接显示，不再逐个单元请求。
 - `default_view` 为空或未知时首页显示单元。`wiki` 首页用 `lms.page.get` 的保留 ref `@front`（M09 映射到 Canvas `GET /courses/:id/front_page`，一次请求，学生不能列出页面时也能用）；课程没有首页 page（`common.not_found`）时显示单元。
 - 外部工具与未知页签的链接：Canvas Tab 对象的 `html_url` 是相对路径，M09 按连接的 `base_url` 补成绝对地址。
 

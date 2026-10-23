@@ -7,19 +7,19 @@ import { CourseInfoLms } from './components/CourseInfoLms'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import { assignmentSource, termCourseCommand, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
-import { LMS_QUERIES } from './queries'
+import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
 
-const EVENTS = [
+// A connection's change can change what every course reads; the rest only the LMS state.
+const CONNECTION_EVENTS = [
   'lms.connection.created',
   'lms.connection.updated',
   'lms.connection.deleted',
   'lms.connection.status_changed',
-  'lms.program.bound',
-  'lms.course.linked',
-  'lms.course.unlinked',
-  'lms.course.link_updated',
 ] as const
+const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
+// Linking or unlinking also changes which courses the term announcements card reads.
+const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
 
@@ -109,5 +109,11 @@ export default defineModule({
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
   },
-  realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, LMS_QUERIES])),
+  realtimeInvalidations: {
+    ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),
+    ...Object.fromEntries(STATE_EVENTS.map((event) => [event, LMS_STATE_QUERIES])),
+    ...Object.fromEntries(
+      LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
+    ),
+  },
 })
