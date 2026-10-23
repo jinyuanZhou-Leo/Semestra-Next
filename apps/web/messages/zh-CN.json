@@ -1440,6 +1440,7 @@
   "capability_pomodoro_session_summarize_title": "读取番茄钟统计",
   "capability_schedule_conflict_list_title": "检查课表冲突",
   "capability_schedule_event_create_title": "添加日程",
+  "capability_schedule_event_create_many_title": "批量添加日程",
   "capability_schedule_event_delete_title": "删除日程",
   "capability_schedule_event_list_title": "列出日程",
   "capability_schedule_event_update_title": "修改日程",

@@ -1440,6 +1440,7 @@
   "capability_pomodoro_session_summarize_title": "Read focus stats",
   "capability_schedule_conflict_list_title": "Check timetable clashes",
   "capability_schedule_event_create_title": "Add an event",
+  "capability_schedule_event_create_many_title": "Add events",
   "capability_schedule_event_delete_title": "Delete an event",
   "capability_schedule_event_list_title": "List events",
   "capability_schedule_event_update_title": "Update an event",

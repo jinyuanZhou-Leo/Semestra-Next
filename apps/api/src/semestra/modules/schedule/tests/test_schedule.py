@@ -793,3 +793,142 @@ async def test_a_moved_class_can_clear_its_location(api: Api):
         )
     got = classes(await api.calendar(program_id, "2026-02-09", "2026-02-24"))
     assert [o["location"] for o in got] == ["BA1130", None]
+
+
+async def test_keep_only_one_section_in_one_change(api: Api):
+    _, term_id, course_id = await api.setup()
+    mon = await api.meeting(course_id, term_id, type_code="TUT", section_code="TUT0101")
+    wed = await api.meeting(course_id, term_id, type_code="TUT", section_code="TUT0101", weekday=3)
+    other = await api.meeting(course_id, term_id, type_code="TUT", section_code="TUT0102")
+    changed = await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={
+            "meeting_ids": [mon["id"], wed["id"]],
+            "enabled": True,
+            "other_meeting_ids": [other["id"]],
+        },
+    )
+    assert [(m["id"], m["enabled"]) for m in changed["items"]] == [(other["id"], False)]
+    listed = await api.call("GET", f"/terms/{term_id}/meetings")
+    assert {m["id"]: m["enabled"] for m in listed["items"]} == {
+        mon["id"]: True,
+        wed["id"]: True,
+        other["id"]: False,
+    }
+
+
+async def test_a_repeated_import_keeps_hidden_sections_and_does_not_duplicate_events(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    item = {
+        "term_id": term_id,
+        "type_code": "TUT",
+        "weekday": 2,
+        "start_time": "09:00",
+        "end_time": "10:00",
+        "source_kind": "ics",
+        "source_ref": "uid-1:2",
+    }
+    first = await api.call(
+        "POST", f"/courses/{course_id}/meetings:batch", json={"meetings": [item]}
+    )
+    (meeting_id,) = first["created_ids"]
+    await api.call(
+        "PUT",
+        f"/courses/{course_id}/meetings:enabled",
+        json={"meeting_ids": [meeting_id], "enabled": False},
+    )
+    again = await api.call(
+        "POST", f"/courses/{course_id}/meetings:batch", json={"meetings": [item]}
+    )
+    assert again["updated_ids"] == [meeting_id]
+    assert [m["enabled"] for m in again["items"]] == [False]
+
+    exam = {
+        "title": "Midterm",
+        "start_at": "2026-02-26T18:30",
+        "end_at": "2026-02-26T20:30",
+        "course_id": course_id,
+        "source_kind": "ics",
+        "source_ref": "uid-9",
+    }
+    url = f"/programs/{program_id}/events:batch"
+    made = await api.call("POST", url, json={"events": [exam]})
+    redo = await api.call("POST", url, json={"events": [{**exam, "location": "EX 100"}]})
+    assert (redo["created_ids"], redo["updated_ids"]) == ([], made["created_ids"])
+    events = (await api.call("GET", f"/programs/{program_id}/events"))["items"]
+    assert [(e["title"], e["location"]) for e in events] == [("Midterm", "EX 100")]
+    one = await api.call("GET", f"/events/{made['created_ids'][0]}")
+    assert one["location"] == "EX 100"
+
+
+async def test_deleting_a_term_keeps_the_events_of_courses_that_stay(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    summer = await api.call(
+        "POST",
+        f"/programs/{program_id}/terms",
+        json={"name": "Summer", "start_date": "2026-05-11", "end_date": "2026-08-14"},
+    )
+    summer_id = summer["term"]["id"]
+    await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id, summer_id]})
+    kept = await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Summer quiz",
+            "start_at": "2026-06-01T09:00",
+            "end_at": "2026-06-01T10:00",
+            "course_id": course_id,
+            "term_id": summer_id,
+        },
+    )
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={
+            "title": "Summer party",
+            "start_at": "2026-06-02T18:00",
+            "end_at": "2026-06-02T20:00",
+            "term_id": summer_id,
+        },
+    )
+    await api.call("DELETE", f"/terms/{summer_id}")
+    events = (await api.call("GET", f"/programs/{program_id}/events"))["items"]
+    assert [(e["id"], e["term_id"]) for e in events] == [(kept["id"], None)]
+
+
+async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    await api.meeting(course_id, term_id)
+    await api.call(
+        "POST",
+        f"/programs/{program_id}/events",
+        json={"title": "Clash", "start_at": "2026-01-12T10:30", "end_at": "2026-01-12T11:30"},
+    )
+    both = await api.calendar(program_id, "2026-01-12", "2026-01-13")
+    assert [len(o["meta"]["conflicts_with"]) for o in both["items"]] == [1, 1]
+    only = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["class"])
+    assert [o["meta"]["conflicts_with"] for o in only["items"]] == [[]]
+
+
+async def test_ics_sequence_grows_when_a_class_changes(api: Api, clock: Clock):
+    program_id, term_id, course_id = await api.setup()
+    meeting = await api.meeting(course_id, term_id)
+
+    async def sequence() -> int:
+        r = await api.client.get(
+            f"/programs/{program_id}/calendar.ics",
+            params={"start": "2026-01-12", "end": "2026-01-13"},
+        )
+        (event,) = Calendar.from_ical(r.content).walk("VEVENT")
+        assert event.get("last-modified") is not None
+        return int(event.decoded("sequence"))
+
+    before = await sequence()
+    clock.advance(minutes=5)
+    await api.call(
+        "PUT",
+        f"/meetings/{meeting['id']}/exceptions/2026-01-12",
+        json={"kind": "moved", "new_location": "BA 1130"},
+    )
+    assert await sequence() > before

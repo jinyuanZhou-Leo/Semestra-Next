@@ -881,6 +881,14 @@
       "plugin_id": null
     },
     {
+      "name": "schedule__event__create_many",
+      "capability": "schedule.event.create_many",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add several one-off events to a Program at once (importers).",
+      "plugin_id": null
+    },
+    {
       "name": "schedule__event__delete",
       "capability": "schedule.event.delete",
       "module": "schedule",

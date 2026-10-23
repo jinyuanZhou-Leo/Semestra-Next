@@ -463,6 +463,8 @@ async def _ics_items(ctx: Ctx, row: ImportsSession, uploads: Sequence[ImportsUpl
         result = parse_ics(await read_upload_bytes(ctx, upload), program.timezone)
         new += build.from_ics(result, context, terms)
         refs[index] = {**refs[index], "status": "done"}
+        if result.truncated:
+            refs[index]["warning_code"] = "import.ics_truncated"
     row.source_refs = refs
     if not new:
         raise AppError("import.no_content", 422)
@@ -1082,7 +1084,6 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         term_ref = data.get("term_ref")
         term_id = term_ref.removeprefix("term:") if term_ref else c.term_id
         event = {
-            "program_id": program_id,
             "title": data["title"],
             "start_at": start_at,
             "end_at": end_at,
@@ -1094,8 +1095,12 @@ async def _write(c: _Commit, item: ImportsItem) -> dict[str, Any]:
             "source_kind": c.row.source_kind,
             "source_ref": data.get("source_ref") or f"import:{item.id}",
         }
-        out = await deps.call(ctx, "schedule.event.create", event)
-        return {"created_id": out["id"]}
+        out = await deps.call(
+            ctx, "schedule.event.create_many", {"program_id": program_id, "events": [event]}
+        )
+        if out["created_ids"]:
+            return {"created_id": out["created_ids"][0]}
+        return {"updated_id": out["updated_ids"][0]}
     if item.type in ("assessment_patch", "task_patch"):
         kind = item.type.removesuffix("_patch")
         target_id = data[f"{kind}_id"]

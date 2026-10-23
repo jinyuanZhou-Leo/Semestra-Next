@@ -29,7 +29,7 @@ log = structlog.get_logger()
 SOURCE = "lms.events"
 
 
-@calendar_source(SOURCE)
+@calendar_source(SOURCE, kinds=("deadline", "event"))
 async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     links = [
         li
