@@ -6,7 +6,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
@@ -100,8 +100,8 @@ def _byte_range(header: str | None, size: int) -> tuple[int, int] | None:
     "/files/{item_id}/content",
     operation_id="filesContent",
     response_class=StreamingResponse,
-    responses={200: {"content": {"application/octet-stream": {}}}, 206: {}},
-    summary="Download or preview a file; supports Range requests.",
+    responses={200: {"content": {"application/octet-stream": {}}}, 206: {}, 304: {}},
+    summary="Download or preview a file; supports Range requests and If-None-Match.",
 )
 async def content(
     item_id: Annotated[str, Path(description="File id")],
@@ -111,7 +111,7 @@ async def content(
         str,
         Query(pattern="^(inline|attachment)$", description="inline previews, attachment downloads"),
     ] = "attachment",
-) -> StreamingResponse:
+) -> Response:
     item = await service.get_item(ctx, item_id)
     if item.kind != "file" or not item.storage_key:
         raise not_found()
@@ -135,6 +135,8 @@ async def content(
         headers["Content-Security-Policy"] = "default-src 'none'"
     else:
         headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    if not span and _matches(request, headers["ETag"]):
+        return _not_modified(headers)
     start, end = span if span else (0, max(item.size_bytes - 1, 0))
     length = end - start + 1 if item.size_bytes else 0
     headers["Content-Length"] = str(length)
@@ -150,14 +152,15 @@ async def content(
     "/files/{item_id}/pages/{page}.png",
     operation_id="filesPageImage",
     response_class=StreamingResponse,
-    responses={200: {"content": {"image/png": {}}}},
+    responses={200: {"content": {"image/png": {}}}, 304: {}},
     summary="A small image of one page of a processed file.",
 )
 async def page_image(
     item_id: Annotated[str, Path(description="File id")],
     page: Annotated[int, Path(ge=1, description="Page number, starting at 1")],
+    request: Request,
     ctx: CurrentCtx,
-) -> StreamingResponse:
+) -> Response:
     item = await service.get_item(ctx, item_id)
     if item.active_document_id is None:
         raise not_found()
@@ -169,12 +172,28 @@ async def page_image(
     )
     if not key:
         raise not_found()
-    return StreamingResponse(
-        get_storage(ctx).open(key),
-        media_type="image/png",
-        headers={
-            "Cache-Control": "private, max-age=3600",
-            "X-Content-Type-Options": "nosniff",
-            "Cross-Origin-Resource-Policy": "same-site",
-        },
+    # Tied to the document: after a reprocess the same URL gives the new page, so the browser
+    # revalidates instead of keeping the old picture for an hour.
+    headers = {
+        "ETag": f'"{item.active_document_id}-{page}"',
+        "Cache-Control": "private, no-cache",
+        "X-Content-Type-Options": "nosniff",
+        "Cross-Origin-Resource-Policy": "same-site",
+    }
+    if _matches(request, headers["ETag"]):
+        return _not_modified(headers)
+    return StreamingResponse(get_storage(ctx).open(key), media_type="image/png", headers=headers)
+
+
+def _matches(request: Request, etag: str) -> bool:
+    wanted = request.headers.get("if-none-match")
+    if not wanted:
+        return False
+    return wanted.strip() == "*" or etag in (
+        t.strip().removeprefix("W/") for t in wanted.split(",")
     )
+
+
+def _not_modified(headers: dict[str, str]) -> Response:
+    keep = ("ETag", "Cache-Control", "Content-Disposition")
+    return Response(status_code=304, headers={k: v for k, v in headers.items() if k in keep})

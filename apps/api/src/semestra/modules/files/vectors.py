@@ -62,6 +62,19 @@ class VectorStore(Protocol):
         """`(chunk_id, cosine distance)`, nearest first, among this user's vectors."""
         ...
 
+    async def nearest_of(
+        self,
+        db: AsyncSession,
+        space: str,
+        *,
+        user_id: str,
+        vector: Sequence[float],
+        chunk_ids: Sequence[str],
+        k: int,
+    ) -> list[tuple[str, float]]:
+        """Like `knn`, but only among these chunks (exact, for a search within a few files)."""
+        ...
+
     async def spaces(self, db: AsyncSession) -> list[str]: ...
 
     async def drop(self, db: AsyncSession, space: str) -> None: ...
@@ -174,6 +187,36 @@ class SqliteVecStore:
             params["course_ids"] = list(course_ids)
         result = await db.execute(stmt if stmt is not None else text(sql), params)
         return [(row[0], float(row[1])) for row in result.all()]
+
+    async def nearest_of(
+        self,
+        db: AsyncSession,
+        space: str,
+        *,
+        user_id: str,
+        vector: Sequence[float],
+        chunk_ids: Sequence[str],
+        k: int,
+    ) -> list[tuple[str, float]]:
+        if not chunk_ids or space not in await self.spaces(db):
+            return []
+        out: list[tuple[str, float]] = []
+        for start in range(0, len(chunk_ids), 500):
+            result = await db.execute(
+                text(
+                    "SELECT chunk_id, vec_distance_cosine(embedding, :vector) AS distance "  # noqa: S608
+                    f"FROM {_table(space)} WHERE user_id = :user_id AND chunk_id IN :ids "
+                    "ORDER BY distance LIMIT :k"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {
+                    "vector": _pack(vector),
+                    "user_id": user_id,
+                    "ids": list(chunk_ids[start : start + 500]),
+                    "k": k,
+                },
+            )
+            out += [(row[0], float(row[1])) for row in result.all()]
+        return sorted(out, key=lambda hit: hit[1])[:k]
 
     async def drop(self, db: AsyncSession, space: str) -> None:
         await db.execute(text(f"DROP TABLE IF EXISTS {_table(space)}"))

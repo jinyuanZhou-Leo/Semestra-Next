@@ -139,7 +139,7 @@ def test_spreadsheets_drop_empty_columns_and_long_tables_are_cut():
     sheet = book.active
     assert sheet is not None
     sheet.append(["Item", "Weight"])
-    sheet.cell(row=1, column=60).value = " "  # formatted far to the right, but empty
+    sheet.cell(row=1, column=60, value=" ")  # formatted far to the right, but empty
     for n in range(450):
         sheet.append([f"Quiz {n}", 1])
     out = io.BytesIO()

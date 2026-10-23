@@ -49,6 +49,11 @@ async def test_upload_is_processed_into_pages_and_chunks(fx: Fx):
     thumb = await fx.client.get(f"/files/{item['id']}/pages/1.png")
     assert thumb.status_code == 200
     assert thumb.content.startswith(b"\x89PNG")
+    again = await fx.client.get(
+        f"/files/{item['id']}/pages/1.png", headers={"If-None-Match": thumb.headers["etag"]}
+    )
+    assert again.status_code == 304
+    assert (await fx.client.get(f"/files/{item['id']}/pages/2.png")).status_code == 404
 
 
 async def test_unsupported_files_are_stored_but_not_indexed(fx: Fx):
@@ -210,6 +215,11 @@ async def test_content_headers_and_ranges(fx: Fx):
     # The browser's PDF viewer does not run in a sandboxed document.
     assert "content-security-policy" not in r.headers
     assert r.headers["accept-ranges"] == "bytes"
+    cached = await fx.client.get(
+        f"/files/{item['id']}/content", headers={"If-None-Match": r.headers["etag"]}
+    )
+    assert cached.status_code == 304
+    assert cached.content == b""
 
     part = await fx.client.get(f"/files/{item['id']}/content", headers={"Range": "bytes=0-9"})
     assert part.status_code == 206
@@ -378,6 +388,26 @@ async def test_semantic_and_hybrid_search_with_embeddings(fx: Fx, fake_ai: FakeA
     fake_ai.enabled.clear()
     fallback = await fx.search("midterm exam", mode="hybrid")
     assert fallback["mode_used"] == "keyword"
+
+
+async def test_semantic_search_within_files_and_repeated_queries(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.files import search
+
+    fake_ai.enabled.add("embedding")
+    syllabus = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    notes = await fx.upload_ready("notes.docx", make_docx([("Normal", "Recursion basics")]))
+    monkeypatch.setattr(search, "MAX_K", 1)  # the course-wide nearest chunk is the syllabus
+    within = await fx.search("grading midterm", mode="semantic", item_ids=[notes["id"]])
+    assert within["mode_used"] == "semantic"
+    assert [h["item_id"] for h in within["results"]] == [notes["id"]]
+    assert syllabus["id"] != notes["id"]
+
+    fake_ai.embed_calls.clear()
+    await fx.search("grading midterm", mode="semantic")
+    await fx.search("grading midterm", mode="semantic")
+    assert fake_ai.embed_calls == []  # the query was embedded by the first search
 
 
 async def test_embedding_failure_keeps_keyword_search_and_is_retried(

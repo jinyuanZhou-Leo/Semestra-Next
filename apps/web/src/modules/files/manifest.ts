@@ -1,31 +1,29 @@
 import { FileClock, FolderOpen, Star } from 'lucide-react'
-import { defineModule, preloadable } from '@/app/extensions'
+import { defineModule, preloadable, type QueryKeyPrefix } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { QuickOpenPicker } from './cards/QuickOpenPicker'
 import { quickOpenSchema } from './cards/quick-open'
 import { prefetchFilesPage } from './queries'
 
-/** Queries that show files; any change to a file, a folder or the course behind them refetches them. */
-const FILES_QUERIES = [
-  'filesItemList',
-  'filesItemGet',
-  'filesUsageGet',
-  'filesDocumentSearch',
-  'filesDocumentRead',
-  'filesDocumentOutline',
-] as const
+const LISTS = ['filesItemList', 'filesItemGet'] as const
+const PAGES = ['filesDocumentRead', 'filesDocumentOutline'] as const
 
-const FILES_EVENTS = [
-  'files.item.created',
-  'files.item.updated',
-  'files.item.deleted',
-  'files.document.ready',
-  'files.document.failed',
-  'files.folder.created',
-  'files.folder.updated',
-  'files.folder.deleted',
-  'academics.course.deleted',
-] as const
+/**
+ * What each event can change. Creating or renaming a folder only changes the list; search shows names and
+ * files still being processed; a document's pages only change when it is switched or goes away.
+ */
+const INVALIDATIONS = {
+  'files.item.created': [...LISTS, 'filesUsageGet', 'filesDocumentSearch'],
+  'files.item.updated': [...LISTS, 'filesDocumentSearch'],
+  'files.item.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
+  'files.document.ready': [...LISTS, 'filesDocumentSearch', ...PAGES],
+  'files.document.failed': [...LISTS, 'filesDocumentSearch'],
+  'files.folder.created': ['filesItemList'],
+  'files.folder.updated': ['filesItemList'],
+  // A recursive delete takes its files with it.
+  'files.folder.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
+  'academics.course.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
+} satisfies Record<string, readonly QueryKeyPrefix[]>
 
 /**
  * M07 文件与文档管线: course files and links, previews, and the document pipeline that makes them
@@ -77,5 +75,5 @@ export default defineModule({
     { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
   ],
-  realtimeInvalidations: Object.fromEntries(FILES_EVENTS.map((event) => [event, FILES_QUERIES])),
+  realtimeInvalidations: INVALIDATIONS,
 })
