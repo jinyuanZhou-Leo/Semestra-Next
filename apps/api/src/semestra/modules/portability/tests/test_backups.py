@@ -544,6 +544,109 @@ async def test_course_files_travel_with_their_contents(
     assert done["report"]["skipped"] == {"files": {"items": 1}}
 
 
+async def test_replacing_counts_the_quota_without_the_files_it_removes(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    alice = await make_user()
+    ids = await _seed(app, alice)
+    item_id = new_id()
+    key = files_service.storage_key(alice.id, item_id)
+    await app.state.storage.put(key, _one(b"week 1 notes"), "text/plain")
+    async with app.state.session_factory() as db:
+        db.add(
+            FilesItem(
+                id=item_id,
+                user_id=alice.id,
+                course_id=ids["course"],
+                kind="file",
+                display_name="notes.txt",
+                original_name="notes.txt",
+                mime_type="text/plain",
+                size_bytes=12,
+                storage_key=key,
+                doc_status="ready",
+            )
+        )
+        await db.commit()
+    await login_as(client, alice)
+    archive = await _export(client, run_jobs, include_files=True)
+    # 8 bytes are left, but the restore replaces the file's 12 bytes with the backup's 12.
+    used = (await client.get("/storage/usage")).json()["used_bytes"]
+    app.state.settings.user_storage_quota_bytes = used + 8
+    upload_id = (await _upload(client, archive)).json()["id"]
+    started = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": "Replace my data"},
+    )
+    assert started.status_code == 200, started.text
+    await run_jobs()
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "imported", done["error_code"]
+    async with app.state.session_factory() as db:
+        sizes = list(
+            await db.scalars(
+                select(FilesItem.size_bytes).where(
+                    FilesItem.user_id == alice.id, FilesItem.kind == "file"
+                )
+            )
+        )
+    assert sizes == [12]
+
+
+async def test_copying_stops_once_the_files_pass_the_quota(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored: list[str] = []
+
+    async def export(ctx: Ctx, writer: Any) -> None:
+        async def chunks() -> AsyncIterator[bytes]:
+            yield b"file body"
+
+        writer.write_json({"schema_version": 1})
+        for name in ("note-1", "note-2", "note-3"):
+            await writer.add_file(name, chunks())
+
+    async def import_files(ctx: Ctx, payload: Any, id_map: Any, options: Any) -> ImportReport:
+        for name in ("note-1", "note-2", "note-3"):
+            await options.files.store(name, f"users/{ctx.user_id}/aa/{name}", "text/plain")
+            stored.append(name)
+        return ImportReport({"notes": 3})
+
+    async def preview(payload: Any) -> dict[str, int]:
+        return {}
+
+    async def nothing(ctx: Ctx) -> None:
+        return None
+
+    async def nothing_content(ctx: Ctx, preferences: bool) -> None:
+        return None
+
+    adapter = Adapter(
+        "aa_files", 1, (), export, import_files, preview, nothing, nothing_content, ()
+    )
+    monkeypatch.setitem(registry._adapters, "aa_files", adapter)  # pyright: ignore[reportPrivateUsage]
+    await login_as(client, await make_user())
+    archive = await _export(client, run_jobs, include_files=True)
+    app.state.settings.user_storage_quota_bytes = 10
+    upload_id = (await _upload(client, archive)).json()["id"]
+    # A replace is not refused up front, since the old files make room.
+    started = await client.post(
+        f"/me/imports/{upload_id}:start",
+        json={"mode": "replace", "confirmation": "Replace my data"},
+    )
+    assert started.status_code == 200, started.text
+    await run_jobs()
+
+    done = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert (done["status"], done["error_code"]) == ("failed", "common.quota_exceeded")
+    assert stored == ["note-1"]  # the second copy was cut off, the third never started
+
+
 async def test_files_are_copied_before_the_import_takes_the_write_lock(
     app: FastAPI,
     client: AsyncClient,

@@ -108,7 +108,10 @@ function EmailRow({ user }: { user: UserOut }) {
               {start.error && !reauthState(start.error).handled ? errorMessage(start.error) : null}
             </FieldError>
             <div className="flex gap-2">
-              <Button type="submit">
+              <Button
+                type="submit"
+                disabled={!newEmail.trim() || (needsPassword && password === '')}
+              >
                 {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
               </Button>
               <Button type="button" variant="ghost" onClick={close}>

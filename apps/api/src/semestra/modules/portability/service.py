@@ -459,13 +459,15 @@ async def start_import(ctx: Ctx, inp: ImportStartInput) -> ImportOut:
 
 
 class _StagedFiles:
-    """`FileSource` over the archive: copies files in before the rows are written, then hands
-    them to the rows that keep them (counting the quota) and removes the rest."""
+    """`FileSource` over the archive: copies files in (at most `copy_limit` bytes in all) before
+    the rows are written, then hands them to the rows that keep them (at most `limit` bytes, set
+    once the old data is gone) and removes the rest."""
 
-    def __init__(self, ctx: Ctx, reader: ArchiveReader, limit: int | None) -> None:
+    def __init__(self, ctx: Ctx, reader: ArchiveReader, copy_limit: int) -> None:
         self.ctx = ctx
         self.reader = reader
-        self.limit = limit
+        self.copy_limit = copy_limit
+        self.limit = copy_limit
         self.sizes: dict[str, int] = {}
         self.claimed: set[str] = set()
 
@@ -477,10 +479,19 @@ class _StagedFiles:
             raise invalid()
         if not final_key.startswith(f"users/{self.ctx.user_id}/"):
             raise ValueError("imported files must go under the user's storage prefix")
+        stored = sum(self.sizes.values())
         self.sizes[final_key] = 0  # removed on failure even if the copy stops half-way
-        obj = await get_storage(self.ctx).put(
-            final_key, self.reader.open_file(key), content_type, max_bytes=UNLIMITED_QUOTA_UPLOAD
-        )
+        try:
+            obj = await get_storage(self.ctx).put(
+                final_key,
+                self.reader.open_file(key),
+                content_type,
+                max_bytes=self.copy_limit - stored,
+            )
+        except AppError as exc:
+            if exc.code != "common.quota_exceeded":
+                raise
+            raise AppError("common.quota_exceeded", 413, limit_bytes=self.copy_limit) from exc
         self.sizes[final_key] = obj.size
         return obj.size
 
@@ -488,10 +499,9 @@ class _StagedFiles:
         size = self.sizes.get(final_key)
         if size is None or final_key in self.claimed:
             return None
-        if self.limit is not None:
-            if size > self.limit:
-                raise AppError("common.quota_exceeded", 413, limit_bytes=self.limit)
-            self.limit -= size
+        if size > self.limit:
+            raise AppError("common.quota_exceeded", 413, limit_bytes=self.limit)
+        self.limit -= size
         self.claimed.add(final_key)
         return size
 
@@ -532,10 +542,8 @@ async def run_import(
                         400,
                         version=f"{adapter.module} {version_in_archive}",
                     )
-            # Without a quota, imported files are still capped like the upload itself.
-            remaining = await remaining_quota(ctx)
             staged = _StagedFiles(
-                ctx, reader, UNLIMITED_QUOTA_UPLOAD if remaining is None else remaining
+                ctx, reader, await _import_room(ctx, replacing=options.mode == "replace")
             )
             options.files = staged
             id_map = IdMap()
@@ -553,6 +561,8 @@ async def run_import(
                 for adapter in reversed(adapters()):
                     await adapter.purge_content(ctx, options.include_preferences)
                 await ctx.db.flush()
+            # What the rows may keep, now that a replace has removed the old files.
+            staged.limit = await _import_room(ctx, replacing=False)
             imported: dict[str, dict[str, int]] = {}
             skipped: dict[str, dict[str, int]] = {}
             for adapter in ordered:
@@ -588,6 +598,18 @@ async def run_import(
     assert staged is not None
     ctx.after_commit.append(staged.discard_unclaimed)
     await ctx.db.flush()
+
+
+async def _import_room(ctx: Ctx, *, replacing: bool) -> int:
+    """Bytes of files an import may store: what is left of the quota, or all of it when the
+    import is about to replace the account's files. Without a quota, the upload's own cap."""
+    quota = ctx.settings.user_storage_quota_bytes
+    if quota == 0:
+        return UNLIMITED_QUOTA_UPLOAD
+    if replacing:
+        return quota
+    remaining = await remaining_quota(ctx)
+    return UNLIMITED_QUOTA_UPLOAD if remaining is None else remaining
 
 
 async def _fail(

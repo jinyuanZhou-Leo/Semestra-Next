@@ -86,8 +86,54 @@ async def test_stream_yields_messages_and_ends_after_max_time():
     await asyncio.sleep(0.05)
     broadcaster.send("u", {"type": "x", "data": {}})
     await asyncio.wait_for(task, 1)
-    assert [json.loads(r["data"]) for r in received] == [{"type": "x", "data": {}}]
-    assert received[0]["id"].endswith("-1")
+    assert received[0] == {"id": broadcaster.current_id("u").replace("-1", "-0")}
+    assert [json.loads(r["data"]) for r in received[1:]] == [{"type": "x", "data": {}}]
+    assert received[1]["id"].endswith("-1")
+
+
+async def test_a_stream_that_received_nothing_still_resumes_where_it_left_off():
+    broadcaster = Broadcaster()
+    first = stream(broadcaster, "u", max_seconds=60)
+    opening = await anext(first)
+    assert "data" not in opening  # sets the EventSource's last id, fires no message
+    await first.aclose()
+    broadcaster.send("u", {"type": "x", "data": {}})  # while reconnecting
+    with broadcaster.listen("u", opening["id"]) as queue:
+        assert queue.get_nowait()[1]["type"] == "x"
+        assert queue.empty()
+
+
+async def test_a_replay_keeps_only_the_latest_progress_of_each_job():
+    broadcaster = Broadcaster(replay_size=3)
+    start = broadcaster.current_id("u")
+    for job, n in (("a", 1), ("b", 1), ("a", 2), ("a", 3)):
+        broadcaster.send("u", {"type": "core.job.progress", "data": {"job_id": job, "n": n}})
+    broadcaster.send("u", {"type": "x", "data": {}})
+    with broadcaster.listen("u", start) as queue:
+        got = [queue.get_nowait()[1] for _ in range(queue.qsize())]
+    assert got == [
+        {"type": "core.job.progress", "data": {"job_id": "b", "n": 1}},
+        {"type": "core.job.progress", "data": {"job_id": "a", "n": 3}},
+        {"type": "x", "data": {}},
+    ]
+
+
+async def test_a_user_without_connections_is_forgotten_after_a_while():
+    now = 0.0
+    broadcaster = Broadcaster(keep_idle_seconds=60, clock=lambda: now)
+    with broadcaster.listen("u"):
+        broadcaster.send("u", {"type": "x", "data": {}})
+        last_id = broadcaster.current_id("u")
+        now = 120.0
+        broadcaster.send("other", {"type": "y", "data": {}})  # still connected: kept
+    with broadcaster.listen("u", last_id) as queue:
+        assert queue.empty()  # nothing missed, nothing resynced
+    now = 240.0
+    broadcaster.send("other", {"type": "y", "data": {}})
+    assert set(broadcaster._logs) == {"other"}  # pyright: ignore[reportPrivateUsage]
+    # An id from the dropped log can't say what was missed: refetch everything.
+    with broadcaster.listen("u", last_id) as queue:
+        assert queue.get_nowait()[1]["type"] == realtime.RESYNC_TYPE
 
 
 async def test_events_carry_the_tab_that_caused_them(

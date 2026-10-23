@@ -166,6 +166,39 @@ test('after the re-authentication window, creating a token asks for the password
   expect(bodies).toMatchObject([{ password: null }, { password: 'hunter22hunter22' }])
 })
 
+test('after the re-authentication window, changing the email asks for the password', async () => {
+  const bodies: unknown[] = []
+  server.use(
+    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
+    http.post(`${API}/account/email/change-start`, async ({ request }) => {
+      const body = (await request.json()) as { password: string | null }
+      bodies.push(body)
+      if (body.password !== 'hunter22hunter22') {
+        return HttpResponse.json(
+          { error: { code: 'auth.reauth_required', params: { password: true }, request_id: 'r' } },
+          { status: 403 },
+        )
+      }
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  mount()
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Change email' }))
+  const send = screen.getByRole('button', { name: 'Send code' })
+  expect(send).toBeDisabled()
+  await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
+  await userEvent.click(send)
+  const password = await screen.findByLabelText('Password')
+  expect(send).toBeDisabled()
+  await userEvent.type(password, 'hunter22hunter22')
+  await userEvent.click(send)
+
+  expect(await screen.findByText(/new@example\.com/)).toBeInTheDocument()
+  expect(bodies).toMatchObject([{ password: null }, { password: 'hunter22hunter22' }])
+})
+
 test('revoking a token asks for confirmation first', async () => {
   const revoked = vi.fn<(id: string) => void>()
   server.use(
