@@ -179,7 +179,9 @@ export function EventDialog({
     e.preventDefault()
     setTouched(true)
     if (titleMissing || timeMissing || timeInvalid) return
-    const course = courses.find((c) => c.id === draft.course_id)
+    const pickedCourse = draft.course_id === NONE ? null : draft.course_id
+    // The list may still be loading: the course is kept either way, only the term check waits.
+    const course = courses.find((c) => c.id === pickedCourse)
     // Editing keeps the event's own term; a new event belongs to the calendar's term.
     const term = event ? event.term_id : termId
     const body = {
@@ -187,7 +189,7 @@ export function EventDialog({
       start_at: start,
       end_at: end,
       all_day: draft.all_day,
-      course_id: course?.id ?? null,
+      course_id: pickedCourse,
       term_id: term && (!course || course.term_ids.includes(term)) ? term : null,
       type_code: draft.type_code === NONE ? null : draft.type_code,
       location: draft.location.trim() || null,

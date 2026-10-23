@@ -2000,6 +2000,7 @@
   "error_import_date_unresolved": "无法确定日期“{text}”",
   "error_import_term_unresolved": "无法确定属于哪个学期",
   "error_import_outside_term": "日期不在该学期范围内",
+  "error_import_ics_truncated": "{filename} 中的日程太多，只读取了最早的一部分",
   "error_import_no_teaching_weeks": "这些日期内没有教学周",
   "error_import_weights_not_100": "权重合计为 {total}%，不是 100%",
   "error_import_category_weight_mismatch": "考核合计 {total}%，分类写的是 {expected}%",

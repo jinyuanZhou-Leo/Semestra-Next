@@ -8,9 +8,16 @@ import { getLocale } from '@/paraglide/runtime'
  * naive ISO strings ("2026-03-02T10:00:00") and its `Date`s are read back the same way.
  */
 
+const WALL = "yyyy-MM-dd'T'HH:mm:ss"
+
 /** UTC instant → wall-clock time in `tz`, as a naive ISO string. */
 export function toWall(iso: string, tz: string): string {
-  return format(new TZDate(iso, tz), "yyyy-MM-dd'T'HH:mm:ss")
+  return format(new TZDate(iso, tz), WALL)
+}
+
+/** A browser-local `Date` (FullCalendar's) as the naive ISO wall-clock string it holds. */
+export function wall(local: Date): string {
+  return format(local, WALL)
 }
 
 /** A browser-local `Date` holding a wall-clock time of `tz` → the UTC instant (ISO). */

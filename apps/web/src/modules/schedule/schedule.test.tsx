@@ -157,6 +157,7 @@ function scheduleHandlers(log: Log) {
     http.get(`${API}/courses/:id/meetings`, ({ params }) =>
       HttpResponse.json({ items: params.id === 'c1' ? [meeting] : [] }),
     ),
+    http.get(`${API}/terms/:id/meetings`, () => HttpResponse.json({ items: [meeting] })),
     http.get(`${API}/terms/:id/schedule-conflicts`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/events`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/calendar-feeds`, () => HttpResponse.json({ items: [] })),
@@ -488,4 +489,36 @@ test('the course schedule shows a full-width week of class hours and one "Add" m
   expect(await screen.findByRole('menuitem', { name: 'Meeting' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('menuitem', { name: 'One-off event' }))
   expect(await screen.findByRole('dialog', { name: 'Add event' })).toBeInTheDocument()
+})
+
+test('"keep only this section" keeps all its days and hides the other sections in one request', async () => {
+  const wednesday = { ...meeting, id: 'm1b', weekday: 3 }
+  const other = { ...meeting, id: 'm2', section_code: 'LEC0201', weekday: 2 }
+  server.use(
+    http.get(`${API}/courses/:id/meetings`, () =>
+      HttpResponse.json({ items: [meeting, wednesday, other] }),
+    ),
+    http.put(`${API}/courses/:id/meetings\\:enabled`, async ({ request }) => {
+      log.requests.push({
+        method: 'PUT',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json({ items: [] })
+    }),
+  )
+  mount('/p/p1/c/c1/schedule')
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Actions for LEC0101, Monday' }, { timeout: 10_000 }),
+  )
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Keep only this section' }))
+  await waitFor(() =>
+    expect(log.requests.filter((r) => r.method === 'PUT' && r.path.endsWith(':enabled'))).toEqual([
+      {
+        method: 'PUT',
+        path: '/courses/c1/meetings:enabled',
+        body: { meeting_ids: ['m1', 'm1b'], enabled: true, other_meeting_ids: ['m2'] },
+      },
+    ]),
+  )
 })

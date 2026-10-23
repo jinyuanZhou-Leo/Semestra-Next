@@ -30,6 +30,9 @@ import { dayInWeek, localDay, plusDays, wallDate } from '../time'
 import { meetingGridItems } from './TimetableView'
 import { type GridDay, WeekGrid, minutes, weekDays } from './WeekGrid'
 
+/** The widest range the calendar answers in one request (the API's `MAX_RANGE_DAYS`). */
+const MAX_RANGE_DAYS = 120
+
 type Format = 'png' | 'pdf' | 'ics'
 type Range = 'week' | 'weeks' | 'template'
 type Sheet = {
@@ -110,13 +113,25 @@ export function ExportDialog({
   const fetchWeeks = async (): Promise<Occurrence[]> => {
     const start = selectedWeeks[0]?.start_date ?? first
     const end = plusDays(selectedWeeks.at(-1)?.end_date ?? first, 1)
-    const data = await queryClient.fetchQuery(
-      calendarOccurrenceListOptions({
-        path: { program_id: programId },
-        query: { start, end, term_id: termId, sources: wanted },
-      }),
+    // The calendar answers at most MAX_RANGE_DAYS at a time; a long term is asked in parts.
+    const parts: { start: string; end: string }[] = []
+    for (let day = start; day < end; day = plusDays(day, MAX_RANGE_DAYS)) {
+      const next = plusDays(day, MAX_RANGE_DAYS)
+      parts.push({ start: day, end: next < end ? next : end })
+    }
+    const pages = await Promise.all(
+      parts.map((part) =>
+        queryClient.fetchQuery(
+          calendarOccurrenceListOptions({
+            path: { program_id: programId },
+            query: { ...part, term_id: termId, sources: wanted },
+          }),
+        ),
+      ),
     )
-    return data.items.filter((o) => !o.course_id || !hidden.has(o.course_id))
+    // An item that spans two parts comes back in both.
+    const byId = new Map(pages.flatMap((page) => page.items).map((o) => [o.id, o]))
+    return [...byId.values()].filter((o) => !o.course_id || !hidden.has(o.course_id))
   }
 
   const buildSheets = async (): Promise<Sheet[]> => {

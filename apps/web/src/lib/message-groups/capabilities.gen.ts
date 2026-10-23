@@ -120,6 +120,7 @@ export const capabilityMessages = {
   capability_plugins_catalog_list_title: m.capability_plugins_catalog_list_title,
   capability_pomodoro_session_summarize_title: m.capability_pomodoro_session_summarize_title,
   capability_schedule_conflict_list_title: m.capability_schedule_conflict_list_title,
+  capability_schedule_event_create_many_title: m.capability_schedule_event_create_many_title,
   capability_schedule_event_create_title: m.capability_schedule_event_create_title,
   capability_schedule_event_delete_title: m.capability_schedule_event_delete_title,
   capability_schedule_event_list_title: m.capability_schedule_event_list_title,
