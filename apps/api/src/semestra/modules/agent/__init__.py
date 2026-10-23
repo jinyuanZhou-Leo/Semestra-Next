@@ -6,6 +6,7 @@ from starlette.routing import Route
 from semestra.modules.agent import (  # noqa: F401  (registers on import)
     attachments,
     capabilities,
+    labels,
     memory,
     models,
     portability,

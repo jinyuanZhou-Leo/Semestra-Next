@@ -3,7 +3,9 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.labels import owned_row
 from semestra.modules.schedule import service
+from semestra.modules.schedule.models import ScheduleEvent, ScheduleEventType, ScheduleMeeting
 from semestra.modules.schedule.schemas import (
     ConflictList,
     Deleted,
@@ -153,6 +155,7 @@ async def event_type_create(ctx: Ctx, inp: EventTypeCreateInput) -> EventType:
 
 @capability(
     name="schedule.event_type.update",
+    record=("event_type_id", owned_row(ScheduleEventType)),
     summary="Rename a custom type, or change the color or icon of any type.",
     description="Built-in types (LEC, PRA, TUT) keep their name; their color and icon can change.",
     effect="write",
@@ -250,6 +253,7 @@ async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingC
 
 @capability(
     name="schedule.meeting.update",
+    record=("meeting_id", owned_row(ScheduleMeeting)),
     summary="Change a weekly class time for the whole term (time, room, weeks, ...).",
     description="""Changes every week. To change or cancel a single date use
 schedule.exception.upsert instead.""",
@@ -372,6 +376,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
 
 @capability(
     name="schedule.event.update",
+    record=("event_id", owned_row(ScheduleEvent)),
     summary="Change a one-off event.",
     description="Moving only `start_at` keeps the event's duration.",
     effect="write",

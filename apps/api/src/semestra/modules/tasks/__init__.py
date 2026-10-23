@@ -7,6 +7,7 @@ from semestra.modules.settings import register_settings
 from semestra.modules.tasks import (  # noqa: F401  (registers)
     calendar,
     capabilities,
+    labels,
     models,
     portability,
     subscribers,

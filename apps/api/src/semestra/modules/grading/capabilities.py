@@ -3,9 +3,11 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.labels import owned_row
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseRef, Deleted, ProgramRef
 from semestra.modules.grading import service
+from semestra.modules.grading.models import GradingCategory, GradingCourseResult
 from semestra.modules.grading.schemas import (
     Assessment,
     AssessmentCandidates,
@@ -151,6 +153,7 @@ async def gradebook_get(ctx: Ctx, inp: CourseRef) -> Gradebook:
 
 @capability(
     name="grading.course_result.update",
+    record=("course_id", owned_row(GradingCourseResult)),
     summary="Change how a course is graded: official final grade, target, pass/fail, forecast.",
     description="""Use to enter the official final grade (`final_override_percentage`, which wins
 over the calculated one; null clears it), set the target in grade points, switch a course to
@@ -181,6 +184,7 @@ async def category_create(ctx: Ctx, inp: CategoryCreateInput) -> AssessmentCateg
 
 @capability(
     name="grading.category.update",
+    record=("category_id", owned_row(GradingCategory)),
     summary="Rename, recolor or archive an assessment category.",
     description="Partial update. Archived categories keep their assessments but leave the pickers.",
     effect="write",

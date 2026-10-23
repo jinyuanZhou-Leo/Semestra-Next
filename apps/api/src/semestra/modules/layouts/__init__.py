@@ -8,7 +8,13 @@ cannot express.
 from fastapi import FastAPI
 
 from semestra.core.capability import registry
-from semestra.modules.layouts import capabilities, models, portability, subscribers  # noqa: F401
+from semestra.modules.layouts import (  # noqa: F401  (registers on import)
+    capabilities,
+    labels,
+    models,
+    portability,
+    subscribers,
+)
 from semestra.modules.layouts.service import (
     CardInstance,
     get_card_instance,

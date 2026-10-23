@@ -21,6 +21,7 @@ from semestra.core.context import (
     run_after_commit,
 )
 from semestra.core.errors import AppError, validation_error
+from semestra.core.labels import Loader
 
 Effect = Literal["read", "write", "destructive"]
 Surface = Literal["http", "agent", "mcp"]
@@ -64,6 +65,9 @@ class Capability:
     # Results quote text other people wrote (files, LMS content): agents get them marked as
     # untrusted, and the description says so.
     untrusted: bool = False
+    # An update of one record: (the argument holding its id, how it is read). The agent's
+    # confirmation card shows each sent field as stored before → after (`core.labels`).
+    record: tuple[str, Loader] | None = field(default=None, compare=False)
 
     def tool_spec(self) -> dict[str, Any]:
         """What an agent or MCP client sees: name, description and the input JSON schema."""
@@ -264,6 +268,7 @@ def capability(
     preview: Callable[[Ctx, Any], Awaitable[Any]] | None = None,
     check: Callable[[Ctx, Any], Awaitable[None]] | None = None,
     untrusted: bool = False,
+    record: tuple[str, Loader] | None = None,
     target: Registry | None = None,
 ) -> Callable[[Callable[[Ctx, Any], Awaitable[Any]]], Callable[[Ctx, Any], Awaitable[Any]]]:
     def decorate(
@@ -301,6 +306,7 @@ def capability(
                 preview=preview,
                 check=check,
                 untrusted=untrusted,
+                record=record,
             )
         )
         return fn

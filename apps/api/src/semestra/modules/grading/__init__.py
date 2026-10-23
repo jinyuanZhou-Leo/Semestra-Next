@@ -6,6 +6,7 @@ from semestra.core.capability import registry
 from semestra.modules.grading import (  # noqa: F401  (registers on import)
     calendar,
     capabilities,
+    labels,
     models,
     portability,
     subscribers,

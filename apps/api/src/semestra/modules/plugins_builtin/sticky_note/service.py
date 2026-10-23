@@ -27,6 +27,14 @@ async def list_notes(ctx: Ctx, scope_type: str, scope_id: str) -> NoteList:
     return NoteList(items=[_note(i) for i in found])
 
 
+async def note_record(ctx: Ctx, instance_id: str) -> Note | None:
+    """The note as stored, for the agent's card (`content` before → after)."""
+    try:
+        return _note(await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS))
+    except AppError:
+        return None
+
+
 async def _new_content(ctx: Ctx, instance_id: str, content: str, mode: str) -> str:
     current = _note(await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS))
     if mode == "append" and current.content:
