@@ -237,6 +237,21 @@
   }
 }
 
+/*
+ * Dialog and AlertDialog fade out with tw-animate's `animate-out`, whose fill mode is `none`: once
+ * the exit animation ends, the backdrop (and popup) snap back to full dim and blur until Base UI
+ * unmounts them, which flashes the blur whenever that unmount lands a frame or more later. Hold
+ * the end state instead. Sheet and Drawer fade with transitions and keep it already.
+ */
+:is(
+  [data-slot='dialog-overlay'],
+  [data-slot='dialog-content'],
+  [data-slot='alert-dialog-overlay'],
+  [data-slot='alert-dialog-content']
+)[data-closed] {
+  --tw-animation-fill-mode: forwards;
+}
+
 /* "Reduce motion: on" (M11 §5.3). "System" relies on the OS setting through `motion-reduce:`. */
 [data-reduce-motion='on'] *,
 [data-reduce-motion='on'] *::before,
