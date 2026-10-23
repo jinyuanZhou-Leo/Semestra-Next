@@ -533,7 +533,8 @@ class AgentModel:
 
     @property
     def context_window(self) -> int:
-        return catalog.context_window(self.resolved.model)
+        ep = self.resolved.endpoint
+        return catalog.context_window(self.resolved.model, ep.kind, ep.base_url)
 
 
 def _output_text(response: ModelResponse) -> str:

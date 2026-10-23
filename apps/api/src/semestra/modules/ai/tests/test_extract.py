@@ -124,7 +124,7 @@ async def test_long_documents_are_split_and_merged(
     await ai.provider("anthropic")
     monkeypatch.setattr(extraction, "MIN_SEGMENT_TOKENS", 40)
     monkeypatch.setattr(extraction, "OUTPUT_RESERVE_TOKENS", 0)
-    monkeypatch.setattr(catalog, "context_window", lambda model: 1)  # budget = the minimum
+    monkeypatch.setattr(catalog, "context_window", lambda *_: 1)  # budget = the minimum
     pages = [PageText(1, "Course APS105H1 " * 6), PageText(2, "Instructor Jane Doe " * 6)]
     replies = [
         tool_reply(
