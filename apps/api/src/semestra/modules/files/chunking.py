@@ -19,7 +19,8 @@ MIN_SECTION_TOKENS = 120
 
 _CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯]")
 _WORD = re.compile(r"[^\W_]+")
-_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+# A markdown heading line (also how documents.py builds the outline).
+HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 _SENTENCE_END = re.compile(r"(?<=[.!?。！？；;])\s*")  # noqa: RUF001
 
 
@@ -70,7 +71,7 @@ def _events(markdown: str) -> Iterator[_Heading | str]:
         if fence:
             buffer.append(line)
             continue
-        heading = _HEADING.match(line)
+        heading = HEADING.match(line)
         if heading:
             yield from flush()
             yield _Heading(len(heading[1]), heading[2])
@@ -212,8 +213,6 @@ def chunk_pages(pages: Sequence[tuple[int, str]]) -> list[Chunk]:
                 if current.new_blocks and current.tokens + tokens > TARGET_TOKENS:
                     emit(carry_overlap=True)
                 elif current.blocks and page_no - current.blocks[0][0] >= MAX_PAGE_SPAN:
-                    emit(carry_overlap=False)
-                if current.blocks and page_no - current.blocks[0][0] >= MAX_PAGE_SPAN:
                     emit(carry_overlap=False)
                 current.add(page_no, piece, path())
     emit(carry_overlap=False)

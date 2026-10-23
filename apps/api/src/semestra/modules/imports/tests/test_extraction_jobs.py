@@ -187,3 +187,44 @@ async def test_an_edit_can_return_only_the_items_it_touched(
     )  # fmt: skip
     assert {i["id"] for i in patched["items"]} == {final["id"], flagged["id"]}
     assert patched["summary"] == (await api.call("GET", f"/imports/{session['id']}"))["summary"]
+
+
+async def test_no_class_dates_cancel_meetings_and_deadlines_keep_their_source(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    from semestra.modules.imports.tests.test_imports import by_type, ev
+
+    fake_ai.append(
+        {
+            "course": {"code": ev("APS105H1"), "title": ev("Computer Fundamentals")},
+            "meetings": [
+                {"type": ev("Lecture"), "weekday": ev(2), "start_time": ev("09:00"),
+                 "end_time": ev("10:00")},
+            ],
+            "important_dates": [
+                {"title": ev("No class"), "date": ev("2026-02-17"), "kind": ev("no_class")},
+                {"title": ev("Drop deadline"), "date_text": ev("March 9"), "kind": ev("deadline")},
+            ],
+        }
+    )  # fmt: skip
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    upload = (
+        await api.call(
+            "POST", "/imports/uploads", files={"file": ("s.txt", b"APS105", "text/plain")}
+        )
+    )["id"]
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    (meeting,) = by_type(session, "meeting")
+    assert meeting["data"]["exceptions"] == ["2026-02-17"]
+    assert by_type(session, "event") == []
+    (task,) = by_type(session, "task")
+    assert task["data"]["due_text"] == "March 9"
+    assert "due_text" in task["evidence"]

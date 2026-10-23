@@ -39,14 +39,23 @@ class Detected:
 
 
 def decode_text(data: bytes) -> str | None:
-    """Text of a plain-text file, or None for binary content."""
+    """Text of a plain-text file, or None for binary content. UTF-8 first; anything else is
+    guessed by charset-normalizer (GBK, Big5, Shift-JIS, cp1252, ...), latin-1 as the last
+    resort (gb18030 alone would read almost any bytes, a Western CSV as Chinese)."""
     if b"\x00" in data[:8192]:
         return None
-    for encoding in ("utf-8-sig", "gb18030"):
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    from charset_normalizer import from_bytes
+
+    best = from_bytes(data[:200_000]).best()
+    if best is not None:
         try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
+            return data.decode(best.encoding)
+        except UnicodeDecodeError, LookupError:
+            pass
     return data.decode("latin-1")
 
 

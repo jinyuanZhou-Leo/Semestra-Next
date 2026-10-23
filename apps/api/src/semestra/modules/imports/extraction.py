@@ -163,6 +163,23 @@ def _text(leaf: ai.Evidenced[Any]) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _cancel_meetings(builder: Builder, course_ref: str, day: date) -> bool:
+    """Adds `day` to the exceptions of the course's meetings on that weekday; False when the
+    course has none (the date then stays an event)."""
+    meetings = [
+        i
+        for i in builder.items
+        if i.type == "meeting"
+        and i.data.get("course_ref") == course_ref
+        and i.data.get("weekday") == day.isoweekday()
+    ]
+    for meeting in meetings:
+        dates_ = meeting.data.setdefault("exceptions", [])
+        if day not in dates_:
+            dates_.append(day)
+    return bool(meetings)
+
+
 def _share_category_weights(builder: Builder, course_ref: str) -> None:
     """ "Quizzes 20% (4 quizzes)": M03 counts each assessment by its own weight, so what the
     category's total leaves over is shared evenly by its assessments without one (marked
@@ -334,10 +351,17 @@ def from_syllabus(
             fields.data["course_ref"] = ref
             if day is not None:
                 fields.put("due_date", d.date if d.date.value else d.date_text, day)
-            fields.data["due_text"] = fields.data.pop("date_text", None)
+            # A task calls it due_text; its source and certainty move with it.
+            for store in (fields.data, fields.evidence, fields.confidence):
+                if "date_text" in store:
+                    store["due_text"] = store.pop("date_text")
             builder.add("task", fields.data, evidence=fields.evidence, confidence=fields.confidence)
             continue
+        if kind == "no_class" and day is not None and _cancel_meetings(builder, ref, day):
+            continue  # "no class on Oct 14": a cancelled date of the course's meetings
         fields.data.update(course_ref=ref, kind=kind, all_day=True)
+        if kind == "exam" and "EXAM" in {c.upper() for c in ctx.type_codes}:
+            fields.data["type_code"] = "EXAM"
         if day is not None:
             fields.put("date", d.date if d.date.value else d.date_text, day)
         builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)

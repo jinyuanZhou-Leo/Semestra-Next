@@ -159,6 +159,22 @@ def test_html_keeps_headings_and_drops_scripts():
     assert "Be kind" in text
     assert "- One" in text
     assert "alert" not in text
+    table = b"<p>See <a href='https://q.ca'>Quercus</a></p><table><tr><th>A</th></tr><tr><td>1</td></tr></table>"
+    text = parse(table, detect(table, "x.html")).pages[0].markdown
+    assert "[Quercus](https://q.ca)" in text
+    assert "| A |" in text
+
+
+def test_text_encodings_are_guessed():
+    from semestra.modules.files.parse.detect import decode_text
+
+    notice = "期中考试时间和地点，请准时到场。"  # noqa: RUF001
+    assert decode_text(notice.encode("gbk")) == notice
+    assert decode_text("第一週課程".encode("big5")) == "第一週課程"
+    # A Western CSV is not read as Chinese (what trying gb18030 first did).
+    western = decode_text("Müller, Café, résumé".encode("cp1252")) or ""
+    assert western.startswith("M")
+    assert not any("\u4e00" <= ch <= "\u9fff" for ch in western)
 
 
 def test_images_are_one_page_waiting_for_ocr():

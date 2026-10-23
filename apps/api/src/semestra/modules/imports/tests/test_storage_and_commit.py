@@ -167,8 +167,9 @@ async def test_gbk_text_and_large_photos_are_read_as_the_model_needs(app: FastAP
     from semestra.modules.imports import deps
 
     settings = app.state.settings
-    pages, _ = await deps.read_upload(settings, "期中考试".encode("gbk"), "a.txt", "text/plain")
-    assert pages[0].text == "期中考试"
+    syllabus = "课程大纲：期中考试占百分之三十，期末考试占百分之四十。"  # noqa: RUF001
+    pages, _ = await deps.read_upload(settings, syllabus.encode("gbk"), "a.txt", "text/plain")
+    assert pages[0].text == syllabus
     photo = io.BytesIO()
     Image.new("RGB", (4000, 3000), "white").save(photo, "JPEG")
     _, images = await deps.read_upload(settings, photo.getvalue(), "a.jpg", "image/jpeg")

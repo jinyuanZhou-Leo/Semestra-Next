@@ -6,8 +6,7 @@ import re
 import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from html.parser import HTMLParser
-from typing import Any, ClassVar, cast
+from typing import Any, cast
 
 import pymupdf
 import pymupdf4llm
@@ -270,16 +269,13 @@ def _xlsx(data: bytes) -> ParsedDocument:
     return ParsedDocument(pages)
 
 
-def _csv(data: bytes, tab: bool) -> ParsedDocument:
+def _csv(data: bytes) -> ParsedDocument:
+    """CSV and TSV: the delimiter is sniffed from the start of the file."""
     text = decode_text(data) or ""
-    sample = text[:4096]
-    if tab:
-        delimiter = "\t"
-    else:
-        try:
-            delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t").delimiter
-        except csv.Error:
-            delimiter = ","
+    try:
+        delimiter = csv.Sniffer().sniff(text[:4096], delimiters=",;\t").delimiter
+    except csv.Error:
+        delimiter = ","
     rows: list[list[object]] = []
     for row in csv.reader(io.StringIO(text), delimiter=delimiter):
         rows.append(list(row))
@@ -291,54 +287,19 @@ def _csv(data: bytes, tab: bool) -> ParsedDocument:
 # --- text, markdown, HTML, images -----------------------------------------------------------
 
 
-class _HtmlText(HTMLParser):
-    SKIP: ClassVar[set[str]] = {"script", "style", "noscript", "template", "head", "svg"}
-    BLOCK: ClassVar[set[str]] = {
-        "p",
-        "div",
-        "br",
-        "tr",
-        "section",
-        "article",
-        "ul",
-        "ol",
-        "table",
-        "blockquote",
-    }
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
-        self._skip = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        del attrs
-        if tag in self.SKIP:
-            self._skip += 1
-        elif re.fullmatch(r"h[1-6]", tag):
-            self.parts.append(f"\n\n{'#' * int(tag[1])} ")
-        elif tag == "li":
-            self.parts.append("\n- ")
-        elif tag in self.BLOCK:
-            self.parts.append("\n\n")
-        elif tag in ("td", "th"):
-            self.parts.append(" | ")
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in self.SKIP:
-            self._skip = max(0, self._skip - 1)
-        elif re.fullmatch(r"h[1-6]", tag):
-            self.parts.append("\n\n")
-
-    def handle_data(self, data: str) -> None:
-        if not self._skip:
-            self.parts.append(data)
+_HTML_SKIP = ("script", "style", "noscript", "template", "head", "svg", "iframe", "form")
 
 
 def _html(data: bytes) -> ParsedDocument:
-    parser = _HtmlText()
-    parser.feed(decode_text(data) or "")
-    text = re.sub(r"[ \t]+", " ", "".join(parser.parts))
+    """HTML as markdown (headings, lists, links, tables) with markdownify, minus what a reader
+    never sees."""
+    from bs4 import BeautifulSoup
+    from markdownify import MarkdownConverter
+
+    soup = BeautifulSoup(decode_text(data) or "", "html.parser")
+    for tag in soup(_HTML_SKIP):
+        tag.decompose()
+    text = MarkdownConverter(heading_style="ATX", bullets="-").convert_soup(soup)
     return ParsedDocument(_text_pages(re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", text)))
 
 
@@ -377,7 +338,7 @@ def _dispatch(data: bytes, detected: Detected, max_pages: int) -> ParsedDocument
         case "xlsx":
             return _xlsx(data)
         case "csv":
-            return _csv(data, tab=False)
+            return _csv(data)
         case "html":
             return _html(data)
         case "text" | "markdown":
