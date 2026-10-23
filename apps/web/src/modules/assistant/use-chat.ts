@@ -231,22 +231,28 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     if (!othersTurn || sessionId === null || streaming.has(sessionId)) return
     const abort = new AbortController()
     streaming.add(sessionId)
-    const follow = (): Promise<void> => {
+    const follow = (attempt: number): Promise<void> => {
       const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError)
       return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
         () => {
           flush()
           if (!abort.signal.aborted) void settle(queryClient, sessionId)
         },
-        async () => {
+        async (err: unknown) => {
           flush()
           if (abort.signal.aborted) return
-          await wait(2000) // Offline: try again in a moment, from the start.
-          if (!abort.signal.aborted) await follow()
+          // Offline: try again in a moment, from the start. Anything else (signed out, the
+          // conversation deleted) or still offline after a while: show what is stored.
+          if (toApiError(err).status !== 0 || attempt >= RECONNECT_TRIES) {
+            void settle(queryClient, sessionId)
+            return
+          }
+          await wait(2000)
+          if (!abort.signal.aborted) await follow(attempt + 1)
         },
       )
     }
-    void follow().finally(() => {
+    void follow(1).finally(() => {
       if (!abort.signal.aborted) streaming.delete(sessionId)
     })
     return () => {

@@ -533,3 +533,23 @@ def test_the_index_dates_a_memory_in_the_work_context_zone():
         '- [major] (user, 2026-10-20) "ECE" +'
     )
     assert memory.index_line(row) == '- [major] (user, 2026-10-21) "ECE" +'
+
+
+async def test_a_pass_that_keeps_failing_gives_its_window_up(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    session = await agent.session()
+    model.then(say("Noted."))
+    await agent.send(session["id"], "I'm majoring in ECE")
+    calls: list[int] = []
+
+    async def invalid(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        calls.append(1)
+        raise AppError("ai.output_invalid", 502)
+
+    app.state.agent.memory_model = invalid
+    clock.advance(hours=1)
+    for _ in range(memory.MAX_FAILURES + 2):
+        await run_periodic(app.state, "agent.memory.consolidate")
+        clock.advance(minutes=10)
+    assert len(calls) == memory.MAX_FAILURES

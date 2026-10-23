@@ -300,6 +300,22 @@ test('a reloaded page follows the turn still running on the server', async () =>
   expect(followed).toBe(1)
 })
 
+test('following a turn the server refuses is not retried', async () => {
+  srv.detail.generating = true
+  srv.detail.messages = [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])]
+  let followed = 0
+  server.use(
+    http.get(`${API}/agent/sessions/s1/events`, () => {
+      followed++
+      return HttpResponse.json({ error: { code: 'common.not_found', params: {} } }, { status: 404 })
+    }),
+  )
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await waitFor(() => expect(followed).toBe(1))
+  await new Promise((resolve) => setTimeout(resolve, 2500))
+  expect(followed).toBe(1)
+})
+
 test('a card that ran without a result row shows as done, with its names', () => {
   const detail: AgentSessionDetail = {
     session: session(),

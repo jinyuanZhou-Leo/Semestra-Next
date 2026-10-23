@@ -10,12 +10,14 @@ fakes.
 """
 
 import asyncio
+import json
 import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Awaitable, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
 from typing import Protocol
 
+import structlog
 from pydantic_ai.models import Model
 from starlette.datastructures import State
 
@@ -27,6 +29,8 @@ from semestra.modules.ai import Message
 
 MAX_GENERATIONS_PER_USER = 2
 KEEP_FINISHED_SECONDS = 60  # a client reconnecting just after the end still gets the tail
+
+log = structlog.get_logger()
 
 SseItem = dict[str, str]
 
@@ -179,6 +183,15 @@ class AgentRuntime:
         try:
             async for item in events:
                 await gen.push(item)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # The run itself reports its errors; this is anything before it or around it. No one
+            # awaits this task, so without the event the chat would wait for nothing.
+            log.exception("agent_turn_failed", session_id=gen.session_id)
+            await gen.push(
+                {"event": "error", "data": json.dumps({"code": "common.internal", "params": {}})}
+            )
         finally:
             claim.release()
             await asyncio.shield(gen.close())

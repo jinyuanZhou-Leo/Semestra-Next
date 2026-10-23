@@ -21,7 +21,17 @@ from sqlalchemy import update
 
 from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import decisions, history, loop, outcome, routes, service, skills, tools
+from semestra.modules.agent import (
+    decisions,
+    history,
+    loop,
+    outcome,
+    routes,
+    service,
+    skills,
+    store,
+    tools,
+)
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.models import AgentPreferences
 from semestra.modules.agent.runtime import agent_ctx
@@ -1397,3 +1407,26 @@ async def test_text_the_model_reads_names_tools_as_it_calls_them(agent: Agent):
         assert not set(tools._DOTTED.findall(seen)) & known, cap.name  # pyright: ignore[reportPrivateUsage]
     for skill in skills.all_skills():
         assert not set(tools._DOTTED.findall(tools.for_model(skill.body))) & known, skill.name  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_an_unexpected_error_before_the_run_reaches_the_chat(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    """A crash outside the run (preparing it, say) ends the turn with an error event, not with
+    a stream that just stops."""
+    session = await agent.session()
+    user = await _add_user(app, agent, session["id"])
+    rt = app.state.agent
+    claim = rt.claim(user, session["id"])
+
+    async def broken() -> AsyncIterator[dict[str, str]]:
+        yield store.sse(store.event("start", after=None))
+        raise RuntimeError("boom")
+
+    gen = rt.start(claim, broken())
+    assert gen.task is not None
+    await gen.task
+    names, _ = await _follow(agent, session["id"])
+    assert names == ["start", "error"]
+    assert '"common.internal"' in gen.items[-1]["data"]
+    assert rt.generation(session["id"]) is gen  # kept for a client that reconnects

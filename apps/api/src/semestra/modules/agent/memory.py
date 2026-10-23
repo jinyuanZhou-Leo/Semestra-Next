@@ -47,6 +47,8 @@ NAME_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 IDLE = timedelta(minutes=30)
 # Conversations idle for longer than this when consolidation first sees them are left alone.
 LOOKBACK = timedelta(days=7)
+# Failed passes over the same messages before they are given up.
+MAX_FAILURES = 3
 BATCH = 50
 TRANSCRIPT_CHARS = 12_000
 # How much of each body the consolidation model sees.
@@ -474,9 +476,24 @@ async def consolidate(ctx: Ctx, session: AgentSession) -> None:
                 ),
             ],
         )
-    except AppError as exc:  # no model set up, provider down: read again next round
-        log.info("agent.memory.consolidate_failed", session_id=session.id, code=exc.code)
+    except AppError as exc:
+        # No model set up, provider down: read again next round. A failure that keeps coming
+        # back (an answer the model cannot shape, a conversation too long) gives that window
+        # up after `MAX_FAILURES` rounds rather than calling the model every round for a week.
+        state = dict(session.state or {})
+        failures = int(state.get("memory_failures", 0)) + 1
+        log.info(
+            "agent.memory.consolidate_failed", session_id=session.id, code=exc.code, n=failures
+        )
+        if failures >= MAX_FAILURES:
+            state.pop("memory_failures", None)
+            session.memory_processed_at = read_until
+        else:
+            state["memory_failures"] = failures
+        session.state = state
         return
+    if "memory_failures" in (session.state or {}):
+        session.state = {k: v for k, v in session.state.items() if k != "memory_failures"}
     session.memory_processed_at = read_until
     await apply(ctx, updates, session_id=session.id)
 
