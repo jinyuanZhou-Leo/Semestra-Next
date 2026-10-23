@@ -350,6 +350,49 @@ async def test_idle_conversations_are_consolidated_once(
     assert len(seen) == 1
 
 
+async def test_consolidation_writes_nothing_until_the_model_answers(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    session = await agent.session()
+    model.then(say("Noted."))
+    await agent.send(session["id"], "I'm majoring in ECE")
+
+    calls: list[bool] = []
+
+    async def failing(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        # A pending write here would hold SQLite's write lock for the whole model call.
+        raw = await (await ctx.db.connection()).get_raw_connection()
+        calls.append(raw.driver_connection.in_transaction)
+        raise AppError("ai.provider_unreachable", 502)
+
+    app.state.agent.memory_model = failing
+    clock.advance(hours=1)
+    await run_periodic(app.state, "agent.memory.consolidate")
+    assert calls == [False]
+
+    # The failed pass left the conversation unread: the next round reads the same words.
+    seen: list[str] = []
+
+    async def working(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        seen.append(str(messages[1].content[0]))
+        return MemoryUpdates(
+            operations=[
+                MemoryOperation(
+                    action="save", name="major", type="user", description="Majors in ECE."
+                )
+            ]
+        )
+
+    app.state.agent.memory_model = working
+    clock.advance(minutes=10)
+    await run_periodic(app.state, "agent.memory.consolidate")
+    assert len(seen) == 1 and "majoring in ECE" in seen[0]
+    assert [m["name"] for m in await _memories(agent)] == ["major"]
+    clock.advance(hours=1)
+    await run_periodic(app.state, "agent.memory.consolidate")
+    assert len(seen) == 1
+
+
 async def test_a_conversation_held_with_memory_off_is_never_consolidated(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):

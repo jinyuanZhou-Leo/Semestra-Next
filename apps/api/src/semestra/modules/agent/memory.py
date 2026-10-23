@@ -439,21 +439,27 @@ def _listing(rows: list[AgentMemory]) -> str:
 
 
 async def consolidate(ctx: Ctx, session: AgentSession) -> None:
-    """One pass over what was said since the last pass; marks the conversation as read."""
+    """One pass over what was said since the last pass; marks the conversation as read.
+
+    Nothing is written before the model answers: a pending write would hold SQLite's write lock
+    for the whole call and every other write would fail with `database is locked`. A call that
+    fails leaves the conversation unread, so the same messages are read again next round."""
     since = session.memory_processed_at
-    session.memory_processed_at = ctx.now
     query = select(AgentMessage).where(AgentMessage.session_id == session.id)
     if since is not None:
         query = query.where(AgentMessage.created_at > since)
     rows = list(await ctx.db.scalars(query.order_by(AgentMessage.created_at, AgentMessage.id)))
+    # Read up to the newest message seen, not `now`: one written while the model runs is read
+    # next time.
+    read_until = max((r.created_at for r in rows), default=ctx.now)
     if (session.state or {}).get("memory") is None:
         # Started with memory off (or temporary): that conversation stays out of memory even
         # when memory is turned back on later.
-        return
-    if not any(r.role == "user" for r in rows) or not await active(ctx, session):
+        session.memory_processed_at = read_until
         return
     transcript = _transcript(rows)
-    if not transcript:
+    if not transcript or not await active(ctx, session):
+        session.memory_processed_at = read_until
         return
     listing = _listing(await memories(ctx))
     today = ctx.now.date().isoformat()
@@ -468,9 +474,10 @@ async def consolidate(ctx: Ctx, session: AgentSession) -> None:
                 ),
             ],
         )
-    except AppError as exc:  # no model set up, provider down: try again after the next message
+    except AppError as exc:  # no model set up, provider down: read again next round
         log.info("agent.memory.consolidate_failed", session_id=session.id, code=exc.code)
         return
+    session.memory_processed_at = read_until
     await apply(ctx, updates, session_id=session.id)
 
 
