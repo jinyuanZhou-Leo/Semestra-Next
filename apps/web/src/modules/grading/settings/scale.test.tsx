@@ -140,3 +140,25 @@ test('an edited table shows as Custom, apart from the blank-table preset, and pi
     'Unsaved changes to the table are lost.',
   )
 })
+
+test('unsaved edits can be discarded back to the saved table, whatever it is', async () => {
+  const puts = serve()
+  const user = userEvent.setup()
+  renderWithRouter(<ProgramGradingSection scope={{ kind: 'program', programId: 'p1' }} />)
+
+  const picker = await screen.findByRole('combobox', { name: 'Preset' })
+  await waitFor(() => expect(picker).toHaveTextContent('US letter grades (4.0)'))
+  const discard = screen.getByRole('button', { name: 'Discard changes' })
+  expect(discard).toBeDisabled()
+  const top = screen.getByRole('textbox', { name: 'Band 2: min' })
+  await user.clear(top)
+  await user.type(top, '90')
+  await user.click(discard)
+  await user.click(
+    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard changes' }),
+  )
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  expect(minInputs().map((input) => (input as HTMLInputElement).value)).toEqual(['0', '93'])
+  expect(discard).toBeDisabled()
+  expect(puts).toEqual([])
+})

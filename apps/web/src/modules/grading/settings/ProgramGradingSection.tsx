@@ -195,6 +195,11 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const [maxPoints, setMaxPoints] = useState(String(scale.max_points))
   const [switching, setSwitching] = useState<ScalePreset | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [discardingEdits, setDiscardingEdits] = useState(false)
+  const restoreSaved = () => {
+    setRows(toRows(scale.bands))
+    setMaxPoints(String(scale.max_points))
+  }
   const save = useMutation({
     ...gradingScaleUpdateMutation(),
     onError: toastError,
@@ -333,6 +338,14 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         >
           {save.isPending ? m.common_saving() : m.grading_scale_save()}
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!dirty || save.isPending}
+          onClick={() => setDiscardingEdits(true)}
+        >
+          {m.grading_preset_discard()}
+        </Button>
         <span className="flex-1" />
         <ChoiceControl
           label={m.grading_preset()}
@@ -392,8 +405,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           if (!switching) return
           if (discarding) {
             // The saved table already is this preset: only the edits go, nothing to save.
-            setRows(toRows(scale.bands))
-            setMaxPoints(String(scale.max_points))
+            restoreSaved()
             setConfirming(false)
             return
           }
@@ -401,6 +413,17 @@ function BandEditor({ scale }: { scale: GradingScale }) {
             path: { program_id: scale.program_id },
             body: { bands: switching.bands, max_points: switching.max_points },
           })
+        }}
+      />
+      <ConfirmDialog
+        open={discardingEdits}
+        onOpenChange={setDiscardingEdits}
+        title={m.grading_preset_discard_title()}
+        description={m.grading_preset_switch_unsaved()}
+        confirmLabel={m.grading_preset_discard()}
+        onConfirm={() => {
+          restoreSaved()
+          setDiscardingEdits(false)
         }}
       />
     </SettingsBlock>
