@@ -477,6 +477,24 @@ async def test_a_document_that_keeps_failing_to_embed_stops_being_retried(fx: Fx
     assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
 
 
+async def test_one_document_failing_to_embed_does_not_hold_up_the_others(fx: Fx, fake_ai: FakeAi):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files.models import FilesIndexState
+
+    fake_ai.enabled.add("embedding")
+    fake_ai.fail_embedding = True  # the provider was down while both were processed
+    bad = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    good = await fx.upload_ready("notes.pdf", make_pdf(["Photosynthesis in plant cells"]))
+    fake_ai.fail_embedding, fake_ai.fail_embedding_on = False, "midterm"
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    async with fx.app.state.session_factory() as db:
+        states = {i: await db.get(FilesIndexState, i) for i in (bad["id"], good["id"])}
+    assert states[good["id"]].vector_document_id is not None  # embedded in the same run
+    assert states[bad["id"]].vector_document_id is None
+    assert states[bad["id"]].vector_failures == 1
+
+
 async def test_changing_embedding_model_reindexes(fx: Fx, fake_ai: FakeAi):
     from semestra.modules.files.vectors import get_vector_store
 

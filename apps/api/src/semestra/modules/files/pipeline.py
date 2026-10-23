@@ -43,7 +43,8 @@ THUMBNAIL_PAGES = 1
 # the vision model at once.
 OCR_BATCH = 8
 OCR_CONCURRENCY = 4
-# Errors that would be the same for every page: OCR stops and the rest are skipped.
+# Errors that would be the same for every page or document: OCR stops and the rest are
+# skipped, a reindex stops.
 OCR_STOP_CODES = frozenset({
     "ai.invalid_key", "ai.model_not_found", "ai.not_configured", "ai.capability_unsupported",
     "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled",
@@ -538,9 +539,12 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: b
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
             raise
-        except AppError:
+        except AppError as exc:
             await _count_failure(ctx, item_id)
-            raise
+            if exc.code in OCR_STOP_CODES:  # every other document would fail the same way
+                raise
+            log.warning("files_reindex_item_failed", code=exc.code, item_id=item_id)
+            continue  # only this document (e.g. a chunk the provider refuses): go on
         async with ctx.state.session_factory() as db:
             state = await db.get(FilesIndexState, item_id)
             item = await db.get(FilesItem, item_id)
