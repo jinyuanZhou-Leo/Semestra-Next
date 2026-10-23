@@ -7,6 +7,7 @@ Other modules save files with `save_bytes_as_file` and read parsed text through 
 from fastapi import FastAPI
 
 from semestra.core.capability import registry
+from semestra.core.uploads import BodyLimit
 from semestra.modules.files import (  # noqa: F401  (registers on import)
     capabilities,
     jobs,
@@ -16,7 +17,6 @@ from semestra.modules.files import (  # noqa: F401  (registers on import)
 )
 from semestra.modules.files.routes import router
 from semestra.modules.files.service import save_bytes_as_file
-from semestra.core.uploads import BodyLimit
 from semestra.modules.files.upload import PATH, upload_limit
 
 __all__ = ["register", "save_bytes_as_file"]

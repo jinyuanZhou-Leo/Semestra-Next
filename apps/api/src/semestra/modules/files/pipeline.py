@@ -30,14 +30,19 @@ from semestra.modules.files.models import (
     FilesIndexState,
     FilesItem,
 )
-from semestra.modules.files.parse import PageRenderer, ParsedDocument, ParseError, detect
-from semestra.modules.files.parse.isolated import Parsed, parse_isolated
+from semestra.modules.files.parse import ParsedDocument, ParseError, detect
+from semestra.modules.files.parse.isolated import Parsed, parse_isolated, render_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
 
 log = structlog.get_logger()
 
-THUMBNAIL_PAGES = 200
+# The file list shows the first page only; OCR renders its own, larger images.
+THUMBNAIL_PAGES = 1
+# Scanned pages are rendered (in the child process) this many at a time, and this many are with
+# the vision model at once.
+OCR_BATCH = 8
+OCR_CONCURRENCY = 4
 OCR_PROMPT = (
     "Transcribe this page into markdown. Keep headings, lists and the reading order, and write "
     "tables as markdown tables. Output only the transcription, with no comments. The image is "
@@ -183,16 +188,8 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
     assert parsed is not None
     images += [None] * (len(parsed.pages) - len(images))
 
-    # --- OCR, page by page; each page image is bounded in size ---------------------------
-    renderer: PageRenderer | None = None
-    try:
-        if detected.kind in ("pdf", "image") and any(p.needs_ocr for p in parsed.pages):
-            pdf = detected.kind == "pdf"
-            renderer = await anyio.to_thread.run_sync(lambda: PageRenderer(data, pdf=pdf))
-        ocr_model, ocr_skipped = await _ocr(ctx, work, parsed, renderer)
-    finally:
-        if renderer is not None:
-            await anyio.to_thread.run_sync(renderer.close)
+    # --- OCR; page images are rendered in the child process, bounded in size --------------
+    ocr_model, ocr_skipped = await _ocr(ctx, work, parsed, data, detected.kind)
     await ctx.check_cancelled()
 
     # --- chunking and full-text index ----------------------------------------------------
@@ -259,35 +256,61 @@ async def _once(data: bytes):
 
 
 async def _ocr(
-    ctx: JobCtx, work: _Work, parsed: ParsedDocument, renderer: PageRenderer | None
+    ctx: JobCtx, work: _Work, parsed: ParsedDocument, data: bytes, kind: str
 ) -> tuple[str | None, int]:
-    """Fills in pages that need OCR; returns the model used and how many pages were skipped."""
+    """Fills in pages that need OCR; returns the model used and how many pages were skipped
+    (no vision model, or the model failed on that page: the rest of the file is still read)."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
-    if not needed or renderer is None:
+    if not needed or kind not in ("pdf", "image"):
         await ctx.skip_stage("ocr")
         return None, 0
     if not await ai.available(ctx, "vision"):
         await ctx.skip_stage("ocr")
         return None, len(needed)
-    model = (await ai.resolve_provider(ctx, "vision")).model
-    for count, index in enumerate(needed):
-        await ctx.check_cancelled()
-        await ctx.stage("ocr", current=count + 1, total=len(needed))
-        png = await anyio.to_thread.run_sync(lambda i=index: renderer.ocr_image(i))
-        completion = await ai.complete(
-            ctx,
-            "vision",
-            [
-                ai.Message.system(OCR_PROMPT),
-                ai.Message.user(ai.Image(png, "image/png")),
-            ],
-            source_module="files",
-            source_ref=work.item_id,
-        )
+    resolved = await ai.resolve_provider(ctx, "vision")
+    limiter = anyio.CapacityLimiter(OCR_CONCURRENCY)
+    skipped = 0
+
+    async def read(index: int, png: bytes) -> None:
+        nonlocal skipped
+        async with limiter:
+            try:
+                completion = await ai.complete_with(
+                    ctx,
+                    resolved,
+                    [ai.Message.system(OCR_PROMPT), ai.Message.user(ai.Image(png, "image/png"))],
+                    source_module="files",
+                    source_ref=work.item_id,
+                )
+            except AppError as exc:
+                log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
+                skipped += 1
+                return
         assert isinstance(completion, ai.Completion)
         text = re.sub(r"^```(?:markdown|md)?\s*\n|\n```\s*$", "", completion.text.strip())
         parsed.pages[index].markdown = text.strip()
-    return model, 0
+
+    for start in range(0, len(needed), OCR_BATCH):
+        await ctx.check_cancelled()
+        await ctx.stage("ocr", current=start, total=len(needed))
+        batch = needed[start : start + OCR_BATCH]
+        try:
+            pngs = await render_isolated(
+                data,
+                pdf=kind == "pdf",
+                pages=batch,
+                time_limit=ctx.settings.files_parse_timeout_seconds,
+                memory_limit=ctx.settings.files_parse_memory_bytes,
+            )
+        except ParseError as exc:
+            log.warning("files_ocr_render_failed", code=exc.code)
+            skipped += len(batch)
+            continue
+        async with anyio.create_task_group() as group:
+            for index, png in zip(batch, pngs, strict=False):
+                group.start_soon(read, index, png)
+        skipped += len(batch) - len(pngs)
+    return resolved.model, skipped
 
 
 async def _embed(
@@ -318,6 +341,10 @@ async def _embed(
             await _store_vectors(ctx, store, work, space, dim, batch, vectors)
     except AppError as exc:
         log.warning("files_embedding_failed", code=exc.code)
+        if space is not None:  # batches already stored would never be found nor removed
+            async with ctx.state.session_factory() as db:
+                await store.delete(db, [r[0] for r in refs], space)
+                await db.commit()
         return None
     return space
 

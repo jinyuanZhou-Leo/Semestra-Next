@@ -19,6 +19,7 @@ OCR_MIN_CHARS = 50
 LOGICAL_PAGE_CHARS = 3000
 TABLE_ROWS_PER_PAGE = 100
 MAX_TABLE_ROWS = 20_000
+MAX_TABLE_COLUMNS = 100
 # Office files are zip archives; the readers inflate whole XML parts, so a small file that
 # unpacks to hundreds of megabytes is refused before it is opened.
 MAX_OFFICE_UNPACKED_BYTES = 100_000_000
@@ -112,10 +113,17 @@ def table_markdown(rows: Sequence[Sequence[object]]) -> str:
     return "\n".join(lines)
 
 
+def _filled(value: object) -> bool:
+    return value is not None and bool(str(value).strip())
+
+
 def _table_pages(title: str | None, rows: list[list[object]]) -> list[ParsedPage]:
-    rows = [r for r in rows if any(str(c).strip() for c in r if c is not None)]
+    rows = [r for r in rows if any(_filled(c) for c in r)]
     if not rows:
         return [ParsedPage(f"## {title}" if title else "")] if title else []
+    # Sheets formatted far to the right report every one of those empty columns.
+    width = max(max((i + 1 for i, c in enumerate(r) if _filled(c)), default=0) for r in rows)
+    rows = [r[: min(width, MAX_TABLE_COLUMNS)] for r in rows]
     header, body = rows[0], rows[1:]
     chunks = [body[i : i + TABLE_ROWS_PER_PAGE] for i in range(0, len(body), TABLE_ROWS_PER_PAGE)]
     pages: list[ParsedPage] = []
@@ -250,7 +258,9 @@ def _xlsx(data: bytes) -> ParsedDocument:
     try:
         for sheet in workbook.worksheets:
             rows: list[list[object]] = []
-            for row in sheet.iter_rows(values_only=True):
+            for row in sheet.iter_rows(values_only=True, max_col=MAX_TABLE_COLUMNS):
+                if not any(_filled(c) for c in row):  # styled but empty rows
+                    continue
                 rows.append(list(row))
                 if len(rows) >= MAX_TABLE_ROWS:
                     break
@@ -341,7 +351,10 @@ def parse(data: bytes, detected: Detected, *, max_pages: int = MAX_PAGES) -> Par
     except Exception as exc:
         raise ParseError("files.parse_failed") from exc
     if len(result.pages) > max_pages:
-        raise ParseError("files.too_many_pages", max=max_pages)
+        if detected.kind not in ("xlsx", "csv"):
+            raise ParseError("files.too_many_pages", max=max_pages)
+        # A long table is still useful from the top: keep what fits.
+        result.pages = result.pages[:max_pages]
     return result
 
 

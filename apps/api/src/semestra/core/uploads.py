@@ -69,6 +69,4 @@ class BodyLimit:
 async def _reject(scope: Scope, receive: Receive, send: Send, error: AppError) -> None:
     request_id = scope.get("state", {}).get("request_id")
     body = {"error": {"code": error.code, "params": error.params, "request_id": request_id}}
-    await JSONResponse(body, status_code=413, headers={"Connection": "close"})(
-        scope, receive, send
-    )
+    await JSONResponse(body, status_code=413, headers={"Connection": "close"})(scope, receive, send)

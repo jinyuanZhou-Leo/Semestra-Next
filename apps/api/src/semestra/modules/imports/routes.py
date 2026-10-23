@@ -24,6 +24,7 @@ def upload_limit(settings: Settings) -> tuple[int, AppError]:
     cap = settings.files_max_upload_bytes
     return cap, AppError("files.too_large", 413, max=cap)
 
+
 ALLOWED = (
     "text/calendar",
     "application/pdf",

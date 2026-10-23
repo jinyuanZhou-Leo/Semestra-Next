@@ -14,12 +14,7 @@ from semestra.core.storage import usage
 from semestra.modules.imports import service
 from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import CommitInput
-from semestra.modules.imports.tests.test_imports import (  # noqa: F401  (fixtures)
-    Api,
-    api,
-    by_type,
-    fake_ai,
-)
+from semestra.modules.imports.tests.test_imports import Api, by_type
 from semestra.modules.imports.tests.test_imports_rules import ACORN
 
 

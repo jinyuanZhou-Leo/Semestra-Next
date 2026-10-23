@@ -132,6 +132,23 @@ def test_spreadsheets_become_markdown_tables():
     assert "| 1 | 2 |" in csv_doc.pages[0].markdown
 
 
+def test_spreadsheets_drop_empty_columns_and_long_tables_are_cut():
+    import openpyxl
+
+    book = openpyxl.Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.append(["Item", "Weight"])
+    sheet.cell(row=1, column=60).value = " "  # formatted far to the right, but empty
+    for n in range(450):
+        sheet.append([f"Quiz {n}", 1])
+    out = io.BytesIO()
+    book.save(out)
+    doc = parse(out.getvalue(), detect(out.getvalue()), max_pages=3)
+    assert len(doc.pages) == 3
+    assert doc.pages[0].markdown.splitlines()[2] == "| Item | Weight |"
+
+
 def test_html_keeps_headings_and_drops_scripts():
     data = (
         b"<html><head><title>t</title><script>alert(1)</script></head>"

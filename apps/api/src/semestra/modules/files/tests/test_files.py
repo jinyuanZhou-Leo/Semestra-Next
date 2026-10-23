@@ -99,6 +99,17 @@ async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
     assert hits[0]["heading_path"] == ["Scanned heading"]
 
 
+async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("vision")
+    fake_ai.ocr_fail_calls = {2}
+    scanned = make_pdf(["scan one", "scan two", "scan three"], scanned={0, 1, 2})
+    item = await fx.upload_ready("scan.pdf", scanned)
+    assert item["doc_status"] == "ready"
+    assert item["ocr_skipped_pages"] == 1
+    assert fake_ai.ocr_calls == 3
+    assert (await fx.search("photosynthesis"))["results"]
+
+
 # --- listing, folders, links ------------------------------------------------------------------
 
 
@@ -369,12 +380,36 @@ async def test_semantic_and_hybrid_search_with_embeddings(fx: Fx, fake_ai: FakeA
     assert fallback["mode_used"] == "keyword"
 
 
-async def test_embedding_failure_keeps_keyword_search(fx: Fx, fake_ai: FakeAi):
+async def test_embedding_failure_keeps_keyword_search_and_is_retried(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files import pipeline
+    from semestra.modules.files.vectors import get_vector_store
+
+    monkeypatch.setattr(pipeline, "BATCH_SIZE", 1)
     fake_ai.enabled.add("embedding")
-    fake_ai.fail_embedding = True
+
+    def fail_after_first(fake: FakeAi) -> None:
+        fake.fail_embedding = True
+
+    fake_ai.after_embed = fail_after_first
     item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
     assert item["doc_status"] == "ready"
     assert (await fx.search("midterm"))["results"]
+    store = get_vector_store()
+    async with fx.app.state.session_factory() as db:
+        # The batch stored before the failure is not left behind.
+        assert [await store.count(db, s) for s in await store.spaces(db)] in ([], [0])
+
+    fake_ai.fail_embedding, fake_ai.after_embed = False, None
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
+    fake_ai.embed_calls.clear()
+    await run_periodic(fx.app.state, "files.retry_vectors")
+    await fx.run_jobs()
+    assert fake_ai.embed_calls == []  # nothing is missing any more
 
 
 async def test_changing_embedding_model_reindexes(fx: Fx, fake_ai: FakeAi):
