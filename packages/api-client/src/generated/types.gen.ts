@@ -1708,6 +1708,42 @@ export type CategoryOrderInputBody = {
 };
 
 /**
+ * CategorySummary
+ *
+ * One category's share of the course, from its counted (not dropped) assessments.
+ */
+export type CategorySummary = {
+    /**
+     * Category Id
+     *
+     * Null holds the assessments without a category
+     */
+    category_id: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+    /**
+     * Graded Weight
+     *
+     * Weight that has a score
+     */
+    graded_weight: number;
+    /**
+     * Average
+     *
+     * Weighted average of the scores
+     */
+    average: number | null;
+    /**
+     * Contribution
+     *
+     * Percentage points the scores add to the grade
+     */
+    contribution: number;
+};
+
+/**
  * CategoryTemplate
  */
 export type CategoryTemplate = {
@@ -4301,6 +4337,12 @@ export type GradebookSummary = {
      * False when the target needs more than 100%
      */
     reachable: boolean | null;
+    /**
+     * Categories
+     *
+     * Per category; in a simulation assumed scores count as scores
+     */
+    categories: Array<CategorySummary>;
 };
 
 /**
@@ -4344,6 +4386,12 @@ export type GradingScale = {
      */
     hide_gpa: boolean;
     /**
+     * Round Before Lookup
+     *
+     * Percentages are rounded to whole numbers (half up) before the band lookup
+     */
+    round_before_lookup: boolean;
+    /**
      * Updated At
      */
     updated_at: string;
@@ -4361,6 +4409,10 @@ export type GradingScaleInfo = {
      * Hide Gpa
      */
     hide_gpa: boolean;
+    /**
+     * Round Before Lookup
+     */
+    round_before_lookup: boolean;
 };
 
 /**
@@ -7824,6 +7876,12 @@ export type ScaleUpdateInputBody = {
      * Mask GPA figures in the interface
      */
     hide_gpa?: boolean | null;
+    /**
+     * Round Before Lookup
+     *
+     * Round percentages to whole numbers before reading the scale (84.6 → 85)
+     */
+    round_before_lookup?: boolean | null;
 };
 
 /**
@@ -8388,6 +8446,12 @@ export type SimulatedGradebook = {
      * False when the target needs more than 100%
      */
     reachable: boolean | null;
+    /**
+     * Categories
+     *
+     * Per category; in a simulation assumed scores count as scores
+     */
+    categories: Array<CategorySummary>;
     /**
      * Ignored
      *
@@ -9672,9 +9736,15 @@ export type TermGrades = {
     /**
      * Excluded Count
      *
-     * Courses not counted towards the GPA
+     * Finished courses outside the GPA (pass/fail, not counted, no credits)
      */
     excluded_count: number;
+    /**
+     * In Progress Count
+     *
+     * Courses still waiting for their grade
+     */
+    in_progress_count: number;
     /**
      * Courses
      */
@@ -10052,6 +10122,18 @@ export type UnreadableItem = {
      * Why the text could not be read
      */
     doc_error_code: string | null;
+};
+
+/**
+ * UpcomingAssessments
+ */
+export type UpcomingAssessments = {
+    /**
+     * Items
+     *
+     * Ungraded, with a deadline, soonest first
+     */
+    items: Array<Assessment>;
 };
 
 /**
@@ -14055,6 +14137,57 @@ export type GradingAssessmentReorderResponses = {
 };
 
 export type GradingAssessmentReorderResponse = GradingAssessmentReorderResponses[keyof GradingAssessmentReorderResponses];
+
+export type GradingAssessmentUpcomingData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only the courses of this term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course
+         */
+        course_id?: string | null;
+        /**
+         * Limit
+         *
+         * Max assessments
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/upcoming-assessments';
+};
+
+export type GradingAssessmentUpcomingErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentUpcomingError = GradingAssessmentUpcomingErrors[keyof GradingAssessmentUpcomingErrors];
+
+export type GradingAssessmentUpcomingResponses = {
+    /**
+     * Successful Response
+     */
+    200: UpcomingAssessments;
+};
+
+export type GradingAssessmentUpcomingResponse = GradingAssessmentUpcomingResponses[keyof GradingAssessmentUpcomingResponses];
 
 export type GradingCategoryCreateData = {
     body: CategoryCreateInputBody;

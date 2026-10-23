@@ -183,7 +183,7 @@
         "terms": {
           "T1": {"gpa": 3.35, "average": 78.5, "credits_counted": 1.0, "earned": 1.0, "excluded": 0},
           "T2": {"gpa": 2.767, "average": 71.333, "credits_counted": 1.5, "earned": 2.0, "excluded": 1},
-          "T3": {"gpa": null, "average": null, "credits_counted": 0, "earned": 0.5, "excluded": 2}
+          "T3": {"gpa": null, "average": null, "credits_counted": 0, "earned": 0.5, "excluded": 1, "in_progress": 1}
         },
         "cumulative_gpa": {"T1": 3.35, "T2": 3.0, "T3": 3.0}
       },

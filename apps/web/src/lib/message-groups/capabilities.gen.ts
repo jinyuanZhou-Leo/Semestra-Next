@@ -54,6 +54,7 @@ export const capabilityMessages = {
   capability_grading_assessment_find_title: m.capability_grading_assessment_find_title,
   capability_grading_assessment_list_title: m.capability_grading_assessment_list_title,
   capability_grading_assessment_reorder_title: m.capability_grading_assessment_reorder_title,
+  capability_grading_assessment_upcoming_title: m.capability_grading_assessment_upcoming_title,
   capability_grading_assessment_update_title: m.capability_grading_assessment_update_title,
   capability_grading_category_create_title: m.capability_grading_category_create_title,
   capability_grading_category_delete_title: m.capability_grading_category_delete_title,

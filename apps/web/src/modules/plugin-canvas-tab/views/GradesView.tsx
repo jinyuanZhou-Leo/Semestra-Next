@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-table'
 import { Calculator, GraduationCap } from 'lucide-react'
 import { HistoryLink } from '@/components/HistoryLink'
-import { formatDate } from '@/lib/format'
+import { formatCredits, formatDate } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
@@ -39,9 +39,9 @@ function ScoreCell({ row }: CellProps) {
   const g = row.original
   const score =
     g.score != null && g.points_possible != null
-      ? `${g.score} / ${g.points_possible}`
+      ? `${formatCredits(g.score)} / ${formatCredits(g.points_possible)}`
       : g.score != null
-        ? String(g.score)
+        ? formatCredits(g.score)
         : null
   return (
     <span className="tabular-nums whitespace-nowrap">

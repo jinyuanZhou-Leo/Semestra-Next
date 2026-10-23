@@ -1,6 +1,7 @@
 import type {
   Assessment,
   AssessmentCategory,
+  CategorySummary,
   Gradebook,
   GradebookSummary,
 } from '@semestra/api-client'
@@ -37,6 +38,7 @@ export function summary(overrides: Partial<GradebookSummary> = {}): GradebookSum
     target_percentage: 85,
     required_average: 88.33,
     reachable: true,
+    categories: [],
     ...overrides,
   }
 }
@@ -80,11 +82,38 @@ export function assessment(overrides: Partial<Assessment> & { id: string }): Ass
   }
 }
 
+/** The engine's per-category figures for these assessments (dropped ones do not count). */
+export function categoryFigures(assessments: readonly Assessment[]): CategorySummary[] {
+  const groups = new Map<string | null, Assessment[]>()
+  for (const a of assessments) {
+    if (!a.dropped) groups.set(a.category_id, [...(groups.get(a.category_id) ?? []), a])
+  }
+  return [...groups].map(([id, items]) => {
+    const graded = items.filter((a) => a.score_percentage !== null)
+    const gradedWeight = graded.reduce((sum, a) => sum + a.weight, 0)
+    const points = graded.reduce((sum, a) => sum + a.weight * (a.score_percentage ?? 0), 0)
+    return {
+      category_id: id,
+      weight: items.reduce((sum, a) => sum + a.weight, 0),
+      graded_weight: gradedWeight,
+      average: gradedWeight === 0 ? null : points / gradedWeight,
+      contribution: points / 100,
+    }
+  })
+}
+
+/** A gradebook; its summary's category figures follow its assessments unless given. */
 export function gradebook(overrides: Partial<Gradebook> = {}): Gradebook {
+  const book = baseGradebook(overrides)
+  if (book.summary.categories.length > 0) return book
+  return { ...book, summary: { ...book.summary, categories: categoryFigures(book.assessments) } }
+}
+
+function baseGradebook(overrides: Partial<Gradebook>): Gradebook {
   return {
     course_id: 'c1',
     program_id: 'p1',
-    scale: { max_points: 4, hide_gpa: false },
+    scale: { max_points: 4, hide_gpa: false, round_before_lookup: true },
     result: {
       course_id: 'c1',
       basis: 'percentage',

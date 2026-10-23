@@ -10,7 +10,7 @@ import { ChartContainer, ChartTooltip } from '@/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type CompositionSlice, composition } from '../composition'
-import { categoryColor, categoryName, percentText } from '../display'
+import { categoryColor, categoryName, headline, percentText } from '../display'
 import { AnimatedPercent } from './AnimatedPercent'
 import { GpaValue } from './GpaValue'
 
@@ -267,26 +267,21 @@ export function GradeComposition({
   gradebook,
   planned,
   planning,
-  assumed,
 }: {
   gradebook: Gradebook
   /** The simulated summary while planning (null until it arrives). */
   planned: GradebookSummary | null
   planning: boolean
-  /** Active assumed scores in percent per assessment id. */
-  assumed: Readonly<Record<string, number>>
 }) {
   const [hovered, setHovered] = useState<string | null>(null)
   const idPrefix = useId()
   const { summary: s, scale } = gradebook
-  const data: Datum[] = composition(gradebook.assessments, gradebook.categories, assumed).map(
-    (slice) => ({
-      ...slice,
-      key: sliceKey(slice.id),
-      name: slice.category ? categoryName(slice.category) : m.grading_category_none(),
-      color: categoryColor(slice.category?.color ?? 'slate'),
-    }),
-  )
+  const data: Datum[] = composition(s, planned, gradebook.categories).map((slice) => ({
+    ...slice,
+    key: sliceKey(slice.id),
+    name: slice.category ? categoryName(slice.category) : m.grading_category_none(),
+    color: categoryColor(slice.category?.color ?? 'slate'),
+  }))
 
   const legend = useTable({
     features: legendFeatures,
@@ -295,18 +290,27 @@ export function GradeComposition({
     getRowId: (d) => d.key,
   })
 
-  const actual = s.weights_ok || s.overridden ? (s.final_percentage ?? s.current_percentage) : null
-  const actualLetter = s.final_percentage === null ? s.current_letter : s.final_letter
-  const actualPoints = s.final_percentage === null ? s.current_points : s.final_points
-  const plannedValue = planned
-    ? (planned.final_percentage ?? planned.forecast_percentage ?? planned.current_percentage)
-    : null
+  const shown = headline(s)
+  const actual = s.weights_ok || s.overridden ? shown.percentage : null
+  const actualLetter = shown.letter
+  const actualPoints = shown.points
+  // Only a whole result (every item scored or assumed) or a forecast is a planned grade; the
+  // average of what has a score so far would read as one.
+  const plannedFinal = planned !== null && planned.final_percentage !== null
+  const plannedValue = planned ? (planned.final_percentage ?? planned.forecast_percentage) : null
   const plannedLetter = planned
-    ? (planned.final_letter ?? planned.forecast_letter ?? planned.current_letter)
+    ? plannedFinal
+      ? planned.final_letter
+      : planned.forecast_letter
     : null
   const plannedPoints = planned
-    ? (planned.final_points ?? planned.forecast_points ?? planned.current_points)
+    ? plannedFinal
+      ? planned.final_points
+      : planned.forecast_points
     : null
+  // Without weights adding up to 100 nothing can be planned, so missing assumptions are not why.
+  const unassumed =
+    planned && planned.weights_ok && plannedValue === null ? planned.remaining_count : 0
   const shownLetter = planning ? plannedLetter : actualLetter
 
   return (
@@ -354,10 +358,10 @@ export function GradeComposition({
                 m.grading_actual({ value: percentText(actual) })
               ) : s.overridden ? (
                 <Badge variant="secondary">{m.grading_overridden()}</Badge>
-              ) : s.final_percentage === null ? (
-                m.grading_current()
-              ) : (
+              ) : shown.final ? (
                 m.grading_final()
+              ) : (
+                m.grading_current()
               )}
             </span>
           </div>
@@ -371,11 +375,17 @@ export function GradeComposition({
               <GpaValue
                 value={planning ? plannedPoints : actualPoints}
                 hidden={scale.hide_gpa}
+                letter={shownLetter}
+                letterClassName="text-sm font-semibold"
                 animated={!planning}
               />
-              {shownLetter ? <span className="text-sm font-semibold">{shownLetter}</span> : null}
             </dd>
           </div>
+          {planning && unassumed > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {m.grading_plan_unassumed({ count: unassumed })}
+            </p>
+          ) : null}
           {/* While planning the planned result is in the middle; the real forecast would read as part of it. */}
           {planning ? null : (
             <div>
@@ -388,7 +398,7 @@ export function GradeComposition({
                 ) : (
                   <>
                     {percentText(s.forecast_percentage)}
-                    {s.forecast_letter ? (
+                    {s.forecast_letter && !scale.hide_gpa ? (
                       <span className="ml-1.5 text-sm">{s.forecast_letter}</span>
                     ) : null}
                   </>
