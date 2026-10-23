@@ -32,13 +32,6 @@ def position_between(before: float | None, after: float | None) -> float:
     return (before + after) / 2
 
 
-def due_sort_key(due_date: date | None, due_time: time | None) -> tuple[int, date, time]:
-    """Earliest first; tasks without a due date last; a date without a time before timed ones."""
-    if due_date is None:
-        return (1, date.max, time.max)
-    return (0, due_date, due_time or time.min)
-
-
 def match_score(query: str, title: str, notes: str = "") -> float:
     """How well `query` names a task, 0 to 1 (used by `tasks.item.find`)."""
     q = normalize(query)
@@ -65,3 +58,9 @@ def match_score(query: str, title: str, notes: str = "") -> float:
 
 def auto_title(course_code: str | None, assessment_title: str) -> str:
     return f"{course_code} · {assessment_title}" if course_code else assessment_title
+
+
+def fits_between(position: float, before: float | None, after: float | None) -> bool:
+    """Whether a position from `position_between` still sorts strictly between its neighbours;
+    halving the same gap again and again runs out of float precision."""
+    return (before is None or position > before) and (after is None or position < after)

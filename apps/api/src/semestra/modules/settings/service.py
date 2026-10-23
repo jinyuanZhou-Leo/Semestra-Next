@@ -238,6 +238,7 @@ async def update_values(
         raise AppError("settings.invalid_value", 422, errors=errors) from exc
     # Store the validated (coerced) form of exactly the keys that were sent.
     clean = validated.model_dump(mode="json", include=set(values))
+    changed = sorted(key for key, value in clean.items() if effective.get(key) != value)
     stored_id = _scope_id_for_storage(scope_type, chain.id_for(scope_type))
     row = await _own_row(ctx, namespace, scope_type, stored_id)
     if row is None:
@@ -253,7 +254,7 @@ async def update_values(
     else:
         row.data = {**row.data, **clean}
     await ctx.db.flush()
-    await _publish_values_updated(ctx, namespace, scope_type, stored_id)
+    await _publish_values_updated(ctx, namespace, scope_type, stored_id, changed)
     return await _resolved(ctx, definition, chain, scope_type, scope_id)
 
 
@@ -277,17 +278,22 @@ async def reset_value(
         else:
             await ctx.db.delete(row)
         await ctx.db.flush()
-        await _publish_values_updated(ctx, namespace, scope_type, stored_id)
+        await _publish_values_updated(ctx, namespace, scope_type, stored_id, [key])
     return await _resolved(ctx, definition, chain, scope_type, scope_id)
 
 
 async def _publish_values_updated(
-    ctx: Ctx, namespace: str, scope_type: ScopeType, stored_id: str
+    ctx: Ctx, namespace: str, scope_type: ScopeType, stored_id: str, changed: list[str]
 ) -> None:
+    """`changed`: the keys whose effective value at this scope changed (or was reset)."""
     await events.publish(
         ctx,
         "settings.values.updated",
-        {"namespace": namespace, "scope": {"type": scope_type, "id": stored_id or None}},
+        {
+            "namespace": namespace,
+            "scope": {"type": scope_type, "id": stored_id or None},
+            "changed": changed,
+        },
     )
 
 

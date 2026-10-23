@@ -6,7 +6,7 @@ from datetime import date, datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Select, delete, func, select, update
+from sqlalchemy import Select, and_, case, delete, func, or_, select, true, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -132,7 +132,7 @@ def _list_out(row: TasksList) -> TaskList:
 # --- events ---------------------------------------------------------------------------------
 
 
-async def _announce(
+async def announce_item(
     ctx: Ctx, kind: str, row: TasksItem, *, calendar: bool, changed: Sequence[str] = ()
 ) -> None:
     data = {
@@ -142,7 +142,8 @@ async def _announce(
         "changed": list(changed),
     }
     await events.publish(ctx, f"tasks.item.{kind}", data)
-    if calendar:
+    # Tasks made from assessments are not in the `tasks.due` source (the assessment is).
+    if calendar and row.source_kind != "assessment":
         await events.publish(ctx, "calendar.changed", {"program_id": row.program_id})
 
 
@@ -232,8 +233,7 @@ async def delete_list(ctx: Ctx, list_id: str, *, delete_tasks: bool) -> TaskList
         moved_task_count=0 if delete_tasks else len(items),
     )
     if delete_tasks:
-        for item in items:
-            await ctx.db.delete(item)
+        await _delete_rows(ctx, row.program_id, items)
     else:
         await _to_inbox(ctx, items)
     await ctx.db.delete(row)
@@ -241,17 +241,40 @@ async def delete_list(ctx: Ctx, list_id: str, *, delete_tasks: bool) -> TaskList
     await events.publish(
         ctx, "tasks.list.deleted", {"list_id": list_id, "program_id": row.program_id}
     )
-    if any(i.due_date for i in items) and delete_tasks:
-        await events.publish(ctx, "calendar.changed", {"program_id": row.program_id})
     return result
+
+
+async def _delete_rows(ctx: Ctx, program_id: str, rows: Sequence[TasksItem]) -> None:
+    """Deletes tasks in one statement and announces them as one `tasks.item.deleted` with
+    `task_ids` (the LMS module forgets what it imported as those tasks)."""
+    if not rows:
+        return
+    ids = [r.id for r in rows]
+    await ctx.db.execute(delete(TasksItem).where(TasksItem.id.in_(ids)))
+    await events.publish(
+        ctx, "tasks.item.deleted", {"task_ids": ids, "program_id": program_id, "changed": []}
+    )
+    if any(r.due_date and r.source_kind != "assessment" for r in rows):
+        await events.publish(ctx, "calendar.changed", {"program_id": program_id})
 
 
 async def _to_inbox(ctx: Ctx, items: Iterable[TasksItem]) -> None:
     """Moves tasks to the end of the Program's inbox, keeping their relative order."""
     ordered = sorted(items, key=lambda i: (i.position, i.created_at))
+    if not ordered:
+        return
+    top = await ctx.db.scalar(
+        select(func.max(TasksItem.position)).where(
+            TasksItem.user_id == ctx.user_id,
+            TasksItem.program_id == ordered[0].program_id,
+            TasksItem.list_id.is_(None),
+            TasksItem.id.not_in([i.id for i in ordered]),
+        )
+    )
     for item in ordered:
+        top = rules.position_between(top, None)
         item.list_id = None
-        item.position = await _next_position(ctx, item.program_id, None, exclude=item.id)
+        item.position = top
         item.updated_at = ctx.now
     await ctx.db.flush()
 
@@ -347,15 +370,23 @@ async def create_task_row(
     *,
     default_priority: str,
     completed: bool = False,
+    terms: dict[tuple[str, date | None], str | None] | None = None,
 ) -> TasksItem:
-    """Validates and inserts one task (no events). Shared by the capabilities and auto tasks."""
+    """Validates and inserts one task (no events). Shared by the capabilities and auto tasks.
+    `terms` caches inferred terms by (course, due date) across a batch."""
     _check_due(fields.due_date, fields.due_time)
     list_row = await _check_refs(
         ctx, program, term_id=fields.term_id, course_id=fields.course_id, list_id=fields.list_id
     )
     term_id = fields.term_id
     if term_id is None and fields.course_id is not None:
-        term_id = await infer_term(ctx, program, fields.course_id, fields.due_date)
+        key = (fields.course_id, fields.due_date)
+        if terms is not None and key in terms:
+            term_id = terms[key]
+        else:
+            term_id = await infer_term(ctx, program, fields.course_id, fields.due_date)
+            if terms is not None:
+                terms[key] = term_id
     if term_id is None and list_row is not None:
         term_id = list_row.term_id
     row = TasksItem(
@@ -420,7 +451,7 @@ async def create_task(ctx: Ctx, program_id: str, fields: TaskFields) -> Task:
     program = await academics.get_program_row(ctx, program_id)
     defaults = await program_settings(ctx, program.id)
     row = await create_task_row(ctx, program, fields, default_priority=defaults.default_priority)
-    await _announce(ctx, "created", row, calendar=row.due_date is not None)
+    await announce_item(ctx, "created", row, calendar=row.due_date is not None)
     return task_out(row, _now_local(ctx, program))
 
 
@@ -444,6 +475,7 @@ async def create_tasks(
     created: list[TasksItem] = []
     skipped: list[TaskSkipped] = []
     seen: dict[tuple[str, str], str] = {}
+    terms: dict[tuple[str, date | None], str | None] = {}
     for index, fields in enumerate(items):
         if fields.source_ref is not None:
             key = (fields.source_kind, fields.source_ref)
@@ -452,13 +484,13 @@ async def create_tasks(
                 skipped.append(TaskSkipped(index=index, task_id=existing))
                 continue
         row = await create_task_row(
-            ctx, program, fields, default_priority=defaults.default_priority
+            ctx, program, fields, default_priority=defaults.default_priority, terms=terms
         )
         if fields.source_ref is not None:
             seen[(fields.source_kind, fields.source_ref)] = row.id
         created.append(row)
     for row in created:
-        await _announce(ctx, "created", row, calendar=row.due_date is not None)
+        await announce_item(ctx, "created", row, calendar=row.due_date is not None)
     return TaskCreateManyResult(created=[task_out(r, now_local) for r in created], skipped=skipped)
 
 
@@ -475,10 +507,7 @@ async def update_task(ctx: Ctx, inp: TaskUpdateInput) -> Task:
         raise AppError(
             "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
         )
-    due_date = inp.due_date if "due_date" in sent else row.due_date
-    due_time = _clean_time(inp.due_time) if "due_time" in sent else row.due_time
-    if due_date is None and "due_time" not in sent:
-        due_time = None  # clearing the date clears the time with it
+    due_date, due_time = _resolved_due(row, inp)
     _check_due(due_date, due_time)
     course_id = inp.course_id if "course_id" in sent else row.course_id
     _guard_managed(row, inp)
@@ -516,7 +545,7 @@ async def update_task(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     if changed:
         row.updated_at = ctx.now
         await ctx.db.flush()
-        await _announce(
+        await announce_item(
             ctx,
             "updated",
             row,
@@ -526,6 +555,16 @@ async def update_task(ctx: Ctx, inp: TaskUpdateInput) -> Task:
     return task_out(row, _now_local(ctx, program))
 
 
+def _resolved_due(row: TasksItem, inp: TaskUpdateInput) -> tuple[date | None, time | None]:
+    """The due date and time a partial update leaves; clearing the date clears the time."""
+    sent = inp.model_fields_set
+    due_date = inp.due_date if "due_date" in sent else row.due_date
+    due_time = _clean_time(inp.due_time) if "due_time" in sent else row.due_time
+    if due_date is None and "due_time" not in sent:
+        due_time = None
+    return due_date, due_time
+
+
 def _guard_managed(row: TasksItem, inp: TaskUpdateInput) -> None:
     """A task made from an assessment takes its title, due date and course from it (auto.py);
     a change here would be overwritten by the next sync, so it is refused instead. Sending the
@@ -533,10 +572,7 @@ def _guard_managed(row: TasksItem, inp: TaskUpdateInput) -> None:
     if row.source_kind != "assessment":
         return
     sent = inp.model_fields_set - {"task_id"}
-    due_date = inp.due_date if "due_date" in sent else row.due_date
-    due_time = _clean_time(inp.due_time) if "due_time" in sent else row.due_time
-    if due_date is None and "due_time" not in sent:
-        due_time = None
+    due_date, due_time = _resolved_due(row, inp)
     course_id = inp.course_id if "course_id" in sent else row.course_id
     managed = [
         name
@@ -559,7 +595,7 @@ async def set_completed(ctx: Ctx, task_id: str, completed: bool) -> Task:
         row.completed_at = ctx.now if completed else None
         row.updated_at = ctx.now
         await ctx.db.flush()
-        await _announce(
+        await announce_item(
             ctx,
             "completed" if completed else "updated",
             row,
@@ -588,13 +624,20 @@ async def move_task(ctx: Ctx, inp: TaskMoveInput) -> Task:
         key=lambda i: (i.position, i.created_at),
     )
     if inp.before_task_id is None:
-        position = rules.position_between(siblings[-1].position if siblings else None, None)
+        index = len(siblings)
     else:
         index = next((n for n, s in enumerate(siblings) if s.id == inp.before_task_id), None)
         if index is None:
             raise not_found()
-        previous = siblings[index - 1].position if index else None
-        position = rules.position_between(previous, siblings[index].position)
+    previous = siblings[index - 1].position if index else None
+    following = siblings[index].position if index < len(siblings) else None
+    position = rules.position_between(previous, following)
+    if not rules.fits_between(position, previous, following):
+        # The gap is used up (many moves into one spot): space the whole list out again.
+        order = [*siblings[:index], row, *siblings[index:]]
+        for n, item in enumerate(order, start=1):
+            item.position = n * rules.POSITION_STEP
+        position = row.position
     changed: list[str] = []
     if row.list_id != list_id:
         row.list_id = list_id
@@ -605,7 +648,7 @@ async def move_task(ctx: Ctx, inp: TaskMoveInput) -> Task:
     row.position = position
     row.updated_at = ctx.now
     await ctx.db.flush()
-    await _announce(ctx, "updated", row, calendar=False, changed=[*changed, "position"])
+    await announce_item(ctx, "updated", row, calendar=False, changed=[*changed, "position"])
     return task_out(row, _now_local(ctx, program))
 
 
@@ -614,22 +657,20 @@ async def delete_task(ctx: Ctx, task_id: str) -> None:
     had_due = row.due_date is not None
     await ctx.db.delete(row)
     await ctx.db.flush()
-    await _announce(ctx, "deleted", row, calendar=had_due)
+    await announce_item(ctx, "deleted", row, calendar=had_due)
 
 
 async def _completed_rows(ctx: Ctx, inp: TaskClearInput) -> list[TasksItem]:
     """The completed tasks `clear_completed` deletes (its card counts the same rows)."""
-    stmt = select(TasksItem).where(
-        TasksItem.user_id == ctx.user_id,
-        TasksItem.program_id == inp.program_id,
-        TasksItem.completed_at.is_not(None),
-    )
-    if inp.list_id is not None:
-        stmt = stmt.where(TasksItem.list_id == inp.list_id)
-    if inp.term_id is not None:
-        stmt = stmt.where(_term_filter(inp.term_id))
-    if inp.course_id is not None:
-        stmt = stmt.where(TasksItem.course_id == inp.course_id)
+    term_id = await _term_for_view(ctx, inp.term_id, inp.list_id)
+    stmt = _program_query(
+        select(TasksItem),
+        ctx,
+        inp.program_id,
+        term_id=term_id,
+        course_id=inp.course_id,
+        list_id=inp.list_id,
+    ).where(TasksItem.completed_at.is_not(None))
     return list(await ctx.db.scalars(stmt.order_by(TasksItem.completed_at.desc())))
 
 
@@ -645,17 +686,7 @@ async def preview_clear_completed(ctx: Ctx, inp: TaskClearInput) -> dict[str, An
 async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
     program = await academics.get_program_row(ctx, inp.program_id)
     rows = await _completed_rows(ctx, inp)
-    for row in rows:
-        await ctx.db.delete(row)
-    await ctx.db.flush()
-    if rows:
-        await events.publish(
-            ctx,
-            "tasks.item.deleted",
-            {"task_ids": [r.id for r in rows], "program_id": program.id, "changed": []},
-        )
-        if any(r.due_date for r in rows):
-            await events.publish(ctx, "calendar.changed", {"program_id": program.id})
+    await _delete_rows(ctx, program.id, rows)
     return TaskClearResult(deleted=len(rows))
 
 
@@ -667,6 +698,15 @@ def _term_filter(term_id: str | None) -> Any:
     if term_id is None:
         return None
     return (TasksItem.term_id == term_id) | TasksItem.term_id.is_(None)
+
+
+async def _term_for_view(ctx: Ctx, term_id: str | None, list_id: str | None) -> str | None:
+    """The term filter of a view. A term's own list shows all of its tasks: one whose course
+    puts it in another term (a year-long course) is still in the list it was filed in."""
+    if term_id is None or list_id is None:
+        return term_id
+    row = await ctx.db.get(TasksList, list_id)
+    return None if row is not None and row.term_id is not None else term_id
 
 
 async def program_rows(
@@ -688,11 +728,15 @@ async def program_rows(
     )
     if open_only:
         stmt = stmt.where(TasksItem.completed_at.is_(None))
+    return list(await ctx.db.scalars(_due_range(stmt, due_from, due_to)))
+
+
+def _due_range[S: Select[Any]](stmt: S, due_from: date | None, due_to: date | None) -> S:
     if due_from is not None:
         stmt = stmt.where(TasksItem.due_date >= due_from)
     if due_to is not None:
         stmt = stmt.where(TasksItem.due_date <= due_to)
-    return list(await ctx.db.scalars(stmt))
+    return stmt
 
 
 def _program_query[S: Select[Any]](
@@ -732,86 +776,108 @@ def _in_view(row: TasksItem, view: View, today: date) -> bool:
     return False  # pragma: no cover
 
 
-def _sorted(rows: list[TasksItem], sort: str, view: View) -> list[TasksItem]:
+def _view_where(view: View, today: date, *, open_: bool, done: bool) -> Any:
+    """The SQL condition of a view: its unfinished tasks (`open_`) and/or the finished ones it
+    would show had they not been finished (`done`). `today` keeps its finished tasks whatever
+    their date, like `scheduled`."""
     if view == "completed":
-        return sorted(rows, key=lambda r: r.completed_at or r.created_at, reverse=True)
+        return TasksItem.completed_at.is_not(None)
+    match view:
+        case "today":
+            shared, unfinished = TasksItem.due_date.is_not(None), TasksItem.due_date <= today
+        case "scheduled":
+            shared, unfinished = TasksItem.due_date.is_not(None), true()
+        case "inbox":
+            shared, unfinished = TasksItem.list_id.is_(None), true()
+        case "flagged":
+            shared, unfinished = TasksItem.flagged.is_(True), true()
+        case _:
+            shared, unfinished = true(), true()
+    parts = []
+    if open_:
+        parts.append(and_(TasksItem.completed_at.is_(None), unfinished))
+    if done:
+        parts.append(TasksItem.completed_at.is_not(None))
+    return and_(shared, or_(*parts))
+
+
+_PRIORITY_RANK = case(rules.PRIORITY_RANK, value=TasksItem.priority, else_=len(rules.PRIORITY_RANK))
+# Earliest first, undated last, a date without a time before the timed ones.
+_DUE_ORDER = (
+    TasksItem.due_date.is_(None),
+    TasksItem.due_date,
+    TasksItem.due_time.is_not(None),
+    TasksItem.due_time,
+)
+
+
+def _order_by(sort: str, view: View) -> tuple[Any, ...]:
+    if view == "completed":
+        return (TasksItem.completed_at.desc(), TasksItem.id.desc())
     match sort:
         case "due":
-            return sorted(
-                rows, key=lambda r: (rules.due_sort_key(r.due_date, r.due_time), r.position)
-            )
+            return (*_DUE_ORDER, TasksItem.position, TasksItem.id)
         case "priority":
-            return sorted(
-                rows,
-                key=lambda r: (
-                    rules.PRIORITY_RANK[r.priority],
-                    rules.due_sort_key(r.due_date, r.due_time),
-                    r.position,
-                ),
-            )
+            return (_PRIORITY_RANK, *_DUE_ORDER, TasksItem.position, TasksItem.id)
         case "created":
-            return sorted(rows, key=lambda r: (r.created_at, r.id), reverse=True)
-        case "title":
-            return sorted(rows, key=lambda r: (academic_rules.normalize(r.title), r.id))
-    return sorted(rows, key=lambda r: (r.position, r.created_at, r.id))
+            return (TasksItem.created_at.desc(), TasksItem.id.desc())
+    return (TasksItem.position, TasksItem.created_at, TasksItem.id)
+
+
+def _sorted(rows: list[TasksItem], sort: str, view: View) -> list[TasksItem]:
+    """Python order, for what SQL cannot sort the same way (titles, compared normalized)."""
+    if sort == "title" and view != "completed":
+        return sorted(rows, key=lambda r: (academic_rules.normalize(r.title), r.id))
+    return rows
 
 
 async def query_tasks(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
+    """Filters, orders and pages in SQL; only a fuzzy search or the title order (both
+    normalized in Python) read every matching row."""
     program = await academics.get_program_row(ctx, inp.program_id)
     now_local = _now_local(ctx, program)
-    today = now_local.date()
-    completed = inp.view == "completed" or inp.include_completed or inp.only_completed
-    rows = await program_rows(
+    term_id = await _term_for_view(ctx, inp.term_id, inp.list_id)
+    stmt = _program_query(
+        select(TasksItem),
         ctx,
         program.id,
-        term_id=inp.term_id,
+        term_id=term_id,
         course_id=inp.course_id,
         list_id=inp.list_id,
-        open_only=not completed,
-        due_from=inp.due_from,
-        due_to=inp.due_to,
     )
-    if inp.only_completed and inp.view != "completed":
-        wanted = [r for r in rows if _completed_in_view(r, inp.view)]
-    else:
-        wanted = [
-            r
-            for r in rows
-            if _in_view(r, inp.view, today)
-            or (
-                inp.include_completed
-                and inp.view != "completed"
-                and _completed_in_view(r, inp.view)
+    if inp.view != "completed":
+        stmt = stmt.where(
+            _view_where(
+                inp.view,
+                now_local.date(),
+                open_=not inp.only_completed,
+                done=inp.only_completed or inp.include_completed,
             )
-        ]
-    if inp.due_from is not None:
-        wanted = [r for r in wanted if r.due_date is not None and r.due_date >= inp.due_from]
-    if inp.due_to is not None:
-        wanted = [r for r in wanted if r.due_date is not None and r.due_date <= inp.due_to]
-    if inp.search:
-        wanted = [r for r in wanted if rules.match_score(inp.search, r.title, r.notes) >= 0.35]
-    wanted = _sorted(wanted, inp.sort, inp.view)
+        )
+    else:
+        stmt = stmt.where(_view_where("completed", now_local.date(), open_=False, done=True))
+    stmt = _due_range(stmt, inp.due_from, inp.due_to).order_by(*_order_by(inp.sort, inp.view))
     offset = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
-    page = wanted[offset : offset + inp.limit]
-    more = offset + inp.limit < len(wanted)
+    if inp.search or (inp.sort == "title" and inp.view != "completed"):
+        wanted = list(await ctx.db.scalars(stmt))
+        if inp.search:
+            search = inp.search
+            wanted = [r for r in wanted if rules.match_score(search, r.title, r.notes) >= 0.35]
+        wanted = _sorted(wanted, inp.sort, inp.view)
+        total = len(wanted)
+        page = wanted[offset : offset + inp.limit]
+    else:
+        total = await ctx.db.scalar(
+            select(func.count()).select_from(stmt.order_by(None).subquery())
+        )
+        total = total or 0
+        page = list(await ctx.db.scalars(stmt.offset(offset).limit(inp.limit)))
+    more = offset + inp.limit < total
     return TaskPage(
         items=[task_out(r, now_local) for r in page],
         next_cursor=str(offset + inp.limit) if more else None,
+        total=total,
     )
-
-
-def _completed_in_view(row: TasksItem, view: View) -> bool:
-    """Completed tasks that a view would show had they not been completed."""
-    if row.completed_at is None:
-        return False
-    match view:
-        case "today" | "scheduled":
-            return row.due_date is not None
-        case "inbox":
-            return row.list_id is None
-        case "flagged":
-            return row.flagged
-    return True
 
 
 async def find_tasks(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
@@ -869,6 +935,22 @@ async def counts(
             lists[r.list_id] += 1
         if r.course_id:
             courses[r.course_id] += 1
+    if term_id is not None:
+        # A term's own lists count all their tasks, as the list shows them (`_term_for_view`).
+        own = select(TasksList.id).where(
+            TasksList.user_id == ctx.user_id, TasksList.term_id.is_not(None)
+        )
+        per_list = select(TasksItem.list_id, func.count()).where(
+            TasksItem.user_id == ctx.user_id,
+            TasksItem.program_id == program.id,
+            TasksItem.completed_at.is_(None),
+            TasksItem.list_id.in_(own),
+        )
+        if course_id is not None:
+            per_list = per_list.where(TasksItem.course_id == course_id)
+        for list_id, count in (await ctx.db.execute(per_list.group_by(TasksItem.list_id))).all():
+            if list_id is not None:
+                lists[list_id] = count
     return TaskCounts(
         today=sum(_in_view(r, "today", today) for r in open_rows),
         overdue=sum(rules.is_overdue(r.due_date, r.due_time, False, now_local) for r in open_rows),
@@ -886,6 +968,24 @@ async def counts(
 
 
 async def detach_course(ctx: Ctx, course_id: str) -> None:
+    """The course's tasks stay, without it. Its assessments go with it (in one statement, without
+    `grading.assessment.deleted`), so their tasks are settled here the way `auto` would: an
+    unfinished one is deleted, a finished one becomes an ordinary task nothing keeps in sync."""
+    managed = list(
+        await ctx.db.scalars(
+            select(TasksItem).where(
+                TasksItem.user_id == ctx.user_id,
+                TasksItem.course_id == course_id,
+                TasksItem.source_kind == "assessment",
+            )
+        )
+    )
+    unfinished = [r for r in managed if r.completed_at is None]
+    if unfinished:
+        await _delete_rows(ctx, unfinished[0].program_id, unfinished)
+    for row in managed:
+        if row.completed_at is not None:
+            row.source_kind, row.source_ref = "manual", None
     await ctx.db.execute(
         update(TasksItem)
         .where(TasksItem.user_id == ctx.user_id, TasksItem.course_id == course_id)

@@ -33,14 +33,12 @@ def test_position_between_neighbours():
     assert rules.position_between(1.0, 2.0) == 1.5
 
 
-def test_due_sort_puts_undated_last_and_untimed_before_timed():
-    keys = [
-        rules.due_sort_key(None, None),
-        rules.due_sort_key(date(2026, 1, 2), time(9, 0)),
-        rules.due_sort_key(date(2026, 1, 2), None),
-        rules.due_sort_key(date(2026, 1, 1), time(23, 0)),
-    ]
-    assert sorted(keys) == [keys[3], keys[2], keys[1], keys[0]]
+def test_a_used_up_gap_no_longer_fits():
+    assert rules.fits_between(1.5, 1.0, 2.0)
+    assert rules.fits_between(rules.position_between(None, 1.0), None, 1.0)
+    low = 1.0
+    high = low + 2e-16  # the next float after 1.0
+    assert not rules.fits_between(rules.position_between(low, high), low, high)
 
 
 def test_match_score_prefers_prefixes_and_ignores_spaces_and_case():

@@ -241,6 +241,7 @@ class TaskQueryInput(BaseModel):
 class TaskPage(BaseModel):
     items: list[Task]
     next_cursor: str | None
+    total: int = Field(description="How many tasks match, over all pages")
 
 
 class TaskClearInput(BaseModel):

@@ -33,9 +33,12 @@ for _kind in ("created", "updated", "deleted"):
 
 @events.subscribe("settings.values.updated")
 async def on_settings_updated(ctx: Ctx, event: Event) -> None:
-    """Turning the switch on creates the tasks of the assessments that already exist."""
+    """Turning the switch on creates the tasks of the assessments that already exist. Only that
+    change does: saving another tasks setting must not bring back auto tasks the user deleted."""
     scope = event.data.get("scope")
     if event.data.get("namespace") != "tasks" or not isinstance(scope, dict):
+        return
+    if "auto_tasks_from_assessments" not in event.data.get("changed", []):
         return
     program_id = scope.get("id")
     is_program = scope.get("type") == "program" and isinstance(program_id, str)
