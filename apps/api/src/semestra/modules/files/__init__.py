@@ -14,15 +14,14 @@ from semestra.modules.files import (  # noqa: F401  (registers on import)
     models,
     portability,
     subscribers,
+    upload,
 )
 from semestra.modules.files.routes import router
 from semestra.modules.files.service import save_bytes_as_file
-from semestra.modules.files.upload import UploadBodyLimit
 
 __all__ = ["register", "save_bytes_as_file"]
 
 
 def register(app: FastAPI) -> None:
     registry.set_id_source("folder_id", "files.item.list")
-    app.add_middleware(UploadBodyLimit)
     app.include_router(router)

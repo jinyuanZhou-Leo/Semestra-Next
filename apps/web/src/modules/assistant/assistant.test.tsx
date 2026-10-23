@@ -159,7 +159,7 @@ beforeEach(() => {
     http.get(`${API}/agent/sessions`, () => HttpResponse.json({ items: [srv.detail.session] })),
     http.get(`${API}/agent/sessions/:id`, () => HttpResponse.json(srv.detail)),
     http.get(`${API}/agent/sessions/:id/events`, () => new HttpResponse(null, { status: 204 })),
-    http.get(`${API}/settings/assistant`, () =>
+    http.get(`${API}/me/settings/assistant`, () =>
       HttpResponse.json({ namespace: 'assistant', values: assistantSettings, inherited: {} }),
     ),
     http.post(`${API}/agent/sessions/s1/*`, async ({ request }) => {

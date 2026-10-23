@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from semestra.core.context import Ctx, get_anonymous_ctx, get_ctx, run_after_commit
 from semestra.core.errors import not_found
+from semestra.modules.academics import service as academics
 from semestra.modules.auth.models import AuthUser
 from semestra.modules.auth.ratelimit import hit
-from semestra.modules.schedule import service
+from semestra.modules.schedule import common, feeds
 from semestra.modules.schedule.ics import build_calendar
 from semestra.modules.schedule.schemas import OccurrencesInput
+from semestra.modules.schedule.sources import occurrences
 
 router = APIRouter(tags=["schedule"])
 
@@ -52,8 +54,8 @@ async def export_ics(
         term_id=term_id,
         course_ids=course_ids,
     )
-    result = await service.occurrences(ctx, inp, max_days=service.EXPORT_MAX_RANGE_DAYS)
-    program = await service.academics.get_program_row(ctx, program_id)
+    result = await occurrences(ctx, inp, max_days=common.EXPORT_MAX_RANGE_DAYS)
+    program = await academics.get_program_row(ctx, program_id)
     hidden = set(exclude_course_ids or ())
     items = [o for o in result.items if o.course_id is None or o.course_id not in hidden]
     body = build_calendar(program.name, result.timezone, items, ctx.now)
@@ -64,7 +66,7 @@ async def export_ics(
 async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> Response:
     """Public: the token is the credential. Rate limited per feed; unknown tokens are looked up
     first so they cannot create limiter rows."""
-    row = await service.feed_by_token(ctx, token)
+    row = await feeds.feed_by_token(ctx, token)
     await hit(
         ctx.db, ctx.settings, ctx.now, "schedule.feed", row.id, limit=FEED_LIMIT, window=FEED_WINDOW
     )
@@ -72,7 +74,7 @@ async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> R
     if user is None:
         raise not_found()
     ctx.user = user
-    program, items = await service.feed_occurrences(ctx, row)
+    program, items = await feeds.feed_occurrences(ctx, row)
     body = build_calendar(program.name, program.timezone, items, ctx.now)
     await ctx.db.commit()
     await run_after_commit(ctx)

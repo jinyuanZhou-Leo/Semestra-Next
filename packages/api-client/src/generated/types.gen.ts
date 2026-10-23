@@ -1716,6 +1716,42 @@ export type CategoryOrderInputBody = {
 };
 
 /**
+ * CategorySummary
+ *
+ * One category's share of the course, from its counted (not dropped) assessments.
+ */
+export type CategorySummary = {
+    /**
+     * Category Id
+     *
+     * Null holds the assessments without a category
+     */
+    category_id: string | null;
+    /**
+     * Weight
+     */
+    weight: number;
+    /**
+     * Graded Weight
+     *
+     * Weight that has a score
+     */
+    graded_weight: number;
+    /**
+     * Average
+     *
+     * Weighted average of the scores
+     */
+    average: number | null;
+    /**
+     * Contribution
+     *
+     * Percentage points the scores add to the grade
+     */
+    contribution: number;
+};
+
+/**
  * CategoryTemplate
  */
 export type CategoryTemplate = {
@@ -3117,6 +3153,12 @@ export type EmailChangeStartInputBody = {
      * The new email address; a code is sent to it
      */
     new_email: string;
+    /**
+     * Password
+     *
+     * Current password; needed unless the session signed in during the last 10 minutes
+     */
+    password?: string | null;
 };
 
 /**
@@ -3192,6 +3234,108 @@ export type ErrorResponse = {
  * EventCreateInputBody
  */
 export type EventCreateInputBody = {
+    /**
+     * Title
+     *
+     * E.g. 'Midterm'
+     */
+    title: string;
+    /**
+     * Start At
+     *
+     * Start; without an offset it is read in the Program's time zone
+     */
+    start_at: string;
+    /**
+     * End At
+     *
+     * End (not before the start)
+     */
+    end_at: string;
+    /**
+     * All Day
+     *
+     * Whole days; times are ignored
+     */
+    all_day?: boolean;
+    /**
+     * Course Id
+     *
+     * Course it belongs to
+     */
+    course_id?: string | null;
+    /**
+     * Term Id
+     *
+     * Term it belongs to
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code, e.g. 'TUT'
+     */
+    type_code?: string | null;
+    /**
+     * Location
+     *
+     * Location
+     */
+    location?: string | null;
+    /**
+     * Note
+     *
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Source Kind
+     *
+     * Importer that created it
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id in the import source
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * EventCreateManyInputBody
+ */
+export type EventCreateManyInputBody = {
+    /**
+     * Events
+     *
+     * Events; same source_kind+source_ref updates
+     */
+    events: Array<EventFields>;
+};
+
+/**
+ * EventCreateManyResult
+ */
+export type EventCreateManyResult = {
+    /**
+     * Items
+     */
+    items: Array<OneOffEvent>;
+    /**
+     * Created Ids
+     */
+    created_ids: Array<string>;
+    /**
+     * Updated Ids
+     */
+    updated_ids: Array<string>;
+};
+
+/**
+ * EventFields
+ */
+export type EventFields = {
     /**
      * Title
      *
@@ -4309,6 +4453,12 @@ export type GradebookSummary = {
      * False when the target needs more than 100%
      */
     reachable: boolean | null;
+    /**
+     * Categories
+     *
+     * Per category; in a simulation assumed scores count as scores
+     */
+    categories: Array<CategorySummary>;
 };
 
 /**
@@ -4352,6 +4502,12 @@ export type GradingScale = {
      */
     hide_gpa: boolean;
     /**
+     * Round Before Lookup
+     *
+     * Percentages are rounded to whole numbers (half up) before the band lookup
+     */
+    round_before_lookup: boolean;
+    /**
      * Updated At
      */
     updated_at: string;
@@ -4369,6 +4525,10 @@ export type GradingScaleInfo = {
      * Hide Gpa
      */
     hide_gpa: boolean;
+    /**
+     * Round Before Lookup
+     */
+    round_before_lookup: boolean;
 };
 
 /**
@@ -5552,6 +5712,12 @@ export type MeetingException = {
      * Note
      */
     note: string | null;
+    /**
+     * Imported
+     *
+     * Written by an import (a repeated import may remove it)
+     */
+    imported: boolean;
 };
 
 /**
@@ -5690,6 +5856,12 @@ export type MeetingSetEnabledInputBody = {
      * True to show them, false to hide them
      */
     enabled: boolean;
+    /**
+     * Other Meeting Ids
+     *
+     * Meetings set to the opposite state in the same change, e.g. the other sections when keeping only one
+     */
+    other_meeting_ids?: Array<string>;
 };
 
 /**
@@ -6326,6 +6498,12 @@ export type OccurrenceMeta = {
      * Link to the item elsewhere (e.g. the LMS)
      */
     url?: string | null;
+    /**
+     * Updated At
+     *
+     * When the item (or, for a class, one of its dates) last changed
+     */
+    updated_at?: string | null;
 };
 
 /**
@@ -7832,6 +8010,12 @@ export type ScaleUpdateInputBody = {
      * Mask GPA figures in the interface
      */
     hide_gpa?: boolean | null;
+    /**
+     * Round Before Lookup
+     *
+     * Round percentages to whole numbers before reading the scale (84.6 → 85)
+     */
+    round_before_lookup?: boolean | null;
 };
 
 /**
@@ -8237,6 +8421,12 @@ export type SettingsSchemaOut = {
      */
     plugin_id: string | null;
     /**
+     * Agent Writable
+     *
+     * False when only the user may change these, in the settings page
+     */
+    agent_writable: boolean;
+    /**
      * Json Schema
      *
      * JSON Schema of the namespace's fields
@@ -8397,6 +8587,12 @@ export type SimulatedGradebook = {
      */
     reachable: boolean | null;
     /**
+     * Categories
+     *
+     * Per category; in a simulation assumed scores count as scores
+     */
+    categories: Array<CategorySummary>;
+    /**
      * Ignored
      *
      * Assumed scores that were not used
@@ -8468,6 +8664,12 @@ export type SourceRef = {
      * Error Code
      */
     error_code?: string | null;
+    /**
+     * Warning Code
+     *
+     * Read with a caveat, e.g. 'import.ics_truncated'
+     */
+    warning_code?: string | null;
 };
 
 /**
@@ -9680,9 +9882,15 @@ export type TermGrades = {
     /**
      * Excluded Count
      *
-     * Courses not counted towards the GPA
+     * Finished courses outside the GPA (pass/fail, not counted, no credits)
      */
     excluded_count: number;
+    /**
+     * In Progress Count
+     *
+     * Courses still waiting for their grade
+     */
+    in_progress_count: number;
     /**
      * Courses
      */
@@ -9871,6 +10079,12 @@ export type TokenCreateInputBody = {
      * Lifetime in days; omit for no expiry
      */
     expires_in_days?: number | null;
+    /**
+     * Password
+     *
+     * Current password; needed unless the session signed in during the last 10 minutes
+     */
+    password?: string | null;
 };
 
 /**
@@ -10060,6 +10274,18 @@ export type UnreadableItem = {
      * Why the text could not be read
      */
     doc_error_code: string | null;
+};
+
+/**
+ * UpcomingAssessments
+ */
+export type UpcomingAssessments = {
+    /**
+     * Items
+     *
+     * Ungraded, with a deadline, soonest first
+     */
+    items: Array<Assessment>;
 };
 
 /**
@@ -14064,6 +14290,57 @@ export type GradingAssessmentReorderResponses = {
 
 export type GradingAssessmentReorderResponse = GradingAssessmentReorderResponses[keyof GradingAssessmentReorderResponses];
 
+export type GradingAssessmentUpcomingData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only the courses of this term
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Only this course
+         */
+        course_id?: string | null;
+        /**
+         * Limit
+         *
+         * Max assessments
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/upcoming-assessments';
+};
+
+export type GradingAssessmentUpcomingErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentUpcomingError = GradingAssessmentUpcomingErrors[keyof GradingAssessmentUpcomingErrors];
+
+export type GradingAssessmentUpcomingResponses = {
+    /**
+     * Successful Response
+     */
+    200: UpcomingAssessments;
+};
+
+export type GradingAssessmentUpcomingResponse = GradingAssessmentUpcomingResponses[keyof GradingAssessmentUpcomingResponses];
+
 export type GradingCategoryCreateData = {
     body: CategoryCreateInputBody;
     path: {
@@ -17180,6 +17457,38 @@ export type ScheduleEventCreateResponses = {
 
 export type ScheduleEventCreateResponse = ScheduleEventCreateResponses[keyof ScheduleEventCreateResponses];
 
+export type ScheduleEventCreateManyData = {
+    body: EventCreateManyInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/events:batch';
+};
+
+export type ScheduleEventCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventCreateManyError = ScheduleEventCreateManyErrors[keyof ScheduleEventCreateManyErrors];
+
+export type ScheduleEventCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: EventCreateManyResult;
+};
+
+export type ScheduleEventCreateManyResponse = ScheduleEventCreateManyResponses[keyof ScheduleEventCreateManyResponses];
+
 export type ScheduleEventDeleteData = {
     body?: never;
     path: {
@@ -17211,6 +17520,38 @@ export type ScheduleEventDeleteResponses = {
 };
 
 export type ScheduleEventDeleteResponse = ScheduleEventDeleteResponses[keyof ScheduleEventDeleteResponses];
+
+export type ScheduleEventGetData = {
+    body?: never;
+    path: {
+        /**
+         * Event Id
+         *
+         * Event id
+         */
+        event_id: string;
+    };
+    query?: never;
+    url: '/events/{event_id}';
+};
+
+export type ScheduleEventGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleEventGetError = ScheduleEventGetErrors[keyof ScheduleEventGetErrors];
+
+export type ScheduleEventGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OneOffEvent;
+};
+
+export type ScheduleEventGetResponse = ScheduleEventGetResponses[keyof ScheduleEventGetResponses];
 
 export type ScheduleEventUpdateData = {
     body: EventUpdateInputBody;
@@ -17743,6 +18084,38 @@ export type ScheduleMeetingUpdateResponses = {
 
 export type ScheduleMeetingUpdateResponse = ScheduleMeetingUpdateResponses[keyof ScheduleMeetingUpdateResponses];
 
+export type ScheduleMeetingListForTermData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/meetings';
+};
+
+export type ScheduleMeetingListForTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleMeetingListForTermError = ScheduleMeetingListForTermErrors[keyof ScheduleMeetingListForTermErrors];
+
+export type ScheduleMeetingListForTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleMeetingListForTermResponse = ScheduleMeetingListForTermResponses[keyof ScheduleMeetingListForTermResponses];
+
 export type ScheduleMeetingSetEnabledData = {
     body: MeetingSetEnabledInputBody;
     path: {
@@ -17829,7 +18202,7 @@ export type SettingsSchemaListData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/settings/schemas';
+    url: '/me/settings-schemas';
 };
 
 export type SettingsSchemaListErrors = {
@@ -17931,7 +18304,7 @@ export type SettingsValueGetData = {
          */
         scope_id?: string | null;
     };
-    url: '/settings/{namespace}';
+    url: '/me/settings/{namespace}';
 };
 
 export type SettingsValueGetErrors = {
@@ -17963,7 +18336,7 @@ export type SettingsValueUpdateData = {
         namespace: string;
     };
     query?: never;
-    url: '/settings/{namespace}';
+    url: '/me/settings/{namespace}';
 };
 
 export type SettingsValueUpdateErrors = {
@@ -18014,7 +18387,7 @@ export type SettingsValueResetData = {
          */
         scope_id?: string | null;
     };
-    url: '/settings/{namespace}/keys/{key}';
+    url: '/me/settings/{namespace}/keys/{key}';
 };
 
 export type SettingsValueResetErrors = {

@@ -1,4 +1,4 @@
-import type { Assessment, AssessmentCategory } from '@semestra/api-client'
+import type { Assessment, AssessmentCategory, GradebookSummary } from '@semestra/api-client'
 import { formatDate, formatDateTime, formatPercent } from '@/lib/format'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
@@ -54,4 +54,15 @@ export function dueText(a: Pick<Assessment, 'due_date' | 'due_time'>): string {
   // A wall-clock date built in the browser zone prints back the same wall clock.
   const wall = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1, hours, minutes)
   return a.due_time ? formatDateTime(wall) : formatDate(wall)
+}
+
+/** The course's headline grade: the final one once it exists, the current average before. */
+export function headline(s: GradebookSummary) {
+  const final = s.final_percentage !== null
+  return {
+    final,
+    percentage: s.final_percentage ?? s.current_percentage,
+    letter: final ? s.final_letter : s.current_letter,
+    points: final ? s.final_points : s.current_points,
+  }
 }

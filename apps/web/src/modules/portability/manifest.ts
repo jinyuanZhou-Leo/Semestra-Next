@@ -48,4 +48,5 @@ export default defineModule({
     { kind: 'portability.import', title: m.portability_job_import },
     { kind: 'portability.account_delete', title: m.portability_job_account_delete },
   ],
+  uiPrefPrefixes: ['portability.'],
 })

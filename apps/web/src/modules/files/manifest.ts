@@ -77,5 +77,6 @@ export default defineModule({
     { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
   ],
+  uiPrefPrefixes: ['files.'],
   realtimeInvalidations: Object.fromEntries(FILES_EVENTS.map((event) => [event, FILES_QUERIES])),
 })

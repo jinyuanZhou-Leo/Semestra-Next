@@ -1,7 +1,7 @@
 """agent proposals keep the chat's names and counts of the step they ran
 
 Revision ID: 0024
-Revises: 0021
+Revises: 0023
 Create Date: 2026-10-23 02:10:00.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0024"
-down_revision: str | Sequence[str] | None = "0021"
+down_revision: str | Sequence[str] | None = "0023"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

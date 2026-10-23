@@ -63,7 +63,7 @@ beforeEach(() => {
   lists = []
   server.use(
     ...academicsHandlers(defaultWorld()),
-    http.get(`${API}/settings/tasks`, () =>
+    http.get(`${API}/me/settings/tasks`, () =>
       HttpResponse.json({ namespace: 'tasks', values: {}, inherited: {} }),
     ),
     http.get(`${API}/programs/p1/task-lists`, () => HttpResponse.json({ items: lists })),

@@ -32,9 +32,9 @@ import type {
   BoardKind,
   CalendarSourceContribution,
   CardContribution,
+  InvalidationTarget,
   ModuleManifest,
   PageContribution,
-  QueryKeyPrefix,
   Scope,
   SettingsLevel,
   SettingsSectionContribution,
@@ -265,13 +265,25 @@ export function useExtensions<T>(point: string): T[] {
 
 export function mergeInvalidations(
   modules: readonly ModuleManifest[],
-  base: Readonly<Record<string, readonly QueryKeyPrefix[]>> = {},
-): Record<string, QueryKeyPrefix[]> {
-  const merged: Record<string, QueryKeyPrefix[]> = {}
+  base: Readonly<Record<string, readonly InvalidationTarget[]>> = {},
+): Record<string, InvalidationTarget[]> {
+  const merged: Record<string, InvalidationTarget[]> = {}
   for (const map of [base, ...modules.map((m) => m.realtimeInvalidations ?? {})]) {
     for (const [type, prefixes] of Object.entries(map)) {
       merged[type] = [...(merged[type] ?? []), ...prefixes]
     }
   }
   return merged
+}
+
+/** UI state the host itself keeps (sidebar, status bar, command palette). */
+const HOST_UI_PREF_PREFIXES = ['layout.', 'commands.']
+
+/** What the signed-in layout prefetches: the host's prefixes and every module's own. */
+export function uiPrefPrefixes(modules: readonly ModuleManifest[] = builtInModules): string[] {
+  return [...new Set([...HOST_UI_PREF_PREFIXES, ...modules.flatMap((m) => m.uiPrefPrefixes ?? [])])]
+}
+
+export function mergeSkipOwn(modules: readonly ModuleManifest[]): Set<string> {
+  return new Set(modules.flatMap((m) => m.realtimeSkipOwn ?? []))
 }

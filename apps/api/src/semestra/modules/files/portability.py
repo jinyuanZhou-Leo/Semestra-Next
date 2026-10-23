@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
+from semestra.core.db import new_id
 from semestra.core.storage import get_storage
 from semestra.modules.files import service
 from semestra.modules.files.models import (
@@ -40,6 +41,33 @@ class FilesAdapter(TableAdapter):
             if item.kind == "file" and item.storage_key:
                 await writer.add_file(item.id, storage.open(item.storage_key))
 
+    @staticmethod
+    def _file_items(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+        return [
+            (raw["id"], raw)  # pyright: ignore[reportUnknownArgumentType]
+            for raw in payload.get("items") or []
+            if isinstance(raw, dict)
+            and raw.get("kind") == "file"  # pyright: ignore[reportUnknownMemberType]
+            and isinstance(raw.get("id"), str)  # pyright: ignore[reportUnknownMemberType]
+        ]
+
+    async def prepare(
+        self, ctx: Ctx, payload: dict[str, Any], id_map: IdMap, options: ImportOptions
+    ) -> None:
+        """Copies the files first, under the ids their rows will get."""
+        if options.files is None:
+            return
+        for old_id, raw in self._file_items(payload):
+            if not options.files.has(old_id):
+                continue
+            new = id_map.setdefault(old_id, new_id())
+            mime = raw.get("mime_type")
+            await options.files.store(
+                old_id,
+                service.storage_key(ctx.user_id, new),
+                mime if isinstance(mime, str) and mime else "application/octet-stream",
+            )
+
     async def import_(
         self, ctx: Ctx, payload: dict[str, Any], id_map: Any, options: Any
     ) -> ImportReport:
@@ -47,23 +75,19 @@ class FilesAdapter(TableAdapter):
         opts: ImportOptions = options
         report = await super().import_(ctx, payload, id_map, opts)
         assert ctx.user_id
-        for raw in payload.get("items") or []:
-            if not isinstance(raw, dict) or raw.get("kind") != "file":
+        for old_id, _ in self._file_items(payload):
+            new = id_map.get(old_id)
+            row = await ctx.db.get(FilesItem, new) if new else None
+            if row is None:
                 continue
-            old_id = raw.get("id")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            new_id = id_map.get(old_id) if isinstance(old_id, str) else None
-            row = await ctx.db.get(FilesItem, new_id) if new_id else None
-            if row is None or not isinstance(old_id, str):
-                continue
-            if opts.files is None or not opts.files.has(old_id):
+            key = service.storage_key(ctx.user_id, row.id)
+            size = opts.files.claim(key) if opts.files is not None else None
+            if size is None:
                 await ctx.db.delete(row)
                 report.imported["items"] -= 1
                 report.skipped["items"] = report.skipped.get("items", 0) + 1
                 continue
-            key = service.storage_key(ctx.user_id, row.id)
-            row.size_bytes = await opts.files.store(
-                old_id, key, row.mime_type or "application/octet-stream"
-            )
+            row.size_bytes = size
             row.storage_key = key
             if row.doc_status != "unsupported":
                 row.doc_status = "pending"
@@ -105,6 +129,7 @@ register_portability(
     depends_on=("academics",),
     export=ADAPTER.export,
     import_=ADAPTER.import_,
+    prepare=ADAPTER.prepare,
     preview=ADAPTER.preview,
     purge=ADAPTER.purge,
     purge_content=ADAPTER.purge_content,

@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.core.uploads import limit_upload
 from semestra.modules.imports import service
 from semestra.modules.imports.schemas import Upload
 
@@ -28,6 +29,14 @@ ALLOWED = (
     "image/webp",
     "image/gif",
     "image/heic",
+)
+
+limit_upload(
+    "/imports/uploads",
+    lambda _: (
+        service.MAX_UPLOAD_BYTES,
+        AppError("common.quota_exceeded", 413, limit_bytes=service.MAX_UPLOAD_BYTES),
+    ),
 )
 
 INLINE_UNSANDBOXED = ("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif")

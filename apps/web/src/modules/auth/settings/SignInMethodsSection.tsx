@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
+import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -36,7 +37,9 @@ function EmailRow({ user }: { user: UserOut }) {
   const [newEmail, setNewEmail] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
   const start = useMutation(accountEmailChangeStartMutation())
+  const { needsPassword } = reauthState(start.error)
   const confirm = useMutation({
     ...accountEmailChangeConfirmMutation(),
     onSuccess: (data) => {
@@ -52,6 +55,7 @@ function EmailRow({ user }: { user: UserOut }) {
     setSentTo(null)
     setNewEmail('')
     setCode('')
+    setPassword('')
     start.reset()
     confirm.reset()
   }
@@ -59,8 +63,11 @@ function EmailRow({ user }: { user: UserOut }) {
   const send = (e: FormEvent) => {
     e.preventDefault()
     const target = newEmail.trim()
-    if (!target) return
-    start.mutate({ body: { new_email: target } }, { onSuccess: () => setSentTo(target) })
+    if (!target || (needsPassword && password === '')) return
+    start.mutate(
+      { body: { new_email: target, password: password === '' ? null : password } },
+      { onSuccess: () => setSentTo(target) },
+    )
   }
 
   return (
@@ -96,9 +103,15 @@ function EmailRow({ user }: { user: UserOut }) {
                 onChange={(e) => setNewEmail(e.target.value)}
               />
             </Field>
-            <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
+            <ReauthFields error={start.error} password={password} onPasswordChange={setPassword} />
+            <FieldError>
+              {start.error && !reauthState(start.error).handled ? errorMessage(start.error) : null}
+            </FieldError>
             <div className="flex gap-2">
-              <Button type="submit">
+              <Button
+                type="submit"
+                disabled={!newEmail.trim() || (needsPassword && password === '')}
+              >
                 {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
               </Button>
               <Button type="button" variant="ghost" onClick={close}>

@@ -100,6 +100,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           courseId={courseId}
           assessments={gradebook.assessments}
           categories={gradebook.categories}
+          figures={gradebook.summary.categories}
           whatIf={state}
           onAssume={assume}
           grouped={grouped}
@@ -121,12 +122,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
         />
         {/* On narrow screens the summary comes first. */}
         <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:grid-cols-1">
-          <GradeComposition
-            gradebook={gradebook}
-            planned={planned}
-            planning={planning}
-            assumed={planning ? assumed : {}}
-          />
+          <GradeComposition gradebook={gradebook} planned={planned} planning={planning} />
           <TargetCard
             gradebook={gradebook}
             planning={planning}

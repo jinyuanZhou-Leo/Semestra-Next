@@ -28,7 +28,8 @@ from semestra.modules.lms.settings import LmsSettings
 from semestra.modules.settings import register_settings
 
 register_lms_provider(CanvasProvider())
-register_settings(namespace="lms", schema=LmsSettings, levels=("account",))
+# Allowing writes widens what Sem and MCP clients may do on the platform: only the user flips it.
+register_settings(namespace="lms", schema=LmsSettings, levels=("account",), agent_writable=False)
 
 
 @periodic("lms.refresh_status", every=timedelta(hours=6))

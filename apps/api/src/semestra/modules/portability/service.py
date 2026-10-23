@@ -3,7 +3,7 @@
 import contextlib
 import os
 import tempfile
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterable
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -16,11 +16,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.datastructures import State
 
 from semestra import __version__
+from semestra.core.config import Settings
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue
 from semestra.core.storage import get_storage, remaining_quota
-from semestra.modules.auth import crypto, ratelimit
+from semestra.core.uploads import limit_upload
+from semestra.modules.auth import ratelimit
 from semestra.modules.auth import service as auth
 from semestra.modules.auth.mailer import OutgoingEmail
 from semestra.modules.auth.models import AuthUser
@@ -54,6 +56,10 @@ log = structlog.get_logger()
 EXPORT_TTL = timedelta(hours=24)
 UPLOAD_TTL = timedelta(hours=24)
 RECENT_EXPORTS = 5
+# Finished exports kept per user (older ones are deleted when a new one is ready), and how many
+# exports or uploads one user may start an hour: backups are not counted in the storage quota.
+KEPT_EXPORTS = 3
+ARCHIVES_PER_HOUR = 10
 # The upload limit is the storage quota plus this, or this plus 1 GiB without a quota (M13 §4).
 UPLOAD_HEADROOM = 50 * 1024 * 1024
 UNLIMITED_QUOTA_UPLOAD = 1024 * 1024 * 1024
@@ -124,6 +130,29 @@ async def _export_out(ctx: Ctx, row: PortabilityArchive) -> ExportOut:
 
 
 async def start_export(ctx: Ctx, include_files: bool) -> ExportOut:
+    """Starts a backup, or returns the one of the same kind still being built."""
+    running = await ctx.db.scalars(
+        select(PortabilityArchive).where(
+            PortabilityArchive.user_id == ctx.user_id,
+            PortabilityArchive.kind == "export",
+            PortabilityArchive.status == "pending",
+            PortabilityArchive.include_files == include_files,
+            PortabilityArchive.expires_at > ctx.now,
+        )
+    )
+    for existing in running:
+        out = await _export_out(ctx, existing)
+        if out.status == "pending":
+            return out
+    await ratelimit.hit(
+        ctx.db,
+        ctx.settings,
+        ctx.now,
+        "portability_export_user",
+        ctx.user_id,
+        limit=ARCHIVES_PER_HOUR,
+        window=timedelta(hours=1),
+    )
     row = PortabilityArchive(
         user_id=ctx.user_id,
         kind="export",
@@ -193,7 +222,33 @@ async def build_export(ctx: JobCtx, archive_id: str) -> int:
     row.size_bytes = stored.size
     row.expires_at = ctx.now + EXPORT_TTL
     await ctx.db.flush()
+    await _drop_old_exports(ctx)
     return stored.size
+
+
+async def _drop_old_exports(ctx: Ctx) -> None:
+    ready = (
+        await ctx.db.scalars(
+            select(PortabilityArchive)
+            .where(
+                PortabilityArchive.user_id == ctx.user_id,
+                PortabilityArchive.kind == "export",
+                PortabilityArchive.status == "ready",
+            )
+            .order_by(PortabilityArchive.created_at.desc(), PortabilityArchive.id.desc())
+        )
+    ).all()
+    await _delete_archives(ctx, ready[KEPT_EXPORTS:])
+
+
+async def _delete_archives(ctx: Ctx, rows: Iterable[PortabilityArchive]) -> None:
+    storage = get_storage(ctx)
+    for old in rows:
+        if old.storage_key:
+            key = old.storage_key
+            ctx.after_commit.append(lambda key=key: storage.delete(key))
+        await ctx.db.delete(old)
+    await ctx.db.flush()
 
 
 async def export_download(ctx: Ctx, archive_id: str) -> tuple[AsyncIterator[bytes], str, int]:
@@ -207,14 +262,32 @@ async def export_download(ctx: Ctx, archive_id: str) -> tuple[AsyncIterator[byte
 # --- import ---------------------------------------------------------------------------------
 
 
-async def upload_limit(ctx: Ctx) -> int:
-    quota = ctx.settings.user_storage_quota_bytes
-    return (quota or UNLIMITED_QUOTA_UPLOAD) + UPLOAD_HEADROOM
+def upload_limit(settings: Settings) -> int:
+    return (settings.user_storage_quota_bytes or UNLIMITED_QUOTA_UPLOAD) + UPLOAD_HEADROOM
+
+
+def _upload_limit_error(settings: Settings) -> tuple[int, AppError]:
+    limit = upload_limit(settings)
+    return limit, AppError("portability.too_large", 413, limit_bytes=limit)
+
+
+# Checked while the body arrives, before multipart parsing spools it to disk.
+limit_upload("/me/imports", _upload_limit_error)
 
 
 async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
-    """Validates an uploaded backup, keeps it for the import and returns its preview."""
-    limit = await upload_limit(ctx)
+    """Validates an uploaded backup, keeps it for the import and returns its preview. It
+    replaces earlier uploads that were not imported: only the latest one can be started."""
+    await ratelimit.hit(
+        ctx.db,
+        ctx.settings,
+        ctx.now,
+        "portability_upload_user",
+        ctx.user_id,
+        limit=ARCHIVES_PER_HOUR,
+        window=timedelta(hours=1),
+    )
+    limit = upload_limit(ctx.settings)
     path = await _tempfile(ctx.state)
     try:
         size = 0
@@ -238,6 +311,14 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
             created_at=ctx.now,
             expires_at=ctx.now + UPLOAD_TTL,
         )
+        earlier = await ctx.db.scalars(
+            select(PortabilityArchive).where(
+                PortabilityArchive.user_id == ctx.user_id,
+                PortabilityArchive.kind == "import",
+                PortabilityArchive.status.in_(("uploaded", "failed")),
+            )
+        )
+        await _delete_archives(ctx, earlier.all())
         ctx.db.add(row)
         await ctx.db.flush()
         stored = await get_storage(ctx).put(
@@ -378,13 +459,17 @@ async def start_import(ctx: Ctx, inp: ImportStartInput) -> ImportOut:
 
 
 class _StagedFiles:
-    """`FileSource` over the archive; remembers what it stored so a failure can remove it."""
+    """`FileSource` over the archive: copies files in (at most `copy_limit` bytes in all) before
+    the rows are written, then hands them to the rows that keep them (at most `limit` bytes, set
+    once the old data is gone) and removes the rest."""
 
-    def __init__(self, ctx: Ctx, reader: ArchiveReader, limit: int | None) -> None:
+    def __init__(self, ctx: Ctx, reader: ArchiveReader, copy_limit: int) -> None:
         self.ctx = ctx
         self.reader = reader
-        self.limit = limit
-        self.stored: list[str] = []
+        self.copy_limit = copy_limit
+        self.limit = copy_limit
+        self.sizes: dict[str, int] = {}
+        self.claimed: set[str] = set()
 
     def has(self, key: str) -> bool:
         return self.reader.has_file(key)
@@ -394,24 +479,50 @@ class _StagedFiles:
             raise invalid()
         if not final_key.startswith(f"users/{self.ctx.user_id}/"):
             raise ValueError("imported files must go under the user's storage prefix")
-        self.stored.append(final_key)
-        obj = await get_storage(self.ctx).put(
-            final_key, self.reader.open_file(key), content_type, max_bytes=self.limit
-        )
-        if self.limit is not None:
-            self.limit -= obj.size
+        stored = sum(self.sizes.values())
+        self.sizes[final_key] = 0  # removed on failure even if the copy stops half-way
+        try:
+            obj = await get_storage(self.ctx).put(
+                final_key,
+                self.reader.open_file(key),
+                content_type,
+                max_bytes=self.copy_limit - stored,
+            )
+        except AppError as exc:
+            if exc.code != "common.quota_exceeded":
+                raise
+            raise AppError("common.quota_exceeded", 413, limit_bytes=self.copy_limit) from exc
+        self.sizes[final_key] = obj.size
         return obj.size
 
-    async def discard(self) -> None:
+    def claim(self, final_key: str) -> int | None:
+        size = self.sizes.get(final_key)
+        if size is None or final_key in self.claimed:
+            return None
+        if size > self.limit:
+            raise AppError("common.quota_exceeded", 413, limit_bytes=self.limit)
+        self.limit -= size
+        self.claimed.add(final_key)
+        return size
+
+    async def _delete(self, keys: Iterable[str]) -> None:
         storage = get_storage(self.ctx)
-        for key in self.stored:
+        for key in keys:
             with contextlib.suppress(Exception):
                 await storage.delete(key)
+
+    async def discard(self) -> None:
+        await self._delete(self.sizes)
+
+    async def discard_unclaimed(self) -> None:
+        await self._delete(k for k in self.sizes if k not in self.claimed)
 
 
 async def run_import(
     ctx: JobCtx, archive_id: str, options: ImportOptions, mark_failed: Callable[[str], Any]
 ) -> None:
+    """Two phases, so the write lock is held only while rows are written: first every file is
+    copied in (adapters' `prepare`, no transaction open), then the rows go in one transaction."""
     row = await _own(ctx, archive_id, "import")
     if row.storage_key is None:
         raise invalid()
@@ -422,35 +533,43 @@ async def run_import(
         await _download(ctx, row.storage_key, path)
         reader = await anyio.to_thread.run_sync(ArchiveReader, path)
         try:
-            ordered = adapters()
-            # The last progress report: it is written in a separate transaction, which SQLite
-            # would block once this job's transaction has started writing.
-            await ctx.stage("importing")
-            if options.mode == "replace":
-                for adapter in reversed(ordered):
-                    await adapter.purge_content(ctx, options.include_preferences)
-                await ctx.db.flush()
-            # Without a quota, imported files are still capped like the upload itself.
-            remaining = await remaining_quota(ctx)
-            staged = _StagedFiles(
-                ctx, reader, UNLIMITED_QUOTA_UPLOAD if remaining is None else remaining
-            )
-            options.files = staged
-            id_map = IdMap()
-            imported: dict[str, dict[str, int]] = {}
-            skipped: dict[str, dict[str, int]] = {}
+            ordered = [a for a in adapters() if reader.manifest.modules.get(a.module) is not None]
             for adapter in ordered:
-                await ctx.check_cancelled()
-                version_in_archive = reader.manifest.modules.get(adapter.module)
-                payload = reader.payload(adapter.module)
-                if payload is None or version_in_archive is None:
-                    continue
+                version_in_archive = reader.manifest.modules[adapter.module]
                 if version_in_archive > adapter.schema_version:
                     raise AppError(
                         "portability.unsupported_version",
                         400,
                         version=f"{adapter.module} {version_in_archive}",
                     )
+            staged = _StagedFiles(
+                ctx, reader, await _import_room(ctx, replacing=options.mode == "replace")
+            )
+            options.files = staged
+            id_map = IdMap()
+            await ctx.db.commit()  # nothing of this job's own reads stays open while copying
+            await ctx.stage("copying")
+            for adapter in ordered:
+                payload = reader.payload(adapter.module)
+                if adapter.prepare is not None and payload is not None:
+                    await ctx.check_cancelled()
+                    await adapter.prepare(ctx, payload, id_map, options)
+            # The last progress report: it is written in a separate transaction, which SQLite
+            # would block once this job's transaction has started writing.
+            await ctx.stage("importing")
+            if options.mode == "replace":
+                for adapter in reversed(adapters()):
+                    await adapter.purge_content(ctx, options.include_preferences)
+                await ctx.db.flush()
+            # What the rows may keep, now that a replace has removed the old files.
+            staged.limit = await _import_room(ctx, replacing=False)
+            imported: dict[str, dict[str, int]] = {}
+            skipped: dict[str, dict[str, int]] = {}
+            for adapter in ordered:
+                await ctx.check_cancelled()
+                payload = reader.payload(adapter.module)
+                if payload is None:
+                    continue
                 report = await adapter.import_(ctx, payload, id_map, options)
                 imported[adapter.module] = dict(report.imported)
                 if report.skipped:
@@ -476,7 +595,21 @@ async def run_import(
     key, row.storage_key = row.storage_key, None
     storage = get_storage(ctx)
     ctx.after_commit.append(lambda: storage.delete(key))
+    assert staged is not None
+    ctx.after_commit.append(staged.discard_unclaimed)
     await ctx.db.flush()
+
+
+async def _import_room(ctx: Ctx, *, replacing: bool) -> int:
+    """Bytes of files an import may store: what is left of the quota, or all of it when the
+    import is about to replace the account's files. Without a quota, the upload's own cap."""
+    quota = ctx.settings.user_storage_quota_bytes
+    if quota == 0:
+        return UNLIMITED_QUOTA_UPLOAD
+    if replacing:
+        return quota
+    remaining = await remaining_quota(ctx)
+    return UNLIMITED_QUOTA_UPLOAD if remaining is None else remaining
 
 
 async def _fail(
@@ -512,27 +645,6 @@ async def discard_import(ctx: Ctx, archive_id: str) -> None:
 # --- account deletion -----------------------------------------------------------------------
 
 
-async def _check_reauth(ctx: Ctx, user: AuthUser, password: str | None) -> None:
-    """A sign-in in the last 10 minutes, or the password (M13 §5)."""
-    created = ctx.auth.session_created_at if ctx.auth else None
-    if created is not None and ctx.now - created <= auth.REAUTH_WINDOW:
-        return
-    if password and user.password_hash is not None:
-        await ratelimit.hit(
-            ctx.db,
-            ctx.settings,
-            ctx.now,
-            "account_delete_user",
-            user.id,
-            limit=10,
-            window=timedelta(minutes=15),
-        )
-        if await crypto.verify_password(password, user.password_hash):
-            return
-        raise AppError("auth.invalid_credentials", 401)
-    raise AppError("auth.reauth_required", 403, password=user.password_hash is not None)
-
-
 async def delete_account(ctx: Ctx, inp: AccountDeleteInput) -> JobOut:
     """Locks the account at once (signed out everywhere, tokens revoked, sign-in refused) and
     leaves deleting the data to a job."""
@@ -541,13 +653,16 @@ async def delete_account(ctx: Ctx, inp: AccountDeleteInput) -> JobOut:
         raise AppError("common.unauthenticated", 401)
     if not inp.acknowledged or not _matches(inp.confirmation, DELETE_ACCOUNT_PHRASES):
         raise AppError("portability.confirmation_mismatch", 400)
-    await _check_reauth(ctx, user, inp.password)
+    await auth.require_recent_auth(ctx, inp.password, scope="account_delete")
+    email = user.email
     user.deleted_at = ctx.now
+    # Free the address at once: signing up again must not wait for (or collide with) the job.
+    user.email = f"deleted+{user.id}@invalid"
     await auth.revoke_all_for_user(ctx.db, user.id, ctx.now)
     job = await enqueue(
         ctx,
         "portability.account_delete",
-        AccountDeleteJobInput(email=user.email, locale=user.locale or ctx.locale),
+        AccountDeleteJobInput(email=email, locale=user.locale or ctx.locale),
         dedupe_key="portability.account_delete",
     )
     log.info("account_deletion_started", user_id=user.id)

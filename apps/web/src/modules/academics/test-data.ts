@@ -126,7 +126,7 @@ export function academicsHandlers(world: World) {
     }),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })),
-    http.get(`${API}/settings/schemas`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs`, () => HttpResponse.json({ items: world.programs })),
     http.get(`${API}/programs/:id`, ({ params }) => {
       const found = world.programs.find((p) => p.id === params.id)

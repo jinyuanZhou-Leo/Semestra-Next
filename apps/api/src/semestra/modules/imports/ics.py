@@ -1,18 +1,21 @@
 """ICS files from a school's registration system or a calendar app (M08 §4.1). Deterministic.
 
 `parse_ics` turns VEVENTs into courses with weekly meetings and one-off events, in the Program's
-wall-clock time. Events are grouped by the course code and section found in SUMMARY; repeating
-events without an RRULE (one VEVENT per class, as some exports do) are merged into a meeting.
+wall-clock time. Recurring events are expanded into their dates first (`recurring-ical-events`:
+RRULE, EXDATE, RDATE and moved or cancelled single dates), then dates are grouped by the course
+code and section found in SUMMARY, so one VEVENT per class (as some exports do) and a recurring
+event become the same weekly meeting.
 """
 
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from itertools import pairwise
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import recurring_ical_events
 from icalendar import Calendar
 
 from semestra.core.errors import AppError
@@ -25,7 +28,10 @@ SECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 TYPE_ALIASES = {"DIS": "TUT", "REC": "TUT", "STU": "LAB"}
 _WEEKDAYS = {"MO": 1, "TU": 2, "WE": 3, "TH": 4, "FR": 5, "SA": 6, "SU": 7}
-MAX_EVENTS = 5000
+MAX_EVENTS = 5000  # dates after expansion; the rest is dropped and the import says so
+HORIZON_DAYS = 366
+WINDOW_DAYS = 28  # expanded a window at a time, stopping at MAX_EVENTS
+SUB_DAILY = {"SECONDLY", "MINUTELY", "HOURLY"}
 # Missing occurrences in a row still read as cancellations; more is a break (see `parse`).
 MAX_MISSED_IN_A_ROW = 2
 
@@ -43,8 +49,8 @@ class IcsMeeting:
     location: str | None
     instructor: str | None
     source_ref: str
-    # Dates of this weekday the class does not happen: EXDATEs, or the weeks missing between
-    # one-VEVENT-per-class entries.
+    # Dates of this weekday the class does not happen: a week or two missing between held ones
+    # (an EXDATE, a cancelled or moved date, or a gap between one-VEVENT-per-class entries).
     exceptions: list[date] = field(default_factory=lambda: [])
 
 
@@ -74,6 +80,8 @@ class IcsResult:
     courses: list[IcsCourse]
     # One-off events without a course code.
     events: list[IcsEvent]
+    # The file had more than MAX_EVENTS dates; the later ones were left out.
+    truncated: bool = False
 
 
 def course_code(text: str) -> str | None:
@@ -135,91 +143,107 @@ def _instructor(component: Any) -> str | None:
 
 @dataclass
 class _Raw:
+    """One occurrence: a plain VEVENT, or one date of an expanded recurring one."""
+
     uid: str
     summary: str
     start: datetime | date
     end: datetime | date
-    rrule: dict[str, Any] | None
     location: str | None
     instructor: str | None
-    exdates: list[date] = field(default_factory=lambda: [])
 
 
-def _exdates(component: Any, tz: ZoneInfo) -> list[date]:
-    """EXDATE values (one property or several, each with one or more dates) as local days."""
-    value = component.get("exdate")
-    if value is None:
-        return []
-    days: set[date] = set()
-    for prop in value if isinstance(value, list) else [value]:
-        for item in getattr(prop, "dts", []):
-            try:
-                local = _local(item.dt, tz)
-            except ValueError:
-                continue
-            days.add(local.date() if isinstance(local, datetime) else local)
-    return sorted(days)
-
-
-def _read(data: bytes, tz: ZoneInfo) -> list[_Raw]:
+def _read(data: bytes, tz: ZoneInfo) -> tuple[list[_Raw], bool]:
+    """Every occurrence in the file, recurring events expanded by `recurring-ical-events` (RRULE,
+    RDATE, EXDATE and RECURRENCE-ID overrides), cancelled ones left out. The second value says
+    some dates were dropped: past `MAX_EVENTS`, or a rule repeating more often than daily."""
     try:
         calendar = Calendar.from_ical(data)
+        starts = [
+            _local(c.decoded("dtstart"), tz) for c in calendar.walk("VEVENT") if "dtstart" in c
+        ]
+    except Exception as exc:
+        raise AppError("import.ics_invalid", 422) from exc
+    if not starts:
+        return [], False
+    days = [s.date() if isinstance(s, datetime) else s for s in starts]
+    # Rules without an end stop a year after the last event starts: past any term in the file.
+    first, horizon = min(days), max(days) + timedelta(days=HORIZON_DAYS)
+    # Classes never repeat more often than daily: a finer rule keeps only its first date (and
+    # the import says it was cut), so a FREQ=MINUTELY file cannot expand half a million dates.
+    cut = False
+    for component in calendar.walk("VEVENT"):
+        rule = component.get("rrule")
+        if rule and str((rule.get("FREQ") or [""])[0]).upper() in SUB_DAILY:
+            del component["rrule"]
+            cut = True
+    try:
+        query = recurring_ical_events.of(calendar, skip_bad_series=True)
     except Exception as exc:
         raise AppError("import.ics_invalid", 422) from exc
     raws: list[_Raw] = []
-    for index, component in enumerate(calendar.walk("VEVENT")):
-        if index >= MAX_EVENTS:
-            break
-        if str(component.get("status", "")).upper() == "CANCELLED":
-            continue
+    seen: set[tuple[str, str]] = set()
+    # In windows, in time order, so a large file stops at the cap with its earliest dates.
+    window = first
+    while window <= horizon:
+        until = min(window + timedelta(days=WINDOW_DAYS), horizon + timedelta(days=1))
         try:
-            start = _local(component.decoded("dtstart"), tz)
-        except KeyError, ValueError:
-            continue
-        try:
-            end = _local(component.decoded("dtend"), tz)
-        except KeyError, ValueError:
-            end = start
-        rrule = component.get("rrule")
-        raws.append(
-            _Raw(
-                uid=_text(component, "uid") or f"event-{index}",
-                summary=_text(component, "summary") or "",
-                start=start,
-                end=end,
-                rrule=dict(rrule) if rrule else None,
-                location=_text(component, "location"),
-                instructor=_instructor(component),
-                exdates=_exdates(component, tz),
+            components = sorted(
+                query.between(window, until), key=lambda c: _day(_local(c.decoded("dtstart"), tz))
             )
-        )
-    return raws
+        except Exception as exc:
+            raise AppError("import.ics_invalid", 422) from exc
+        window = until
+        for component in components:
+            if str(component.get("status", "")).upper() == "CANCELLED":
+                continue
+            try:
+                start = _local(component.decoded("dtstart"), tz)
+            except KeyError, ValueError:
+                continue
+            key = (_text(component, "uid") or "", start.isoformat())
+            if key in seen:  # an event spanning two windows comes back in both
+                continue
+            seen.add(key)
+            try:
+                end = _local(component.decoded("dtend"), tz)
+            except KeyError, ValueError:
+                end = start
+            if len(raws) >= MAX_EVENTS:
+                return _sorted(raws), True
+            raws.append(
+                _Raw(
+                    uid=_text(component, "uid") or f"event-{len(raws)}",
+                    summary=_text(component, "summary") or "",
+                    start=start,
+                    end=end,
+                    location=_text(component, "location"),
+                    instructor=_instructor(component),
+                )
+            )
+    return _sorted(raws), cut
 
 
-def _until(rrule: dict[str, Any], start: datetime, tz: ZoneInfo, weekdays: int) -> date | None:
-    until = rrule.get("UNTIL")
-    if until:
-        value = until[0]
-        if isinstance(value, datetime):
-            return (value.astimezone(tz) if value.tzinfo else value).date()
-        if isinstance(value, date):
-            return value
-    count = rrule.get("COUNT")
-    if count:
-        interval = int((rrule.get("INTERVAL") or [1])[0])
-        weeks = -(-int(count[0]) // max(1, weekdays))
-        return (start + timedelta(weeks=interval * (weeks - 1) + 1) - timedelta(days=1)).date()
-    return None
+def _sorted(raws: list[_Raw]) -> list[_Raw]:
+    return sorted(raws, key=lambda r: _day(r.start))
+
+
+def _day(value: datetime | date) -> date:
+    return value.date() if isinstance(value, datetime) else value
 
 
 def parse_ics(data: bytes, timezone: str) -> IcsResult:
     tz = ZoneInfo(timezone)
-    raws = _read(data, tz)
+    raws, truncated = _read(data, tz)
     if not raws:
         raise AppError("import.no_content", 422)
     courses: dict[str, IcsCourse] = {}
     loose: list[IcsEvent] = []
-    singles: defaultdict[tuple[str, str, int, time, time], list[_Raw]] = defaultdict(list)
+    # Timed classes by course, section, weekday and time: a recurring event's dates and the
+    # one-VEVENT-per-class exports some schools use end up the same way here. Without a course
+    # code only the dates of one recurring event go together.
+    groups: defaultdict[tuple[str, str, int, time, time], list[_Raw]] = defaultdict(list)
+    per_uid = Counter(r.uid for r in raws)
 
     def course_for(code: str | None, raw: _Raw, section: str | None) -> IcsCourse:
         key = code or raw.summary.strip().lower()
@@ -227,62 +251,46 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
             courses[key] = IcsCourse(code=code, title=_title(raw.summary, code, section))
         return courses[key]
 
-    for raw in raws:
-        code = course_code(raw.summary)
+    def add_event(raw: _Raw, code: str | None) -> None:
         sec = section_of(raw.summary)
-        type_code, section = sec if sec else ("LEC", "")
-        timed = isinstance(raw.start, datetime) and isinstance(raw.end, datetime)
-        freq = (raw.rrule or {}).get("FREQ", [""])[0]
-        if timed and freq == "WEEKLY":
-            assert isinstance(raw.start, datetime)
-            assert isinstance(raw.end, datetime)
-            days = [_WEEKDAYS[d[-2:]] for d in raw.rrule.get("BYDAY", []) if d[-2:] in _WEEKDAYS]  # pyright: ignore[reportOptionalMemberAccess]
-            days = days or [raw.start.isoweekday()]
-            interval = int((raw.rrule.get("INTERVAL") or [1])[0])  # pyright: ignore[reportOptionalMemberAccess]
-            last = _until(raw.rrule, raw.start, tz, len(days))  # pyright: ignore[reportArgumentType]
-            course = course_for(code, raw, section)
-            for weekday in sorted(set(days)):
-                offset = (weekday - raw.start.isoweekday()) % 7
-                course.meetings.append(
-                    IcsMeeting(
-                        section_code=section,
-                        type_code=type_code,
-                        weekday=weekday,
-                        start_time=raw.start.time(),
-                        end_time=raw.end.time(),
-                        recurrence="biweekly" if interval == 2 else "weekly",
-                        first_date=raw.start.date() + timedelta(days=offset),
-                        last_date=last,
-                        location=raw.location,
-                        instructor=raw.instructor,
-                        source_ref=f"{raw.uid}:{weekday}",
-                        exceptions=[d for d in raw.exdates if d.isoweekday() == weekday],
-                    )
-                )
-            continue
-        if timed and code:
-            assert isinstance(raw.start, datetime)
-            assert isinstance(raw.end, datetime)
-            key = (code, section, raw.start.isoweekday(), raw.start.time(), raw.end.time())
-            singles[key].append(raw)
-            continue
-        event = _event(raw, type_code if sec else None)
+        # Dates of one recurring event share its UID; each needs its own reference.
+        ref = raw.uid if per_uid[raw.uid] == 1 else f"{raw.uid}:{_day(raw.start).isoformat()}"
+        event = _event(raw, sec[0] if sec else None, ref)
         if code:
-            course_for(code, raw, section).events.append(event)
+            course_for(code, raw, sec[1] if sec else "").events.append(event)
         else:
             loose.append(event)
 
-    for (code, section, weekday, start, end), group in singles.items():
-        group.sort(key=lambda r: r.start)
-        first = group[0]
-        course = course_for(code, first, section)
-        if len(group) < 2:
-            sec = section_of(first.summary)
-            course.events.append(_event(first, sec[0] if sec else None))
+    for raw in raws:
+        code = course_code(raw.summary)
+        if not (isinstance(raw.start, datetime) and isinstance(raw.end, datetime)):
+            add_event(raw, code)
             continue
-        days = [r.start.date() for r in group]  # pyright: ignore[reportAttributeAccessIssue]
+        sec = section_of(raw.summary)
+        section = sec[1] if sec else ""
+        if code is None and per_uid[raw.uid] < 2:
+            add_event(raw, None)
+            continue
+        key = (
+            code or f"uid:{raw.uid}",
+            section,
+            raw.start.isoweekday(),
+            raw.start.time(),
+            raw.end.time(),
+        )
+        groups[key].append(raw)
+
+    for (key, section, weekday, start, end), group in groups.items():
+        first = group[0]
+        code = None if key.startswith("uid:") else key
+        if len(group) < 2:
+            add_event(first, code)
+            continue
+        days = [_day(r.start) for r in group]
         gaps = {(b - a).days for a, b in pairwise(days)}
-        biweekly = min(gaps) >= 14
+        # Every other week only when every gap is a whole number of fortnights; any other
+        # spacing (every third week, a missed week here and there) is weekly with gaps.
+        biweekly = min(gaps) >= 14 and all(g % 14 == 0 for g in gaps)
         step = timedelta(days=14 if biweekly else 7)
         # A class or two missing between held ones is a cancellation (a holiday); a longer gap
         # is a break between terms or a reading week the term already has.
@@ -292,7 +300,14 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
             if len(skipped) <= MAX_MISSED_IN_A_ROW:
                 missing.extend(skipped)
         sec = section_of(first.summary)
-        course.meetings.append(
+        uids = {r.uid for r in group}
+        # One recurring event keeps the reference earlier imports gave it.
+        ref = (
+            f"{first.uid}:{weekday}"
+            if len(uids) == 1
+            else f"{code or key}:{section}:{weekday}:{start.isoformat('minutes')}"
+        )
+        course_for(code, first, section).meetings.append(
             IcsMeeting(
                 section_code=section,
                 type_code=sec[0] if sec else "LEC",
@@ -300,19 +315,23 @@ def parse_ics(data: bytes, timezone: str) -> IcsResult:
                 start_time=start,
                 end_time=end,
                 recurrence="biweekly" if biweekly else "weekly",
-                first_date=first.start.date(),  # pyright: ignore[reportAttributeAccessIssue]
-                last_date=group[-1].start.date(),  # pyright: ignore[reportAttributeAccessIssue]
+                first_date=days[0],
+                last_date=days[-1],
                 location=first.location,
                 instructor=first.instructor,
-                source_ref=f"{code}:{section}:{weekday}:{start.isoformat('minutes')}",
+                source_ref=ref,
                 exceptions=missing,
             )
         )
+    for course in courses.values():
+        course.meetings.sort(key=lambda m: (m.section_code, m.weekday, m.start_time))
     ordered = sorted(courses.values(), key=lambda c: (c.code is None, c.code or c.title))
-    return IcsResult(courses=[c for c in ordered if c.meetings or c.events], events=loose)
+    return IcsResult(
+        courses=[c for c in ordered if c.meetings or c.events], events=loose, truncated=truncated
+    )
 
 
-def _event(raw: _Raw, type_code: str | None) -> IcsEvent:
+def _event(raw: _Raw, type_code: str | None, ref: str) -> IcsEvent:
     if isinstance(raw.start, datetime):
         end = raw.end if isinstance(raw.end, datetime) else raw.start
         return IcsEvent(
@@ -324,7 +343,7 @@ def _event(raw: _Raw, type_code: str | None) -> IcsEvent:
             all_day=False,
             location=raw.location,
             type_code=type_code,
-            source_ref=raw.uid,
+            source_ref=ref,
         )
     end_day = raw.end if isinstance(raw.end, date) and not isinstance(raw.end, datetime) else None
     # DTEND of an all-day event is exclusive.
@@ -338,5 +357,5 @@ def _event(raw: _Raw, type_code: str | None) -> IcsEvent:
         all_day=True,
         location=raw.location,
         type_code=type_code,
-        source_ref=raw.uid,
+        source_ref=ref,
     )
