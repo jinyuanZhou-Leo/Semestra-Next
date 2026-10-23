@@ -25,7 +25,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { createContext, use, useRef, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -49,6 +49,7 @@ import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
+import { VirtualBody } from './VirtualBody'
 import { FileIcon } from './FileIcon'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
@@ -437,6 +438,9 @@ function ItemTile({ item }: { item: ItemOut }) {
   )
 }
 
+/** Lists this long render only the rows near the screen (LMS syncs bring hundreds of files). */
+const VIRTUAL_FROM = 100
+
 /**
  * Folders, then files, as a sortable table or a grid of tiles (M07 §6.1). Folders always come
  * first, by name; the chosen sort applies to files.
@@ -453,6 +457,7 @@ export function FileBrowser({
   handlers: BrowserHandlers
 }) {
   const [sorting, setSorting] = useFileSort()
+  const wrapper = useRef<HTMLDivElement>(null)
   const table = useTable({
     features,
     columns,
@@ -491,7 +496,7 @@ export function FileBrowser({
 
   return (
     <BrowserContext value={handlers}>
-      <div className="overflow-x-auto rounded-2xl border border-border">
+      <div ref={wrapper} className="overflow-x-auto rounded-2xl border border-border">
         <Table className="min-w-2xl table-fixed">
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((group) => (
@@ -553,16 +558,37 @@ export function FileBrowser({
                 </TableCell>
               </TableRow>
             ))}
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id} className="py-2">
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {rows.length < VIRTUAL_FROM
+              ? rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getAllCells().map((cell) => (
+                      <TableCell key={cell.id} className="py-2">
+                        <table.FlexRender cell={cell} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : null}
           </TableBody>
+          {rows.length >= VIRTUAL_FROM ? (
+            <VirtualBody
+              count={rows.length}
+              scrollerOf={wrapper}
+              renderRow={(index, measure) => {
+                const row = rows[index]
+                if (!row) return null
+                return (
+                  <TableRow key={row.id} ref={measure} data-index={index}>
+                    {row.getAllCells().map((cell) => (
+                      <TableCell key={cell.id} className="py-2">
+                        <table.FlexRender cell={cell} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              }}
+            />
+          ) : null}
         </Table>
       </div>
     </BrowserContext>

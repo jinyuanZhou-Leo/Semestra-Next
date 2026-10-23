@@ -92,3 +92,35 @@ export function invalidateOperations(queryClient: QueryClient, operationIds: rea
     },
   })
 }
+
+/**
+ * A multipart POST with real byte progress, which `fetch` cannot report (file uploads). Stays
+ * outside the generated client, so it adds the CSRF header itself; errors are `ApiError`s.
+ */
+export function postWithProgress<T>(
+  path: string,
+  form: FormData,
+  { signal, onProgress }: { signal?: AbortSignal; onProgress?: (loaded: number) => void } = {},
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', `${client.getConfig().baseUrl ?? ''}${path}`)
+    request.withCredentials = true
+    for (const [name, value] of Object.entries(csrfHeaders())) request.setRequestHeader(name, value)
+    if (onProgress) request.upload.onprogress = (event) => onProgress(event.loaded)
+    request.onload = () => {
+      let body: unknown = null
+      try {
+        body = JSON.parse(request.responseText)
+      } catch {
+        // not JSON: handled as an unknown error below
+      }
+      if (request.status >= 200 && request.status < 300) resolve(body as T)
+      else reject(toApiError(body, request.status))
+    }
+    request.onerror = () => reject(toApiError(null))
+    request.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal?.addEventListener('abort', () => request.abort(), { once: true })
+    request.send(form)
+  })
+}

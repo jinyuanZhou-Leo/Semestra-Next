@@ -1,9 +1,9 @@
-import type { ItemOut } from '@semestra/api-client'
-import { filesUpload } from '@semestra/api-client'
+import type { ItemOut, UploadResult } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
+import { postWithProgress } from '@/app/api'
 import { errorMessage } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -31,6 +31,8 @@ type Row = {
   name: string
   size: number
   status: 'queued' | 'uploading' | 'done' | 'failed'
+  // Bytes sent so far, for the panel's progress bar.
+  loaded: number
   error?: string
 }
 
@@ -65,6 +67,7 @@ export function useUploads({
         name: file.name,
         size: file.size,
         status: 'queued' as const,
+        loaded: 0,
       },
     }))
     setRows((current) => [
@@ -73,12 +76,16 @@ export function useUploads({
     ])
     for (const { file, row } of queued) {
       patch(row.key, { status: 'uploading' })
-      const result = await filesUpload({
-        path: { course_id: courseId },
-        body: folderId ? { files: [file], folder_id: folderId } : { files: [file] },
+      const form = new FormData()
+      form.append('files', file)
+      if (folderId) form.append('folder_id', folderId)
+      await postWithProgress<UploadResult>(`/courses/${courseId}/files`, form, {
+        onProgress: (loaded) => patch(row.key, { loaded }),
       })
-      if (result.error) patch(row.key, { status: 'failed', error: errorMessage(result.error) })
-      else patch(row.key, { status: 'done' })
+        .then(() => patch(row.key, { status: 'done', loaded: row.size }))
+        .catch((error: unknown) =>
+          patch(row.key, { status: 'failed', loaded: row.size, error: errorMessage(error) }),
+        )
     }
     await invalidateFiles(queryClient)
   }
@@ -110,6 +117,8 @@ export function useUploads({
 
   const active = rows.some((r) => r.status === 'queued' || r.status === 'uploading')
   const finished = rows.filter((r) => r.status === 'done' || r.status === 'failed').length
+  const totalBytes = rows.reduce((sum, r) => sum + r.size, 0)
+  const sentBytes = rows.reduce((sum, r) => sum + Math.min(r.loaded, r.size), 0)
 
   const panel =
     rows.length > 0 ? (
@@ -142,7 +151,7 @@ export function useUploads({
           )}
         </div>
         <Progress
-          value={(finished / rows.length) * 100}
+          value={totalBytes > 0 ? (sentBytes / totalBytes) * 100 : (finished / rows.length) * 100}
           aria-label={m.files_uploads()}
           className="mb-2 [&_[data-slot=progress-track]]:h-1"
         />
