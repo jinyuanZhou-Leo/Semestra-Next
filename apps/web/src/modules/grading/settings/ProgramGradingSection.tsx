@@ -167,18 +167,23 @@ const toRows = (bands: readonly ScaleBand[]): BandRow[] =>
       letter: b.letter ?? '',
     }))
 
-/** The preset the table is, or `custom` once it no longer matches one. */
-const presetOf = (
-  presets: readonly ScalePreset[] | undefined,
-  rows: readonly BandRow[],
-  maxPoints: string,
-): string => {
-  const table = JSON.stringify([rows, maxPoints])
-  return (
-    presets?.find((p) => JSON.stringify([toRows(p.bands), String(p.max_points)]) === table)?.id ??
-    'custom'
-  )
+/** Whether two tables convert the same, however their numbers were typed. */
+const sameTable = (
+  a: { bands: readonly ScaleBand[]; max_points: number },
+  b: { bands: readonly ScaleBand[]; max_points: number },
+): boolean => {
+  const key = (t: typeof a) =>
+    JSON.stringify([
+      t.max_points,
+      t.bands
+        .toSorted((x, y) => x.min - y.min)
+        .map((band) => [band.min, band.max, band.points, band.letter ?? null]),
+    ])
+  return key(a) === key(b)
 }
+
+/** The picker's value when the table matches no preset; shown, never picked. */
+const MODIFIED = 'modified'
 
 /** The conversion table: a bar showing the ranges, an editable table, and the preset it is. */
 function BandEditor({ scale }: { scale: GradingScale }) {
@@ -217,7 +222,11 @@ function BandEditor({ scale }: { scale: GradingScale }) {
     JSON.stringify([toRows(scale.bands), String(scale.max_points)])
   const edit = (i: number, patch: Partial<BandRow>) =>
     setRows(rows.map((r, index) => (index === i ? { ...r, ...patch } : r)))
-  const presetId = presetOf(presets, rows, maxPoints)
+  const table = { bands, max_points: Number(maxPoints) }
+  // Unknown until the presets load, so the picker never shows a table that is not the one in use.
+  const presetId = presets && (presets.find((p) => sameTable(p, table))?.id ?? MODIFIED)
+  const discarding = switching !== null && sameTable(switching, scale)
+  const switchingName = presetOptions(switching ? [switching.id] : [])[0]?.label ?? ''
 
   return (
     <SettingsBlock title={m.grading_scale()} description={m.grading_scale_hint()}>
@@ -327,13 +336,27 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         <span className="flex-1" />
         <ChoiceControl
           label={m.grading_preset()}
-          options={presetOptions(presets?.map((p) => p.id) ?? [presetId])}
-          value={presetId}
+          options={[
+            ...presetOptions(presets?.map((p) => p.id) ?? []),
+            ...(presetId === MODIFIED
+              ? [
+                  {
+                    value: MODIFIED,
+                    label: m.grading_preset_modified(),
+                    hint: m.grading_preset_modified_hint(),
+                    disabled: true,
+                  },
+                ]
+              : []),
+          ]}
+          value={presetId ?? ''}
           onChange={(id) => {
+            // The select can report the value it now shows after the table changes under it.
+            if (id === presetId) return
             setSwitching(presets?.find((p) => p.id === id) ?? null)
             setConfirming(true)
           }}
-          disabled={save.isPending}
+          disabled={!presets || save.isPending}
           selectClassName="w-52"
         />
       </div>
@@ -351,19 +374,34 @@ function BandEditor({ scale }: { scale: GradingScale }) {
       <ConfirmDialog
         open={confirming && switching !== null}
         onOpenChange={setConfirming}
-        title={m.grading_preset_switch_title({
-          name: presetOptions(switching ? [switching.id] : [])[0]?.label ?? '',
-        })}
-        description={m.grading_preset_switch_confirm()}
-        confirmLabel={m.grading_preset_switch()}
+        title={
+          discarding
+            ? m.grading_preset_discard_title()
+            : m.grading_preset_switch_title({ name: switchingName })
+        }
+        description={
+          discarding
+            ? m.grading_preset_discard_confirm({ name: switchingName })
+            : dirty
+              ? `${m.grading_preset_switch_confirm()} ${m.grading_preset_switch_unsaved()}`
+              : m.grading_preset_switch_confirm()
+        }
+        confirmLabel={discarding ? m.grading_preset_discard() : m.grading_preset_switch()}
         pending={save.isPending}
-        onConfirm={() =>
-          switching &&
+        onConfirm={() => {
+          if (!switching) return
+          if (discarding) {
+            // The saved table already is this preset: only the edits go, nothing to save.
+            setRows(toRows(scale.bands))
+            setMaxPoints(String(scale.max_points))
+            setConfirming(false)
+            return
+          }
           save.mutate({
             path: { program_id: scale.program_id },
             body: { bands: switching.bands, max_points: switching.max_points },
           })
-        }
+        }}
       />
     </SettingsBlock>
   )

@@ -97,7 +97,7 @@ test('the preset picker shows the table in use and switches it after a confirmat
   expect(minInputs().map((input) => (input as HTMLInputElement).value)).toEqual(['0', '85'])
 })
 
-test('editing the table shows it as custom, and picking the saved preset again undoes the edits', async () => {
+test('an edited table shows as Custom, apart from the blank-table preset, and picking the saved preset discards the edits', async () => {
   const puts = serve()
   const user = userEvent.setup()
   renderWithRouter(<ProgramGradingSection scope={{ kind: 'program', programId: 'p1' }} />)
@@ -105,16 +105,38 @@ test('editing the table shows it as custom, and picking the saved preset again u
   const picker = await screen.findByRole('combobox', { name: 'Preset' })
   await waitFor(() => expect(picker).toHaveTextContent('US letter grades (4.0)'))
   const top = screen.getByRole('textbox', { name: 'Band 2: min' })
+  // The same number typed differently is still the preset.
+  await user.clear(top)
+  await user.type(top, '93.0')
+  expect(picker).toHaveTextContent('US letter grades (4.0)')
   await user.clear(top)
   await user.type(top, '90')
   expect(picker).toHaveTextContent('Custom')
 
   await user.click(picker)
-  await user.click(await screen.findByRole('option', { name: /US letter grades \(4\.0\)/ }))
-  await user.click(
-    within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Switch table' }),
+  expect(await screen.findByRole('option', { name: /^Custom/ })).toHaveAttribute(
+    'aria-disabled',
+    'true',
   )
-  await waitFor(() => expect(puts).toHaveLength(1))
+  expect(screen.getByRole('option', { name: /Blank table/ })).not.toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
+  await user.click(screen.getByRole('option', { name: /US letter grades \(4\.0\)/ }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(dialog).toHaveTextContent('Discard changes to the table?')
+  await user.click(within(dialog).getByRole('button', { name: 'Discard changes' }))
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   await waitFor(() => expect(picker).toHaveTextContent('US letter grades (4.0)'))
   expect(minInputs().map((input) => (input as HTMLInputElement).value)).toEqual(['0', '93'])
+  expect(puts).toEqual([])
+
+  // Switching with unsaved edits says they are lost.
+  await user.clear(top)
+  await user.type(top, '90')
+  await user.click(picker)
+  await user.click(await screen.findByRole('option', { name: /University of Toronto/ }))
+  expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+    'Unsaved changes to the table are lost.',
+  )
 })
