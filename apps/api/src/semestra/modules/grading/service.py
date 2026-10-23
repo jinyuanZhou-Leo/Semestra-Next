@@ -781,8 +781,14 @@ def _updated_score(
     points_sent = sent & {"points_earned", "points_possible"}
     if "score_percentage" in sent and inp.score_percentage is not None and points_sent:
         raise AppError("grading.points_invalid", 422, reason="conflicting_score")
+    if "score_percentage" in sent and inp.score_percentage is None:
+        # null clears the score; points possible sent with it is kept for the next score.
+        if "points_earned" in sent and inp.points_earned is not None:
+            raise AppError("grading.points_invalid", 422, reason="conflicting_score")
+        possible = inp.points_possible if "points_possible" in sent else row.points_possible
+        return _score_fields(None, possible, None)
     if "score_percentage" in sent and not points_sent:
-        # A percentage replaces any points score; null clears the score.
+        # A percentage replaces any points score.
         return _score_fields(None, row.points_possible, inp.score_percentage)
     earned = inp.points_earned if "points_earned" in sent else row.points_earned
     possible = inp.points_possible if "points_possible" in sent else row.points_possible

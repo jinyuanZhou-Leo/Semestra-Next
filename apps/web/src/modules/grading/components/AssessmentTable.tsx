@@ -244,7 +244,11 @@ export function AssessmentTable({
               ) : null}
               {groups.map((group) => {
                 const groupId = group.category?.id ?? '__none__'
-                const isCollapsed = grouped && collapsed.has(groupId)
+                // A linked assessment is shown even when its group is collapsed.
+                const isCollapsed =
+                  grouped &&
+                  collapsed.has(groupId) &&
+                  !group.items.some((row) => row.id === highlighted)
                 return (
                   <Fragment key={groupId}>
                     {grouped ? (

@@ -308,7 +308,9 @@ export function GradeComposition({
       ? planned.final_points
       : planned.forecast_points
     : null
-  const unassumed = planned && plannedValue === null ? planned.remaining_count : 0
+  // Without weights adding up to 100 nothing can be planned, so missing assumptions are not why.
+  const unassumed =
+    planned && planned.weights_ok && plannedValue === null ? planned.remaining_count : 0
   const shownLetter = planning ? plannedLetter : actualLetter
 
   return (

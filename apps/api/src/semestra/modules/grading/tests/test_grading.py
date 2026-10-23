@@ -221,9 +221,10 @@ async def test_recording_scores_and_the_figures(api: Api):
     assert summary["current_percentage"] == 80
     assert summary["locked_contribution"] == 48
     assert summary["final_percentage"] is None
-    # The target defaults to the scale's 4.0: 85 %, or 84.5 % as percentages round to whole ones.
-    assert summary["required_average"] == 91.25
-    assert (summary["target_percentage"], summary["reachable"]) == (84.5, True)
+    # The target defaults to the scale's 4.0: 85 %, or 84.45 % as percentages round to whole ones
+    # (84.45 is shown as 84.5 %, which rounds to 85).
+    assert summary["required_average"] == 91.125
+    assert (summary["target_percentage"], summary["reachable"]) == (84.45, True)
     assert summary["forecast_percentage"] == 80
     assert summary["predictions"] == {final["id"]: 80}
     assert summary["current_letter"] == "A-"
@@ -332,10 +333,10 @@ async def test_what_if_and_suggestions_need_complete_weights(api: Api):
         f"/courses/{cid}/gradebook:suggest",
         json={"target": {"kind": "points", "value": 3.0}},
     )
-    assert suggestion["target_percentage"] == 72.5  # 73 for a B, less half a mark of rounding
+    assert suggestion["target_percentage"] == 72.45  # 73 for a B, less what rounds up to it
     assert suggestion["reachable"] is True
     assert {i["assessment_id"] for i in suggestion["items"]} == {final["id"], other["id"]}
-    assert suggestion["resulting_percentage"] >= 72.5
+    assert suggestion["resulting_percentage"] >= 72.45
     # A target the scale cannot give.
     out = await api.call(
         "POST", f"/courses/{cid}/gradebook:suggest", json={"target": {"kind": "points", "value": 9}}
@@ -681,7 +682,7 @@ async def test_term_what_if_over_http(api: Api):
     result = await api.call(
         "POST", f"/terms/{t3}/grade-summary:simulate", json={"scores": {}, "target_gpa": 3.7}
     )
-    assert (result["gpa"], result["required_percentage"]) == (None, 79.5)
+    assert (result["gpa"], result["required_percentage"]) == (None, 79.45)
 
 
 async def test_hidden_gpa_flag_travels_with_the_figures(api: Api):
@@ -945,6 +946,20 @@ async def test_a_score_is_a_percentage_or_points_never_both(api: Api):
     await api.call("PATCH", f"/assessments/{a['id']}", 422, json={"points_possible": 40})
     r = await api.call("PATCH", f"/assessments/{a['id']}", json={"score_percentage": None})
     assert r["score_percentage"] is None
+    # Clearing a points score with a new maximum clears it, keeping the maximum for later.
+    b = await api.assessment(course["id"], "Lab", 0, points_earned=18, points_possible=20)
+    r = await api.call(
+        "PATCH",
+        f"/assessments/{b['id']}",
+        json={"score_percentage": None, "points_possible": 25},
+    )
+    assert (r["score_percentage"], r["points_earned"], r["points_possible"]) == (None, None, 25)
+    await api.call(
+        "PATCH",
+        f"/assessments/{b['id']}",
+        422,
+        json={"score_percentage": None, "points_earned": 10},
+    )
 
 
 async def test_upcoming_assessments(api: Api):

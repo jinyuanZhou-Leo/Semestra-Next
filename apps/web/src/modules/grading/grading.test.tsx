@@ -292,6 +292,18 @@ test('a link to an assessment marks its row', async () => {
   await waitFor(() => expect(row).toHaveAttribute('data-highlighted'))
 })
 
+test('a link to an assessment in a collapsed group shows its row', async () => {
+  const { router } = mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('button', { name: /Exam/ }))
+  await waitFor(() =>
+    expect(screen.queryByRole('textbox', { name: 'Weight (%): Final exam' })).toBeNull(),
+  )
+  await router.navigate({ to: '/', search: { assessment: 'a2' } })
+  const field = await screen.findByRole('textbox', { name: 'Weight (%): Final exam' })
+  expect(field.closest('tr')).toHaveAttribute('data-highlighted')
+})
+
 test('dropped items stay in the table but are crossed out', async () => {
   book = gradebook({
     assessments: [assessment({ id: 'a1', title: 'Quiz 1', dropped: true, weight: 10 })],

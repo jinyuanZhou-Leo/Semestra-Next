@@ -18,6 +18,8 @@ WEIGHT_TOLERANCE = 0.01
 SHRINK_K = 3
 PRECISION = 3
 _EPS = 1e-9
+# Percentages carry float noise (84.45 * 10 = 844.4999...); half-up rounding must not drop it.
+_ROUND_EPS = 1e-6
 
 ForecastModel = Literal["auto", "simple_minimum_needed"]
 YearAttribution = Literal["end_term", "split_evenly"]
@@ -97,8 +99,13 @@ def replace_rounding(scale: Scale, round_to_whole: bool) -> Scale:
 
 
 def lookup_percentage(scale: Scale, percentage: float) -> float:
-    """The percentage the scale is read with: rounded half up when the scale says so."""
-    return float(floor(percentage + 0.5 + _EPS)) if scale.round_to_whole else percentage
+    """The percentage the scale is read with. With rounding it is first taken to one decimal,
+    as the app shows it, then to a whole number, both half up: 84.46 is shown as 84.5 % and so
+    reads as 85, never as 84."""
+    if not scale.round_to_whole:
+        return percentage
+    shown = floor(percentage * 10 + 0.5 + _ROUND_EPS) / 10
+    return float(floor(shown + 0.5 + _ROUND_EPS))
 
 
 def band_for(scale: Scale, percentage: float) -> Band:
@@ -112,10 +119,10 @@ def band_for(scale: Scale, percentage: float) -> Band:
 
 def band_threshold(scale: Scale, band: Band) -> float:
     """The lowest percentage that lands in the band: its `min`, or with rounding the point that
-    rounds up to it (84.5 for a band from 85)."""
+    rounds up to it (84.45 for a band from 85: shown as 84.5 %, which rounds to 85)."""
     if not scale.round_to_whole:
         return band.min
-    return max(0.0, ceil(band.min - _EPS) - 0.5)
+    return max(0.0, ceil(band.min - _EPS) - 0.55)
 
 
 def points_for(scale: Scale, percentage: float) -> float:

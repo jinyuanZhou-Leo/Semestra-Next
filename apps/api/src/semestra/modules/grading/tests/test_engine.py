@@ -453,14 +453,17 @@ def test_rounding_reads_the_scale_with_whole_numbers() -> None:
     scale = rounded_uoft()
     assert (engine.points_for(scale, 84.96), engine.letter_for(scale, 84.96)) == (4.0, "A")
     assert engine.points_for(scale, 84.5) == 4.0  # half up
-    assert engine.points_for(scale, 84.49) == 3.7
+    # Read as shown (one decimal) before the whole number, so 84.46 (84.5 %) is an A too.
+    assert engine.points_for(scale, 84.46) == 4.0
+    assert engine.points_for(scale, 84.45) == 4.0
+    assert engine.points_for(scale, 84.44) == 3.7
     assert engine.points_for(scale, 89.6) == 4.0
     assert engine.letter_for(scale, 89.5) == "A+"
 
 
 def test_rounding_lowers_the_percentage_a_target_needs() -> None:
     assert engine.min_percentage_for(uoft(), 4.0) == 85
-    assert engine.min_percentage_for(rounded_uoft(), 4.0) == 84.5
+    assert engine.min_percentage_for(rounded_uoft(), 4.0) == 84.45
     assert engine.min_percentage_for(rounded_uoft(), 0.0) == 0
 
 
@@ -469,7 +472,7 @@ def test_rounding_in_the_term_what_if() -> None:
     course = engine.CourseInput("a", 1.0, True, ("t",), gradebook_enabled=False)
     graded = [engine.GradedCourse(course, engine.course_grade(course, scale))]
     result = engine.simulate_term(graded, "t", "end_term", scale, {}, 4.0)
-    assert (result.reachable, result.required_percentage) == (True, 84.5)
+    assert (result.reachable, result.required_percentage) == (True, 84.45)
 
 
 def test_category_breakdown() -> None:
