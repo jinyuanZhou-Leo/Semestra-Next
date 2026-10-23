@@ -848,7 +848,7 @@ async def test_tasks_made_while_the_switch_was_on_keep_following_their_assessmen
     a = await assessment(api, aps, "Essay", due_date="2026-02-10")
     await api.call(
         "PATCH",
-        "/settings/tasks",
+        "/me/settings/tasks",
         json={
             "scope_type": "program",
             "scope_id": pid,
@@ -874,7 +874,7 @@ async def test_only_turning_the_switch_on_brings_back_deleted_assessment_tasks(a
     for values in ({"default_priority": "low"}, {"auto_tasks_from_assessments": True}):
         await api.call(
             "PATCH",
-            "/settings/tasks",
+            "/me/settings/tasks",
             json={"scope_type": "program", "scope_id": pid, "values": values},
         )
     assert await api.titles(pid) == []  # another setting, or the switch saved as it was
