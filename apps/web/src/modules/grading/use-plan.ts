@@ -20,7 +20,11 @@ export function usePlanSimulation(gradebook: Gradebook, whatIf: WhatIf): Gradebo
   const { mutate: run, reset } = simulate
   // Refresh after the user stopped typing, and whenever the real gradebook changed under it.
   const fingerprint = JSON.stringify([scores, target])
-  const version = gradebook.assessments.map((a) => a.updated_at).join('|')
+  // The course's own settings (target, forecast model, official grade) change the answer too.
+  const version = [
+    gradebook.result.updated_at,
+    ...gradebook.assessments.map((a) => a.updated_at),
+  ].join('|')
   const planning = whatIf.plan
   useEffect(() => {
     // Leaving plan mode drops the last answer, so coming back never shows a stale plan.

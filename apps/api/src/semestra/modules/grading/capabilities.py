@@ -42,6 +42,8 @@ from semestra.modules.grading.schemas import (
     TermGradeSimulation,
     TermSimulateInput,
     TermSummaryInput,
+    UpcomingAssessments,
+    UpcomingInput,
 )
 
 TAGS = ("grading",)
@@ -146,7 +148,8 @@ grade, the forecast, or what the remaining assessments must average to reach a t
     ),
 )
 async def gradebook_get(ctx: Ctx, inp: CourseRef) -> Gradebook:
-    return await service.get_gradebook(ctx, inp.course_id)
+    with academics.read_memo():
+        return await service.get_gradebook(ctx, inp.course_id)
 
 
 @capability(
@@ -340,6 +343,21 @@ async def assessment_reorder(ctx: Ctx, inp: AssessmentOrderInput) -> AssessmentO
     return await service.reorder_assessments(ctx, inp.course_id, inp.assessment_ids)
 
 
+@capability(
+    name="grading.assessment.upcoming",
+    summary="Ungraded assessments with a deadline, soonest first, for a Program, term or course.",
+    description="""Use for "what is due next". Overdue ones come first; graded and dropped ones are
+left out.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/upcoming-assessments"),
+    tags=TAGS,
+    agent_output_fields=tuple(f"items.{f}" for f in ("course_id", *_ASSESSMENT_FIELDS)),
+)
+async def assessment_upcoming(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessments:
+    with academics.read_memo():
+        return await service.upcoming_assessments(ctx, inp)
+
+
 # --- what-if --------------------------------------------------------------------------------
 
 
@@ -355,7 +373,8 @@ real scores to simulate. Scores it could not use (already graded, not of this co
     agent_output_fields=_SUMMARY_FIELDS,
 )
 async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradebook:
-    return await service.simulate_course(ctx, inp)
+    with academics.read_memo():
+        return await service.simulate_course(ctx, inp)
 
 
 @capability(
@@ -369,7 +388,8 @@ weights do not add up.""",
     tags=TAGS,
 )
 async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
-    return await service.suggest_scores(ctx, inp)
+    with academics.read_memo():
+        return await service.suggest_scores(ctx, inp)
 
 
 # --- summaries ------------------------------------------------------------------------------
@@ -401,7 +421,8 @@ saved.""",
     tags=TAGS,
 )
 async def simulate_term(ctx: Ctx, inp: TermSimulateInput) -> TermGradeSimulation:
-    return await service.simulate_term(ctx, inp)
+    with academics.read_memo():
+        return await service.simulate_term(ctx, inp)
 
 
 @capability(

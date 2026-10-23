@@ -1411,6 +1411,7 @@
   "capability_grading_assessment_create_many_title": "批量添加考核",
   "capability_grading_assessment_delete_title": "删除考核",
   "capability_grading_assessment_find_title": "查找考核",
+  "capability_grading_assessment_upcoming_title": "列出即将截止的考核",
   "capability_grading_assessment_list_title": "列出考核",
   "capability_grading_assessment_reorder_title": "调整考核顺序",
   "capability_grading_assessment_update_title": "修改考核",
@@ -1440,6 +1441,7 @@
   "capability_pomodoro_session_summarize_title": "读取番茄钟统计",
   "capability_schedule_conflict_list_title": "检查课表冲突",
   "capability_schedule_event_create_title": "添加日程",
+  "capability_schedule_event_create_many_title": "批量添加日程",
   "capability_schedule_event_delete_title": "删除日程",
   "capability_schedule_event_list_title": "列出日程",
   "capability_schedule_event_update_title": "修改日程",
@@ -2000,6 +2002,7 @@
   "error_import_date_unresolved": "无法确定日期“{text}”",
   "error_import_term_unresolved": "无法确定属于哪个学期",
   "error_import_outside_term": "日期不在该学期范围内",
+  "error_import_ics_truncated": "{filename} 中的日程太多，只读取了最早的一部分",
   "error_import_no_teaching_weeks": "这些日期内没有教学周",
   "error_import_weights_not_100": "权重合计为 {total}%，不是 100%",
   "error_import_category_weight_mismatch": "考核合计 {total}%，分类写的是 {expected}%",
@@ -2572,5 +2575,9 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "全屏查看",
   "assistant_md_zoom_in": "放大",
-  "assistant_md_zoom_out": "缩小"
+  "assistant_md_zoom_out": "缩小",
+  "grading_plan_unassumed": "还有 {count} 项没有假设分数，全部填上后显示规划成绩。",
+  "grading_excluded_in_progress": "另有 {count} 门进行中，暂未计入",
+  "grading_round_before_lookup": "先取整再定等级",
+  "grading_round_before_lookup_hint": "先把课程百分比四舍五入到整数，再查对应的等级，和多数成绩单一致：84.5% 按 85% 算。"
 }

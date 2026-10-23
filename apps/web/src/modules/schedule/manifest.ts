@@ -18,12 +18,15 @@ import { prefetchCalendarPage } from './queries'
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
   'scheduleMeetingList',
+  'scheduleMeetingListForTerm',
   'scheduleEventList',
+  'scheduleEventGet',
   'scheduleEventTypeList',
   'scheduleConflictList',
   'scheduleFeedList',
 ] as const
 
+/** Each of these comes with `calendar.changed`, which refreshes the calendar queries. */
 const SCHEDULE_EVENTS = [
   'schedule.meeting.created',
   'schedule.meeting.updated',
@@ -200,8 +203,11 @@ export default defineModule({
   ],
   realtimeInvalidations: Object.fromEntries([
     ['calendar.changed', CALENDAR_QUERIES],
-    ...SCHEDULE_EVENTS.map((event) => [event, [...SCHEDULE_QUERIES, ...CALENDAR_QUERIES]]),
-    ...ACADEMICS_EVENTS.map((event) => [event, [...CALENDAR_QUERIES, 'scheduleMeetingList']]),
+    ...SCHEDULE_EVENTS.map((event) => [event, SCHEDULE_QUERIES]),
+    ...ACADEMICS_EVENTS.map((event) => [
+      event,
+      [...CALENDAR_QUERIES, 'scheduleMeetingList', 'scheduleMeetingListForTerm'],
+    ]),
     ['schedule.feed.created', ['scheduleFeedList']],
     ['schedule.feed.revoked', ['scheduleFeedList']],
   ]),

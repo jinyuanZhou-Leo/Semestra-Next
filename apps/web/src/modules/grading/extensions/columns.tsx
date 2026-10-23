@@ -7,8 +7,20 @@ import { GpaValue } from '../components/GpaValue'
 import { percentText } from '../display'
 
 const grades = (data: unknown) => data as CourseGrades | undefined
-const gradeOf = (course: Course, data: unknown) =>
-  grades(data)?.items.find((item) => item.course_id === course.id)
+
+/** Each query result indexed once, not searched again for every cell. */
+const indexes = new WeakMap<CourseGrades, Map<string, CourseGrades['items'][number]>>()
+
+function gradeOf(course: Course, data: unknown) {
+  const all = grades(data)
+  if (!all) return undefined
+  let index = indexes.get(all)
+  if (!index) {
+    index = new Map(all.items.map((item) => [item.course_id, item]))
+    indexes.set(all, index)
+  }
+  return index.get(course.id)
+}
 
 /** With "hide GPA" on, GPA must not leak through ordering or threshold filters either. */
 const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
@@ -41,7 +53,7 @@ export const courseColumns: CourseColumn[] = [
       return (
         <span className="tabular-nums">
           {percentText(percentage)}
-          {grade.letter ? (
+          {grade.letter && !gpaHidden(data) ? (
             <span className="ml-1.5 text-xs text-muted-foreground">{grade.letter}</span>
           ) : null}
         </span>

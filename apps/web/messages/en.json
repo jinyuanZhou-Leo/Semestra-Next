@@ -1411,6 +1411,7 @@
   "capability_grading_assessment_create_many_title": "Add assessments",
   "capability_grading_assessment_delete_title": "Delete an assessment",
   "capability_grading_assessment_find_title": "Find an assessment",
+  "capability_grading_assessment_upcoming_title": "List upcoming assessments",
   "capability_grading_assessment_list_title": "List assessments",
   "capability_grading_assessment_reorder_title": "Reorder assessments",
   "capability_grading_assessment_update_title": "Update an assessment",
@@ -1440,6 +1441,7 @@
   "capability_pomodoro_session_summarize_title": "Read focus stats",
   "capability_schedule_conflict_list_title": "Check timetable clashes",
   "capability_schedule_event_create_title": "Add an event",
+  "capability_schedule_event_create_many_title": "Add events",
   "capability_schedule_event_delete_title": "Delete an event",
   "capability_schedule_event_list_title": "List events",
   "capability_schedule_event_update_title": "Update an event",
@@ -2000,6 +2002,7 @@
   "error_import_date_unresolved": "Couldn't work out the date \"{text}\"",
   "error_import_term_unresolved": "Couldn't tell which term this belongs to",
   "error_import_outside_term": "These dates are outside the term",
+  "error_import_ics_truncated": "{filename} has more dates than can be read at once, so only the earliest ones were imported",
   "error_import_no_teaching_weeks": "No teaching weeks fall within these dates",
   "error_import_weights_not_100": "Weights add up to {total}%, not 100%",
   "error_import_category_weight_mismatch": "Assessments add up to {total}%, the category says {expected}%",
@@ -2572,5 +2575,9 @@
   "assistant_md_table_format_tsv": "TSV",
   "assistant_md_view_fullscreen": "View full screen",
   "assistant_md_zoom_in": "Zoom in",
-  "assistant_md_zoom_out": "Zoom out"
+  "assistant_md_zoom_out": "Zoom out",
+  "grading_plan_unassumed": "Not yet assumed: {count}. Assume a score for each to see the planned grade.",
+  "grading_excluded_in_progress": "Not counted yet: {count} in progress",
+  "grading_round_before_lookup": "Round before the letter grade",
+  "grading_round_before_lookup_hint": "Rounds the course percentage to a whole number before looking up its band, as most transcripts do: 84.5% counts as 85%."
 }

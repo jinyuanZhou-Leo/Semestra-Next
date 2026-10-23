@@ -65,6 +65,8 @@ from semestra.modules.grading.schemas import (
     TermGrades,
     TermGradeSimulation,
     TermSimulateInput,
+    UpcomingAssessments,
+    UpcomingInput,
 )
 
 _PASS_FAIL: dict[str, Literal["pass", "fail"]] = {"pass": "pass", "fail": "fail"}
@@ -93,7 +95,9 @@ def _bands(rows: Sequence[Mapping[str, Any]]) -> list[engine.Band]:
 
 
 def scale_of(row: models.GradingScale) -> engine.Scale:
-    return engine.make_scale(_bands(row.bands), row.max_points)
+    return engine.make_scale(
+        _bands(row.bands), row.max_points, round_to_whole=row.round_before_lookup
+    )
 
 
 def scale_out(row: models.GradingScale) -> GradingScale:
@@ -107,6 +111,7 @@ def scale_out(row: models.GradingScale) -> GradingScale:
             "default_forecast_model": row.default_forecast_model,
             "default_categories": row.default_categories,
             "hide_gpa": row.hide_gpa,
+            "round_before_lookup": row.round_before_lookup,
             "updated_at": row.updated_at,
         }
     )
@@ -141,6 +146,7 @@ async def create_scale(ctx: Ctx, program_id: str, preset: str | None = None) -> 
             "default_forecast_model": "auto",
             "default_categories": presets.BUILTIN_CATEGORIES,
             "hide_gpa": False,
+            "round_before_lookup": True,
             "created_at": ctx.now,
             "updated_at": ctx.now,
         },
@@ -167,6 +173,15 @@ async def get_scale_row(ctx: Ctx, program_id: str) -> models.GradingScale:
     return row or await create_scale(ctx, program_id)
 
 
+def _reject_nulls(inp: Any, fields: set[str]) -> None:
+    """Partial updates: these fields may be left out, but not sent as null."""
+    bad = sorted(f for f in inp.model_fields_set & fields if getattr(inp, f) is None)
+    if bad:
+        raise AppError(
+            "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
+        )
+
+
 def _scale_error(exc: engine.ScaleError) -> AppError:
     return AppError("grading.scale_invalid", 422, reason=exc.reason)
 
@@ -179,12 +194,7 @@ def _validate_templates(templates: Sequence[Mapping[str, Any]]) -> None:
 
 async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
     row = await get_scale_row(ctx, inp.program_id)
-    sent = inp.model_fields_set
-    bad = sorted(f for f in sent - {"program_id"} if getattr(inp, f) is None)
-    if bad:
-        raise AppError(
-            "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
-        )
+    _reject_nulls(inp, inp.model_fields_set - {"program_id"})
     bands = (
         [b.model_dump(mode="json") for b in inp.bands] if inp.bands is not None else list(row.bands)
     )
@@ -217,6 +227,8 @@ async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
         row.default_forecast_model = inp.default_forecast_model
     if inp.hide_gpa is not None:
         row.hide_gpa = inp.hide_gpa
+    if inp.round_before_lookup is not None:
+        row.round_before_lookup = inp.round_before_lookup
     row.updated_at = ctx.now
     await ctx.db.flush()
     await events.publish(ctx, "grading.scale.updated", {"program_id": row.program_id})
@@ -375,19 +387,13 @@ async def create_category(ctx: Ctx, inp: CategoryCreateInput) -> AssessmentCateg
     )
     ctx.db.add(row)
     await ctx.db.flush()
-    await events.publish(
-        ctx, "grading.course_result.updated", {"course_id": course.id, "program_id": program.id}
-    )
+    await _announce_course(ctx, course.id)
     return category_out(row)
 
 
 async def update_category(ctx: Ctx, inp: CategoryUpdateInput) -> AssessmentCategory:
     row = await _get_category(ctx, inp.category_id)
-    bad = sorted(f for f in inp.model_fields_set - {"category_id"} if getattr(inp, f) is None)
-    if bad:
-        raise AppError(
-            "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
-        )
+    _reject_nulls(inp, inp.model_fields_set - {"category_id"})
     if inp.name is not None:
         row.name = inp.name.strip()
     if inp.color is not None:
@@ -632,9 +638,20 @@ async def create_assessments(
         if item.source_kind and item.source_ref:
             known[(item.source_kind, item.source_ref)] = row.id
     await ctx.db.flush()
-    for row in created:
-        await _announce_assessment(
-            ctx, "created", row, program.id, ["due_at"] if row.due_at else []
+    if created:
+        # One event for the whole batch: an import of 30 assessments is one change to react to.
+        dated = any(r.due_at is not None for r in created)
+        await events.publish(
+            ctx,
+            "grading.assessment.created",
+            {
+                **({"assessment_id": created[0].id} if len(created) == 1 else {}),
+                "assessment_ids": [r.id for r in created],
+                "course_id": course.id,
+                "program_id": program.id,
+                "changed": ["due_at"] if dated else [],
+                "due_changed": dated,
+            },
         )
     return AssessmentCreateManyResult(
         created=[assessment_out(r, program.timezone, ctx.now) for r in created], skipped=skipped
@@ -712,12 +729,7 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     course, program = await _course_and_program(ctx, row.course_id)
     tz = program.timezone
     sent = inp.model_fields_set - {"assessment_id"}
-    required = {"title", "weight", "dropped"}
-    bad = sorted(f for f in sent & required if getattr(inp, f) is None)
-    if bad:
-        raise AppError(
-            "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
-        )
+    _reject_nulls(inp, {"title", "weight", "dropped"})
     before = {
         k: getattr(row, k)
         for k in (
@@ -749,16 +761,8 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
         row.due_at, row.due_has_time = _updated_due(row, inp, sent, tz)
 
     if sent & {"score_percentage", "points_earned", "points_possible"}:
-        score_only = "score_percentage" in sent and not sent & {"points_earned", "points_possible"}
-        earned = inp.points_earned if "points_earned" in sent else row.points_earned
-        possible = inp.points_possible if "points_possible" in sent else row.points_possible
-        percentage = inp.score_percentage if "score_percentage" in sent else row.score_percentage
-        if score_only:
-            earned = None
-        elif "points_earned" in sent and earned is None and "score_percentage" not in sent:
-            percentage = None  # points_earned: null clears the score
-        row.score_percentage, row.points_earned, row.points_possible = _score_fields(
-            earned, possible, percentage
+        row.score_percentage, row.points_earned, row.points_possible = _updated_score(
+            row, inp, sent
         )
     row.updated_at = ctx.now
     await ctx.db.flush()
@@ -766,6 +770,33 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     if changed:
         await _announce_assessment(ctx, "updated", row, program.id, changed)
     return assessment_out(row, tz, ctx.now)
+
+
+def _updated_score(
+    row: models.GradingAssessment, inp: AssessmentUpdateInput, sent: set[str]
+) -> tuple[float | None, float | None, float | None]:
+    """A score is a percentage or points, never both at once: a percentage sent together with
+    points (or points possible alone, for a score that is a plain percentage) is refused rather
+    than guessed at."""
+    points_sent = sent & {"points_earned", "points_possible"}
+    if "score_percentage" in sent and inp.score_percentage is not None and points_sent:
+        raise AppError("grading.points_invalid", 422, reason="conflicting_score")
+    if "score_percentage" in sent and inp.score_percentage is None:
+        # null clears the score; points possible sent with it is kept for the next score.
+        if "points_earned" in sent and inp.points_earned is not None:
+            raise AppError("grading.points_invalid", 422, reason="conflicting_score")
+        possible = inp.points_possible if "points_possible" in sent else row.points_possible
+        return _score_fields(None, possible, None)
+    if "score_percentage" in sent and not points_sent:
+        # A percentage replaces any points score.
+        return _score_fields(None, row.points_possible, inp.score_percentage)
+    earned = inp.points_earned if "points_earned" in sent else row.points_earned
+    possible = inp.points_possible if "points_possible" in sent else row.points_possible
+    if "points_earned" in sent and earned is None:
+        return _score_fields(None, possible, None)  # points_earned: null clears the score
+    if earned is None and row.score_percentage is not None:
+        raise AppError("grading.points_invalid", 422, reason="conflicting_score")
+    return _score_fields(earned, possible, None)
 
 
 def _updated_due(
@@ -973,6 +1004,64 @@ async def assessment_deadlines(
     return [assessment_out(r, program.timezone, ctx.now) for r in rows]
 
 
+async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessments:
+    """Ungraded, undropped assessments with a deadline, soonest first (overdue ones first of
+    all), for a Program, one of its terms or one course: the "upcoming" card in one request."""
+    program = await academics.get_program_row(ctx, inp.program_id)
+    allowed = {c.id for c in await _program_courses(ctx, program.id, inp.term_id)}
+    wanted = [inp.course_id] if inp.course_id is not None else sorted(allowed)
+    wanted = [c for c in wanted if c in allowed]
+    if not wanted:
+        return UpcomingAssessments(items=[])
+    rows = (
+        await ctx.db.scalars(
+            select(models.GradingAssessment)
+            .where(
+                models.GradingAssessment.user_id == ctx.user_id,
+                models.GradingAssessment.course_id.in_(wanted),
+                models.GradingAssessment.dropped.is_(False),
+                models.GradingAssessment.score_percentage.is_(None),
+                models.GradingAssessment.due_at.is_not(None),
+            )
+            .order_by(models.GradingAssessment.due_at, models.GradingAssessment.title)
+            .limit(inp.limit)
+        )
+    ).all()
+    return UpcomingAssessments(items=[assessment_out(r, program.timezone, ctx.now) for r in rows])
+
+
+@dataclass(frozen=True)
+class AssessmentSnapshot:
+    """What other modules may read of an assessment's score and weight (M09's update review)."""
+
+    id: str
+    weight: float
+    score_percentage: float | None
+    points_earned: float | None
+    points_possible: float | None
+
+
+async def assessment_snapshots(
+    ctx: Ctx, assessment_ids: Sequence[str]
+) -> dict[str, AssessmentSnapshot]:
+    """The user's assessments among the ids, by id; unknown ids are left out."""
+    if not assessment_ids:
+        return {}
+    rows = await ctx.db.execute(
+        select(
+            models.GradingAssessment.id,
+            models.GradingAssessment.weight,
+            models.GradingAssessment.score_percentage,
+            models.GradingAssessment.points_earned,
+            models.GradingAssessment.points_possible,
+        ).where(
+            models.GradingAssessment.user_id == ctx.user_id,
+            models.GradingAssessment.id.in_(list(assessment_ids)),
+        )
+    )
+    return {r.id: AssessmentSnapshot(*r) for r in rows}
+
+
 # --- one course: result, gradebook, what-if -------------------------------------------------
 
 
@@ -1102,6 +1191,18 @@ def build_summary(
             "target_percentage": target_percentage,
             "required_average": calc.required_average if use_gradebook else None,
             "reachable": _reachable(calc, use_gradebook, target_percentage, course.final_override),
+            "categories": [
+                {
+                    "category_id": c.category,
+                    "weight": c.weight,
+                    "graded_weight": c.graded_weight,
+                    "average": c.average,
+                    "contribution": c.contribution,
+                }
+                for c in calc.categories
+            ]
+            if use_gradebook
+            else [],
         }
     )
     return summary, calc
@@ -1116,6 +1217,12 @@ class _CourseState:
     scale: engine.Scale
     categories: list[models.GradingCategory]
     rows: list[models.GradingAssessment]
+
+    @property
+    def default_target(self) -> float:
+        """The course's own goal in grade points: the one chosen, else the scale's top."""
+        chosen = self.result.target_points
+        return self.scale_row.max_points if chosen is None else chosen
 
 
 async def _load_course(ctx: Ctx, course_id: str) -> _CourseState:
@@ -1136,9 +1243,7 @@ async def _load_course(ctx: Ctx, course_id: str) -> _CourseState:
 def _summary_for(
     state: _CourseState, items: tuple[engine.Item, ...], target: GradeTarget | None = None
 ) -> tuple[GradebookSummary, engine.CourseCalc]:
-    default = state.result.target_points
-    default = state.scale_row.max_points if default is None else default
-    target_points, target_percentage = _resolve_target(state.scale, default, target)
+    target_points, target_percentage = _resolve_target(state.scale, state.default_target, target)
     course = _course_input(state.course, state.result, items)
     return build_summary(
         course,
@@ -1157,7 +1262,9 @@ async def get_gradebook(ctx: Ctx, course_id: str) -> Gradebook:
         course_id=state.course.id,
         program_id=state.program.id,
         scale=GradingScaleInfo(
-            max_points=state.scale_row.max_points, hide_gpa=state.scale_row.hide_gpa
+            max_points=state.scale_row.max_points,
+            hide_gpa=state.scale_row.hide_gpa,
+            round_before_lookup=state.scale_row.round_before_lookup,
         ),
         result=_result_out(state.result),
         categories=[category_out(c) for c in state.categories],
@@ -1170,12 +1277,7 @@ async def update_result(ctx: Ctx, inp: CourseResultUpdateInput) -> CourseResult:
     course, program = await _course_and_program(ctx, inp.course_id)
     row = await ensure_course_setup(ctx, course.id, program.id)
     sent = inp.model_fields_set - {"course_id"}
-    required = {"basis", "forecast_model", "gradebook_enabled"}
-    bad = sorted(f for f in sent & required if getattr(inp, f) is None)
-    if bad:
-        raise AppError(
-            "common.validation", 422, errors=[{"loc": [f], "code": "none_not_allowed"} for f in bad]
-        )
+    _reject_nulls(inp, {"basis", "forecast_model", "gradebook_enabled"})
     if inp.target_points is not None:
         scale = await get_scale_row(ctx, program.id)
         if inp.target_points > scale.max_points:
@@ -1222,9 +1324,9 @@ async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradeb
     # What-if ignores the official grade: the question is what the marks would add up to.
     course = _course_input(state.course, state.result, items)
     course = replace(course, final_override=None)
-    default = state.result.target_points
-    default = state.scale_row.max_points if default is None else default
-    target_points, target_percentage = _resolve_target(state.scale, default, inp.target)
+    target_points, target_percentage = _resolve_target(
+        state.scale, state.default_target, inp.target
+    )
     summary, calc = build_summary(
         course,
         state.scale,
@@ -1241,9 +1343,7 @@ async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
     items = _items(state.rows)
     calc = engine.compute_course(items)
     _require_complete_weights(calc)
-    default = state.result.target_points
-    default = state.scale_row.max_points if default is None else default
-    _, target_percentage = _resolve_target(state.scale, default, inp.target)
+    _, target_percentage = _resolve_target(state.scale, state.default_target, inp.target)
     goal = 100.0 if target_percentage is None else target_percentage
     suggestion = engine.suggest_scores(items, goal)
     return ScoreSuggestion(
@@ -1368,6 +1468,7 @@ async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool) -> Term
         credits_total=round(sum(r.attributed_credits or 0 for r in rows), 3),
         credits_earned=aggregate.credits_earned,
         excluded_count=aggregate.excluded_count,
+        in_progress_count=aggregate.in_progress_count,
         courses=rows,
     )
 

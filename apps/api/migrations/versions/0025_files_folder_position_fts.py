@@ -1,7 +1,7 @@
 """files: drop files_folders.position; the FTS5 index keeps no second copy of the chunk text
 
-Revision ID: 0023
-Revises: 0021
+Revision ID: 0025
+Revises: 0023
 Create Date: 2026-10-23 04:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0023"
-down_revision: str | Sequence[str] | None = "0021"
+revision: str = "0025"
+down_revision: str | Sequence[str] | None = "0023"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -52,9 +52,14 @@ function operationId(queryKey: readonly unknown[]): string {
   return String((queryKey[0] as { _id?: unknown } | undefined)?._id ?? '')
 }
 
-/** Refetch everything the grading module shows, after a change made from this tab. */
+/**
+ * Refetch everything the grading module shows, after a change made from this tab. A refetch
+ * already running is kept rather than restarted, so quick edits in a row do not cancel each
+ * other's reads.
+ */
 export function invalidateGrading(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({
-    predicate: (query) => operationId(query.queryKey).startsWith('grading'),
-  })
+  return queryClient.invalidateQueries(
+    { predicate: (query) => operationId(query.queryKey).startsWith('grading') },
+    { cancelRefetch: false },
+  )
 }

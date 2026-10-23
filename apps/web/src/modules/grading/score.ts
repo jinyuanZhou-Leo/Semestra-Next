@@ -17,6 +17,15 @@ function parseNumber(text: string): number | null {
 }
 
 /**
+ * A non-negative number as typed in any grading field: digits with a decimal point or comma,
+ * an optional trailing `%`, nothing else (`Number()` would also take `0x10` or `1e2`).
+ * Null when it is not one.
+ */
+export function parseDecimal(input: string): number | null {
+  return parseNumber(input.trim().replace(/%$/, ''))
+}
+
+/**
  * `82` / `82%` is a percentage, `18/20` is points earned of points possible, empty clears the
  * score (M03 §5.1). Full-width slashes and decimal commas are accepted.
  */

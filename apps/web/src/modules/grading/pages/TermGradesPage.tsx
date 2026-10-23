@@ -8,7 +8,7 @@ import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
-import { formatCredits } from '@/lib/format'
+import { formatCredits, formatGpa } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -24,7 +24,7 @@ import { GpaValue } from '../components/GpaValue'
 import { InlineInput } from '../components/InlineInput'
 import { Stat } from '../components/Stat'
 import { GPA_MASK, percentText } from '../display'
-import { parseScore } from '../score'
+import { parseDecimal, parseScore } from '../score'
 import { useTermGrades } from '../queries'
 
 const features = tableFeatures({})
@@ -104,8 +104,12 @@ function PointsCell({ c }: { c: CourseGrade }) {
   const { hideGpa } = useCells()
   return (
     <span className="block text-right tabular-nums">
-      <GpaValue value={c.points} hidden={hideGpa} />
-      {c.letter ? <span className="ml-1.5 text-xs text-muted-foreground">{c.letter}</span> : null}
+      <GpaValue
+        value={c.points}
+        hidden={hideGpa}
+        letter={c.letter}
+        letterClassName="ml-1.5 text-xs text-muted-foreground"
+      />
     </span>
   )
 }
@@ -210,6 +214,8 @@ function TermGradesView({
   const simulate = useMutation({ ...gradingSimulateTermMutation(), onError: toastError })
   const run = simulate.mutate
   const fingerprint = JSON.stringify([scores, whatIf.targetGpa, includeInProgress])
+  // A grade that changed under the what-if (an edit elsewhere, a sync) refreshes the plan too.
+  const version = JSON.stringify(term.courses)
   useEffect(() => {
     if (!hasWhatIf) return
     const timer = setTimeout(
@@ -223,7 +229,7 @@ function TermGradesView({
     return () => clearTimeout(timer)
     // `fingerprint` stands for `scores`, `target_gpa` and `include_in_progress`.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [term.term_id, run, fingerprint, hasWhatIf])
+  }, [term.term_id, run, fingerprint, version, hasWhatIf])
 
   const assume = (courseId: string, text: string): boolean => {
     const parsed = parseScore(text)
@@ -266,7 +272,16 @@ function TermGradesView({
           >
             {formatCredits(term.credits_counted)}
           </Stat>
-          <Stat label={m.grading_excluded()}>{term.excluded_count}</Stat>
+          <Stat
+            label={m.grading_excluded()}
+            hint={
+              term.in_progress_count > 0
+                ? m.grading_excluded_in_progress({ count: term.in_progress_count })
+                : null
+            }
+          >
+            {term.excluded_count}
+          </Stat>
         </div>
 
         <Field orientation="horizontal" className="w-fit">
@@ -348,8 +363,8 @@ function TermGradesView({
                     setWhatIf({ ...whatIf, targetGpa: null })
                     return true
                   }
-                  const value = Number(text.replace(',', '.'))
-                  if (!(value >= 0 && value <= term.max_points)) return false
+                  const value = parseDecimal(text)
+                  if (value === null || value > term.max_points) return false
                   setWhatIf({ ...whatIf, targetGpa: value })
                   return true
                 }}
@@ -393,7 +408,7 @@ function TermGradesView({
                           ? m.grading_target_met()
                           : m.grading_target_gap({
                               // The target is visible, so the gap would give a hidden planned GPA away.
-                              gap: term.hide_gpa ? GPA_MASK : planned.gap.toFixed(2),
+                              gap: term.hide_gpa ? GPA_MASK : formatGpa(planned.gap),
                             })}
                     </span>
                   </Stat>

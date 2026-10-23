@@ -2,6 +2,7 @@ from datetime import date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
+from pydantic.json_schema import SkipJsonSchema
 
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceKind
 
@@ -86,6 +87,7 @@ class MeetingException(BaseModel):
     new_end_time: time | None
     new_location: str | None
     note: str | None
+    imported: bool = Field(description="Written by an import (a repeated import may remove it)")
 
 
 class Meeting(BaseModel):
@@ -115,6 +117,10 @@ class Meeting(BaseModel):
 
 class MeetingList(BaseModel):
     items: list[Meeting] = Field(description="By term, weekday and start time")
+
+
+class TermMeetingListInput(BaseModel):
+    term_id: Id = Field(description="Term id")
 
 
 class MeetingListInput(BaseModel):
@@ -202,6 +208,12 @@ class MeetingSetEnabledInput(BaseModel):
     course_id: Id = Field(description="Course id")
     meeting_ids: list[Id] = Field(min_length=1, max_length=200, description="Meetings to change")
     enabled: bool = Field(description="True to show them, false to hide them")
+    other_meeting_ids: list[Id] = Field(
+        default_factory=list,
+        max_length=200,
+        description="Meetings set to the opposite state in the same change, e.g. the other "
+        "sections when keeping only one",
+    )
 
 
 class ExceptionUpsertInput(BaseModel):
@@ -215,6 +227,9 @@ class ExceptionUpsertInput(BaseModel):
         default=None, description='Moved: new location; null keeps the meeting\'s, "" means none'
     )
     note: Note | None = Field(default=None, description="Note shown with the class")
+    # Only the import commit sets it (not in the schema the assistant, MCP or clients see; ignored
+    # from them too): an imported change never replaces the user's own one.
+    imported: SkipJsonSchema[bool] = Field(default=False, description="Written by an import")
 
 
 class ExceptionRef(BaseModel):
@@ -268,8 +283,7 @@ class EventListInput(BaseModel):
     term_id: Id | None = Field(default=None, description="Only this term's events")
 
 
-class EventCreateInput(BaseModel):
-    program_id: Id = Field(description="Program id")
+class EventFields(BaseModel):
     title: Name = Field(description="E.g. 'Midterm'")
     start_at: datetime = Field(
         description="Start; without an offset it is read in the Program's time zone"
@@ -287,6 +301,23 @@ class EventCreateInput(BaseModel):
     source_ref: Annotated[str, Field(max_length=500)] | None = Field(
         default=None, description="Id in the import source"
     )
+
+
+class EventCreateInput(EventFields):
+    program_id: Id = Field(description="Program id")
+
+
+class EventCreateManyInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+    events: list[EventFields] = Field(
+        min_length=1, max_length=100, description="Events; same source_kind+source_ref updates"
+    )
+
+
+class EventCreateManyResult(BaseModel):
+    items: list[OneOffEvent]
+    created_ids: list[str]
+    updated_ids: list[str]
 
 
 class EventUpdateInput(BaseModel):

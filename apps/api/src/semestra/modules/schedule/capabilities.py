@@ -3,11 +3,13 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
-from semestra.modules.schedule import service
+from semestra.modules.schedule import common, event_types, feeds, meetings, one_off, sources
 from semestra.modules.schedule.schemas import (
     ConflictList,
     Deleted,
     EventCreateInput,
+    EventCreateManyInput,
+    EventCreateManyResult,
     EventListInput,
     EventRef,
     EventType,
@@ -39,6 +41,7 @@ from semestra.modules.schedule.schemas import (
     OneOffEvent,
     OneOffEventList,
     ProgramRef,
+    TermMeetingListInput,
     TermRef,
     Today,
 )
@@ -98,7 +101,7 @@ calendar.occurrence.list. Times are local to the Program, with their UTC offset.
     ),
 )
 async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
-    return await service.today(ctx, inp.program_id)
+    return await sources.today(ctx, inp.program_id)
 
 
 @capability(
@@ -118,8 +121,8 @@ For today alone prefer calendar.today.get. Each class carries its term week in m
 async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
     # The app pages by view; the assistant and MCP clients ask for whole terms.
     wide = ctx.actor in ("agent", "mcp")
-    max_days = service.EXPORT_MAX_RANGE_DAYS if wide else service.MAX_RANGE_DAYS
-    return await service.occurrences(ctx, inp, max_days=max_days)
+    max_days = common.EXPORT_MAX_RANGE_DAYS if wide else common.MAX_RANGE_DAYS
+    return await sources.occurrences(ctx, inp, max_days=max_days)
 
 
 # --- event types ----------------------------------------------------------------------------
@@ -135,7 +138,7 @@ async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
     agent_output_fields=("items.id", "items.code", "items.name", "items.builtin"),
 )
 async def event_type_list(ctx: Ctx, inp: ProgramRef) -> EventTypeList:
-    return EventTypeList(items=await service.list_event_types(ctx, inp.program_id))
+    return EventTypeList(items=await event_types.list_event_types(ctx, inp.program_id))
 
 
 @capability(
@@ -148,7 +151,7 @@ async def event_type_list(ctx: Ctx, inp: ProgramRef) -> EventTypeList:
     agent_output_fields=("id", "code", "name"),
 )
 async def event_type_create(ctx: Ctx, inp: EventTypeCreateInput) -> EventType:
-    return await service.create_event_type(ctx, inp)
+    return await event_types.create_event_type(ctx, inp)
 
 
 @capability(
@@ -161,7 +164,7 @@ async def event_type_create(ctx: Ctx, inp: EventTypeCreateInput) -> EventType:
     agent_output_fields=("id", "code", "name", CHANGED),
 )
 async def event_type_update(ctx: Ctx, inp: EventTypeUpdateInput) -> EventType:
-    return await service.update_event_type(ctx, inp)
+    return await event_types.update_event_type(ctx, inp)
 
 
 @capability(
@@ -170,11 +173,11 @@ async def event_type_update(ctx: Ctx, inp: EventTypeUpdateInput) -> EventType:
     description="Fails with schedule.event_type_in_use while anything uses the type.",
     effect="destructive",
     http=Http("DELETE", "/event-types/{event_type_id}"),
-    preview=service.preview_event_type_delete,
+    preview=event_types.preview_event_type_delete,
     tags=TAGS,
 )
 async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
-    await service.delete_event_type(ctx, inp.event_type_id)
+    await event_types.delete_event_type(ctx, inp.event_type_id)
     return Deleted()
 
 
@@ -189,7 +192,7 @@ async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
 )
 async def event_type_reorder(ctx: Ctx, inp: EventTypeOrderInput) -> EventTypeList:
     return EventTypeList(
-        items=await service.reorder_event_types(ctx, inp.program_id, inp.event_type_ids)
+        items=await event_types.reorder_event_types(ctx, inp.program_id, inp.event_type_ids)
     )
 
 
@@ -207,7 +210,20 @@ changing or cancelling one class. Optionally only one term of a year-long course
     agent_output_fields=tuple(f"items.{f}" for f in _MEETING_FIELDS),
 )
 async def meeting_list(ctx: Ctx, inp: MeetingListInput) -> MeetingList:
-    return MeetingList(items=await service.list_meetings(ctx, inp.course_id, inp.term_id))
+    return MeetingList(items=await meetings.list_meetings(ctx, inp.course_id, inp.term_id))
+
+
+@capability(
+    name="schedule.meeting.list_for_term",
+    summary="List the weekly class times of every course in a term.",
+    description="For the term timetable; schedule.meeting.list is per course.",
+    effect="read",
+    http=Http("GET", "/terms/{term_id}/meetings"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def meeting_list_for_term(ctx: Ctx, inp: TermMeetingListInput) -> MeetingList:
+    return MeetingList(items=await meetings.list_term_meetings(ctx, inp.term_id))
 
 
 @capability(
@@ -222,7 +238,7 @@ class) use schedule.event.create instead.""",
     agent_output_fields=("id", "section_code", "type_code", "weekday", "start_time", "end_time"),
 )
 async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
-    return await service.create_meeting(
+    return await meetings.create_meeting(
         ctx, inp.course_id, MeetingFields.model_validate(inp.model_dump(exclude={"course_id"}))
     )
 
@@ -245,7 +261,7 @@ existing meeting of the course updates it instead of adding a duplicate.""",
     ),
 )
 async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingCreateManyResult:
-    return await service.create_meetings(ctx, inp.course_id, inp.meetings)
+    return await meetings.create_meetings(ctx, inp.course_id, inp.meetings)
 
 
 @capability(
@@ -259,7 +275,7 @@ schedule.exception.upsert instead.""",
     agent_output_fields=("id", "section_code", CHANGED),
 )
 async def meeting_update(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
-    return await service.update_meeting(ctx, inp)
+    return await meetings.update_meeting(ctx, inp)
 
 
 @capability(
@@ -271,11 +287,11 @@ user does not attend use
 schedule.meeting.set_enabled.""",
     effect="destructive",
     http=Http("DELETE", "/meetings/{meeting_id}"),
-    preview=service.preview_meeting_delete,
+    preview=meetings.preview_meeting_delete,
     tags=TAGS,
 )
 async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
-    await service.delete_meeting(ctx, inp.meeting_id)
+    await meetings.delete_meeting(ctx, inp.meeting_id)
     return Deleted()
 
 
@@ -283,8 +299,10 @@ async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
     name="schedule.meeting.set_enabled",
     summary="Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
     description="""To hide a whole section, pass every meeting with its section_code (a section
-can meet on several days). Disabled meetings stay in the course but are left out of the calendar.
-Returns only the meetings whose state changed (empty when they already were as asked).""",
+can meet on several days). To keep only one section, pass its meetings with enabled=true and the
+other sections' meetings as other_meeting_ids. Disabled meetings stay in the course but are left
+out of the calendar. Returns only the meetings whose state changed (empty when they already were
+as asked).""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/meetings:enabled"),
     tags=TAGS,
@@ -292,7 +310,9 @@ Returns only the meetings whose state changed (empty when they already were as a
 )
 async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingList:
     return MeetingList(
-        items=await service.set_enabled(ctx, inp.course_id, inp.meeting_ids, inp.enabled)
+        items=await meetings.set_enabled(
+            ctx, inp.course_id, inp.meeting_ids, inp.enabled, inp.other_meeting_ids
+        )
     )
 
 
@@ -304,12 +324,12 @@ async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingL
 meeting.""",
     effect="write",
     http=Http("PUT", "/meetings/{meeting_id}/exceptions/{original_date}"),
-    preview=service.preview_exception_upsert,
+    preview=meetings.preview_exception_upsert,
     tags=TAGS,
     agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )
 async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
-    return await service.upsert_exception(ctx, inp)
+    return await meetings.upsert_exception(ctx, inp)
 
 
 @capability(
@@ -318,12 +338,12 @@ async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     description="The class happens again as regularly scheduled.",
     effect="write",
     http=Http("DELETE", "/meetings/{meeting_id}/exceptions/{original_date}"),
-    preview=service.preview_exception_delete,
+    preview=meetings.preview_exception_delete,
     tags=TAGS,
     agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
 )
 async def exception_delete(ctx: Ctx, inp: ExceptionRef) -> Meeting:
-    return await service.delete_exception(ctx, inp.meeting_id, inp.original_date)
+    return await meetings.delete_exception(ctx, inp.meeting_id, inp.original_date)
 
 
 @capability(
@@ -336,7 +356,7 @@ that share at least one date count.""",
     tags=TAGS,
 )
 async def schedule_conflicts(ctx: Ctx, inp: TermRef) -> ConflictList:
-    return ConflictList(items=await service.conflicts(ctx, inp.term_id))
+    return ConflictList(items=await meetings.conflicts(ctx, inp.term_id))
 
 
 # --- one-off events -------------------------------------------------------------------------
@@ -353,7 +373,20 @@ calendar.occurrence.list.""",
     agent_output_fields=tuple(f"items.{f}" for f in _EVENT_FIELDS),
 )
 async def event_list(ctx: Ctx, inp: EventListInput) -> OneOffEventList:
-    return OneOffEventList(items=await service.list_events(ctx, inp))
+    return OneOffEventList(items=await one_off.list_events(ctx, inp))
+
+
+@capability(
+    name="schedule.event.get",
+    summary="One one-off event.",
+    description="Use schedule.event.list or calendar.occurrence.list to find events.",
+    effect="read",
+    http=Http("GET", "/events/{event_id}"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def event_get(ctx: Ctx, inp: EventRef) -> OneOffEvent:
+    return await one_off.get_event(ctx, inp.event_id)
 
 
 @capability(
@@ -367,7 +400,21 @@ that repeats weekly use schedule.meeting.create.""",
     agent_output_fields=("id", "title", "start_at", "end_at"),
 )
 async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
-    return await service.create_event(ctx, inp)
+    return await one_off.create_event(ctx, inp)
+
+
+@capability(
+    name="schedule.event.create_many",
+    summary="Add several one-off events to a Program at once (importers).",
+    description="""Used by importers. An item with the same source_kind and source_ref as an
+existing event of the Program updates it instead of adding a duplicate.""",
+    effect="write",
+    http=Http("POST", "/programs/{program_id}/events:batch"),
+    tags=TAGS,
+    agent_output_fields=("created_ids", "updated_ids", "items.id", "items.title"),
+)
+async def event_create_many(ctx: Ctx, inp: EventCreateManyInput) -> EventCreateManyResult:
+    return await one_off.create_events(ctx, inp.program_id, inp.events)
 
 
 @capability(
@@ -380,7 +427,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     agent_output_fields=("id", "title", CHANGED),
 )
 async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
-    return await service.update_event(ctx, inp)
+    return await one_off.update_event(ctx, inp)
 
 
 @capability(
@@ -389,11 +436,11 @@ async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
     description="Irreversible.",
     effect="destructive",
     http=Http("DELETE", "/events/{event_id}"),
-    preview=service.preview_event_delete,
+    preview=one_off.preview_event_delete,
     tags=TAGS,
 )
 async def event_delete(ctx: Ctx, inp: EventRef) -> Deleted:
-    await service.delete_event(ctx, inp.event_id)
+    await one_off.delete_event(ctx, inp.event_id)
     return Deleted()
 
 
@@ -410,7 +457,7 @@ async def event_delete(ctx: Ctx, inp: EventRef) -> Deleted:
     tags=TAGS,
 )
 async def feed_list(ctx: Ctx, inp: ProgramRef) -> FeedList:
-    return FeedList(items=await service.list_feeds(ctx, inp.program_id))
+    return FeedList(items=await feeds.list_feeds(ctx, inp.program_id))
 
 
 @capability(
@@ -423,7 +470,7 @@ async def feed_list(ctx: Ctx, inp: ProgramRef) -> FeedList:
     tags=TAGS,
 )
 async def feed_create(ctx: Ctx, inp: FeedCreateInput) -> FeedCreated:
-    return await service.create_feed(ctx, inp)
+    return await feeds.create_feed(ctx, inp)
 
 
 @capability(
@@ -436,4 +483,4 @@ async def feed_create(ctx: Ctx, inp: FeedCreateInput) -> FeedCreated:
     tags=TAGS,
 )
 async def feed_revoke(ctx: Ctx, inp: FeedRef) -> Feed:
-    return await service.revoke_feed(ctx, inp.feed_id)
+    return await feeds.revoke_feed(ctx, inp.feed_id)

@@ -17,7 +17,8 @@ from sqlalchemy import select
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.grading.models import GradingAssessment
+from semestra.modules.grading import service as grading
+from semestra.modules.grading.service import AssessmentSnapshot
 from semestra.modules.imports import register_commit_hook
 from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsItem, ImportsSession
@@ -304,7 +305,7 @@ def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
     return {"points_earned": float(score), "points_possible": float(points)}
 
 
-def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
+def assessment_score(row: AssessmentSnapshot | None) -> dict[str, float] | None:
     """The gradebook's score as the review shows it: points, else the percentage entered."""
     if row is None:
         return None
@@ -315,7 +316,7 @@ def assessment_score(row: GradingAssessment | None) -> dict[str, float] | None:
     return None
 
 
-def _has_score(row: GradingAssessment | None, score: dict[str, float]) -> bool:
+def _has_score(row: AssessmentSnapshot | None, score: dict[str, float]) -> bool:
     """The gradebook already holds this grade, as points or as the same percentage."""
     if row is None:
         return False
@@ -458,24 +459,17 @@ def _acknowledge(ctx: Ctx, scores: dict[str, dict[str, float]]) -> None:
     ctx.after_commit.append(_store)
 
 
-async def _assessments(ctx: Ctx, refs: list[LmsImportedRef]) -> dict[str, GradingAssessment]:
+async def _assessments(ctx: Ctx, refs: list[LmsImportedRef]) -> dict[str, AssessmentSnapshot]:
     ids = [r.target_id for r in refs if r.target_kind == "assessment"]
-    if not ids:
-        return {}
-    rows = await ctx.db.scalars(
-        select(GradingAssessment).where(
-            GradingAssessment.id.in_(ids), GradingAssessment.user_id == ctx.user_id
-        )
-    )
-    return {row.id: row for row in rows}
+    return await grading.assessment_snapshots(ctx, ids)
 
 
 async def _current_weight(ctx: Ctx, target: ImportTarget) -> float | None:
     """The assessment's weight now, so the review shows what a new weight replaces."""
     if target.kind != "assessment":
         return None
-    row = await ctx.db.get(GradingAssessment, target.id)
-    return row.weight if row is not None and row.user_id == ctx.user_id else None
+    row = (await grading.assessment_snapshots(ctx, [target.id])).get(target.id)
+    return row.weight if row is not None else None
 
 
 async def review_updates(ctx: Ctx, course_id: str) -> ImportStarted:

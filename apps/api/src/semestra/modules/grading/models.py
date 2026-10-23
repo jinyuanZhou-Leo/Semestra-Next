@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,6 +32,8 @@ class GradingScale(Base, OwnedMixin, TimestampMixin):
     # [{key, name, color}] copied into every new course.
     default_categories: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     hide_gpa: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Percentages are rounded to whole numbers before the band lookup (84.6 reads as 85).
+    round_before_lookup: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
 
 class GradingCourseResult(Base, OwnedMixin, TimestampMixin):

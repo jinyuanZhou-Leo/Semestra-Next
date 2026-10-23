@@ -14,11 +14,10 @@ import { Button } from '@/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
+import { parseDecimal } from '../score'
 import type { WhatIf } from '../whatif'
 import { InlineInput } from './InlineInput'
 import { requiredText } from './Stat'
-
-const parseNumber = (text: string) => Number(text.replace('%', '').replace(',', '.'))
 
 /** The course's own goal in grade points (saved) and what the remaining work has to average. */
 function CourseTarget({ gradebook }: { gradebook: Gradebook }) {
@@ -30,8 +29,8 @@ function CourseTarget({ gradebook }: { gradebook: Gradebook }) {
     onSuccess: () => invalidateGrading(queryClient),
   })
   const save = (text: string): boolean => {
-    const value = parseNumber(text)
-    if (text.trim() === '' || !(value >= 0 && value <= scale.max_points)) return false
+    const value = parseDecimal(text)
+    if (value === null || value > scale.max_points) return false
     update.mutate({ path: { course_id: gradebook.course_id }, body: { target_points: value } })
     return true
   }
@@ -88,7 +87,11 @@ function PlanTarget({
   const target = whatIf.target
   const kind = target?.kind ?? 'points'
   const shown = target?.value ?? summary.target_points
-  const setTarget = (next: GradeTarget | null) => onChange({ ...whatIf, target: next })
+  const setTarget = (next: GradeTarget | null) => {
+    // "Out of reach" was the answer for the old target.
+    suggest.reset()
+    onChange({ ...whatIf, target: next })
+  }
   const autoFill = () =>
     suggest.mutate(
       { path: { course_id: courseId }, body: { target } },
@@ -123,9 +126,9 @@ function PlanTarget({
           label={m.grading_plan_target()}
           value={String(shown)}
           onCommit={(text) => {
-            const value = parseNumber(text)
+            const value = parseDecimal(text)
             const max = kind === 'points' ? scale.max_points : 1000
-            if (text.trim() === '' || !(value >= 0 && value <= max)) return false
+            if (value === null || value > max) return false
             setTarget({ kind, value })
             return true
           }}

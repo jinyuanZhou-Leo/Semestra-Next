@@ -1,5 +1,5 @@
 import type { ProgramGrades } from '@semestra/api-client'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
@@ -56,10 +56,11 @@ test('the Program chart keeps GPA values out of the page while GPA is hidden', a
   )
   const mask = await screen.findByRole('button', { name: 'Show GPA' })
   expect(container.querySelector('title')?.textContent ?? '').not.toContain('3.50')
-  expect(screen.queryByRole('img', { name: 'GPA and cumulative GPA by term' })).toBeNull()
+  expect(screen.queryByRole('figure', { name: 'GPA and cumulative GPA by term' })).toBeNull()
+  expect(container).not.toHaveTextContent('3.50')
   await userEvent.click(mask)
-  const chart = await screen.findByRole('img', { name: 'GPA and cumulative GPA by term' })
-  expect(chart.querySelector('title')?.textContent).toBe('Fall 2025: 3.50')
+  const chart = await screen.findByRole('figure', { name: 'GPA and cumulative GPA by term' })
+  expect(within(chart).getByText('Fall 2025: 3.50')).toBeInTheDocument()
 })
 
 test('the Program chart is drawn straight away when GPA is not hidden', async () => {
@@ -68,7 +69,7 @@ test('the Program chart is drawn straight away when GPA is not hidden', async ()
   )
   renderWithRouter(<ProgramChartsCard {...cardProps({ kind: 'program', programId: 'p1' }, 'l')} />)
   expect(
-    await screen.findByRole('img', { name: 'GPA and cumulative GPA by term' }),
+    await screen.findByRole('figure', { name: 'GPA and cumulative GPA by term' }),
   ).toBeInTheDocument()
 })
 
@@ -95,7 +96,7 @@ test('a course without a gradebook shows its typed-in final grade on the card', 
 })
 
 test('revealing a hidden GPA on a card does not follow the card link', async () => {
-  const book = gradebook({ scale: { max_points: 4, hide_gpa: true } })
+  const book = gradebook({ scale: { max_points: 4, hide_gpa: true, round_before_lookup: true } })
   server.use(http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)))
   const { router } = renderWithRouter(
     <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,
