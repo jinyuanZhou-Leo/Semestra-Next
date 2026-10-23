@@ -176,3 +176,28 @@ async def test_gbk_text_and_large_photos_are_read_as_the_model_needs(app: FastAP
     (image,) = images
     assert image.mime == "image/png"
     assert max(Image.open(io.BytesIO(image.data)).size) <= 2400
+
+
+async def test_a_commit_sent_while_an_item_was_edited_asks_to_retry(app: FastAPI, api: Api):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("acorn.ics", ACORN, "text/calendar")
+    session = await api.create(
+        program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},
+        upload_ids=[upload],
+    )  # fmt: skip
+    me = await api.call("GET", "/account/me")
+    async with system_ctx(app.state, me["id"]) as late:
+        row = await service.get_session_row(late, session["id"])
+        seen = row.updated_at
+        # Another tab edits an item after this request read the session.
+        item = session["items"][0]
+        await api.call(
+            "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"decision": "reject"}
+        )
+        set_committed_value(row, "updated_at", seen)
+        with pytest.raises(AppError) as err:
+            await service.commit(late, CommitInput(session_id=session["id"]))
+        assert err.value.code == "import.session_changed"
+    done = await api.commit(session["id"])
+    assert done["created"] > 0

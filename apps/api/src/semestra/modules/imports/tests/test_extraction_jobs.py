@@ -129,7 +129,7 @@ async def test_a_category_weight_is_shared_by_its_assessments(
             "grading": {
                 "categories": [{"name": ev("Quizzes"), "weight": ev(20)}],
                 "assessments": [
-                    *[{"title": ev(f"Quiz {n}"), "category": ev("Quizzes")} for n in range(1, 5)],
+                    *[{"title": ev(f"Quiz {n}"), "category": ev("Quizzes")} for n in range(1, 4)],
                     {"title": ev("Final exam"), "weight": ev(80)},
                 ],
             },
@@ -151,7 +151,8 @@ async def test_a_category_weight_is_shared_by_its_assessments(
     await run_jobs()
     session = await api.call("GET", f"/imports/{session['id']}")
     quizzes = [a for a in by_type(session, "assessment") if a["data"]["title"].startswith("Quiz")]
-    assert [q["data"]["weight"] for q in quizzes] == [5.0] * 4
+    # 20 / 3 does not round evenly: the last quiz takes the remainder so the total stays 100.
+    assert [q["data"]["weight"] for q in quizzes] == [6.67, 6.67, 6.66]
     assert {q["confidence"]["weight"] for q in quizzes} == {"medium"}
     codes = [i["code"] for item in session["items"] for i in item["issues"]]
     assert "import.weights_not_100" not in codes
@@ -228,3 +229,33 @@ async def test_no_class_dates_cancel_meetings_and_deadlines_keep_their_source(
     (task,) = by_type(session, "task")
     assert task["data"]["due_text"] == "March 9"
     assert "due_text" in task["evidence"]
+
+
+async def test_a_file_ready_before_the_wait_was_saved_still_starts_the_session(
+    app: FastAPI, api: Api, model_calls: ModelCalls, run_jobs, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.imports import deps
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    item_id = await _course_file(app, api, run_jobs, course["id"])
+    real = deps.course_file_ready
+    seen: list[str] = []
+
+    async def first_not_ready(ctx, item: str) -> bool:
+        # The job saw the file still processing; its ready event fired (and found no waiting
+        # session) before the job's "waiting" was committed, so no event will come again.
+        seen.append(item)
+        return False if len(seen) == 1 else await real(ctx, item)
+
+    monkeypatch.setattr(deps, "course_file_ready", first_not_ready)
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        file_item_ids=[item_id],
+    )  # fmt: skip
+    await run_jobs()
+    done = await api.call("GET", f"/imports/{session['id']}")
+    assert done["status"] == "ready"
+    assert len(model_calls) == 1

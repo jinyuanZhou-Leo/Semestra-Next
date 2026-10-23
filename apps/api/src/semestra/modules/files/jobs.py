@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 from pydantic import BaseModel
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.jobs import JobCtx, enqueue, job_handler, periodic
@@ -31,7 +31,8 @@ class ProcessResult(BaseModel):
 
 
 class ReindexPayload(BaseModel):
-    pass
+    # The periodic retry: documents that failed too often are left alone.
+    retry: bool = False
 
 
 class ReindexResult(BaseModel):
@@ -45,14 +46,14 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
 
 @job_handler("files.reindex_vectors", stages=[("embedding", 1)], max_attempts=2)
 async def reindex_vectors(ctx: JobCtx, payload: ReindexPayload) -> ReindexResult:
-    del payload
-    return ReindexResult(items_rebuilt=await pipeline.reindex_vectors(ctx))
+    return ReindexResult(items_rebuilt=await pipeline.reindex_vectors(ctx, retry=payload.retry))
 
 
 @periodic("files.retry_vectors", every=timedelta(hours=6), first_after=timedelta(minutes=10))
 async def retry_vectors(ctx: Ctx) -> None:
     """Documents whose embedding failed (the provider was down, a key had run out) are only
-    searchable by keyword; every few hours their users get another reindex."""
+    searchable by keyword; every few hours their users get another reindex, until a document has
+    failed `VECTOR_RETRIES` times in a row."""
     missing = (
         select(FilesItem.user_id)
         .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
@@ -63,6 +64,7 @@ async def retry_vectors(ctx: Ctx) -> None:
                 FilesIndexState.vector_document_id != FilesItem.active_document_id,
             ),
             exists().where(FilesChunk.document_id == FilesItem.active_document_id),
+            func.coalesce(FilesIndexState.vector_failures, 0) < pipeline.VECTOR_RETRIES,
         )
         .distinct()
     )
@@ -71,7 +73,10 @@ async def retry_vectors(ctx: Ctx) -> None:
         async def again(user_ctx: Ctx) -> None:
             if await ai.available(user_ctx, "embedding"):
                 await enqueue(
-                    user_ctx, "files.reindex_vectors", ReindexPayload(), dedupe_key="reindex"
+                    user_ctx,
+                    "files.reindex_vectors",
+                    ReindexPayload(retry=True),
+                    dedupe_key="reindex",
                 )
 
         await run_as_system(ctx.state, user_id, again)

@@ -140,7 +140,7 @@ def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
     # Weights of a course's assessments should add up to 100; categories to their stated total.
     for ref, members in groups.items():
         total = round(sum(float(m.data.get("weight") or 0) for m in members), 2)
-        if abs(total - 100) <= WEIGHT_TOLERANCE:
+        if round(abs(total - 100), 2) <= WEIGHT_TOLERANCE:
             continue
         owner = by_id.get(ref.removeprefix("item:")) if ref.startswith("item:") else None
         holder = owner if owner is not None else members[0]

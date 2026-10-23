@@ -1,4 +1,4 @@
-"""files: drop files_folders.position; the FTS5 index keeps no second copy of the chunk text
+"""files: drop folder position, contentless FTS index, count failed vector retries
 
 Revision ID: 0025
 Revises: 0023
@@ -34,6 +34,10 @@ def _refill(create: str) -> None:
 def upgrade() -> None:
     # No screen ever set a folder's order; folders are listed by name.
     op.drop_column("files_folders", "position")
+    op.add_column(
+        "files_index_state",
+        sa.Column("vector_failures", sa.Integer(), nullable=False, server_default="0"),
+    )
     # The chunk text already lives in files_chunks.text: a contentless table (rows still
     # deletable by rowid, SQLite >= 3.43) keeps only the index.
     _refill(
@@ -43,6 +47,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("files_index_state", "vector_failures")
     _refill("CREATE VIRTUAL TABLE files_chunks_fts USING fts5(text, heading_path, tokenize='trigram')")
     op.add_column(
         "files_folders",

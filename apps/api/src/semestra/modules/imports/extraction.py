@@ -205,9 +205,11 @@ def _share_category_weights(builder: Builder, course_ref: str) -> None:
         )
         if not open_ or left <= 0:
             continue
+        # Rounded shares, the last one taking the remainder, so they add up to the category.
         share = round(left / len(open_), 2)
-        for item in open_:
-            item.data["weight"] = share
+        shares = [share] * (len(open_) - 1) + [round(left - share * (len(open_) - 1), 2)]
+        for item, weight in zip(open_, shares, strict=True):
+            item.data["weight"] = weight
             item.confidence["weight"] = "medium"
             if "weight_total" in category.evidence:
                 item.evidence["weight"] = category.evidence["weight_total"]

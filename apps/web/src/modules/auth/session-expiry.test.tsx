@@ -2,6 +2,7 @@ import { accountSessionList } from '@semestra/api-client'
 import { act, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { postWithProgress } from '@/app/api'
 import { isReauthPending, setSignedIn, settleReauth } from '@/app/session-expiry'
 import { API, apiError, renderWithQuery, server, user } from '@/test-utils'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
@@ -36,6 +37,35 @@ test('a 401 while signed in waits for re-login, then the request is retried', as
 
   const { data } = await result
   expect(data).toEqual({ items: [] })
+  expect(calls).toBe(2)
+})
+
+const CORS = {
+  'Access-Control-Allow-Origin': window.location.origin,
+  'Access-Control-Allow-Credentials': 'true',
+  'Access-Control-Allow-Headers': '*',
+}
+
+test('an upload with progress is sent again after re-login too', async () => {
+  let calls = 0
+  server.use(
+    // XHR from jsdom is cross-origin to the API: a preflight first, and CORS headers.
+    http.options(`${API}/courses/c1/files`, () => new HttpResponse(null, { headers: CORS })),
+    http.post(`${API}/courses/c1/files`, () => {
+      calls += 1
+      const e = apiError('common.unauthenticated', 401)
+      return calls === 1
+        ? HttpResponse.json(e.body, { status: e.status, headers: CORS })
+        : HttpResponse.json({ items: [] }, { headers: CORS })
+    }),
+  )
+  setSignedIn(true)
+
+  const result = postWithProgress('/courses/c1/files', new FormData())
+  await waitFor(() => expect(isReauthPending()).toBe(true))
+  act(() => settleReauth(true))
+
+  expect(await result).toEqual({ items: [] })
   expect(calls).toBe(2)
 })
 

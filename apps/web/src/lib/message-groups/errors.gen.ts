@@ -98,6 +98,7 @@ export const errorMessages = {
   error_import_no_content: m.error_import_no_content,
   error_import_no_teaching_weeks: m.error_import_no_teaching_weeks,
   error_import_outside_term: m.error_import_outside_term,
+  error_import_session_changed: m.error_import_session_changed,
   error_import_session_closed: m.error_import_session_closed,
   error_import_session_not_ready: m.error_import_session_not_ready,
   error_import_target_unavailable: m.error_import_target_unavailable,

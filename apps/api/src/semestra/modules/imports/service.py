@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Sequ
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+import anyio
 import structlog
 from pydantic import ValidationError
 from sqlalchemy import delete, select, update
@@ -578,6 +579,8 @@ async def store_upload(
     if budget is not None and budget <= 0:
         raise await _quota_error(ctx)
     key = f"users/{ctx.user_id}/imports/{new_id()}"
+    # The whole upload is kept for the type check: telling DOCX/XLSX/PPTX apart reads the zip's
+    # central directory at the end of the file (uploads are capped at the upload size limit).
     seen = bytearray()
 
     async def kept() -> AsyncIterator[bytes]:
@@ -597,7 +600,7 @@ async def store_upload(
         if budget is None or cap <= budget:
             raise AppError("files.too_large", 413, max=cap) from None
         raise await _quota_error(ctx) from None
-    mime = deps.detect_mime(bytes(seen), filename)
+    mime = await anyio.to_thread.run_sync(deps.detect_mime, bytes(seen), filename)
     if allowed is not None and mime not in allowed:
         await storage.delete(stored.key)
         raise AppError("import.file_unsupported", 415, filename=filename)
@@ -1289,7 +1292,12 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         .execution_options(synchronize_session=False)
     )
     if claimed.rowcount != 1:  # pyright: ignore[reportAttributeAccessIssue]
-        raise AppError("import.session_closed", 409, state="committing")
+        now = await ctx.db.scalar(select(ImportsSession.status).where(ImportsSession.id == row.id))
+        if now != row.status:  # another commit took it (or the session was discarded)
+            raise AppError("import.session_closed", 409, state=now)
+        # Same status, newer version: an item was edited while this commit was sent. Nothing
+        # was written; sending it again commits what the session holds now.
+        raise AppError("import.session_changed", 409)
     row.status = "committing"
     row.updated_at = ctx.now
     items = await _items(ctx, row.id)

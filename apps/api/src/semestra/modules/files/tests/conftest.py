@@ -184,8 +184,11 @@ class FakeAi:
         self.ocr_calls = 0
         # OCR calls with these numbers (1-based) fail, as a provider error would.
         self.ocr_fail_calls: set[int] = set()
+        self.ocr_fail_code = "ai.provider_error"
         self.embed_calls: list[list[str]] = []
         self.fail_embedding = False
+        # Only requests with a text containing this fail (e.g. a chunk the provider refuses).
+        self.fail_embedding_on: str | None = None
         # Called after each embedding request, e.g. to change the model halfway through a job.
         self.after_embed: Callable[[FakeAi], None] | None = None
 
@@ -205,14 +208,16 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
         if fake.ocr_calls in fake.ocr_fail_calls:
             from semestra.core.errors import AppError
 
-            raise AppError("ai.provider_error", 502)
+            raise AppError(fake.ocr_fail_code, 502)
         return ai.Completion(text=fake.ocr_text)
 
     async def complete_with(ctx: Any, resolved: Any, messages: Any, **kwargs: Any) -> Any:
         return await complete(ctx, "vision", messages, **kwargs)
 
     async def embed(ctx: Any, texts: list[str], *, source_module: str) -> ai.EmbeddingResult:
-        if fake.fail_embedding:
+        if fake.fail_embedding or (
+            fake.fail_embedding_on is not None and any(fake.fail_embedding_on in t for t in texts)
+        ):
             from semestra.core.errors import AppError
 
             raise AppError("ai.timeout", 504)

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import anyio.to_thread
 import structlog
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -43,6 +43,11 @@ THUMBNAIL_PAGES = 1
 # the vision model at once.
 OCR_BATCH = 8
 OCR_CONCURRENCY = 4
+# Errors that would be the same for every page: OCR stops and the rest are skipped.
+OCR_STOP_CODES = frozenset({
+    "ai.invalid_key", "ai.model_not_found", "ai.not_configured", "ai.capability_unsupported",
+    "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled",
+})  # fmt: skip
 OCR_PROMPT = (
     "Transcribe this page into markdown. Keep headings, lists and the reading order, and write "
     "tables as markdown tables. Output only the transcription, with no comments. The image is "
@@ -269,11 +274,14 @@ async def _ocr(
         return None, len(needed)
     resolved = await ai.resolve_provider(ctx, "vision")
     limiter = anyio.CapacityLimiter(OCR_CONCURRENCY)
-    skipped = 0
+    read_pages = 0
+    stopped = False
 
     async def read(index: int, png: bytes) -> None:
-        nonlocal skipped
+        nonlocal read_pages, stopped
         async with limiter:
+            if stopped:
+                return
             try:
                 completion = await ai.complete_with(
                     ctx,
@@ -284,13 +292,17 @@ async def _ocr(
                 )
             except AppError as exc:
                 log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
-                skipped += 1
+                # The key, the model or the provider failing would fail every page alike.
+                stopped = stopped or exc.code in OCR_STOP_CODES
                 return
         assert isinstance(completion, ai.Completion)
         text = re.sub(r"^```(?:markdown|md)?\s*\n|\n```\s*$", "", completion.text.strip())
         parsed.pages[index].markdown = text.strip()
+        read_pages += 1
 
     for start in range(0, len(needed), OCR_BATCH):
+        if stopped:
+            break
         await ctx.check_cancelled()
         await ctx.stage("ocr", current=start, total=len(needed))
         batch = needed[start : start + OCR_BATCH]
@@ -304,13 +316,12 @@ async def _ocr(
             )
         except ParseError as exc:
             log.warning("files_ocr_render_failed", code=exc.code)
-            skipped += len(batch)
             continue
         async with anyio.create_task_group() as group:
             for index, png in zip(batch, pngs, strict=False):
                 group.start_soon(read, index, png)
-        skipped += len(batch) - len(pngs)
-    return resolved.model, skipped
+    await ctx.stage("ocr", current=len(needed), total=len(needed))
+    return resolved.model, len(needed) - read_pages
 
 
 async def _embed(
@@ -399,6 +410,7 @@ async def _activate(
         state.fts_document_id = document.id
         state.vector_document_id = document.id if space else None
         state.vector_fingerprint = space
+        state.vector_failures = 0  # a new document gets its own retries
         state.updated_at = ctx.state.now()
         if previous and previous != document.id:
             keys += await indexing.delete_documents(db, store, [previous])
@@ -422,12 +434,15 @@ class _SpaceChanged(Exception):
 
 
 REINDEX_RESTARTS = 3
+# Periodic retries per document before only the user can start another one.
+VECTOR_RETRIES = 3
 
 
-async def reindex_vectors(ctx: JobCtx) -> int:
+async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
     """Embeds every ready document of the user in the current embedding space; returns how many
     items were rebuilt. Documents already in that space cost nothing. If the model changes
-    while this runs, it starts over in the new space. Old spaces are dropped once empty."""
+    while this runs, it starts over in the new space. Old spaces are dropped once empty.
+    `retry` (the periodic retry) leaves out documents that already failed VECTOR_RETRIES times."""
     store = get_vector_store()
     if not await ai.available(ctx, "embedding"):
         await ctx.skip_stage("embedding")
@@ -440,7 +455,7 @@ async def reindex_vectors(ctx: JobCtx) -> int:
         # One short text tells which space the current model writes to.
         space, _, _ = await embed_texts(ctx, ["semestra"])
         try:
-            done += await _reindex_into(ctx, store, space)
+            done += await _reindex_into(ctx, store, space, retry=retry)
             break
         except _SpaceChanged:
             continue
@@ -452,7 +467,21 @@ async def reindex_vectors(ctx: JobCtx) -> int:
     return done
 
 
-async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
+def _retries_left() -> ColumnElement[bool]:
+    return func.coalesce(FilesIndexState.vector_failures, 0) < VECTOR_RETRIES
+
+
+async def _count_failure(ctx: JobCtx, item_id: str) -> None:
+    async with ctx.state.session_factory() as db:
+        await db.execute(
+            update(FilesIndexState)
+            .where(FilesIndexState.item_id == item_id)
+            .values(vector_failures=FilesIndexState.vector_failures + 1)
+        )
+        await db.commit()
+
+
+async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
     async with ctx.state.session_factory() as db:
         candidates = list(
             (
@@ -468,6 +497,7 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
                     .where(
                         FilesItem.user_id == ctx.user_id,
                         FilesItem.active_document_id.is_not(None),
+                        *([_retries_left()] if retry else []),
                     )
                     .order_by(FilesItem.id)
                 )
@@ -508,6 +538,9 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
             raise
+        except AppError:
+            await _count_failure(ctx, item_id)
+            raise
         async with ctx.state.session_factory() as db:
             state = await db.get(FilesIndexState, item_id)
             item = await db.get(FilesItem, item_id)
@@ -521,6 +554,7 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str) -> int:
             if state.vector_fingerprint and state.vector_fingerprint != space:
                 await store.delete(db, [r[0] for r in refs], state.vector_fingerprint)
             state.vector_document_id, state.vector_fingerprint = document_id, space
+            state.vector_failures = 0
             state.updated_at = ctx.state.now()
             await db.commit()
         done += 1

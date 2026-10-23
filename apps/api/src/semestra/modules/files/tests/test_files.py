@@ -115,6 +115,20 @@ async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: Fake
     assert (await fx.search("photosynthesis"))["results"]
 
 
+async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):
+    from semestra.modules.files import pipeline
+
+    monkeypatch.setattr(pipeline, "OCR_CONCURRENCY", 1)
+    fake_ai.enabled.add("vision")
+    fake_ai.ocr_fail_calls = {1}
+    fake_ai.ocr_fail_code = "ai.invalid_key"
+    scanned = make_pdf([f"scan {n}" for n in range(10)], scanned=set(range(10)))
+    item = await fx.upload_ready("scan.pdf", scanned)
+    assert item["doc_status"] == "ready"
+    assert item["ocr_skipped_pages"] == 10
+    assert fake_ai.ocr_calls == 1  # not once per page
+
+
 # --- listing, folders, links ------------------------------------------------------------------
 
 
@@ -442,6 +456,25 @@ async def test_embedding_failure_keeps_keyword_search_and_is_retried(
     await run_periodic(fx.app.state, "files.retry_vectors")
     await fx.run_jobs()
     assert fake_ai.embed_calls == []  # nothing is missing any more
+
+
+async def test_a_document_that_keeps_failing_to_embed_stops_being_retried(fx: Fx, fake_ai: FakeAi):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.files import pipeline
+
+    fake_ai.enabled.add("embedding")
+    fake_ai.fail_embedding_on = "midterm"
+    item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    for _ in range(pipeline.VECTOR_RETRIES + 2):
+        fake_ai.embed_calls.clear()
+        await run_periodic(fx.app.state, "files.retry_vectors")
+        await fx.run_jobs()
+    assert fake_ai.embed_calls == []  # given up after VECTOR_RETRIES failed retries
+    # Reprocessing the file (or a new embedding model) tries again.
+    fake_ai.fail_embedding_on = None
+    await fx.call("POST", f"/files/{item['id']}:reprocess")
+    await fx.run_jobs()
+    assert (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic"
 
 
 async def test_changing_embedding_model_reindexes(fx: Fx, fake_ai: FakeAi):

@@ -63,20 +63,28 @@ client.interceptors.request.use((request) => {
   return withCsrf(request)
 })
 
+type ErrorBody = { error?: { code?: string } } | null
+
+/**
+ * Whether this response means the session lapsed and the user signed in again, so the request
+ * can be sent once more. Only a lapsed session asks for re-login: other 401s (e.g. a wrong current
+ * password while changing it) are ordinary errors the page shows itself.
+ */
+async function reauthenticated(status: number, url: string, body: ErrorBody): Promise<boolean> {
+  const isAuthRoute = new URL(url, window.location.href).pathname.startsWith('/auth/')
+  if (status !== 401 || isAuthRoute || !(isSignedIn() || isReauthPending())) return false
+  if (!SESSION_LAPSED.has(body?.error?.code ?? '')) return false
+  return requestReauth()
+}
+
 client.interceptors.response.use(async (response, request) => {
-  const isAuthRoute = new URL(request.url).pathname.startsWith('/auth/')
-  if (response.status !== 401 || isAuthRoute || !(isSignedIn() || isReauthPending())) {
-    return response
-  }
-  // Only a lapsed session asks for re-login. Other 401s (e.g. a wrong current password while
-  // changing it) are ordinary errors the page shows itself.
+  if (response.status !== 401) return response
   const body = (await response
     .clone()
     .json()
-    .catch(() => null)) as { error?: { code?: string } } | null
-  if (!SESSION_LAPSED.has(body?.error?.code ?? '')) return response
+    .catch(() => null)) as ErrorBody
   const backup = backups.get(request)
-  if (!backup || !(await requestReauth())) return response
+  if (!backup || !(await reauthenticated(response.status, request.url, body))) return response
   return fetch(withCsrf(backup), { credentials: 'include' })
 })
 
@@ -93,18 +101,35 @@ export function invalidateOperations(queryClient: QueryClient, operationIds: rea
   })
 }
 
+type ProgressOptions = { signal?: AbortSignal; onProgress?: (loaded: number) => void }
+
 /**
  * A multipart POST with real byte progress, which `fetch` cannot report (file uploads). Stays
- * outside the generated client, so it adds the CSRF header itself; errors are `ApiError`s.
+ * outside the generated client, so it adds the CSRF header itself and, like the client, sends
+ * the upload again after a lapsed session is signed back in; errors are `ApiError`s.
  */
-export function postWithProgress<T>(
+export async function postWithProgress<T>(
   path: string,
   form: FormData,
-  { signal, onProgress }: { signal?: AbortSignal; onProgress?: (loaded: number) => void } = {},
+  options: ProgressOptions = {},
 ): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
+  const url = `${client.getConfig().baseUrl ?? ''}${path}`
+  const first = await sendWithProgress(url, form, options)
+  const done = (await reauthenticated(first.status, url, first.body as ErrorBody))
+    ? await sendWithProgress(url, form, options)
+    : first
+  if (done.status >= 200 && done.status < 300) return done.body as T
+  throw toApiError(done.body, done.status)
+}
+
+function sendWithProgress(
+  url: string,
+  form: FormData,
+  { signal, onProgress }: ProgressOptions,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
-    request.open('POST', `${client.getConfig().baseUrl ?? ''}${path}`)
+    request.open('POST', url)
     request.withCredentials = true
     for (const [name, value] of Object.entries(csrfHeaders())) request.setRequestHeader(name, value)
     if (onProgress) request.upload.onprogress = (event) => onProgress(event.loaded)
@@ -115,8 +140,7 @@ export function postWithProgress<T>(
       } catch {
         // not JSON: handled as an unknown error below
       }
-      if (request.status >= 200 && request.status < 300) resolve(body as T)
-      else reject(toApiError(body, request.status))
+      resolve({ status: request.status, body })
     }
     request.onerror = () => reject(toApiError(null))
     request.onabort = () => reject(new DOMException('Aborted', 'AbortError'))

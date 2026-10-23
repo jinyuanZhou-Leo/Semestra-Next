@@ -144,4 +144,7 @@ class FilesIndexState(Base, OwnedMixin):
     fts_document_id: Mapped[str | None] = mapped_column(String, default=None)
     vector_document_id: Mapped[str | None] = mapped_column(String, default=None)
     vector_fingerprint: Mapped[str | None] = mapped_column(String, default=None)
+    # Vector retries that failed in a row for this document; past the limit the periodic retry
+    # leaves it alone until the file is reprocessed or the embedding model changes.
+    vector_failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)

@@ -6,7 +6,7 @@ import anyio
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
 from semestra.core.jobs import JOB_PROGRESS, JobCtx, enqueue, job_handler
@@ -110,6 +110,11 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
         row.source_refs = refs
         row.job_id = None
         row.updated_at = ctx.now
+        # A file that became ready between the check above and this commit sent its event while
+        # the session did not look waiting yet: look once more after the commit.
+        ctx.after_commit.append(
+            lambda: run_as_system(ctx.state, row.user_id, lambda c: _recheck(c, row.id))
+        )
         return ExtractResult(session_id=row.id, items=0, failed_sources=0)
     context = await service.build_context(ctx, row)
     builder = build.Builder(context)
@@ -210,13 +215,26 @@ async def on_course_file_done(ctx: Ctx, event: Event) -> None:
     )
     for row in rows:
         refs = row.source_refs
-        if not any(r.get("file_item_id") == item_id and r.get("status") == "waiting" for r in refs):
-            continue
-        job = await enqueue(
-            ctx,
-            "imports.extract",
-            ExtractPayload(session_id=row.id),
-            dedupe_key=f"extract:{row.id}",
-        )
-        row.job_id = job.id
-        row.updated_at = ctx.now
+        if any(r.get("file_item_id") == item_id and r.get("status") == "waiting" for r in refs):
+            await _restart(ctx, row)
+
+
+async def _restart(ctx: Ctx, row: ImportsSession) -> None:
+    job = await enqueue(
+        ctx, "imports.extract", ExtractPayload(session_id=row.id), dedupe_key=f"extract:{row.id}"
+    )
+    row.job_id = job.id
+    row.updated_at = ctx.now
+
+
+async def _recheck(ctx: Ctx, session_id: str) -> None:
+    """Restarts a waiting session whose course files are all done by now."""
+    row = await ctx.db.get(ImportsSession, session_id)
+    if row is None or row.status != "extracting" or row.job_id is not None:
+        return
+    for ref in row.source_refs:
+        if ref.get("status") == "waiting" and not await deps.course_file_ready(
+            ctx, ref["file_item_id"]
+        ):
+            return
+    await _restart(ctx, row)
