@@ -1,5 +1,15 @@
 # @semestra/web
 
+## 1.2.1
+
+### Patch Changes
+
+- dc7743e: <!-- en -->
+  Closing a dialog no longer makes the blurred background flash back for a moment.
+  <!-- zh -->
+  关闭弹窗时，背景模糊不会再闪一下。
+- @semestra/api-client@1.2.1
+
 ## 1.2.0
 
 ### Minor Changes

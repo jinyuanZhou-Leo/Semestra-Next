@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.2.1 (2026-10-23)
+
+### Fixed
+
+- Closing a dialog no longer makes the blurred background flash back for a moment.
+
 ## 1.2.0 (2026-10-23)
 
 ### New
