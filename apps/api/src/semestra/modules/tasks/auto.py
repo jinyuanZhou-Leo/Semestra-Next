@@ -57,6 +57,12 @@ async def sync_assessment(
     """Brings the task of one assessment in line with it. `info` is None once it is deleted.
     Without `create` only an existing task is updated or removed."""
     existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
+    await _sync(ctx, info, existing, create=create)
+
+
+async def _sync(
+    ctx: Ctx, info: AssessmentInfo | None, existing: TasksItem | None, *, create: bool
+) -> None:
     if info is None or info.due_at is None:
         # Gone or no longer scheduled: an unfinished task goes, a finished one stays.
         if existing is not None and existing.completed_at is None:
@@ -117,13 +123,14 @@ async def on_assessment_event(ctx: Ctx, kind: str, program_id: str, assessment_i
     """The switch only decides whether new tasks are made: tasks made while it was on keep
     following their assessment, since they stay read-only where the assessment decides."""
     create = await enabled(ctx, program_id)
-    if not create and await service.existing_by_source(ctx, SOURCE_KIND, assessment_id) is None:
+    existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
+    if not create and existing is None:
         return
     row = None if kind == "deleted" else await ctx.db.get(GradingAssessment, assessment_id)
     info = None
     if row is not None and row.user_id == ctx.user_id:
         info = await _info(ctx, row)
-    await sync_assessment(ctx, info, assessment_id, create=create)
+    await _sync(ctx, info, existing, create=create)
 
 
 async def backfill(ctx: Ctx, program_id: str) -> int:

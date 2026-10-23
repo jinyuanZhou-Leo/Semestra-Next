@@ -65,7 +65,7 @@ export function QuickAdd({
     if (parsed.dueTime && parsed.dueDate) task.due_time = parsed.dueTime
     if (parsed.priority) task.priority = parsed.priority
     reset()
-    await onAdd(task).catch(() => setText(text))
+    await onAdd(task).catch(() => setText((current) => current || text))
   }
   return (
     <div className="rounded-2xl bg-muted/50 px-3 py-2.5 focus-within:bg-muted">

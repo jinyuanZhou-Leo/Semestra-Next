@@ -44,27 +44,39 @@ export function useTasks(
   { sort, completed, limit = 500 }: { sort: SortKey; completed: 'hide' | 'only'; limit?: number },
   enabled = true,
 ) {
+  const options = tasksItemQueryOptions({
+    path: { program_id: scope.programId },
+    query: {
+      view:
+        selection.kind === 'smart' ? selection.view : selection.kind === 'inbox' ? 'inbox' : 'all',
+      list_id: selection.kind === 'list' ? selection.listId : undefined,
+      term_id: scope.termId,
+      course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
+      sort,
+      only_completed: completed === 'only' ? true : undefined,
+      limit,
+    },
+  })
   return useQuery({
-    ...tasksItemQueryOptions({
-      path: { program_id: scope.programId },
-      query: {
-        view:
-          selection.kind === 'smart'
-            ? selection.view
-            : selection.kind === 'inbox'
-              ? 'inbox'
-              : 'all',
-        list_id: selection.kind === 'list' ? selection.listId : undefined,
-        term_id: scope.termId,
-        course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
-        sort,
-        only_completed: completed === 'only' ? true : undefined,
-        limit,
-      },
-    }),
+    ...options,
     staleTime: STALE,
     enabled,
+    // Showing more keeps the rows already shown while the longer page loads; any other change
+    // (another list, sort or scope) starts empty rather than showing the wrong tasks.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && sameButLimit(previousQuery.queryKey, options.queryKey)
+        ? previous
+        : undefined,
   })
+}
+
+function sameButLimit(a: readonly unknown[], b: readonly unknown[]): boolean {
+  const strip = (key: readonly unknown[]) => {
+    const head = key[0] as KeyHead
+    const { limit: _limit, ...query } = head?.query ?? {}
+    return JSON.stringify([{ ...head, query }, ...key.slice(1)])
+  }
+  return strip(a) === strip(b)
 }
 
 /** The unfinished tasks due today or overdue, for the Today card (of a term: that term's). */

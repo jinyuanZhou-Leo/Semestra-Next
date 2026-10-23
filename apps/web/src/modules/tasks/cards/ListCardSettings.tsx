@@ -7,8 +7,8 @@ import { INBOX, SMART_VIEWS } from '../types'
 import type { ListCardSettings } from './schema'
 
 /**
- * Which list the list card shows: a smart list, Unsorted (`inbox`) or one of the lists the
- * card's term (or course's terms) can see: its own and the Program-wide ones.
+ * Which list the list card shows: a smart list, Unsorted (`inbox`) or one of the Program's lists;
+ * on a term's board only that term's and the Program-wide ones.
  */
 export default function ListCardSettingsForm({
   value,

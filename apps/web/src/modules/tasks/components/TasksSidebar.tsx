@@ -87,7 +87,11 @@ function useListGroups(
   lists: readonly TaskList[],
 ): { groups: ListGroup[]; label: (group: ListGroup) => string | undefined } {
   const terms = useTerms(programId).data?.items ?? []
-  const groups = groupLists(lists, termId ? [termId] : terms.map((t) => t.id))
+  // A term not loaded yet still gets its group (unlabelled until it is), so no list drops out.
+  const termIds = termId
+    ? [termId]
+    : [...new Set([...terms.map((t) => t.id), ...lists.flatMap((l) => l.term_id ?? [])])]
+  const groups = groupLists(lists, termIds)
   // One group needs no heading.
   const label = (group: ListGroup) =>
     groups.length < 2

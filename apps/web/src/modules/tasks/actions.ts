@@ -28,9 +28,12 @@ function patchPages(
   })) {
     if (!page) continue
     snapshot.push([key, page])
+    const items = patch(page, taskQueryKeys.params(key))
+    // A task that leaves a page leaves its total too.
     queryClient.setQueryData<TaskPage>(key, {
       ...page,
-      items: patch(page, taskQueryKeys.params(key)),
+      items,
+      total: page.total - (page.items.length - items.length),
     })
   }
   return snapshot
