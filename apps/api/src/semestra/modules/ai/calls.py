@@ -126,6 +126,8 @@ def _finish(
 ) -> None:
     ctx, resolved = call.ctx, call.resolved
     ep = resolved.endpoint
+    # When the call ended: an assistant turn's ctx is from its start, and a turn can run long.
+    now = ctx.state.now()
     duration_ms = int((time.monotonic() - call.started) * 1000)
     model_name = resolved.model
     error_code = error.code if error else None
@@ -136,7 +138,7 @@ def _finish(
         usage.input_tokens,
         usage.output_tokens,
         usage.cached_tokens,
-        at=ctx.now,
+        at=now,
     )
     rt = runtime(ctx.state)
     rt.record_usage(
@@ -156,11 +158,11 @@ def _finish(
             duration_ms=duration_ms,
             status="error" if error else "ok",
             error_code=error_code,
-            created_at=ctx.now,
+            created_at=now,
         ),
     )
     if ep.provider_id is not None and (error is None or error_code in _PROVIDER_ERRORS):
-        rt.mark_provider(ctx.state, ep.provider_id, error_code=error_code, checked_at=ctx.now)
+        rt.mark_provider(ctx.state, ep.provider_id, error_code=error_code, checked_at=now)
     log.info(
         "ai_call",
         purpose=resolved.purpose,

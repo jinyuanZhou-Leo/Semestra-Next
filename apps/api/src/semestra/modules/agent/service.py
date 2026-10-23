@@ -13,6 +13,7 @@ from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, storage_usage_provider
+from semestra.modules.agent import history
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -59,7 +60,7 @@ def scope_ref(row: AgentSession) -> ScopeRef | None:
     return ScopeRef(row.scope["program_id"], row.scope.get("term_id"), row.scope.get("course_id"))
 
 
-async def _check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
+async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
     """The scope must be the user's own Program, term and course."""
     if scope is None:
         return
@@ -103,7 +104,7 @@ async def create_session(
     *,
     temporary: bool = False,
 ) -> AgentSession:
-    await _check_scope(ctx, scope)
+    await check_scope(ctx, scope)
     if client_key is not None and (existing := await _session_by_key(ctx, client_key)):
         return existing
     row = AgentSession(
@@ -147,7 +148,7 @@ async def update_session(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSession
     if "archived" in fields and inp.archived is not None:
         row.archived_at = ctx.now if inp.archived else None
     if "scope" in fields:
-        await _check_scope(ctx, inp.scope)
+        await check_scope(ctx, inp.scope)
         row.scope = inp.scope.model_dump() if inp.scope else None
         row.program_id = inp.scope.program_id if inp.scope else None
     await ctx.db.flush()
@@ -173,10 +174,6 @@ async def delete_session(ctx: Ctx, session_id: str) -> None:
             await storage.delete(key)
 
     ctx.after_commit.append(_remove_files)
-
-
-async def touch(ctx: Ctx, session: AgentSession) -> None:
-    session.updated_at = ctx.now
 
 
 # --- transcript ----------------------------------------------------------------------------
@@ -256,11 +253,6 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
     )
 
 
-def _has_content(row: AgentMessage) -> bool:
-    """A user row the person wrote (rows of only `note` blocks are added by Semestra)."""
-    return row.role == "user" and any(b.get("type") != "note" for b in row.content)
-
-
 def reset_turn(session: AgentSession) -> None:
     """A new user message (or Continue): the tool-call counts of the loop start afresh."""
     st = dict(session.state or {})
@@ -274,7 +266,9 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     are listed in a `note` block on the edited message so the model does not repeat them.
     Skill and attachments are kept; attachments only the dropped messages used are deleted."""
     rows = await messages(ctx, session.id)
-    index = next((i for i, r in enumerate(rows) if r.id == message_id and _has_content(r)), None)
+    index = next(
+        (i for i, r in enumerate(rows) if r.id == message_id and history.is_typed(r)), None
+    )
     if index is None:
         raise not_found()
     row = rows[index]

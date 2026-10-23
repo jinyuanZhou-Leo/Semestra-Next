@@ -69,15 +69,6 @@ class Capability:
     # confirmation card shows each sent field as stored before → after (`core.labels`).
     record: tuple[str, Loader] | None = field(default=None, compare=False)
 
-    def tool_spec(self) -> dict[str, Any]:
-        """What an agent or MCP client sees: name, description and the input JSON schema."""
-        return {
-            "name": self.name,
-            "description": f"{self.summary}\n\n{self.description}",
-            "input_schema": self.input_model.model_json_schema(),
-            "effect": self.effect,
-        }
-
     @property
     def operation_id(self) -> str:
         head, *rest = re.split(r"[._]", self.name)

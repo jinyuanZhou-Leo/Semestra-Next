@@ -129,7 +129,7 @@ async def send_message(
 async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody) -> None:
     text = body.text.strip()
     if body.scope is not None and body.scope.model_dump() != session.scope:
-        await service._check_scope(ctx, body.scope)  # pyright: ignore[reportPrivateUsage]
+        await service.check_scope(ctx, body.scope)
         session.scope = body.scope.model_dump()
         session.program_id = body.scope.program_id
 
