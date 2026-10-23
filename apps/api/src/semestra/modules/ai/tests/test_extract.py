@@ -38,11 +38,12 @@ def ev(value: Any, page: int | None, quote: str, confidence: float = 0.9) -> dic
 
 
 def tool_reply(payload: dict[str, Any]) -> Response:
+    """Claude's JSON schema mode: the result is the text of the reply."""
     return Response(
         200,
         json={
-            "content": [{"type": "tool_use", "id": "x", "name": "Syllabus", "input": payload}],
-            "stop_reason": "tool_use",
+            "content": [{"type": "text", "text": json.dumps(payload)}],
+            "stop_reason": "end_turn",
             "usage": {"input_tokens": 100, "output_tokens": 20},
         },
     )

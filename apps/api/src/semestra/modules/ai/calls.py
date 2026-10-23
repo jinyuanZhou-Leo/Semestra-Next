@@ -10,15 +10,18 @@ import asyncio
 import json
 import re
 import time
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
 import structlog
-from pydantic import BaseModel, ValidationError
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic import BaseModel
+from pydantic_ai import Agent, NativeOutput, PromptedOutput, ToolOutput
+from pydantic_ai.direct import model_request
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import Model
 
 from semestra.core.context import Ctx
@@ -26,14 +29,10 @@ from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
 from semestra.modules.ai import catalog
-from semestra.modules.ai.adapters import adapter_for, convert, semestra_model
-from semestra.modules.ai.adapters.base import (
-    CALL_TIMEOUT_SECONDS,
-    STREAM_IDLE_TIMEOUT_SECONDS,
-    ChatRequest,
-)
+from semestra.modules.ai.adapters import SemestraModel, adapter_for, convert, semestra_model
+from semestra.modules.ai.adapters.base import CALL_TIMEOUT_SECONDS, STREAM_IDLE_TIMEOUT_SECONDS
+from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS
 from semestra.modules.ai.llm import (
-    Chunk,
     Completion,
     Document,
     EmbeddingResult,
@@ -42,8 +41,6 @@ from semestra.modules.ai.llm import (
     Purpose,
     Rasterize,
     Text,
-    Tool,
-    ToolResult,
     Usage,
 )
 from semestra.modules.ai.models import AiUsageEvent
@@ -103,8 +100,6 @@ def _input_chars(messages: Sequence[Message]) -> int:
         for part in msg.content:
             if isinstance(part, Text):
                 total += len(part.text)
-            elif isinstance(part, ToolResult):
-                total += len(part.content)
     return total
 
 
@@ -217,51 +212,58 @@ def _client(ctx: Ctx, *, stream: bool) -> httpx.AsyncClient:
 
 # --- chat -----------------------------------------------------------------------------------
 
+# (when the request started, the response or None, the error or None)
+_Request = tuple[float, ModelResponse | None, AppError | None]
 
-async def _complete_once(call: _Call, req: ChatRequest, *, record_ok: bool = True) -> Completion:
-    """One call with its usage recorded. With `record_ok=False` a successful reply is left for
-    the caller to record (structured output only knows after validating it)."""
-    ep = call.resolved.endpoint
+
+def _response_text(response: ModelResponse) -> str:
+    """What the model answered: its text, or the arguments of a forced output tool call."""
+    text = "".join(p.content for p in response.parts if isinstance(p, TextPart))
+    calls = [p.args_as_json_str() for p in response.parts if isinstance(p, ToolCallPart)]
+    return text or "\n".join(calls)
+
+
+def _log_requests(call: _Call, requests: list[_Request], failure: AppError | None) -> None:
+    """Each request of a call in the usage log. A structured answer that never validated marks
+    its last request; the earlier ones were normal, billed calls."""
+    for n, (started, response, error) in enumerate(requests):
+        one = replace(call, started=started)
+        if response is None:
+            _finish(one, Usage(), error=error)
+            continue
+        last_invalid = failure is not None and failure.code == "ai.output_invalid"
+        _finish(
+            one,
+            convert.usage(response.usage),
+            error=failure if last_invalid and n == len(requests) - 1 else None,
+            output=_response_text(response),
+            model=response.model_name or call.resolved.model,
+        )
+
+
+async def _run[T](call: _Call, work: Callable[[SemestraModel], Awaitable[T]]) -> T:
+    """Runs `work` on the call's model within `CALL_TIMEOUT_SECONDS`; every request it makes is
+    logged (`SemestraModel` retries and maps errors per request)."""
+    resolved = call.resolved
+    requests: list[_Request] = []
+    failure: AppError | None = None
+
+    def record(started: float, response: ModelResponse | None, error: AppError | None) -> None:
+        requests.append((started, response, error))
+
     try:
         async with _client(call.ctx, stream=False) as client, asyncio.timeout(CALL_TIMEOUT_SECONDS):
-            completion = await adapter_for(ep.kind).complete(client, ep, req)
+            ep = resolved.endpoint
+            return await work(semestra_model(client, ep, resolved.model, resolved.params, record))
     except TimeoutError:
-        error = AppError("ai.timeout", 504)
-        _finish(call, Usage(), error=error)
-        raise error from None
-    except AppError as exc:
-        _finish(call, Usage(), error=exc)
-        raise
-    completion.provider_kind = ep.kind
-    completion.model = completion.model or req.model
-    if record_ok:
-        _finish(call, completion.usage, output=completion.text, model=completion.model)
-    return completion
-
-
-async def _stream(call: _Call, req: ChatRequest) -> AsyncIterator[Chunk]:
-    ep = call.resolved.endpoint
-    finished = False
-    try:
-        async with _client(call.ctx, stream=True) as client:
-            async for chunk in adapter_for(ep.kind).stream(client, ep, req):
-                if chunk.done is not None:
-                    chunk.done.provider_kind = ep.kind
-                    _finish(call, chunk.done.usage, output=chunk.done.text, model=chunk.done.model)
-                    finished = True
-                yield chunk
-    except AppError as exc:
-        finished = True
-        _finish(call, Usage(), error=exc)
-        raise
+        failure = AppError("ai.timeout", 504)
+        requests.append((call.started, None, failure))  # the request cut off never recorded
+        raise failure from None
+    except UnexpectedModelBehavior:
+        failure = AppError("ai.output_invalid", 502)
+        raise failure from None
     finally:
-        if not finished:  # the consumer stopped early or the task was cancelled
-            _finish(call, Usage(), error=AppError("ai.cancelled", 499))
-
-
-def _check_tools(resolved: Resolved, tools: Sequence[Tool] | None) -> None:
-    if tools and "tools" not in resolved.endpoint.capabilities:
-        raise AppError("ai.capability_unsupported", 400, capability="tools")
+        _log_requests(call, requests, failure)
 
 
 async def complete(
@@ -269,47 +271,22 @@ async def complete(
     purpose: Purpose,
     messages: Sequence[Message],
     *,
-    tools: Sequence[Tool] | None = None,
-    stream: bool = False,
     source_module: str,
     source_ref: str | None = None,
     rasterize: Rasterize | None = None,
-) -> Completion | AsyncIterator[Chunk]:
-    """A chat completion, or with `stream=True` an iterator of chunks whose last one carries
-    the whole completion. Raises `ai.not_configured` when nothing serves `purpose`."""
+) -> Completion:
+    """A chat completion. Raises `ai.not_configured` when nothing serves `purpose`."""
     resolved = await resolve_provider(ctx, purpose)
-    return await complete_with(
-        ctx,
-        resolved,
-        messages,
-        tools=tools,
-        stream=stream,
-        source_module=source_module,
-        source_ref=source_ref,
-        rasterize=rasterize,
-    )
-
-
-async def complete_with(
-    ctx: Ctx,
-    resolved: Resolved,
-    messages: Sequence[Message],
-    *,
-    tools: Sequence[Tool] | None = None,
-    stream: bool = False,
-    source_module: str,
-    source_ref: str | None = None,
-    rasterize: Rasterize | None = None,
-) -> Completion | AsyncIterator[Chunk]:
-    _check_tools(resolved, tools)
     prepared = await _prepare_messages(resolved, messages, rasterize)
-    req = ChatRequest(
-        model=resolved.model, messages=prepared, tools=list(tools or []), params=resolved.params
-    )
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
-    if stream:
-        return _stream(call, req)
-    return await _complete_once(call, req)
+    history = convert.to_messages(prepared)
+    response = await _run(call, lambda model: model_request(model, history, instrument=False))
+    return Completion(
+        text="".join(p.content for p in response.parts if isinstance(p, TextPart)),
+        usage=convert.usage(response.usage),
+        provider_kind=resolved.endpoint.kind,
+        model=response.model_name or resolved.model,
+    )
 
 
 # --- structured output ----------------------------------------------------------------------
@@ -348,29 +325,18 @@ def _has_ref(node: Any) -> bool:
     return False
 
 
-_FENCE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
-
-
-def _parse_json(text: str) -> Any:
-    match = _FENCE.match(text)
-    raw = match.group(1) if match else text.strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        # Some models add a sentence around the object: take the outermost braces.
-        start, end = raw.find("{"), raw.rfind("}")
-        if start == -1 or end <= start:
-            raise
-        return json.loads(raw[start : end + 1])
-
-
-def _validation_feedback(exc: ValidationError | json.JSONDecodeError) -> str:
-    if isinstance(exc, json.JSONDecodeError):
-        return f"The reply was not valid JSON ({exc.msg} at position {exc.pos})."
-    issues = [
-        f"{'.'.join(str(p) for p in e['loc']) or '(root)'}: {e['msg']}" for e in exc.errors()[:20]
-    ]
-    return "The JSON did not match the schema:\n" + "\n".join(issues)
+def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]) -> Any:
+    """The API's JSON schema mode where the provider has one; Anthropic models without it (older
+    Claude, most compatible endpoints) get a forced tool call whose input is the result; providers
+    with no structured output at all get the schema in the prompt."""
+    kind = resolved.endpoint.kind
+    name = re.sub(r"[^A-Za-z0-9_-]", "_", schema.__name__)[:64] or "result"
+    if "structured" not in resolved.endpoint.capabilities:
+        return PromptedOutput(schema, name=name)
+    if kind in ANTHROPIC_KINDS and not model.profile.get("supports_json_schema_output"):
+        return ToolOutput(schema, name=name, description="Record the result. Call this once.")
+    # Claude's JSON mode is always strict (Pydantic AI adapts the schema to it).
+    return NativeOutput(schema, name=name, strict=None if kind in ANTHROPIC_KINDS else False)
 
 
 async def structured_with[T: BaseModel](
@@ -385,49 +351,17 @@ async def structured_with[T: BaseModel](
     rasterize: Rasterize | None = None,
 ) -> tuple[T, Usage]:
     prepared = await _prepare_messages(resolved, messages, rasterize)
-    native = "structured" in resolved.endpoint.capabilities
-    req = ChatRequest(
-        model=resolved.model,
-        messages=prepared,
-        params=resolved.params,
-        json_schema=inline_refs(schema.model_json_schema()),
-        schema_name=re.sub(r"[^A-Za-z0-9_-]", "_", schema.__name__)[:64] or "result",
-        json_mode_fallback=not native,
-    )
-    usage = Usage()
-    for attempt in range(max_retries + 1):
-        call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), req.messages)
-        completion = await _complete_once(call, req, record_ok=False)
-        usage.add(completion.usage)
-        try:
-            value = schema.model_validate(_parse_json(completion.text))
-        except (ValidationError, json.JSONDecodeError) as exc:
-            last = attempt == max_retries
-            # A retried reply was still a normal, billed call; only the last one is the failure.
-            _finish(
-                call,
-                completion.usage,
-                error=AppError("ai.output_invalid", 502) if last else None,
-                output=completion.text,
-                model=completion.model,
-            )
-            if last:
-                break
-            # Show the model its mistake and ask again (M06 §5).
-            req = replace(
-                req,
-                messages=[
-                    *req.messages,
-                    Message.assistant(completion.text or "(empty reply)"),
-                    Message.user(
-                        _validation_feedback(exc) + "\nReply again with the corrected JSON only."
-                    ),
-                ],
-            )
-            continue
-        _finish(call, completion.usage, output=completion.text, model=completion.model)
-        return value, usage
-    raise AppError("ai.output_invalid", 502)
+    call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
+    history = convert.to_messages(prepared)
+
+    async def work(model: SemestraModel) -> tuple[T, Usage]:
+        # Invalid output goes back to the model with the validation errors (M06 §5).
+        output = _output_spec(resolved, model, schema)
+        agent = Agent(model, output_type=output, retries={"output": max_retries})
+        result = await agent.run(None, message_history=history)
+        return result.output, convert.usage(result.usage)
+
+    return await _run(call, work)
 
 
 async def structured[T: BaseModel](
@@ -442,8 +376,8 @@ async def structured[T: BaseModel](
     rasterize: Rasterize | None = None,
 ) -> T:
     """The model's answer as a validated `schema` instance: the provider's native structured
-    output where it has one, otherwise JSON mode; invalid output is retried with the validation
-    errors shown to the model, then raises `ai.output_invalid`."""
+    output where it has one, otherwise the schema in the prompt; invalid output is retried with
+    the validation errors shown to the model, then raises `ai.output_invalid`."""
     resolved = await resolve_provider(ctx, purpose)
     value, _ = await structured_with(
         ctx,
@@ -537,10 +471,6 @@ class AgentModel:
         return catalog.context_window(self.resolved.model, ep.kind, ep.base_url)
 
 
-def _output_text(response: ModelResponse) -> str:
-    return "".join(p.content for p in response.parts if isinstance(p, TextPart))
-
-
 @asynccontextmanager
 async def agent_model(
     ctx: Ctx, purpose: Purpose = "chat", *, source_module: str = "agent"
@@ -557,7 +487,7 @@ async def agent_model(
         _finish(
             call,
             convert.usage(response.usage),
-            output=_output_text(response),
+            output=_response_text(response),
             model=response.model_name or resolved.model,
         )
 

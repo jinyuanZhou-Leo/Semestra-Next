@@ -18,7 +18,7 @@ from structlog.testing import capture_logs
 
 from semestra.core.errors import AppError
 from semestra.modules import ai as m06
-from semestra.modules.ai.llm import Document, Image, Message, Text, Tool, ToolCall, ToolResult
+from semestra.modules.ai.llm import Document, Image, Message, Text
 from semestra.modules.ai.models import AiProvider, AiUsageEvent
 from semestra.modules.ai.tests.conftest import (
     ANTHROPIC,
@@ -150,12 +150,11 @@ async def test_anthropic_message_conversion_and_usage(ai: Ai, app: FastAPI, mock
     messages = [
         Message.system("Be brief."),
         Message.user("Read this", Image(PNG, "image/png"), Document(PDF)),
-        Message.assistant(ToolCall("t1", "lookup", {"q": "x"})),
-        Message("tool", [ToolResult("t1", "lookup", "found")]),
+        Message.assistant("Read."),
+        Message.user("And?"),
     ]
-    tools = [Tool("lookup", "Look things up", {"type": "object", "properties": {}})]
     async with ai.ctx() as ctx:
-        result = await m06.complete(ctx, "chat", messages, tools=tools, source_module="test")
+        result = await m06.complete(ctx, "chat", messages, source_module="test")
     assert isinstance(result, m06.Completion)
     body = json.loads(route.calls.last.request.content)
     assert body["system"] == "Be brief."
@@ -167,10 +166,9 @@ async def test_anthropic_message_conversion_and_usage(ai: Ai, app: FastAPI, mock
     assert body["messages"][0]["content"][2]["type"] == "document"
     assert body["messages"][1] == {
         "role": "assistant",
-        "content": [{"type": "tool_use", "id": "t1", "name": "lookup", "input": {"q": "x"}}],
+        "content": [{"type": "text", "text": "Read."}],
     }
-    assert body["messages"][2]["content"][0]["type"] == "tool_result"
-    assert body["tools"][0]["name"] == "lookup"
+    assert "tools" not in body
 
     rows = await usage_rows(app)
     assert len(rows) == 1
@@ -253,126 +251,26 @@ async def test_context_too_long_is_recognised(ai: Ai, mock: respx.MockRouter):
     assert exc.value.code == "ai.context_too_long"
 
 
-async def test_anthropic_stream_writes_usage_at_the_end(
-    ai: Ai, app: FastAPI, mock: respx.MockRouter
-):
-    models_ok(mock)
-    await ai.provider("anthropic")
-    events = [
-        {
-            "type": "message_start",
-            "message": {
-                "model": "claude-sonnet-5-5",
-                "usage": {"input_tokens": 9, "output_tokens": 0},
-            },
-        },
-        {"type": "content_block_start", "index": 0, "content_block": {"type": "text"}},
-        {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hel"}},
-        {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "lo"}},
-        {"type": "content_block_stop", "index": 0},
-        {
-            "type": "content_block_start",
-            "index": 1,
-            "content_block": {"type": "tool_use", "id": "c1", "name": "lookup"},
-        },
-        {
-            "type": "content_block_delta",
-            "index": 1,
-            "delta": {"type": "input_json_delta", "partial_json": '{"q":'},
-        },
-        {
-            "type": "content_block_delta",
-            "index": 1,
-            "delta": {"type": "input_json_delta", "partial_json": ' "x"}'},
-        },
-        {"type": "content_block_stop", "index": 1},
-        {
-            "type": "message_delta",
-            "delta": {"stop_reason": "tool_use"},
-            "usage": {"output_tokens": 4},
-        },
-        {"type": "message_stop"},
-    ]
-    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
-    mock.post(f"{ANTHROPIC}/v1/messages").mock(
-        return_value=Response(200, text=sse, headers={"content-type": "text/event-stream"})
-    )
-    tools = [Tool("lookup", "Look up", {"type": "object"})]
-    async with ai.ctx() as ctx:
-        stream = await m06.complete(
-            ctx, "chat", [Message.user("hi")], tools=tools, stream=True, source_module="agent"
-        )
-        assert not isinstance(stream, m06.Completion)
-        chunks = [c async for c in stream]
-    assert [c.text for c in chunks if c.text] == ["Hel", "lo"]
-    assert [c.tool_call for c in chunks if c.tool_call] == [ToolCall("c1", "lookup", {"q": "x"})]
-    done = chunks[-1].done
-    assert done is not None
-    assert done.text == "Hello"
-    assert done.stop_reason == "tool_use"
-    [row] = await usage_rows(app)
-    assert (row.input_tokens, row.output_tokens, row.source_module) == (9, 4, "agent")
-
-
-async def test_stream_failure_is_logged_as_error(ai: Ai, app: FastAPI, mock: respx.MockRouter):
-    models_ok(mock)
-    await ai.provider("anthropic")
-    mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=Response(401))
-    async with ai.ctx() as ctx:
-        stream = await m06.complete(
-            ctx, "chat", [Message.user("hi")], stream=True, source_module="t"
-        )
-        assert not isinstance(stream, m06.Completion)
-        with pytest.raises(AppError):
-            async for _ in stream:
-                pass
-    [row] = await usage_rows(app)
-    assert (row.status, row.error_code) == ("error", "ai.invalid_key")
-
-
 # --- openai ---------------------------------------------------------------------------------
 
 
-async def test_openai_tools_images_and_pdf(ai: Ai, mock: respx.MockRouter):
+async def test_openai_images_and_pdf(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("openai")
-    route = mock.post(f"{OPENAI}/chat/completions").mock(
-        return_value=openai_reply(
-            None,
-            [
-                {
-                    "id": "c1",
-                    "type": "function",
-                    "function": {"name": "lookup", "arguments": '{"q": 1}'},
-                }
-            ],
-        )
-    )
+    route = mock.post(f"{OPENAI}/chat/completions").mock(return_value=openai_reply("Seen"))
     messages = [
         Message.system("sys"),
         Message.user("look", Image(PNG, "image/jpeg"), Document(PDF)),
-        Message.assistant("calling", ToolCall("c0", "lookup", {})),
-        Message("tool", [ToolResult("c0", "lookup", "none")]),
     ]
     async with ai.ctx() as ctx:
-        result = await m06.complete(
-            ctx,
-            "chat",
-            messages,
-            tools=[Tool("lookup", "d", {"type": "object"})],
-            source_module="t",
-        )
-    assert isinstance(result, m06.Completion)
-    assert result.tool_calls == [ToolCall("c1", "lookup", {"q": 1})]
-    assert result.stop_reason == "tool_use"
+        result = await m06.complete(ctx, "chat", messages, source_module="t")
+    assert result.text == "Seen"
     body = json.loads(route.calls.last.request.content)
     assert body["messages"][0] == {"role": "system", "content": "sys"}
     user = body["messages"][1]["content"]
     assert user[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert user[2]["type"] == "file"
     assert user[2]["file"]["file_data"].startswith("data:application/pdf;base64,")
-    assert body["messages"][2]["tool_calls"][0]["function"]["arguments"] == "{}"
-    assert body["messages"][3] == {"role": "tool", "tool_call_id": "c0", "content": "none"}
     assert route.calls.last.request.headers["authorization"].startswith("Bearer sk-proj-")
 
 
@@ -539,9 +437,8 @@ async def test_structured_retries_with_the_validation_error(
     assert first["output_config"]["format"]["type"] == "json_schema"
     assert first["output_config"]["format"]["schema"]["required"] == ["code", "credits"]
     second = json.loads(route.calls[1].request.content)
-    feedback = second["messages"][-1]["content"][0]["text"]
+    feedback = json.dumps(second["messages"][-1])
     assert "credits" in feedback
-    assert "corrected JSON" in feedback
     assert len(await usage_rows(app)) == 2
 
 
@@ -585,8 +482,10 @@ async def test_json_mode_fallback_for_compatible_endpoints(ai: Ai, mock: respx.M
         )
     assert result.code == "MAT187"
     body = json.loads(route.calls.last.request.content)
-    assert "response_format" not in body
-    assert "JSON Schema" in body["messages"][0]["content"]
+    # No JSON schema mode here: JSON mode at most, and the schema in the prompt.
+    assert body.get("response_format", {}).get("type") != "json_schema"
+    system = [m["content"] for m in body["messages"] if m["role"] == "system"]
+    assert any('"credits"' in str(c) for c in system)  # the schema, in the prompt
     assert "authorization" not in route.calls.last.request.headers
 
 
@@ -626,7 +525,7 @@ async def test_pdf_is_rasterized_for_ollama(ai: Ai, mock: respx.MockRouter):
     assert body["stream"] is False
 
 
-async def test_images_need_vision_and_tools_need_tools(ai: Ai, mock: respx.MockRouter):
+async def test_images_need_vision(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     provider = await ai.provider("openai_compatible", capabilities=["chat"])
     await ai.call(
@@ -640,11 +539,6 @@ async def test_images_need_vision_and_tools_need_tools(ai: Ai, mock: respx.MockR
                 ctx, "chat", [Message.user(Image(PNG, "image/png"))], source_module="t"
             )
         assert exc.value.params == {"capability": "vision"}
-        with pytest.raises(AppError) as exc:
-            await m06.complete(
-                ctx, "chat", [Message.user("x")], tools=[Tool("f", "d", {})], source_module="t"
-            )
-        assert exc.value.params == {"capability": "tools"}
 
 
 async def test_logs_never_contain_prompts_or_outputs(ai: Ai, mock: respx.MockRouter):
@@ -682,7 +576,7 @@ def test_wrap_untrusted_neutralises_closing_tags():
     assert Text("x") == Text("x")
 
 
-async def test_gemini_and_ollama_streams(ai: Ai, app: FastAPI, mock: respx.MockRouter):
+async def test_gemini_and_ollama_completions(ai: Ai, app: FastAPI, mock: respx.MockRouter):
     models_ok(mock)
     gemini = await ai.provider("gemini")
     ollama = await ai.provider("ollama")
@@ -691,66 +585,25 @@ async def test_gemini_and_ollama_streams(ai: Ai, app: FastAPI, mock: respx.MockR
         "/ai/assignments",
         json={"purpose": "title", "provider_id": ollama["id"], "model": "qwen3:8b"},
     )
-    events = [
-        {"candidates": [{"content": {"parts": [{"text": "Hi "}]}}]},
-        {
-            "candidates": [
-                {
-                    "content": {"parts": [{"functionCall": {"name": "f", "args": {"a": 1}}}]},
-                    "finishReason": "STOP",
-                }
-            ],
-            "usageMetadata": {
-                "promptTokenCount": 3,
-                "candidatesTokenCount": 2,
-                "thoughtsTokenCount": 1,
-            },
-        },
-    ]
-    mock.post(f"{GEMINI}/models/gemini-2.5-pro:streamGenerateContent").mock(
-        return_value=Response(200, text="".join(f"data: {json.dumps(e)}\r\n\r\n" for e in events))
-    )
-    base = {"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "qwen3:8b"}
-    chunks = [
-        {**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Wee"}}]},
-        {**base, "choices": [{"index": 0, "delta": {"content": "k 3"}}]},
-        {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
-        {
-            **base,
-            "choices": [],
-            "usage": {"prompt_tokens": 4, "completion_tokens": 2, "total_tokens": 6},
-        },
-    ]
-    mock.post(f"{OLLAMA}/v1/chat/completions").mock(
+    mock.post(f"{GEMINI}/models/gemini-2.5-pro:generateContent").mock(
         return_value=Response(
             200,
-            text="".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n",
-            headers={"content-type": "text/event-stream"},
+            json={
+                "candidates": [{"content": {"parts": [{"text": "Hi"}]}, "finishReason": "STOP"}],
+                "usageMetadata": {
+                    "promptTokenCount": 3,
+                    "candidatesTokenCount": 2,
+                    "thoughtsTokenCount": 1,
+                },
+            },
         )
     )
+    mock.post(f"{OLLAMA}/v1/chat/completions").mock(return_value=ollama_reply("Week 3", 4, 2))
     async with ai.ctx() as ctx:
-        g = await m06.complete(
-            ctx,
-            "chat",
-            [Message.user("x")],
-            tools=[Tool("f", "d", {"type": "object"})],
-            stream=True,
-            source_module="t",
-        )
-        o = await m06.complete(ctx, "title", [Message.user("x")], stream=True, source_module="t")
-        assert not isinstance(g, m06.Completion)
-        assert not isinstance(o, m06.Completion)
-        g_done = [c async for c in g][-1].done
-        o_done = [c async for c in o][-1].done
-    assert g_done is not None
-    assert g_done.text == "Hi "
-    assert g_done.stop_reason == "tool_use"
-    [call] = g_done.tool_calls
-    assert (call.name, call.arguments) == ("f", {"a": 1})
-    assert call.id  # Gemini sends no call ids: one is made up
-    assert (g_done.usage.input_tokens, g_done.usage.output_tokens) == (3, 3)
-    assert o_done is not None
-    assert (o_done.text, o_done.usage.output_tokens) == ("Week 3", 2)
+        g = await m06.complete(ctx, "chat", [Message.user("x")], source_module="t")
+        o = await m06.complete(ctx, "title", [Message.user("x")], source_module="t")
+    assert (g.text, g.usage.input_tokens, g.usage.output_tokens) == ("Hi", 3, 3)
+    assert (o.text, o.usage.output_tokens) == ("Week 3", 2)
     assert gemini["capabilities_editable"] is False
     assert len(await usage_rows(app)) == 2
 
@@ -791,62 +644,3 @@ async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     body = json.loads(route.calls.last.request.content)
     assert body["requests"][0]["model"] == "models/gemini-embedding-001"
     assert body["requests"][0]["content"]["parts"] == [{"text": "a"}]
-
-
-async def test_anthropic_stream_passes_on_the_thinking_text(ai: Ai, mock: respx.MockRouter):
-    models_ok(mock)
-    await ai.provider("anthropic")
-    events = [
-        {
-            "type": "message_start",
-            "message": {
-                "model": "claude-sonnet-5-5",
-                "usage": {"input_tokens": 9, "output_tokens": 0},
-            },
-        },
-        {
-            "type": "content_block_start",
-            "index": 0,
-            "content_block": {"type": "thinking", "thinking": "", "signature": ""},
-        },
-        {
-            "type": "content_block_delta",
-            "index": 0,
-            "delta": {"type": "thinking_delta", "thinking": "Two plus "},
-        },
-        {
-            "type": "content_block_delta",
-            "index": 0,
-            "delta": {"type": "thinking_delta", "thinking": "two."},
-        },
-        {
-            "type": "content_block_delta",
-            "index": 0,
-            "delta": {"type": "signature_delta", "signature": "SIG"},
-        },
-        {"type": "content_block_stop", "index": 0},
-        {"type": "content_block_start", "index": 1, "content_block": {"type": "text"}},
-        {"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": "4"}},
-        {"type": "content_block_stop", "index": 1},
-        {
-            "type": "message_delta",
-            "delta": {"stop_reason": "end_turn"},
-            "usage": {"output_tokens": 4},
-        },
-        {"type": "message_stop"},
-    ]
-    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
-    mock.post(f"{ANTHROPIC}/v1/messages").mock(
-        return_value=Response(200, text=sse, headers={"content-type": "text/event-stream"})
-    )
-    async with ai.ctx() as ctx:
-        stream = await m06.complete(
-            ctx, "chat", [Message.user("2+2?")], stream=True, source_module="agent"
-        )
-        assert not isinstance(stream, m06.Completion)
-        chunks = [c async for c in stream]
-    assert [c.thinking for c in chunks if c.thinking] == ["Two plus ", "two."]
-    assert [c.text for c in chunks if c.text] == ["4"]
-    done = chunks[-1].done
-    assert done is not None
-    assert [(r.content, r.signature) for r in done.reasoning] == [("Two plus two.", "SIG")]

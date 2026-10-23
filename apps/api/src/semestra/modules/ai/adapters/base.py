@@ -1,8 +1,7 @@
 """What every provider kind shares: the request shape, retries and error mapping."""
 
 import asyncio
-import json
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -10,7 +9,7 @@ import httpx
 import structlog
 
 from semestra.core.errors import AppError
-from semestra.modules.ai.llm import Chunk, Completion, Message, ProviderCapability, Tool, Usage
+from semestra.modules.ai.llm import ProviderCapability, Usage
 
 log = structlog.get_logger()
 
@@ -18,7 +17,7 @@ log = structlog.get_logger()
 MAX_RETRIES = 3
 RETRY_BASE_SECONDS = 1.0  # tests set this to 0
 MAX_RETRY_AFTER_SECONDS = 30.0
-# Non-streaming calls give up after this long; a stream after this long without data.
+# A call gives up after this long; a stream after this long without data.
 CALL_TIMEOUT_SECONDS = 120.0
 STREAM_IDLE_TIMEOUT_SECONDS = 60.0
 
@@ -46,32 +45,13 @@ class ModelParams:
 
 
 @dataclass(frozen=True)
-class ChatRequest:
-    model: str
-    messages: list[Message]
-    tools: list[Tool] = field(default_factory=lambda: [])
-    params: ModelParams = field(default_factory=ModelParams)
-    # Ask for JSON matching this schema (structured output); `schema_name` names it.
-    json_schema: dict[str, Any] | None = None
-    schema_name: str = "result"
-    # The provider has no native structured output: ask for JSON in the prompt instead.
-    json_mode_fallback: bool = False
-
-
-@dataclass(frozen=True)
 class ModelInfo:
     id: str
     display_name: str | None = None
 
 
 class Adapter(Protocol):
-    async def complete(
-        self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
-    ) -> Completion: ...
-
-    def stream(
-        self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
-    ) -> AsyncIterator[Chunk]: ...
+    """What the providers' own SDKs do (chat goes through `SemestraModel`)."""
 
     async def embed(
         self, client: httpx.AsyncClient, ep: Endpoint, model: str, texts: list[str]
@@ -208,11 +188,3 @@ async def backoff(attempt: int, error: AppError) -> None:
     if (after := error.params.get("retry_after")) is not None:
         delay = min(float(after), MAX_RETRY_AFTER_SECONDS) if RETRY_BASE_SECONDS else 0
     await asyncio.sleep(delay)
-
-
-def json_instruction(schema: dict[str, Any]) -> str:
-    """System text for providers without native structured output (JSON mode fallback)."""
-    return (
-        "Reply with one JSON object and nothing else (no prose, no code fence). "
-        "It must validate against this JSON Schema:\n" + json.dumps(schema, ensure_ascii=False)
-    )

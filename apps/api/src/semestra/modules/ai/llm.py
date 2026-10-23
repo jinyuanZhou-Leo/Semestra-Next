@@ -1,12 +1,13 @@
 """The provider-neutral request and response shapes of M06 (§5).
 
-Callers build `Message`s from these parts; each adapter converts them to its provider's format.
-They are plain dataclasses on purpose: they carry bytes (images, PDFs) and never go over HTTP.
+Callers build `Message`s from these parts (`adapters/convert.py` turns them into Pydantic AI
+messages). They are plain dataclasses on purpose: they carry bytes (images, PDFs) and never go
+over HTTP. The assistant (M12) talks to Pydantic AI directly and does not use them.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Literal
 
 Purpose = Literal["chat", "extraction", "vision", "embedding", "title"]
 PURPOSES: tuple[Purpose, ...] = ("chat", "extraction", "vision", "embedding", "title")
@@ -50,39 +51,8 @@ class Document:
     mime: str = "application/pdf"
 
 
-@dataclass(frozen=True)
-class ToolCall:
-    id: str
-    name: str
-    arguments: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class ToolResult:
-    call_id: str
-    name: str
-    content: str
-    is_error: bool = False
-
-
-@dataclass(frozen=True)
-class Reasoning:
-    """A model's reasoning (Claude thinking, an OpenAI reasoning item), kept as the provider sent
-    it so the next turn can send it back. Opaque to callers: `signature` may be encrypted.
-
-    Only replayed to the provider and model that produced it (`source`); others ignore it.
-    """
-
-    source: str  # "<provider kind>:<provider id>:<model>"
-    content: str = ""
-    id: str | None = None
-    signature: str | None = None
-    provider_name: str | None = None
-    details: dict[str, Any] | None = None
-
-
-Part = Text | Image | Document | ToolCall | ToolResult | Reasoning
-Role = Literal["system", "user", "assistant", "tool"]
+Part = Text | Image | Document
+Role = Literal["system", "user", "assistant"]
 
 
 @dataclass(frozen=True)
@@ -103,13 +73,6 @@ class Message:
         return cls("assistant", [Text(p) if isinstance(p, str) else p for p in parts])
 
 
-@dataclass(frozen=True)
-class Tool:
-    name: str
-    description: str
-    input_schema: dict[str, Any]
-
-
 @dataclass
 class Usage:
     input_tokens: int = 0
@@ -123,31 +86,12 @@ class Usage:
             self.cached_tokens = (self.cached_tokens or 0) + other.cached_tokens
 
 
-StopReason = Literal["end", "tool_use", "max_tokens", "other"]
-
-
 @dataclass
 class Completion:
     text: str
-    tool_calls: list[ToolCall] = field(default_factory=lambda: [])
-    stop_reason: StopReason = "end"
     usage: Usage = field(default_factory=Usage)
     provider_kind: str = ""
     model: str = ""
-    # Send back with the assistant's message on the next turn (`Message.assistant(*reasoning, …)`).
-    reasoning: list[Reasoning] = field(default_factory=lambda: [])
-
-
-@dataclass(frozen=True)
-class Chunk:
-    """One streamed piece: a text delta, a reasoning delta, a finished tool call, or (last) the
-    whole completion."""
-
-    text: str | None = None
-    # The readable part of the model's reasoning (a summary for most providers), as it streams.
-    thinking: str | None = None
-    tool_call: ToolCall | None = None
-    done: Completion | None = None
 
 
 @dataclass(frozen=True)
