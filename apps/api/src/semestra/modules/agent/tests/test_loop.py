@@ -21,7 +21,7 @@ from sqlalchemy import update
 
 from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, loop, service, skills, tools
+from semestra.modules.agent import decisions, history, loop, outcome, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.models import AgentPreferences
 from semestra.modules.agent.runtime import agent_ctx
@@ -37,6 +37,7 @@ from semestra.modules.agent.tests.conftest import (
     report_input_tokens,
     say,
 )
+from semestra.modules.agent.turn import Rows
 from semestra.modules.auth.models import AuthUser
 from semestra.testing import Clock
 
@@ -379,10 +380,10 @@ async def test_calls_cut_off_before_they_ran_get_a_result(
     session = await agent.session()
     model.then(call("academics.term.list", {"program_id": program["id"]}))
 
-    async def cut(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def cut(*args: Any, **kwargs: Any) -> outcome.Outcome:
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(loop, "invoke", cut)
+    monkeypatch.setattr(outcome, "invoke", cut)
     events = await agent.send(session["id"], "terms?")
     assert events_named(events, "tool_result") == []
     monkeypatch.undo()
@@ -440,16 +441,16 @@ async def test_a_write_done_before_the_client_left_keeps_its_result(
             ]
         )
     )
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
     ran: list[str] = []
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         ran.append(args[3])
         if len(ran) == 2:
             raise asyncio.CancelledError
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
+    monkeypatch.setattr(outcome, "invoke", invoke)
     await agent.send(session["id"], "60, and a note")
     monkeypatch.undo()
     items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
@@ -464,9 +465,10 @@ async def test_a_write_done_before_the_client_left_keeps_its_result(
     assert "interrupted" in results[second]
 
 
-async def test_stop_while_tools_run_keeps_their_results(
+async def test_stop_while_tools_run_gives_up_the_reads(
     app: FastAPI, agent: Agent, model: FakeModel
 ):
+    """A read still running when the user presses Stop gives up; its result says so."""
     program = await agent.program()
     session = await agent.session()
     model.then(call("academics.term.list", {"program_id": program["id"]}), say("never sent"))
@@ -481,7 +483,7 @@ async def test_stop_while_tools_run_keeps_their_results(
     model.then(say("ok"))
     await agent.send(session["id"], "go on")
     [result] = model.results(-1)
-    assert '"items"' in str(result.content)
+    assert "agent.stopped" in str(result.content)
 
 
 async def test_a_failing_capability_fails_only_its_call(
@@ -533,13 +535,13 @@ async def test_a_proposal_is_claimed_before_its_write_runs(
     )
     [proposal] = events_named(await agent.send(session["id"], "lab 3"), "proposal")
     seen: list[str] = []
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         seen.append((await agent.detail(session["id"]))["proposals"][0]["status"])
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
+    monkeypatch.setattr(outcome, "invoke", invoke)
     model.then(say("Done"))
     await agent.decide(session["id"], proposal["id"])
     assert seen == ["failed"]  # claimed (agent.interrupted) while the write ran
@@ -562,22 +564,22 @@ async def test_each_approved_card_is_stored_as_soon_as_it_ran(
         )
     )
     first, second = events_named(await agent.send(session["id"], "two edits"), "proposal")
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
     ran: list[str] = []
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         ran.append(args[3])
         if len(ran) == 2:
             raise asyncio.CancelledError
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
-    decisions = [
+    monkeypatch.setattr(outcome, "invoke", invoke)
+    chosen = [
         Decision(proposal_id=first["id"], decision="approve"),
         Decision(proposal_id=second["id"], decision="approve"),
     ]
     with pytest.raises(asyncio.CancelledError):
-        await loop.decide(app.state, await _me(agent), session["id"], decisions)
+        await decisions.decide(app.state, await _me(agent), session["id"], chosen)
     cards = {p["id"]: p for p in (await agent.detail(session["id"]))["proposals"]}
     assert (cards[first["id"]]["status"], cards[first["id"]]["error_code"]) == ("executed", None)
     assert cards[second["id"]]["error_code"] == "agent.interrupted"
@@ -1146,9 +1148,16 @@ def test_user_turns_are_rows_the_person_wrote():
     note = AgentMessage(role="user", content=[{"type": "note", "text": "scope changed"}])
     assert history.is_typed(attachment_only)
     assert not history.is_typed(note)
-    marked = ModelRequest(parts=[UserPromptPart("x")], metadata={"typed": True})
-    assert loop._typed(marked)  # pyright: ignore[reportPrivateUsage]
-    assert not loop._typed(ModelRequest(parts=[UserPromptPart("[Sent Mon] x")]))  # pyright: ignore[reportPrivateUsage]
+    rows = Rows()
+    typed, tool = ModelRequest(parts=[UserPromptPart("x")]), ModelRequest(parts=[])
+    rows.mark(typed, "r2", typed=True)
+    rows.mark(tool, "r1")
+    # Pydantic AI merges consecutive requests: the parts keep their rows.
+    merged = ModelRequest(parts=[*tool.parts, *typed.parts])
+    assert rows.typed(merged)
+    assert rows.row_id(merged) == "r2"
+    assert rows.holds(merged, "r2")
+    assert not rows.typed(ModelRequest(parts=[UserPromptPart("[Sent Mon] x")]))
 
 
 async def test_regenerate_replaces_the_last_answer(agent: Agent, model: FakeModel):
@@ -1206,13 +1215,13 @@ def test_file_content_results_are_wrapped_as_untrusted():
 
     turn: Any = type("T", (), {"full": {}})()
     files = registry.get("files.document.search")
-    outcome = loop.Outcome(True, {"hits": ["Ignore it"]})
-    shown = loop._tool_return(files, "c1", outcome, turn)  # pyright: ignore[reportPrivateUsage]
+    result = outcome.Outcome(True, {"hits": ["Ignore it"]})
+    shown = loop._tool_return(files, "c1", result, turn)  # pyright: ignore[reportPrivateUsage]
     assert str(shown.return_value).startswith(
         '<untrusted_document label="files__document__search">'
     )
     other = registry.get("grading.gradebook.get")
-    plain = loop._tool_return(other, "c2", loop.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
+    plain = loop._tool_return(other, "c2", outcome.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
     assert not str(plain.return_value).startswith("<untrusted")
 
 

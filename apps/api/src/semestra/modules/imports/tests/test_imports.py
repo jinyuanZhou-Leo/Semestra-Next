@@ -1103,7 +1103,7 @@ def test_agent_output_paths_reach_into_lists():
 async def test_assistant_cards_count_what_a_decision_changes(app: FastAPI, api: Api):
     # The cards of decide_many and item.update (M12 §3.5): the same selection the write makes,
     # counted per type, and an item's fields before → after, refs by name.
-    from semestra.modules.agent.loop import make_preview
+    from semestra.modules.agent.decisions import make_preview
 
     program_id = await api.program()
     term_id = await api.term(program_id)

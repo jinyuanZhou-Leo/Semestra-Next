@@ -21,7 +21,7 @@ from starlette.types import Receive, Scope, Send
 from semestra.core.capability import Capability, registry
 from semestra.core.context import AuthInfo, Ctx
 from semestra.core.errors import AppError
-from semestra.modules.agent import loop, service, skills, tools
+from semestra.modules.agent import outcome, service, skills, tools
 from semestra.modules.agent.runtime import agent_ctx
 
 _IDENTITY = "semestra_mcp_identity"
@@ -138,10 +138,10 @@ async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.Cal
             {"error": {"code": "auth.token_scope", "params": {"tool": params.name}}}, error=True
         )
     auth = AuthInfo(kind="pat", token_id=ident.token_id, scopes=ident.scopes)
-    outcome = await loop.invoke(
+    result = await outcome.invoke(
         state, ident.user_id, None, name, dict(params.arguments or {}), surface="mcp", auth=auth
     )
-    return _text(outcome.payload, error=not outcome.ok)
+    return _text(result.payload, error=not result.ok)
 
 
 async def _visible_skills(ctx: Ctx, ident: McpIdentity) -> list[skills.Skill]:

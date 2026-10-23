@@ -386,7 +386,8 @@ async def test_consolidation_writes_nothing_until_the_model_answers(
     app.state.agent.memory_model = working
     clock.advance(minutes=10)
     await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1 and "majoring in ECE" in seen[0]
+    assert len(seen) == 1
+    assert "majoring in ECE" in seen[0]
     assert [m["name"] for m in await _memories(agent)] == ["major"]
     clock.advance(hours=1)
     await run_periodic(app.state, "agent.memory.consolidate")

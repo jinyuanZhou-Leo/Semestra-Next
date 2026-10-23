@@ -18,14 +18,14 @@ from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
-from semestra.modules.agent import attachments, loop, service, skills, tools
+from semestra.modules.agent import attachments, decisions, loop, service, skills, store, tools
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
     AgentProposal,
     AgentSession,
 )
-from semestra.modules.agent.runtime import AgentRuntime, Claim
+from semestra.modules.agent.runtime import AgentRuntime, Claim, agent_ctx
 from semestra.modules.agent.schemas import (
     AgentAttachmentOut,
     DecideBody,
@@ -56,16 +56,16 @@ async def _check_ai(ctx: Ctx, rt: AgentRuntime) -> None:
 async def _events(
     state: State,
     claim: Claim,
-    before: Sequence[loop.Event] = (),
+    before: Sequence[store.Event] = (),
     run_model: bool = True,
 ) -> AsyncIterator[dict[str, str]]:
     """The turn's events; the slot claimed by the route is held until the turn ends."""
     try:
         for item in before:
-            yield loop.sse(item)
+            yield store.sse(item)
         if run_model:
             async for item in loop.generate(state, claim.user_id, claim.session_id, claim.cancel):
-                yield loop.sse(item)
+                yield store.sse(item)
     finally:
         claim.release()
 
@@ -142,14 +142,14 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
             }
         )
     # Cards still waiting get a placeholder result first: the history stays append-only.
-    await loop.close_open_calls(ctx, session)
+    await decisions.close_open_calls(ctx, session)
     service.reset_turn(session)
     service.add_message(ctx, session, "user", blocks, message_id=new_id())
     await ctx.db.commit()
 
 
 async def _decide(
-    request: Request, ctx: Ctx, session_id: str, decisions: list[Decision]
+    request: Request, ctx: Ctx, session_id: str, chosen: list[Decision]
 ) -> EventSourceResponse:
     rt = _runtime(request)
     session = await service.get_session_row(ctx, session_id)
@@ -159,9 +159,9 @@ async def _decide(
     # proposal (two tabs, "approve all" and a card, a retry) can never both execute it.
     claim = rt.claim(user_id, session.id)
     try:
-        events, resume = await loop.decide(state, user_id, session.id, decisions)
+        events, resume = await decisions.decide(state, user_id, session.id, chosen)
         if resume:
-            async with loop.agent_ctx(state, user_id, scope=None) as check:
+            async with agent_ctx(state, user_id, scope=None) as check:
                 resume = await rt.chat_available(check)
     except BaseException:
         claim.release()
@@ -258,7 +258,7 @@ async def continue_turn(
     await ctx.db.close()
     claim = rt.claim(user_id, session.id)
     try:
-        await loop.continue_turn(state, user_id, session.id)
+        await decisions.continue_turn(state, user_id, session.id)
     except BaseException:
         claim.release()
         raise

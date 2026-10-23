@@ -1741,6 +1741,7 @@
   "error_agent_busy": "Sem is still answering. Try again in a moment.",
   "error_agent_tool_limit_reached": "Skipped: Sem reached the step limit for this message.",
   "error_agent_repeated_call": "Skipped: Sem already made this exact call several times.",
+  "error_agent_stopped": "Stopped: this call did not run, or gave up when you pressed Stop.",
   "error_agent_not_paused": "There is nothing to continue.",
   "error_agent_proposal_expired": "This confirmation expired. Ask again.",
   "error_agent_proposal_not_pending": "This was already decided.",

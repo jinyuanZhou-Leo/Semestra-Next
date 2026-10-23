@@ -1741,6 +1741,7 @@
   "error_agent_busy": "Sem 还在回答，请稍后再试。",
   "error_agent_tool_limit_reached": "已跳过：Sem 这条消息的步骤数已达上限。",
   "error_agent_repeated_call": "已跳过：Sem 已经多次发起完全相同的调用。",
+  "error_agent_stopped": "已停止：这次调用没有运行，或在你点击停止时放弃了。",
   "error_agent_not_paused": "没有可以继续的内容。",
   "error_agent_proposal_expired": "这个确认已过期，请重新发起。",
   "error_agent_proposal_not_pending": "这个操作已经处理过了。",

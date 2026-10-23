@@ -80,7 +80,7 @@ async def stored_boards(app: FastAPI) -> int:
 
 async def test_the_remove_card_of_a_generated_card_stores_nothing(app: FastAPI, api: Api):
     # The assistant's confirmation card only reads: the user may still reject it.
-    from semestra.modules.agent.loop import make_preview
+    from semestra.modules.agent.decisions import make_preview
 
     _, _, course_id = await api.scopes()
     note = (await api.board("course", course_id))["cards"][1]

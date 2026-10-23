@@ -5,31 +5,28 @@
                                            with `DeferredToolRequests` and waits for the user
             → model → … → answer
 
-Deciding the proposals resumes the run with `DeferredToolResults`. Every message is stored as
-soon as it is complete (`agent_messages.model_parts`), so a stopped or failed turn keeps what was
-said. Each step opens its own short database session; the model streams outside any transaction.
+Deciding the proposals (`decisions.decide`) resumes the run with `DeferredToolResults`. Every
+message is stored as soon as it is complete (`store.Store`), so a stopped or failed turn keeps
+what was said. Each step opens its own short database session; the model streams outside any
+transaction.
 
 Per user message the model gets `TOOL_CALL_LIMIT` tool calls and `REQUEST_LIMIT` requests,
 counted across approvals. At the limit, or when it repeats one call `REPEAT_PAUSE` times, the
 extra calls are not run, the model answers once more without tools (what is done, what is left)
-and the turn pauses: the user can press Continue (`continue_turn`).
+and the turn pauses: the user can press Continue (`decisions.continue_turn`).
 """
 
 import asyncio
-import json
-import time
-from collections.abc import AsyncIterator, Sequence
-from dataclasses import asdict, dataclass, field, fields, replace
-from typing import Any, Literal
+from collections.abc import AsyncIterator, Awaitable, Sequence
+from dataclasses import dataclass, replace
+from typing import Any
 
 import structlog
-from pydantic import BaseModel
 from pydantic_ai import Agent, AgentRun, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability, Caching, ToolSearch
 from pydantic_ai.capabilities import Capability as Bundle
 from pydantic_ai.exceptions import ApprovalRequired, SkipToolExecution, UnexpectedModelBehavior
 from pydantic_ai.messages import (
-    SYNTHESIZED_TOOL_RETURN_METADATA_KEY,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
@@ -37,14 +34,12 @@ from pydantic_ai.messages import (
     ModelResponse,
     PartDeltaEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
     ToolAvailabilityDeltaPart,
     ToolCallPart,
-    ToolReturnPart,
 )
 from pydantic_ai.models import Model, ModelRequestContext
 from pydantic_ai.native_tools import SUPPORTED_NATIVE_TOOLS
@@ -60,14 +55,27 @@ from pydantic_ai.tools import (
 from pydantic_ai.usage import UsageLimits
 from starlette.datastructures import State
 
-from semestra.core.capability import Capability, Surface, registry
-from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
+from semestra.core.capability import Capability, registry
+from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
-from semestra.modules.agent import display, history, memory, service, skills, tools
+from semestra.modules.agent import history, memory, outcome, service, skills, tools
+from semestra.modules.agent.compaction import compact
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
+from semestra.modules.agent.decisions import close_calls, edited, make_preview
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
+from semestra.modules.agent.outcome import Outcome
 from semestra.modules.agent.runtime import ChatLike, agent_ctx
+from semestra.modules.agent.store import (
+    Answer,
+    Event,
+    Store,
+    elapsed_ms,
+    event,
+    result_event,
+    save_state,
+)
+from semestra.modules.agent.turn import Counters, Rows, Turn
 from semestra.modules.ai import Message, wrap_untrusted
 
 log = structlog.get_logger()
@@ -76,13 +84,9 @@ TOOL_CALL_LIMIT = 30
 REQUEST_LIMIT = 50
 REPEAT_BLOCK = 3  # the same call with the same arguments this many times in a row: not run
 REPEAT_PAUSE = 5  # ... this many times: the turn pauses as at the limit
-PARALLEL_READS = 4
 TOOL_RETRIES = 5  # unknown tools and bad search arguments, per tool and run
-COMPACT_RATIO = 0.7
-KEEP_USER_TURNS = 2
 TITLE_MAX_CHARS = 20
 
-PauseReason = Literal["tool_limit", "loop"]
 PAUSE_NOTES: dict[str, str] = {
     "tool_limit": (
         "You reached the limit of tool calls or model requests for this message, so the turn "
@@ -100,213 +104,26 @@ PAUSE_NOTES: dict[str, str] = {
         "Continue to let you try again."
     ),
 }
-CONTINUE_NOTE = "The user pressed Continue: carry on from where you stopped."
-
-Event = dict[str, Any]
 
 
-def event(name: str, /, **data: Any) -> Event:
-    return {"event": name, "data": data}
+# --- the tools ------------------------------------------------------------------------------
 
 
-# --- running one capability -----------------------------------------------------------------
-
-
-@dataclass
-class Outcome:
-    ok: bool
-    payload: Any
-    error_code: str | None = None
-    citations: list[dict[str, Any]] = field(default_factory=lambda: [])
-    ran: bool = True  # False for a rejected proposal: nothing was executed
-    display: dict[str, Any] = field(default_factory=lambda: {})  # the chat's line (display.py)
-
-    @property
-    def content(self) -> str:
-        return tools.serialize(self.payload)
-
-
-def _citations(payload: Any) -> list[dict[str, Any]]:
-    """Results that quote files carry `citations: [{id, ...}]` (M07); the UI resolves
-    `[[cite:<id>]]` markers against them."""
-    raw = payload.get("citations") if isinstance(payload, dict) else None
-    if not isinstance(raw, list):
-        return []
-    return [c for c in raw if isinstance(c, dict) and isinstance(c.get("id"), str)]  # pyright: ignore[reportUnknownVariableType]
-
-
-def _error_payload(exc: AppError) -> dict[str, Any]:
-    return {"error": {"code": exc.code, "params": exc.params}}
-
-
-def _error(code: str, **params: Any) -> Outcome:
-    return Outcome(False, {"error": {"code": code, "params": params}}, code)
-
-
-async def invoke(
-    state: State,
-    user_id: str,
-    scope: ScopeRef | None,
-    name: str,
-    args: dict[str, Any],
-    *,
-    surface: Surface = "agent",
-    auth: AuthInfo | None = None,
-) -> Outcome:
-    """Runs a capability in its own transaction as the agent (or MCP client), then dispatches
-    its events so open pages refresh."""
-    async with agent_ctx(state, user_id, scope=scope, actor=surface) as ctx:
-        ctx.auth = auth
-        try:
-            out = await registry.invoke(ctx, name, args, surface)
-            await ctx.db.commit()
-            payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
-            shown = await _display(ctx, name, args, payload) if surface == "agent" else {}
-        except AppError as exc:
-            await ctx.db.rollback()
-            return Outcome(False, _error_payload(exc), exc.code)
-        except Exception:
-            # A bug in one capability fails that call, not the whole turn.
-            log.exception("agent_capability_failed", capability=name)
-            await ctx.db.rollback()
-            return _error("common.internal")
-    await run_after_commit(ctx)
-    return Outcome(True, payload, citations=_citations(payload), display=shown)
-
-
-async def _display(ctx: Ctx, name: str, args: dict[str, Any], payload: Any) -> dict[str, Any]:
-    """The chat's names and counts for this call; a failure here never fails the call."""
-    try:
-        return await display.describe(ctx, name, args, payload)
-    except Exception:
-        log.exception("agent_display_failed", capability=name)
-        return {}
-
-
-def _proposal_outcome(row: AgentProposal) -> Outcome:
-    """What a decided proposal gave, as the tool's result."""
-    if row.status == "executed":
-        return Outcome(
-            True, row.result, citations=_citations(row.result), display=row.display or {}
-        )
-    if row.status == "failed":
-        code = row.error_code or "agent.interrupted"
-        payload = row.result if row.result is not None else {"error": {"code": code, "params": {}}}
-        return Outcome(False, payload, code, display=row.display or {})
-    if row.status == "rejected":
-        message = (row.result or {}).get("message") if isinstance(row.result, dict) else None
-        return Outcome(True, {"rejected": True, "message": message or REJECTED}, ran=False)
-    return Outcome(True, history.EXPIRED if row.status == "expired" else history.PENDING, ran=False)
-
-
-REJECTED = "The user rejected this action; it was not executed."
-
-
-# --- proposals ------------------------------------------------------------------------------
-
-
-async def _generic_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
-    """Each argument as a change, before → after for an update, ids by name (agent/display).
-    A failure here leaves the card without details, never without the card."""
-    try:
-        return await display.preview(ctx, cap.name, args)
-    except Exception:
-        log.exception("agent_display_failed", capability=cap.name)
-        return {"changes": []}
-
-
-async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
-    """The capability's own `preview` (changes with before → after, a link), else the
-    arguments as a list. Raises `common.validation` for arguments the model got wrong, and the
-    capability's own `check` errors, before the card is shown."""
-    inp = await registry.validate(ctx, cap, args, "agent")
-    out: dict[str, Any] = {"changes": []}
-    if cap.preview is not None:
-        preview = await cap.preview(ctx, inp)
-        if isinstance(preview, BaseModel):
-            out = preview.model_dump(mode="json")
-        elif isinstance(preview, dict):
-            out = dict(preview)  # pyright: ignore[reportUnknownArgumentType]
-    else:
-        out = await _generic_preview(ctx, cap, args)
-    if not out.get("target"):
-        # What the card is about, by name: the ids in the arguments are never shown.
-        try:
-            names = await display.labels(ctx, cap.name, args)
-        except Exception:
-            log.exception("agent_display_failed", capability=cap.name)
-            names = []
-        if names:
-            out["target"] = " · ".join(names)
-    return out
-
-
-# --- what one run shares ----------------------------------------------------------------------
-
-
-@dataclass
-class Counters:
-    """Per user message, kept in `session.state["turn"]` across approvals; Continue resets it."""
-
-    tool_calls: int = 0
-    requests: int = 0
-    last_call: str | None = None
-    repeats: int = 0
-    # Set at the limit or on a loop: a run resumed after approvals goes straight to the answer.
-    pause: PauseReason | None = None
-
-    @classmethod
-    def load(cls, raw: Any) -> Counters:
-        if not isinstance(raw, dict):
-            return cls()
-        names = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in raw.items() if k in names})  # pyright: ignore[reportUnknownArgumentType]
-
-
-@dataclass
-class Turn:
-    """Pydantic AI's `deps` for one run: what the tools and the hooks below share."""
-
-    state: State
-    user_id: str
-    session_id: str
-    scope: ScopeRef | None
-    model: ChatLike
-    caps: dict[str, Capability]
-    auto_approve: frozenset[str]
-    skills: dict[str, skills.Skill]
-    counters: Counters
-    memo: dict[str, Any]  # session.state without "turn": the compaction summary
-    work: str  # the work context (second part of the instructions)
-    decided: dict[str, Outcome] = field(default_factory=lambda: {})  # approved, by call id
-    edited: dict[str, dict[str, Any]] = field(
-        default_factory=lambda: {}
-    )  # args changed on the card
-    full: dict[str, tuple[str, str]] = field(default_factory=lambda: {})  # uncut results
-    sem: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(PARALLEL_READS))
-
-
-def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: Turn) -> ToolReturn:
+def _tool_return(cap: Capability | None, call_id: str, result: Outcome, turn: Turn) -> ToolReturn:
     """The model gets the result as JSON (cut at `RESULT_LIMIT`, wrapped when it quotes other
     people's text); the UI's fields ride along in the metadata, which the model never sees."""
     name = cap.name if cap is not None else ""
-    text = outcome.content
+    text = result.content
     shown = tools.page(text, call_id)
-    meta: dict[str, Any] = {
-        "ok": outcome.ok,
-        "error_code": outcome.error_code,
-        "changed": bool(outcome.ok and outcome.ran and cap is not None and cap.effect != "read"),
-        "citations": outcome.citations,
-        "display": outcome.display,
-    }
+    meta = outcome.result_meta(cap, result)
     if shown != text:
         meta["full"] = text
         turn.full[call_id] = (name, text)
-    if outcome.ok and outcome.ran and name in memory.WRITES and isinstance(outcome.payload, dict):
+    if result.ok and result.ran and name in memory.WRITES and isinstance(result.payload, dict):
         # The chat shows "Remembered: …" with an undo link that deletes the memory this call
         # created, "Updated memory: …" with one that puts back what it replaced, or "Forgot: …".
         # A call that changed nothing shows nothing (an undo would touch an older memory).
-        saved: dict[str, Any] = outcome.payload  # pyright: ignore[reportUnknownVariableType]
+        saved: dict[str, Any] = result.payload  # pyright: ignore[reportUnknownVariableType]
         about = {"id": saved["id"], "name": saved["name"], "description": saved["description"]}
         if name == memory.FORGET:
             meta["memory"] = {**about, "action": "forgot"}
@@ -316,9 +133,27 @@ def _tool_return(cap: Capability | None, call_id: str, outcome: Outcome, turn: T
             before: dict[str, Any] = saved["previous"]
             previous = {k: before[k] for k in ("name", "type", "description", "body")}
             meta["memory"] = {**about, "action": "updated", "previous": previous}
-    if outcome.ok and tools.is_untrusted(name):
+    if result.ok and tools.is_untrusted(name):
         shown = wrap_untrusted(shown, tools.tool_name(name))
     return ToolReturn(return_value=shown, metadata=meta)
+
+
+STOPPED = "agent.stopped"
+
+
+async def _unless_stopped(turn: Turn, work: Awaitable[Outcome]) -> Outcome:
+    """A read gives up when the user presses Stop; it changed nothing, so nothing is lost."""
+    task = asyncio.ensure_future(work)
+    stop = asyncio.ensure_future(turn.cancel.wait())
+    try:
+        await asyncio.wait({task, stop}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        stop.cancel()
+    if task.done():
+        return task.result()
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    return outcome.error(STOPPED, ran=False)
 
 
 def _tool(cap: Capability) -> tools.ToolFunction:
@@ -326,27 +161,31 @@ def _tool(cap: Capability) -> tools.ToolFunction:
         turn, call_id = ctx.deps, ctx.tool_call_id or ""
         if ctx.tool_call_approved:
             # Approved cards ran when the user decided (`decide`); the run only collects them.
-            outcome = turn.decided.get(call_id) or _error("agent.interrupted")
+            result = turn.decided.get(call_id) or outcome.error("agent.interrupted")
             if call_id in turn.edited:
                 # The call in the history keeps the model's arguments: say what actually ran.
-                outcome = replace(
-                    outcome,
+                result = replace(
+                    result,
                     payload={
                         "note": "The user changed the arguments on the card; it ran with these.",
                         "arguments": turn.edited[call_id],
-                        "result": outcome.payload,
+                        "result": result.payload,
                     },
                 )
+        elif turn.cancel.is_set():
+            # Stopped before this call started: it does not run (a write least of all).
+            result = outcome.error(STOPPED, ran=False)
         elif cap.effect == "read":
             async with turn.sem:
-                outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+                work = outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+                result = await _unless_stopped(turn, work)
         else:
             token = memory.conversation.set(turn.session_id)
             try:
-                outcome = await invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+                result = await outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
             finally:
                 memory.conversation.reset(token)
-        return _tool_return(cap, call_id, outcome, turn)
+        return _tool_return(cap, call_id, result, turn)
 
     return run
 
@@ -379,7 +218,8 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
 
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
     cap = turn.caps.get(tools.capability_name(call.tool_name))
-    return SkipToolExecution(_tool_return(cap, call.tool_call_id, _error(code, **params), turn))
+    result = outcome.error(code, ran=False, **params)
+    return SkipToolExecution(_tool_return(cap, call.tool_call_id, result, turn))
 
 
 class _Hooks(AbstractCapability[Turn]):
@@ -423,8 +263,8 @@ class _Hooks(AbstractCapability[Turn]):
                 filled = await registry.with_context_args(c, cap, args)
                 preview = await make_preview(c, cap, filled)
         except AppError as exc:  # wrong arguments go back to the model without a card
-            outcome = Outcome(False, _error_payload(exc), exc.code)
-            raise SkipToolExecution(_tool_return(cap, call.tool_call_id, outcome, turn)) from None
+            result = Outcome(False, outcome.error_payload(exc), exc.code)
+            raise SkipToolExecution(_tool_return(cap, call.tool_call_id, result, turn)) from None
         raise ApprovalRequired(metadata={"preview": preview, "args": filled})
 
     async def after_tool_execute(
@@ -464,7 +304,7 @@ class _Hooks(AbstractCapability[Turn]):
     ) -> ModelRequestContext:
         turn = ctx.deps
         messages = [m for m in (_replayable(m, turn) for m in request_context.messages) if m]
-        request_context.messages = await _compact(turn, messages)
+        request_context.messages = await compact(turn, messages)
         if not _defers_tools(request_context.model):
             params = request_context.model_request_parameters
             params.function_tools = _tool_order(params.function_tools, request_context.messages)
@@ -497,63 +337,6 @@ def _replayable(message: ModelMessage, turn: Turn) -> ModelMessage | None:
         return message
     parts = [p for p in message.parts if not isinstance(p, ThinkingPart)]
     return replace(message, parts=parts) if parts else None
-
-
-def _typed(message: ModelMessage) -> bool:
-    """A request carrying something the user wrote (marked when the history is loaded)."""
-    return isinstance(message, ModelRequest) and (message.metadata or {}).get("typed") is True
-
-
-def _row_id(message: ModelMessage) -> str | None:
-    rid = (message.metadata or {}).get("row_id")
-    return rid if isinstance(rid, str) else None
-
-
-async def _compact(turn: Turn, messages: list[ModelMessage]) -> list[ModelMessage]:
-    """When the request would fill more than `COMPACT_RATIO` of the context window, the turns
-    before the last `KEEP_USER_TURNS` are summarized by the small model (`title` purpose). Only
-    the request changes; the stored history stays as it is. The summary is kept in the session
-    and reused until the next compaction."""
-    memo = turn.memo
-    until = memo.get("summarized_until")
-    if memo.get("summary") and until:
-        at = next((i for i, m in enumerate(messages) if _row_id(m) == until), None)
-        if at is not None:
-            summary = history.summary_request(memo["summary"], list(memo.get("revealed", [])))
-            messages = [summary, *messages[at + 1 :]]
-    if history.prompt_tokens(messages) <= COMPACT_RATIO * turn.model.context_window:
-        return messages
-    starts = [i for i, m in enumerate(messages) if _typed(m)]
-    if len(starts) <= KEEP_USER_TURNS:
-        return messages
-    cut = starts[-KEEP_USER_TURNS]
-    older = messages[:cut]
-    last = next((r for r in map(_row_id, reversed(older)) if r), None)
-    if last is None:
-        return messages
-    prior = memo.get("summary") if until else None
-    text = history.transcript_text([m for m in older if _row_id(m)])
-    try:
-        async with agent_ctx(turn.state, turn.user_id, scope=None) as ctx:
-            summary = await turn.state.agent.small_complete(
-                ctx,
-                [
-                    Message.system(
-                        "Summarize this conversation between a student and their study "
-                        "assistant for the assistant's own memory: decisions, facts, ids and "
-                        "numbers that later turns may need. At most 300 words."
-                    ),
-                    Message.user((f"Earlier summary:\n{prior}\n\n" if prior else "") + text),
-                ],
-            )
-    except AppError:
-        return messages
-    summary = (summary or "").strip()
-    if not summary:
-        return messages
-    revealed = list(dict.fromkeys([*memo.get("revealed", []), *history.revealed_tools(older)]))
-    memo.update(summary=summary, summarized_until=last, revealed=revealed)
-    return [history.summary_request(summary, revealed), *messages[cut:]]
 
 
 def _skill(skill: skills.Skill) -> Bundle[Turn]:
@@ -607,7 +390,12 @@ class Prepared:
 
 
 async def _messages(
-    ctx: Ctx, session: AgentSession, rows: Sequence[AgentMessage], model: ChatLike, tz: Any
+    ctx: Ctx,
+    session: AgentSession,
+    rows: Sequence[AgentMessage],
+    model: ChatLike,
+    tz: Any,
+    marks: Rows,
 ) -> list[ModelMessage]:
     atts = {a.id: a for a in await service.attachments(ctx, session.id)}
     out: list[ModelMessage] = []
@@ -622,35 +410,25 @@ async def _messages(
             )
         else:
             msg = history.load(row)
+        if isinstance(msg, ModelResponse):
+            msg.metadata = {**(msg.metadata or {}), "row_id": row.id}
+        elif msg is not None:
+            marks.mark(msg, row.id, typed=history.is_typed(row))
         if msg is not None:
-            msg.metadata = {
-                **(msg.metadata or {}),
-                "row_id": row.id,
-                "typed": history.is_typed(row),
-            }
             out.append(msg)
     return out
 
 
-def _edited(prop: AgentProposal, called: dict[str, Any]) -> bool:
-    """Whether the user changed the arguments on the card; the ones filled in from the
-    conversation (the Program) do not count."""
-    try:
-        filled = registry.context_args(registry.get(prop.capability))
-    except AppError:
-        filled = {}
-    return any(
-        called.get(k) != v for k, v in prop.args.items() if k in called or k not in filled
-    ) or any(k not in prop.args for k in called)
-
-
-async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared:
+async def _prepare(
+    ctx: Ctx, session: AgentSession, model: ChatLike, cancel: asyncio.Event
+) -> Prepared:
     rows = await service.messages(ctx, session.id)
     props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
     work = await work_context(ctx, ctx.scope)
-    messages = await _messages(ctx, session, rows, model, work.timezone)
+    marks = Rows()
+    messages = await _messages(ctx, session, rows, model, work.timezone, marks)
     resume: DeferredToolResults | None = None
-    edited: dict[str, dict[str, Any]] = {}
+    changed: dict[str, dict[str, Any]] = {}
     calls = history.open_calls(messages)
     if any(
         props.get(c.tool_call_id) is None or props[c.tool_call_id].status == "pending"
@@ -658,17 +436,19 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
     ):
         # Not resumable (a card still waits, or the stream was cut before the tools ran):
         # every call gets its result now, so the model can go on.
-        messages.append(close_calls(ctx, session, calls, props))
+        request, row_id = close_calls(ctx, session, calls, props)
+        marks.mark(request, row_id)
+        messages.append(request)
     elif calls:
         resume = DeferredToolResults()
         for c in calls:
             prop = props[c.tool_call_id]
             if prop.status in ("executed", "failed"):
                 resume.approvals[c.tool_call_id] = ToolApproved(override_args=prop.args)
-                if _edited(prop, history.args_of(c)):
-                    edited[c.tool_call_id] = prop.args
+                if edited(prop, history.args_of(c)):
+                    changed[c.tool_call_id] = prop.args
             else:
-                text = _proposal_outcome(prop).content
+                text = outcome.proposal_outcome(prop).content
                 resume.approvals[c.tool_call_id] = ToolDenied(text)
         _keep_callable(messages, calls)
     remembered = await memory.snapshot(ctx, session, work.timezone)
@@ -691,11 +471,13 @@ async def _prepare(ctx: Ctx, session: AgentSession, model: ChatLike) -> Prepared
         memo=st,
         work=f"{work.text}\n\n{remembered}" if remembered else work.text,
         decided={
-            p.call_id: _proposal_outcome(p)
+            p.call_id: outcome.proposal_outcome(p)
             for p in props.values()
             if p.status in ("executed", "failed")
         },
-        edited=edited,
+        edited=changed,
+        rows=marks,
+        cancel=cancel,
     )
     return Prepared(turn, _agent(turn, available, visible), messages, resume)
 
@@ -717,51 +499,7 @@ def _keep_callable(messages: list[ModelMessage], calls: Sequence[ToolCallPart]) 
     before.parts = [*before.parts, ToolAvailabilityDeltaPart(tools_added=missing)]
 
 
-def close_calls(
-    ctx: Ctx,
-    session: AgentSession,
-    calls: Sequence[ToolCallPart],
-    props: dict[str, AgentProposal],
-) -> ModelRequest:
-    """Stores a result for each open call, so the history stays valid when the conversation
-    moves on: a decided card's outcome, else a placeholder (its decision arrives as a note)."""
-    parts: list[ToolReturnPart] = []
-    blocks: list[dict[str, Any]] = []
-    for c in calls:
-        prop = props.get(c.tool_call_id)
-        outcome = _error("agent.interrupted") if prop is None else _proposal_outcome(prop)
-        part = ToolReturnPart(c.tool_name, outcome.content, tool_call_id=c.tool_call_id)
-        parts.append(part)
-        if prop is None or prop.status not in ("pending", "expired"):
-            cap = service.capability(tools.capability_name(c.tool_name))
-            meta = {
-                "ok": outcome.ok,
-                "error_code": outcome.error_code,
-                "changed": bool(outcome.ok and outcome.ran and cap and cap.effect != "read"),
-            }
-            part.metadata = meta
-            blocks.append(history.result_block(part))
-    request = ModelRequest(parts=parts)
-    row = service.add_message(ctx, session, "tool", blocks, model_parts=history.dump(request))
-    request.metadata = {"row_id": row.id}
-    return request
-
-
-async def close_open_calls(ctx: Ctx, session: AgentSession) -> None:
-    """Before a new user message: the calls of the last answer that still wait get a result."""
-    rows = await service.messages(ctx, session.id)
-    stored = [m for m in map(history.load, rows) if m is not None]
-    calls = history.open_calls(stored)
-    if calls:
-        props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
-        close_calls(ctx, session, calls, props)
-
-
 # --- one run --------------------------------------------------------------------------------
-
-
-def _elapsed_ms(started: float) -> int:
-    return round((time.monotonic() - started) * 1000)
 
 
 async def _race[T](items: AsyncIterator[T], cancel: asyncio.Event) -> AsyncIterator[T]:
@@ -786,25 +524,7 @@ async def _race[T](items: AsyncIterator[T], cancel: asyncio.Event) -> AsyncItera
         stopped.cancel()
 
 
-@dataclass
-class _Answer:
-    """The model response being streamed."""
-
-    message_id: str
-    started: float = field(default_factory=time.monotonic)
-    text: str = ""
-    thought: str = ""
-    thinking_ms: int | None = None
-
-    def timing(self, response: ModelResponse) -> int:
-        # A step that only called tools worked all the way to its end.
-        calls = any(isinstance(p, ToolCallPart) for p in response.parts)
-        if self.thinking_ms is None or calls:
-            return _elapsed_ms(self.started)
-        return self.thinking_ms
-
-
-def _delta(item: Any, answer: _Answer) -> Event | None:
+def _delta(item: Any, answer: Answer) -> Event | None:
     text = thought = ""
     if isinstance(item, PartStartEvent):
         if isinstance(item.part, TextPart):
@@ -819,168 +539,12 @@ def _delta(item: Any, answer: _Answer) -> Event | None:
     if text:
         answer.text += text
         if answer.thinking_ms is None:
-            answer.thinking_ms = _elapsed_ms(answer.started)
+            answer.thinking_ms = elapsed_ms(answer.started)
         return event("text_delta", message_id=answer.message_id, text=text)
     if thought:
         answer.thought += thought
         return event("reasoning_delta", message_id=answer.message_id, text=thought)
     return None
-
-
-class _Store:
-    """Writes the run's messages as they complete. Tool results are told apart by the part object,
-    not by position: Pydantic AI merges every run of consecutive requests in the history (a tool
-    row followed by a note, say), so indexes into the stored history do not hold, while the merge
-    keeps the part objects. Not by call id either: some OpenAI-compatible servers reuse ids across
-    turns."""
-
-    def __init__(self, prepared: Prepared) -> None:
-        self.prepared = prepared
-        self.turn = prepared.turn
-        # `id()` of every result part already stored; the parts stay alive in the run's history.
-        self.answered: set[int] = {
-            id(p)
-            for m in prepared.messages
-            if isinstance(m, ModelRequest)
-            for p in m.parts
-            if isinstance(p, ToolReturnPart | RetryPromptPart)
-        }
-
-    async def answer(
-        self, response: ModelResponse, answer: _Answer, *, paused: str | None = None
-    ) -> None:
-        """An assistant row with the id announced in `message_start`."""
-        blocks = history.response_blocks(response, answer.timing(response))
-        if paused:
-            blocks.append({"type": "paused", "reason": paused})
-        response.metadata = {
-            **(response.metadata or {}),
-            "source": self.turn.model.source,
-            "row_id": answer.message_id,
-        }
-        replayed = any(
-            isinstance(p, TextPart | ToolCallPart | ThinkingPart) for p in response.parts
-        )
-        async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
-            session = await service.get_session_row(ctx, self.turn.session_id)
-            service.add_message(
-                ctx,
-                session,
-                "assistant",
-                blocks,
-                message_id=answer.message_id,
-                model=self.turn.model.name,
-                input_tokens=response.usage.input_tokens or None,
-                output_tokens=response.usage.output_tokens or None,
-                model_parts=history.dump(response) if replayed else None,
-            )
-            _save_state(session, self.turn)
-            await ctx.db.commit()
-
-    async def partial(self, answer: _Answer) -> None:
-        """What was streamed before a stop or an error: the text goes back to the model, the
-        unsigned partial thinking is only shown."""
-        response = ModelResponse(parts=[TextPart(answer.text)] if answer.text else [])
-        if not answer.text and not answer.thought:
-            return
-        blocks: list[dict[str, Any]] = (
-            [{"type": "reasoning", "text": answer.thought}] if answer.thought else []
-        )
-        blocks += [{"type": "text", "text": answer.text}] if answer.text else []
-        blocks.append(
-            {"type": "timing", "thinking_ms": answer.thinking_ms or _elapsed_ms(answer.started)}
-        )
-        async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
-            session = await service.get_session_row(ctx, self.turn.session_id)
-            service.add_message(
-                ctx,
-                session,
-                "assistant",
-                blocks,
-                message_id=answer.message_id,
-                model=self.turn.model.name,
-                model_parts=history.dump(response) if answer.text else None,
-            )
-            _save_state(session, self.turn)
-            await ctx.db.commit()
-
-    def _new_results(self, message: ModelRequest) -> list[ToolReturnPart | RetryPromptPart]:
-        """Results in `message` not stored yet. Returns Pydantic AI made up for calls an earlier
-        interruption left unanswered are not stored: it makes them again on every run."""
-        return [
-            p
-            for p in message.parts
-            if isinstance(p, ToolReturnPart | RetryPromptPart)
-            and id(p) not in self.answered
-            and not (
-                isinstance(p, ToolReturnPart)
-                and isinstance(p.metadata, dict)
-                and p.metadata.get(SYNTHESIZED_TOOL_RETURN_METADATA_KEY)
-            )
-        ]
-
-    async def sync(self, messages: Sequence[ModelMessage]) -> None:
-        """New tool results become tool rows."""
-        new = [
-            (m, parts)
-            for m in messages
-            if isinstance(m, ModelRequest) and (parts := self._new_results(m))
-        ]
-        if not new:
-            return
-        async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
-            session = await service.get_session_row(ctx, self.turn.session_id)
-            for m, parts in new:
-                self.answered.update(id(p) for p in parts)
-                kept = [*parts, *_reveals(m, parts)]
-                request = replace(m, parts=kept) if len(kept) != len(m.parts) else m
-                blocks = history.request_blocks(request)
-                history.strip_full(request)
-                row = service.add_message(
-                    ctx, session, "tool", blocks, model_parts=history.dump(request)
-                )
-                m.metadata = {**(m.metadata or {}), "row_id": row.id}
-            _save_state(session, self.turn)
-            await ctx.db.commit()
-
-
-def _reveals(
-    message: ModelRequest, results: Sequence[ToolReturnPart | RetryPromptPart]
-) -> list[ToolAvailabilityDeltaPart]:
-    """The tools these results revealed (a loaded skill's, say). Pydantic AI keeps them next to
-    the result in the same request; without them a history loaded back from the rows no longer
-    shows those tools and refuses calls to them."""
-    ids = {r.tool_call_id for r in results}
-    return [
-        p
-        for p in message.parts
-        if isinstance(p, ToolAvailabilityDeltaPart) and p.tool_call_id in ids
-    ]
-
-
-def _save_state(session: AgentSession, turn: Turn) -> None:
-    session.state = {**turn.memo, "turn": asdict(turn.counters)}
-
-
-def _result_event(message_id: str, part: ToolReturnPart | RetryPromptPart) -> list[Event]:
-    block = history.result_block(part)
-    out = [
-        event(
-            "tool_result",
-            message_id=message_id,
-            call_id=block["call_id"],
-            name=block["capability"],
-            ok=not block["is_error"],
-            error_code=block["error_code"],
-            changed=block["changed"],
-            **({"memory": block["memory"]} if "memory" in block else {}),
-            **({"display": block["display"]} if "display" in block else {}),
-        )
-    ]
-    meta = part.metadata if isinstance(part, ToolReturnPart) else None
-    if isinstance(meta, dict):
-        out += [event("citation", **c) for c in meta.get("citations", [])]
-    return out
 
 
 async def generate(
@@ -993,18 +557,19 @@ async def generate(
             session = await service.get_session_row(ctx, session_id)
             ctx.scope = service.scope_ref(session)
             async with state.agent.chat_model(ctx) as model:
-                prepared = await _prepare(ctx, session, model)
+                prepared = await _prepare(ctx, session, model, cancel)
                 await ctx.db.commit()
-                async for item in _run(prepared, cancel):
+                async for item in _run(prepared):
                     yield item
     except AppError as exc:
         yield event("error", code=exc.code, params=exc.params)
 
 
-async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event]:
+async def _run(prepared: Prepared) -> AsyncIterator[Event]:
     turn, agent = prepared.turn, prepared.agent
-    store = _Store(prepared)
-    answer: _Answer | None = None
+    cancel = turn.cancel
+    store = Store(turn, prepared.messages)
+    answer: Answer | None = None
     reported = set(prepared.resume.approvals) if prepared.resume else set()
     current: AgentRun[Turn, Any] | None = None
     try:
@@ -1027,7 +592,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
                     if turn.counters.pause is not None:
                         break
                     turn.counters.requests += 1
-                    answer = _Answer(new_id())
+                    answer = Answer(new_id())
                     yield event("message_start", message_id=answer.message_id)
                     async with node.stream(run.ctx) as stream:
                         async for item in _race(aiter(stream), cancel):
@@ -1047,7 +612,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
                             input_tokens=response.usage.input_tokens,
                             output_tokens=response.usage.output_tokens,
                         )
-                    message_id = _row_id(response) or ""
+                    message_id = turn.rows.row_id(response) or ""
                     answer = None
                     async with node.stream(run.ctx) as stream:
                         async for item in stream:
@@ -1064,7 +629,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
                             elif isinstance(item, FunctionToolResultEvent):
                                 if item.part.tool_call_id in reported:
                                     continue
-                                for out in _result_event(message_id, item.part):
+                                for out in result_event(message_id, item.part):
                                     yield out
                     # Stopped while the tools ran: their results sit in the next request,
                     # which the next node stores before it sees the stop.
@@ -1084,7 +649,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
             pending = node.request if Agent.is_model_request_node(node) else None
         # Paused at the limit: one more answer, without tools.
         history_ = [*messages, *([pending] if pending is not None else [])]
-        async for item in _close(prepared, history_, cancel):
+        async for item in _close(prepared, history_):
             yield item
     except AppError as exc:
         await _keep(store, answer, current)
@@ -1093,7 +658,7 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
         log.warning("agent_model_misbehaved", error=type(exc).__name__)
         await _keep(store, answer, current)
         yield event("error", code="ai.output_invalid", params={})
-    except asyncio.CancelledError:  # the client went away: keep what was said and done
+    except asyncio.CancelledError:  # the server is shutting down: keep what was said and done
         await _keep(store, answer, current)
         raise
     except Exception:
@@ -1102,33 +667,32 @@ async def _run(prepared: Prepared, cancel: asyncio.Event) -> AsyncIterator[Event
         yield event("error", code="common.internal", params={})
 
 
-async def _keep(store: _Store, answer: _Answer | None, run: AgentRun[Turn, Any] | None) -> None:
-    """After a stop, an error or a lost client: the words streamed so far and the result of every
-    tool that finished (Pydantic AI adds them to the run as an interrupted request), so a write
-    that went through is never reported as interrupted later."""
+async def _keep(store: Store, answer: Answer | None, run: AgentRun[Turn, Any] | None) -> None:
+    """After a stop or an error: the words streamed so far and the result of every tool that
+    finished (Pydantic AI adds them to the run as an interrupted request), so a write that went
+    through is never reported as interrupted later."""
     if answer is not None:
         await asyncio.shield(store.partial(answer))
     if run is not None:
         await asyncio.shield(store.sync(run.all_messages()))
 
 
-async def _close(
-    prepared: Prepared, messages: list[ModelMessage], cancel: asyncio.Event
-) -> AsyncIterator[Event]:
+async def _close(prepared: Prepared, messages: list[ModelMessage]) -> AsyncIterator[Event]:
     turn = prepared.turn
+    cancel = turn.cancel
     reason = turn.counters.pause or "tool_limit"
     async with agent_ctx(turn.state, turn.user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, turn.session_id)
         row = service.add_message(
             ctx, session, "user", [{"type": "note", "text": PAUSE_NOTES[reason]}]
         )
-        _save_state(session, turn)
+        save_state(session, turn)
         await ctx.db.commit()
         note = history.note_request(PAUSE_NOTES[reason])
-        note.metadata = {"row_id": row.id}
-    answer = _Answer(new_id())
+        turn.rows.mark(note, row.id)
+    answer = Answer(new_id())
     yield event("message_start", message_id=answer.message_id)
-    store = _Store(Prepared(turn, prepared.agent, [*messages, note], None))
+    store = Store(turn, [*messages, note])
     response: ModelResponse | None = None
     try:
         async with prepared.agent.iter(
@@ -1174,7 +738,7 @@ async def _propose(
 ) -> list[Event]:
     """A card for each call that needs the user's decision."""
     owner = {
-        p.tool_call_id: _row_id(m) or ""
+        p.tool_call_id: turn.rows.row_id(m) or ""
         for m in messages
         if isinstance(m, ModelResponse)
         for p in m.parts
@@ -1255,153 +819,3 @@ async def _title(state: State, user_id: str, session_id: str) -> str | None:
         session.title = title
         await ctx.db.commit()
         return title
-
-
-# --- decisions ------------------------------------------------------------------------------
-
-
-async def decide(
-    state: State, user_id: str, session_id: str, decisions: Sequence[Any]
-) -> tuple[list[Event], bool]:
-    """Applies the user's decisions: an approved card runs now, so it shows its result at once.
-    Returns the events to send and whether the model should go on (no card of the answer still
-    waits). The model then gets the outcomes through `DeferredToolResults`, or as a note when the
-    conversation had moved on before the decision."""
-    out: list[Event] = []
-    async with agent_ctx(state, user_id, scope=None) as ctx:
-        session = await service.get_session_row(ctx, session_id)
-        scope = service.scope_ref(session)
-        ids = [d.proposal_id for d in decisions]
-        if len(set(ids)) != len(ids):
-            raise AppError(
-                "common.validation", 422, errors=[{"loc": ["decisions"], "code": "duplicate"}]
-            )
-        rows = [await service.get_proposal(ctx, session.id, i) for i in ids]
-        for row in rows:
-            if row.status == "expired":
-                await ctx.db.commit()
-            service.check_pending(row)
-        cap_by_id = {r.id: registry.get(r.capability) for r in rows}
-        # Edited arguments get a fresh preview, so the card shows what actually ran.
-        edited_preview: dict[str, dict[str, Any]] = {}
-        for d, row in zip(decisions, rows, strict=True):
-            cap = cap_by_id[row.id]
-            if d.decision == "edit":
-                if d.args is None:
-                    raise AppError(
-                        "common.validation", 422, errors=[{"loc": ["args"], "code": "missing"}]
-                    )
-                edited_preview[row.id] = await make_preview(ctx, cap, d.args)  # validates
-        for d, row in zip(decisions, rows, strict=True):
-            await service.claim_proposal(ctx, row, reject=d.decision == "reject")
-        await ctx.db.commit()
-        message_ids = {r.message_id for r in rows}
-
-    results: list[tuple[AgentProposal, Outcome, str]] = []
-    for d, row in zip(decisions, rows, strict=True):
-        cap = cap_by_id[row.id]
-        if d.decision == "reject":
-            text = REJECTED
-            if d.reason:
-                text += f" Their reason: {d.reason}"
-            outcome = Outcome(True, {"rejected": True, "message": text}, ran=False)
-            results.append((row, outcome, "rejected"))
-            await asyncio.shield(
-                _record(state, user_id, session_id, row, outcome, "rejected", None)
-            )
-            continue
-        args = d.args if d.decision == "edit" and d.args is not None else row.args
-        outcome = await invoke(state, user_id, scope, row.capability, args)
-        row.args = args
-        status = "executed" if outcome.ok else "failed"
-        results.append((row, outcome, status))
-        # Stored at once: if anything stops the rest, this card still shows what it did.
-        # The write is committed: a client leaving now must not leave the card "interrupted".
-        await asyncio.shield(
-            _record(state, user_id, session_id, row, outcome, status, edited_preview.get(row.id))
-        )
-        if d.remember and cap.effect == "write" and outcome.ok:
-            async with agent_ctx(state, user_id, scope=None) as ctx:
-                await service.remember_auto_approve(ctx, cap.name)
-                await ctx.db.commit()
-
-    async with agent_ctx(state, user_id, scope=None) as ctx:
-        session = await service.get_session_row(ctx, session_id)
-        stored = [history.load(r) for r in await service.messages(ctx, session.id)]
-        open_ids = {c.tool_call_id for c in history.open_calls([m for m in stored if m])}
-        for row, outcome, _status in results:
-            fresh = await service.get_proposal(ctx, session.id, row.id)
-            cap = cap_by_id[row.id]
-            part = ToolReturnPart(
-                tools.tool_name(row.capability),
-                outcome.content,
-                tool_call_id=row.call_id,
-                metadata={
-                    "ok": outcome.ok,
-                    "error_code": outcome.error_code,
-                    "changed": outcome.ok and outcome.ran and cap.effect != "read",
-                    "citations": outcome.citations,
-                    "display": outcome.display,
-                },
-            )
-            out += _result_event(row.message_id, part)
-            out.append(
-                {"event": "proposal", "data": service.proposal_out(fresh).model_dump(mode="json")}
-            )
-            if row.call_id not in open_ids:
-                # The conversation moved on before this decision: the model hears it as a note.
-                note = history.late_note(row.capability, outcome.content, not outcome.ok)
-                service.add_message(ctx, session, "user", [{"type": "note", "text": note}])
-        await ctx.db.flush()
-        still_pending = [
-            p
-            for p in await service.proposals(ctx, session.id)
-            if p.message_id in message_ids and p.status == "pending" and p.call_id in open_ids
-        ]
-        await ctx.db.commit()
-    return out, not still_pending
-
-
-async def _record(
-    state: State,
-    user_id: str,
-    session_id: str,
-    row: AgentProposal,
-    outcome: Outcome,
-    status: str,
-    preview: dict[str, Any] | None,
-) -> None:
-    """Stores a decided card's outcome in its own transaction."""
-    async with agent_ctx(state, user_id, scope=None) as ctx:
-        fresh = await service.get_proposal(ctx, session_id, row.id)
-        fresh.status = status
-        fresh.args = row.args
-        if preview is not None:
-            fresh.preview = preview
-        fresh.decided_at = ctx.now
-        if status != "rejected":
-            fresh.executed_at = ctx.now
-        fresh.result = outcome.payload
-        fresh.error_code = outcome.error_code
-        fresh.display = outcome.display or None
-        await ctx.db.commit()
-
-
-async def continue_turn(state: State, user_id: str, session_id: str) -> None:
-    """Continue after a pause: the counts start afresh and the model is told to go on."""
-    async with agent_ctx(state, user_id, scope=None) as ctx:
-        session = await service.get_session_row(ctx, session_id)
-        rows = await service.messages(ctx, session.id)
-        last = rows[-1] if rows else None
-        if last is None or not any(b.get("type") == "paused" for b in last.content):
-            raise AppError("agent.not_paused", 409)
-        service.reset_turn(session)
-        service.add_message(ctx, session, "user", [{"type": "note", "text": CONTINUE_NOTE}])
-        await ctx.db.commit()
-
-
-def sse(item: Event) -> dict[str, str]:
-    return {
-        "event": item["event"],
-        "data": json.dumps(item["data"], ensure_ascii=False, default=str),
-    }

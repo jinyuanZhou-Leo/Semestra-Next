@@ -6,7 +6,7 @@ import pytest
 
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
-from semestra.modules.agent.loop import make_preview
+from semestra.modules.agent.decisions import make_preview
 from semestra.modules.agent.tests.conftest import Agent
 
 
