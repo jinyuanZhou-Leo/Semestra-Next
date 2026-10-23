@@ -339,7 +339,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
           {save.isPending ? m.common_saving() : m.grading_scale_save()}
         </Button>
         <Button
-          variant="ghost"
+          variant="destructive"
           size="sm"
           disabled={!dirty || save.isPending}
           onClick={() => setDiscardingEdits(true)}
