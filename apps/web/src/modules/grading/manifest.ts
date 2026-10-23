@@ -155,6 +155,7 @@ export default defineModule({
     [COURSE_COLUMNS]: courseColumns,
     [PROGRAM_SETUP_FIELDS]: [setupField],
   },
+  uiPrefPrefixes: ['grading.'],
   realtimeInvalidations: Object.fromEntries(
     GRADING_EVENTS.map((event) => [event, GRADING_QUERIES]),
   ),

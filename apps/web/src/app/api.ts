@@ -58,7 +58,14 @@ const SESSION_LAPSED = new Set(['common.unauthenticated', 'auth.session_expired'
 
 const backups = new WeakMap<Request, Request>()
 
+/**
+ * This tab's id, sent with every request (`X-Semestra-Client`). Events a request causes carry it
+ * back as `origin`, so the tab can skip the echo of its own change (`app/realtime.ts`).
+ */
+export const CLIENT_ID = crypto.randomUUID()
+
 client.interceptors.request.use((request) => {
+  request.headers.set('X-Semestra-Client', CLIENT_ID)
   backups.set(request, request.clone())
   return withCsrf(request)
 })

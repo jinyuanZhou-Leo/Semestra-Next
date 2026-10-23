@@ -35,7 +35,7 @@ test('every declared size has a design', () => {
 
 test('typing updates the note at once and the line count follows the plugin setting', async () => {
   server.use(
-    http.get(`${API}/settings/plugin.hello-note`, () =>
+    http.get(`${API}/me/settings/plugin.hello-note`, () =>
       HttpResponse.json({ values: { show_count: true } }),
     ),
   )

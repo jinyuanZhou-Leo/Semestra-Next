@@ -141,6 +141,7 @@ export const errorMessages = {
   error_settings_level_not_allowed: m.error_settings_level_not_allowed,
   error_settings_ui_state_too_large: m.error_settings_ui_state_too_large,
   error_settings_unknown_namespace: m.error_settings_unknown_namespace,
+  error_settings_user_only: m.error_settings_user_only,
   error_tasks_course_not_in_program: m.error_tasks_course_not_in_program,
   error_tasks_invalid_due: m.error_tasks_invalid_due,
   error_tasks_list_name_conflict: m.error_tasks_list_name_conflict,

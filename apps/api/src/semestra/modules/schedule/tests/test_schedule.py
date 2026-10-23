@@ -704,13 +704,13 @@ async def test_feed_window_moves_with_today(api: Api, clock: Clock):
 async def test_calendar_hours_must_increase(api: Api):
     await api.setup()
     body = {"scope_type": "account", "values": {"day_start": "22:00", "day_end": "08:00"}}
-    r = await api.call("PATCH", "/settings/calendar", 422, json=body)
+    r = await api.call("PATCH", "/me/settings/calendar", 422, json=body)
     assert r["error"]["code"] == "settings.invalid_value"
     body["values"] = {"day_start": "09:00"}
-    await api.call("PATCH", "/settings/calendar", json=body)
+    await api.call("PATCH", "/me/settings/calendar", json=body)
     await api.call(
         "PATCH",
-        "/settings/calendar",
+        "/me/settings/calendar",
         422,
         json={"scope_type": "account", "values": {"day_end": "09:00"}},
     )
@@ -776,7 +776,7 @@ async def test_calendar_day_end_accepts_only_midnight_past_23_59(api: Api):
     for value, status in (("24:30", 422), ("24:00", 200)):
         await api.call(
             "PATCH",
-            "/settings/calendar",
+            "/me/settings/calendar",
             status,
             json={"scope_type": "account", "values": {"day_end": value}},
         )

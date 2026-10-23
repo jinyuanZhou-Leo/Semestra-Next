@@ -43,6 +43,7 @@ export default defineModule({
   ],
   // "What's new" after an update (minor and major versions, once per account).
   overlays: [WhatsNew],
+  uiPrefPrefixes: ['release.'],
   realtimeInvalidations: {
     'settings.preferences.updated': ['settingsPreferenceGet'],
     'settings.values.updated': ['settingsValueGet'],

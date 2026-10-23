@@ -1,9 +1,10 @@
 import type { Board, BoardCard } from '@semestra/api-client'
-import { layoutsCardUpdateSettings } from '@semestra/api-client'
-import { layoutsBoardGetOptions } from '@semestra/api-client/react-query'
-import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  layoutsBoardGetOptions,
+  layoutsCardUpdateSettingsMutation,
+} from '@semestra/api-client/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { inOrder } from '@/lib/in-order'
 import type { BoardKind, Scope } from '../extensions'
 
 export type BoardRef = { scope_type: BoardKind; scope_id: string }
@@ -59,6 +60,15 @@ export function useCardSettings<T extends object>(instanceId: string) {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<CardSettingsStatus>('idle')
   const [error, setError] = useState<unknown>(null)
+  // One scope per card: TanStack Query runs its saves one after another, in the order made.
+  const mutationKey = ['layouts.card_settings', instanceId]
+  const update = useMutation({
+    ...layoutsCardUpdateSettingsMutation(),
+    mutationKey,
+    scope: { id: `layouts.card_settings.${instanceId}` },
+  })
+  // Whether no newer save of this card is still waiting or running.
+  const isLatest = () => queryClient.isMutating({ mutationKey }) === 0
   async function save(next: T): Promise<void> {
     let previous: Record<string, unknown> | undefined
     patchCachedCard(queryClient, instanceId, (card) => {
@@ -66,21 +76,17 @@ export function useCardSettings<T extends object>(instanceId: string) {
       return { ...card, settings: { ...next } as Record<string, unknown> }
     })
     setStatus('saving')
-    const request = inOrder(`layouts.card_settings.${instanceId}`, () =>
-      layoutsCardUpdateSettings({
+    try {
+      await update.mutateAsync({
         path: { instance_id: instanceId },
         body: { settings: next as Record<string, never> },
-        throwOnError: true,
-      }),
-    )
-    try {
-      await request.result
-      if (!request.isLatest()) return
+      })
+      if (!isLatest()) return
       setStatus('idle')
       setError(null)
     } catch (err) {
       // Only the newest save rolls back: an older failure must not undo a newer value.
-      if (request.isLatest()) {
+      if (isLatest()) {
         if (previous) {
           const restore = previous
           patchCachedCard(queryClient, instanceId, (card) => ({ ...card, settings: restore }))

@@ -161,7 +161,7 @@ function scheduleHandlers(log: Log) {
     http.get(`${API}/terms/:id/schedule-conflicts`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/events`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/calendar-feeds`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/settings/calendar`, () =>
+    http.get(`${API}/me/settings/calendar`, () =>
       HttpResponse.json({
         namespace: 'calendar',
         scope_type: 'term',

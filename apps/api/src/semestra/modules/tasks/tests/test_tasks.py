@@ -225,7 +225,7 @@ async def test_default_priority_comes_from_the_program_settings(api: Api):
     assert (await api.task(pid))["priority"] == "none"
     await api.call(
         "PATCH",
-        "/settings/tasks",
+        "/me/settings/tasks",
         json={"scope_type": "program", "scope_id": pid, "values": {"default_priority": "high"}},
     )
     assert (await api.task(pid))["priority"] == "high"
@@ -239,7 +239,7 @@ async def test_default_priority_offers_four_levels_and_reads_urgent_as_high(api:
     pid = s["program"]
     await api.call(
         "PATCH",
-        "/settings/tasks",
+        "/me/settings/tasks",
         json={"scope_type": "program", "scope_id": pid, "values": {"default_priority": "urgent"}},
     )
     assert (await api.task(pid))["priority"] == "high"
@@ -692,7 +692,7 @@ async def assessment(api: Api, course_id: str, title: str, **body: Any) -> dict[
 async def enable_auto(api: Api, pid: str) -> None:
     await api.call(
         "PATCH",
-        "/settings/tasks",
+        "/me/settings/tasks",
         json={
             "scope_type": "program",
             "scope_id": pid,

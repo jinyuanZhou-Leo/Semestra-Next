@@ -3145,6 +3145,12 @@ export type EmailChangeStartInputBody = {
      * The new email address; a code is sent to it
      */
     new_email: string;
+    /**
+     * Password
+     *
+     * Current password; needed unless the session signed in during the last 10 minutes
+     */
+    password?: string | null;
 };
 
 /**
@@ -8407,6 +8413,12 @@ export type SettingsSchemaOut = {
      */
     plugin_id: string | null;
     /**
+     * Agent Writable
+     *
+     * False when only the user may change these, in the settings page
+     */
+    agent_writable: boolean;
+    /**
      * Json Schema
      *
      * JSON Schema of the namespace's fields
@@ -10059,6 +10071,12 @@ export type TokenCreateInputBody = {
      * Lifetime in days; omit for no expiry
      */
     expires_in_days?: number | null;
+    /**
+     * Password
+     *
+     * Current password; needed unless the session signed in during the last 10 minutes
+     */
+    password?: string | null;
 };
 
 /**
@@ -18176,7 +18194,7 @@ export type SettingsSchemaListData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/settings/schemas';
+    url: '/me/settings-schemas';
 };
 
 export type SettingsSchemaListErrors = {
@@ -18278,7 +18296,7 @@ export type SettingsValueGetData = {
          */
         scope_id?: string | null;
     };
-    url: '/settings/{namespace}';
+    url: '/me/settings/{namespace}';
 };
 
 export type SettingsValueGetErrors = {
@@ -18310,7 +18328,7 @@ export type SettingsValueUpdateData = {
         namespace: string;
     };
     query?: never;
-    url: '/settings/{namespace}';
+    url: '/me/settings/{namespace}';
 };
 
 export type SettingsValueUpdateErrors = {
@@ -18361,7 +18379,7 @@ export type SettingsValueResetData = {
          */
         scope_id?: string | null;
     };
-    url: '/settings/{namespace}/keys/{key}';
+    url: '/me/settings/{namespace}/keys/{key}';
 };
 
 export type SettingsValueResetErrors = {

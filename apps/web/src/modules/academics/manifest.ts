@@ -167,5 +167,6 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.CourseDangerSection }))),
     },
   ],
+  uiPrefPrefixes: ['academics.', 'onboarding.'],
   realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, ACADEMICS_QUERIES])),
 })

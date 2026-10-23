@@ -220,7 +220,7 @@ async def test_temporary_chats_and_memory_turned_off_neither_read_nor_write(
     assert "Works Wednesday nights." not in model.instructions_of(-1)
     assert "# Memory" not in model.instructions_of(-1)
 
-    await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": False}})
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": False}})
     # The conversation that started with memory on keeps its tools (the prompt cache), but
     # nothing is saved any more.
     model.then(_remember("tea", "Likes tea.", type="user"), say("ok"))
@@ -353,12 +353,12 @@ async def test_idle_conversations_are_consolidated_once(
 async def test_a_conversation_held_with_memory_off_is_never_consolidated(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):
-    await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": False}})
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": False}})
     session = await agent.session()
     model.then(say("Hi."))
     await agent.send(session["id"], "I'm majoring in ECE")
     # Turned back on before the conversation goes idle.
-    await agent.call("PATCH", "/settings/memory", json={"values": {"enabled": True}})
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": True}})
 
     seen: list[list[Message]] = []
 

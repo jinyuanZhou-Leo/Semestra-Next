@@ -256,7 +256,7 @@ async def test_pat_lifecycle_and_plaintext_shown_once(
     await login_as(client, await make_user())
     created = await create_pat(client, scopes=["read"])
     assert created["token"].startswith("spat_")
-    assert created["prefix"] == created["token"][:8]
+    assert created["prefix"] == created["token"][:11]  # spat_ + 6 characters
     assert created["scopes"] == ["read"]
 
     listed = (await client.get("/account/tokens")).json()["items"]
@@ -657,3 +657,140 @@ async def test_avatar_upload_body_limit_applies_to_chunked_uploads(
 async def test_avatar_upload_requires_login(client: AsyncClient) -> None:
     r = await client.post("/account/avatar", files={"file": ("a.png", _png((8, 8)))})
     assert r.status_code == 401
+
+
+# --- re-authentication and credential hygiene -------------------------------------------------
+
+
+async def test_creating_a_token_needs_a_recent_login_or_the_password(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+) -> None:
+    await login_as(client, await make_user(password=PASSWORD))
+    clock.advance(minutes=11)
+    stale = await client.post("/account/tokens", json={"name": "cli"})
+    assert stale.status_code == 403
+    assert stale.json()["error"] == {
+        "code": "auth.reauth_required",
+        "params": {"password": True},
+        "request_id": stale.json()["error"]["request_id"],
+    }
+    wrong = await client.post("/account/tokens", json={"name": "cli", "password": "not it at all"})
+    assert wrong.json()["error"]["code"] == "auth.invalid_credentials"
+    await create_pat(client, password=PASSWORD)
+
+
+async def test_a_passwordless_account_signs_in_again_to_create_a_token(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+) -> None:
+    await login_as(client, await make_user(password=None))
+    clock.advance(minutes=11)
+    stale = await client.post("/account/tokens", json={"name": "cli"})
+    assert stale.json()["error"]["params"] == {"password": False}
+
+
+async def test_starting_an_email_change_needs_a_recent_login(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+) -> None:
+    await login_as(client, await make_user(email="old@example.com", password=PASSWORD))
+    clock.advance(minutes=11)
+    body = {"new_email": "new@example.com"}
+    stale = await client.post("/account/email/change-start", json=body)
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
+    ok = await client.post("/account/email/change-start", json={**body, "password": PASSWORD})
+    assert ok.status_code == 200, ok.text
+
+
+async def test_changing_the_password_revokes_every_token(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
+) -> None:
+    await login_as(client, await make_user(password=PASSWORD))
+    pat = (await create_pat(client, scopes=["write"]))["token"]
+    ok = await client.post(
+        "/account/password/change",
+        json={"current_password": PASSWORD, "new_password": "a brand new pass 1"},
+    )
+    assert ok.status_code == 200
+    async with AsyncClient(transport=ASGITransport(app), base_url="https://test") as mcp:
+        r = await mcp.get("/account/me", headers={"Authorization": f"Bearer {pat}"})
+        assert r.status_code == 401
+    assert (await client.get("/account/tokens")).json()["items"] == []
+
+
+async def test_an_email_change_tells_the_old_address_and_signs_out_others(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    mailer: MemoryMailer,
+) -> None:
+    user = await make_user(email="old@example.com")
+    await login_as(client, user)
+    async with await second_device(app, login_as, user) as other:
+        await client.post("/account/email/change-start", json={"new_email": "new@example.com"})
+        code = last_code(mailer, "new@example.com")
+        done = await client.post("/account/email/change-confirm", json={"code": code})
+        assert done.status_code == 200
+        assert (await client.get("/account/me")).status_code == 200
+        assert (await other.get("/account/me")).status_code == 401
+    notice = [m for m in mailer.outbox if m.to == "old@example.com"][-1]
+    assert "email address was changed" in notice.content.subject
+    assert "new@example.com" in notice.content.text
+
+
+async def test_cleanup_prunes_spent_codes_counters_and_dead_credentials(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+) -> None:
+    from sqlalchemy import func, select
+
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.auth.models import (
+        AuthEmailChallenge,
+        AuthPersonalAccessToken,
+        AuthRateLimit,
+        AuthSession,
+    )
+
+    user = await make_user(email="keep@example.com", password=PASSWORD)
+    await login_as(client, user)
+    revoked = await create_pat(client)
+    await create_pat(client)
+    assert (await client.delete(f"/account/tokens/{revoked['id']}")).status_code == 200
+    await client.post("/auth/email/start", json={"email": "someone@example.com"})
+
+    async def counts() -> tuple[int, ...]:
+        async with app.state.session_factory() as db:
+            return tuple(
+                [
+                    await db.scalar(select(func.count()).select_from(model))
+                    for model in (
+                        AuthRateLimit,
+                        AuthEmailChallenge,
+                        AuthSession,
+                        AuthPersonalAccessToken,
+                    )
+                ]
+            )
+
+    before = await counts()
+    assert all(n > 0 for n in before)
+    await run_periodic(app.state, "auth.cleanup")
+    assert await counts() == before  # nothing is old enough yet
+
+    clock.advance(days=2)
+    await run_periodic(app.state, "auth.cleanup")
+    assert (await counts())[:2] == (0, 0)  # counters and codes go after a day
+    assert (await counts())[2:] == before[2:]  # ended credentials are kept a while
+
+    clock.advance(days=60)  # the session expired a month ago, the revoked token went before
+    await run_periodic(app.state, "auth.cleanup")
+    _, _, sessions, tokens = await counts()
+    assert (sessions, tokens) == (0, 1)  # the live token without an expiry stays
+
+
+async def test_only_well_formed_request_ids_are_echoed(client: AsyncClient) -> None:
+    kept = await client.get("/account/me", headers={"x-request-id": "trace-123.abc_9"})
+    assert kept.headers["x-request-id"] == "trace-123.abc_9"
+    forged_id = "<script>" + "x" * 80
+    forged = await client.get("/account/me", headers={"x-request-id": forged_id})
+    assert forged.headers["x-request-id"] != forged_id
+    assert forged.json()["error"]["request_id"] == forged.headers["x-request-id"]

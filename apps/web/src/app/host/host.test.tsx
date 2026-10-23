@@ -28,7 +28,7 @@ beforeEach(() => {
       HttpResponse.json({ scope_type: params.kind, order: [], hidden: [] }),
     ),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
-    http.get(`${API}/settings/plugin.template`, () =>
+    http.get(`${API}/me/settings/plugin.template`, () =>
       HttpResponse.json({
         namespace: 'plugin.template',
         scope_type: 'account',
@@ -173,7 +173,7 @@ test('cards render on the grid with their data', async () => {
 test('account settings sections render by level and generate their form from the backend', async () => {
   const values = { compact: false }
   server.use(
-    http.get(`${API}/settings/schemas`, () =>
+    http.get(`${API}/me/settings-schemas`, () =>
       HttpResponse.json({
         items: [
           {
@@ -188,7 +188,7 @@ test('account settings sections render by level and generate their form from the
         ],
       }),
     ),
-    http.get(`${API}/settings/plugin.template`, () =>
+    http.get(`${API}/me/settings/plugin.template`, () =>
       HttpResponse.json({
         namespace: 'plugin.template',
         scope_type: 'account',

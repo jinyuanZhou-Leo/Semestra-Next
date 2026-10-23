@@ -86,8 +86,15 @@ async def password_change(ctx: Ctx, inp: PasswordChangeInput) -> UserOut:
     return await service.change_password(ctx, inp.current_password, inp.new_password)
 
 
+REAUTH_PASSWORD = Field(
+    default=None,
+    description="Current password; needed unless the session signed in during the last 10 minutes",
+)
+
+
 class EmailChangeStartInput(BaseModel):
     new_email: Email = Field(description="The new email address; a code is sent to it")
+    password: Password | None = REAUTH_PASSWORD
 
 
 @capability(
@@ -100,7 +107,7 @@ class EmailChangeStartInput(BaseModel):
     tags=("account",),
 )
 async def email_change_start(ctx: Ctx, inp: EmailChangeStartInput) -> EmailStartResult:
-    return await service.change_email_start(ctx, inp.new_email, _meta(ctx))
+    return await service.change_email_start(ctx, inp.new_email, _meta(ctx), inp.password)
 
 
 class EmailChangeConfirmInput(BaseModel):
@@ -223,6 +230,7 @@ class TokenCreateInput(BaseModel):
     expires_in_days: int | None = Field(
         default=None, ge=1, le=3650, description="Lifetime in days; omit for no expiry"
     )
+    password: Password | None = REAUTH_PASSWORD
 
 
 @capability(
@@ -235,7 +243,9 @@ class TokenCreateInput(BaseModel):
     tags=("account",),
 )
 async def tokens_create(ctx: Ctx, inp: TokenCreateInput) -> TokenCreated:
-    return await service.create_token(ctx, inp.name.strip(), inp.scopes, inp.expires_in_days)
+    return await service.create_token(
+        ctx, inp.name.strip(), inp.scopes, inp.expires_in_days, inp.password
+    )
 
 
 class TokenRevokeInput(BaseModel):
