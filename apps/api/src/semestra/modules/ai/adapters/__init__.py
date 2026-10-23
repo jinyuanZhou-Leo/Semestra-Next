@@ -1,27 +1,16 @@
 """Model calls for every provider kind, through Pydantic AI's model layer (M06 §2).
 
-Pydantic AI turns the neutral request (`llm.py`, converted in `convert.py`) into each provider's
-API; `model.SemestraModel` adds M06's retries, error codes and usage hook on top. Embeddings
-and model lists come from the providers' official SDKs (Pydantic AI has no model listing). Every
-request goes through the `safe_client` the caller passes in (`bridge.py`).
+Chat goes through the provider's Pydantic AI model wrapped in `model.SemestraModel` (M06's
+retries, error codes and usage hook). Embeddings and model lists come from the providers'
+official SDKs (Pydantic AI has no model listing). Every request goes through the `safe_client`
+the caller passes in (`bridge.py`).
 """
 
-from collections.abc import AsyncIterator
-
 import httpx
-from pydantic_ai.direct import model_request, model_request_stream
-from pydantic_ai.messages import (
-    PartDeltaEvent,
-    PartStartEvent,
-    TextPart,
-    TextPartDelta,
-    ThinkingPart,
-    ThinkingPartDelta,
-)
 
 from semestra.core.errors import AppError
 from semestra.modules.ai.adapters import convert
-from semestra.modules.ai.adapters.base import Adapter, ChatRequest, Endpoint, ModelInfo, ModelParams
+from semestra.modules.ai.adapters.base import Adapter, Endpoint, ModelInfo, ModelParams
 from semestra.modules.ai.adapters.model import Record, SemestraModel, retrying
 from semestra.modules.ai.adapters.sdk import (
     ANTHROPIC_KINDS,
@@ -30,23 +19,7 @@ from semestra.modules.ai.adapters.sdk import (
     google_client,
     openai_client,
 )
-from semestra.modules.ai.llm import Chunk, Completion, Usage
-
-
-def _chunk(event: object) -> Chunk | None:
-    """A streamed text or reasoning delta; other events (tool call parts) wait for the end."""
-    if isinstance(event, PartStartEvent):
-        if isinstance(event.part, TextPart) and event.part.content:
-            return Chunk(text=event.part.content)
-        if isinstance(event.part, ThinkingPart) and event.part.content:
-            return Chunk(thinking=event.part.content)
-    elif isinstance(event, PartDeltaEvent):
-        if isinstance(event.delta, TextPartDelta) and event.delta.content_delta:
-            return Chunk(text=event.delta.content_delta)
-        if isinstance(event.delta, ThinkingPartDelta) and event.delta.content_delta:
-            return Chunk(thinking=event.delta.content_delta)
-    return None
-
+from semestra.modules.ai.llm import Usage
 
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
@@ -71,40 +44,6 @@ def semestra_model(
 class ProviderAdapter:
     def __init__(self, kind: str) -> None:
         self.kind = kind
-
-    async def complete(
-        self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
-    ) -> Completion:
-        model = semestra_model(client, ep, req.model, req.params)
-        source = convert.source(ep, req)
-        response = await model_request(
-            model,
-            convert.to_messages(req, source),
-            model_request_parameters=convert.parameters(self.kind, model, req),
-            instrument=False,
-        )
-        return convert.completion(response, req, source)
-
-    async def stream(
-        self, client: httpx.AsyncClient, ep: Endpoint, req: ChatRequest
-    ) -> AsyncIterator[Chunk]:
-        model = semestra_model(client, ep, req.model, req.params)
-        source = convert.source(ep, req)
-        async with model_request_stream(
-            model,
-            convert.to_messages(req, source),
-            model_request_parameters=convert.parameters(self.kind, model, req),
-            instrument=False,
-        ) as stream:
-            async for event in stream:
-                chunk = _chunk(event)
-                if chunk is not None:
-                    yield chunk
-            response = stream.get()
-        done = convert.completion(response, req, source)
-        for call in done.tool_calls:
-            yield Chunk(tool_call=call)
-        yield Chunk(done=done)
 
     async def embed(
         self, client: httpx.AsyncClient, ep: Endpoint, model: str, texts: list[str]

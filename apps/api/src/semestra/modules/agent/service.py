@@ -1,9 +1,11 @@
 """Sessions, transcript rows, proposals, attachments and preferences (M12 §2, §4)."""
 
+import functools
 from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
@@ -11,6 +13,7 @@ from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, storage_usage_provider
+from semestra.modules.agent import history
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -57,7 +60,7 @@ def scope_ref(row: AgentSession) -> ScopeRef | None:
     return ScopeRef(row.scope["program_id"], row.scope.get("term_id"), row.scope.get("course_id"))
 
 
-async def _check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
+async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
     """The scope must be the user's own Program, term and course."""
     if scope is None:
         return
@@ -101,7 +104,7 @@ async def create_session(
     *,
     temporary: bool = False,
 ) -> AgentSession:
-    await _check_scope(ctx, scope)
+    await check_scope(ctx, scope)
     if client_key is not None and (existing := await _session_by_key(ctx, client_key)):
         return existing
     row = AgentSession(
@@ -145,7 +148,7 @@ async def update_session(ctx: Ctx, inp: AgentSessionUpdateInput) -> AgentSession
     if "archived" in fields and inp.archived is not None:
         row.archived_at = ctx.now if inp.archived else None
     if "scope" in fields:
-        await _check_scope(ctx, inp.scope)
+        await check_scope(ctx, inp.scope)
         row.scope = inp.scope.model_dump() if inp.scope else None
         row.program_id = inp.scope.program_id if inp.scope else None
     await ctx.db.flush()
@@ -173,10 +176,6 @@ async def delete_session(ctx: Ctx, session_id: str) -> None:
     ctx.after_commit.append(_remove_files)
 
 
-async def touch(ctx: Ctx, session: AgentSession) -> None:
-    session.updated_at = ctx.now
-
-
 # --- transcript ----------------------------------------------------------------------------
 
 
@@ -187,6 +186,16 @@ async def messages(ctx: Ctx, session_id: str) -> list[AgentMessage]:
         .order_by(AgentMessage.created_at, AgentMessage.id)
     )
     return list((await ctx.db.scalars(stmt)).all())
+
+
+async def last_message_id(ctx: Ctx, session_id: str) -> str | None:
+    stmt = (
+        select(AgentMessage.id)
+        .where(AgentMessage.session_id == session_id, AgentMessage.user_id == ctx.user_id)
+        .order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc())
+        .limit(1)
+    )
+    return await ctx.db.scalar(stmt)
 
 
 def add_message(
@@ -219,11 +228,16 @@ def add_message(
     return row
 
 
+# What the transcript leaves out of a tool result: the text the model got (`content`, kept in
+# `model_parts`) and the uncut text `read_tool_result` reads (`full`). The UI shows neither, and
+# a long conversation would send megabytes of them on every reload.
+_MODEL_ONLY = frozenset({"content", "full"})
+
+
 def _public_block(block: dict[str, Any]) -> dict[str, Any]:
-    # The uncut text of a long tool result is for `read_tool_result`, not the transcript.
     # (Signatures and other provider data of reasoning live in `model_parts`, never sent here.)
-    if block.get("type") == "tool_result" and "full" in block:
-        return {k: v for k, v in block.items() if k != "full"}
+    if block.get("type") == "tool_result":
+        return {k: v for k, v in block.items() if k not in _MODEL_ONLY}
     return block
 
 
@@ -239,11 +253,6 @@ def message_out(row: AgentMessage) -> AgentMessageOut:
     )
 
 
-def _has_content(row: AgentMessage) -> bool:
-    """A user row the person wrote (rows of only `note` blocks are added by Semestra)."""
-    return row.role == "user" and any(b.get("type") != "note" for b in row.content)
-
-
 def reset_turn(session: AgentSession) -> None:
     """A new user message (or Continue): the tool-call counts of the loop start afresh."""
     st = dict(session.state or {})
@@ -257,7 +266,9 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     are listed in a `note` block on the edited message so the model does not repeat them.
     Skill and attachments are kept; attachments only the dropped messages used are deleted."""
     rows = await messages(ctx, session.id)
-    index = next((i for i, r in enumerate(rows) if r.id == message_id and _has_content(r)), None)
+    index = next(
+        (i for i, r in enumerate(rows) if r.id == message_id and history.is_typed(r)), None
+    )
     if index is None:
         raise not_found()
     row = rows[index]
@@ -363,6 +374,11 @@ def capability(name: str) -> Capability | None:
         return None
 
 
+@functools.cache
+def _json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    return model.model_json_schema()
+
+
 def proposal_out(row: AgentProposal) -> AgentProposalOut:
     cap = capability(row.capability)
     return AgentProposalOut(
@@ -373,10 +389,11 @@ def proposal_out(row: AgentProposal) -> AgentProposalOut:
         capability=row.capability,
         effect=cap.effect if cap else "write",
         args=row.args,
-        input_schema=cap.input_model.model_json_schema() if cap else {},
+        input_schema=_json_schema(cap.input_model) if cap and row.status == "pending" else None,
         preview=row.preview,
         status=row.status,  # pyright: ignore[reportArgumentType]
         result=row.result,
+        display=row.display,
         error_code=row.error_code,
         created_at=row.created_at,
         decided_at=row.decided_at,

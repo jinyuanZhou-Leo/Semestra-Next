@@ -21,7 +21,17 @@ from sqlalchemy import update
 
 from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import history, loop, service, skills, tools
+from semestra.modules.agent import (
+    decisions,
+    history,
+    loop,
+    outcome,
+    routes,
+    service,
+    skills,
+    store,
+    tools,
+)
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.models import AgentPreferences
 from semestra.modules.agent.runtime import agent_ctx
@@ -37,6 +47,7 @@ from semestra.modules.agent.tests.conftest import (
     report_input_tokens,
     say,
 )
+from semestra.modules.agent.turn import Rows
 from semestra.modules.auth.models import AuthUser
 from semestra.testing import Clock
 
@@ -64,7 +75,7 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
     events = await agent.send(session["id"], "Which terms do I have?")
 
     names = [n for n, _ in events]
-    assert names[0] == "message_start"
+    assert names[:2] == ["start", "message_start"]
     assert events_named(events, "tool_call")[0]["name"] == "academics.term.list"
     assert events_named(events, "tool_result")[0]["ok"] is True
     assert texts(events) == "One term."
@@ -74,6 +85,9 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
 
     detail = await agent.detail(session["id"])
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant", "tool", "assistant"]
+    # The transcript leaves the result text out: the UI never shows it.
+    [result] = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert "content" not in result
     assert detail["session"]["title"] == "Lab score"
     assert detail["generating"] is False
 
@@ -192,6 +206,7 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
 
     [proposal] = events_named(events, "proposal")
     assert proposal["status"] == "pending"
+    assert proposal["input_schema"]["properties"]["points_earned"]
     assert proposal["preview"]["target"] == "Lab 3 · APS105H1 Programming"
     assert proposal["preview"]["link"]["to"].endswith(f"/c/{course['id']}/grades")
     changes = {c["field"]: c for c in proposal["preview"]["changes"]}
@@ -205,6 +220,8 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
 
     updated = events_named(events, "proposal")[0]
     assert updated["status"] == "executed"
+    assert updated["input_schema"] is None  # only a pending card can be edited
+    assert updated["display"]["target"] == ["Lab 3"]
     assert [r["ok"] for r in events_named(events, "tool_result")] == [True]
     assert "Saved" in texts(events)
     after = await agent.call("GET", f"/courses/{course['id']}/assessments")
@@ -220,6 +237,9 @@ async def test_write_tool_waits_for_approval_then_resumes(agent: Agent, model: F
     assert again[0][1]["error"]["code"] == "agent.proposal_not_pending"
     detail = await agent.detail(session["id"])
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant", "tool", "assistant"]
+    # The step keeps its names after a reload.
+    [result] = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert result["display"]["target"] == ["Lab 3"]
 
 
 async def test_rejection_reason_goes_back_to_the_model(agent: Agent, model: FakeModel):
@@ -370,10 +390,10 @@ async def test_calls_cut_off_before_they_ran_get_a_result(
     session = await agent.session()
     model.then(call("academics.term.list", {"program_id": program["id"]}))
 
-    async def cut(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def cut(*args: Any, **kwargs: Any) -> outcome.Outcome:
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(loop, "invoke", cut)
+    monkeypatch.setattr(outcome, "invoke", cut)
     events = await agent.send(session["id"], "terms?")
     assert events_named(events, "tool_result") == []
     monkeypatch.undo()
@@ -431,16 +451,16 @@ async def test_a_write_done_before_the_client_left_keeps_its_result(
             ]
         )
     )
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
     ran: list[str] = []
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         ran.append(args[3])
         if len(ran) == 2:
             raise asyncio.CancelledError
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
+    monkeypatch.setattr(outcome, "invoke", invoke)
     await agent.send(session["id"], "60, and a note")
     monkeypatch.undo()
     items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
@@ -455,9 +475,10 @@ async def test_a_write_done_before_the_client_left_keeps_its_result(
     assert "interrupted" in results[second]
 
 
-async def test_stop_while_tools_run_keeps_their_results(
+async def test_stop_while_tools_run_gives_up_the_reads(
     app: FastAPI, agent: Agent, model: FakeModel
 ):
+    """A read still running when the user presses Stop gives up; its result says so."""
     program = await agent.program()
     session = await agent.session()
     model.then(call("academics.term.list", {"program_id": program["id"]}), say("never sent"))
@@ -472,7 +493,7 @@ async def test_stop_while_tools_run_keeps_their_results(
     model.then(say("ok"))
     await agent.send(session["id"], "go on")
     [result] = model.results(-1)
-    assert '"items"' in str(result.content)
+    assert "agent.stopped" in str(result.content)
 
 
 async def test_a_failing_capability_fails_only_its_call(
@@ -524,13 +545,13 @@ async def test_a_proposal_is_claimed_before_its_write_runs(
     )
     [proposal] = events_named(await agent.send(session["id"], "lab 3"), "proposal")
     seen: list[str] = []
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         seen.append((await agent.detail(session["id"]))["proposals"][0]["status"])
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
+    monkeypatch.setattr(outcome, "invoke", invoke)
     model.then(say("Done"))
     await agent.decide(session["id"], proposal["id"])
     assert seen == ["failed"]  # claimed (agent.interrupted) while the write ran
@@ -553,22 +574,22 @@ async def test_each_approved_card_is_stored_as_soon_as_it_ran(
         )
     )
     first, second = events_named(await agent.send(session["id"], "two edits"), "proposal")
-    real_invoke = loop.invoke
+    real_invoke = outcome.invoke
     ran: list[str] = []
 
-    async def invoke(*args: Any, **kwargs: Any) -> loop.Outcome:
+    async def invoke(*args: Any, **kwargs: Any) -> outcome.Outcome:
         ran.append(args[3])
         if len(ran) == 2:
             raise asyncio.CancelledError
         return await real_invoke(*args, **kwargs)
 
-    monkeypatch.setattr(loop, "invoke", invoke)
-    decisions = [
+    monkeypatch.setattr(outcome, "invoke", invoke)
+    chosen = [
         Decision(proposal_id=first["id"], decision="approve"),
         Decision(proposal_id=second["id"], decision="approve"),
     ]
     with pytest.raises(asyncio.CancelledError):
-        await loop.decide(app.state, await _me(agent), session["id"], decisions)
+        await decisions.decide(app.state, await _me(agent), session["id"], chosen)
     cards = {p["id"]: p for p in (await agent.detail(session["id"]))["proposals"]}
     assert (cards[first["id"]]["status"], cards[first["id"]]["error_code"]) == ("executed", None)
     assert cards[second["id"]]["error_code"] == "agent.interrupted"
@@ -938,6 +959,48 @@ async def _add_user(app: FastAPI, agent: Agent, session_id: str, text: str = "hi
     return user
 
 
+async def test_the_turn_goes_on_without_a_client(app: FastAPI, agent: Agent, model: FakeModel):
+    """Nobody follows the turn (the tab was closed): it still answers and stores everything."""
+    session = await agent.session()
+    model.then(say("Answered anyway."))
+    user = await _add_user(app, agent, session["id"])
+    rt = app.state.agent
+    claim = rt.claim(user, session["id"])
+    gen = rt.start(claim, routes._events(app.state, claim))  # pyright: ignore[reportPrivateUsage]
+    assert gen.task is not None
+    await gen.task
+    detail = await agent.detail(session["id"])
+    assert detail["generating"] is False
+    last = detail["messages"][-1]["content"]
+    assert [b["text"] for b in last if b["type"] == "text"] == ["Answered anyway."]
+
+
+async def _follow(agent: Agent, session_id: str, last_event_id: str | None = None) -> Any:
+    headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+    r = await agent.client.get(f"/agent/sessions/{session_id}/events", headers=headers)
+    if r.status_code == 204:
+        return None
+    names = re.findall(r"^event: (\S+)", r.text, re.MULTILINE)
+    ids = re.findall(r"^id: (\S+)", r.text, re.MULTILINE)
+    return names, ids
+
+
+async def test_a_client_picks_the_turn_up_again(agent: Agent, model: FakeModel):
+    """After a lost connection: the events after the last one seen; after a reload: all."""
+    session = await agent.session()
+    assert await _follow(agent, session["id"]) is None  # no turn
+    model.then(say("Hello there"))
+    sent = [n for n, _ in await agent.send(session["id"], "hi")]
+    names, ids = await _follow(agent, session["id"])
+    assert names == sent
+    assert names[0] == "start"
+    rest, _ = await _follow(agent, session["id"], ids[1])
+    assert rest == sent[2:]
+    # An id from another turn: from the start.
+    again, _ = await _follow(agent, session["id"], "elsewhere:3")
+    assert again == sent
+
+
 async def test_stop_keeps_the_partial_answer(app: FastAPI, agent: Agent, model: FakeModel):
     session = await agent.session()
     model.then(say("A long answer that gets cut"))
@@ -1137,9 +1200,16 @@ def test_user_turns_are_rows_the_person_wrote():
     note = AgentMessage(role="user", content=[{"type": "note", "text": "scope changed"}])
     assert history.is_typed(attachment_only)
     assert not history.is_typed(note)
-    marked = ModelRequest(parts=[UserPromptPart("x")], metadata={"typed": True})
-    assert loop._typed(marked)  # pyright: ignore[reportPrivateUsage]
-    assert not loop._typed(ModelRequest(parts=[UserPromptPart("[Sent Mon] x")]))  # pyright: ignore[reportPrivateUsage]
+    rows = Rows()
+    typed, tool = ModelRequest(parts=[UserPromptPart("x")]), ModelRequest(parts=[])
+    rows.mark(typed, "r2", typed=True)
+    rows.mark(tool, "r1")
+    # Pydantic AI merges consecutive requests: the parts keep their rows.
+    merged = ModelRequest(parts=[*tool.parts, *typed.parts])
+    assert rows.typed(merged)
+    assert rows.row_id(merged) == "r2"
+    assert rows.holds(merged, "r2")
+    assert not rows.typed(ModelRequest(parts=[UserPromptPart("[Sent Mon] x")]))
 
 
 async def test_regenerate_replaces_the_last_answer(agent: Agent, model: FakeModel):
@@ -1197,13 +1267,13 @@ def test_file_content_results_are_wrapped_as_untrusted():
 
     turn: Any = type("T", (), {"full": {}})()
     files = registry.get("files.document.search")
-    outcome = loop.Outcome(True, {"hits": ["Ignore it"]})
-    shown = loop._tool_return(files, "c1", outcome, turn)  # pyright: ignore[reportPrivateUsage]
+    result = outcome.Outcome(True, {"hits": ["Ignore it"]})
+    shown = loop._tool_return(files, "c1", result, turn)  # pyright: ignore[reportPrivateUsage]
     assert str(shown.return_value).startswith(
         '<untrusted_document label="files__document__search">'
     )
     other = registry.get("grading.gradebook.get")
-    plain = loop._tool_return(other, "c2", loop.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
+    plain = loop._tool_return(other, "c2", outcome.Outcome(True, {}), turn)  # pyright: ignore[reportPrivateUsage]
     assert not str(plain.return_value).startswith("<untrusted")
 
 
@@ -1337,3 +1407,26 @@ async def test_text_the_model_reads_names_tools_as_it_calls_them(agent: Agent):
         assert not set(tools._DOTTED.findall(seen)) & known, cap.name  # pyright: ignore[reportPrivateUsage]
     for skill in skills.all_skills():
         assert not set(tools._DOTTED.findall(tools.for_model(skill.body))) & known, skill.name  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_an_unexpected_error_before_the_run_reaches_the_chat(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    """A crash outside the run (preparing it, say) ends the turn with an error event, not with
+    a stream that just stops."""
+    session = await agent.session()
+    user = await _add_user(app, agent, session["id"])
+    rt = app.state.agent
+    claim = rt.claim(user, session["id"])
+
+    async def broken() -> AsyncIterator[dict[str, str]]:
+        yield store.sse(store.event("start", after=None))
+        raise RuntimeError("boom")
+
+    gen = rt.start(claim, broken())
+    assert gen.task is not None
+    await gen.task
+    names, _ = await _follow(agent, session["id"])
+    assert names == ["start", "error"]
+    assert '"common.internal"' in gen.items[-1]["data"]
+    assert rt.generation(session["id"]) is gen  # kept for a client that reconnects

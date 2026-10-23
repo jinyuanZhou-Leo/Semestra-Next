@@ -163,7 +163,7 @@ card settings) can have an empty adapter.
 
 ### 4.5 Agent skill
 
-`<plugin package>/skills/<name>.md`. The frontmatter has `name`, `title: { en: "…", zh-CN: "…" }`
+`<plugin package>/skills/<name>.md`. The frontmatter is TOML between `+++` lines: `name`, `title = { en = "…", zh-CN = "…" }`
 (the name shown in the app), `description` (starts with "Use when …" and says when to load it;
 the model sees only this line in its catalog) and `tools` (every capability the body uses; the
 skill appears only when all of them are available, and a test checks this), plus an optional

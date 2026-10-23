@@ -33,9 +33,9 @@ def test_capabilities_are_listed_for_agent_and_mcp() -> None:
     for surface in ("agent", "mcp"):
         names = {c.name for c in registry.list(expose=surface)}
         assert {"template.echo.get", "template.countdown.start"} <= names
-    spec = registry.get("template.countdown.start").tool_spec()
-    assert spec["effect"] == "write"
-    assert spec["input_schema"]["properties"]["steps"]["maximum"] == 20
+    start = registry.get("template.countdown.start")
+    assert start.effect == "write"
+    assert start.input_model.model_json_schema()["properties"]["steps"]["maximum"] == 20
     assert registry.get("template.echo.get").operation_id == "templateEchoGet"
 
 

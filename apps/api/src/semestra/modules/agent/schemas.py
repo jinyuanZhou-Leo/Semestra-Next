@@ -53,10 +53,16 @@ class AgentProposalOut(BaseModel):
     capability: str
     effect: Effect
     args: dict[str, Any]
-    input_schema: dict[str, Any] = Field(description="JSON schema of `args`, for the edit form.")
+    input_schema: dict[str, Any] | None = Field(
+        description="JSON schema of `args`, for the edit form; only while the card is pending."
+    )
     preview: dict[str, Any] | None
     status: ProposalStatus
     result: Any
+    display: dict[str, Any] | None = Field(
+        default=None,
+        description="Names and counts for the step's line once it ran (as in `tool_result`).",
+    )
     error_code: str | None
     created_at: datetime
     decided_at: datetime | None

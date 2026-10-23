@@ -1,10 +1,16 @@
----
-name: answer-schedule-questions
-title: { en: "Answer schedule questions", zh-CN: "查询课表与日程" }
-command: /schedule
-description: Use when the user asks when something happens: their next class, what is on a day or week, what is due soon, exam dates, or when a course meets.
-tools: [calendar.today.get, calendar.occurrence.list, academics.course.find, academics.term.get_weeks, schedule.meeting.list]
----
++++
+name = "answer-schedule-questions"
+title = { en = "Answer schedule questions", zh-CN = "查询课表与日程" }
+command = "/schedule"
+description = "Use when the user asks when something happens: their next class, what is on a day or week, what is due soon, exam dates, or when a course meets."
+tools = [
+  "calendar.today.get",
+  "calendar.occurrence.list",
+  "academics.course.find",
+  "academics.term.get_weeks",
+  "schedule.meeting.list",
+]
++++
 
 # Answering schedule questions
 

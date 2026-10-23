@@ -10,6 +10,7 @@ from semestra.core.capability import registry
 from semestra.modules.files import (  # noqa: F401  (registers on import)
     capabilities,
     jobs,
+    labels,
     models,
     portability,
     subscribers,

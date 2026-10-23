@@ -156,6 +156,16 @@ def test_cost_comes_from_genai_prices():
     assert catalog.estimate_cost("ollama", "http://localhost:11434", "qwen3:8b", 5000, 5000) == 0.0
     assert catalog.context_window("claude-opus-5-5") == 200_000
     assert catalog.context_window("mystery") == 32_000
+    # genai-prices knows gateways by their URL and `vendor/model` names.
+    openrouter = "https://openrouter.ai/api/v1"
+    assert catalog.context_window(
+        "anthropic/claude-sonnet-4.5", "openai_compatible", openrouter
+    ) > (200_000)
+    assert catalog.context_window("gpt-5", "openai") == 400_000
+    # Unknown to it: the table, also without the vendor prefix.
+    assert catalog.context_window(
+        "acme/claude-next", "openai_compatible", "http://gw.local/v1"
+    ) == (200_000)
     assert catalog.default_model("anthropic", "embedding") is None
 
 

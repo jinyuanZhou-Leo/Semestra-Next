@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from semestra.core.config import Settings
-from semestra.modules.agent import loop, session_check
+from semestra.modules.agent import loop, session_check, store
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, Reply, events_named, say
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
 
@@ -95,7 +95,7 @@ async def test_ics_two_terms_approved_writes_reach_the_model(
     again. `stored_reveals=False` is a history stored before reveals were kept: the cards
     being resumed still reach the model."""
     if not stored_reveals:
-        monkeypatch.setattr(loop, "_reveals", lambda message, results: [])
+        monkeypatch.setattr(store, "reveals", lambda message, results: [])
         model.may_lose_tools = {"*"}
     program, created = await _run_ics_two_terms(agent, model)
 
@@ -115,7 +115,7 @@ async def test_the_session_check_finds_the_recorded_failure(
 ):
     """With neither fix the run fails as it did on 2026-10-20, and `semestra check-sessions`
     says so."""
-    monkeypatch.setattr(loop, "_reveals", lambda message, results: [])
+    monkeypatch.setattr(store, "reveals", lambda message, results: [])
     monkeypatch.setattr(loop, "_keep_callable", lambda messages, calls: None)
     model.may_lose_tools = {"*"}
     await _run_ics_two_terms(agent, model)

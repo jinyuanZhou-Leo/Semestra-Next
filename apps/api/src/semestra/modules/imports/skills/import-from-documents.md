@@ -1,10 +1,22 @@
----
-name: import-from-documents
-title: { en: "Import from documents", zh-CN: "从文档导入" }
-command: /import
-description: Use when the user shares a syllabus, timetable, ICS file or screenshot and wants its courses, grading scheme, class times or dates in the app ("import this", "import syllabus", "set up my courses from these"), or to finish an import an LMS tool started.
-tools: [academics.course.find, academics.term.list, academics.term.create, academics.term.update, imports.session.create, imports.session.get, imports.item.update, imports.item.decide_many, imports.item.add_many, imports.session.commit, imports.session.discard]
----
++++
+name = "import-from-documents"
+title = { en = "Import from documents", zh-CN = "从文档导入" }
+command = "/import"
+description = "Use when the user shares a syllabus, timetable, ICS file or screenshot and wants its courses, grading scheme, class times or dates in the app (\"import this\", \"import syllabus\", \"set up my courses from these\"), or to finish an import an LMS tool started."
+tools = [
+  "academics.course.find",
+  "academics.term.list",
+  "academics.term.create",
+  "academics.term.update",
+  "imports.session.create",
+  "imports.session.get",
+  "imports.item.update",
+  "imports.item.decide_many",
+  "imports.item.add_many",
+  "imports.session.commit",
+  "imports.session.discard",
+]
++++
 
 # Importing from documents
 

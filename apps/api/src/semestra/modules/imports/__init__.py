@@ -13,6 +13,7 @@ from semestra.core.jobs import periodic
 from semestra.modules.imports import (  # noqa: F401
     capabilities,
     jobs,
+    labels,
     models,
     portability,
     subscribers,

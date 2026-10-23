@@ -3,22 +3,21 @@
 The model sees the catalog (name and description) and loads a skill with `load_capability`: each
 skill is a deferred Pydantic AI capability whose instructions are the body (`loop._skill`).
 
-The frontmatter is a small YAML subset parsed here (PyYAML has no Python 3.15 wheel, see
-CLAUDE.md): `key: value`, flow lists `[a, b]`, flow maps `{ en: "...", zh-CN: "..." }` and
-block scalars `key: |`. A skill is visible to a user only when every tool it declares is
-available to them, so a plugin's skills appear once the plugin is installed.
+The frontmatter is TOML between `+++` lines, read with the standard library's `tomllib`. A skill
+is visible to a user only when every tool it declares is available to them, so a plugin's skills
+appear once the plugin is installed.
 """
 
 import re
+import tomllib
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from semestra.core.capability import Capability
 
 MODULES_DIR = Path(__file__).resolve().parent.parent
-
-_KEY = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
 
 
 class SkillFormatError(ValueError):
@@ -39,81 +38,20 @@ class Skill:
         return self.title.get(locale) or self.title.get("en") or self.name
 
 
-def _unquote(value: str) -> str:
-    value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
-    return value
-
-
-def _split_flow(inner: str) -> list[str]:
-    """Splits `a, "b, c", d` on commas outside quotes."""
-    items: list[str] = []
-    current, quote = "", ""
-    for ch in inner:
-        if quote:
-            current += ch
-            if ch == quote:
-                quote = ""
-        elif ch in "\"'":
-            quote = ch
-            current += ch
-        elif ch == ",":
-            items.append(current.strip())
-            current = ""
-        else:
-            current += ch
-    if current.strip():
-        items.append(current.strip())
-    return items
-
-
-def _value(raw: str) -> str | list[str] | dict[str, str]:
-    raw = re.sub(r"\s+#.*$", "", raw).strip() if not raw.strip().startswith(("'", '"')) else raw
-    raw = raw.strip()
-    if raw.startswith("[") and raw.endswith("]"):
-        return [_unquote(item) for item in _split_flow(raw[1:-1])]
-    if raw.startswith("{") and raw.endswith("}"):
-        out: dict[str, str] = {}
-        for item in _split_flow(raw[1:-1]):
-            key, sep, val = item.partition(":")
-            if not sep:
-                raise SkillFormatError(f"bad map entry {item!r}")
-            out[_unquote(key)] = _unquote(val)
-        return out
-    return _unquote(raw)
-
-
-def parse_frontmatter(text: str) -> tuple[dict[str, str | list[str] | dict[str, str]], str]:
+def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """A TOML header between `+++` lines (as Hugo and Zola write it), then the body."""
     lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    if not lines or lines[0].strip() != "+++":
         raise SkillFormatError("missing frontmatter")
     try:
-        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "+++")
     except StopIteration:
         raise SkillFormatError("unterminated frontmatter") from None
-    meta: dict[str, str | list[str] | dict[str, str]] = {}
-    i = 1
-    while i < end:
-        line = lines[i]
-        i += 1
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        match = _KEY.match(line)
-        if match is None:
-            raise SkillFormatError(f"bad line {line!r}")
-        key, raw = match.group(1), match.group(2)
-        if raw.strip() in ("|", ">"):
-            block: list[str] = []
-            while i < end and (not lines[i].strip() or lines[i].startswith((" ", "\t"))):
-                block.append(lines[i].strip())
-                i += 1
-            joiner = "\n" if raw.strip() == "|" else " "
-            meta[key] = joiner.join(block).strip()
-        else:
-            meta[key] = _value(raw)
-    body = "\n".join(lines[end + 1 :]).strip()
-    return meta, body
+    try:
+        meta = tomllib.loads("\n".join(lines[1:end]))
+    except tomllib.TOMLDecodeError as exc:
+        raise SkillFormatError(f"bad frontmatter: {exc}") from None
+    return meta, "\n".join(lines[end + 1 :]).strip()
 
 
 def parse_skill(text: str, module: str) -> Skill:
@@ -127,7 +65,7 @@ def parse_skill(text: str, module: str) -> Skill:
         raise SkillFormatError(f"{name}: `description` is required")
     if not isinstance(title, dict) or not title.get("en") or not title.get("zh-CN"):
         raise SkillFormatError(f"{name}: `title` needs en and zh-CN")
-    if not isinstance(tools, list):
+    if not isinstance(tools, list) or not all(isinstance(t, str) for t in tools):
         raise SkillFormatError(f"{name}: `tools` must be a list")
     if command is not None and (
         not isinstance(command, str) or not re.fullmatch(r"/[a-z][a-z0-9-]*", command)

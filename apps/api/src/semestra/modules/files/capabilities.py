@@ -3,7 +3,9 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.labels import owned_row
 from semestra.modules.files import documents, search, service
+from semestra.modules.files.models import FilesFolder, FilesItem
 from semestra.modules.files.schemas import (
     Deleted,
     DocumentOutline,
@@ -81,6 +83,7 @@ async def item_get(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 @capability(
     name="files.item.update",
+    record=("item_id", owned_row(FilesItem)),
     summary="Rename, move or pin a file or link.",
     description="""Use when the user wants to rename a file, put it in another folder of the same
 course (folder_id null = course root), or pin it for quick access. Only send the fields to
@@ -139,6 +142,7 @@ async def folder_create(ctx: Ctx, inp: FolderCreateInput) -> FolderOut:
 
 @capability(
     name="files.folder.update",
+    record=("folder_id", owned_row(FilesFolder)),
     summary="Rename or move a folder, or change its order.",
     description="""Rename a folder, move it under another folder (parent_id null = course root) or
 set its position among its siblings. Only send the fields to change.""",
