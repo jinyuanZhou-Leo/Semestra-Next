@@ -113,14 +113,14 @@ const columns = column.columns([
  * Canvas (M16 §4). The score comes from the quiz's assignment, read with the assignments.
  */
 export function QuizzesView({ selected }: { selected?: string }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const list = useQuery({
-    ...lmsQuizListOptions({ path: { course_id: courseId }, query }),
+    ...lmsQuizListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   // Without it the table still shows; only "my score" and attempts used stay empty.
   const assignments = useQuery({
-    ...lmsAssignmentListOptions({ path: { course_id: courseId }, query }),
+    ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   }).data
   const mine = new Map(assignments?.items.map((a) => [a.external_id, a.submission]))

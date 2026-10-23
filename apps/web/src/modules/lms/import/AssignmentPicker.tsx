@@ -1,4 +1,4 @@
-import { lmsAssignmentImport, type ImportSessionDetail } from '@semestra/api-client'
+import type { ImportSessionDetail } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ClipboardList, Link2 } from 'lucide-react'
@@ -23,10 +23,11 @@ import {
 import { Field, FieldLabel } from '@/ui/field'
 import { Label } from '@/ui/label'
 import { ChoiceControl } from '@/app/settings/choice'
+import { type AssignmentImportKind, startAssignmentImport } from './assignments'
 import { ProgramUnbound, startedSession } from './CoursePicker'
 import { useProviderName } from '../providers'
 
-type Kind = 'assessment' | 'task'
+type Kind = AssignmentImportKind
 
 /**
  * "Import assignments from LMS" (M09 §7.2): tick assignments, choose whether they start as
@@ -92,12 +93,8 @@ function AssignmentList({
   const start = () => {
     setStarting(true)
     setStartError(null)
-    lmsAssignmentImport({
-      path: { course_id: courseId },
-      body: { external_ids: [...picked], as_kind: kind },
-      throwOnError: true,
-    })
-      .then(({ data }) => startedSession(data.session_id))
+    startAssignmentImport(courseId, [...picked], kind)
+      .then(startedSession)
       .then(onStarted, (error: unknown) => {
         setStartError(errorMessage(error))
         setStarting(false)

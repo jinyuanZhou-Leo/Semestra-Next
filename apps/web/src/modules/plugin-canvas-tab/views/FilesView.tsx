@@ -54,11 +54,11 @@ export function FilesView({ selected }: { selected?: string }) {
 }
 
 function FolderView({ folderId }: { folderId?: string }) {
-  const { courseId, query, go } = useCanvasPage()
+  const { courseId, go } = useCanvasPage()
   const listing = useQuery({
     ...lmsFolderGetOptions({
       path: { course_id: courseId },
-      query: { ...query, folder_id: folderId },
+      query: { folder_id: folderId },
     }),
     placeholderData: keepPreviousData,
   })
@@ -198,9 +198,9 @@ function FileRow({ file: f }: { file: FileMeta }) {
 }
 
 function SearchResults({ term }: { term: string }) {
-  const { courseId, query } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const results = useQuery({
-    ...lmsFileSearchOptions({ path: { course_id: courseId }, query: { ...query, term } }),
+    ...lmsFileSearchOptions({ path: { course_id: courseId }, query: { term } }),
     placeholderData: keepPreviousData,
   })
   return (

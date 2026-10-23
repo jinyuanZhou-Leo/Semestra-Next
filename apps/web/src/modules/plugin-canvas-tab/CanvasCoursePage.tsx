@@ -1,18 +1,13 @@
-import type { CourseOverview } from '@semestra/api-client'
+import { type CourseOverview, lmsCourseRefresh } from '@semestra/api-client'
 import { lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
-import {
-  type Query,
-  keepPreviousData,
-  useIsFetching,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { LmsUpdatesBanner } from '@/modules/lms/components/LmsUpdatesBanner'
-import { invalidateLms } from '@/modules/lms/queries'
+import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -47,16 +42,6 @@ import { PagesView } from './views/PagesView'
 import { QuizzesView } from './views/QuizzesView'
 import { SyllabusView } from './views/SyllabusView'
 
-/** Cached LMS reads of one course (generated query keys carry `_id` and `path`). */
-function isCourseRead(courseId: string) {
-  return (query: Query) => {
-    const key = query.queryKey[0] as { _id?: unknown; path?: { course_id?: unknown } } | undefined
-    // oxlint-disable-next-line no-underscore-dangle -- hey-api's query key field
-    const id = key?._id
-    return typeof id === 'string' && id.startsWith('lms') && key?.path?.course_id === courseId
-  }
-}
-
 /**
  * The Canvas tab of a linked course (M16): the course menu as Canvas has it on the left (a menu
  * on narrow screens), the chosen view on the right. Everything comes from the M09 reads.
@@ -69,24 +54,24 @@ export default function CanvasCoursePage({ scope }: PageProps) {
 function CanvasCourse({ programId, courseId }: { programId: string; courseId: string }) {
   const queryClient = useQueryClient()
   const [location, go] = useCanvasLocation(courseId)
-  const [refresh, setRefresh] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [file, setFile] = useState<string | null>(null)
-  const query = refresh ? ({ refresh: true } as const) : undefined
   const overview = useQuery({
-    ...lmsCourseOverviewOptions({ path: { course_id: courseId }, query }),
+    ...lmsCourseOverviewOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
-  const fetching = useIsFetching({ predicate: isCourseRead(courseId) }) > 0
+  const fetching = useIsFetching({ predicate: isCourseContent(courseId) }) > 0
 
+  // "Refresh" drops this course's cached reads once on the server, then refetches them; later
+  // reads use the cache again (M16 implementation notes).
   const reload = () => {
-    // The first refresh switches every read to `refresh=true`, which refetches them; later ones refetch.
-    if (refresh) {
-      void queryClient.refetchQueries({ predicate: isCourseRead(courseId), type: 'active' })
-    } else setRefresh(true)
-    void invalidateLms(queryClient)
+    setRefreshing(true)
+    lmsCourseRefresh({ path: { course_id: courseId }, throwOnError: true })
+      .then(() => invalidateLms(queryClient, { courseId }), toastError)
+      .finally(() => setRefreshing(false))
   }
 
-  const page: CanvasPage = { programId, courseId, query, go, openFile: setFile }
+  const page: CanvasPage = { programId, courseId, go, openFile: setFile }
 
   return (
     <CanvasPageContext value={page}>
@@ -94,7 +79,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
         <CanvasBoundary query={overview} skeleton={<PageSkeleton />}>
           {(data) => (
             <>
-              <TopBar overview={data} fetching={fetching} onRefresh={reload} />
+              <TopBar overview={data} fetching={fetching || refreshing} onRefresh={reload} />
               <LmsUpdatesBanner programId={programId} courseId={courseId} />
               <Body overview={data} location={location} />
             </>

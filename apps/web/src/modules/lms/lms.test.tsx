@@ -11,6 +11,7 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { ItemEditor } from '@/modules/imports/components/ItemEditor'
 import { API, apiError, renderWithRouter, server } from '@/test-utils'
+import AnnouncementsCard from './cards/AnnouncementsCard'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import { groupByTerm } from './external'
 import { CoursePicker } from './import/CoursePicker'
@@ -410,4 +411,54 @@ test('editing the address asks for the token again', async () => {
   expect(save).toBeDisabled()
   await userEvent.type(within(dialog).getByLabelText('New API token'), '7~abcdefghxy')
   expect(save).toBeEnabled()
+})
+
+test('the term announcements card reads the whole term at once, newest first', async () => {
+  const reads = vi.fn<() => void>()
+  server.use(
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({
+        items: [
+          { id: 'c1', program_id: 'p1', title: 'Calculus', code: 'MAT137' },
+          { id: 'c2', program_id: 'p1', title: 'Physics', code: 'PHY131' },
+        ],
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${API}/terms/t1/lms/announcements`, () => {
+      reads()
+      return HttpResponse.json({
+        items: [
+          {
+            course_id: 'c2',
+            external_id: 'n2',
+            title: 'Lab moved',
+            posted_at: '2026-10-02T10:00:00Z',
+          },
+          {
+            course_id: 'c1',
+            external_id: 'n1',
+            title: 'Quiz 1',
+            posted_at: '2026-10-01T10:00:00Z',
+          },
+        ],
+        linked_course_ids: ['c1', 'c2'],
+        truncated: false,
+      })
+    }),
+  )
+  renderWithRouter(
+    <AnnouncementsCard
+      scope={{ kind: 'term', programId: 'p1', termId: 't1' }}
+      size="m"
+      instanceId="i1"
+      settings={{}}
+    />,
+  )
+  const items = await screen.findAllByRole('listitem')
+  expect(items.map((li) => li.textContent)).toEqual([
+    expect.stringContaining('Lab moved'),
+    expect.stringContaining('Quiz 1'),
+  ])
+  expect(reads).toHaveBeenCalledOnce()
 })

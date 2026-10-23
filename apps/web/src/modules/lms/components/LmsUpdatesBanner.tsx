@@ -11,6 +11,7 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { useProviderName } from '../providers'
 import { reviewUpdates } from '../import/sources'
+import { invalidateLms } from '../queries'
 
 /**
  * "N imported assignments have changes or new grades on {provider}" with a button to the review (M09 §7.2). Shared
@@ -32,7 +33,7 @@ export function LmsUpdatesBanner({ programId, courseId }: { programId: string; c
   const review = () => {
     setOpening(true)
     reviewUpdates(programId, courseId)
-      .then(() => queryClient.invalidateQueries(), toastError)
+      .then(() => invalidateLms(queryClient, { courseId }), toastError)
       .then(
         () => setOpening(false),
         () => setOpening(false),
