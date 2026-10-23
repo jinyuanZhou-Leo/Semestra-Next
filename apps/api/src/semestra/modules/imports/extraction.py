@@ -175,8 +175,8 @@ def _cancel_meetings(builder: Builder, course_ref: str, day: date) -> bool:
     ]
     for meeting in meetings:
         dates_ = meeting.data.setdefault("exceptions", [])
-        if day not in dates_:
-            dates_.append(day)
+        if day.isoformat() not in dates_:
+            dates_.append(day.isoformat())
     return bool(meetings)
 
 
@@ -352,9 +352,12 @@ def from_syllabus(
             if day is not None:
                 fields.put("due_date", d.date if d.date.value else d.date_text, day)
             # A task calls it due_text; its source and certainty move with it.
-            for store in (fields.data, fields.evidence, fields.confidence):
-                if "date_text" in store:
-                    store["due_text"] = store.pop("date_text")
+            if "date_text" in fields.data:
+                fields.data["due_text"] = fields.data.pop("date_text")
+            if "date_text" in fields.evidence:
+                fields.evidence["due_text"] = fields.evidence.pop("date_text")
+            if "date_text" in fields.confidence:
+                fields.confidence["due_text"] = fields.confidence.pop("date_text")
             builder.add("task", fields.data, evidence=fields.evidence, confidence=fields.confidence)
             continue
         if kind == "no_class" and day is not None and _cancel_meetings(builder, ref, day):

@@ -371,7 +371,7 @@ test('an LMS assignment can switch between assessment and task in the review', a
     />,
   )
   await userEvent.click(await screen.findByRole('button', { name: 'Task' }))
-  await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task' }))
+  await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
 })
 
 test('a changed assignment shows its name and old → new values', async () => {
