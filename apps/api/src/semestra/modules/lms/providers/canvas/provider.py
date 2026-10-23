@@ -245,11 +245,7 @@ def _map_status(response: httpx.Response) -> AppError | None:
 
 
 def _next_link(response: httpx.Response) -> str | None:
-    for part in response.headers.get("link", "").split(","):
-        match = re.match(r'\s*<([^>]+)>\s*;\s*rel="?next"?', part)
-        if match:
-            return match.group(1)
-    return None
+    return response.links.get("next", {}).get("url")
 
 
 async def _resolve(host: str, port: int) -> list[str]:
@@ -468,21 +464,29 @@ class CanvasProvider:
         io: Io,
         cfg: BaseModel,
         creds: BaseModel,
-        course_id: str,
+        course_ids: Sequence[str],
         *,
         since: datetime | None = None,
     ) -> list[Announcement]:
         now = datetime.now(UTC)
         start = since or now - ANNOUNCEMENT_LOOKBACK
-        params = [
-            ("context_codes[]", f"course_{course_id}"),
-            ("start_date", start.date().isoformat()),
-            ("end_date", (now + timedelta(days=1)).date().isoformat()),
-        ]
-        rows = await self._list(io, cfg, creds, "/announcements", params)
+        rows: list[tuple[str, dict[str, Any]]] = []
+        ids = list(dict.fromkeys(course_ids))
+        for i in range(0, len(ids), CONTEXT_CODES_PER_REQUEST):
+            chunk = ids[i : i + CONTEXT_CODES_PER_REQUEST]
+            params = [
+                *(("context_codes[]", f"course_{c}") for c in chunk),
+                ("start_date", start.date().isoformat()),
+                ("end_date", (now + timedelta(days=1)).date().isoformat()),
+            ]
+            for r in await self._list(io, cfg, creds, "/announcements", params):
+                # `context_code` says which course; a request for one course needs no telling.
+                context = str(r.get("context_code") or "").removeprefix("course_")
+                rows.append((context or (chunk[0] if len(chunk) == 1 else ""), r))
         out = [
             Announcement(
                 external_id=str(r.get("id") or ""),
+                external_course_id=course,
                 web_url=_text(r.get("html_url")),
                 raw_kind="announcement",
                 title=_text(r.get("title")) or "",
@@ -494,7 +498,7 @@ class CanvasProvider:
                 updated_at=r.get("last_reply_at") or r.get("updated_at"),
                 unread=r.get("read_state") == "unread",
             )
-            for r in rows
+            for course, r in rows
         ]
         return sorted(out, key=lambda a: a.posted_at or now, reverse=True)
 
@@ -541,7 +545,7 @@ class CanvasProvider:
                 )
         return out
 
-    async def grades(
+    async def grade_totals(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[GradeItem]:
         enrollments = await self._list(
@@ -559,34 +563,26 @@ class CanvasProvider:
                     external_id=f"total:{e.get('id')}",
                     web_url=_text(grades.get("html_url")),
                     raw_kind="enrollment",
-                    name=_text(e.get("course_section_id")) or "total",
+                    name="Course total",
                     score=_num(grades.get("current_score")),
                     grade=_text(grades.get("current_grade")),
                     kind="total",
                 )
             )
             break  # one student enrollment is enough for the course total
-        for a in await self.assignments(io, cfg, creds, course_id):
-            sub = a.submission
-            out.append(
-                GradeItem(
-                    external_id=a.external_id,
-                    web_url=a.web_url,
-                    raw_kind="submission",
-                    name=a.name,
-                    score=sub.score if sub else None,
-                    points_possible=a.points,
-                    grade=sub.grade if sub else None,
-                    group_name=a.group_name,
-                    graded_at=sub.graded_at if sub else None,
-                )
-            )
         return out
 
     async def modules(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
-        rows = await self._list(io, cfg, creds, f"/courses/{quote(course_id)}/modules")
+        # Items inline save one request per module; Canvas may leave them out of a big module.
+        rows = await self._list(
+            io,
+            cfg,
+            creds,
+            f"/courses/{quote(course_id)}/modules",
+            [("include[]", "items"), ("include[]", "content_details")],
+        )
         base = _cfg(cfg).base_url
         return [
             Module(
@@ -601,6 +597,9 @@ class CanvasProvider:
                 completed_at=r.get("completed_at"),
                 prerequisite_module_ids=[str(i) for i in r.get("prerequisite_module_ids") or []],
                 require_sequential_progress=bool(r.get("require_sequential_progress")),
+                items=[self._module_item(_dict(i)) for i in r["items"]]
+                if isinstance(r.get("items"), list)
+                else None,
             )
             for r in rows
         ]
@@ -615,42 +614,40 @@ class CanvasProvider:
             f"/courses/{quote(course_id)}/modules/{quote(module_id)}/items",
             [("include[]", "content_details")],
         )
-        out: list[ModuleItem] = []
-        for r in rows:
-            raw = str(r.get("type") or "")
-            kind = MODULE_ITEM_KINDS.get(raw, "unknown")
-            target: InternalRef | None = None
-            if kind == "page" and r.get("page_url"):
-                target = InternalRef(kind="page", ref=str(r["page_url"]))
-            elif kind in ("assignment", "quiz", "file", "discussion") and r.get("content_id"):
-                target = InternalRef(kind=kind, ref=str(r["content_id"]))  # pyright: ignore[reportArgumentType]
-            requirement = _dict(r.get("completion_requirement"))
-            details = _dict(r.get("content_details"))
-            out.append(
-                ModuleItem(
-                    external_id=str(r.get("id") or ""),
-                    web_url=_text(r.get("html_url")),
-                    raw_kind=raw or None,
-                    title=_text(r.get("title")) or "",
-                    kind=kind,  # pyright: ignore[reportArgumentType]
-                    position=_int(r.get("position")),
-                    indent=_int(r.get("indent")),
-                    target=target,
-                    external_url=_text(r.get("external_url")),
-                    completion=Completion(
-                        type=str(requirement["type"]),
-                        min_score=_num(requirement.get("min_score")),
-                        completed=bool(requirement.get("completed")),
-                    )
-                    if requirement.get("type")
-                    else None,
-                    locked=bool(details.get("locked_for_user")),
-                    lock_explanation=_text(details.get("lock_explanation")),
-                    due_at=details.get("due_at"),
-                    points=_num(details.get("points_possible")),
-                )
+        return [self._module_item(r) for r in rows]
+
+    def _module_item(self, r: dict[str, Any]) -> ModuleItem:
+        raw = str(r.get("type") or "")
+        kind = MODULE_ITEM_KINDS.get(raw, "unknown")
+        target: InternalRef | None = None
+        if kind == "page" and r.get("page_url"):
+            target = InternalRef(kind="page", ref=str(r["page_url"]))
+        elif kind in ("assignment", "quiz", "file", "discussion") and r.get("content_id"):
+            target = InternalRef(kind=kind, ref=str(r["content_id"]))  # pyright: ignore[reportArgumentType]
+        requirement = _dict(r.get("completion_requirement"))
+        details = _dict(r.get("content_details"))
+        return ModuleItem(
+            external_id=str(r.get("id") or ""),
+            web_url=_text(r.get("html_url")),
+            raw_kind=raw or None,
+            title=_text(r.get("title")) or "",
+            kind=kind,  # pyright: ignore[reportArgumentType]
+            position=_int(r.get("position")),
+            indent=_int(r.get("indent")),
+            target=target,
+            external_url=_text(r.get("external_url")),
+            completion=Completion(
+                type=str(requirement["type"]),
+                min_score=_num(requirement.get("min_score")),
+                completed=bool(requirement.get("completed")),
             )
-        return out
+            if requirement.get("type")
+            else None,
+            locked=bool(details.get("locked_for_user")),
+            lock_explanation=_text(details.get("lock_explanation")),
+            due_at=details.get("due_at"),
+            points=_num(details.get("points_possible")),
+        )
 
     def _page_summary(self, r: dict[str, Any]) -> PageSummary:
         return PageSummary(
@@ -870,9 +867,9 @@ class CanvasProvider:
         )
 
     async def open_file(
-        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file: FileMeta
     ) -> AsyncIterator[bytes]:
-        meta = await self.file(io, cfg, creds, course_id, file_id)
+        meta = file
         if meta.locked or not meta.download_url:
             raise lms_error("lms.forbidden")
         base = _cfg(cfg).base_url

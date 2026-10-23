@@ -97,7 +97,6 @@ class LmsImportedRef(Base, OwnedMixin):
     target_id: Mapped[str] = mapped_column(String, index=True)
     # What the item looked like when imported: {title, due_at, points} (update detection).
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    external_updated_at: Mapped[datetime | None] = mapped_column(default=None)
     imported_at: Mapped[datetime] = mapped_column()
 
 
@@ -105,10 +104,13 @@ class LmsCache(Base, OwnedMixin):
     """Second-level read cache (the first is in process); never exported."""
 
     __tablename__ = "lms_cache"
+    __table_args__ = (Index("ix_lms_cache_connection_scope", "connection_id", "scope"),)
 
     key: Mapped[str] = mapped_column(String, primary_key=True)
     connection_id: Mapped[str] = mapped_column(
         String, ForeignKey("lms_connections.id", ondelete="CASCADE"), index=True
     )
+    # `course:<external id>` for reads of one course, so they can be dropped together.
+    scope: Mapped[str | None] = mapped_column(String, default=None)
     payload: Mapped[Any] = mapped_column(JSON)
     expires_at: Mapped[datetime] = mapped_column()

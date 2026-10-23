@@ -4,6 +4,7 @@ their text with M07's parser for previews.
 M07 may not be installed yet (it is merged separately); then both are unavailable."""
 
 import importlib
+from datetime import timedelta
 from types import ModuleType
 
 import anyio.to_thread
@@ -26,8 +27,8 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
     files = _files_service()
     if files is None or not hasattr(files, "save_bytes_as_file"):
         raise lms_error("lms.feature_unsupported", feature="save_to_course")
-    meta, stream = await reads.open_file(ctx, inp.course_id, inp.file_id)
-    link, b = await reads.service.require_link(ctx, inp.course_id)
+    link, b = linked = await service.require_link(ctx, inp.course_id)
+    meta, stream = await reads.open_file(ctx, inp.course_id, inp.file_id, linked=linked)
     item = await files.save_bytes_as_file(
         ctx,
         inp.course_id,
@@ -46,6 +47,8 @@ ISOLATED_KINDS = ("pdf", "docx", "pptx", "xlsx")
 PREVIEW_KINDS = ("pdf", "docx", "pptx", "xlsx", "csv", "html", "text", "markdown")
 PREVIEW_MAX_PAGES = 200
 PREVIEW_TIME_LIMIT = 60.0
+# The key names the file's version, so a preview stays right until the file changes.
+PREVIEW_TTL = timedelta(days=7)
 
 
 async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> FilePreview:
@@ -58,8 +61,8 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
     except ImportError:
         raise lms_error("lms.feature_unsupported", feature="preview") from None
 
-    meta = await reads.file(ctx, course_id, file_id, refresh)
-    link, b = await service.require_link(ctx, course_id)
+    link, b = linked = await service.require_link(ctx, course_id)
+    meta = await reads.file(ctx, course_id, file_id, refresh, linked=linked)
     params = {
         "course": link.external_course_id,
         "file": file_id,
@@ -72,7 +75,7 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
     limit = ctx.settings.files_max_upload_bytes
     if meta.size_bytes is not None and meta.size_bytes > limit:
         raise lms_error("lms.file_too_large", limit=limit)
-    _, stream = await reads.open_file(ctx, course_id, file_id)
+    _, stream = await reads.open_file(ctx, course_id, file_id, meta=meta, linked=linked)
     data = bytearray()
     async for chunk in stream:
         data += chunk
@@ -112,5 +115,12 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         pages=[p.markdown for p in document.pages[:PREVIEW_MAX_PAGES]],
         truncated=len(document.pages) > PREVIEW_MAX_PAGES,
     )
-    await cache.put(ctx, key, b.row.id, {"data": out.model_dump(mode="json"), "truncated": False})
+    await cache.put(
+        ctx,
+        key,
+        b.row.id,
+        {"data": out.model_dump(mode="json"), "truncated": False},
+        scope=cache.course_scope(link.external_course_id),
+        ttl=PREVIEW_TTL,
+    )
     return out
