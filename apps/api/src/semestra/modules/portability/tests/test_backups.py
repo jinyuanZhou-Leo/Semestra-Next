@@ -226,6 +226,40 @@ async def test_round_trip_into_another_account(
         assert ref == assessment
 
 
+async def test_a_backup_with_the_dropped_course_order_still_imports(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    """Backups made before per-term course order was dropped carry `term_course_order`."""
+    alice = await make_user(email="alice@example.com")
+    await _seed(app, alice)
+    await login_as(client, alice)
+    source = zipfile.ZipFile(io.BytesIO(await _export(client, run_jobs)))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "data/academics.json":
+                payload = json.loads(data)
+                term, course = payload["terms"][0], payload["courses"][0]
+                payload["term_course_order"] = [
+                    {"term_id": term["id"], "course_id": course["id"], "position": 0}
+                ]
+                data = json.dumps(payload).encode()
+            z.writestr(name, data)
+
+    bob = await make_user(email="bob@example.com")
+    async with _client(app) as bob_client:
+        await login_as(bob_client, bob)
+        upload_id = (await _upload(bob_client, out.getvalue())).json()["id"]
+        started = await bob_client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})
+        assert started.status_code == 200, started.text
+        await run_jobs()
+        done = (await bob_client.get(f"/me/imports/{upload_id}")).json()
+    assert done["status"] == "imported", done
+    assert done["report"]["imported"]["academics"]["courses"] == 1
+    assert "term_course_order" not in done["report"]["imported"]["academics"]
+
+
 async def test_merge_into_the_same_account_renames_and_selects_programs(
     app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
 ) -> None:
