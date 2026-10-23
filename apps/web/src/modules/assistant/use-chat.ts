@@ -5,12 +5,12 @@ import {
   agentSessionStop,
 } from '@semestra/api-client'
 import { agentSessionGetOptions, agentSessionGetQueryKey } from '@semestra/api-client/react-query'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
 import { MEMORY_QUERIES } from './memory'
-import { type AgentEvent, streamAgent } from './stream'
-import { applyEvent, withEditedMessage, withUserMessage } from './transcript'
+import { type AgentEvent, followAgent, streamAgent } from './stream'
+import { applyEvent, restartFrom, withEditedMessage, withUserMessage } from './transcript'
 
 export type ChatError = { code: string; params: Record<string, unknown> }
 
@@ -32,31 +32,127 @@ export type Decision = {
 }
 
 const LIST_QUERIES = ['agentSessionList']
+const RECONNECT_TRIES = 3
 
-/** One streaming request; never throws. `started` is false when it failed before the turn. */
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+type OnEvent = (event: AgentEvent) => void
+type OnId = (id: string) => void
+
+/**
+ * One streaming request; never throws. `started` is false when it failed before the turn. A
+ * connection lost mid-turn is picked up again after the last event seen: the turn runs on the
+ * server whether or not anyone listens.
+ */
 async function streamTurn(
-  path: string,
-  body: unknown,
-  onEvent: (event: AgentEvent) => void,
+  start: (onEvent: OnEvent, onId: OnId) => Promise<unknown>,
+  follow: (lastEventId: string | null, onEvent: OnEvent, onId: OnId) => Promise<unknown>,
+  handle: OnEvent,
   signal: AbortSignal,
 ): Promise<{ started: boolean; error: ChatError | null }> {
   let started = false
+  let lastId: string | null = null
+  const onEvent = (event: AgentEvent) => {
+    started = true
+    handle(event)
+  }
+  const onId = (id: string) => {
+    started = true
+    lastId = id
+  }
   try {
-    await streamAgent(
-      path,
-      body,
-      (event) => {
-        started = true
-        onEvent(event)
-      },
-      signal,
-    )
+    await start(onEvent, onId)
     return { started, error: null }
   } catch (err) {
     if (signal.aborted) return { started, error: null }
     const apiError = toApiError(err)
-    return { started, error: { code: apiError.code, params: apiError.params } }
+    if (!started || apiError.status !== 0) {
+      return { started, error: { code: apiError.code, params: apiError.params } }
+    }
   }
+  for (let attempt = 1; attempt <= RECONNECT_TRIES; attempt++) {
+    await wait(500 * attempt)
+    if (signal.aborted) break
+    try {
+      await follow(lastId, onEvent, onId)
+      return { started, error: null } // Done, or the turn already ended (re-read below).
+    } catch {
+      // Still offline: try again.
+    }
+  }
+  return { started, error: signal.aborted ? null : { code: 'network', params: {} } }
+}
+
+/**
+ * Applies events to the conversation's cache entry at most once a frame: a long answer streams
+ * many small deltas, and each change re-renders the transcript.
+ */
+function batcher(apply: (events: AgentEvent[]) => void) {
+  let queued: AgentEvent[] = []
+  let frame: number | null = null
+  const flush = () => {
+    if (frame !== null) cancelAnimationFrame(frame)
+    frame = null
+    if (queued.length === 0) return
+    const events = queued
+    queued = []
+    apply(events)
+  }
+  return {
+    push(event: AgentEvent) {
+      queued.push(event)
+      frame ??= requestAnimationFrame(flush)
+    },
+    flush,
+  }
+}
+
+const keyOf = (id: string) => agentSessionGetQueryKey({ path: { id } })
+
+// Conversations whose turn this page already streams: the panel and the full page share the
+// cache entry, so only one of them may apply the events.
+const streaming = new Set<string>()
+
+/** Applies a turn's events to the conversation; `restart` when following it from its start. */
+function eventHandler(
+  queryClient: QueryClient,
+  id: string,
+  restart: boolean,
+  setError: (error: ChatError) => void,
+) {
+  const batch = batcher((events) =>
+    queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
+      current
+        ? events.reduce(
+            (d, event) =>
+              event.event === 'start' && restart
+                ? restartFrom(d, event.data.after)
+                : applyEvent(d, event),
+            current,
+          )
+        : current,
+    ),
+  )
+  const onEvent = (event: AgentEvent) => {
+    if (event.event === 'error') {
+      setError(event.data)
+      return
+    }
+    batch.push(event)
+    if (event.event === 'title') void invalidateOperations(queryClient, LIST_QUERIES)
+    if (event.event === 'tool_result' && event.data.memory) {
+      void invalidateOperations(queryClient, MEMORY_QUERIES)
+    }
+  }
+  return { onEvent, flush: batch.flush }
+}
+
+/** After a turn: the server copy replaces the streamed one. */
+async function settle(queryClient: QueryClient, id: string) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: keyOf(id) }),
+    invalidateOperations(queryClient, LIST_QUERIES),
+  ])
 }
 
 export function emptyDetail(session: AgentSessionDetail['session']): AgentSessionDetail {
@@ -100,11 +196,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const detail = useQuery({
     ...sessionQueryOptions(sessionId),
     refetchOnWindowFocus: !busy,
-    // Another tab or device may be answering in this conversation: follow along.
-    refetchInterval: (query) => (query.state.data?.generating && !busy ? 2000 : false),
   })
-
-  const keyOf = (id: string) => agentSessionGetQueryKey({ path: { id } })
 
   /** Runs one streaming request; false when it failed before the turn started. */
   async function run(id: string, path: string, body: unknown): Promise<boolean> {
@@ -112,29 +204,56 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     setError(null)
     const abort = new AbortController()
     controller.current = abort
-    const onEvent = (event: AgentEvent) => {
-      if (event.event === 'error') {
-        setError(event.data)
-        return
-      }
-      queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
-        current ? applyEvent(current, event) : current,
-      )
-      if (event.event === 'title') void invalidateOperations(queryClient, LIST_QUERIES)
-      if (event.event === 'tool_result' && event.data.memory) {
-        void invalidateOperations(queryClient, MEMORY_QUERIES)
-      }
-    }
-    const result = await streamTurn(path, body, onEvent, abort.signal)
+    const { onEvent, flush } = eventHandler(queryClient, id, false, setError)
+    streaming.add(id)
+    const result = await streamTurn(
+      (handle, onId) => streamAgent(path, body, handle, onId, abort.signal),
+      (lastId, handle, onId) => followAgent(id, lastId, handle, onId, abort.signal),
+      onEvent,
+      abort.signal,
+    )
+    flush()
+    streaming.delete(id)
     if (result.error) setError(result.error)
     controller.current = null
+    // Not "someone else's turn" for the moment until the server copy is re-read.
+    queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
+      current ? { ...current, generating: false } : current,
+    )
     setBusy(false)
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: keyOf(id) }),
-      invalidateOperations(queryClient, LIST_QUERIES),
-    ])
+    await settle(queryClient, id)
     return result.started
   }
+
+  // A turn this page did not start (another tab, or one running before a reload): follow it.
+  const othersTurn = Boolean(detail.data?.generating) && !busy
+  useEffect(() => {
+    if (!othersTurn || sessionId === null || streaming.has(sessionId)) return
+    const abort = new AbortController()
+    streaming.add(sessionId)
+    const follow = (): Promise<void> => {
+      const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError)
+      return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
+        () => {
+          flush()
+          if (!abort.signal.aborted) void settle(queryClient, sessionId)
+        },
+        async () => {
+          flush()
+          if (abort.signal.aborted) return
+          await wait(2000) // Offline: try again in a moment, from the start.
+          if (!abort.signal.aborted) await follow()
+        },
+      )
+    }
+    void follow().finally(() => {
+      if (!abort.signal.aborted) streaming.delete(sessionId)
+    })
+    return () => {
+      abort.abort()
+      streaming.delete(sessionId)
+    }
+  }, [othersTurn, sessionId, queryClient])
 
   async function createSession(
     scope: AgentScope | null | undefined,

@@ -33,8 +33,8 @@ import { ApprovalsSection } from './settings/ApprovalsSection'
 import { mcpConfig } from './settings/McpSection'
 import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
-import { parseSse, type RememberedMemory } from './stream'
-import { applyEvent, buildItems, canRegenerate, withEditedMessage } from './transcript'
+import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
+import { applyEvent, buildItems, canRegenerate, restartFrom, withEditedMessage } from './transcript'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -158,6 +158,7 @@ beforeEach(() => {
     http.post(`${API}/agent/sessions`, () => HttpResponse.json(srv.detail.session)),
     http.get(`${API}/agent/sessions`, () => HttpResponse.json({ items: [srv.detail.session] })),
     http.get(`${API}/agent/sessions/:id`, () => HttpResponse.json(srv.detail)),
+    http.get(`${API}/agent/sessions/:id/events`, () => new HttpResponse(null, { status: 204 })),
     http.get(`${API}/settings/assistant`, () =>
       HttpResponse.json({ namespace: 'assistant', values: assistantSettings, inherited: {} }),
     ),
@@ -213,13 +214,126 @@ function renderConversation(
   return { ...view, created: () => created }
 }
 
-test('parses server-sent events across chunks and skips keep-alives', () => {
-  const first = parseSse(
-    'event: text_delta\r\ndata: {"message_id":"a","text":"Hi"}\r\n\r\n: ping\r\n\r\nevent: tit',
+test('reads server-sent events across chunks, skips keep-alives and keeps the last id', async () => {
+  server.use(
+    http.post(`${API}/agent/sessions/s1/messages`, () => {
+      const chunks = [
+        'id: g:0\r\nevent: text_delta\r\ndata: {"message_id":"a","text":"Hi"}\r\n\r\n: ping\r\n\r\n',
+        'id: g:1\r\nevent: tit',
+        'le\ndata: {"title":"Lab"}\n\n',
+      ]
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk))
+          controller.close()
+        },
+      })
+      return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+    }),
   )
-  expect(first.events).toEqual([{ event: 'text_delta', data: { message_id: 'a', text: 'Hi' } }])
-  const second = parseSse(`${first.rest}le\ndata: {"title":"Lab"}\n\n`)
-  expect(second.events).toEqual([{ event: 'title', data: { title: 'Lab' } }])
+  const events: AgentEvent[] = []
+  let lastId = ''
+  await streamAgent(
+    '/agent/sessions/s1/messages',
+    {},
+    (event) => events.push(event),
+    (id) => {
+      lastId = id
+    },
+  )
+  expect(events).toEqual([
+    { event: 'text_delta', data: { message_id: 'a', text: 'Hi' } },
+    { event: 'title', data: { title: 'Lab' } },
+  ])
+  expect(lastId).toBe('g:1')
+})
+
+test('following a turn from its start rebuilds what came after its first row', () => {
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+      msg('a1', 'assistant', [{ type: 'text', text: 'Hel' }]),
+    ],
+    proposals: [],
+    attachments: [],
+    generating: true,
+  }
+  let next = restartFrom(detail, 'u1')
+  for (const event of [
+    { event: 'message_start', data: { message_id: 'a1' } },
+    { event: 'text_delta', data: { message_id: 'a1', text: 'Hello' } },
+  ] as AgentEvent[])
+    next = applyEvent(next, event)
+  expect(buildItems(next, true).at(-1)).toMatchObject({ kind: 'assistant', answer: 'Hello' })
+  // A row this copy does not have yet: nothing is dropped.
+  expect(restartFrom(detail, 'unknown')).toBe(detail)
+})
+
+test('a reloaded page follows the turn still running on the server', async () => {
+  srv.detail.generating = true
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Partial' }]),
+  ]
+  let followed = 0
+  server.use(
+    http.get(`${API}/agent/sessions/s1/events`, () => {
+      followed++
+      srv.detail.generating = false
+      srv.detail.messages = [
+        msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+        msg('a1', 'assistant', [{ type: 'text', text: 'Partial answer, now done.' }]),
+      ]
+      return sse([
+        ['start', { after: 'u1' }],
+        ['message_start', { message_id: 'a1' }],
+        ['text_delta', { message_id: 'a1', text: 'Partial answer, now done.' }],
+        ['message_end', { message_id: 'a1' }],
+      ])
+    }),
+  )
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Partial answer, now done.')).toBeInTheDocument()
+  expect(screen.queryByText('Partial')).not.toBeInTheDocument()
+  await screen.findByRole('button', { name: 'Send' })
+  expect(followed).toBe(1)
+})
+
+test('a card that ran without a result row shows as done, with its names', () => {
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: 'Lab 3 is 90' }]),
+      msg('a1', 'assistant', [
+        { type: 'tool_call', id: 'call1', name: 'grading__assessment__update', args: {} },
+      ]),
+    ],
+    proposals: [
+      proposal({ status: 'executed', input_schema: null, display: { target: ['Lab 3'] } }),
+      proposal({
+        id: 'pr2',
+        call_id: 'call2',
+        status: 'failed',
+        error_code: 'common.not_found',
+        input_schema: null,
+      }),
+    ],
+    attachments: [],
+    generating: false,
+  }
+  detail.messages[1]?.content.push({
+    type: 'tool_call',
+    id: 'call2',
+    name: 'grading__assessment__update',
+    args: {},
+  })
+  const item = buildItems(detail).at(-1)
+  if (item?.kind !== 'assistant') throw new Error('expected an answer')
+  expect(item.steps.map((s) => [s.status, s.errorCode, s.display, s.changed])).toEqual([
+    ['done', null, { target: ['Lab 3'] }, true],
+    ['error', 'common.not_found', null, false],
+  ])
 })
 
 test('streamed events build the answer, its steps and the confirmation card', () => {

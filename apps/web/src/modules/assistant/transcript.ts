@@ -299,6 +299,16 @@ function stopTimer(content: Block[], again: boolean): Block[] {
 }
 
 /** Applies one streamed event to the cached transcript (the server copy is re-read after). */
+/**
+ * Following a turn from its start (a reload, another tab): what came after the row stored before
+ * the turn is dropped, as the replayed events rebuild it. Unchanged when that row is not here.
+ */
+export function restartFrom(detail: AgentSessionDetail, after: string | null): AgentSessionDetail {
+  const at = after === null ? -1 : detail.messages.findIndex((m) => m.id === after)
+  if (after !== null && at < 0) return detail
+  return { ...detail, messages: detail.messages.slice(0, at + 1) }
+}
+
 export function applyEvent(detail: AgentSessionDetail, event: AgentEvent): AgentSessionDetail {
   switch (event.event) {
     case 'message_start':

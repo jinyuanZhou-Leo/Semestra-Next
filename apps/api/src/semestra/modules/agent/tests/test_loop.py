@@ -21,7 +21,7 @@ from sqlalchemy import update
 
 from semestra.core.capability import registry
 from semestra.core.errors import AppError
-from semestra.modules.agent import decisions, history, loop, outcome, service, skills, tools
+from semestra.modules.agent import decisions, history, loop, outcome, routes, service, skills, tools
 from semestra.modules.agent.context import STATIC_PROMPT
 from semestra.modules.agent.models import AgentPreferences
 from semestra.modules.agent.runtime import agent_ctx
@@ -65,7 +65,7 @@ async def test_read_tool_runs_and_the_answer_streams(agent: Agent, model: FakeMo
     events = await agent.send(session["id"], "Which terms do I have?")
 
     names = [n for n, _ in events]
-    assert names[0] == "message_start"
+    assert names[:2] == ["start", "message_start"]
     assert events_named(events, "tool_call")[0]["name"] == "academics.term.list"
     assert events_named(events, "tool_result")[0]["ok"] is True
     assert texts(events) == "One term."
@@ -947,6 +947,48 @@ async def _add_user(app: FastAPI, agent: Agent, session_id: str, text: str = "hi
         service.add_message(ctx, row, "user", [{"type": "text", "text": text}])
         await ctx.db.commit()
     return user
+
+
+async def test_the_turn_goes_on_without_a_client(app: FastAPI, agent: Agent, model: FakeModel):
+    """Nobody follows the turn (the tab was closed): it still answers and stores everything."""
+    session = await agent.session()
+    model.then(say("Answered anyway."))
+    user = await _add_user(app, agent, session["id"])
+    rt = app.state.agent
+    claim = rt.claim(user, session["id"])
+    gen = rt.start(claim, routes._events(app.state, claim))  # pyright: ignore[reportPrivateUsage]
+    assert gen.task is not None
+    await gen.task
+    detail = await agent.detail(session["id"])
+    assert detail["generating"] is False
+    last = detail["messages"][-1]["content"]
+    assert [b["text"] for b in last if b["type"] == "text"] == ["Answered anyway."]
+
+
+async def _follow(agent: Agent, session_id: str, last_event_id: str | None = None) -> Any:
+    headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+    r = await agent.client.get(f"/agent/sessions/{session_id}/events", headers=headers)
+    if r.status_code == 204:
+        return None
+    names = re.findall(r"^event: (\S+)", r.text, re.MULTILINE)
+    ids = re.findall(r"^id: (\S+)", r.text, re.MULTILINE)
+    return names, ids
+
+
+async def test_a_client_picks_the_turn_up_again(agent: Agent, model: FakeModel):
+    """After a lost connection: the events after the last one seen; after a reload: all."""
+    session = await agent.session()
+    assert await _follow(agent, session["id"]) is None  # no turn
+    model.then(say("Hello there"))
+    sent = [n for n, _ in await agent.send(session["id"], "hi")]
+    names, ids = await _follow(agent, session["id"])
+    assert names == sent
+    assert names[0] == "start"
+    rest, _ = await _follow(agent, session["id"], ids[1])
+    assert rest == sent[2:]
+    # An id from another turn: from the start.
+    again, _ = await _follow(agent, session["id"], "elsewhere:3")
+    assert again == sent
 
 
 async def test_stop_keeps_the_partial_answer(app: FastAPI, agent: Agent, model: FakeModel):

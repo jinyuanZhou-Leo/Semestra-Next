@@ -191,6 +191,16 @@ async def messages(ctx: Ctx, session_id: str) -> list[AgentMessage]:
     return list((await ctx.db.scalars(stmt)).all())
 
 
+async def last_message_id(ctx: Ctx, session_id: str) -> str | None:
+    stmt = (
+        select(AgentMessage.id)
+        .where(AgentMessage.session_id == session_id, AgentMessage.user_id == ctx.user_id)
+        .order_by(AgentMessage.created_at.desc(), AgentMessage.id.desc())
+        .limit(1)
+    )
+    return await ctx.db.scalar(stmt)
+
+
 def add_message(
     ctx: Ctx,
     session: AgentSession,
