@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -15,5 +15,19 @@ export function BrandLogo({ src, className }: { src: string; className?: string 
       )}
       style={{ '--brand-logo': `url("${src}")` } as CSSProperties}
     />
+  )
+}
+
+/** A brand mark in the small rounded tile used by the provider and connection tables. */
+export function BrandTile({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        'flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-foreground',
+        className,
+      )}
+    >
+      {children}
+    </span>
   )
 }

@@ -8,12 +8,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, ChevronDown, Waypoints } from 'lucide-react'
 import { useId, useState, type ComponentType, type FormEvent } from 'react'
 import { ChoiceControl } from '@/app/settings'
-import { BrandLogo } from '@/components/BrandLogo'
+import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
@@ -35,7 +36,7 @@ import {
   type Capability,
   type ProviderKind,
 } from '../labels'
-import { hostOf, PRESETS, type ProviderPreset } from '../presets'
+import { defaultRegion, hostOf, PRESETS, type ProviderPreset } from '../presets'
 import { invalidateAi } from '../queries'
 
 /** Chat-like purposes a typed default model is used for (compatible endpoints, Ollama). */
@@ -95,16 +96,11 @@ export function ProviderMark({ logo, className }: { logo: string | null; classNa
 }
 
 /** A provider's mark in a small rounded tile. */
-export function LogoTile({ logo, className }: { logo: string | null; className?: string }) {
+export function LogoTile({ logo }: { logo: string | null }) {
   return (
-    <span
-      className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-foreground',
-        className,
-      )}
-    >
+    <BrandTile>
       <ProviderMark logo={logo} />
-    </span>
+    </BrandTile>
   )
 }
 
@@ -196,7 +192,8 @@ function ProviderForm({
   const id = useId()
   const [kind, setKind] = useState<ProviderKind>(preset.kind ?? 'openai_compatible')
   const [name, setName] = useState('')
-  const [baseUrl, setBaseUrl] = useState(preset.baseUrl ?? '')
+  const [region, setRegion] = useState(() => defaultRegion(preset, getLocale()))
+  const [baseUrl, setBaseUrl] = useState(region?.baseUrl ?? preset.baseUrl ?? '')
   const [apiKey, setApiKey] = useState('')
   const [capabilities, setCapabilities] = useState<Capability[]>([
     ...KIND_INFO[kind].defaultCapabilities,
@@ -205,10 +202,19 @@ function ProviderForm({
   const create = useMutation(aiProviderCreateMutation())
   const assign = useMutation(aiAssignmentUpdateMutation())
   const info = KIND_INFO[kind]
+  const keyUrl = region?.keyUrl ?? preset.keyUrl
   // A hosted service always needs a key; a self-run endpoint may not.
-  const needsKey = info.needsKey || preset.keyUrl !== undefined
+  const needsKey = info.needsKey || keyUrl !== undefined
   // A known service has its address filled in, so its details start folded away.
   const folded = preset.kind !== null && preset.kind !== 'ollama' && info.needsBaseUrl
+
+  const chooseRegion = (value: string) => {
+    const next = preset.regions?.find((r) => r.id === value)
+    if (!next) return
+    setRegion(next)
+    setBaseUrl(next.baseUrl)
+    create.reset()
+  }
 
   const chooseKind = (next: ProviderKind) => {
     setKind(next)
@@ -226,7 +232,8 @@ function ProviderForm({
     const body = {
       kind,
       // Named after the service ("DeepSeek"), not the protocol, unless the user names it.
-      display_name: name.trim() || (preset.kind === kind && preset.baseUrl ? preset.name() : null),
+      display_name:
+        name.trim() || (preset.kind === kind && info.needsBaseUrl ? preset.name() : null),
       base_url: info.needsBaseUrl ? baseUrl.trim() : null,
       api_key: apiKey.trim() || null,
       capabilities: info.chooseCapabilities ? capabilities : null,
@@ -309,6 +316,18 @@ function ProviderForm({
       <fieldset disabled={pending}>
         <FieldGroup>
           {folded ? null : endpointFields}
+          {preset.regions && region ? (
+            <Field>
+              <FieldLabel id={`${id}-region`}>{m.ai_preset_region()}</FieldLabel>
+              <ChoiceControl
+                labelId={`${id}-region`}
+                value={region.id}
+                onChange={chooseRegion}
+                options={preset.regions.map((r) => ({ value: r.id, label: r.label() }))}
+              />
+              <FieldDescription>{m.ai_preset_region_hint()}</FieldDescription>
+            </Field>
+          ) : null}
           <Field>
             <FieldLabel htmlFor={`${id}-key`}>
               {needsKey ? m.ai_provider_api_key() : m.ai_provider_api_key_optional()}
@@ -322,15 +341,15 @@ function ProviderForm({
               ref={needsKey ? focusOnMount : undefined}
               onChange={(e) => setApiKey(e.target.value)}
             />
-            {preset.keyUrl ? (
+            {keyUrl ? (
               <FieldDescription>
                 <a
-                  href={preset.keyUrl}
+                  href={keyUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-0.5"
                 >
-                  {m.ai_provider_create_key({ host: hostOf(preset.keyUrl) })}
+                  {m.ai_provider_create_key({ host: hostOf(keyUrl) })}
                   <ArrowUpRight aria-hidden className="size-3.5" />
                 </a>
               </FieldDescription>

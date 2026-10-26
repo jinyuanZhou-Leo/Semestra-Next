@@ -28,7 +28,14 @@ export type ProviderPreset = {
   model?: string
   /** Where the user creates a key. */
   keyUrl?: string
+  /**
+   * Services with separate mainland China and international sites: a key only works on the site
+   * that issued it, so the user picks one and it sets `baseUrl` and `keyUrl`.
+   */
+  regions?: readonly PresetRegion[]
 }
+
+export type PresetRegion = { id: 'intl' | 'cn'; label: Message; baseUrl: string; keyUrl: string }
 
 const brand =
   (name: string): Message =>
@@ -76,8 +83,21 @@ export const PRESETS: readonly ProviderPreset[] = [
     note: m.ai_preset_kimi_note,
     logo: kimiLogo,
     kind: 'openai_compatible',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    keyUrl: 'https://platform.moonshot.cn/console/api-keys',
+    model: 'kimi-k2.6',
+    regions: [
+      {
+        id: 'intl',
+        label: m.ai_preset_region_intl,
+        baseUrl: 'https://api.moonshot.ai/v1',
+        keyUrl: 'https://platform.moonshot.ai/console/api-keys',
+      },
+      {
+        id: 'cn',
+        label: m.ai_preset_region_cn,
+        baseUrl: 'https://api.moonshot.cn/v1',
+        keyUrl: 'https://platform.moonshot.cn/console/api-keys',
+      },
+    ],
   },
   {
     id: 'qwen',
@@ -85,8 +105,21 @@ export const PRESETS: readonly ProviderPreset[] = [
     note: m.ai_preset_qwen_note,
     logo: qwenLogo,
     kind: 'openai_compatible',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    keyUrl: 'https://bailian.console.aliyun.com/model/settings/api-key',
+    model: 'qwen-plus',
+    regions: [
+      {
+        id: 'intl',
+        label: m.ai_preset_region_intl,
+        baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+        keyUrl: 'https://modelstudio.console.alibabacloud.com/',
+      },
+      {
+        id: 'cn',
+        label: m.ai_preset_region_cn,
+        baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        keyUrl: 'https://bailian.console.aliyun.com/model/settings/api-key',
+      },
+    ],
   },
   {
     id: 'openrouter',
@@ -95,6 +128,8 @@ export const PRESETS: readonly ProviderPreset[] = [
     logo: openrouterLogo,
     kind: 'openai_compatible',
     baseUrl: 'https://openrouter.ai/api/v1',
+    // OpenRouter's own router: picks a model per request, so the id never goes stale.
+    model: 'openrouter/auto',
     keyUrl: 'https://openrouter.ai/keys',
   },
   {
@@ -130,11 +165,26 @@ export function hostOf(url: string): string {
   }
 }
 
+/** The addresses a preset can save: its own, or one per region. */
+function presetUrls(preset: ProviderPreset): string[] {
+  return [preset.baseUrl, ...(preset.regions ?? []).map((r) => r.baseUrl)].filter(
+    (url): url is string => url !== undefined,
+  )
+}
+
 /** The preset a saved compatible endpoint came from, recognised by its host. */
 function presetFor(baseUrl: string | null): ProviderPreset | undefined {
   if (!baseUrl) return undefined
   const host = hostOf(baseUrl)
-  return PRESETS.find((p) => p.baseUrl && p.kind !== 'ollama' && hostOf(p.baseUrl) === host)
+  return PRESETS.find(
+    (p) => p.kind !== 'ollama' && presetUrls(p).some((url) => hostOf(url) === host),
+  )
+}
+
+/** The region a new connection starts on: mainland China for the Chinese interface. */
+export function defaultRegion(preset: ProviderPreset, locale: string): PresetRegion | undefined {
+  const regions = preset.regions ?? []
+  return regions.find((r) => r.id === (locale === 'zh-CN' ? 'cn' : 'intl')) ?? regions[0]
 }
 
 /** The brand mark of a saved provider: its kind's, or the service its endpoint points at. */

@@ -348,6 +348,32 @@ test('a known service fills in its address, format and model; only the key is as
   })
 })
 
+test('a service with two sites asks which one the key is from and saves its default model', async () => {
+  const user = userEvent.setup()
+  renderWithQuery(<ProvidersSection />)
+  await user.click(await screen.findByRole('button', { name: 'Add provider' }))
+  const dialog = await screen.findByRole('dialog')
+  await user.click(within(dialog).getByRole('button', { name: /^Kimi/ }))
+  // The English interface starts on the international site.
+  expect(within(dialog).getByRole('link', { name: /platform\.moonshot\.ai/ })).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'Mainland China' }))
+  expect(within(dialog).getByRole('link', { name: /platform\.moonshot\.cn/ })).toBeInTheDocument()
+  await user.type(within(dialog).getByLabelText('API key'), 'sk-kimi')
+  await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(requests[0]).toMatchObject({
+    method: 'POST',
+    body: {
+      kind: 'openai_compatible',
+      display_name: 'Kimi',
+      base_url: 'https://api.moonshot.cn/v1',
+    },
+  })
+  // Only the key was typed, yet the tasks nothing served now have a model.
+  const assigned = requests.filter((r) => r.method === 'PUT').map((r) => r.body)
+  expect(assigned).toContainEqual({ purpose: 'chat', provider_id: 'pv1', model: 'kimi-k2.6' })
+})
+
 test('a provider row shows name, type and state; its menu tests, switches off and deletes', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
@@ -362,7 +388,10 @@ test('a provider row shows name, type and state; its menu tests, switches off an
   expect(within(row).getByText('Anthropic', { selector: '.font-medium' })).toBeInTheDocument()
   expect(within(row).getByText('Working')).toBeInTheDocument()
   // Actions live in one "⋯" menu instead of three buttons on the row.
-  expect(within(row).getAllByRole('button')).toHaveLength(1)
+  const menus = within(row)
+    .getAllByRole('button')
+    .filter((b) => b.getAttribute('aria-haspopup') === 'menu')
+  expect(menus).toHaveLength(1)
 
   const openMenu = () =>
     user.click(within(row).getByRole('button', { name: 'Actions for Anthropic' }))
@@ -433,7 +462,7 @@ test('a model is picked from one searchable list, and Auto goes back to the reco
   await waitFor(() => expect(modelBox('Reading documents')).toHaveTextContent('Claude Sonnet 5.5'))
   await user.click(modelBox('Reading documents'))
   expect(await screen.findByRole('option', { name: /Auto \(recommended\)/ })).toHaveTextContent(
-    'Now Anthropic · Claude Sonnet 5.5',
+    'Currently Anthropic · Claude Sonnet 5.5',
   )
   await user.type(screen.getByPlaceholderText('Search models'), 'haiku')
   expect(screen.queryByRole('option', { name: /Claude Sonnet 5.5/ })).not.toBeInTheDocument()

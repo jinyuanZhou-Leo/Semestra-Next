@@ -54,7 +54,7 @@ const AGO_UNITS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
   ['minute', 60],
 ]
 
-/** "5 minutes ago", "yesterday", "just now": a past moment in its largest whole unit. */
+/** "5 minutes ago", "yesterday", "now": a past moment in its largest whole unit. */
 export function formatTimeAgo(value: string | Date, now: number = Date.now()): string {
   const seconds = Math.max(0, (now - new Date(value).getTime()) / 1000)
   const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' })

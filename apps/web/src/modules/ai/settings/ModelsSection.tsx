@@ -38,6 +38,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { ItemDescription } from '@/ui/item'
+import { Skeleton } from '@/ui/skeleton'
 import { PROVIDER_ERROR_LABEL, PURPOSE_HINTS, PURPOSE_TITLES, canServe } from '../labels'
 import { providerLogo } from '../presets'
 import { invalidateAi } from '../queries'
@@ -215,7 +216,8 @@ function PurposeRow({
       label={title}
       description={PURPOSE_HINTS[purpose]()}
       note={
-        !status?.available ? (
+        // Nothing until the status arrives, so no row flashes "Unavailable" on first load.
+        status === undefined ? null : !status.available ? (
           <ItemDescription>{m.ai_models_unavailable()}</ItemDescription>
         ) : (
           <ProviderProblem provider={providerOf(status.provider_id)} />
@@ -243,9 +245,13 @@ function PurposeRow({
         >
           <span className="flex min-w-0 items-center gap-2">
             {shownLabel ? <ProviderMark logo={shownLogo} /> : null}
-            <span className={shownLabel ? 'truncate' : 'truncate text-muted-foreground'}>
-              {shownLabel ?? m.ai_models_none()}
-            </span>
+            {shownLabel === null && status === undefined ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <span className={shownLabel ? 'truncate' : 'truncate text-muted-foreground'}>
+                {shownLabel ?? m.ai_models_none()}
+              </span>
+            )}
             {selected.providerId ? null : (
               <Badge variant="secondary" className="shrink-0">
                 {m.ai_models_auto()}

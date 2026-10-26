@@ -1,12 +1,13 @@
 import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
 
+/** A platform's mark: a lucide icon or a brand logo, drawn at the size `className` gives it. */
+export type LmsLogo = ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
+
 /**
  * The frontend side of an LMS provider (M09 §2.1), contributed to `lms.providerUi`. The backend
  * provider of the same `kind` checks what the form sends (`config_model`, `credentials_model`).
  */
-/** A platform's mark: a lucide icon or a brand logo, drawn at the size `className` gives it. */
-export type LmsLogo = ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
 
 export type LmsProviderUi = {
   kind: string

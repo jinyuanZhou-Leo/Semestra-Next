@@ -13,8 +13,8 @@ import { toast } from 'sonner'
 import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { TimeAgo } from '@/components/TimeAgo'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatDateTime, formatTimeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -227,7 +227,8 @@ function NameCell({ row }: CellProps) {
 function StatusCell({ row }: CellProps) {
   const { testingId } = useRowHandlers()
   const provider = row.original
-  // One line: the badge (a spinner while testing), then how long ago it was last checked.
+  // One line: the badge (a spinner while testing), then how long ago it was last checked. The
+  // time stays while testing and the column has a fixed width, so nothing shifts.
   return (
     <div className="flex h-5 items-center gap-2">
       {testingId === provider.id ? (
@@ -238,15 +239,7 @@ function StatusCell({ row }: CellProps) {
       ) : (
         <StatusBadge provider={provider} />
       )}
-      {provider.last_checked_at && testingId !== provider.id ? (
-        <time
-          dateTime={provider.last_checked_at}
-          title={formatDateTime(provider.last_checked_at)}
-          className="text-xs text-muted-foreground"
-        >
-          {formatTimeAgo(provider.last_checked_at)}
-        </time>
-      ) : null}
+      {provider.last_checked_at ? <TimeAgo value={provider.last_checked_at} /> : null}
     </div>
   )
 }
@@ -294,7 +287,7 @@ const columns = column.columns([
 
 const COLUMN_CLASS: Record<string, string> = {
   name: 'w-full max-w-0',
-  status: 'whitespace-nowrap',
+  status: 'w-56 whitespace-nowrap',
   actions: 'w-10',
 }
 

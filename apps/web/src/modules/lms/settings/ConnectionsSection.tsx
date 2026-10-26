@@ -12,9 +12,10 @@ import { createContext, use, useState } from 'react'
 import { toast } from 'sonner'
 import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { BrandTile } from '@/components/BrandLogo'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { TimeAgo } from '@/components/TimeAgo'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatDateTime, formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -75,9 +76,9 @@ export function ConnectionStatus({ connection }: { connection: Connection }) {
 /** A platform's mark in the same tile as the AI providers'. */
 function LogoTile({ logo: Logo }: { logo: LmsLogo }) {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-foreground">
+    <BrandTile>
       <Logo aria-hidden className="size-4" />
-    </span>
+    </BrandTile>
   )
 }
 
@@ -122,7 +123,8 @@ function StatusCell({ row }: CellProps) {
   const { checkingId } = useRowHandlers()
   const connection = row.original
   const checking = checkingId === connection.id
-  // One line: the badge (a spinner while checking), then how long ago it was last checked.
+  // One line: the badge (a spinner while checking), then how long ago it was last checked. The
+  // time stays while checking and the column has a fixed width, so nothing shifts.
   return (
     <div className="flex h-5 items-center gap-2">
       {checking ? (
@@ -133,15 +135,7 @@ function StatusCell({ row }: CellProps) {
       ) : (
         <ConnectionStatus connection={connection} />
       )}
-      {connection.last_checked_at && !checking ? (
-        <time
-          dateTime={connection.last_checked_at}
-          title={formatDateTime(connection.last_checked_at)}
-          className="text-xs text-muted-foreground"
-        >
-          {formatTimeAgo(connection.last_checked_at)}
-        </time>
-      ) : null}
+      {connection.last_checked_at ? <TimeAgo value={connection.last_checked_at} /> : null}
     </div>
   )
 }
@@ -188,7 +182,7 @@ const columns = column.columns([
 
 const COLUMN_CLASS: Record<string, string> = {
   name: 'w-full max-w-0',
-  status: 'whitespace-nowrap',
+  status: 'w-56 whitespace-nowrap',
   actions: 'w-10',
 }
 
