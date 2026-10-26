@@ -344,13 +344,14 @@ test('a provider row shows name, type and state; its menu tests, switches off an
   expect(requests.at(-1)).toMatchObject({ method: 'DELETE', path: '/ai/providers/pv1' })
 })
 
-test('a failing provider says "Error" in its badge and the reason underneath', async () => {
+test('a failing provider names the problem in its badge and explains it on hover', async () => {
   world.providers.push(provider({ last_error_code: 'ai.invalid_key' }))
+  const user = userEvent.setup()
   renderWithQuery(<ProvidersSection />)
   const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
-  expect(within(row).getByText('Error')).toBeInTheDocument()
+  await user.hover(within(row).getByText('Key rejected'))
   expect(
-    within(row).getByText('The API key was rejected. Check that it is correct and active.'),
+    await screen.findByText('The API key was rejected. Check that it is correct and active.'),
   ).toBeInTheDocument()
 })
 
@@ -359,6 +360,13 @@ test('a provider whose account ran out of money says so in its badge', async () 
   renderWithQuery(<ProvidersSection />)
   const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
   expect(within(row).getByText('Out of credit')).toBeInTheDocument()
+})
+
+test('an error the badge has no word for shows "Error"', async () => {
+  world.providers.push(provider({ last_error_code: 'ai.request_rejected' }))
+  renderWithQuery(<ProvidersSection />)
+  const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
+  expect(within(row).getByText('Error')).toBeInTheDocument()
 })
 
 test('each purpose shows the model in use and can be switched to another model', async () => {

@@ -39,19 +39,32 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Spinner } from '@/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { KIND_INFO, type Capability } from '../labels'
 import { invalidateAi } from '../queries'
 import { CapabilityChecks, ProviderForm } from './ProviderForm'
 
+/** Short badge words for the errors that say something about the provider itself (M06 §8). */
+const ERROR_LABEL: Record<string, () => string> = {
+  'ai.invalid_key': () => m.ai_provider_status_invalid_key(),
+  'ai.out_of_credit': () => m.ai_provider_status_out_of_credit(),
+  'ai.provider_unreachable': () => m.ai_provider_status_unreachable(),
+}
+
 function StatusBadge({ provider }: { provider: Provider }) {
   if (!provider.enabled) return <Badge variant="outline">{m.ai_provider_status_off()}</Badge>
-  if (provider.last_error_code) {
+  const code = provider.last_error_code
+  if (code) {
+    // The badge names the problem; the full sentence, with what to do about it, is its tooltip.
     return (
-      <Badge variant="destructive">
-        {provider.last_error_code === 'ai.out_of_credit'
-          ? m.ai_provider_status_out_of_credit()
-          : m.ai_provider_status_error()}
-      </Badge>
+      <Tooltip>
+        <TooltipTrigger render={<Badge variant="destructive" tabIndex={0} />}>
+          {ERROR_LABEL[code]?.() ?? m.ai_provider_status_error()}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">
+          {errorMessage({ error: { code, params: {} } })}
+        </TooltipContent>
+      </Tooltip>
     )
   }
   return <Badge variant="secondary">{m.ai_provider_status_ok()}</Badge>
@@ -204,12 +217,8 @@ function NameCell({ row }: CellProps) {
 function StatusCell({ row }: CellProps) {
   const { testingId } = useRowHandlers()
   const provider = row.original
-  const error =
-    provider.enabled && provider.last_error_code
-      ? errorMessage({ error: { code: provider.last_error_code, params: {} } })
-      : null
-  // Two lines in every state (the badge, or a spinner while testing, over the error or the last
-  // check), so testing a connection never changes the row's height.
+  // Two lines in every state (the badge, or a spinner while testing, over the last check), so
+  // testing a connection never changes the row's height.
   return (
     <div className="flex flex-col items-start gap-0.5">
       <div className="flex h-5 items-center">
@@ -222,11 +231,7 @@ function StatusCell({ row }: CellProps) {
           <StatusBadge provider={provider} />
         )}
       </div>
-      {error ? (
-        <span className="line-clamp-2 max-w-64 text-xs whitespace-normal text-destructive">
-          {error}
-        </span>
-      ) : provider.last_checked_at ? (
+      {provider.last_checked_at ? (
         <span className="text-xs text-muted-foreground">
           {m.ai_provider_checked_at({ time: formatDateTime(provider.last_checked_at) })}
         </span>
