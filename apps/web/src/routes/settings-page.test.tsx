@@ -22,6 +22,7 @@ afterEach(() => {
   server.resetHandlers()
   localStorage.clear()
   setLocale('en', { reload: false })
+  document.documentElement.removeAttribute('data-remounting')
 })
 afterAll(() => server.close())
 
@@ -167,6 +168,8 @@ test('changing the language in settings switches the page and saves it', async (
   mount('/?settings=account/preferences')
   await userEvent.click(await screen.findByRole('combobox', { name: 'Language' }))
   await userEvent.click(await screen.findByRole('option', { name: '简体中文' }))
+  // The app re-mounts in the new language; the open dialog must not play its entrance again.
+  expect(document.documentElement).toHaveAttribute('data-remounting')
   expect(await screen.findByRole('navigation', { name: '设置' })).toBeInTheDocument()
   await waitFor(() => expect(patches).toEqual([{ locale: 'zh-CN' }]))
 })
