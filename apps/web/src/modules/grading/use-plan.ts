@@ -4,16 +4,56 @@ import type {
   TermGradeSimulation,
   TermGrades,
 } from '@semestra/api-client'
-import {
-  gradingSimulateCourseMutation,
-  gradingSimulateTermMutation,
-} from '@semestra/api-client/react-query'
-import { useMutation } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { gradingSimulateCourse, gradingSimulateTerm } from '@semestra/api-client'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { type WhatIf, activeScores } from './whatif'
 
 const SIMULATE_DELAY_MS = 200
+
+/** `value`, once it has stopped changing for `delay` ms. */
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
+/**
+ * Runs a plan simulation for `body` after the user stopped typing, while `planning`. A new
+ * answer keeps the previous one on screen until it arrives, so the planned figures never blink
+ * to "—" between keystrokes; one computed against older real grades (`version`) is not kept.
+ * Nothing is saved: the server only simulates.
+ */
+function usePlanQuery<B, T>(
+  scope: string,
+  version: string,
+  planning: boolean,
+  body: B,
+  simulate: (body: B) => Promise<T>,
+): T | null {
+  // The fingerprint stands for `body`, which changes identity on every render.
+  const fingerprint = useDebounced(JSON.stringify(body), SIMULATE_DELAY_MS)
+  const query = useQuery({
+    queryKey: ['grading-plan', scope, version, fingerprint],
+    queryFn: () =>
+      simulate(JSON.parse(fingerprint) as B).catch((error: unknown) => {
+        toastError(error)
+        throw error
+      }),
+    enabled: planning,
+    retry: false,
+    staleTime: Infinity,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === scope && previousQuery.queryKey[2] === version
+        ? previous
+        : undefined,
+  })
+  return planning ? (query.data ?? null) : null
+}
 
 /**
  * Plan mode (M03 §5.1): the assumed scores are simulated on the server (nothing is saved), so
@@ -23,32 +63,20 @@ const SIMULATE_DELAY_MS = 200
 export function usePlanSimulation(gradebook: Gradebook, whatIf: WhatIf): GradebookSummary | null {
   const courseId = gradebook.course_id
   const scores = activeScores(gradebook.assessments, whatIf.scores)
-  const target = whatIf.target
-  const simulate = useMutation({ ...gradingSimulateCourseMutation(), onError: toastError })
-  const { mutate: run, reset } = simulate
-  // Refresh after the user stopped typing, and whenever the real gradebook changed under it.
-  const fingerprint = JSON.stringify([scores, target])
   // The course's own settings (target, forecast model, official grade) change the answer too.
   const version = [
     gradebook.result.updated_at,
     ...gradebook.assessments.map((a) => a.updated_at),
   ].join('|')
-  const planning = whatIf.plan
-  useEffect(() => {
-    // Leaving plan mode drops the last answer, so coming back never shows a stale plan.
-    if (!planning) {
-      reset()
-      return
-    }
-    const timer = setTimeout(
-      () => run({ path: { course_id: courseId }, body: { scores, target } }),
-      SIMULATE_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-    // `fingerprint` stands for `scores` and `target`, which change identity on every render.
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [courseId, run, reset, fingerprint, version, planning])
-  return planning ? (simulate.data ?? null) : null
+  return usePlanQuery(
+    `course:${courseId}`,
+    version,
+    whatIf.plan,
+    { scores, target: whatIf.target },
+    async (body) =>
+      (await gradingSimulateCourse({ path: { course_id: courseId }, body, throwOnError: true }))
+        .data,
+  )
 }
 
 /**
@@ -63,27 +91,13 @@ export function useTermPlanSimulation(
   planning: boolean,
 ): TermGradeSimulation | null {
   const termId = term.term_id
-  const simulate = useMutation({ ...gradingSimulateTermMutation(), onError: toastError })
-  const { mutate: run, reset } = simulate
-  const fingerprint = JSON.stringify([scores, targetGpa, includeInProgress])
-  // A grade that changed under the plan (an edit elsewhere, a sync) refreshes it too.
-  const version = JSON.stringify(term.courses)
-  useEffect(() => {
-    if (!planning) {
-      reset()
-      return
-    }
-    const timer = setTimeout(
-      () =>
-        run({
-          path: { term_id: termId },
-          body: { scores, target_gpa: targetGpa, include_in_progress: includeInProgress },
-        }),
-      SIMULATE_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-    // `fingerprint` stands for `scores`, `targetGpa` and `includeInProgress`.
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [termId, run, reset, fingerprint, version, planning])
-  return planning ? (simulate.data ?? null) : null
+  return usePlanQuery(
+    `term:${termId}`,
+    // A grade that changed under the plan (an edit elsewhere, a sync) refreshes it too.
+    JSON.stringify(term.courses),
+    planning,
+    { scores, target_gpa: targetGpa, include_in_progress: includeInProgress },
+    async (body) =>
+      (await gradingSimulateTerm({ path: { term_id: termId }, body, throwOnError: true })).data,
+  )
 }

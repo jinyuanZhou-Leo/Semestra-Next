@@ -28,9 +28,18 @@ export const courseStatusLabel = (status: CourseGrade['status']) => STATUS_LABEL
 function SliceDetails({ slice, hideGpa }: { slice: Slice; hideGpa: boolean }) {
   const c = slice.course
   const rows: [string, string][] = [
-    [m.grading_credits(), formatCredits(slice.weight)],
+    // A year-long course puts part of its credits in this term, like the table's credits column.
+    [
+      m.grading_credits(),
+      c.year_long
+        ? `${formatCredits(slice.weight)} / ${formatCredits(c.credits)}`
+        : formatCredits(c.credits),
+    ],
     [m.grading_status(), courseStatusLabel(c.status)],
-    [m.grading_percentage(), percentText(c.percentage ?? c.current_percentage)],
+    // An unfinished course has a current average, not a final percentage.
+    c.status === 'in_progress'
+      ? [m.grading_current(), percentText(c.current_percentage)]
+      : [m.grading_percentage(), percentText(c.percentage)],
   ]
   if (slice.assumedPercentage !== null)
     rows.push([m.grading_assumed_score(), percentText(slice.assumedPercentage)])

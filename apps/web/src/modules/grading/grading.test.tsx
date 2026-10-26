@@ -155,7 +155,8 @@ test('plan mode simulates the assumed scores and shows the result without saving
   await userEvent.tab()
   const result = await screen.findByTestId('plan-result')
   await waitFor(() => expect(within(result).getByText('88%')).toBeInTheDocument())
-  expect(simulations.at(-1)).toMatchObject({ scores: { a2: 90 } })
+  // Entering plan mode simulates at once; the typed assumption follows after the debounce.
+  await waitFor(() => expect(simulations.at(-1)).toMatchObject({ scores: { a2: 90 } }))
   expect(patches).toHaveLength(0)
   // A graded item has no assumption to make.
   expect(screen.queryByRole('textbox', { name: 'Assumed score: Quiz 1' })).not.toBeInTheDocument()
