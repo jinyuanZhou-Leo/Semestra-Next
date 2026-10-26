@@ -1287,6 +1287,12 @@ export type BoardCard = {
      */
     y: number;
     /**
+     * Positions
+     *
+     * Positions on the wider 6- and 8-column grids, where the user placed them
+     */
+    positions?: Array<CardPosition>;
+    /**
      * Settings
      *
      * The card's settings as stored
@@ -1330,6 +1336,12 @@ export type BoardCardInput = {
      * Row
      */
     y: number;
+    /**
+     * Positions
+     *
+     * Positions on the wider 6- and 8-column grids; leave out to keep none
+     */
+    positions?: Array<CardPosition>;
     /**
      * Settings
      *
@@ -1633,6 +1645,30 @@ export type CardAddInputBody = {
     settings?: {
         [key: string]: JsonValue;
     } | null;
+};
+
+/**
+ * CardPosition
+ */
+export type CardPosition = {
+    /**
+     * Cols
+     *
+     * Column count of the wide grid
+     */
+    cols: 6 | 8;
+    /**
+     * X
+     *
+     * Column
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Row
+     */
+    y: number;
 };
 
 /**

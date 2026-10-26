@@ -1,23 +1,17 @@
-import type { Board as BoardData, BoardCard } from '@semestra/api-client'
+import type { Board as BoardData, BoardCard, CardPosition } from '@semestra/api-client'
 import {
   layoutsBoardUpdate,
+  layoutsCardAdd,
   layoutsTemplateGet,
   layoutsTemplateReset,
   layoutsTemplateSaveFromBoard,
 } from '@semestra/api-client'
-import {
-  DndContext,
-  type DragMoveEvent,
-  type DragStartEvent,
-  KeyboardSensor,
-  PointerSensor,
-  type KeyboardCoordinateGetter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
 import { useQueryClient } from '@tanstack/react-query'
 import { LayoutDashboard, Pencil } from 'lucide-react'
-import { type CSSProperties, useEffect, useRef, useState } from 'react'
+import { type Ref, useEffect, useRef, useState } from 'react'
+import { GridLayout, type Layout, type LayoutItem as GridItem } from 'react-grid-layout'
+import type { LayoutConstraint } from 'react-grid-layout/core'
+import 'react-grid-layout/css/styles.css'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
@@ -38,26 +32,39 @@ import { useHasHostAction, useHostAction } from '../commands/bus'
 import { formatHotkey, useHotkey } from '../hotkeys'
 import { useCards, useInstalledPluginsReady } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
+import './board.css'
 import { BoardEditActions, useBoardEditHint } from './BoardToolbar'
 import { CardFrame } from './CardFrame'
-import { compact, firstFree, moveItem, resizeItem, rows, sameLayout, SPANS } from './layout'
+import {
+  applyLayout,
+  COLS,
+  columnsFor,
+  compact,
+  firstFree,
+  type LayoutItem,
+  layoutAt,
+  moveItem,
+  nearestSize,
+  normalize,
+  type PlacedCard,
+  resizeItem,
+  sameLayout,
+  sizeOf,
+  span,
+} from './layout'
 import { boardOptions, boardRef, type BoardRef, useBoard } from './queries'
-import { useMediaQuery } from './media'
+import { useElementWidth } from './media'
 
-/** Row height and gap of the grid in px (`auto-rows-[10rem] gap-4`). */
+/** Row height and gap of the grid in px. */
 const ROW = 160
 const GAP = 16
-const WIDE = '(min-width: 1024px)'
+const GRID_MARGIN = [GAP, GAP] as const
+const GRID_PADDING = [0, 0] as const
+const RESIZE_HANDLES = ['se'] as const
 
-export type DraftCard = {
-  id: string
+export type DraftCard = PlacedCard & {
   cardId: string
-  size: CardSize
-  x: number
-  y: number
   settings: Record<string, unknown>
-  /** Added in this edit session; created when the layout is saved. */
-  isNew: boolean
 }
 
 const fromServer = (c: BoardCard): DraftCard => ({
@@ -66,30 +73,38 @@ const fromServer = (c: BoardCard): DraftCard => ({
   size: c.size,
   x: c.x,
   y: c.y,
+  positions: c.positions ?? [],
   settings: c.settings,
-  isNew: false,
 })
 
-const readingOrder = (a: DraftCard, b: DraftCard) => a.y - b.y || a.x - b.x
+const readingOrder = (a: LayoutItem, b: LayoutItem) => a.y - b.y || a.x - b.x
+
+const samePositions = (a: CardPosition[], b: CardPosition[]) =>
+  a.length === b.length &&
+  a.every((p, i) => p.cols === b[i]?.cols && p.x === b[i]?.x && p.y === b[i]?.y)
 
 function changed(saved: readonly DraftCard[], draft: readonly DraftCard[]): boolean {
-  return draft.some((c) => c.isNew) || !sameLayout(saved, draft)
+  if (!sameLayout(saved, draft)) return true
+  const byId = new Map(saved.map((c) => [c.id, c]))
+  return draft.some((c) => !samePositions(byId.get(c.id)?.positions ?? [], c.positions))
 }
 
-/** Grid placement: explicit on wide screens, reading-order flow below 1024px. */
-function placement(card: DraftCard): { className: string; style: CSSProperties } {
-  const [w, h] = SPANS[card.size]
-  return {
-    className: cn(
-      'lg:[grid-column:var(--board-col)] lg:[grid-row:var(--board-row)]',
-      w > 1 && 'md:col-span-2',
-      h > 1 && 'row-span-2',
-    ),
-    style: {
-      '--board-col': `${card.x + 1} / span ${w}`,
-      '--board-row': `${card.y + 1} / span ${h}`,
-    } as CSSProperties,
+/** Resizing snaps to the sizes a card supports (one constraint per set of sizes). */
+const snaps = new Map<string, LayoutConstraint>()
+function snapTo(sizes: readonly CardSize[]): LayoutConstraint {
+  const key = sizes.join()
+  let constraint = snaps.get(key)
+  if (!constraint) {
+    constraint = {
+      name: `card-sizes:${key}`,
+      constrainSize: (_item, w, h, _handle, { cols }) => {
+        const [sw, sh] = span(nearestSize(sizes, w, h), cols)
+        return { w: sw, h: sh }
+      },
+    }
+    snaps.set(key, constraint)
   }
+  return constraint
 }
 
 async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<BoardData> {
@@ -97,18 +112,27 @@ async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<B
     path: ref,
     body: {
       cards: draft.map((c) => ({
-        instance_id: c.isNew ? null : c.id,
+        instance_id: c.id,
         card_id: c.cardId,
         size: c.size,
         x: c.x,
         y: c.y,
-        settings: c.isNew ? (c.settings as Record<string, never>) : null,
+        positions: c.positions,
       })),
     },
     throwOnError: true,
   })
   return data
 }
+
+/** The corner a card is resized by (react-grid-layout's handle, drawn with tokens). */
+const resizeHandle = (_axis: unknown, ref: Ref<HTMLElement>) => (
+  <span
+    ref={ref}
+    aria-hidden
+    className="react-resizable-handle react-resizable-handle-se board-resize-handle"
+  />
+)
 
 /**
  * The editable card grid of an overview or the Today page (M10 §5.2). Outside edit mode it
@@ -153,22 +177,27 @@ function BoardView({
   const contributions = useCards(kind)
   const known = new Map(contributions.map((c) => [c.id, c]))
   const saved = data.cards.filter((c) => known.has(c.card_id)).map(fromServer)
-  const wide = useMediaQuery(WIDE)
+
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  const width = useElementWidth(container)
+  const cols = columnsFor(width)
+  // Positions can be dragged on 4 columns and wider; narrower boards flow in reading order.
+  const movable = cols >= COLS
 
   const [draft, setDraft] = useState<DraftCard[] | null>(null)
   const [saving, setSaving] = useState(false)
   // Editing waits for the installed plugins and a fresh board (or a plugin's cards would be left
-  // out of the draft and removed on save) and for the previous save (whose new cards have no ids
-  // yet).
+  // out of the draft and removed on save) and for the previous save.
   const canEdit = useInstalledPluginsReady() && !fetching && !saving
   const [adding, setAdding] = useState(false)
-  const [drag, setDrag] = useState<{ id: string; preview: DraftCard[] } | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  /** A card being dragged or resized: its toolbar hides; `size` is where a resize would snap. */
+  const [active, setActive] = useState<{ id: string; size?: CardSize } | null>(null)
   const editing = draft !== null
   // The page header (every scope page, Today included) hosts the edit controls; a board rendered without one keeps its own row.
   const headerHostsEdit = useHasHostAction('header.shown')
   const editHint = useBoardEditHint()
-  const cards = drag?.preview ?? draft ?? saved
-  const gridRef = useRef<HTMLDivElement>(null)
+  const cards = draft ?? saved
 
   // What to save if the page goes away mid-edit.
   const pending = useRef<DraftCard[] | null>(null)
@@ -190,6 +219,7 @@ function BoardView({
           size: c.size,
           x: c.x,
           y: c.y,
+          positions: c.positions,
           settings: c.settings,
         })),
       })
@@ -198,7 +228,8 @@ function BoardView({
     try {
       queryClient.setQueryData(key, await saveLayout(ref, next))
     } catch (err) {
-      if (previous) queryClient.setQueryData(key, previous)
+      // Cards added in this session already exist on the server: refetch instead of restoring.
+      await queryClient.invalidateQueries({ queryKey: key })
       toast.error(m.board_save_failed())
       toastError(err)
       setSaving(false)
@@ -209,7 +240,7 @@ function BoardView({
 
   useEffect(
     () => () => {
-      if (pending.current) void commit(pending.current).catch(() => {})
+      if (pending.current) void commit(normalize(pending.current)).catch(() => {})
     },
     // Only on unmount: leaving the page ends edit mode and saves.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -222,8 +253,9 @@ function BoardView({
 
   function finishEditing() {
     if (!draft) return
-    const next = draft
+    const next = normalize(draft)
     setDraft(null)
+    setSelected(null)
     void commit(next).catch(() => {})
   }
 
@@ -245,27 +277,42 @@ function BoardView({
     editing || canEdit,
   )
 
-  function update(fn: (cards: DraftCard[]) => DraftCard[]) {
-    setDraft((current) => (current ? compact(fn(current)) : current))
+  /** Applies a layout change made on the current column count. */
+  function relayout(fn: (items: LayoutItem[]) => LayoutItem[]) {
+    setDraft((current) =>
+      current ? applyLayout(current, cols, fn(layoutAt(current, cols))) : current,
+    )
   }
 
-  function addCard(card: CardContribution) {
-    setAdding(false)
+  /** Creates a card on the server right away, so its content shows while still editing. */
+  async function create(card: CardContribution, size: CardSize): Promise<BoardCard | undefined> {
     const settings = card.settings?.schema.safeParse({})
-    update((current) => {
-      const spot = firstFree(current, card.defaultSize)
-      return [
-        ...current,
-        {
-          id: `new-${crypto.randomUUID()}`,
-          cardId: card.id,
-          size: card.defaultSize,
-          ...spot,
-          settings: settings?.success ? (settings.data as Record<string, unknown>) : {},
-          isNew: true,
-        },
-      ]
+    return layoutsCardAdd({
+      path: ref,
+      body: {
+        card_id: card.id,
+        size,
+        settings: settings?.success ? (settings.data as Record<string, never>) : undefined,
+      },
+      throwOnError: true,
     })
+      .then((result) => result.data)
+      .catch((err: unknown) => {
+        toastError(err)
+        return undefined
+      })
+  }
+
+  async function addCard(card: CardContribution) {
+    setAdding(false)
+    const created = await create(card, card.defaultSize)
+    if (!created) return
+    setDraft((current) => {
+      if (!current) return current
+      const spot = firstFree(layoutAt(current, COLS), created.size)
+      return [...current, { ...fromServer(created), ...spot, positions: [] }]
+    })
+    setSelected(created.instance_id)
   }
 
   async function restoreDefault() {
@@ -284,28 +331,19 @@ function BoardView({
       if (!card || !card.sizes.includes(t.size)) continue
       if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
       const existing = reuse.get(card.id)?.shift()
-      next.push(
-        existing
-          ? { ...existing, size: t.size, x: t.x, y: t.y }
-          : {
-              id: `new-${crypto.randomUUID()}`,
-              cardId: card.id,
-              size: t.size,
-              x: t.x,
-              y: t.y,
-              settings: {},
-              isNew: true,
-            },
-      )
+      const instance = existing ?? (await create(card, t.size).then((c) => c && fromServer(c)))
+      if (instance) next.push({ ...instance, size: t.size, x: t.x, y: t.y, positions: [] })
     }
+    setSelected(null)
     setDraft(compact(next))
   }
 
   async function saveAsDefault() {
     try {
       if (draft) {
-        const next = draft
+        const next = normalize(draft)
         setDraft(null)
+        setSelected(null)
         await commit(next)
       }
       await layoutsTemplateSaveFromBoard({
@@ -333,63 +371,39 @@ function BoardView({
   useHostAction('board.default.restore', () => void restoreDefault(), editing)
   useHostAction('board.default.reset', () => void resetDefault(), editing)
 
-  // --- dragging ------------------------------------------------------------------------------
-  const metrics = useRef({ col: 0, row: ROW + GAP })
-  const origin = useRef<{ x: number; y: number } | null>(null)
-  const measure = () => {
-    const width = gridRef.current?.getBoundingClientRect().width ?? 0
-    metrics.current = { col: (width - GAP * 3) / 4 + GAP, row: ROW + GAP }
-  }
-  const byCell: KeyboardCoordinateGetter = (event, { currentCoordinates }) => {
-    const { col, row } = metrics.current
-    switch (event.code) {
-      case 'ArrowRight':
-        return { ...currentCoordinates, x: currentCoordinates.x + col }
-      case 'ArrowLeft':
-        return { ...currentCoordinates, x: currentCoordinates.x - col }
-      case 'ArrowDown':
-        return { ...currentCoordinates, y: currentCoordinates.y + row }
-      case 'ArrowUp':
-        return { ...currentCoordinates, y: currentCoordinates.y - row }
+  // --- the grid --------------------------------------------------------------------------------
+  const items = layoutAt(cards, cols)
+  const layout: Layout = items.map((item) => {
+    const card = cards.find((c) => c.id === item.id)
+    const sizes = (card && known.get(card.cardId)?.sizes) ?? [item.size]
+    const [w, h] = span(item.size, cols)
+    return {
+      i: item.id,
+      x: item.x,
+      y: item.y,
+      w,
+      h,
+      isResizable: editing && movable && sizes.length > 1,
+      constraints: [snapTo(sizes)],
     }
-    return undefined
-  }
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: byCell }),
-  )
+  })
+  const position = new Map(items.map((i) => [i.id, i]))
 
-  const onDragStart = ({ active }: DragStartEvent) => {
-    measure()
-    const card = draft?.find((c) => c.id === active.id)
-    origin.current = card ? { x: card.x, y: card.y } : null
-    if (draft) setDrag({ id: String(active.id), preview: draft })
-  }
-  const onDragMove = ({ active, delta }: DragMoveEvent) => {
-    if (!draft || !origin.current) return
-    const { col, row } = metrics.current
-    const x = origin.current.x + Math.round(delta.x / (col || 1))
-    const y = origin.current.y + Math.round(delta.y / row)
-    const preview = moveItem(draft, String(active.id), x, y)
-    setDrag((current) =>
-      current && sameLayout(current.preview, preview)
-        ? current
-        : { id: String(active.id), preview },
+  /** The grid after a drag or resize: back into the draft, sizes from the snapped spans. */
+  function dropped(next: Layout) {
+    setActive(null)
+    relayout((current) =>
+      current.map((item) => {
+        const placed = next.find((l) => l.i === item.id)
+        if (!placed) return item
+        return { ...item, size: sizeOf(placed.w, placed.h) ?? item.size, x: placed.x, y: placed.y }
+      }),
     )
   }
-  const onDragEnd = () => {
-    if (drag) setDraft(drag.preview)
-    setDrag(null)
-    origin.current = null
-  }
-  const onDragCancel = () => {
-    setDrag(null)
-    origin.current = null
-  }
 
-  const present = new Set((draft ?? saved).map((c) => c.cardId))
-  const ordered = [...cards].sort(readingOrder)
-  const draggedOrigin = drag ? draft?.find((c) => c.id === drag.id) : undefined
+  const resizing = (_layout: Layout, _old: GridItem | null, item: GridItem | null) => {
+    if (item) setActive({ id: item.i, size: sizeOf(item.w, item.h) })
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-3" data-board={kind}>
@@ -439,79 +453,106 @@ function BoardView({
           </EmptyContent>
         </Empty>
       ) : (
-        <DndContext
-          sensors={sensors}
-          onDragStart={onDragStart}
-          onDragMove={onDragMove}
-          onDragEnd={onDragEnd}
-          onDragCancel={onDragCancel}
-          accessibility={{
-            screenReaderInstructions: { draggable: m.board_drag_instructions() },
+        // Clicking the grid around the cards clears the selection.
+        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div
+          ref={setContainer}
+          className={cn(
+            editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
+          )}
+          onClick={(event) => {
+            const target = event.target as HTMLElement
+            if (target === event.currentTarget || target.classList.contains('react-grid-layout')) {
+              setSelected(null)
+            }
           }}
         >
-          <div
-            ref={gridRef}
-            className={cn(
-              'grid auto-rows-[10rem] grid-flow-row-dense grid-cols-1 gap-4 md:grid-cols-2 lg:grid-flow-row lg:grid-cols-4',
-              editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
-            )}
-            // Entering edit mode must not move anything; the grid grows by one row only while a
-            // card is dragged, so it can be dropped below the last one.
-            style={drag && wide ? { minHeight: `${(rows(cards) + 1) * (ROW + GAP)}px` } : undefined}
-          >
-            {ordered.map((card) => {
-              const contribution = known.get(card.cardId)
-              if (!contribution) return null
-              // The dragged card stays in its original cell and follows the pointer from there.
-              const at = drag?.id === card.id && draggedOrigin ? draggedOrigin : card
-              const { className, style } = placement(at)
-              return (
-                <CardFrame
-                  key={card.id}
-                  scope={scope}
-                  card={card}
-                  contribution={contribution}
-                  editing={editing}
-                  movable={wide}
-                  className={className}
-                  style={style}
-                  onResize={(size) => update((current) => resizeItem(current, card.id, size))}
-                  onRemove={() => update((current) => current.filter((c) => c.id !== card.id))}
-                  onDraftSettings={(settings) =>
-                    setDraft(
-                      (current) =>
-                        current?.map((c) => (c.id === card.id ? { ...c, settings } : c)) ?? current,
-                    )
-                  }
-                />
-              )
-            })}
-            {drag
-              ? (() => {
-                  const target = drag.preview.find((c) => c.id === drag.id)
-                  if (!target) return null
-                  const { className, style } = placement(target)
+          {container ? (
+            <GridLayout
+              width={width}
+              layout={layout}
+              gridConfig={{
+                cols,
+                rowHeight: ROW,
+                margin: GRID_MARGIN,
+                containerPadding: GRID_PADDING,
+              }}
+              dragConfig={{
+                enabled: editing && movable,
+                threshold: 4,
+                cancel: '[data-board-toolbar], .board-resize-handle',
+              }}
+              resizeConfig={{
+                enabled: editing && movable,
+                handles: RESIZE_HANDLES,
+                handleComponent: resizeHandle,
+              }}
+              onDragStart={(_layout, old) => {
+                if (!old) return
+                setSelected(old.i)
+                setActive({ id: old.i })
+              }}
+              onDragStop={dropped}
+              onResizeStart={(_layout, old) => {
+                if (!old) return
+                setSelected(old.i)
+                setActive({ id: old.i, size: sizeOf(old.w, old.h) })
+              }}
+              onResize={resizing}
+              onResizeStop={dropped}
+            >
+              {[...cards]
+                .sort((a, b) => readingOrder(position.get(a.id) ?? a, position.get(b.id) ?? b))
+                .map((card) => {
+                  const contribution = known.get(card.cardId)
+                  if (!contribution) return null
+                  const at = position.get(card.id) ?? card
                   return (
-                    <div
-                      aria-hidden
-                      className={cn(
-                        'rounded-2xl border-2 border-dashed border-primary/50 bg-primary/5',
-                        className,
-                      )}
-                      style={style}
-                    />
+                    <div key={card.id} className={cn(selected === card.id && 'z-20')}>
+                      <CardFrame
+                        scope={scope}
+                        card={card}
+                        contribution={contribution}
+                        editing={editing}
+                        movable={movable}
+                        selected={editing && selected === card.id}
+                        toolbarHidden={active?.id === card.id}
+                        toolbarBelow={at.y === 0}
+                        resizingTo={active?.id === card.id ? active.size : undefined}
+                        onSelect={(on) => setSelected(on ? card.id : null)}
+                        onMove={(dx, dy) =>
+                          relayout((current) =>
+                            moveItem(current, card.id, at.x + dx, at.y + dy, cols),
+                          )
+                        }
+                        onResize={(size) =>
+                          relayout((current) => resizeItem(current, card.id, size, cols))
+                        }
+                        onRemove={() => {
+                          setSelected(null)
+                          setDraft((current) => current?.filter((c) => c.id !== card.id) ?? current)
+                        }}
+                        onDraftSettings={(settings) =>
+                          setDraft(
+                            (current) =>
+                              current?.map((c) => (c.id === card.id ? { ...c, settings } : c)) ??
+                              current,
+                          )
+                        }
+                      />
+                    </div>
                   )
-                })()
-              : null}
-          </div>
-        </DndContext>
+                })}
+            </GridLayout>
+          ) : null}
+        </div>
       )}
       <AddCardDialog
         kind={kind}
-        present={present}
+        present={new Set(cards.map((c) => c.cardId))}
         open={adding}
         onOpenChange={setAdding}
-        onAdd={addCard}
+        onAdd={(card) => void addCard(card)}
       />
     </div>
   )

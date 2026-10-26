@@ -82,14 +82,15 @@ test('a board edit that fails to save is rolled back', async () => {
   )
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Edit layout' }))
-  await user.click(screen.getByRole('button', { name: 'Remove Storage' }))
+  await user.click(screen.getByRole('region', { name: 'Storage' }))
+  await user.click(screen.getByRole('button', { name: 'Remove' }))
   expect(screen.queryByRole('region', { name: 'Storage' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Done' }))
   await waitFor(() => expect(saves).toBe(1))
   expect(await screen.findByRole('region', { name: 'Storage' })).toBeInTheDocument()
 })
 
-test('narrow screens can edit cards but not drag them', async () => {
+test('a selected card shows its toolbar; narrow boards cannot drag or resize by the corner', async () => {
   server.use(
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
@@ -105,8 +106,16 @@ test('narrow screens can edit cards but not drag them', async () => {
   )
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: 'Edit layout' }))
-  expect(screen.getByRole('button', { name: 'Remove Storage' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Move Storage' })).not.toBeInTheDocument()
+  // The content stays visible but cannot be used while editing.
+  expect(screen.getByText('0 byte of 1 byte used')).toBeVisible()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('region', { name: 'Storage' }))
+  const toolbar = screen.getByRole('toolbar', { name: 'Options for Storage' })
+  expect(within(toolbar).getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+  // jsdom lays nothing out, so the board is one column wide.
+  expect(document.querySelector(':not(.react-resizable-hide) > .board-resize-handle')).toBeNull()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
 })
 
 test('a board cannot be edited before the installed plugins are known', async () => {
