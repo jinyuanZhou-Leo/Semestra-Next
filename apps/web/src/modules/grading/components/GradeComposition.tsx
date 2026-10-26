@@ -1,86 +1,21 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { type ReactNode, createContext, useContext, useId, useState } from 'react'
-import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { ChartContainer, ChartTooltip } from '@/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type CompositionSlice, composition } from '../composition'
 import { categoryColor, categoryName, headline, percentText } from '../display'
 import { AnimatedPercent } from './AnimatedPercent'
+import { CompositionRing, type RingSlice } from './CompositionRing'
 import { GpaValue } from './GpaValue'
 
-const RING = 132
-const INNER = 48
-const OUTER = 62
-
-type Datum = CompositionSlice & { key: string; name: string; color: string }
+type Datum = CompositionSlice & RingSlice & { name: string }
 
 const sliceKey = (id: string | null) => id ?? '__none__'
-
-/**
- * One category of the ring: its whole weight lightly tinted, the assumed part darker, the graded
- * part solid. Recharts clones this element with each sector's geometry.
- */
-function SliceShape({
-  planning,
-  hovered,
-  ...props
-}: Partial<PieSectorShapeProps> & { planning: boolean; hovered: string | null }) {
-  const datum = props.payload as Datum | undefined
-  const startAngle = props.startAngle ?? 0
-  const endAngle = props.endAngle ?? 0
-  const base = { cx: props.cx, cy: props.cy, innerRadius: props.innerRadius }
-  if (!datum?.color)
-    return (
-      <Sector
-        {...base}
-        outerRadius={props.outerRadius}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill="var(--muted)"
-      />
-    )
-  const span = endAngle - startAngle
-  const share = (part: number) => (datum.weight === 0 ? 0 : part / datum.weight)
-  const common = {
-    ...base,
-    outerRadius: (props.outerRadius ?? 0) + (datum.key === hovered ? 3 : 0),
-  }
-  const assumedEnd = startAngle + span * share(datum.graded + (planning ? datum.assumed : 0))
-  return (
-    <g>
-      <Sector
-        {...common}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={datum.color}
-        fillOpacity={0.2}
-      />
-      {planning && datum.assumed > 0 ? (
-        <Sector
-          {...common}
-          startAngle={startAngle}
-          endAngle={assumedEnd}
-          fill={datum.color}
-          fillOpacity={0.55}
-        />
-      ) : null}
-      {datum.graded > 0 ? (
-        <Sector
-          {...common}
-          startAngle={startAngle}
-          endAngle={startAngle + span * share(datum.graded)}
-          fill={datum.color}
-        />
-      ) : null}
-    </g>
-  )
-}
 
 /** A category's figures: the ring's tooltip, the legend row's tooltip and its screen reader text. */
 function sliceRows(datum: Datum, planning: boolean): [string, string][] {
@@ -122,24 +57,6 @@ function SliceDetails({
           <span className="font-medium tabular-nums">{value}</span>
         </div>
       ))}
-    </div>
-  )
-}
-
-function SliceTooltip({
-  active,
-  payload,
-  planning,
-}: {
-  active?: boolean
-  payload?: readonly { payload?: unknown }[]
-  planning: boolean
-}) {
-  const datum = payload?.[0]?.payload as Datum | undefined
-  if (!active || !datum?.color) return null
-  return (
-    <div className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
-      <SliceDetails datum={datum} planning={planning} mutedClassName="text-muted-foreground" />
     </div>
   )
 }
@@ -320,52 +237,34 @@ export function GradeComposition({
       className="rounded-2xl border border-border p-4"
     >
       <div className="flex items-center gap-4">
-        <div className="relative shrink-0" style={{ width: RING, height: RING }}>
-          <ChartContainer
-            config={{}}
-            className="aspect-square size-full"
-            initialDimension={{ width: RING, height: RING }}
-          >
-            <PieChart>
-              <ChartTooltip
-                cursor={false}
-                content={<SliceTooltip planning={planning} />}
-                wrapperStyle={{ zIndex: 10 }}
-              />
-              <Pie
-                data={data.length > 0 ? data : [{ key: 'empty', weight: 1 }]}
-                dataKey="weight"
-                nameKey="name"
-                innerRadius={INNER}
-                outerRadius={OUTER}
-                startAngle={90}
-                endAngle={-270}
-                paddingAngle={data.length > 1 ? 2 : 0}
-                stroke="none"
-                isAnimationActive={false}
-                onMouseEnter={(_, index) => setHovered(data[index]?.key ?? null)}
-                onMouseLeave={() => setHovered(null)}
-                shape={<SliceShape planning={planning} hovered={hovered} />}
-              />
-            </PieChart>
-          </ChartContainer>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className={cn('text-xl font-semibold tabular-nums', planning && 'text-primary')}>
-              {planning ? percentText(plannedValue) : <AnimatedPercent value={actual} />}
-            </span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              {planning ? (
-                m.grading_actual({ value: percentText(actual) })
-              ) : s.overridden ? (
-                <Badge variant="secondary">{m.grading_overridden()}</Badge>
-              ) : shown.final ? (
-                m.grading_final()
-              ) : (
-                m.grading_current()
-              )}
-            </span>
-          </div>
-        </div>
+        <CompositionRing
+          data={data}
+          planning={planning}
+          hovered={hovered}
+          onHoveredChange={setHovered}
+          renderDetails={(datum) => (
+            <SliceDetails
+              datum={datum}
+              planning={planning}
+              mutedClassName="text-muted-foreground"
+            />
+          )}
+        >
+          <span className={cn('text-xl font-semibold tabular-nums', planning && 'text-primary')}>
+            {planning ? percentText(plannedValue) : <AnimatedPercent value={actual} />}
+          </span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            {planning ? (
+              m.grading_actual({ value: percentText(actual) })
+            ) : s.overridden ? (
+              <Badge variant="secondary">{m.grading_overridden()}</Badge>
+            ) : shown.final ? (
+              m.grading_final()
+            ) : (
+              m.grading_current()
+            )}
+          </span>
+        </CompositionRing>
         <dl className="grid min-w-0 gap-3">
           <div>
             <dt className="text-xs text-muted-foreground">
