@@ -2598,5 +2598,14 @@
   "grading_plan_unassumed": "还有 {count} 项没有假设分数，全部填上后显示规划成绩。",
   "grading_excluded_in_progress": "另有 {count} 门进行中，暂未计入",
   "grading_round_before_lookup": "先取整再定等级",
-  "grading_round_before_lookup_hint": "先把课程百分比四舍五入到整数，再查对应的等级，和多数成绩单一致：84.5% 按 85% 算。"
+  "grading_round_before_lookup_hint": "先把课程百分比四舍五入到整数，再查对应的等级，和多数成绩单一致：84.5% 按 85% 算。",
+  "assistant_context_hint": "快满时 Sem 会自动压缩：先清掉较早的查询结果，不够再总结较早的对话，最近两轮保持原样。",
+  "assistant_compact": "压缩对话",
+  "assistant_compact_placeholder": "想保留的重点（可选），回车开始压缩",
+  "assistant_compact_nothing": "还没有可以压缩的较早对话",
+  "assistant_command_remove": "移除命令",
+  "assistant_commands_menu": "对话",
+  "assistant_compacting": "正在压缩较早的对话…",
+  "assistant_compacted": "以上对话已压缩",
+  "assistant_compacted_summary": "Sem 记下的摘要"
 }

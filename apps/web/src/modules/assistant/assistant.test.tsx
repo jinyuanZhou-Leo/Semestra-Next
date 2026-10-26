@@ -34,7 +34,7 @@ import { mcpConfig } from './settings/McpSection'
 import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
 import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
-import { applyEvent, buildItems, canRegenerate, restartFrom, withEditedMessage } from './transcript'
+import { applyEvent, buildItems, lastTypedUser, restartFrom, withEditedMessage } from './transcript'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -302,6 +302,34 @@ test('a reloaded page follows the turn still running on the server', async () =>
   expect(followed).toBe(1)
 })
 
+test('a turn that starts as the followed one ends is followed too', async () => {
+  // A card decided in another tab: its turn begins right after the last one ended.
+  srv.detail.generating = true
+  srv.detail.messages = [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])]
+  let followed = 0
+  server.use(
+    http.get(`${API}/agent/sessions/s1/events`, () => {
+      followed++
+      const done = followed === 2
+      srv.detail.generating = !done
+      srv.detail.messages = [
+        msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+        msg('a1', 'assistant', [{ type: 'text', text: done ? 'Second turn.' : 'First turn.' }]),
+      ]
+      return sse([
+        ['start', { after: 'u1' }],
+        ['message_start', { message_id: 'a1' }],
+        ['text_delta', { message_id: 'a1', text: done ? 'Second turn.' : 'First turn.' }],
+        ['message_end', { message_id: 'a1' }],
+      ])
+    }),
+  )
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Second turn.')).toBeInTheDocument()
+  await screen.findByRole('button', { name: 'Send' })
+  expect(followed).toBe(2)
+})
+
 test('following a turn the server refuses is not retried', async () => {
   srv.detail.generating = true
   srv.detail.messages = [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])]
@@ -407,6 +435,37 @@ test('streamed events build the answer, its steps and the confirmation card', ()
   expect(detail.session.title).toBe('Lab 3 score')
 })
 
+test('a call id used again in a later answer pairs with that answer', () => {
+  // Ids are the provider's: Kimi K2 numbers them per response, so two answers both say call_0.
+  const update = { type: 'tool_call', id: 'call_0', name: 'grading__assessment__update', args: {} }
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: '9' }]),
+      msg('a1', 'assistant', [update]),
+      msg('t1', 'tool', [
+        { type: 'tool_result', call_id: 'call_0', name: 'x', is_error: true, error_code: 'e1' },
+      ]),
+      msg('a2', 'assistant', [{ type: 'text', text: 'That failed.' }]),
+      msg('u2', 'user', [{ type: 'text', text: '10' }]),
+      msg('a3', 'assistant', [update]),
+    ],
+    proposals: [
+      proposal({ id: 'pr1', message_id: 'a1', call_id: 'call_0', status: 'failed' }),
+      proposal({ id: 'pr2', message_id: 'a3', call_id: 'call_0', status: 'pending' }),
+    ],
+    attachments: [],
+    generating: false,
+  }
+  const [, first, , second] = buildItems(detail)
+  expect(first?.kind === 'assistant' && first.steps.map((s) => [s.status, s.proposal?.id])).toEqual(
+    [['error', 'pr1']],
+  )
+  expect(
+    second?.kind === 'assistant' && second.steps.map((s) => [s.status, s.proposal?.id]),
+  ).toEqual([['waiting', 'pr2']])
+})
+
 test('the messages of one answer form one item that sums how long the model worked', () => {
   const detail: AgentSessionDetail = {
     session: session(),
@@ -465,32 +524,16 @@ test('an answer keeps streaming when the transcript is re-read mid-answer', () =
   ).toHaveLength(1)
 })
 
-test('an answer whose tools changed data cannot be regenerated', () => {
-  const turn = (changed: boolean): AgentSessionDetail => {
-    let detail: AgentSessionDetail = {
-      session: session(),
-      messages: [msg('u1', 'user', [{ type: 'text', text: 'make it 70' }])],
-      proposals: [],
-      attachments: [],
-      generating: false,
-    }
-    for (const event of [
-      { event: 'message_start', data: { message_id: 'a1' } },
-      {
-        event: 'tool_result',
-        data: { message_id: 'a1', call_id: 'c1', name: 'x', ok: true, error_code: null, changed },
-      },
-      { event: 'message_start', data: { message_id: 'a2' } },
-      { event: 'text_delta', data: { message_id: 'a2', text: 'Done.' } },
-    ] as const) {
-      detail = applyEvent(detail, event)
-    }
-    return detail
-  }
-  const read = turn(false)
-  expect(canRegenerate(read, buildItems(read))).toBe('a1')
-  const wrote = turn(true)
-  expect(canRegenerate(wrote, buildItems(wrote))).toBeNull()
+test("regenerating cuts after the user's own message, not after a note", () => {
+  // The server decides what can be regenerated; the optimistic cut must match its boundary.
+  const messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'hi' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'first' }]),
+    msg('n1', 'user', [{ type: 'note', text: 'paused' }]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'more' }]),
+  ]
+  expect(lastTypedUser(messages)).toBe(0)
+  expect(lastTypedUser([])).toBe(-1)
 })
 
 test('a question streams in as Markdown', async () => {
@@ -762,6 +805,103 @@ test('an answer that paused at the step limit can be continued', async () => {
   expect(await screen.findByText('All 20 imported.')).toBeInTheDocument()
   expect(continued).toBe(true)
   expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
+})
+
+function compactable() {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Plan my MAT137 review' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Planned three weeks.' }]),
+    msg('u2', 'user', [{ type: 'text', text: 'Move Wednesday' }]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'Moved it to Thursday.' }]),
+  ]
+  srv.detail.context = { used: 90_000, window: 128_000 }
+  srv.detail.compactable = true
+  const sent: unknown[] = []
+  server.use(
+    http.post(`${API}/agent/sessions/s1\\:compact`, async ({ request }) => {
+      sent.push(await request.json())
+      srv.detail.compaction = { until: 'a1', summary: 'Three review weeks are planned.' }
+      srv.detail.compactable = false
+      return sse([
+        ['compaction', { status: 'running' }],
+        ['compaction', { status: 'done', until: 'a1' }],
+      ])
+    }),
+  )
+  return sent
+}
+
+test('/compact keeps what the user names, and the summary shows under a divider', async () => {
+  const sent = compactable()
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const input = await messageInput()
+  await userEvent.type(input, '/comp')
+  await userEvent.click(await screen.findByRole('option', { name: /Compact conversation/ }))
+  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  await userEvent.type(input, 'the study times{Enter}')
+  await waitFor(() => expect(sent).toEqual([{ focus: 'the study times' }]))
+  const divider = await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  // Between the turns it covers and the ones kept as they are.
+  const texts = ['Planned three weeks.', 'Earlier turns compacted', 'Move Wednesday']
+  const order = texts.map((t) => screen.getByText(t))
+  for (let i = 1; i < order.length; i++) {
+    const prev = order[i - 1] as Node
+    expect(
+      prev.compareDocumentPosition(order[i] as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  }
+  await userEvent.click(divider)
+  expect(await screen.findByText('Three review weeks are planned.')).toBeVisible()
+})
+
+test('the context ring shows how full the conversation is and compacts from there', async () => {
+  const sent = compactable()
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const input = await messageInput()
+  await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
+  expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
+  // Compacting starts in the composer, as `/compact` does.
+  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  await userEvent.type(input, 'deadlines{Enter}')
+  await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
+  // After it, only the last turn is left: nothing more to compact.
+  await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  await userEvent.type(input, '/comp')
+  expect(screen.queryByRole('option', { name: /Compact conversation/ })).not.toBeInTheDocument()
+})
+
+test('compacting before an answer shows on the line of that answer', async () => {
+  compactable()
+  let finish: (() => void) | undefined
+  srv.reply = () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encode = (text: string) => controller.enqueue(new TextEncoder().encode(text))
+        encode('event: message_start\ndata: {"message_id":"a3"}\n\n')
+        encode('event: compaction\ndata: {"status":"running"}\n\n')
+        finish = () => {
+          srv.detail.messages = [
+            ...srv.detail.messages,
+            msg('u3', 'user', [{ type: 'text', text: 'And the labs?' }]),
+            msg('a3', 'assistant', [{ type: 'text', text: 'Here it is.' }]),
+          ]
+          encode('event: compaction\ndata: {"status":"done","until":"a1"}\n\n')
+          encode('event: text_delta\ndata: {"message_id":"a3","text":"Here it is."}\n\n')
+          encode('event: message_end\ndata: {"message_id":"a3"}\n\n')
+          controller.close()
+        }
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.type(await messageInput(), 'And the labs?{Enter}')
+  expect(await screen.findAllByText('Compacting earlier turns…')).toHaveLength(1)
+  expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
+  finish?.()
+  expect(await screen.findByText('Here it is.')).toBeInTheDocument()
+  expect(screen.queryByText('Compacting earlier turns…')).not.toBeInTheDocument()
 })
 
 test('the editor closes as soon as the edit is sent, while the answer streams', async () => {

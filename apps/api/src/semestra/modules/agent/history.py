@@ -36,7 +36,7 @@ from pydantic_ai.toolsets._tool_search import (  # pyright: ignore[reportPrivate
 
 from semestra.core.context import Ctx
 from semestra.modules.agent import tools
-from semestra.modules.agent.models import AgentAttachment, AgentMessage
+from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentProposal
 
 PENDING = "Waiting for the user's decision on the confirmation card; not executed yet."
 EXPIRED = "The confirmation card expired without a decision; the action was not executed."
@@ -133,18 +133,39 @@ def late_note(name: str, content: str, is_error: bool) -> str:
 
 
 def open_calls(messages: Sequence[ModelMessage]) -> list[ToolCallPart]:
-    """Tool calls of the last response that have no result yet (proposals waiting at the end)."""
+    """Tool calls of the last response that have no result yet (proposals waiting at the end).
+
+    Only the requests after that response answer it. Call ids are the provider's and need not
+    be unique in a conversation (Kimi K2 numbers them per response: `functions.add:0`), so a
+    result answers the nearest earlier call with its id, as in Pydantic AI; the ids are never
+    rewritten. Two calls with one id in the same response are not told apart."""
+    at = next(
+        (i for i in range(len(messages) - 1, -1, -1) if isinstance(messages[i], ModelResponse)),
+        None,
+    )
+    if at is None:
+        return []
     answered = {
         p.tool_call_id
-        for m in messages
+        for m in messages[at + 1 :]
         if isinstance(m, ModelRequest)
         for p in m.parts
         if isinstance(p, ToolReturnPart | RetryPromptPart)
     }
-    last = next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
-    if last is None:
-        return []
-    return [p for p in last.parts if isinstance(p, ToolCallPart) and p.tool_call_id not in answered]
+    return [
+        p
+        for p in messages[at].parts
+        if isinstance(p, ToolCallPart) and p.tool_call_id not in answered
+    ]
+
+
+def open_proposals(
+    rows: Sequence[AgentMessage], props: Sequence[AgentProposal]
+) -> dict[str, AgentProposal]:
+    """The cards of the last response's calls, by call id: a card belongs to the answer that
+    made the call (ids repeat across answers, see `open_calls`)."""
+    last = next((r.id for r in reversed(rows) if isinstance(load(r), ModelResponse)), None)
+    return {p.call_id: p for p in props if p.message_id == last}
 
 
 def args_of(part: ToolCallPart) -> dict[str, Any]:

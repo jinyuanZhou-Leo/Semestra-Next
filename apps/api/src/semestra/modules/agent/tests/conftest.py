@@ -314,4 +314,5 @@ async def agent(
     rt.chat_model = chat_model
     rt.chat_available = chat_available
     rt.small_complete = small_complete
+    rt.summarize = small_complete
     return Agent(app, client, model)

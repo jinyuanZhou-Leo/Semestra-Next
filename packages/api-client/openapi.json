@@ -16054,6 +16054,46 @@
             "type": "boolean",
             "title": "Generating",
             "description": "An answer is being generated right now."
+          },
+          "regenerable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regenerable",
+            "description": "The answer that can be regenerated (its first message's id), if any."
+          },
+          "compactable": {
+            "type": "boolean",
+            "title": "Compactable",
+            "description": "There are turns before the last message to compact now.",
+            "default": false
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextUsage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How full the context is."
+          },
+          "compaction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompactionOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The summary that stands in for the earlier conversation."
           }
         },
         "type": "object",
@@ -18909,6 +18949,25 @@
         ],
         "title": "CommitResult"
       },
+      "CompactionOut": {
+        "properties": {
+          "until": {
+            "type": "string",
+            "title": "Until",
+            "description": "The last message the summary covers."
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "until",
+          "summary"
+        ],
+        "title": "CompactionOut"
+      },
       "Completion": {
         "properties": {
           "type": {
@@ -19396,6 +19455,26 @@
         },
         "type": "object",
         "title": "ConnectionValidateInputBody"
+      },
+      "ContextUsage": {
+        "properties": {
+          "used": {
+            "type": "integer",
+            "title": "Used",
+            "description": "Tokens the last request took, as estimated after compaction."
+          },
+          "window": {
+            "type": "integer",
+            "title": "Window",
+            "description": "The chat model's context window."
+          }
+        },
+        "type": "object",
+        "required": [
+          "used",
+          "window"
+        ],
+        "title": "ContextUsage"
       },
       "Course": {
         "properties": {

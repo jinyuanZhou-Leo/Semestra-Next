@@ -1,7 +1,17 @@
 import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-client'
 import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowUp, BookOpen, CalendarRange, FileText, Plus, Sparkles, Square, X } from 'lucide-react'
+import {
+  ArrowUp,
+  BookOpen,
+  CalendarRange,
+  FileText,
+  Minimize2,
+  Plus,
+  Sparkles,
+  Square,
+  X,
+} from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -31,6 +41,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { skillTitle } from '../labels'
 import { termScope, useProgramEntities } from '../scope'
+import { ContextMeter } from './ContextMeter'
 
 export type PendingAttachment = {
   key: string
@@ -47,7 +58,11 @@ export type ComposerSubmit = {
   skill: AgentSkillInfo | null
 }
 
+/** `/compact`: what the `/` menu offers besides skills. */
+const COMPACT = '/compact'
+
 type Option =
+  | { id: string; kind: 'compact' }
   | { id: string; kind: 'skill'; skill: AgentSkillInfo }
   | { id: string; kind: 'course'; course: Course }
   | { id: string; kind: 'term'; term: Term }
@@ -72,21 +87,49 @@ function matches(query: string, ...texts: (string | null | undefined)[]) {
 
 function OptionLabel({ option }: { option: Option }) {
   const [icon, label, hint] =
-    option.kind === 'skill'
-      ? [
-          <Sparkles key="i" aria-hidden />,
-          skillTitle(option.skill.title, option.skill.name),
-          option.skill.command,
-        ]
-      : option.kind === 'course'
-        ? [<BookOpen key="i" aria-hidden />, courseLabel(option.course), option.course.title]
-        : [<CalendarRange key="i" aria-hidden />, option.term.name, null]
+    option.kind === 'compact'
+      ? [<Minimize2 key="i" aria-hidden />, m.assistant_compact(), COMPACT]
+      : option.kind === 'skill'
+        ? [
+            <Sparkles key="i" aria-hidden />,
+            skillTitle(option.skill.title, option.skill.name),
+            option.skill.command,
+          ]
+        : option.kind === 'course'
+          ? [<BookOpen key="i" aria-hidden />, courseLabel(option.course), option.course.title]
+          : [<CalendarRange key="i" aria-hidden />, option.term.name, null]
   return (
     <>
       {icon}
       <span className="truncate">{label}</span>
       {hint ? <span className="ml-auto truncate text-xs text-muted-foreground">{hint}</span> : null}
     </>
+  )
+}
+
+function MenuGroup({
+  heading,
+  options,
+  onPick,
+}: {
+  heading: string
+  options: Option[]
+  onPick: (option: Option) => void
+}) {
+  if (options.length === 0) return null
+  return (
+    <CommandGroup heading={heading}>
+      {options.map((option) => (
+        <CommandItem
+          key={option.id}
+          value={option.id}
+          onMouseDown={(event) => event.preventDefault()}
+          onSelect={() => onPick(option)}
+        >
+          <OptionLabel option={option} />
+        </CommandItem>
+      ))}
+    </CommandGroup>
   )
 }
 
@@ -126,6 +169,9 @@ export function Composer({
   focusInput,
   initialText = '',
   onTextChange,
+  context,
+  canCompact = false,
+  onCompact,
 }: {
   programId: string | undefined
   generating: boolean
@@ -142,11 +188,19 @@ export function Composer({
   initialText?: string
   /** Reports the text being typed. */
   onTextChange?: (text: string) => void
+  /** How full the conversation's context is, once a request measured it. */
+  context?: { used: number; window: number } | null
+  /** There are turns before the last message to compact. */
+  canCompact?: boolean
+  /** Compacts the conversation now (`/compact` or the context ring's button), keeping `focus`. */
+  onCompact?: (focus: string) => Promise<boolean>
 }) {
   const id = useId()
   const [text, setText] = useState(initialText)
   const [caret, setCaret] = useState(0)
   const [skill, setSkill] = useState<AgentSkillInfo | null>(null)
+  // `/compact` picked: the text is what to keep, and sending compacts.
+  const [compacting, setCompacting] = useState(false)
   const [active, setActive] = useState(0)
   const [dismissed, setDismissed] = useState<string | null>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
@@ -170,6 +224,9 @@ export function Composer({
   const options: Option[] = []
   if (menu && menuKey !== dismissed) {
     if (menu.kind === '/') {
+      if (onCompact && canCompact && matches(menu.query, COMPACT.slice(1), m.assistant_compact())) {
+        options.push({ id: 'compact', kind: 'compact' })
+      }
       for (const s of skills) {
         if (s.command && matches(menu.query, s.command.slice(1), skillTitle(s.title))) {
           options.push({ id: `skill-${s.name}`, kind: 'skill', skill: s })
@@ -194,7 +251,7 @@ export function Composer({
   function pick(option: Option) {
     if (!menu) return
     const insert =
-      option.kind === 'skill'
+      option.kind === 'skill' || option.kind === 'compact'
         ? ''
         : `@${option.kind === 'course' ? courseLabel(option.course) : option.term.name} `
     const next = text.slice(0, menu.start) + insert + text.slice(caret)
@@ -207,8 +264,13 @@ export function Composer({
     })
     textarea.current?.focus()
     textarea.current?.setSelectionRange(position, position)
-    if (option.kind === 'skill') setSkill(option.skill)
-    else if (programId && option.kind === 'course') {
+    if (option.kind === 'compact') {
+      setCompacting(true)
+      setSkill(null)
+    } else if (option.kind === 'skill') {
+      setSkill(option.skill)
+      setCompacting(false)
+    } else if (programId && option.kind === 'course') {
       // The assistant works in a term at most: a course brings its term.
       onScope(termScope(programId, courseTermId(option.course, terms, undefined)))
     } else if (programId && option.kind === 'term') {
@@ -222,22 +284,25 @@ export function Composer({
     !disabled &&
     !generating &&
     !uploading &&
-    (text.trim() !== '' || ready.length > 0 || skill !== null)
+    (compacting || text.trim() !== '' || ready.length > 0 || skill !== null)
 
   async function submit() {
     // `canSend` is from the last render: a second Enter before it re-renders would send twice.
     if (!canSend || submitting.current) return
     submitting.current = true
     const sent = { text, skill }
+    const compact = compacting && onCompact
     setText('')
     setSkill(null)
+    setCompacting(false)
     setCaret(0)
-    const ok = await onSubmit(sent).finally(() => {
+    const ok = await (compact ? compact(text.trim()) : onSubmit(sent)).finally(() => {
       submitting.current = false
     })
     if (!ok) {
       setText(sent.text)
       setSkill(sent.skill)
+      setCompacting(Boolean(compact))
     }
   }
 
@@ -262,8 +327,9 @@ export function Composer({
         return
       }
     }
-    if (event.key === 'Backspace' && skill && text === '') {
+    if (event.key === 'Backspace' && (skill || compacting) && text === '') {
       setSkill(null)
+      setCompacting(false)
       return
     }
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -286,28 +352,42 @@ export function Composer({
               menu?.kind === '/' ? m.assistant_skills_menu() : m.assistant_references_menu()
             }
           >
-            <CommandGroup
-              heading={
-                menu?.kind === '/' ? m.assistant_skills_menu() : m.assistant_references_menu()
-              }
-            >
-              {shown.map((option) => (
-                <CommandItem
-                  key={option.id}
-                  value={option.id}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onSelect={() => pick(option)}
-                >
-                  <OptionLabel option={option} />
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {menu?.kind === '/' ? (
+              <>
+                <MenuGroup
+                  heading={m.assistant_commands_menu()}
+                  options={shown.filter((o) => o.kind === 'compact')}
+                  onPick={pick}
+                />
+                <MenuGroup
+                  heading={m.assistant_skills_menu()}
+                  options={shown.filter((o) => o.kind === 'skill')}
+                  onPick={pick}
+                />
+              </>
+            ) : (
+              <MenuGroup heading={m.assistant_references_menu()} options={shown} onPick={pick} />
+            )}
           </CommandList>
         </Command>
       ) : null}
       <InputGroup className="rounded-2xl">
-        {skill || attachments.length > 0 ? (
+        {skill || compacting || attachments.length > 0 ? (
           <InputGroupAddon align="block-start" className="flex-wrap justify-start gap-1.5">
+            {compacting ? (
+              <Badge variant="secondary" className="gap-1">
+                <Minimize2 aria-hidden />
+                {m.assistant_compact()}
+                <button
+                  type="button"
+                  aria-label={m.assistant_command_remove()}
+                  className="-mr-1 rounded-full opacity-70 hover:opacity-100"
+                  onClick={() => setCompacting(false)}
+                >
+                  <X className="size-3" />
+                </button>
+              </Badge>
+            ) : null}
             {skill ? (
               <Badge variant="secondary" className="gap-1">
                 <Sparkles aria-hidden />
@@ -360,7 +440,9 @@ export function Composer({
           ref={textarea}
           aria-label={m.assistant_input_label()}
           aria-controls={shown.length > 0 ? `${id}-menu` : undefined}
-          placeholder={m.assistant_input_placeholder()}
+          placeholder={
+            compacting ? m.assistant_compact_placeholder() : m.assistant_input_placeholder()
+          }
           className="max-h-48 min-h-12"
           value={text}
           disabled={disabled}
@@ -380,16 +462,31 @@ export function Composer({
           }}
         />
         <InputGroupAddon align="block-end" className="justify-between">
-          <IconButton
-            label={m.assistant_attach()}
-            size="icon-sm"
-            variant="outline"
-            className="rounded-full"
-            disabled={disabled}
-            onClick={() => fileInput.current?.click()}
-          >
-            <Plus />
-          </IconButton>
+          <div className="flex items-center gap-1.5">
+            <IconButton
+              label={m.assistant_attach()}
+              size="icon-sm"
+              variant="outline"
+              className="rounded-full"
+              disabled={disabled}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Plus />
+            </IconButton>
+            {context && context.window > 0 && onCompact ? (
+              <ContextMeter
+                used={context.used}
+                window={context.window}
+                canCompact={canCompact && !generating && !disabled}
+                onCompact={() => {
+                  // Like `/compact`: what to keep is typed here, and sending compacts.
+                  setCompacting(true)
+                  setSkill(null)
+                  textarea.current?.focus()
+                }}
+              />
+            ) : null}
+          </div>
           <input
             ref={fileInput}
             type="file"

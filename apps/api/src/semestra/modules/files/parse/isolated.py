@@ -14,7 +14,7 @@ import multiprocessing
 import time
 import traceback
 import weakref
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from collections.abc import AsyncGenerator, Callable, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
@@ -150,7 +150,7 @@ async def parse_isolated(
     thumbnail_pages: int,
     time_limit: float,
     memory_limit: int,
-) -> AsyncIterator[Parsed | Thumbnail]:
+) -> AsyncGenerator[Parsed | Thumbnail]:
     """Yields the parsed document, then a preview per page (PDFs and images). Raises
     `ParseError("files.too_complex")` when the child runs out of time or memory while parsing;
     once the document is out, previews are best effort: a failure or the deadline only ends
