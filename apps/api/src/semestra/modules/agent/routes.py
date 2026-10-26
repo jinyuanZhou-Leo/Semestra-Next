@@ -8,7 +8,7 @@ a client that goes away does not stop the turn, and `GET /agent/sessions/{id}/ev
 again, after `Last-Event-ID` or from its start."""
 
 import asyncio
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, Header, Request, Response, UploadFile
@@ -21,7 +21,7 @@ from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
-from semestra.modules.agent import attachments, decisions, loop, service, skills, store, tools
+from semestra.modules.agent import attachments, decisions, loop, service, skills, store
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -31,6 +31,7 @@ from semestra.modules.agent.models import (
 from semestra.modules.agent.runtime import AgentRuntime, Claim, agent_ctx
 from semestra.modules.agent.schemas import (
     AgentAttachmentOut,
+    CompactBody,
     DecideBody,
     DecideManyBody,
     Decision,
@@ -57,21 +58,25 @@ async def _check_ai(ctx: Ctx, rt: AgentRuntime) -> None:
 
 
 async def _events(
-    state: State,
-    claim: Claim,
-    before: Sequence[store.Event] = (),
-    run_model: bool = True,
+    state: State, claim: Claim, decided: decisions.Claimed | None = None
 ) -> AsyncIterator[dict[str, str]]:
     """The turn's events. The first, `start`, names the last row stored before the turn: a
-    client following from the start drops what it has after that row, as the events rebuild it."""
+    client following from the start drops what it has after that row, as the events rebuild it.
+    Decided cards run first, as part of the turn: a client that reloads meanwhile follows it."""
     async with agent_ctx(state, claim.user_id, scope=None) as ctx:
         after = await service.last_message_id(ctx, claim.session_id)
     yield store.sse(store.event("start", after=after))
-    for item in before:
-        yield store.sse(item)
-    if run_model:
-        async for item in loop.generate(state, claim.user_id, claim.session_id, claim.cancel):
+    if decided is not None:
+        before, resume = await decisions.run(state, claim.user_id, claim.session_id, decided)
+        for item in before:
             yield store.sse(item)
+        if resume:
+            async with agent_ctx(state, claim.user_id, scope=None) as check:
+                resume = await state.agent.chat_available(check)
+        if not resume:
+            return
+    async for item in loop.generate(state, claim.user_id, claim.session_id, claim.cancel):
+        yield store.sse(item)
 
 
 def _follow(items: AsyncIterator[dict[str, str]]) -> Response:
@@ -179,14 +184,11 @@ async def _decide(request: Request, ctx: Ctx, session_id: str, chosen: list[Deci
     # proposal (two tabs, "approve all" and a card, a retry) can never both execute it.
     claim = rt.claim(user_id, session.id)
     try:
-        events, resume = await decisions.decide(state, user_id, session.id, chosen)
-        if resume:
-            async with agent_ctx(state, user_id, scope=None) as check:
-                resume = await rt.chat_available(check)
+        decided = await decisions.claim(state, user_id, session.id, chosen)
     except BaseException:
         claim.release()
         raise
-    return _respond(rt, _events(state, claim, events, resume), claim)
+    return _respond(rt, _events(state, claim, decided), claim)
 
 
 @router.post("/agent/sessions/{session_id}/proposals/{proposal_id}:decide", include_in_schema=False)
@@ -199,6 +201,36 @@ async def decide_one(
 ) -> Response:
     decision = Decision(proposal_id=proposal_id, **body.model_dump())
     return await _decide(request, ctx, session_id, [decision])
+
+
+@router.post("/agent/sessions/{session_id}:compact", include_in_schema=False)
+async def compact_session(
+    session_id: str,
+    body: CompactBody,
+    request: Request,
+    ctx: Annotated[Ctx, Depends(get_ctx)],
+) -> Response:
+    """Summarizes the conversation before the user's last message now (the user asked); runs as
+    a turn, so Stop ends it and other tabs follow it."""
+    rt = _runtime(request)
+    session = await service.get_session_row(ctx, session_id)
+    await _check_ai(ctx, rt)
+    user_id, state = ctx.user_id, request.app.state
+    await ctx.db.close()
+    claim = rt.claim(user_id, session.id)
+    return _respond(rt, _compaction_events(state, claim, body.focus.strip()), claim)
+
+
+async def _compaction_events(
+    state: State, claim: Claim, focus: str
+) -> AsyncIterator[dict[str, str]]:
+    async with agent_ctx(state, claim.user_id, scope=None) as ctx:
+        after = await service.last_message_id(ctx, claim.session_id)
+    yield store.sse(store.event("start", after=after))
+    async for item in loop.compact_session(
+        state, claim.user_id, claim.session_id, claim.cancel, focus
+    ):
+        yield store.sse(item)
 
 
 @router.post("/agent/sessions/{session_id}/proposals:decide", include_in_schema=False)

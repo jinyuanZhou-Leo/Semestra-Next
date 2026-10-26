@@ -108,6 +108,14 @@ export default defineModule({
     },
   ],
   realtimeInvalidations: {
+    // A new title. During a turn the chat already has it from the turn's events, and reading
+    // the conversation again then would overwrite what is streaming in.
+    'agent.session.updated': [
+      (data) =>
+        data.during_turn
+          ? ['agentSessionList']
+          : ['agentSessionList', { _id: 'agentSessionGet', path: { id: data.session_id } }],
+    ],
     'plugins.installed': ['agentToolList', 'agentSkillList'],
     'plugins.uninstalled': ['agentToolList', 'agentSkillList'],
   },

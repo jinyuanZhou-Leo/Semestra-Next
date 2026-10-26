@@ -5,17 +5,17 @@ away (a reload, a lost connection, another page) does not stop it. Its events ar
 sequential ids, so any client can follow it from the start or pick up after the last event it
 saw (`Generation.follow`); only Stop ends it early.
 
-Tests replace `chat_model`, `chat_available`, `small_complete` and `memory_model` with scripted
-fakes.
+Tests replace `chat_model`, `chat_available`, `small_complete`, `summarize` and `memory_model`
+with scripted fakes.
 """
 
 import asyncio
 import json
 import uuid
 from collections import defaultdict
-from collections.abc import AsyncIterator, Awaitable, Callable, Generator
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
-from typing import Protocol
+from typing import Any, Protocol
 
 import structlog
 from pydantic_ai.models import Model
@@ -74,6 +74,14 @@ async def _small_complete(ctx: Ctx, messages: list[Message]) -> str:
     return result.text
 
 
+async def _summarize(ctx: Ctx, messages: list[Message]) -> str:
+    """Compaction's summary, by the chat model: it holds the whole conversation, which the small
+    model may not."""
+    result = await ai.complete(ctx, "chat", messages, source_module="agent")
+    assert isinstance(result, ai.Completion)
+    return result.text
+
+
 async def _memory_model(ctx: Ctx, messages: list[Message]) -> MemoryUpdates:
     return await ai.structured(ctx, "title", messages, MemoryUpdates, source_module="agent")
 
@@ -86,6 +94,9 @@ class Claim:
         self.user_id = user_id
         self.session_id = session_id
         self.cancel = cancel
+        # Followable from the claim on: a client that reloads while the request still checks
+        # or stores things waits for this turn's events instead of getting the last turn's.
+        self.generation = Generation(session_id)
         self._released = False
 
     def release(self) -> None:
@@ -137,10 +148,12 @@ class AgentRuntime:
         self.chat_model: Callable[[Ctx], AbstractAsyncContextManager[ChatLike]] = _chat_model
         self.chat_available: Callable[[Ctx], Awaitable[bool]] = _chat_available
         self.small_complete: Callable[[Ctx, list[Message]], Awaitable[str]] = _small_complete
+        self.summarize: Callable[[Ctx, list[Message]], Awaitable[str]] = _summarize
         self.memory_model: Callable[[Ctx, list[Message]], Awaitable[MemoryUpdates]] = _memory_model
         self._per_user: defaultdict[str, int] = defaultdict(int)
         self._running: dict[str, asyncio.Event] = {}
         self._generations: dict[str, Generation] = {}
+        self._background: set[asyncio.Task[Any]] = set()
 
     def generating(self, session_id: str) -> bool:
         return session_id in self._running
@@ -154,7 +167,9 @@ class AgentRuntime:
         cancel = asyncio.Event()
         self._running[session_id] = cancel
         self._per_user[user_id] += 1
-        return Claim(self, user_id, session_id, cancel)
+        claim = Claim(self, user_id, session_id, cancel)
+        self._generations[session_id] = claim.generation
+        return claim
 
     def _release(self, claim: Claim) -> None:
         if self._running.get(claim.session_id) is claim.cancel:
@@ -162,6 +177,12 @@ class AgentRuntime:
         self._per_user[claim.user_id] -= 1
         if self._per_user[claim.user_id] <= 0:
             del self._per_user[claim.user_id]
+        gen = claim.generation
+        if gen.task is None:
+            # Released before it started (the request failed): nothing to follow.
+            gen.done = True
+            self._forget(gen)
+            asyncio.get_running_loop().create_task(gen.close())
 
     @contextmanager
     def slot(self, user_id: str, session_id: str) -> Generator[asyncio.Event]:
@@ -174,7 +195,7 @@ class AgentRuntime:
 
     def start(self, claim: Claim, events: AsyncIterator[SseItem]) -> Generation:
         """Runs `events` as the session's generation; the claim is released when it ends."""
-        gen = Generation(claim.session_id)
+        gen = claim.generation
         self._generations[claim.session_id] = gen
         gen.task = asyncio.create_task(self._drive(gen, events, claim))
         return gen
@@ -198,9 +219,36 @@ class AgentRuntime:
             loop = asyncio.get_running_loop()
             loop.call_later(KEEP_FINISHED_SECONDS, self._forget, gen)
 
+    def background[T](self, work: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
+        """Runs work that belongs to no turn (a title): kept until it ends, logged if it fails,
+        cancelled at shutdown."""
+        task = asyncio.create_task(work)
+        self._background.add(task)
+
+        def done(t: asyncio.Task[T]) -> None:
+            self._background.discard(t)
+            if not t.cancelled() and t.exception() is not None:
+                log.error("agent_background_failed", exc_info=t.exception())
+
+        task.add_done_callback(done)
+        return task
+
+    async def drain(self) -> None:
+        """Waits for the background work (tests)."""
+        while self._background:
+            await asyncio.gather(*self._background, return_exceptions=True)
+
     def _forget(self, gen: Generation) -> None:
         if self._generations.get(gen.session_id) is gen:
             del self._generations[gen.session_id]
+
+    async def announce(self, session_id: str, item: SseItem) -> bool:
+        """Adds an event to the session's running turn; False when none runs."""
+        gen = self._generations.get(session_id)
+        if gen is None or gen.done or gen.task is None:
+            return False
+        await gen.push(item)
+        return True
 
     def generation(self, session_id: str) -> Generation | None:
         """The session's running generation, or the one that just ended."""
@@ -209,6 +257,7 @@ class AgentRuntime:
     async def shutdown(self) -> None:
         """Stops every generation; each keeps what it said and did so far."""
         tasks = [g.task for g in self._generations.values() if g.task and not g.task.done()]
+        tasks += [t for t in self._background if not t.done()]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)

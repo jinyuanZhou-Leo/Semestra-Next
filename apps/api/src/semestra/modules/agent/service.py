@@ -32,6 +32,8 @@ from semestra.modules.agent.schemas import (
     AgentSessionListInput,
     AgentSessionOut,
     AgentSessionUpdateInput,
+    CompactionOut,
+    ContextUsage,
 )
 
 PROPOSAL_TTL = timedelta(hours=24)
@@ -305,10 +307,13 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     row.created_at = ctx.now  # what the `[Sent …]` note shows
     st = dict(session.state or {})
     st.pop("turn", None)
-    if st.get("summarized_until") and st["summarized_until"] not in {r.id for r in rows[:index]}:
+    kept = {r.id for r in rows[:index]}
+    if st.get("summarized_until") and st["summarized_until"] not in kept:
         # The summary covered messages that are gone or changed.
-        for key in ("summary", "summarized_until", "revealed"):
+        for key in ("summary", "summarized_until", "revealed", "context"):
             st.pop(key, None)
+    if st.get("cleared_until") and st["cleared_until"] not in kept:
+        st.pop("cleared_until", None)
     session.state = st
     session.updated_at = ctx.now
     await ctx.db.flush()
@@ -568,7 +573,22 @@ async def detail(ctx: Ctx, session_id: str) -> AgentSessionDetail:
         attachments=[attachment_out(a) for a in await attachments(ctx, row.id)],
         generating=ctx.state.agent.generating(row.id),
         regenerable=regenerable(rows, props),
+        context=_context(row),
+        compaction=_compaction(row, rows),
     )
+
+
+def _context(session: AgentSession) -> ContextUsage | None:
+    usage = (session.state or {}).get("context")
+    return ContextUsage.model_validate(usage) if isinstance(usage, dict) else None
+
+
+def _compaction(session: AgentSession, rows: Sequence[AgentMessage]) -> CompactionOut | None:
+    st = session.state or {}
+    until, summary = st.get("summarized_until"), st.get("summary")
+    if not until or not summary or until not in {r.id for r in rows}:
+        return None
+    return CompactionOut(until=until, summary=summary)
 
 
 # --- preferences ---------------------------------------------------------------------------

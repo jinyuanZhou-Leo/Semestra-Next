@@ -39,6 +39,7 @@ export type Decision = {
 
 const LIST_QUERIES = ['agentSessionList']
 const RECONNECT_TRIES = 3
+const FOLLOW_AGAIN_MAX = 20 // turns in a row this page follows without a reload
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -237,12 +238,20 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     if (!othersTurn || sessionId === null || streaming.has(sessionId)) return
     const abort = new AbortController()
     streaming.add(sessionId)
-    const follow = (attempt: number): Promise<void> => {
+    const follow = (attempt: number, round = 1): Promise<void> => {
       const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError)
       return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
-        () => {
+        async () => {
           flush()
-          if (!abort.signal.aborted) void settle(queryClient, sessionId)
+          if (abort.signal.aborted) return
+          await settle(queryClient, sessionId)
+          // Another turn began as this one ended (a card decided in another tab): follow it
+          // too; `othersTurn` stays true, so the effect would not run again by itself.
+          const again = queryClient.getQueryData<AgentSessionDetail>(keyOf(sessionId))
+          if (again?.generating && round < FOLLOW_AGAIN_MAX) {
+            await wait(300)
+            if (!abort.signal.aborted) await follow(1, round + 1)
+          }
         },
         async (err: unknown) => {
           flush()
@@ -254,7 +263,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
             return
           }
           await wait(2000)
-          if (!abort.signal.aborted) await follow(attempt + 1)
+          if (!abort.signal.aborted) await follow(attempt + 1, round)
         },
       )
     }

@@ -81,6 +81,16 @@ class AgentAttachmentOut(BaseModel):
     file_item_id: str | None = None
 
 
+class ContextUsage(BaseModel):
+    used: int = Field(description="Tokens the last request took, as estimated after compaction.")
+    window: int = Field(description="The chat model's context window.")
+
+
+class CompactionOut(BaseModel):
+    until: str = Field(description="The last message the summary covers.")
+    summary: str
+
+
 class AgentSessionDetail(BaseModel):
     session: AgentSessionOut
     messages: list[AgentMessageOut]
@@ -90,6 +100,10 @@ class AgentSessionDetail(BaseModel):
     regenerable: str | None = Field(
         default=None,
         description="The answer that can be regenerated (its first message's id), if any.",
+    )
+    context: ContextUsage | None = Field(default=None, description="How full the context is.")
+    compaction: CompactionOut | None = Field(
+        default=None, description="The summary that stands in for the earlier conversation."
     )
 
 
@@ -198,6 +212,10 @@ class Decision(BaseModel):
     args: dict[str, Any] | None = None
     remember: bool = False
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class CompactBody(BaseModel):
+    focus: str = Field(default="", max_length=1000, description="What the summary should keep.")
 
 
 class DecideBody(BaseModel):

@@ -306,6 +306,34 @@ test('a reloaded page follows the turn still running on the server', async () =>
   expect(followed).toBe(1)
 })
 
+test('a turn that starts as the followed one ends is followed too', async () => {
+  // A card decided in another tab: its turn begins right after the last one ended.
+  srv.detail.generating = true
+  srv.detail.messages = [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])]
+  let followed = 0
+  server.use(
+    http.get(`${API}/agent/sessions/s1/events`, () => {
+      followed++
+      const done = followed === 2
+      srv.detail.generating = !done
+      srv.detail.messages = [
+        msg('u1', 'user', [{ type: 'text', text: 'Hi' }]),
+        msg('a1', 'assistant', [{ type: 'text', text: done ? 'Second turn.' : 'First turn.' }]),
+      ]
+      return sse([
+        ['start', { after: 'u1' }],
+        ['message_start', { message_id: 'a1' }],
+        ['text_delta', { message_id: 'a1', text: done ? 'Second turn.' : 'First turn.' }],
+        ['message_end', { message_id: 'a1' }],
+      ])
+    }),
+  )
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  expect(await screen.findByText('Second turn.')).toBeInTheDocument()
+  await screen.findByRole('button', { name: 'Send' })
+  expect(followed).toBe(2)
+})
+
 test('following a turn the server refuses is not retried', async () => {
   srv.detail.generating = true
   srv.detail.messages = [msg('u1', 'user', [{ type: 'text', text: 'Hi' }])]

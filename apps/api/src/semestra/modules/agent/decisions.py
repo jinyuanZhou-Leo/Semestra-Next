@@ -4,6 +4,7 @@ then hands its outcome to the model (`loop._prepare`)."""
 
 import asyncio
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -120,14 +121,30 @@ async def close_open_calls(ctx: Ctx, session: AgentSession) -> None:
 # --- decisions ------------------------------------------------------------------------------
 
 
+@dataclass
+class Claimed:
+    """Decisions checked and their cards taken (`claim`), ready to run (`run`)."""
+
+    decisions: Sequence[Any]
+    rows: list[AgentProposal]
+    caps: dict[str, Capability]
+    previews: dict[str, dict[str, Any]]
+    scope: Any
+    message_ids: set[str]
+
+
 async def decide(
     state: State, user_id: str, session_id: str, decisions: Sequence[Any]
 ) -> tuple[list[Event], bool]:
-    """Applies the user's decisions: an approved card runs now, so it shows its result at once.
-    Returns the events to send and whether the model should go on (no card of the answer still
-    waits). The model then gets the outcomes through `DeferredToolResults`, or as a note when the
-    conversation had moved on before the decision."""
-    out: list[Event] = []
+    """`claim`, then `run`."""
+    return await run(state, user_id, session_id, await claim(state, user_id, session_id, decisions))
+
+
+async def claim(state: State, user_id: str, session_id: str, decisions: Sequence[Any]) -> Claimed:
+    """Checks the user's decisions and takes their cards, so no other decision can run them. Quick
+    and in the request: what is wrong with a decision (a card already decided, expired, edited
+    arguments that do not validate) is its error response. The writes run in `run`, as part of
+    the turn, which every client can follow."""
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
         scope = service.scope_ref(session)
@@ -155,8 +172,19 @@ async def decide(
         for d, row in zip(decisions, rows, strict=True):
             await service.claim_proposal(ctx, row, reject=d.decision == "reject")
         await ctx.db.commit()
-        message_ids = {r.message_id for r in rows}
+    return Claimed(decisions, rows, cap_by_id, edited_preview, scope, {r.message_id for r in rows})
 
+
+async def run(
+    state: State, user_id: str, session_id: str, claimed: Claimed
+) -> tuple[list[Event], bool]:
+    """Runs the claimed decisions: an approved card runs now, so it shows its result at once.
+    Returns the events to send and whether the model should go on (no card of the answer still
+    waits). The model then gets the outcomes through `DeferredToolResults`, or as a note when the
+    conversation had moved on before the decision."""
+    decisions, rows, cap_by_id = claimed.decisions, claimed.rows, claimed.caps
+    edited_preview, scope, message_ids = claimed.previews, claimed.scope, claimed.message_ids
+    out: list[Event] = []
     results: list[tuple[AgentProposal, Outcome]] = []
     for d, row in zip(decisions, rows, strict=True):
         cap = cap_by_id[row.id]
