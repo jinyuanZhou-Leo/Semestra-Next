@@ -956,6 +956,7 @@
   "ai_provider_status_ok": "正常",
   "ai_provider_status_off": "已停用",
   "ai_provider_status_error": "出错",
+  "ai_provider_status_out_of_credit": "余额不足",
   "ai_provider_checked_at": "{time} 检查",
   "ai_provider_test": "测试连接",
   "ai_provider_test_ok": "服务商工作正常。",

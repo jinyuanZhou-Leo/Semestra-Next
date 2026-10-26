@@ -956,6 +956,7 @@
   "ai_provider_status_ok": "Working",
   "ai_provider_status_off": "Off",
   "ai_provider_status_error": "Error",
+  "ai_provider_status_out_of_credit": "Out of credit",
   "ai_provider_checked_at": "checked {time}",
   "ai_provider_test": "Test connection",
   "ai_provider_test_ok": "The provider is working.",

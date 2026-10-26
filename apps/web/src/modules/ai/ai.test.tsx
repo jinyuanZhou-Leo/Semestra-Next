@@ -354,6 +354,13 @@ test('a failing provider says "Error" in its badge and the reason underneath', a
   ).toBeInTheDocument()
 })
 
+test('a provider whose account ran out of money says so in its badge', async () => {
+  world.providers.push(provider({ last_error_code: 'ai.out_of_credit' }))
+  renderWithQuery(<ProvidersSection />)
+  const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
+  expect(within(row).getByText('Out of credit')).toBeInTheDocument()
+})
+
 test('each purpose shows the model in use and can be switched to another model', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()

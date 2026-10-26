@@ -46,7 +46,13 @@ import { CapabilityChecks, ProviderForm } from './ProviderForm'
 function StatusBadge({ provider }: { provider: Provider }) {
   if (!provider.enabled) return <Badge variant="outline">{m.ai_provider_status_off()}</Badge>
   if (provider.last_error_code) {
-    return <Badge variant="destructive">{m.ai_provider_status_error()}</Badge>
+    return (
+      <Badge variant="destructive">
+        {provider.last_error_code === 'ai.out_of_credit'
+          ? m.ai_provider_status_out_of_credit()
+          : m.ai_provider_status_error()}
+      </Badge>
+    )
   }
   return <Badge variant="secondary">{m.ai_provider_status_ok()}</Badge>
 }
