@@ -32,6 +32,7 @@ import {
   features,
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
+import { GradeTableCard } from './GradeTableCard'
 import { useHighlightedAssessment } from './use-highlight'
 
 const toSorting = (pref: SortPref): SortingState =>
@@ -171,20 +172,7 @@ export function AssessmentTable({
   return (
     <TableActionsContext value={actionsValue}>
       <>
-        <div
-          className={cn(
-            'min-w-0 rounded-2xl border border-border transition-colors',
-            whatIf.plan && 'border-primary/30',
-          )}
-        >
-          <div
-            className={cn(
-              'border-b border-border px-3 py-2 transition-colors',
-              whatIf.plan && 'border-primary/30',
-            )}
-          >
-            {toolbar}
-          </div>
+        <GradeTableCard planning={whatIf.plan} toolbar={toolbar}>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
@@ -308,7 +296,7 @@ export function AssessmentTable({
               </TableRow>
             </TableBody>
           </Table>
-        </div>
+        </GradeTableCard>
 
         <AssessmentDialog
           courseId={courseId}

@@ -1,5 +1,6 @@
 import type { CourseGrade, TermGrades } from '@semestra/api-client'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import type { Scope } from '@/app/extensions'
@@ -60,11 +61,15 @@ beforeEach(() => {
       const items = Object.fromEntries(
         keys
           .filter((key) => key.startsWith('grading.term.whatif') && target !== null)
-          .map((key) => [key, { scores: {}, targetGpa: target }]),
+          .map((key) => [key, { plan: true, scores: {}, targetGpa: target }]),
       )
       return HttpResponse.json({ items })
     }),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+    // Course colors for the table and the ring.
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
   )
 })
 
@@ -87,6 +92,10 @@ test('only courses that can move the term plan take an assumed percentage', asyn
     ),
   )
   renderWithRouter(<TermGradesPage scope={scope} />)
+  // Outside plan mode no course takes an assumption.
+  await screen.findByText('C1')
+  expect(screen.queryByRole('textbox', { name: /Assumed score/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Plan' }))
   expect(
     await screen.findByRole('textbox', { name: /Assumed score: Course c1/ }),
   ).toBeInTheDocument()
@@ -117,7 +126,7 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
   )
   renderWithRouter(<TermGradesPage scope={scope} />)
   const result = await screen.findByTestId('term-plan-result')
-  expect(result).toHaveTextContent('••• short')
+  expect(await within(result).findByText('••• short')).toBeInTheDocument()
   expect(result).not.toHaveTextContent('0.50')
 })
 

@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
   DropdownMenu,
@@ -18,13 +17,11 @@ import {
 import { Toggle } from '@/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateGrading } from '../queries'
+import { PlanBar } from './GradeTableCard'
 import { ImportMenu } from './ImportMenu'
 import { OfficialGradeDialog } from './OfficialGradeDialog'
 
-/**
- * The header bar of the gradebook table. In plan mode the whole bar is replaced by what plan mode
- * needs, the way a table's selection actions replace its filters; its height never changes.
- */
+/** The header bar of the gradebook table; in plan mode it is the `PlanBar`. */
 export function GradebookToolbar({
   programId,
   result,
@@ -54,24 +51,12 @@ export function GradebookToolbar({
 }) {
   if (planning) {
     return (
-      <div className="flex h-8 items-center gap-2">
-        <Badge>{m.grading_planning()}</Badge>
-        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {m.grading_plan_hint()}
-        </p>
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={!hasAssumptions}
-          onClick={onClearAssumptions}
-        >
-          {m.grading_plan_clear()}
-        </Button>
-        <Button variant="destructive" size="sm" onClick={() => onPlanningChange(false)}>
-          <X aria-hidden />
-          {m.grading_plan_exit()}
-        </Button>
-      </div>
+      <PlanBar
+        hint={m.grading_plan_hint()}
+        hasAssumptions={hasAssumptions}
+        onClearAssumptions={onClearAssumptions}
+        onExit={() => onPlanningChange(false)}
+      />
     )
   }
   const plan = (

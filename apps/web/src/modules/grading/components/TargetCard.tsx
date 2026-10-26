@@ -1,4 +1,9 @@
-import type { Gradebook, GradebookSummary, GradeTarget } from '@semestra/api-client'
+import type {
+  Gradebook,
+  GradebookSummary,
+  GradeTarget,
+  TermGradeSimulation,
+} from '@semestra/api-client'
 import {
   gradingCourseResultUpdateMutation,
   gradingScoreSuggestMutation,
@@ -12,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
-import { percentText } from '../display'
+import { GPA_MASK, percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseDecimal } from '../score'
 import type { WhatIf } from '../whatif'
@@ -214,4 +219,89 @@ export function TargetCard({
 }) {
   if (!planning) return <CourseTarget gradebook={gradebook} />
   return <PlanTarget gradebook={gradebook} planned={planned} whatIf={whatIf} onChange={onChange} />
+}
+
+/**
+ * A term's plan target (M03 §5.2, not saved): the term GPA to aim for, how far the plan is from
+ * it and what the unfinished courses without an assumption would have to average.
+ */
+export function TermPlanTarget({
+  targetGpa,
+  maxPoints,
+  hideGpa,
+  planned,
+  onChange,
+}: {
+  targetGpa: number | null
+  maxPoints: number
+  hideGpa: boolean
+  planned: TermGradeSimulation | null
+  onChange: (targetGpa: number | null) => void
+}) {
+  const gap = planned?.gap ?? null
+  return (
+    <section
+      aria-label={m.grading_plan_target()}
+      data-testid="term-plan-result"
+      className="space-y-3 rounded-2xl border border-primary/30 p-4"
+    >
+      <div className="flex items-center gap-2">
+        <p className="flex-1 text-xs text-muted-foreground">{m.grading_plan_target()}</p>
+        {targetGpa === null ? null : (
+          <Button variant="link" size="xs" className="h-auto px-0" onClick={() => onChange(null)}>
+            {m.grading_plan_target_clear()}
+          </Button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <InlineInput
+          key={`tg-${targetGpa ?? ''}`}
+          label={m.grading_target_gpa()}
+          placeholder="—"
+          value={targetGpa === null ? '' : String(targetGpa)}
+          onCommit={(text) => {
+            if (text.trim() === '') {
+              onChange(null)
+              return true
+            }
+            const value = parseDecimal(text)
+            if (value === null || value > maxPoints) return false
+            onChange(value)
+            return true
+          }}
+          className="w-20 border-input text-left text-base font-semibold"
+        />
+        <span className="text-sm text-muted-foreground tabular-nums">/ {formatGpa(maxPoints)}</span>
+      </div>
+      <p className="text-sm">
+        {targetGpa === null ? (
+          <span className="text-muted-foreground">{m.grading_term_target_hint()}</span>
+        ) : planned === null || planned.target_gpa === null ? (
+          '—'
+        ) : planned.reachable === false ? (
+          <span className="font-medium text-destructive">{m.grading_target_out_of_reach()}</span>
+        ) : gap !== null && gap <= 0 ? (
+          <span className="font-medium text-primary">{m.grading_target_met()}</span>
+        ) : (
+          <>
+            <span className="font-medium text-destructive tabular-nums">
+              {gap === null
+                ? '—'
+                : m.grading_target_gap({
+                    // The target is visible, so the gap would give a hidden planned GPA away.
+                    gap: hideGpa ? GPA_MASK : formatGpa(gap),
+                  })}
+            </span>
+            {planned.required_percentage === null ? null : (
+              <span className="mt-1 block text-muted-foreground">
+                {m.grading_term_required({
+                  percentage: percentText(planned.required_percentage),
+                })}
+              </span>
+            )}
+          </>
+        )}
+      </p>
+    </section>
+  )
 }
