@@ -192,6 +192,8 @@
 /*
  * A forced `.light` inside a dark app (the theme picker's previews) takes the light values back:
  * `.dark [data-accent]` above also matches there, because `<html class="dark">` is still an ancestor.
+ * This assumes `<html>` only ever toggles `.dark` (never `.light`): with `.light` on the root this
+ * rule would also override the forced `.dark` previews.
  */
 .light [data-accent] {
   --primary: oklch(0.5 calc(0.134 * var(--accent-chroma)) var(--accent-hue));
@@ -248,7 +250,8 @@
 /*
  * Accent swatch (settings → appearance): the ring contracts from outside onto the chosen swatch and
  * the check is revealed left to right. The checked swatch keeps its outer size: the ring takes the
- * edge and the fill shrinks inside it (`p-[3px]` + `bg-clip-content` on the item). The ring only transitions on the way in, so deselecting the
+ * edge and the fill shrinks inside it (`p-[3px]` + `bg-clip-content` on the item). The check styles
+ * the radio's indicator `<span>` from `ui/radio-group.tsx`; settings-page.test.tsx pins that shape. The ring only transitions on the way in, so deselecting the
  * old swatch is instant. The radio's own dot is replaced by the check mask.
  */
 .accent-swatch::before {
@@ -326,8 +329,10 @@
 [data-reduce-motion='on'] *::before,
 [data-reduce-motion='on'] *::after {
   animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
 

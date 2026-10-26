@@ -34,7 +34,7 @@ const MOTIONS: readonly { value: ReduceMotion; label: () => string }[] = [
   { value: 'off', label: m.settings_motion_off },
 ]
 
-const TINT = 'transition-colors duration-300'
+const TINT = 'transition-colors duration-300 motion-reduce:transition-none'
 
 /**
  * A miniature app window painted with the theme's own tokens (forced with `.light` / `.dark`). The
@@ -141,7 +141,7 @@ function AppearanceForm({
             <FieldLabel
               key={option}
               htmlFor={`${id}-theme-${option}`}
-              className="transition-colors duration-300 *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
+              className="transition-colors duration-300 motion-reduce:transition-none *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
             >
               <Field>
                 <FieldContent className="min-w-0">
@@ -149,10 +149,10 @@ function AppearanceForm({
                     <ThemePreview theme={option} accent={accent} />
                   </span>
                 </FieldContent>
-                <span className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
                   <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
-                </span>
+                </div>
               </Field>
             </FieldLabel>
           ))}
@@ -175,7 +175,7 @@ function AppearanceForm({
               data-accent={option}
               aria-label={ACCENT_LABELS[option]()}
               title={ACCENT_LABELS[option]()}
-              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 data-checked:bg-clip-content data-checked:p-[3px]"
+              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 data-checked:bg-clip-content data-checked:p-[3px]"
             />
           ))}
         </RadioGroup>
