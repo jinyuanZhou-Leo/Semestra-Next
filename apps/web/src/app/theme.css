@@ -262,6 +262,17 @@
   scroll-behavior: auto !important;
 }
 
+/* A language or clock change re-mounts the app (app/locale.tsx): nothing plays its entrance again. */
+[data-remounting] *,
+[data-remounting] *::before,
+[data-remounting] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+}
+
 @keyframes jiggle {
   from {
     rotate: -0.35deg;

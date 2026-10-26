@@ -31,6 +31,23 @@ function applyLocale(locale: AppLocale | null): AppLocale {
   return getLocale()
 }
 
+/** Longer than any entrance animation, so none of them plays again once motion is back. */
+const STILL_MS = 500
+let stillTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * The re-mount in `LocaleProvider` mounts everything on screen again, which would replay entrance
+ * animations: an open settings dialog would close and zoom in again. `data-remounting` on `<html>`
+ * makes animations and transitions finish at once for a moment (theme.css), so the new tree simply
+ * replaces the old one.
+ */
+function holdStill() {
+  const root = document.documentElement
+  root.setAttribute('data-remounting', '')
+  clearTimeout(stillTimer)
+  stillTimer = setTimeout(() => root.removeAttribute('data-remounting'), STILL_MS)
+}
+
 export function wasLocaleChosenSignedOut(): boolean {
   try {
     return localStorage.getItem(CHOSEN_KEY) === '1'
@@ -56,7 +73,8 @@ const LocaleContext = createContext<LocaleState | null>(null)
 /**
  * Owns the interface language (M11 §5.4). Paraglide messages are plain functions, so a language
  * or clock-format change re-mounts everything below this provider; that is rare enough, and far
- * simpler than making every message call reactive. `<html lang>` follows.
+ * simpler than making every message call reactive (`holdStill` keeps it from replaying entrance
+ * animations). `<html lang>` follows.
  */
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<AppLocale>(getLocale)
@@ -67,10 +85,16 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, [locale])
 
   const changeLocale = useCallback<LocaleState['changeLocale']>((next, options) => {
-    setLocaleState(applyLocale(next))
+    const before = getLocale()
+    const applied = applyLocale(next)
+    if (applied !== before) holdStill()
+    setLocaleState(applied)
     if (options?.chosenByUser) remember(CHOSEN_KEY, '1')
   }, [])
-  const refreshFormats = useCallback(() => setFormatVersion((v) => v + 1), [])
+  const refreshFormats = useCallback(() => {
+    holdStill()
+    setFormatVersion((v) => v + 1)
+  }, [])
   const value: LocaleState = { locale, changeLocale, refreshFormats }
 
   return (

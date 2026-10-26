@@ -152,6 +152,9 @@ test('changing the language in settings switches the page and saves it', async (
   await userEvent.click(await screen.findByRole('option', { name: '简体中文' }))
   expect(await screen.findByRole('navigation', { name: '设置' })).toBeInTheDocument()
   await waitFor(() => expect(patches).toEqual([{ locale: 'zh-CN' }]))
+  // The app re-mounts in the new language; the open dialog must not play its entrance again.
+  expect(document.documentElement).toHaveAttribute('data-remounting')
+  await waitFor(() => expect(document.documentElement).not.toHaveAttribute('data-remounting'))
 })
 
 test('the 24-hour clock preference reaches the formatters', async () => {
