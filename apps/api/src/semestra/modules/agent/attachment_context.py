@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import anyio.to_thread
+import structlog
 from pydantic_ai.messages import BinaryContent, UserContent
 from sqlalchemy import select
 
@@ -30,10 +31,13 @@ from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.agent import attachments, service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentSession
 from semestra.modules.ai import wrap_untrusted
-from semestra.modules.files.parse import PageRenderer
+from semestra.modules.files.parse import ParseError
+from semestra.modules.files.parse.isolated import render_isolated
 
 if TYPE_CHECKING:
     from semestra.modules.imports.ics import IcsCourse, IcsEvent, IcsResult
+
+log = structlog.get_logger()
 
 # About 6k tokens: documents up to this size are given whole.
 FULL_TEXT_CHARS = 24_000
@@ -146,12 +150,20 @@ async def _scanned(
             f"without text. {NO_VISION if not vision else ''}".strip()
         ]
     pages = scanned[:SCANNED_IMAGES_MAX]
+    images = await _page_images(ctx, att, pages)
     out: list[UserContent] = []
-    for page_no, png in zip(pages, await _page_images(ctx, att, pages), strict=True):
-        out += [
-            f"Page {page_no} of {_attr(att.name)} (scanned):",
-            BinaryContent(data=png, media_type="image/png"),
-        ]
+    for page_no in pages:
+        if images[page_no]:
+            out += [
+                f"Page {page_no} of {_attr(att.name)} (scanned):",
+                BinaryContent(data=images[page_no], media_type="image/png"),
+            ]
+    failed = [p for p in pages if not images[p]]
+    if failed:
+        out.append(
+            f"Pages {', '.join(map(str, failed))} of {_attr(att.name)} are scanned images that "
+            "could not be shown."
+        )
     if len(scanned) > len(pages):
         out.append(
             f"Pages {', '.join(map(str, scanned[len(pages) :]))} are scanned too and not shown."
@@ -159,24 +171,30 @@ async def _scanned(
     return out
 
 
-async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> list[bytes]:
-    missing = [p for p in pages if (att.id, p) not in _images]
+async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> dict[int, bytes]:
+    """The pages' images, rendered in a child process (like the files pipeline: a hostile PDF
+    must not take the server down) and kept, so later requests show the same; empty for a page
+    that cannot be rendered. Cached pages are taken before any await: another turn trimming the
+    cache meanwhile cannot drop them."""
+    out = {p: _images[(att.id, p)] for p in pages if (att.id, p) in _images}
+    for p in out:
+        _images.move_to_end((att.id, p))
+    missing = [p for p in pages if p not in out]
     if missing:
         data = await service.read_attachment(ctx, att)
-
-        def _render() -> list[bytes]:
-            renderer = PageRenderer(data, pdf=True)
-            try:
-                return [renderer.ocr_image(p - 1) for p in missing]
-            finally:
-                renderer.close()
-
-        for page_no, png in zip(missing, await anyio.to_thread.run_sync(_render), strict=True):
-            _images[(att.id, page_no)] = png
-    out = []
-    for p in pages:
-        _images.move_to_end((att.id, p))
-        out.append(_images[(att.id, p)])
+        try:
+            pngs = await render_isolated(
+                data,
+                pdf=True,
+                pages=[p - 1 for p in missing],
+                time_limit=ctx.settings.files_parse_timeout_seconds,
+                memory_limit=ctx.settings.files_parse_memory_bytes,
+            )
+        except ParseError as exc:
+            log.info("agent.attachment.render_failed", attachment_id=att.id, code=exc.code)
+            pngs = []
+        for i, page_no in enumerate(missing):
+            out[page_no] = _images[(att.id, page_no)] = pngs[i] if i < len(pngs) else b""
     while len(_images) > _CACHE_MAX:
         _images.popitem(last=False)
     return out
