@@ -47,8 +47,8 @@ NAME_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 IDLE = timedelta(minutes=30)
 # Conversations idle for longer than this when consolidation first sees them are left alone.
 LOOKBACK = timedelta(days=7)
-# Failed passes over the same messages before they are given up.
-MAX_FAILURES = 3
+# Failures that come back the same however often the pass is tried: the window is given up.
+GIVE_UP = frozenset({"ai.output_invalid", "ai.context_too_long"})
 BATCH = 50
 TRANSCRIPT_CHARS = 12_000
 # How much of each body the consolidation model sees.
@@ -445,7 +445,7 @@ async def consolidate(ctx: Ctx, session: AgentSession) -> None:
 
     Nothing is written before the model answers: a pending write would hold SQLite's write lock
     for the whole call and every other write would fail with `database is locked`. A call that
-    fails leaves the conversation unread, so the same messages are read again next round."""
+    fails writes nothing either (a turn may be updating the session meanwhile)."""
     since = session.memory_processed_at
     query = select(AgentMessage).where(AgentMessage.session_id == session.id)
     if since is not None:
@@ -477,23 +477,13 @@ async def consolidate(ctx: Ctx, session: AgentSession) -> None:
             ],
         )
     except AppError as exc:
-        # No model set up, provider down: read again next round. A failure that keeps coming
-        # back (an answer the model cannot shape, a conversation too long) gives that window
-        # up after `MAX_FAILURES` rounds rather than calling the model every round for a week.
-        state = dict(session.state or {})
-        failures = int(state.get("memory_failures", 0)) + 1
-        log.info(
-            "agent.memory.consolidate_failed", session_id=session.id, code=exc.code, n=failures
-        )
-        if failures >= MAX_FAILURES:
-            state.pop("memory_failures", None)
+        # No model set up, provider down: nothing is written, the next round reads the same
+        # words again (until the conversation is older than `LOOKBACK`). An answer the model
+        # cannot shape or a conversation too long would fail again: that window is given up.
+        log.info("agent.memory.consolidate_failed", session_id=session.id, code=exc.code)
+        if exc.code in GIVE_UP:
             session.memory_processed_at = read_until
-        else:
-            state["memory_failures"] = failures
-        session.state = state
         return
-    if "memory_failures" in (session.state or {}):
-        session.state = {k: v for k, v in session.state.items() if k != "memory_failures"}
     session.memory_processed_at = read_until
     await apply(ctx, updates, session_id=session.id)
 

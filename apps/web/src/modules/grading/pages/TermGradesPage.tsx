@@ -1,31 +1,34 @@
 import type { CourseGrade, TermGrades } from '@semestra/api-client'
-import { gradingSimulateTermMutation } from '@semestra/api-client/react-query'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
-import { useMutation } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useId } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { BookOpen, Calculator, Hourglass } from 'lucide-react'
+import { createContext, useContext } from 'react'
+import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
-import { useUiPref } from '@/app/ui-pref'
+import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
-import { toastError } from '@/lib/errors'
-import { formatCredits, formatGpa } from '@/lib/format'
+import { formatCredits } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { BookOpen } from 'lucide-react'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Field, FieldLabel } from '@/ui/field'
-import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Toggle } from '@/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
+import { useCourses } from '@/modules/academics/queries'
 import { GpaValue } from '../components/GpaValue'
+import { GradeTableCard, PlanBar } from '../components/GradeTableCard'
 import { InlineInput } from '../components/InlineInput'
-import { Stat } from '../components/Stat'
-import { GPA_MASK, percentText } from '../display'
-import { parseDecimal, parseScore } from '../score'
+import { TermPlanTarget } from '../components/TargetCard'
+import { TermComposition, courseStatusLabel } from '../components/TermComposition'
+import { percentText } from '../display'
+import { parseScore } from '../score'
 import { useTermGrades } from '../queries'
+import { useTermPlanSimulation } from '../use-plan'
 
 const features = tableFeatures({})
 const column = createColumnHelper<typeof features, CourseGrade>()
@@ -39,6 +42,8 @@ type TermCells = {
   programId: string
   termId: string
   hideGpa: boolean
+  planning: boolean
+  colors: ReadonlyMap<string, string>
   scores: Readonly<Record<string, number>>
   assume: (courseId: string, text: string) => boolean
 }
@@ -51,14 +56,21 @@ function useCells(): TermCells {
 }
 
 function CourseCell({ c }: { c: CourseGrade }) {
-  const { programId, termId } = useCells()
+  const { programId, termId, colors } = useCells()
   return (
-    <HistoryLink
-      href={coursePath(programId, c.course_id, 'grades', termId)}
-      className="font-medium hover:underline"
-    >
-      {c.alias || c.code || c.title}
-    </HistoryLink>
+    <span className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: colors.get(c.course_id) ?? 'var(--muted-foreground)' }}
+      />
+      <HistoryLink
+        href={coursePath(programId, c.course_id, 'grades', termId)}
+        className="truncate font-medium hover:underline"
+      >
+        {courseLabel(c)}
+      </HistoryLink>
+    </span>
   )
 }
 
@@ -75,27 +87,35 @@ function canAssume(c: CourseGrade): boolean {
   )
 }
 
+/**
+ * The final percentage, or in plan mode the assumed one of an unfinished course. Like a course's
+ * score column, every row keeps a slot after it, here for an unfinished course's current average.
+ */
 function PercentageCell({ c }: { c: CourseGrade }) {
-  const { scores, assume } = useCells()
-  if (!canAssume(c)) {
-    return <span className="block text-right tabular-nums">{percentText(c.percentage)}</span>
-  }
+  const { planning, scores, assume } = useCells()
   const assumed = scores[c.course_id]
   return (
-    <div className="flex items-center justify-end gap-2">
-      {c.current_percentage === null ? null : (
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {percentText(c.current_percentage)}
-        </span>
+    <div className="flex items-center justify-end gap-1">
+      {planning && canAssume(c) ? (
+        <InlineInput
+          key={`${c.course_id}-${assumed ?? ''}`}
+          label={`${m.grading_assumed_score()}: ${c.title}`}
+          placeholder="—"
+          tone="assumed"
+          value={assumed === undefined ? '' : String(Math.round(assumed * 100) / 100)}
+          onCommit={(text) => assume(c.course_id, text)}
+        />
+      ) : (
+        <span className="w-24 px-3 text-right tabular-nums">{percentText(c.percentage)}</span>
       )}
-      <InlineInput
-        key={`${c.course_id}-${assumed ?? ''}`}
-        label={`${m.grading_assumed_score()}: ${c.title}`}
-        placeholder="—"
-        tone="assumed"
-        value={assumed === undefined ? '' : String(Math.round(assumed * 100) / 100)}
-        onCommit={(text) => assume(c.course_id, text)}
-      />
+      <span className="w-12 text-left text-xs text-muted-foreground tabular-nums">
+        {c.status === 'in_progress' && c.current_percentage !== null ? (
+          <>
+            <span className="sr-only">{m.grading_current()}: </span>
+            {percentText(c.current_percentage)}
+          </>
+        ) : null}
+      </span>
     </div>
   )
 }
@@ -122,9 +142,9 @@ const courseColumns = column.columns([
   }),
   column.accessor((c) => c.credits, {
     id: 'credits',
-    header: () => m.grading_credits(),
+    header: () => <span className="block text-right">{m.grading_credits()}</span>,
     cell: ({ row }) => (
-      <span className="tabular-nums">
+      <span className="block text-right tabular-nums">
         {formatCredits(row.original.credits)}
         {row.original.year_long ? (
           <span className="ml-1 text-xs text-muted-foreground">
@@ -144,13 +164,13 @@ const courseColumns = column.columns([
     header: () => m.grading_status(),
     cell: ({ row }) => (
       <Badge variant={row.original.status === 'failed' ? 'destructive' : 'secondary'}>
-        {STATUS_LABEL[row.original.status]()}
+        {courseStatusLabel(row.original.status)}
       </Badge>
     ),
   }),
   column.accessor((c) => c.percentage ?? c.current_percentage ?? -1, {
     id: 'percentage',
-    header: () => <span className="block text-right">{m.grading_percentage()}</span>,
+    header: () => <span className="block pr-16 text-right">{m.grading_percentage()}</span>,
     cell: ({ row }) => <PercentageCell c={row.original} />,
   }),
   column.accessor((c) => c.points ?? -1, {
@@ -160,20 +180,11 @@ const courseColumns = column.columns([
   }),
 ])
 
-/** Assumed final percentage per unfinished course, and an optional goal (M03 §5.2). */
-type TermWhatIf = { scores: Record<string, number>; targetGpa: number | null }
-const DEFAULT_TERM_WHAT_IF: TermWhatIf = { scores: {}, targetGpa: null }
+/** Plan mode of a term (M03 §5.2): assumed final percentage per unfinished course and a goal. */
+type TermWhatIf = { plan: boolean; scores: Record<string, number>; targetGpa: number | null }
+const DEFAULT_TERM_WHAT_IF: TermWhatIf = { plan: false, scores: {}, targetGpa: null }
 
-const SIMULATE_DELAY_MS = 200
-
-const STATUS_LABEL = {
-  completed: () => m.grading_status_completed(),
-  in_progress: () => m.grading_status_in_progress(),
-  passed: () => m.grading_status_passed(),
-  failed: () => m.grading_status_failed(),
-} as const
-
-/** A term's courses with their grades, the term GPA and a what-if for unfinished courses. */
+/** A term's courses with their grades, the term GPA and plan mode for unfinished courses. */
 export default function TermGradesPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const [includeInProgress, setIncludeInProgress] = useUiPref('grading.term.in_progress', false)
@@ -203,33 +214,21 @@ function TermGradesView({
   includeInProgress: boolean
   onIncludeInProgress: (value: boolean) => void
 }) {
-  const progressId = useId()
-  const [whatIf, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
-    scope: term.term_id,
+  const termId = term.term_id
+  const queryClient = useQueryClient()
+  const [stored, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
+    scope: termId,
   })
+  // Saved before plan mode existed, a what-if has no `plan` yet.
+  const whatIf = { ...DEFAULT_TERM_WHAT_IF, ...stored }
+  const courses = useCourses(programId, termId).data?.items ?? []
+  const colors = new Map(courses.map((c) => [c.id, courseColor(c)]))
+
   const open = new Set(term.courses.filter(canAssume).map((c) => c.course_id))
   const scores = Object.fromEntries(Object.entries(whatIf.scores).filter(([id]) => open.has(id)))
-  const hasWhatIf = Object.keys(scores).length > 0 || whatIf.targetGpa !== null
-
-  const simulate = useMutation({ ...gradingSimulateTermMutation(), onError: toastError })
-  const run = simulate.mutate
-  const fingerprint = JSON.stringify([scores, whatIf.targetGpa, includeInProgress])
-  // A grade that changed under the what-if (an edit elsewhere, a sync) refreshes the plan too.
-  const version = JSON.stringify(term.courses)
-  useEffect(() => {
-    if (!hasWhatIf) return
-    const timer = setTimeout(
-      () =>
-        run({
-          path: { term_id: term.term_id },
-          body: { scores, target_gpa: whatIf.targetGpa, include_in_progress: includeInProgress },
-        }),
-      SIMULATE_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-    // `fingerprint` stands for `scores`, `target_gpa` and `include_in_progress`.
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [term.term_id, run, fingerprint, version, hasWhatIf])
+  const canPlan = open.size > 0
+  const planning = whatIf.plan && canPlan
+  const planned = useTermPlanSimulation(term, scores, whatIf.targetGpa, includeInProgress, planning)
 
   const assume = (courseId: string, text: string): boolean => {
     const parsed = parseScore(text)
@@ -241,11 +240,25 @@ function TermGradesView({
     })
     return true
   }
+  const clearAssumptions = () => {
+    const before = whatIf.scores
+    setWhatIf({ ...whatIf, scores: {} })
+    // Undo brings back only the scores, on top of whatever changed since.
+    const undo = () =>
+      void updateUiPref<TermWhatIf>(queryClient, `grading.term.whatif.${termId}`, (current) => ({
+        ...DEFAULT_TERM_WHAT_IF,
+        ...current,
+        scores: { ...before, ...current?.scores },
+      }))
+    toast(m.grading_plan_cleared(), { action: { label: m.common_undo(), onClick: undo } })
+  }
 
   const cells: TermCells = {
     programId,
-    termId: term.term_id,
+    termId,
     hideGpa: term.hide_gpa,
+    planning,
+    colors,
     scores,
     assume,
   }
@@ -257,45 +270,30 @@ function TermGradesView({
     getRowId: (c) => c.course_id,
   })
 
-  const planned = hasWhatIf ? simulate.data : undefined
   return (
     <TermCellsContext value={cells}>
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label={m.grading_term_gpa()}>
-            <GpaValue value={term.gpa} hidden={term.hide_gpa} />
-          </Stat>
-          <Stat label={m.grading_average()}>{percentText(term.average_percentage)}</Stat>
-          <Stat
-            label={m.grading_credits_counted()}
-            hint={m.grading_credits_of({ total: formatCredits(term.credits_total) })}
-          >
-            {formatCredits(term.credits_counted)}
-          </Stat>
-          <Stat
-            label={m.grading_excluded()}
-            hint={
-              term.in_progress_count > 0
-                ? m.grading_excluded_in_progress({ count: term.in_progress_count })
-                : null
-            }
-          >
-            {term.excluded_count}
-          </Stat>
-        </div>
-
-        <Field orientation="horizontal" className="w-fit">
-          <Switch
-            id={progressId}
-            checked={includeInProgress}
-            onCheckedChange={onIncludeInProgress}
-          />
-          <FieldLabel htmlFor={progressId} className="font-normal">
-            {m.grading_include_in_progress()}
-          </FieldLabel>
-        </Field>
-
-        <div className="rounded-2xl border border-border">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <GradeTableCard
+          planning={planning}
+          toolbar={
+            planning ? (
+              <PlanBar
+                hint={m.grading_term_plan_hint()}
+                hasAssumptions={Object.keys(scores).length > 0}
+                onClearAssumptions={clearAssumptions}
+                onExit={() => setWhatIf({ ...whatIf, plan: false })}
+              />
+            ) : (
+              <TermToolbar
+                count={term.courses.length}
+                canPlan={canPlan}
+                onPlan={() => setWhatIf({ ...whatIf, plan: true })}
+                includeInProgress={includeInProgress}
+                onIncludeInProgress={onIncludeInProgress}
+              />
+            )
+          }
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
@@ -330,7 +328,7 @@ function TermGradesView({
               {table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-1.5">
+                    <TableCell key={cell.id} className="h-12 py-1.5">
                       <table.FlexRender cell={cell} />
                     </TableCell>
                   ))}
@@ -338,86 +336,84 @@ function TermGradesView({
               ))}
             </TableBody>
           </Table>
-        </div>
-
-        {open.size > 0 ? (
-          <section
-            aria-label={m.grading_term_what_if()}
-            className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-4"
-          >
-            <div className="flex flex-wrap items-center gap-3">
-              <h3 className="font-heading text-sm font-medium">{m.grading_term_what_if()}</h3>
-              <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                {m.grading_term_what_if_hint()}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-muted-foreground">{m.grading_target_gpa()}</span>
-              <InlineInput
-                key={`tg-${whatIf.targetGpa ?? ''}`}
-                label={m.grading_target_gpa()}
-                placeholder="—"
-                value={whatIf.targetGpa === null ? '' : String(whatIf.targetGpa)}
-                onCommit={(text) => {
-                  if (text.trim() === '') {
-                    setWhatIf({ ...whatIf, targetGpa: null })
-                    return true
-                  }
-                  const value = parseDecimal(text)
-                  if (value === null || value > term.max_points) return false
-                  setWhatIf({ ...whatIf, targetGpa: value })
-                  return true
-                }}
-                className="w-20 border-input"
-              />
-              {hasWhatIf ? (
-                <Button variant="ghost" size="sm" onClick={() => setWhatIf(DEFAULT_TERM_WHAT_IF)}>
-                  {m.grading_plan_clear()}
-                </Button>
-              ) : null}
-            </div>
-            {planned ? (
-              <div className="grid gap-3 sm:grid-cols-3" data-testid="term-plan-result">
-                <Stat label={m.grading_planned_gpa()}>
-                  <GpaValue value={planned.gpa} hidden={term.hide_gpa} />
-                </Stat>
-                {planned.target_gpa === null ? null : (
-                  <Stat
-                    label={m.grading_target_check()}
-                    hint={
-                      planned.reachable === false
-                        ? m.grading_target_out_of_reach()
-                        : planned.required_percentage === null
-                          ? null
-                          : m.grading_term_required({
-                              percentage: percentText(planned.required_percentage),
-                            })
-                    }
-                  >
-                    <span
-                      className={cn(
-                        'text-base',
-                        planned.gap !== null && planned.gap <= 0
-                          ? 'text-success'
-                          : 'text-destructive',
-                      )}
-                    >
-                      {planned.gap === null
-                        ? '—'
-                        : planned.gap <= 0
-                          ? m.grading_target_met()
-                          : m.grading_target_gap({
-                              // The target is visible, so the gap would give a hidden planned GPA away.
-                              gap: term.hide_gpa ? GPA_MASK : formatGpa(planned.gap),
-                            })}
-                    </span>
-                  </Stat>
-                )}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+        </GradeTableCard>
+        {/* On narrow screens the summary comes first. */}
+        <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:grid-cols-1">
+          <TermComposition
+            term={term}
+            planned={planned}
+            planning={planning}
+            scores={scores}
+            colors={colors}
+            label={courseLabel}
+          />
+          {planning ? (
+            <TermPlanTarget
+              targetGpa={whatIf.targetGpa}
+              maxPoints={term.max_points}
+              hideGpa={term.hide_gpa}
+              planned={planned}
+              onChange={(targetGpa) => setWhatIf({ ...whatIf, targetGpa })}
+            />
+          ) : null}
+        </aside>
       </div>
     </TermCellsContext>
+  )
+}
+
+/** The header bar of the term's course table. */
+function TermToolbar({
+  count,
+  canPlan,
+  onPlan,
+  includeInProgress,
+  onIncludeInProgress,
+}: {
+  count: number
+  /** Plan mode needs an unfinished course to assume a grade for. */
+  canPlan: boolean
+  onPlan: () => void
+  includeInProgress: boolean
+  onIncludeInProgress: (value: boolean) => void
+}) {
+  const plan = (
+    <Button variant="outline" size="sm" disabled={!canPlan} onClick={onPlan}>
+      <Calculator aria-hidden />
+      {m.grading_plan()}
+    </Button>
+  )
+  return (
+    <div className="flex h-8 items-center gap-2">
+      <h2 className="flex-1 truncate text-sm font-medium">
+        {m.grading_term_courses_heading()}{' '}
+        <span className="font-normal text-muted-foreground tabular-nums">{count}</span>
+      </h2>
+      {canPlan ? (
+        plan
+      ) : (
+        <Tooltip>
+          {/* A disabled button gets no pointer events; the wrapper shows why it is off. */}
+          <TooltipTrigger render={<span className="inline-flex" />}>{plan}</TooltipTrigger>
+          <TooltipContent>{m.grading_term_plan_unavailable()}</TooltipContent>
+        </Tooltip>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Toggle
+              variant="outline"
+              size="sm"
+              pressed={includeInProgress}
+              onPressedChange={onIncludeInProgress}
+            />
+          }
+        >
+          <Hourglass aria-hidden />
+          {m.grading_count_in_progress()}
+        </TooltipTrigger>
+        <TooltipContent>{m.grading_include_in_progress()}</TooltipContent>
+      </Tooltip>
+    </div>
   )
 }

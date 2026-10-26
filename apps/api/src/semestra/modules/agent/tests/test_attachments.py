@@ -17,6 +17,7 @@ from semestra.modules.agent import attachment_context, service
 from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentSession
 from semestra.modules.agent.tests.conftest import Agent as ConversationAgent
 from semestra.modules.agent.tests.conftest import FakeModel, call, say
+from semestra.modules.files.parse import ParseError
 from semestra.modules.files.parse.detect import DOCX
 from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS
 from semestra.modules.files.tests.conftest import make_docx, make_pdf, make_png
@@ -385,6 +386,26 @@ async def test_scanned_pages_are_given_as_images_to_models_that_see(chat: Chat):
     text = text_of(await given(chat, pdf["id"], vision=False))
     assert "Pages 2 of scan.pdf are scanned images" in text
     assert attachment_context.NO_VISION in text
+
+
+async def test_a_scanned_page_that_cannot_be_rendered_is_noted(
+    chat: Chat, monkeypatch: pytest.MonkeyPatch
+):
+    session_id = await session_of(chat, await chat.program())
+    data = make_pdf(["typed page with enough words to count as digital text", "scan"], scanned={1})
+    pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
+    calls: list[list[int]] = []
+
+    async def too_complex(data: bytes, *, pages: list[int], **kwargs: Any) -> list[bytes]:
+        calls.append(pages)  # in a child process with limits, like the files pipeline
+        raise ParseError("files.too_complex")
+
+    monkeypatch.setattr(attachment_context, "render_isolated", too_complex)
+    first = await given(chat, pdf["id"])
+    assert not [c for c in first if isinstance(c, BinaryContent)]
+    assert "Pages 2 of scan.pdf are scanned images that could not be shown." in text_of(first)
+    assert await given(chat, pdf["id"]) == first  # the same on every request
+    assert calls == [[1]]
 
 
 async def test_pages_read_later_and_outlines_are_marked_untrusted(

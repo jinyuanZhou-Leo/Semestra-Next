@@ -32,6 +32,8 @@ from semestra.modules.agent.schemas import (
     AgentSessionListInput,
     AgentSessionOut,
     AgentSessionUpdateInput,
+    CompactionOut,
+    ContextUsage,
 )
 
 PROPOSAL_TTL = timedelta(hours=24)
@@ -305,10 +307,13 @@ async def edit_message(ctx: Ctx, session: AgentSession, message_id: str, text: s
     row.created_at = ctx.now  # what the `[Sent …]` note shows
     st = dict(session.state or {})
     st.pop("turn", None)
-    if st.get("summarized_until") and st["summarized_until"] not in {r.id for r in rows[:index]}:
+    kept = {r.id for r in rows[:index]}
+    if st.get("summarized_until") and st["summarized_until"] not in kept:
         # The summary covered messages that are gone or changed.
-        for key in ("summary", "summarized_until", "revealed"):
+        for key in ("summary", "summarized_until", "revealed", "context"):
             st.pop(key, None)
+    if st.get("cleared_until") and st["cleared_until"] not in kept:
+        st.pop("cleared_until", None)
     session.state = st
     session.updated_at = ctx.now
     await ctx.db.flush()
@@ -324,6 +329,10 @@ def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal])
     out: list[str] = []
     for r in rows:
         for b in r.content:
+            late = b.get("late") if b.get("type") == "note" else None
+            if late and late.get("ran") and late.get("ok"):
+                # A card of an earlier answer, decided after the conversation moved on.
+                out.append(f"{late['capability']}({tools.summarize_args(late.get('args') or {})})")
             if b.get("type") != "tool_call":
                 continue
             prop = executed.get(b["id"])
@@ -334,6 +343,49 @@ def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal])
                 name = tools.capability_name(b["name"])
                 out.append(f"{name}({tools.summarize_args(b.get('args') or {})})")
     return out
+
+
+def last_answer(rows: Sequence[AgentMessage]) -> list[AgentMessage] | None:
+    """The rows after the user's last own message (notes Semestra added do not count): what
+    regenerating replaces. None when there is no such message."""
+    last_user = max((i for i, r in enumerate(rows) if history.is_typed(r)), default=None)
+    return None if last_user is None else list(rows[last_user + 1 :])
+
+
+def changed_data(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> bool:
+    """Whether anything in these rows changed the user's data: a decided card, a card of an
+    earlier answer decided here (its late note), or a write that ran without a card. A write call
+    with neither a proposal nor a result may have run before the stream was cut: count it too."""
+    from semestra.modules.agent import tools
+
+    if any(p.status in ("executed", "failed") for p in props):
+        return True
+    results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
+    proposed = {p.call_id for p in props}
+    for r in rows:
+        for b in r.content:
+            if b.get("type") == "note" and (b.get("late") or {}).get("ran"):
+                return True
+            if b.get("type") != "tool_call" or b["id"] in proposed:
+                continue
+            cap = capability(tools.capability_name(b["name"]))
+            if cap is None or cap.effect == "read":
+                continue
+            result = results.get(b["id"])
+            if result is None or result.get("changed"):
+                return True
+    return False
+
+
+def regenerable(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> str | None:
+    """The answer the user can regenerate (its first row's id): the last one, unless it changed
+    data. The chat shows the button from this, so it never offers what the server refuses."""
+    after = last_answer(rows)
+    first = next((r for r in after or [] if r.role == "assistant"), None)
+    if after is None or first is None:
+        return None
+    ids = {r.id for r in after}
+    return None if changed_data(after, [p for p in props if p.message_id in ids]) else first.id
 
 
 async def _drop_unreferenced_attachments(
@@ -513,13 +565,39 @@ async def _storage_used(ctx: Ctx) -> int:
 
 async def detail(ctx: Ctx, session_id: str) -> AgentSessionDetail:
     row = await get_session_row(ctx, session_id)
+    rows, props = await messages(ctx, row.id), await proposals(ctx, row.id)
     return AgentSessionDetail(
         session=session_out(row),
-        messages=[message_out(m) for m in await messages(ctx, row.id)],
-        proposals=[proposal_out(p) for p in await proposals(ctx, row.id)],
+        messages=[message_out(m) for m in rows],
+        proposals=[proposal_out(p) for p in props],
         attachments=[attachment_out(a) for a in await attachments(ctx, row.id)],
         generating=ctx.state.agent.generating(row.id),
+        regenerable=regenerable(rows, props),
+        compactable=compactable(row, rows),
+        context=_context(row),
+        compaction=_compaction(row, rows),
     )
+
+
+def compactable(session: AgentSession, rows: Sequence[AgentMessage]) -> bool:
+    """Whether compacting now has turns to summarize: more than one typed user turn after the
+    last summary (`compaction.compact_now` keeps the last). The chat offers it from this."""
+    summary = _compaction(session, rows)
+    at = next((i for i, r in enumerate(rows) if summary and r.id == summary.until), -1)
+    return sum(1 for r in rows[at + 1 :] if history.is_typed(r)) > 1
+
+
+def _context(session: AgentSession) -> ContextUsage | None:
+    usage = (session.state or {}).get("context")
+    return ContextUsage.model_validate(usage) if isinstance(usage, dict) else None
+
+
+def _compaction(session: AgentSession, rows: Sequence[AgentMessage]) -> CompactionOut | None:
+    st = session.state or {}
+    until, summary = st.get("summarized_until"), st.get("summary")
+    if not until or not summary or until not in {r.id for r in rows}:
+        return None
+    return CompactionOut(until=until, summary=summary)
 
 
 # --- preferences ---------------------------------------------------------------------------

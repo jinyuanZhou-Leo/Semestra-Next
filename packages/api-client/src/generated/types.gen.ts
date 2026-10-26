@@ -291,6 +291,26 @@ export type AgentSessionDetail = {
      * An answer is being generated right now.
      */
     generating: boolean;
+    /**
+     * Regenerable
+     *
+     * The answer that can be regenerated (its first message's id), if any.
+     */
+    regenerable?: string | null;
+    /**
+     * Compactable
+     *
+     * There are turns before the last message to compact now.
+     */
+    compactable?: boolean;
+    /**
+     * How full the context is.
+     */
+    context?: ContextUsage | null;
+    /**
+     * The summary that stands in for the earlier conversation.
+     */
+    compaction?: CompactionOut | null;
 };
 
 /**
@@ -1962,6 +1982,22 @@ export type CommitResult = {
 };
 
 /**
+ * CompactionOut
+ */
+export type CompactionOut = {
+    /**
+     * Until
+     *
+     * The last message the summary covers.
+     */
+    until: string;
+    /**
+     * Summary
+     */
+    summary: string;
+};
+
+/**
  * Completion
  *
  * A module item's requirement (Canvas: must_view, must_submit, min_score, ...).
@@ -2244,6 +2280,24 @@ export type ConnectionValidateInputBody = {
      * Credentials
      */
     credentials?: null;
+};
+
+/**
+ * ContextUsage
+ */
+export type ContextUsage = {
+    /**
+     * Used
+     *
+     * Tokens the last request took, as estimated after compaction.
+     */
+    used: number;
+    /**
+     * Window
+     *
+     * The chat model's context window.
+     */
+    window: number;
 };
 
 /**

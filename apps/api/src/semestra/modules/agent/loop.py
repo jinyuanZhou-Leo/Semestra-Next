@@ -56,11 +56,12 @@ from pydantic_ai.usage import UsageLimits
 from starlette.datastructures import State
 
 from semestra.core.capability import Capability, registry
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
+from semestra.core.events import events
 from semestra.modules.agent import history, memory, outcome, service, skills, tools
-from semestra.modules.agent.compaction import compact
+from semestra.modules.agent.compaction import compact, compact_now
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.decisions import close_calls, edited, make_preview
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
@@ -74,6 +75,7 @@ from semestra.modules.agent.store import (
     event,
     result_event,
     save_state,
+    sse,
 )
 from semestra.modules.agent.turn import Counters, Rows, Turn
 from semestra.modules.ai import Message, wrap_untrusted
@@ -141,6 +143,10 @@ def _tool_return(cap: Capability | None, call_id: str, result: Outcome, turn: Tu
 STOPPED = "agent.stopped"
 
 
+class _Stopped(Exception):
+    """Stop pressed before the model request was sent (during compaction)."""
+
+
 async def _unless_stopped(turn: Turn, work: Awaitable[Outcome]) -> Outcome:
     """A read gives up when the user presses Stop; it changed nothing, so nothing is lost."""
     task = asyncio.ensure_future(work)
@@ -196,10 +202,10 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
     if found is None:
         async with agent_ctx(turn.state, turn.user_id, scope=None) as c:
             rows = await service.messages(c, turn.session_id)
-        block = next(
+        block = next(  # the latest: ids can repeat across answers (`history.open_calls`)
             (
                 b
-                for r in rows
+                for r in reversed(rows)
                 if r.role == "tool"
                 for b in r.content
                 if b.get("call_id") == call_id and b.get("full")
@@ -305,6 +311,9 @@ class _Hooks(AbstractCapability[Turn]):
         turn = ctx.deps
         messages = [m for m in (_replayable(m, turn) for m in request_context.messages) if m]
         request_context.messages = await compact(turn, messages)
+        if turn.cancel.is_set():
+            # Stopped while compacting: the turn ends here, before the request goes out.
+            raise _Stopped
         if not _defers_tools(request_context.model):
             params = request_context.model_request_parameters
             params.function_tools = _tool_order(params.function_tools, request_context.messages)
@@ -423,7 +432,7 @@ async def _prepare(
     ctx: Ctx, session: AgentSession, model: ChatLike, cancel: asyncio.Event
 ) -> Prepared:
     rows = await service.messages(ctx, session.id)
-    props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
+    props = history.open_proposals(rows, await service.proposals(ctx, session.id))
     work = await work_context(ctx, ctx.scope)
     marks = Rows()
     messages = await _messages(ctx, session, rows, model, work.timezone, marks)
@@ -555,6 +564,12 @@ async def generate(
     try:
         async with agent_ctx(state, user_id, scope=None) as ctx:
             session = await service.get_session_row(ctx, session_id)
+            if not session.title:
+                # Alongside the first answer, not after it: the chat is free as soon as the
+                # answer is; the title reaches the list as an event whenever it is ready.
+                state.agent.background(
+                    _title(state, user_id, session_id), key=f"title:{session_id}"
+                )
             ctx.scope = service.scope_ref(session)
             async with state.agent.chat_model(ctx) as model:
                 prepared = await _prepare(ctx, session, model, cancel)
@@ -563,6 +578,37 @@ async def generate(
                     yield item
     except AppError as exc:
         yield event("error", code=exc.code, params=exc.params)
+
+
+async def compact_session(
+    state: State, user_id: str, session_id: str, cancel: asyncio.Event, focus: str
+) -> AsyncIterator[Event]:
+    """Compaction the user asked for: the conversation before their last message is
+    summarized now. Its events come from `compaction` (running, done); skipped when there is
+    nothing to compact or the user stopped it."""
+    async with agent_ctx(state, user_id, scope=None) as ctx:
+        session = await service.get_session_row(ctx, session_id)
+        ctx.scope = service.scope_ref(session)
+        async with state.agent.chat_model(ctx) as model:
+            rows = await service.messages(ctx, session.id)
+            work = await work_context(ctx, ctx.scope)
+            marks = Rows()
+            messages = await _messages(ctx, session, rows, model, work.timezone, marks)
+            memo = dict(session.state or {})
+            await ctx.db.commit()  # no transaction open during the call
+            done = await compact_now(
+                state, user_id, session_id, cancel, messages, marks, model, memo, focus
+            )
+    if done == "nothing":
+        yield event("compaction", status="skipped")
+    if done != "done":
+        return  # when stopped, compaction announced it
+    async with agent_ctx(state, user_id, scope=None) as ctx:
+        session = await service.get_session_row(ctx, session_id)
+        keys = ("summary", "summarized_until", "revealed", "cleared_until", "context")
+        st = {k: v for k, v in (session.state or {}).items() if k not in keys}
+        session.state = {**st, **{k: memo[k] for k in keys if k in memo}}
+        await ctx.db.commit()
 
 
 async def _run(prepared: Prepared) -> AsyncIterator[Event]:
@@ -641,9 +687,6 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
                     for item in await _propose(turn, run.all_messages(), output):
                         yield item
                     return
-                title = await _title(turn.state, turn.user_id, turn.session_id)
-                if title:
-                    yield event("title", title=title)
                 return
             messages = run.all_messages()
             pending = node.request if Agent.is_model_request_node(node) else None
@@ -651,6 +694,10 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
         history_ = [*messages, *([pending] if pending is not None else [])]
         async for item in _close(prepared, history_):
             yield item
+    except _Stopped:
+        await _keep(store, answer, current)
+        if answer is not None:
+            yield event("message_end", message_id=answer.message_id, stopped=True)
     except AppError as exc:
         await _keep(store, answer, current)
         yield event("error", code=exc.code, params=exc.params)
@@ -769,12 +816,11 @@ async def _propose(
         ]
 
 
-async def _title(state: State, user_id: str, session_id: str) -> str | None:
+async def _title(state: State, user_id: str, session_id: str) -> None:
+    """Names a new conversation from the user's first message, with the small model, whenever it
+    arrives: during the turn or after it."""
     async with agent_ctx(state, user_id, scope=None) as ctx:
-        session = await service.get_session_row(ctx, session_id)
-        if session.title:
-            return None
-        rows = await service.messages(ctx, session.id)
+        rows = await service.messages(ctx, session_id)
         first = next(
             (
                 b["text"]
@@ -785,19 +831,10 @@ async def _title(state: State, user_id: str, session_id: str) -> str | None:
             ),
             "",
         )
-        answer = next(
-            (
-                b["text"]
-                for r in rows
-                if r.role == "assistant"
-                for b in r.content
-                if b.get("type") == "text" and b.get("text")
-            ),
-            "",
-        )
         if not first:
-            return None
+            return
         language = "Simplified Chinese" if ctx.locale == "zh-CN" else "English"
+        await ctx.db.commit()  # no transaction open during the call
         try:
             title = await state.agent.small_complete(
                 ctx,
@@ -807,15 +844,24 @@ async def _title(state: State, user_id: str, session_id: str) -> str | None:
                         f"{TITLE_MAX_CHARS} characters, no quotes, no trailing period. Reply with "
                         "the title only."
                     ),
-                    Message.user(f"User: {first[:1000]}\n\nAssistant: {answer[:1000]}"),
+                    Message.user(f"User: {first[:1000]}"),
                 ],
             )
         except AppError:
             title = ""
-        title = title.strip().strip("\"'“”").strip()
-        if not title:
-            title = first.strip().splitlines()[0]
-        title = title[:TITLE_MAX_CHARS]
+    title = title.strip().strip("\"'“”").strip()
+    if not title:
+        title = first.strip().splitlines()[0]
+    title = title[:TITLE_MAX_CHARS]
+    async with agent_ctx(state, user_id, scope=None) as ctx:
+        session = await service.get_session_row(ctx, session_id)
+        if session.title:  # renamed by the user meanwhile
+            return
         session.title = title
+        # A turn still running carries the title to the clients following it; the event tells
+        # the rest (and, after the turn, the chat itself) to read the conversation again.
+        live = await state.agent.announce(session_id, sse(event("title", title=title)))
+        data = {"session_id": session_id, "during_turn": live}
+        await events.publish(ctx, "agent.session.updated", data)
         await ctx.db.commit()
-        return title
+        await run_after_commit(ctx)

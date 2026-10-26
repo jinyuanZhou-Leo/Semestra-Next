@@ -1,9 +1,11 @@
 import type { CourseGrade, TermGrades } from '@semestra/api-client'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { Toaster } from '@/ui/sonner'
 import UpcomingCard from './cards/UpcomingCard'
 import TermGradesPage from './pages/TermGradesPage'
 import { assessment } from './test-data'
@@ -60,12 +62,100 @@ beforeEach(() => {
       const items = Object.fromEntries(
         keys
           .filter((key) => key.startsWith('grading.term.whatif') && target !== null)
-          .map((key) => [key, { scores: {}, targetGpa: target }]),
+          .map((key) => [key, { plan: true, scores: {}, targetGpa: target }]),
       )
       return HttpResponse.json({ items })
     }),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+    // Course colors for the table and the ring.
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
+    http.post(`${API}/terms/t1/grade-summary\\:simulate`, async ({ request }) => {
+      simulations.push(await request.json())
+      return HttpResponse.json(simulation)
+    }),
   )
+})
+
+let simulations: unknown[] = []
+const simulation = {
+  term_id: 't1',
+  gpa: 3.7,
+  average_percentage: 85,
+  credits_counted: 0.5,
+  target_gpa: null,
+  gap: null,
+  max_possible_gpa: 4,
+  reachable: null,
+  required_percentage: null,
+}
+beforeEach(() => {
+  simulations = []
+})
+
+const withGrades = (courses: CourseGrade[]) =>
+  server.use(
+    http.get(`${API}/terms/t1/grade-summary`, () => HttpResponse.json(termGrades(courses, false))),
+  )
+
+const mount = () =>
+  renderWithRouter(
+    <>
+      <TermGradesPage scope={scope} />
+      <Toaster />
+    </>,
+  )
+
+/** The Undo button of the newest toast saying `text` (sonner lists the newest first). */
+const undoOf = async (text: string) => {
+  const toasts = await screen.findAllByText(text)
+  const item = toasts[0]?.closest('[data-sonner-toast]')
+  if (!(item instanceof HTMLElement)) throw new Error(`no toast "${text}"`)
+  return within(item).getByRole('button', { name: 'Undo' })
+}
+
+test('plan mode needs an unfinished course', async () => {
+  withGrades([courseGrade({ course_id: 'c1', status: 'completed', percentage: 90 })])
+  mount()
+  expect(await screen.findByRole('button', { name: 'Plan' })).toBeDisabled()
+})
+
+test('plan mode simulates the assumptions and keeps them after leaving it', async () => {
+  withGrades([courseGrade({ course_id: 'c1' })])
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  await userEvent.type(
+    await screen.findByRole('textbox', { name: 'Assumed score: Course c1' }),
+    '85',
+  )
+  await userEvent.tab()
+  await waitFor(() => expect(simulations.at(-1)).toMatchObject({ scores: { c1: 85 } }))
+  expect(await screen.findByText('3.70')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Exit plan mode' }))
+  expect(screen.queryByRole('textbox', { name: /Assumed score/ })).not.toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  expect(await screen.findByRole('textbox', { name: 'Assumed score: Course c1' })).toHaveValue('85')
+})
+
+test('undoing a clear brings back only the assumptions, not plan mode', async () => {
+  withGrades([courseGrade({ course_id: 'c1' })])
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  await userEvent.type(
+    await screen.findByRole('textbox', { name: 'Assumed score: Course c1' }),
+    '85',
+  )
+  await userEvent.tab()
+  await userEvent.click(screen.getByRole('button', { name: 'Clear assumptions' }))
+  expect(screen.getByRole('textbox', { name: 'Assumed score: Course c1' })).toHaveValue('')
+  await userEvent.click(screen.getByRole('button', { name: 'Exit plan mode' }))
+  // Sonner captures the pointer on press, which jsdom lacks; a plain click is enough here.
+  fireEvent.click(await undoOf('Assumptions cleared'))
+  // Still out of plan mode; the assumption is back once it is entered again.
+  expect(await screen.findByRole('button', { name: 'Plan' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Plan' }))
+  expect(await screen.findByRole('textbox', { name: 'Assumed score: Course c1' })).toHaveValue('85')
 })
 
 test('only courses that can move the term plan take an assumed percentage', async () => {
@@ -87,6 +177,10 @@ test('only courses that can move the term plan take an assumed percentage', asyn
     ),
   )
   renderWithRouter(<TermGradesPage scope={scope} />)
+  // Outside plan mode no course takes an assumption.
+  await screen.findByText('C1')
+  expect(screen.queryByRole('textbox', { name: /Assumed score/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Plan' }))
   expect(
     await screen.findByRole('textbox', { name: /Assumed score: Course c1/ }),
   ).toBeInTheDocument()
@@ -117,7 +211,7 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
   )
   renderWithRouter(<TermGradesPage scope={scope} />)
   const result = await screen.findByTestId('term-plan-result')
-  expect(result).toHaveTextContent('••• short')
+  expect(await within(result).findByText('••• short')).toBeInTheDocument()
   expect(result).not.toHaveTextContent('0.50')
 })
 
@@ -161,4 +255,30 @@ test('the Upcoming card asks the server for the scope in one request', async () 
   expect(seen).toHaveLength(1)
   expect(seen[0]?.get('course_id')).toBe('c1')
   expect(seen[0]?.get('limit')).toBe('4')
+})
+
+test('the planned figures stay on screen while the next simulation runs', async () => {
+  withGrades([courseGrade({ course_id: 'c1' })])
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
+  expect(await screen.findByText('3.70')).toBeInTheDocument()
+  let answer: () => void = () => {}
+  server.use(
+    http.post(`${API}/terms/t1/grade-summary\\:simulate`, async () => {
+      await new Promise<void>((resolve) => {
+        answer = resolve
+      })
+      return HttpResponse.json({ ...simulation, gpa: 3.9 })
+    }),
+  )
+  await userEvent.type(
+    await screen.findByRole('textbox', { name: 'Assumed score: Course c1' }),
+    '95',
+  )
+  await userEvent.tab()
+  // The request is out (after the debounce) and the previous answer is still shown.
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  expect(screen.getByText('3.70')).toBeInTheDocument()
+  answer()
+  expect(await screen.findByText('3.90')).toBeInTheDocument()
 })

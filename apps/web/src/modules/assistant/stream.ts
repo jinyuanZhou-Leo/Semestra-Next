@@ -78,6 +78,11 @@ export type AgentEvent =
   | { event: 'citation'; data: Citation }
   | { event: 'proposal'; data: AgentProposalOut }
   | { event: 'title'; data: { title: string } }
+  /** Older turns being made smaller (M12 §3.4); `done` up to that row, `skipped` when not. */
+  | {
+      event: 'compaction'
+      data: { status: 'running' | 'done' | 'skipped'; until?: string }
+    }
   /** The turn stopped at a limit (M12 §3.2); `continue` picks it up again. */
   | { event: 'paused'; data: { message_id: string; reason: PauseReason } }
   | { event: 'error'; data: { code: string; params: Record<string, unknown> } }

@@ -4,6 +4,7 @@ then hands its outcome to the model (`loop._prepare`)."""
 
 import asyncio
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -113,21 +114,37 @@ async def close_open_calls(ctx: Ctx, session: AgentSession) -> None:
     stored = [m for m in map(history.load, rows) if m is not None]
     calls = history.open_calls(stored)
     if calls:
-        props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
+        props = history.open_proposals(rows, await service.proposals(ctx, session.id))
         close_calls(ctx, session, calls, props)
 
 
 # --- decisions ------------------------------------------------------------------------------
 
 
+@dataclass
+class Claimed:
+    """Decisions checked and their cards taken (`claim`), ready to run (`run`)."""
+
+    decisions: Sequence[Any]
+    rows: list[AgentProposal]
+    caps: dict[str, Capability]
+    previews: dict[str, dict[str, Any]]
+    scope: Any
+    message_ids: set[str]
+
+
 async def decide(
     state: State, user_id: str, session_id: str, decisions: Sequence[Any]
 ) -> tuple[list[Event], bool]:
-    """Applies the user's decisions: an approved card runs now, so it shows its result at once.
-    Returns the events to send and whether the model should go on (no card of the answer still
-    waits). The model then gets the outcomes through `DeferredToolResults`, or as a note when the
-    conversation had moved on before the decision."""
-    out: list[Event] = []
+    """`claim`, then `run`."""
+    return await run(state, user_id, session_id, await claim(state, user_id, session_id, decisions))
+
+
+async def claim(state: State, user_id: str, session_id: str, decisions: Sequence[Any]) -> Claimed:
+    """Checks the user's decisions and takes their cards, so no other decision can run them. Quick
+    and in the request: what is wrong with a decision (a card already decided, expired, edited
+    arguments that do not validate) is its error response. The writes run in `run`, as part of
+    the turn, which every client can follow."""
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
         scope = service.scope_ref(session)
@@ -155,8 +172,19 @@ async def decide(
         for d, row in zip(decisions, rows, strict=True):
             await service.claim_proposal(ctx, row, reject=d.decision == "reject")
         await ctx.db.commit()
-        message_ids = {r.message_id for r in rows}
+    return Claimed(decisions, rows, cap_by_id, edited_preview, scope, {r.message_id for r in rows})
 
+
+async def run(
+    state: State, user_id: str, session_id: str, claimed: Claimed
+) -> tuple[list[Event], bool]:
+    """Runs the claimed decisions: an approved card runs now, so it shows its result at once.
+    Returns the events to send and whether the model should go on (no card of the answer still
+    waits). The model then gets the outcomes through `DeferredToolResults`, or as a note when the
+    conversation had moved on before the decision."""
+    decisions, rows, cap_by_id = claimed.decisions, claimed.rows, claimed.caps
+    edited_preview, scope, message_ids = claimed.previews, claimed.scope, claimed.message_ids
+    out: list[Event] = []
     results: list[tuple[AgentProposal, Outcome]] = []
     for d, row in zip(decisions, rows, strict=True):
         cap = cap_by_id[row.id]
@@ -185,8 +213,11 @@ async def decide(
 
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
-        stored = [history.load(r) for r in await service.messages(ctx, session.id)]
-        open_ids = {c.tool_call_id for c in history.open_calls([m for m in stored if m])}
+        messages = await service.messages(ctx, session.id)
+        stored = [m for m in map(history.load, messages) if m is not None]
+        open_ids = {c.tool_call_id for c in history.open_calls(stored)}
+        props = history.open_proposals(messages, await service.proposals(ctx, session.id))
+        still_open = {p.id for p in props.values() if p.call_id in open_ids}
         for row, result in results:
             fresh = await service.get_proposal(ctx, session.id, row.id)
             part = ToolReturnPart(
@@ -199,15 +230,24 @@ async def decide(
             out.append(
                 {"event": "proposal", "data": service.proposal_out(fresh).model_dump(mode="json")}
             )
-            if row.call_id not in open_ids:
+            if row.id not in still_open:
                 # The conversation moved on before this decision: the model hears it as a note.
+                # `late` marks what ran here: regenerating or editing must not drop it silently.
                 note = history.late_note(row.capability, result.content, not result.ok)
-                service.add_message(ctx, session, "user", [{"type": "note", "text": note}])
+                late = {
+                    "capability": row.capability,
+                    "args": row.args,
+                    "ran": result.ran,
+                    "ok": result.ok,
+                }
+                service.add_message(
+                    ctx, session, "user", [{"type": "note", "text": note, "late": late}]
+                )
         await ctx.db.flush()
         still_pending = [
             p
             for p in await service.proposals(ctx, session.id)
-            if p.message_id in message_ids and p.status == "pending" and p.call_id in open_ids
+            if p.message_id in message_ids and p.status == "pending" and p.id in still_open
         ]
         await ctx.db.commit()
     return out, not still_pending
