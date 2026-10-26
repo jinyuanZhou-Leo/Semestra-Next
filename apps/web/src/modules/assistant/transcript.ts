@@ -61,6 +61,12 @@ export type ViewItem =
       /** How long the model worked before answering; null for answers stored without it. */
       thinkingMs: number | null
     }
+  | {
+      /** Where the turns above were compacted: what the model sees of them is the summary. */
+      kind: 'compacted'
+      id: string
+      summary: string
+    }
 
 type AssistantItem = Extract<ViewItem, { kind: 'assistant' }>
 
@@ -95,20 +101,38 @@ function reuse(key: AgentMessageOut, deps: unknown[], make: () => ViewItem): Vie
   return item
 }
 
-/** The stored transcript as the conversation shows it: tool messages fold into their steps. */
-export function buildItems(detail: AgentSessionDetail, generating = false): ViewItem[] {
-  const results = new Map<string, Block>()
+/**
+ * Each call's result and card. Call ids are the provider's and repeat across answers (Kimi K2
+ * numbers them per response), so, as on the server (`history.open_calls`), a result answers the
+ * nearest earlier call with its id that has none yet, and a card is the one of the answer that
+ * made the call.
+ */
+export function pairCalls(detail: AgentSessionDetail): {
+  results: Map<Block, Block>
+  proposalOf: (messageId: string, callId: string) => AgentProposalOut | undefined
+} {
+  const results = new Map<Block, Block>()
+  const waiting: Block[] = []
   for (const message of detail.messages) {
-    if (message.role !== 'tool') continue
     for (const block of message.content) {
-      if (block.type === 'tool_result') results.set(str(block.call_id), block)
+      if (block.type === 'tool_call') waiting.push(block)
+      else if (block.type === 'tool_result') {
+        const at = waiting.findLastIndex((c) => str(c.id) === str(block.call_id))
+        if (at >= 0) results.set(waiting.splice(at, 1)[0] as Block, block)
+      }
     }
   }
-  const proposalByCall = new Map(detail.proposals.map((p) => [p.call_id, p]))
-  const stepOf = (call: Block): Step => {
+  const cards = new Map(detail.proposals.map((p) => [`${p.message_id} ${p.call_id}`, p]))
+  return { results, proposalOf: (messageId, callId) => cards.get(`${messageId} ${callId}`) }
+}
+
+/** The stored transcript as the conversation shows it: tool messages fold into their steps. */
+export function buildItems(detail: AgentSessionDetail, generating = false): ViewItem[] {
+  const { results, proposalOf } = pairCalls(detail)
+  const stepOf = (call: Block, messageId: string): Step => {
     const callId = str(call.id)
-    const result = results.get(callId)
-    const proposal = proposalByCall.get(callId)
+    const result = results.get(call)
+    const proposal = proposalOf(messageId, callId)
     let status: StepStatus = generating ? 'running' : 'error'
     if (result) status = result.is_error ? 'error' : 'done'
     // A card decided while another still waits, or after the conversation moved on, has no
@@ -149,7 +173,11 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
     const ids = new Set(messages.map((m) => m.id))
     const deps = [
       ...messages,
-      ...calls.flatMap((c) => [results.get(str(c.id)), proposalByCall.get(str(c.id))]),
+      ...messages.flatMap((m) =>
+        m.content
+          .filter((b) => b.type === 'tool_call')
+          .flatMap((c) => [results.get(c), proposalOf(m.id, str(c.id))]),
+      ),
       ...detail.proposals.filter((p) => ids.has(p.message_id)),
       // A call without a result is running or failed depending on it.
       calls.length > 0 && generating,
@@ -160,17 +188,31 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
       ),
     )
   }
-  for (const message of detail.messages) {
+  // The divider goes before the first message of the user's the summary does not cover.
+  const compaction = detail.compaction ?? null
+  let summarized = compaction ? detail.messages.findIndex((m) => m.id === compaction.until) : -1
+  const divide = () => {
+    if (!compaction || summarized < 0) return
+    summarized = -1
+    items.push({
+      kind: 'compacted',
+      id: `compacted-${compaction.until}`,
+      summary: compaction.summary,
+    })
+  }
+  detail.messages.forEach((message, index) => {
     if (message.role === 'user') {
       const content = message.content
-      if (content.every((b) => b.type === 'note')) continue
+      if (content.every((b) => b.type === 'note')) return
       closeTurn()
+      if (summarized >= 0 && index > summarized) divide()
       items.push(reuse(message, [message], () => userItem(message)))
     } else if (message.role === 'assistant') {
       turn.push(message)
     }
-  }
+  })
   closeTurn()
+  divide()
   return items
 }
 
@@ -197,7 +239,7 @@ function userItem(message: AgentMessageOut): ViewItem {
 function assistantItem(
   messages: AgentMessageOut[],
   proposals: readonly AgentProposalOut[],
-  stepOf: (call: Block) => Step,
+  stepOf: (call: Block, messageId: string) => Step,
 ): AssistantItem {
   const last = messages.at(-1) as AgentMessageOut
   const lastCalls = last.content.some((b) => b.type === 'tool_call')
@@ -222,9 +264,9 @@ function assistantItem(
       process.push({ kind: 'text', key: `${message.id}-t`, text, message: message.id })
     }
     for (const call of calls) {
-      const step = stepOf(call)
+      const step = stepOf(call, message.id)
       steps.push(step)
-      process.push({ kind: 'step', key: step.callId, step, message: message.id })
+      process.push({ kind: 'step', key: `${message.id}-${step.callId}`, step, message: message.id })
     }
     const ms = timingOf(message)
     if (ms !== null) thinkingMs = (thinkingMs ?? 0) + ms
@@ -429,15 +471,9 @@ export function pausedReason(detail: AgentSessionDetail): PauseReason | null {
   return block?.reason === 'loop' || block?.reason === 'tool_limit' ? block.reason : null
 }
 
-/** The last answer can be regenerated unless it already changed data. */
-export function canRegenerate(detail: AgentSessionDetail, items: ViewItem[]): string | null {
-  const last = items.at(-1)
-  if (last?.kind !== 'assistant') return null
-  const decided = last.proposals.some((p) => p.status === 'executed' || p.status === 'failed')
-  // Auto-approved writes run without a proposal; their result says the data changed.
-  const lastUserRow = detail.messages.findLastIndex((m) => m.role === 'user')
-  const ran = detail.messages
-    .slice(lastUserRow + 1)
-    .some((m) => m.content.some((b) => b.type === 'tool_result' && b.changed === true))
-  return decided || ran ? null : last.id
+/** The index of the user's last own message (notes Semestra added are not theirs). */
+export function lastTypedUser(messages: AgentSessionDetail['messages']): number {
+  return messages.findLastIndex(
+    (m) => m.role === 'user' && m.content.some((b) => b.type !== 'note'),
+  )
 }

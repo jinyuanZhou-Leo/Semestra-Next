@@ -1,7 +1,16 @@
 import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, ArrowRight, Brain, Check, CircleDashed, Loader2, X } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowRight,
+  Brain,
+  Check,
+  CircleDashed,
+  Loader2,
+  Minimize2,
+  X,
+} from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -174,11 +183,14 @@ function summary(thinkingMs: number | null, steps: number, changes: number): str
 export function Thinking({
   item,
   active,
+  compacting = false,
   showReasoning,
 }: {
   item: Extract<ViewItem, { kind: 'assistant' }>
   /** This answer is being written now. */
   active: boolean
+  /** Its request is being compacted first: the running line says so. */
+  compacting?: boolean
   /** The account setting: show the model's thinking text. */
   showReasoning: boolean
 }) {
@@ -197,14 +209,12 @@ export function Thinking({
   const shownSteps = item.steps.filter((step) => step.status !== 'waiting')
   const steps = shownSteps.length
   const changes = shownSteps.filter((step) => step.changed).length
+  let title = summary(item.thinkingMs, steps, changes)
+  if (thinking) title = compacting ? m.assistant_compacting() : m.assistant_thinking()
   const line = (
     <TraceLine status={thinking ? 'running' : undefined}>
-      <TraceIcon>
-        <Brain />
-      </TraceIcon>
-      <TraceTitle>
-        {thinking ? m.assistant_thinking() : summary(item.thinkingMs, steps, changes)}
-      </TraceTitle>
+      <TraceIcon>{thinking && compacting ? <Minimize2 /> : <Brain />}</TraceIcon>
+      <TraceTitle>{title}</TraceTitle>
     </TraceLine>
   )
   return (

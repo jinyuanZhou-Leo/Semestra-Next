@@ -53,6 +53,11 @@ class Rows:
         for part in request.parts:
             self._parts[id(part)] = (part, row_id, typed)
 
+    def same_row(self, old: object, new: object) -> None:
+        """`new` stands in for `old` in a request (a cleared tool result): same row."""
+        if (mark := self._parts.get(id(old))) is not None:
+            self._parts[id(new)] = (new, mark[1], mark[2])
+
     def row_id(self, message: ModelMessage) -> str | None:
         """The row a message ends with: a response's own, a request's newest (ids are UUIDv7,
         so they sort by time; a merged request holds several rows)."""

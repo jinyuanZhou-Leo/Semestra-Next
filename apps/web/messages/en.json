@@ -2593,5 +2593,14 @@
   "grading_plan_unassumed": "Not yet assumed: {count}. Assume a score for each to see the planned grade.",
   "grading_excluded_in_progress": "Not counted yet: {count} in progress",
   "grading_round_before_lookup": "Round before the letter grade",
-  "grading_round_before_lookup_hint": "Rounds the course percentage to a whole number before looking up its band, as most transcripts do: 84.5% counts as 85%."
+  "grading_round_before_lookup_hint": "Rounds the course percentage to a whole number before looking up its band, as most transcripts do: 84.5% counts as 85%.",
+  "assistant_context_hint": "When it fills up, Sem compacts on its own: older lookup results are cleared first, then older turns are summarized. The last two turns stay as they are.",
+  "assistant_compact": "Compact conversation",
+  "assistant_compact_placeholder": "What to keep (optional); press Enter to compact",
+  "assistant_compact_nothing": "Nothing earlier to compact yet",
+  "assistant_command_remove": "Remove command",
+  "assistant_commands_menu": "Conversation",
+  "assistant_compacting": "Compacting earlier turns…",
+  "assistant_compacted": "Earlier turns compacted",
+  "assistant_compacted_summary": "What Sem kept of them"
 }

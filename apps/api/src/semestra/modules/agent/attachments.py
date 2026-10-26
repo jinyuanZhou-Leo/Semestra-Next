@@ -7,6 +7,7 @@ Pages are not chunked or indexed; saving the attachment to a course's files does
 
 import re
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Self
@@ -88,16 +89,19 @@ async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
 
 
 async def _parse_isolated(ctx: Ctx, data: bytes, detected: Detected) -> ParsedDocument:
-    async for message in parse_isolated(
+    messages = parse_isolated(
         data,
         detected,
         max_pages=MAX_PAGES,
         thumbnail_pages=0,
         time_limit=min(ctx.settings.files_parse_timeout_seconds, PARSE_TIME_LIMIT),
         memory_limit=ctx.settings.files_parse_memory_bytes,
-    ):
-        if isinstance(message, Parsed):
-            return message.document
+    )
+    # Closed here: left to the garbage collector, it would end the child from another task.
+    async with aclosing(messages):
+        async for message in messages:
+            if isinstance(message, Parsed):
+                return message.document
     raise ParseError("files.parse_failed")
 
 

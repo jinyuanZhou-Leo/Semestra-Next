@@ -16,6 +16,7 @@ from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
 from semestra.modules.agent import memory
 from semestra.modules.agent.memory import MemoryOperation, MemoryUpdates
+from semestra.modules.agent.models import AgentSession
 from semestra.modules.agent.portability import _memory  # pyright: ignore[reportPrivateUsage]
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
 from semestra.modules.ai import Message
@@ -535,7 +536,14 @@ def test_the_index_dates_a_memory_in_the_work_context_zone():
     assert memory.index_line(row) == '- [major] (user, 2026-10-21) "ECE" +'
 
 
-async def test_a_pass_that_keeps_failing_gives_its_window_up(
+async def _stored(app: FastAPI, session_id: str) -> tuple[Any, ...]:
+    async with app.state.session_factory() as db:
+        row = await db.get(AgentSession, session_id)
+        assert row is not None
+        return (row.state, row.memory_processed_at, row.updated_at)
+
+
+async def test_a_pass_that_would_fail_again_gives_its_window_up(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):
     session = await agent.session()
@@ -549,7 +557,34 @@ async def test_a_pass_that_keeps_failing_gives_its_window_up(
 
     app.state.agent.memory_model = invalid
     clock.advance(hours=1)
-    for _ in range(memory.MAX_FAILURES + 2):
+    for _ in range(3):
         await run_periodic(app.state, "agent.memory.consolidate")
         clock.advance(minutes=10)
-    assert len(calls) == memory.MAX_FAILURES
+    assert len(calls) == 1
+
+
+async def test_a_provider_that_is_down_is_tried_again_and_writes_nothing(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    session = await agent.session()
+    model.then(say("Noted."))
+    await agent.send(session["id"], "I'm majoring in ECE")
+    before = await _stored(app, session["id"])
+    calls: list[int] = []
+
+    async def down(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        calls.append(1)
+        raise AppError("ai.provider_unreachable", 502)
+
+    app.state.agent.memory_model = down
+    clock.advance(hours=1)
+    for _ in range(5):
+        await run_periodic(app.state, "agent.memory.consolidate")
+        clock.advance(minutes=10)
+    assert len(calls) == 5
+    assert await _stored(app, session["id"]) == before
+
+    # A week on, the conversation is left alone.
+    clock.advance(days=8)
+    await run_periodic(app.state, "agent.memory.consolidate")
+    assert len(calls) == 5
