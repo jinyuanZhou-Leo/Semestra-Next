@@ -294,8 +294,6 @@ test('a reloaded page follows the turn still running on the server', async () =>
     }),
   )
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
-  // Reading the session, following its stream and re-reading it can take over a second when the
-  // whole suite runs in parallel on CI.
   expect(
     await screen.findByText('Partial answer, now done.', {}, { timeout: 5000 }),
   ).toBeInTheDocument()

@@ -16,6 +16,8 @@ export type ChoiceOption<T extends string> = {
   label: string
   /** One line on what picking it does; any option with one turns the control into a select. */
   hint?: string
+  /** Shown when it is the value, but cannot be picked (a select only). */
+  disabled?: boolean
 }
 
 /**
@@ -120,7 +122,7 @@ export function ChoiceControl<T extends string>({
         <SelectGroup>
           {follow ? <SelectItem value={FOLLOW}>{follow.full}</SelectItem> : null}
           {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
+            <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
               {o.hint ? (
                 <span className="flex flex-col gap-0.5 whitespace-normal">
                   {o.label}
