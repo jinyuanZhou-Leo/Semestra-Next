@@ -1,8 +1,8 @@
 import type { CourseResult } from '@semestra/api-client'
 import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calculator, Flag, ListTree, MoreHorizontal, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { Calculator, Flag, MoreHorizontal, Plus, X } from 'lucide-react'
+import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -14,7 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Toggle } from '@/ui/toggle'
+import { Label } from '@/ui/label'
+import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateGrading } from '../queries'
 import { PlanBar } from './GradeTableCard'
@@ -49,6 +50,7 @@ export function GradebookToolbar({
   onGroupedChange: (grouped: boolean) => void
   onAdd: () => void
 }) {
+  const groupedId = useId()
   if (planning) {
     return (
       <PlanBar
@@ -80,10 +82,12 @@ export function GradebookToolbar({
           <TooltipContent>{m.grading_plan_needs_weights()}</TooltipContent>
         </Tooltip>
       )}
-      <Toggle variant="outline" size="sm" pressed={grouped} onPressedChange={onGroupedChange}>
-        <ListTree aria-hidden />
-        {m.grading_group_by_category()}
-      </Toggle>
+      <div className="flex items-center gap-2 px-1">
+        <Switch id={groupedId} size="sm" checked={grouped} onCheckedChange={onGroupedChange} />
+        <Label htmlFor={groupedId} className="font-normal">
+          {m.grading_group_by_category()}
+        </Label>
+      </div>
       <ImportMenu programId={programId} courseId={result.course_id} />
       <Button size="sm" onClick={onAdd}>
         <Plus aria-hidden />

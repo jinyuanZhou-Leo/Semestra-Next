@@ -251,7 +251,7 @@ test('grouped view heads each category with its weight and average', async () =>
     ],
   })
   mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('switch', { name: 'Group by category' }))
   const heading = await screen.findByRole('button', { name: /2 items · 40% graded/ })
   const row = heading.closest('tr')
   expect(row).toHaveTextContent('100')
@@ -295,7 +295,7 @@ test('a link to an assessment marks its row', async () => {
 
 test('a link to an assessment in a collapsed group shows its row', async () => {
   const { router } = mount()
-  await userEvent.click(await screen.findByRole('button', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('switch', { name: 'Group by category' }))
   await userEvent.click(await screen.findByRole('button', { name: /Exam/ }))
   await waitFor(() =>
     expect(screen.queryByRole('textbox', { name: 'Weight (%): Final exam' })).toBeNull(),
