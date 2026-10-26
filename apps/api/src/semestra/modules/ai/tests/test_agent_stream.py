@@ -16,6 +16,7 @@ from pydantic_ai.models import ModelRequestParameters
 from semestra.core.errors import AppError
 from semestra.modules import ai as m06
 from semestra.modules.ai.adapters import model as adapter_model
+from semestra.modules.ai.llm import Message
 from semestra.modules.ai.tests.conftest import ANTHROPIC, Ai, models_ok
 from semestra.modules.ai.tests.test_calls import usage_rows
 from semestra.modules.ai.tests.test_compatible_kinds import RESPONSES, responses_provider
@@ -61,6 +62,24 @@ async def drain_stream(ai: Ai) -> str:
         async for _ in stream:
             pass
         return stream.get().text or ""
+
+
+@pytest.mark.streamed
+async def test_claude_streams_a_long_answer_behind_the_scenes(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
+    # No fixed cap: Claude 5.5 gets its own maximum output, which the SDK only takes streamed.
+    models_ok(mock)
+    await ai.provider("anthropic")
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=sse([START, *TEXT, *END]))
+    async with ai.ctx() as ctx:
+        result = await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+    assert result.text == "Hi"
+    body = json.loads(route.calls.last.request.content)
+    assert body["stream"] is True
+    assert body["max_tokens"] > 21_333
+    rows = await usage_rows(app)
+    assert [(r.status, r.input_tokens, r.output_tokens) for r in rows] == [("ok", 9, 2)]
 
 
 async def test_overload_before_the_first_event_is_retried(

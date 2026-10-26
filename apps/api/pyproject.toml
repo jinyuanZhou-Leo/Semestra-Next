@@ -70,7 +70,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests", "src"]
-markers = ["live: hits real external services; skipped in CI"]
+markers = [
+    "live: hits real external services; skipped in CI",
+    "streamed: AI tests whose fake Claude answers stream (see ai/tests/conftest.py)",
+]
 addopts = "-m 'not live' -p semestra.testing"
 filterwarnings = [
     # Third-party code that Python 3.15 flags for removal in 3.17; nothing for us to change.

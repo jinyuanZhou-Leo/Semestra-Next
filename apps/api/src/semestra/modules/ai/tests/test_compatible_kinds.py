@@ -173,7 +173,8 @@ async def test_anthropic_compatible_without_a_key(ai: Ai, mock: respx.MockRouter
     assert "authorization" not in request.headers
     body = json.loads(request.content)
     assert (body["model"], body["system"]) == ("deepseek-chat", "sys")
-    assert body["max_tokens"] == 16384  # the default cap; 4096 cut long answers off
+    # No fixed 4096 cap: Pydantic AI's default for a model it does not know.
+    assert body["max_tokens"] == 16384
 
 
 async def test_anthropic_compatible_key_and_structured_output(ai: Ai, mock: respx.MockRouter):

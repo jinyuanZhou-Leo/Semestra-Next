@@ -30,6 +30,20 @@ def _no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 0)
 
 
+@pytest.fixture(autouse=True)
+def _claude_answers_not_streamed(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Pydantic AI streams a Claude request behind the scenes when the model's own output cap is
+    above the SDK's non-streaming limit (Claude 4.5+). The fakes here answer with one JSON body,
+    so tests keep the request unstreamed; `test_claude_streams_a_long_answer_behind_the_scenes`
+    (marked `streamed`) checks the real path."""
+    if request.node.get_closest_marker("streamed"):
+        yield
+        return
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("pydantic_ai.models.anthropic._MAX_NON_STREAMING_TOKENS", 10**9)
+        yield
+
+
 @pytest.fixture
 def mock() -> Iterator[respx.MockRouter]:
     with respx.mock(assert_all_called=False, assert_all_mocked=True) as router:

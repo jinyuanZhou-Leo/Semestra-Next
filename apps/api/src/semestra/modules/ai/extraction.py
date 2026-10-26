@@ -27,13 +27,16 @@ from semestra.modules.ai.resolve import resolve_provider
 LOW_CONFIDENCE = 0.3
 _WORDS = {"high": 0.9, "medium": 0.6, "low": LOW_CONFIDENCE}
 # Share of the model's context window one segment may use; the rest is instructions, schema,
-# output and slack for the token estimate.
+# output and slack for the token estimate. The reserve is taken off the segment on top of that;
+# the answer may use more than it (the provider's own output cap applies), which the other half
+# of the window leaves room for.
 SEGMENT_SHARE = 0.5
 OUTPUT_RESERVE_TOKENS = 8_000
 MIN_SEGMENT_TOKENS = 2_000
 IMAGES_PER_SEGMENT = 8
 IMAGE_TOKENS = 1_600
 MAX_SPLITS = 6
+MAX_CUT_SPLITS = 2  # of those, after an answer cut off at the output limit
 
 
 class Evidence(BaseModel):
@@ -347,6 +350,7 @@ async def extract[T: BaseModel](
     total = len(pending)
     done = 0
     splits = 0
+    cut_splits = 0
     while pending:
         segment = pending.pop(0)
         index = done + 1
@@ -363,6 +367,12 @@ async def extract[T: BaseModel](
             halves = _halve(segment) if exc.code in _TOO_BIG else None
             if halves is None or splits >= MAX_SPLITS:
                 raise
+            if exc.code == "ai.output_truncated":
+                # Each cut-off answer is a whole billed output; a model stuck repeating itself is
+                # cut off at any size, so halving stops early.
+                if cut_splits >= MAX_CUT_SPLITS:
+                    raise
+                cut_splits += 1
             splits += 1
             pending = [*halves, *pending]
             total += 1

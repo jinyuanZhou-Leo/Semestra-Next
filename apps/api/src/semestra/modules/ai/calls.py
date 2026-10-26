@@ -52,7 +52,7 @@ log = structlog.get_logger()
 
 EMBED_BATCH = 96
 # Errors that say something about the provider itself (shown on its card).
-_PROVIDER_ERRORS = {"ai.invalid_key", "ai.provider_unreachable"}
+_PROVIDER_ERRORS = {"ai.invalid_key", "ai.out_of_credit", "ai.provider_unreachable"}
 
 # --- untrusted content ------------------------------------------------------------------------
 

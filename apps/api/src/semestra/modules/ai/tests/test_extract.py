@@ -221,6 +221,29 @@ async def test_an_answer_cut_off_reads_the_part_in_halves(ai: Ai, mock: respx.Mo
     assert [a.name.value for a in result.value.assessments] == ["Final"]
 
 
+async def test_answers_cut_off_again_stop_after_two_splits(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+    cut = Response(
+        200,
+        json={
+            "content": [{"type": "text", "text": '{"course_code": {"value": "APS'}],
+            "stop_reason": "max_tokens",
+            "usage": {"input_tokens": 100, "output_tokens": 16384},
+        },
+    )
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=cut)
+    pages = [PageText(n, f"Week {n}: lecture notes " * 20) for n in range(1, 5)]
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await m06.extract(
+                ctx, "extraction", Syllabus, texts=pages, instructions="x", source_module="imports"
+            )
+    assert exc.value.code == "ai.output_truncated"
+    # Four pages, then two, then one: a model repeating itself is not chased any further.
+    assert route.call_count == 3
+
+
 async def test_extract_needs_input(ai: Ai):
     async with ai.ctx() as ctx:
         with pytest.raises(AppError) as exc:

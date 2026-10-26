@@ -17,8 +17,8 @@ from pydantic_ai.messages import (
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage
 
-from semestra.modules.ai.adapters.base import DEFAULT_MAX_TOKENS, ModelParams
-from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS, REASONING_KINDS
+from semestra.modules.ai.adapters.base import ModelParams
+from semestra.modules.ai.adapters.sdk import REASONING_KINDS
 from semestra.modules.ai.llm import Document, Image, Message, Text, Usage
 
 
@@ -62,13 +62,12 @@ def settings_for(kind: str, params: ModelParams, summary: bool = True) -> ModelS
     """The request options for a model's purpose (`SemestraModel` drops the Responses reasoning
     summary for endpoints that refused it)."""
     out: dict[str, Any] = {}
-    max_tokens = params.max_tokens
-    if max_tokens is None and kind in ANTHROPIC_KINDS:
-        max_tokens = DEFAULT_MAX_TOKENS  # the Messages API requires it
-    if max_tokens is None and kind == "gemini":
-        max_tokens = DEFAULT_MAX_TOKENS * 2  # thinking tokens count against it
-    if max_tokens is not None:
-        out["max_tokens"] = max_tokens
+    # Without a cap from the user the provider's own applies: Pydantic AI sends the model's
+    # maximum output where the Messages API needs one (16384 for models it does not know; 4096
+    # for the Claude models that reject more), Gemini uses the model's maximum. A fixed 4096 cut
+    # long structured answers off (a syllabus with evidence for every field, after thinking).
+    if params.max_tokens is not None:
+        out["max_tokens"] = params.max_tokens
     if params.temperature is not None:
         out["temperature"] = params.temperature
     if params.reasoning_effort is not None and kind in REASONING_KINDS:
