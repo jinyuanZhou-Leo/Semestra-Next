@@ -166,7 +166,7 @@ function AppearanceForm({
             applied.setAccent(next as Accent)
             update({ accent: next as Accent })
           }}
-          className="flex w-auto flex-wrap gap-2 p-1"
+          className="flex w-auto flex-wrap gap-2"
         >
           {ACCENTS.map((option) => (
             <RadioGroupItem
@@ -175,7 +175,7 @@ function AppearanceForm({
               data-accent={option}
               aria-label={ACCENT_LABELS[option]()}
               title={ACCENT_LABELS[option]()}
-              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 data-checked:scale-95"
+              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 data-checked:bg-clip-content data-checked:p-[3px]"
             />
           ))}
         </RadioGroup>

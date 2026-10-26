@@ -247,13 +247,15 @@
 
 /*
  * Accent swatch (settings → appearance): the ring contracts from outside onto the chosen swatch and
- * the check is revealed left to right. The ring only transitions on the way in, so deselecting the
+ * the check is revealed left to right. The checked swatch keeps its outer size: the ring takes the
+ * edge and the fill shrinks inside it (`p-[3px]` + `bg-clip-content` on the item). The ring only transitions on the way in, so deselecting the
  * old swatch is instant. The radio's own dot is replaced by the check mask.
  */
 .accent-swatch::before {
   content: '';
   position: absolute;
-  inset: -5px;
+  /* -1px: the radio's own 1px (transparent) border sits outside the padding box, so the ring ends flush with the swatch's outer edge. */
+  inset: -1px;
   border-radius: 9999px;
   border: 2px solid var(--primary);
   opacity: 0;
