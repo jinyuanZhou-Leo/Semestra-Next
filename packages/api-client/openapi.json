@@ -17961,6 +17961,14 @@
             "title": "Y",
             "description": "Row, from 0"
           },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/CardPosition"
+            },
+            "type": "array",
+            "title": "Positions",
+            "description": "Positions on the wider 6- and 8-column grids, where the user placed them"
+          },
           "settings": {
             "additionalProperties": true,
             "type": "object",
@@ -18026,6 +18034,15 @@
             "minimum": 0.0,
             "title": "Y",
             "description": "Row"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/CardPosition"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Positions",
+            "description": "Positions on the wider 6- and 8-column grids; leave out to keep none"
           },
           "settings": {
             "anyOf": [
@@ -18531,6 +18548,40 @@
           "card_id"
         ],
         "title": "CardAddInputBody"
+      },
+      "CardPosition": {
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "enum": [
+              6,
+              8
+            ],
+            "title": "Cols",
+            "description": "Column count of the wide grid"
+          },
+          "x": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "X",
+            "description": "Column"
+          },
+          "y": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "description": "Row"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cols",
+          "x",
+          "y"
+        ],
+        "title": "CardPosition"
       },
       "CardSettings": {
         "properties": {

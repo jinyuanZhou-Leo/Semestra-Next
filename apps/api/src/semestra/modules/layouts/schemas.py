@@ -15,12 +15,22 @@ MAX_CARDS = 60
 SETTINGS_MAX_BYTES = 64 * 1024
 
 
+class CardPosition(BaseModel):
+    cols: Literal[6, 8] = Field(description="Column count of the wide grid")
+    x: Coord = Field(description="Column")
+    y: Coord = Field(description="Row")
+
+
 class BoardCard(BaseModel):
     instance_id: str = Field(description="Card instance id; pass it to card capabilities")
     card_id: str = Field(description="Which card, e.g. 'sticky.note'")
     size: CardSize = Field(description="s=1x1, m=2x1, l=2x2, xl=4x2 on a 4-column grid")
     x: int = Field(description="Column, 0-3")
     y: int = Field(description="Row, from 0")
+    positions: list[CardPosition] = Field(
+        default_factory=list,
+        description="Positions on the wider 6- and 8-column grids, where the user placed them",
+    )
     settings: dict[str, Any] = Field(description="The card's settings as stored")
 
 
@@ -69,6 +79,11 @@ class BoardCardInput(BaseModel):
     size: CardSize = Field(description="Card size")
     x: Coord = Field(description="Column, 0-3")
     y: Coord = Field(description="Row")
+    positions: list[CardPosition] = Field(
+        default_factory=list,
+        max_length=2,
+        description="Positions on the wider 6- and 8-column grids; leave out to keep none",
+    )
     settings: dict[str, JsonValue] | None = Field(
         default=None, description="Settings of a new card (ignored for existing ones)"
     )

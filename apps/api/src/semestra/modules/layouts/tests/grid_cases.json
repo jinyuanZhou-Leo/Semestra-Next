@@ -1,5 +1,5 @@
 {
-  "//": "Board geometry cases shared by layouts/tests/test_grid.py and apps/web/src/app/board/layout.test.ts: both sides must place cards the same way (M10 §5.2). Cards are [id, size, x, y].",
+  "//": "Board geometry cases shared by layouts/tests/test_grid.py and apps/web/src/app/board/layout.test.ts: both sides must place cards the same way (M10 §5.2). Cards are [id, size, x, y]; `cols` (default 4) is the grid's column count.",
   "compact": [
     {
       "name": "moves cards up and keeps their column",
@@ -20,6 +20,18 @@
       "name": "reading order breaks ties by column",
       "cards": [["b", "l", 1, 0], ["a", "l", 0, 0]],
       "expected": [["a", "l", 0, 0], ["b", "l", 1, 2]]
+    },
+    {
+      "name": "6 columns clamp and stack like 4",
+      "cols": 6,
+      "cards": [["a", "xl", 0, 2], ["b", "m", 4, 0], ["c", "l", 5, 1]],
+      "expected": [["b", "m", 4, 0], ["c", "l", 4, 1], ["a", "xl", 0, 0]]
+    },
+    {
+      "name": "8 columns push overlapping wide cards down",
+      "cols": 8,
+      "cards": [["a", "xl", 4, 0], ["b", "xl", 2, 0], ["c", "s", 9, 3]],
+      "expected": [["b", "xl", 2, 0], ["a", "xl", 4, 2], ["c", "s", 7, 0]]
     }
   ],
   "first_free": [
@@ -37,6 +49,18 @@
       "name": "a gap too narrow is skipped",
       "cards": [["a", "s", 0, 0], ["b", "s", 2, 0], ["c", "xl", 0, 1]],
       "sizes": { "s": [1, 0], "m": [0, 3], "l": [0, 3], "xl": [0, 3] }
+    },
+    {
+      "name": "6 columns use the space beside a wide card",
+      "cols": 6,
+      "cards": [["a", "xl", 0, 0], ["b", "s", 4, 0]],
+      "sizes": { "s": [5, 0], "m": [4, 1], "l": [4, 1], "xl": [0, 2] }
+    },
+    {
+      "name": "8 columns fit two wide cards side by side",
+      "cols": 8,
+      "cards": [["a", "xl", 0, 0], ["b", "l", 4, 0]],
+      "sizes": { "s": [6, 0], "m": [6, 0], "l": [6, 0], "xl": [0, 2] }
     }
   ]
 }

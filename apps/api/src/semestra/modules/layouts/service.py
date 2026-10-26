@@ -9,7 +9,7 @@ was ever saved without its id changing under the frontend.
 
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -38,6 +38,7 @@ from semestra.modules.layouts.schemas import (
     CardInstanceList,
     CardInstanceListInput,
     CardInstanceSummary,
+    CardPosition,
     CardRef,
     CardSettings,
     CardSettingsUpdateInput,
@@ -148,19 +149,42 @@ def _visible(placed: list[Placed], scope_type: str, installed: set[str]) -> list
         card = catalog.card(p.card_id)
         if card and card.module_id in installed and scope_type in card.scopes:
             size = p.size if p.size in card.sizes else card.default_size
-            out.append(Placed(p.instance_id, p.card_id, size, p.x, p.y))
+            out.append(replace(p, size=size))
     return out
 
 
 def _placed(entries: list[dict[str, Any]]) -> list[Placed]:
-    return [Placed(e["instance_id"], e["card_id"], e["size"], e["x"], e["y"]) for e in entries]
+    return [
+        Placed(
+            e["instance_id"],
+            e["card_id"],
+            e["size"],
+            e["x"],
+            e["y"],
+            tuple((q["cols"], q["x"], q["y"]) for q in e.get("positions", ())),
+        )
+        for e in entries
+    ]
 
 
 def _entries(placed: list[Placed]) -> list[dict[str, Any]]:
-    return [
-        {"instance_id": p.instance_id, "card_id": p.card_id, "size": p.size, "x": p.x, "y": p.y}
-        for p in placed
-    ]
+    out: list[dict[str, Any]] = []
+    for p in placed:
+        entry: dict[str, Any] = {
+            "instance_id": p.instance_id,
+            "card_id": p.card_id,
+            "size": p.size,
+            "x": p.x,
+            "y": p.y,
+        }
+        if p.positions:
+            entry["positions"] = [{"cols": c, "x": x, "y": y} for c, x, y in p.positions]
+        out.append(entry)
+    return out
+
+
+def _positions(p: Placed) -> list[CardPosition]:
+    return [CardPosition(cols=c, x=x, y=y) for c, x, y in p.positions]  # pyright: ignore[reportArgumentType]
 
 
 # --- templates ------------------------------------------------------------------------------
@@ -345,6 +369,7 @@ async def get_board(ctx: Ctx, ref: BoardRef) -> Board:
                 size=p.size,
                 x=p.x,
                 y=p.y,
+                positions=_positions(p),
                 settings=settings[p.instance_id].settings if p.instance_id in settings else {},
             )
             for p in placed
@@ -414,13 +439,20 @@ async def update_board(ctx: Ctx, inp: BoardUpdateInput) -> Board:
             instance_id = c.instance_id
             if instance_id not in visible or existing[instance_id]["card_id"] != c.card_id:
                 raise AppError("common.not_found", 404)
-        placed.append(Placed(instance_id, card.id, c.size, c.x, c.y))
+        if len({q.cols for q in c.positions}) != len(c.positions):
+            raise AppError(
+                "common.validation", 422, errors=[{"loc": ["cards"], "code": "duplicate_position"}]
+            )
+        positions = tuple((q.cols, q.x, q.y) for q in c.positions)
+        placed.append(Placed(instance_id, card.id, c.size, c.x, c.y, positions))
     if len({p.instance_id for p in placed}) != len(placed):
         raise AppError(
             "common.validation", 422, errors=[{"loc": ["cards"], "code": "duplicate_instance"}]
         )
     _not_multiple(placed)
-    if not grid.valid(placed):
+    if not grid.valid(placed) or not all(
+        grid.valid(grid.at_cols(placed, cols), cols) for cols in grid.WIDE_COLS
+    ):
         raise AppError("common.validation", 422, errors=[{"loc": ["cards"], "code": "overlap"}])
 
     kept = {p.instance_id for p in placed}

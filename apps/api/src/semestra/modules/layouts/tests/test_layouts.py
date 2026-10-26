@@ -175,6 +175,41 @@ async def test_update_rejects_overlap_duplicates_and_foreign_instances(api: Api)
     assert r["error"]["code"] == "common.not_found"
 
 
+async def test_wide_grid_positions_are_stored_and_checked(api: Api):
+    program_id, _, _ = await api.scopes()
+    note = {"card_id": "notes.note", "size": "s", "instance_id": None}
+    wide = [
+        {**note, "x": 0, "y": 0, "positions": [{"cols": 8, "x": 6, "y": 0}]},
+        {**note, "x": 1, "y": 0, "positions": [{"cols": 8, "x": 7, "y": 0}]},
+        {**note, "x": 2, "y": 0},
+    ]
+    board = await api.put_board("today", program_id, wide)
+    assert [c["positions"] for c in board["cards"]] == [
+        [{"cols": 8, "x": 6, "y": 0}],
+        [{"cols": 8, "x": 7, "y": 0}],
+        [],
+    ]
+    # Kept when the layout is saved again unchanged, and checked per column count.
+    cards = [
+        {k: c[k] for k in ("instance_id", "card_id", "size", "x", "y")} for c in board["cards"]
+    ]
+    again = await api.put_board(
+        "today",
+        program_id,
+        [{**c, "positions": b["positions"]} for c, b in zip(cards, board["cards"], strict=True)],
+    )
+    assert [c["positions"] for c in again["cards"]] == [c["positions"] for c in board["cards"]]
+    clash = [{**cards[0], "positions": [{"cols": 8, "x": 7, "y": 0}]}, wide[1] | cards[1]]
+    r = await api.put_board("today", program_id, clash, 422)
+    assert r["error"]["params"]["errors"] == [{"loc": ["cards"], "code": "overlap"}]
+    outside = [{**cards[0], "positions": [{"cols": 6, "x": 6, "y": 0}]}]
+    r = await api.put_board("today", program_id, outside, 422)
+    assert r["error"]["params"]["errors"] == [{"loc": ["cards"], "code": "overlap"}]
+    twice = [{**cards[0], "positions": [{"cols": 6, "x": 0, "y": 0}, {"cols": 6, "x": 1, "y": 0}]}]
+    r = await api.put_board("today", program_id, twice, 422)
+    assert r["error"]["params"]["errors"] == [{"loc": ["cards"], "code": "duplicate_position"}]
+
+
 async def test_add_and_remove_cards(app: FastAPI, api: Api, user: UserHandle):
     program_id, _, _ = await api.scopes()
     added = await api.call(
