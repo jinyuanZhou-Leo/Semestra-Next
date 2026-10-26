@@ -189,6 +189,22 @@
   --sidebar-ring: oklch(0.556 calc(0.08 * var(--accent-chroma)) var(--accent-hue));
 }
 
+/*
+ * A forced `.light` inside a dark app (the theme picker's previews) takes the light values back:
+ * `.dark [data-accent]` above also matches there, because `<html class="dark">` is still an ancestor.
+ * This assumes `<html>` only ever toggles `.dark` (never `.light`): with `.light` on the root this
+ * rule would also override the forced `.dark` previews.
+ */
+.light [data-accent] {
+  --primary: oklch(0.5 calc(0.134 * var(--accent-chroma)) var(--accent-hue));
+  --ring: oklch(0.708 calc(0.1 * var(--accent-chroma)) var(--accent-hue));
+  --sidebar-primary: oklch(0.588 calc(0.158 * var(--accent-chroma)) calc(var(--accent-hue) - 0.8));
+  --sidebar-primary-foreground: oklch(
+    0.977 calc(0.013 * var(--accent-chroma)) calc(var(--accent-hue) - 6)
+  );
+  --sidebar-ring: oklch(0.708 calc(0.1 * var(--accent-chroma)) var(--accent-hue));
+}
+
 [data-accent='violet'] {
   --accent-hue: 293;
 }
@@ -224,6 +240,62 @@
   --sidebar-primary: oklch(0.922 0 0);
   --sidebar-primary-foreground: oklch(0.205 0 0);
 }
+.light [data-accent='neutral'] {
+  --primary: oklch(0.25 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.25 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+}
+
+/*
+ * Accent swatch (settings → appearance): the ring contracts from outside onto the chosen swatch and
+ * the check is revealed left to right. The checked swatch keeps its outer size: the ring takes the
+ * edge and the fill shrinks inside it (`p-[3px]` + `bg-clip-content` on the item). The check styles
+ * the radio's indicator `<span>` from `ui/radio-group.tsx`; settings-page.test.tsx pins that shape. The ring only transitions on the way in, so deselecting the
+ * old swatch is instant. The radio's own dot is replaced by the check mask.
+ */
+.accent-swatch::before {
+  content: '';
+  position: absolute;
+  /* -1px: the radio's own 1px (transparent) border sits outside the padding box, so the ring ends flush with the swatch's outer edge. */
+  inset: -1px;
+  border-radius: 9999px;
+  border: 2px solid var(--primary);
+  opacity: 0;
+  scale: 1.8;
+  pointer-events: none;
+}
+.accent-swatch[data-checked]::before {
+  opacity: 1;
+  scale: 1;
+  transition:
+    scale 0.5s cubic-bezier(0.2, 0.8, 0.25, 1),
+    opacity 0.2s ease-out;
+}
+.accent-swatch [data-slot='radio-group-indicator'] > span {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0;
+  background: var(--primary-foreground);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  animation: accent-check-in 0.3s 0.2s ease-out backwards;
+}
+@keyframes accent-check-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .accent-swatch[data-checked]::before,
+  .accent-swatch [data-slot='radio-group-indicator'] > span {
+    transition: none;
+    animation: none;
+  }
+}
 
 @layer base {
   * {
@@ -257,8 +329,10 @@
 [data-reduce-motion='on'] *::before,
 [data-reduce-motion='on'] *::after {
   animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
 

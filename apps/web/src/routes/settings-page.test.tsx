@@ -122,6 +122,23 @@ test('choosing a theme and an accent color applies them at once and saves them',
   await waitFor(() => expect(patches).toEqual([{ theme: 'dark' }, { accent: 'violet' }]))
 })
 
+test('the theme previews follow the accent color and the chosen swatch shows a check', async () => {
+  current = { ...preferences, accent: 'violet' }
+  mount('/?settings=account/preferences')
+  const group = await screen.findByRole('radiogroup', { name: 'Theme' })
+  const previews = () => group.querySelectorAll('[data-accent]')
+  // "System" shows two windows, "Light" and "Dark" one each.
+  expect(previews()).toHaveLength(4)
+  for (const preview of previews()) expect(preview).toHaveAttribute('data-accent', 'violet')
+
+  await userEvent.click(screen.getByRole('radio', { name: 'Green' }))
+  for (const preview of previews()) expect(preview).toHaveAttribute('data-accent', 'green')
+
+  // The check is the radio's indicator span (see `.accent-swatch` in theme.css).
+  const green = screen.getByRole('radio', { name: 'Green' })
+  expect(green.querySelector('[data-slot=radio-group-indicator] > span')).not.toBeNull()
+})
+
 test('the saved preferences are applied when the signed-in app loads', async () => {
   current = { ...preferences, theme: 'dark', accent: 'rose', reduce_motion: 'on' }
   mount('/?settings=account/preferences')

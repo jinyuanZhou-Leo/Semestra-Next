@@ -34,28 +34,72 @@ const MOTIONS: readonly { value: ReduceMotion; label: () => string }[] = [
   { value: 'off', label: m.settings_motion_off },
 ]
 
-/** A miniature window painted with the theme's own tokens (forced with `.light` / `.dark`). */
-function MiniWindow({ mode }: { mode: 'light' | 'dark' }) {
+const TINT = 'transition-colors duration-300 motion-reduce:transition-none'
+
+/**
+ * A miniature app window painted with the theme's own tokens (forced with `.light` / `.dark`). The
+ * inner `data-accent` element gives the preview the chosen accent in either theme: the forced theme
+ * class alone would fall back to the default blue.
+ */
+function MiniWindow({
+  mode,
+  accent,
+  className,
+}: {
+  mode: 'light' | 'dark'
+  accent: Accent
+  className?: string
+}) {
   return (
-    <div className={cn(mode, 'h-full w-full bg-background p-2')} aria-hidden>
-      <div className="mb-1.5 h-1.5 w-8 rounded-full bg-foreground/70" />
-      <div className="mb-1 h-1 w-full rounded-full bg-muted-foreground/40" />
-      <div className="mb-2 h-1 w-3/4 rounded-full bg-muted-foreground/40" />
-      <div className="h-3 w-8 rounded-full bg-primary" />
+    <div className={cn(mode, 'absolute inset-0', className)} aria-hidden>
+      <div data-accent={accent} className="flex h-full bg-background">
+        <div className="flex w-[23%] flex-col gap-[5px] border-r border-sidebar-border bg-sidebar px-[5px] py-1.5">
+          <div className={cn('mb-[3px] size-[9px] rounded-[3px] bg-primary', TINT)} />
+          <div className={cn('relative h-[5px] rounded-full bg-primary/25 delay-75', TINT)}>
+            <div
+              className={cn(
+                'absolute top-[1px] left-[1.5px] size-[3px] rounded-full bg-primary',
+                TINT,
+              )}
+            />
+          </div>
+          <div className="h-[5px] rounded-full bg-muted-foreground/30" />
+          <div className="h-[5px] rounded-full bg-muted-foreground/30" />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5 px-2 py-[7px]">
+          <div className="flex items-center justify-between">
+            <div className="h-1 w-[30px] rounded-full bg-foreground/75" />
+            <div className={cn('h-[7px] w-[15px] rounded-full bg-primary/20 delay-100', TINT)} />
+          </div>
+          <div className="flex flex-col gap-[3px] rounded-[5px] border bg-card p-[5px]">
+            <div className="h-[3px] w-4/5 rounded-full bg-muted-foreground/45" />
+            <div className="h-[3px] w-[55%] rounded-full bg-muted-foreground/45" />
+            <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-muted">
+              <div className={cn('h-full w-[64%] rounded-full bg-primary delay-150', TINT)} />
+            </div>
+          </div>
+          <div className={cn('h-[9px] w-6 rounded-full bg-primary delay-200', TINT)} />
+        </div>
+      </div>
     </div>
   )
 }
 
-function ThemePreview({ theme }: { theme: Theme }) {
+/** "Follow system" shows both themes, split along a slanted edge (light on the left). */
+function ThemePreview({ theme, accent }: { theme: Theme; accent: Accent }) {
   if (theme === 'system') {
     return (
-      <div className="grid h-full grid-cols-2">
-        <MiniWindow mode="light" />
-        <MiniWindow mode="dark" />
-      </div>
+      <>
+        <MiniWindow mode="dark" accent={accent} />
+        <MiniWindow
+          mode="light"
+          accent={accent}
+          className="[clip-path:polygon(0_0,60%_0,40%_100%,0_100%)]"
+        />
+      </>
     )
   }
-  return <MiniWindow mode={theme} />
+  return <MiniWindow mode={theme} accent={accent} />
 }
 
 export default function AppearanceSettings() {
@@ -91,22 +135,24 @@ function AppearanceForm({
             applied.setTheme(next as Theme)
             update({ theme: next as Theme })
           }}
-          className="grid w-full grid-cols-3 gap-3 sm:w-96"
+          className="grid w-full grid-cols-3 gap-3 sm:w-[28rem]"
         >
           {THEMES.map((option) => (
             <FieldLabel
               key={option}
               htmlFor={`${id}-theme-${option}`}
-              className="*:data-[slot=field]:p-3"
+              className="transition-colors duration-300 motion-reduce:transition-none *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
             >
-              <Field orientation="horizontal">
+              <Field>
                 <FieldContent className="min-w-0">
-                  <span className="block h-14 overflow-hidden rounded-xl border">
-                    <ThemePreview theme={option} />
+                  <span className="relative block aspect-8/5 overflow-hidden rounded-xl border">
+                    <ThemePreview theme={option} accent={accent} />
                   </span>
-                  <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
                 </FieldContent>
-                <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
+                <div className="flex items-center justify-between gap-2">
+                  <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
+                  <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
+                </div>
               </Field>
             </FieldLabel>
           ))}
@@ -129,7 +175,7 @@ function AppearanceForm({
               data-accent={option}
               aria-label={ACCENT_LABELS[option]()}
               title={ACCENT_LABELS[option]()}
-              className="size-8 bg-primary ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-primary"
+              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 data-checked:bg-clip-content data-checked:p-[3px]"
             />
           ))}
         </RadioGroup>
