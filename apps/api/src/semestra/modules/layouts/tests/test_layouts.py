@@ -196,7 +196,7 @@ async def test_wide_grid_positions_are_stored_and_checked(api: Api):
     again = await api.put_board(
         "today",
         program_id,
-        [{**c, "positions": b["positions"]} for c, b in zip(cards, board["cards"])],
+        [{**c, "positions": b["positions"]} for c, b in zip(cards, board["cards"], strict=True)],
     )
     assert [c["positions"] for c in again["cards"]] == [c["positions"] for c in board["cards"]]
     clash = [{**cards[0], "positions": [{"cols": 8, "x": 7, "y": 0}]}, wide[1] | cards[1]]
