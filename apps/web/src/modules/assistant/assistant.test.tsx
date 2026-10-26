@@ -34,13 +34,7 @@ import { mcpConfig } from './settings/McpSection'
 import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
 import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
-import {
-  applyEvent,
-  buildItems,
-  lastTypedUser,
-  restartFrom,
-  withEditedMessage,
-} from './transcript'
+import { applyEvent, buildItems, lastTypedUser, restartFrom, withEditedMessage } from './transcript'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -439,6 +433,37 @@ test('streamed events build the answer, its steps and the confirmation card', ()
   expect(detail.session.title).toBe('Lab 3 score')
 })
 
+test('a call id used again in a later answer pairs with that answer', () => {
+  // Ids are the provider's: Kimi K2 numbers them per response, so two answers both say call_0.
+  const update = { type: 'tool_call', id: 'call_0', name: 'grading__assessment__update', args: {} }
+  const detail: AgentSessionDetail = {
+    session: session(),
+    messages: [
+      msg('u1', 'user', [{ type: 'text', text: '9' }]),
+      msg('a1', 'assistant', [update]),
+      msg('t1', 'tool', [
+        { type: 'tool_result', call_id: 'call_0', name: 'x', is_error: true, error_code: 'e1' },
+      ]),
+      msg('a2', 'assistant', [{ type: 'text', text: 'That failed.' }]),
+      msg('u2', 'user', [{ type: 'text', text: '10' }]),
+      msg('a3', 'assistant', [update]),
+    ],
+    proposals: [
+      proposal({ id: 'pr1', message_id: 'a1', call_id: 'call_0', status: 'failed' }),
+      proposal({ id: 'pr2', message_id: 'a3', call_id: 'call_0', status: 'pending' }),
+    ],
+    attachments: [],
+    generating: false,
+  }
+  const [, first, , second] = buildItems(detail)
+  expect(first?.kind === 'assistant' && first.steps.map((s) => [s.status, s.proposal?.id])).toEqual(
+    [['error', 'pr1']],
+  )
+  expect(
+    second?.kind === 'assistant' && second.steps.map((s) => [s.status, s.proposal?.id]),
+  ).toEqual([['waiting', 'pr2']])
+})
+
 test('the messages of one answer form one item that sums how long the model worked', () => {
   const detail: AgentSessionDetail = {
     session: session(),
@@ -497,7 +522,7 @@ test('an answer keeps streaming when the transcript is re-read mid-answer', () =
   ).toHaveLength(1)
 })
 
-test('regenerating cuts after the user\'s own message, not after a note', () => {
+test("regenerating cuts after the user's own message, not after a note", () => {
   // The server decides what can be regenerated; the optimistic cut must match its boundary.
   const messages = [
     msg('u1', 'user', [{ type: 'text', text: 'hi' }]),

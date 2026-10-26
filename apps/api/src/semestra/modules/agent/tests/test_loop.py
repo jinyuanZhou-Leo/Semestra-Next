@@ -1144,6 +1144,33 @@ async def test_an_approved_write_runs_as_part_of_the_turn(
     assert names[-1] == "message_end"
 
 
+async def test_a_call_id_used_again_in_a_later_answer_pairs_with_its_own_answer(
+    agent: Agent, model: FakeModel
+):
+    """Ids are the provider's and repeat across answers (Kimi K2's `functions.add:0`): the second
+    card is the open one, its approval resumes the run, and nothing becomes a late note."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    update = "grading.assessment.update"
+    for score, answer in ((9, "Recorded."), (10, "Changed.")):
+        model.then(
+            call(update, {"assessment_id": lab["id"], "score_percentage": score}, call_id="call_0")
+        )
+        [proposal] = events_named(await agent.send(session["id"], str(score)), "proposal")
+        model.then(say(answer))
+        await agent.decide(session["id"], proposal["id"])
+        # The run resumed with this card's outcome, not the earlier one's.
+        [last] = [r for r in model.results() if r.tool_call_id == "call_0"][-1:]
+        assert f"{score}" in str(last.content)
+    detail = await agent.call("GET", f"/agent/sessions/{session['id']}")
+    assert [p["status"] for p in detail["proposals"]] == ["executed", "executed"]
+    notes = [b for m in detail["messages"] for b in m["content"] if b["type"] == "note"]
+    assert notes == []
+    # The step under each answer shows that answer's own result.
+    results = [b for m in detail["messages"] for b in m["content"] if b["type"] == "tool_result"]
+    assert len(results) == 2
+
+
 async def test_stop_keeps_the_partial_answer(app: FastAPI, agent: Agent, model: FakeModel):
     session = await agent.session()
     model.then(say("A long answer that gets cut"))

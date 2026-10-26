@@ -71,8 +71,9 @@ class Store:
     """Writes the run's messages as they complete. Tool results are told apart by the part object,
     not by position: Pydantic AI merges every run of consecutive requests in the history (a tool
     row followed by a note, say), so indexes into the stored history do not hold, while the merge
-    keeps the part objects. Not by call id either: some OpenAI-compatible servers reuse ids across
-    turns."""
+    keeps the part objects. Not by call id either: ids are the provider's and can repeat across
+    answers; everywhere else a result answers the nearest earlier call with its id
+    (`history.open_calls`)."""
 
     def __init__(self, turn: Turn, messages: Sequence[ModelMessage]) -> None:
         self.turn = turn

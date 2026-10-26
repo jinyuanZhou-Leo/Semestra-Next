@@ -198,10 +198,10 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
     if found is None:
         async with agent_ctx(turn.state, turn.user_id, scope=None) as c:
             rows = await service.messages(c, turn.session_id)
-        block = next(
+        block = next(  # the latest: ids can repeat across answers (`history.open_calls`)
             (
                 b
-                for r in rows
+                for r in reversed(rows)
                 if r.role == "tool"
                 for b in r.content
                 if b.get("call_id") == call_id and b.get("full")
@@ -425,7 +425,7 @@ async def _prepare(
     ctx: Ctx, session: AgentSession, model: ChatLike, cancel: asyncio.Event
 ) -> Prepared:
     rows = await service.messages(ctx, session.id)
-    props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
+    props = history.open_proposals(rows, await service.proposals(ctx, session.id))
     work = await work_context(ctx, ctx.scope)
     marks = Rows()
     messages = await _messages(ctx, session, rows, model, work.timezone, marks)

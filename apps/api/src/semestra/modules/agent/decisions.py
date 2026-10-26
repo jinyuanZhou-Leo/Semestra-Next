@@ -114,7 +114,7 @@ async def close_open_calls(ctx: Ctx, session: AgentSession) -> None:
     stored = [m for m in map(history.load, rows) if m is not None]
     calls = history.open_calls(stored)
     if calls:
-        props = {p.call_id: p for p in await service.proposals(ctx, session.id)}
+        props = history.open_proposals(rows, await service.proposals(ctx, session.id))
         close_calls(ctx, session, calls, props)
 
 
@@ -213,8 +213,11 @@ async def run(
 
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
-        stored = [history.load(r) for r in await service.messages(ctx, session.id)]
-        open_ids = {c.tool_call_id for c in history.open_calls([m for m in stored if m])}
+        messages = await service.messages(ctx, session.id)
+        stored = [m for m in map(history.load, messages) if m is not None]
+        open_ids = {c.tool_call_id for c in history.open_calls(stored)}
+        props = history.open_proposals(messages, await service.proposals(ctx, session.id))
+        still_open = {p.id for p in props.values() if p.call_id in open_ids}
         for row, result in results:
             fresh = await service.get_proposal(ctx, session.id, row.id)
             part = ToolReturnPart(
@@ -227,7 +230,7 @@ async def run(
             out.append(
                 {"event": "proposal", "data": service.proposal_out(fresh).model_dump(mode="json")}
             )
-            if row.call_id not in open_ids:
+            if row.id not in still_open:
                 # The conversation moved on before this decision: the model hears it as a note.
                 # `late` marks what ran here: regenerating or editing must not drop it silently.
                 note = history.late_note(row.capability, result.content, not result.ok)
@@ -244,7 +247,7 @@ async def run(
         still_pending = [
             p
             for p in await service.proposals(ctx, session.id)
-            if p.message_id in message_ids and p.status == "pending" and p.call_id in open_ids
+            if p.message_id in message_ids and p.status == "pending" and p.id in still_open
         ]
         await ctx.db.commit()
     return out, not still_pending
