@@ -172,7 +172,8 @@ async def test_anthropic_compatible_without_a_key(ai: Ai, mock: respx.MockRouter
     assert "x-api-key" not in request.headers
     assert "authorization" not in request.headers
     body = json.loads(request.content)
-    assert (body["model"], body["system"], body["max_tokens"]) == ("deepseek-chat", "sys", 4096)
+    assert (body["model"], body["system"]) == ("deepseek-chat", "sys")
+    assert body["max_tokens"] == 16384  # the default cap; 4096 cut long answers off
 
 
 async def test_anthropic_compatible_key_and_structured_output(ai: Ai, mock: respx.MockRouter):
@@ -221,6 +222,44 @@ async def test_anthropic_compatible_key_and_structured_output(ai: Ai, mock: resp
     # Not a Claude model: the result comes back as a forced tool call.
     assert [t["name"] for t in body["tools"]] == ["Course"]
     assert body["tool_choice"]["type"] in ("any", "tool")
+    # Some compatible models think by default (DeepSeek): structured output asks them not to.
+    assert body["thinking"] == {"type": "disabled"}
+
+
+async def test_structured_answer_cut_off_is_not_retried(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
+    mock.get(f"{ANTHROPIC_COMPAT}/v1/models").mock(return_value=Response(200, json={"data": []}))
+    provider = await ai.provider(
+        "anthropic_compatible", base_url=ANTHROPIC_COMPAT, capabilities=["chat", "structured"]
+    )
+    await ai.call(
+        "PUT",
+        "/ai/assignments",
+        json={"purpose": "extraction", "provider_id": provider["id"], "model": "deepseek-flash"},
+    )
+    cut = Response(
+        200,
+        json={
+            "content": [
+                {"type": "tool_use", "id": "t", "name": "Course", "input": {"code": "APS"}}
+            ],
+            "stop_reason": "max_tokens",
+            "usage": {"input_tokens": 3, "output_tokens": 16384},
+        },
+    )
+    route = mock.post(f"{ANTHROPIC_COMPAT}/v1/messages").mock(return_value=cut)
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await m06.structured(
+                ctx, "extraction", [Message.user("APS105")], Course, source_module="imports"
+            )
+    assert exc.value.code == "ai.output_truncated"
+    assert route.call_count == 1  # asking again would stop at the same place
+    rows = await usage_rows(app)
+    assert [(r.status, r.error_code, r.output_tokens) for r in rows[-1:]] == [
+        ("error", "ai.output_truncated", 16384)
+    ]
 
 
 async def test_anthropic_compatible_json_fallback(ai: Ai, mock: respx.MockRouter):

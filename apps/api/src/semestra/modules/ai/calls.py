@@ -13,7 +13,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import structlog
@@ -23,6 +23,7 @@ from pydantic_ai.direct import model_request
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -225,15 +226,23 @@ def _response_text(response: ModelResponse) -> str:
     return text or "\n".join(calls)
 
 
+# Structured answers whose last request carries the call's error in the usage log.
+_ANSWER_ERRORS = ("ai.output_invalid", "ai.output_truncated")
+
+
+class _CutOff(Exception):
+    """A structured answer stopped at the output limit: it cannot be complete."""
+
+
 def _log_requests(call: _Call, requests: list[_Request], failure: AppError | None) -> None:
-    """Each request of a call in the usage log. A structured answer that never validated marks
-    its last request; the earlier ones were normal, billed calls."""
+    """Each request of a call in the usage log. A structured answer that never validated (or was
+    cut off) marks its last request; the earlier ones were normal, billed calls."""
     for n, (started, response, error) in enumerate(requests):
         one = replace(call, started=started)
         if response is None:
             _finish(one, Usage(), error=error)
             continue
-        last_invalid = failure is not None and failure.code == "ai.output_invalid"
+        last_invalid = failure is not None and failure.code in _ANSWER_ERRORS
         _finish(
             one,
             convert.usage(response.usage),
@@ -243,15 +252,21 @@ def _log_requests(call: _Call, requests: list[_Request], failure: AppError | Non
         )
 
 
-async def _run[T](call: _Call, work: Callable[[SemestraModel], Awaitable[T]]) -> T:
+async def _run[T](
+    call: _Call, work: Callable[[SemestraModel], Awaitable[T]], *, whole_answer: bool = False
+) -> T:
     """Runs `work` on the call's model within `CALL_TIMEOUT_SECONDS`; every request it makes is
-    logged (`SemestraModel` retries and maps errors per request)."""
+    logged (`SemestraModel` retries and maps errors per request). With `whole_answer`, a reply
+    that hit the output limit raises `ai.output_truncated` at once: asking again (Pydantic AI's
+    output retries) would only be cut off at the same place."""
     resolved = call.resolved
     requests: list[_Request] = []
     failure: AppError | None = None
 
     def record(started: float, response: ModelResponse | None, error: AppError | None) -> None:
         requests.append((started, response, error))
+        if whole_answer and response is not None and response.finish_reason == "length":
+            raise _CutOff
 
     try:
         async with _client(call.ctx, stream=False) as client, asyncio.timeout(CALL_TIMEOUT_SECONDS):
@@ -260,6 +275,9 @@ async def _run[T](call: _Call, work: Callable[[SemestraModel], Awaitable[T]]) ->
     except TimeoutError:
         failure = AppError("ai.timeout", 504)
         requests.append((call.started, None, failure))  # the request cut off never recorded
+        raise failure from None
+    except _CutOff:
+        failure = AppError("ai.output_truncated", 502)
         raise failure from None
     except UnexpectedModelBehavior:
         failure = AppError("ai.output_invalid", 502)
@@ -357,6 +375,17 @@ def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]
     return NativeOutput(schema, name=name, strict=None if kind in ANTHROPIC_KINDS else False)
 
 
+def _structured_settings(resolved: Resolved, model: Model) -> ModelSettings:
+    """Reading a document into a schema needs no thinking. On the Messages API thinking is turned
+    off where the model allows it: some compatible models (DeepSeek) think by default, which
+    spends the output budget before the answer and does not go with a forced output tool call."""
+    if resolved.endpoint.kind not in ANTHROPIC_KINDS or model.profile.get(
+        "thinking_always_enabled"
+    ):
+        return ModelSettings()
+    return cast(ModelSettings, {"anthropic_thinking": {"type": "disabled"}})
+
+
 async def structured_with[T: BaseModel](
     ctx: Ctx,
     resolved: Resolved,
@@ -376,10 +405,12 @@ async def structured_with[T: BaseModel](
         # Invalid output goes back to the model with the validation errors (M06 §5).
         output = _output_spec(resolved, model, schema)
         agent = Agent(model, output_type=output, retries={"output": max_retries})
-        result = await agent.run(None, message_history=history)
+        result = await agent.run(
+            None, message_history=history, model_settings=_structured_settings(resolved, model)
+        )
         return result.output, convert.usage(result.usage)
 
-    return await _run(call, work)
+    return await _run(call, work, whole_answer=True)
 
 
 async def structured[T: BaseModel](

@@ -60,7 +60,10 @@ class Adapter(Protocol):
     async def list_models(self, client: httpx.AsyncClient, ep: Endpoint) -> list[ModelInfo]: ...
 
 
-DEFAULT_MAX_TOKENS = 4096
+# The output cap where the API needs one and the user set none. Long structured answers (a
+# syllabus with evidence for every field) and thinking count against it; 4096 cut them off. It
+# stays below the Anthropic SDK's limit for a request that is not streamed (about 21k).
+DEFAULT_MAX_TOKENS = 16_384
 
 
 # --- errors ---------------------------------------------------------------------------------
@@ -80,6 +83,16 @@ _CONTEXT_HINTS = (
 
 # Gemini answers a bad key with 400 and one of these messages.
 _KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key", "incorrect api key")
+
+# An account without money: 402 (DeepSeek), or 429/400 with one of these (OpenAI's
+# `insufficient_quota`, Anthropic's "credit balance is too low"). Waiting does not help.
+_CREDIT_HINTS = (
+    "insufficient balance",
+    "insufficient_balance",
+    "insufficient_quota",
+    "credit balance is too low",
+    "exceeded your current quota",
+)
 
 
 class HttpResponse(Protocol):
@@ -123,6 +136,8 @@ def error_for(response: HttpResponse, model: str | None = None) -> AppError:
         body = ""
     if status in (401, 403) or any(hint in body for hint in _KEY_HINTS):
         return AppError("ai.invalid_key", 400)
+    if status == 402 or any(hint in body for hint in _CREDIT_HINTS):
+        return AppError("ai.out_of_credit", 402)
     if status == 429:
         retry_after = _retry_after(response)
         return AppError(

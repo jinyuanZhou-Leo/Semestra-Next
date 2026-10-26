@@ -1012,6 +1012,8 @@
   "error_ai_context_too_long": "内容太长，超出了模型的上限。",
   "error_ai_capability_unsupported": "所选模型不支持这项功能。",
   "error_ai_output_invalid": "AI 返回的结果无法使用，请重试。",
+  "error_ai_output_truncated": "AI 的回答超出了模型的输出上限，被截断了。",
+  "error_ai_out_of_credit": "AI 服务商账户余额不足，请到服务商处充值后再试。",
   "error_ai_timeout": "AI 响应超时。",
   "error_ai_quota_exceeded": "已达到 AI 用量上限。",
   "error_ai_model_not_found": "这个服务商没有找到模型 {model}。",

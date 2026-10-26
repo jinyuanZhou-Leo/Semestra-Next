@@ -136,7 +136,8 @@ def _segments(texts: Sequence[PageText], images: Sequence[Image], budget: int) -
 
 
 def _halve(segment: _Segment) -> list[_Segment] | None:
-    """Two smaller segments for a retry after `ai.context_too_long`, or None if it is atomic."""
+    """Two smaller segments for a retry after `ai.context_too_long` or `ai.output_truncated`, or
+    None if it is atomic."""
     if len(segment.pages) + len(segment.images) > 1:
         mid_p, mid_i = len(segment.pages) // 2, len(segment.images) // 2
         if segment.pages and segment.images:
@@ -306,6 +307,9 @@ def _merge_leaf(
 
 # --- entry point ----------------------------------------------------------------------------
 
+# A part too long to read, or whose answer does not fit the model's output: read it in halves.
+_TOO_BIG = ("ai.context_too_long", "ai.output_truncated")
+
 OnSegment = Callable[[int, int], Awaitable[None]]
 
 
@@ -356,7 +360,7 @@ async def extract[T: BaseModel](
                 source_ref=source_ref,
             )
         except AppError as exc:
-            halves = _halve(segment) if exc.code == "ai.context_too_long" else None
+            halves = _halve(segment) if exc.code in _TOO_BIG else None
             if halves is None or splits >= MAX_SPLITS:
                 raise
             splits += 1
