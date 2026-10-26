@@ -27,13 +27,16 @@ from semestra.modules.ai.resolve import resolve_provider
 LOW_CONFIDENCE = 0.3
 _WORDS = {"high": 0.9, "medium": 0.6, "low": LOW_CONFIDENCE}
 # Share of the model's context window one segment may use; the rest is instructions, schema,
-# output and slack for the token estimate.
+# output and slack for the token estimate. The reserve is taken off the segment on top of that;
+# the answer may use more than it (the provider's own output cap applies), which the other half
+# of the window leaves room for.
 SEGMENT_SHARE = 0.5
 OUTPUT_RESERVE_TOKENS = 8_000
 MIN_SEGMENT_TOKENS = 2_000
 IMAGES_PER_SEGMENT = 8
 IMAGE_TOKENS = 1_600
 MAX_SPLITS = 6
+MAX_CUT_SPLITS = 2  # of those, after an answer cut off at the output limit
 
 
 class Evidence(BaseModel):
@@ -136,7 +139,8 @@ def _segments(texts: Sequence[PageText], images: Sequence[Image], budget: int) -
 
 
 def _halve(segment: _Segment) -> list[_Segment] | None:
-    """Two smaller segments for a retry after `ai.context_too_long`, or None if it is atomic."""
+    """Two smaller segments for a retry after `ai.context_too_long` or `ai.output_truncated`, or
+    None if it is atomic."""
     if len(segment.pages) + len(segment.images) > 1:
         mid_p, mid_i = len(segment.pages) // 2, len(segment.images) // 2
         if segment.pages and segment.images:
@@ -306,6 +310,9 @@ def _merge_leaf(
 
 # --- entry point ----------------------------------------------------------------------------
 
+# A part too long to read, or whose answer does not fit the model's output: read it in halves.
+_TOO_BIG = ("ai.context_too_long", "ai.output_truncated")
+
 OnSegment = Callable[[int, int], Awaitable[None]]
 
 
@@ -343,6 +350,7 @@ async def extract[T: BaseModel](
     total = len(pending)
     done = 0
     splits = 0
+    cut_splits = 0
     while pending:
         segment = pending.pop(0)
         index = done + 1
@@ -356,9 +364,15 @@ async def extract[T: BaseModel](
                 source_ref=source_ref,
             )
         except AppError as exc:
-            halves = _halve(segment) if exc.code == "ai.context_too_long" else None
+            halves = _halve(segment) if exc.code in _TOO_BIG else None
             if halves is None or splits >= MAX_SPLITS:
                 raise
+            if exc.code == "ai.output_truncated":
+                # Each cut-off answer is a whole billed output; a model stuck repeating itself is
+                # cut off at any size, so halving stops early.
+                if cut_splits >= MAX_CUT_SPLITS:
+                    raise
+                cut_splits += 1
             splits += 1
             pending = [*halves, *pending]
             total += 1

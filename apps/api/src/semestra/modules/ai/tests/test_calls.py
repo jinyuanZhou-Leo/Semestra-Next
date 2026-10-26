@@ -218,6 +218,52 @@ async def test_gives_up_after_three_retries(ai: Ai, mock: respx.MockRouter):
     assert route.call_count == 4
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        Response(402, json={"error": {"message": "Insufficient Balance"}}),  # DeepSeek
+        Response(429, json={"error": {"code": "insufficient_quota", "message": "quota"}}),
+        Response(400, json={"error": {"message": "Your credit balance is too low to access"}}),
+    ],
+)
+async def test_an_account_without_credit_is_not_retried_and_flags_the_provider(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter, reply: Response
+):
+    models_ok(mock)
+    created = await ai.provider("anthropic")
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=reply)
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+    assert exc.value.code == "ai.out_of_credit"
+    assert route.call_count == 1
+    async with app.state.session_factory() as db:  # the provider's card says so
+        row = await db.get(AiProvider, created["id"])
+        assert row is not None
+        assert row.last_error_code == "ai.out_of_credit"
+
+
+async def test_a_gemini_quota_429_is_a_rate_limit(ai: Ai, mock: respx.MockRouter):
+    # Gemini's per-minute limit reads "You exceeded your current quota": waiting helps.
+    models_ok(mock)
+    await ai.provider("anthropic")
+    limited = Response(
+        429,
+        json={
+            "error": {
+                "code": 429,
+                "message": "You exceeded your current quota, please check your plan.",
+                "status": "RESOURCE_EXHAUSTED",
+            }
+        },
+    )
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=[limited, anthropic_reply()])
+    async with ai.ctx() as ctx:
+        result = await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+    assert result.text == "Hello"
+    assert route.call_count == 2
+
+
 async def test_invalid_key_is_not_retried_and_flags_the_provider(
     ai: Ai, app: FastAPI, mock: respx.MockRouter
 ):
