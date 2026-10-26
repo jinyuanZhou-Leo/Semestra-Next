@@ -16054,6 +16054,18 @@
             "type": "boolean",
             "title": "Generating",
             "description": "An answer is being generated right now."
+          },
+          "regenerable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regenerable",
+            "description": "The answer that can be regenerated (its first message's id), if any."
           }
         },
         "type": "object",

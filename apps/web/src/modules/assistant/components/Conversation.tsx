@@ -67,7 +67,7 @@ import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { scopeKind } from '../scope'
-import { buildItems, canRegenerate, citationsOf, pausedReason, type ViewItem } from '../transcript'
+import { buildItems, citationsOf, pausedReason, type ViewItem } from '../transcript'
 import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
@@ -494,7 +494,7 @@ export function Conversation({
   const savedFiles = new Map(
     (detail?.attachments ?? []).flatMap((a) => (a.file_item_id ? [[a.id, a.file_item_id]] : [])),
   )
-  const regenerateId = detail && !chat.generating ? canRegenerate(detail, items) : null
+  const regenerateId = detail && !chat.generating ? (detail.regenerable ?? null) : null
   const paused = detail && !chat.generating ? pausedReason(detail) : null
 
   const questionKey = question?.key

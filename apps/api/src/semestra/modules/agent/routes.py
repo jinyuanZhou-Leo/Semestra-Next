@@ -285,42 +285,14 @@ async def continue_turn(
     return _respond(rt, _events(state, claim), claim)
 
 
-def _wrote(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> bool:
-    """Whether a write in these rows ran without a card (auto-approved). A write call with
-    neither a proposal nor a result may have run before the stream was cut: count it too."""
-    results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
-    proposed = {p.call_id for p in props}
-    for r in rows:
-        for b in r.content:
-            if b.get("type") != "tool_call" or b["id"] in proposed:
-                continue
-            cap = service.capability(tools.capability_name(b["name"]))
-            if cap is None or cap.effect == "read":
-                continue
-            result = results.get(b["id"])
-            if result is None or result.get("changed"):
-                return True
-    return False
-
-
 async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) -> None:
     rows = await service.messages(ctx, session.id)
-    last_user = max(
-        (
-            i
-            for i, r in enumerate(rows)
-            if r.role == "user" and any(b.get("type") != "note" for b in r.content)
-        ),
-        default=None,
-    )
-    if last_user is None:
-        raise not_found()
-    after = rows[last_user + 1 :]
-    if message_id not in {r.id for r in after if r.role == "assistant"}:
+    after = service.last_answer(rows)
+    if after is None or message_id not in {r.id for r in after if r.role == "assistant"}:
         raise not_found()
     ids = [r.id for r in after]
     props = [p for p in await service.proposals(ctx, session.id) if p.message_id in ids]
-    if _wrote(after, props) or any(p.status in ("executed", "failed") for p in props):
+    if service.changed_data(after, props):
         raise AppError("agent.cannot_regenerate", 409)
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.message_id.in_(ids)))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.id.in_(ids)))

@@ -291,6 +291,12 @@ export type AgentSessionDetail = {
      * An answer is being generated right now.
      */
     generating: boolean;
+    /**
+     * Regenerable
+     *
+     * The answer that can be regenerated (its first message's id), if any.
+     */
+    regenerable?: string | null;
 };
 
 /**

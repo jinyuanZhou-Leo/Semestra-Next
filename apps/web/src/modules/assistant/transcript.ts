@@ -429,15 +429,9 @@ export function pausedReason(detail: AgentSessionDetail): PauseReason | null {
   return block?.reason === 'loop' || block?.reason === 'tool_limit' ? block.reason : null
 }
 
-/** The last answer can be regenerated unless it already changed data. */
-export function canRegenerate(detail: AgentSessionDetail, items: ViewItem[]): string | null {
-  const last = items.at(-1)
-  if (last?.kind !== 'assistant') return null
-  const decided = last.proposals.some((p) => p.status === 'executed' || p.status === 'failed')
-  // Auto-approved writes run without a proposal; their result says the data changed.
-  const lastUserRow = detail.messages.findLastIndex((m) => m.role === 'user')
-  const ran = detail.messages
-    .slice(lastUserRow + 1)
-    .some((m) => m.content.some((b) => b.type === 'tool_result' && b.changed === true))
-  return decided || ran ? null : last.id
+/** The index of the user's last own message (notes Semestra added are not theirs). */
+export function lastTypedUser(messages: AgentSessionDetail['messages']): number {
+  return messages.findLastIndex(
+    (m) => m.role === 'user' && m.content.some((b) => b.type !== 'note'),
+  )
 }

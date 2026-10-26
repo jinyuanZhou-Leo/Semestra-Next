@@ -10,7 +10,13 @@ import { useEffect, useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
 import { MEMORY_QUERIES } from './memory'
 import { type AgentEvent, followAgent, streamAgent } from './stream'
-import { applyEvent, restartFrom, withEditedMessage, withUserMessage } from './transcript'
+import {
+  applyEvent,
+  lastTypedUser,
+  restartFrom,
+  withEditedMessage,
+  withUserMessage,
+} from './transcript'
 
 export type ChatError = { code: string; params: Record<string, unknown> }
 
@@ -359,8 +365,12 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     if (!sessionId) return Promise.resolve(false)
     queryClient.setQueryData<AgentSessionDetail>(keyOf(sessionId), (current) => {
       if (!current) return current
-      const lastUser = current.messages.findLastIndex((m) => m.role === 'user')
-      return { ...current, messages: current.messages.slice(0, lastUser + 1) }
+      const lastUser = lastTypedUser(current.messages)
+      return {
+        ...current,
+        messages: current.messages.slice(0, lastUser + 1),
+        regenerable: null,
+      }
     })
     return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:regenerate`, {})
   }

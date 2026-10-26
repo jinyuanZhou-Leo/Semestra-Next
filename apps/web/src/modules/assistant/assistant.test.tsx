@@ -34,7 +34,13 @@ import { mcpConfig } from './settings/McpSection'
 import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
 import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
-import { applyEvent, buildItems, canRegenerate, restartFrom, withEditedMessage } from './transcript'
+import {
+  applyEvent,
+  buildItems,
+  lastTypedUser,
+  restartFrom,
+  withEditedMessage,
+} from './transcript'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -463,32 +469,16 @@ test('an answer keeps streaming when the transcript is re-read mid-answer', () =
   ).toHaveLength(1)
 })
 
-test('an answer whose tools changed data cannot be regenerated', () => {
-  const turn = (changed: boolean): AgentSessionDetail => {
-    let detail: AgentSessionDetail = {
-      session: session(),
-      messages: [msg('u1', 'user', [{ type: 'text', text: 'make it 70' }])],
-      proposals: [],
-      attachments: [],
-      generating: false,
-    }
-    for (const event of [
-      { event: 'message_start', data: { message_id: 'a1' } },
-      {
-        event: 'tool_result',
-        data: { message_id: 'a1', call_id: 'c1', name: 'x', ok: true, error_code: null, changed },
-      },
-      { event: 'message_start', data: { message_id: 'a2' } },
-      { event: 'text_delta', data: { message_id: 'a2', text: 'Done.' } },
-    ] as const) {
-      detail = applyEvent(detail, event)
-    }
-    return detail
-  }
-  const read = turn(false)
-  expect(canRegenerate(read, buildItems(read))).toBe('a1')
-  const wrote = turn(true)
-  expect(canRegenerate(wrote, buildItems(wrote))).toBeNull()
+test('regenerating cuts after the user\'s own message, not after a note', () => {
+  // The server decides what can be regenerated; the optimistic cut must match its boundary.
+  const messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'hi' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'first' }]),
+    msg('n1', 'user', [{ type: 'note', text: 'paused' }]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'more' }]),
+  ]
+  expect(lastTypedUser(messages)).toBe(0)
+  expect(lastTypedUser([])).toBe(-1)
 })
 
 test('a question streams in as Markdown', async () => {

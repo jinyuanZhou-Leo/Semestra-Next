@@ -324,6 +324,10 @@ def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal])
     out: list[str] = []
     for r in rows:
         for b in r.content:
+            late = b.get("late") if b.get("type") == "note" else None
+            if late and late.get("ran") and late.get("ok"):
+                # A card of an earlier answer, decided after the conversation moved on.
+                out.append(f"{late['capability']}({tools.summarize_args(late.get('args') or {})})")
             if b.get("type") != "tool_call":
                 continue
             prop = executed.get(b["id"])
@@ -334,6 +338,49 @@ def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal])
                 name = tools.capability_name(b["name"])
                 out.append(f"{name}({tools.summarize_args(b.get('args') or {})})")
     return out
+
+
+def last_answer(rows: Sequence[AgentMessage]) -> list[AgentMessage] | None:
+    """The rows after the user's last own message (notes Semestra added do not count): what
+    regenerating replaces. None when there is no such message."""
+    last_user = max((i for i, r in enumerate(rows) if history.is_typed(r)), default=None)
+    return None if last_user is None else list(rows[last_user + 1 :])
+
+
+def changed_data(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> bool:
+    """Whether anything in these rows changed the user's data: a decided card, a card of an
+    earlier answer decided here (its late note), or a write that ran without a card. A write call
+    with neither a proposal nor a result may have run before the stream was cut: count it too."""
+    from semestra.modules.agent import tools
+
+    if any(p.status in ("executed", "failed") for p in props):
+        return True
+    results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
+    proposed = {p.call_id for p in props}
+    for r in rows:
+        for b in r.content:
+            if b.get("type") == "note" and (b.get("late") or {}).get("ran"):
+                return True
+            if b.get("type") != "tool_call" or b["id"] in proposed:
+                continue
+            cap = capability(tools.capability_name(b["name"]))
+            if cap is None or cap.effect == "read":
+                continue
+            result = results.get(b["id"])
+            if result is None or result.get("changed"):
+                return True
+    return False
+
+
+def regenerable(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -> str | None:
+    """The answer the user can regenerate (its first row's id): the last one, unless it changed
+    data. The chat shows the button from this, so it never offers what the server refuses."""
+    after = last_answer(rows)
+    first = next((r for r in after or [] if r.role == "assistant"), None)
+    if after is None or first is None:
+        return None
+    ids = {r.id for r in after}
+    return None if changed_data(after, [p for p in props if p.message_id in ids]) else first.id
 
 
 async def _drop_unreferenced_attachments(
@@ -513,12 +560,14 @@ async def _storage_used(ctx: Ctx) -> int:
 
 async def detail(ctx: Ctx, session_id: str) -> AgentSessionDetail:
     row = await get_session_row(ctx, session_id)
+    rows, props = await messages(ctx, row.id), await proposals(ctx, row.id)
     return AgentSessionDetail(
         session=session_out(row),
-        messages=[message_out(m) for m in await messages(ctx, row.id)],
-        proposals=[proposal_out(p) for p in await proposals(ctx, row.id)],
+        messages=[message_out(m) for m in rows],
+        proposals=[proposal_out(p) for p in props],
         attachments=[attachment_out(a) for a in await attachments(ctx, row.id)],
         generating=ctx.state.agent.generating(row.id),
+        regenerable=regenerable(rows, props),
     )
 
 

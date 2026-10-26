@@ -201,8 +201,17 @@ async def decide(
             )
             if row.call_id not in open_ids:
                 # The conversation moved on before this decision: the model hears it as a note.
+                # `late` marks what ran here: regenerating or editing must not drop it silently.
                 note = history.late_note(row.capability, result.content, not result.ok)
-                service.add_message(ctx, session, "user", [{"type": "note", "text": note}])
+                late = {
+                    "capability": row.capability,
+                    "args": row.args,
+                    "ran": result.ran,
+                    "ok": result.ok,
+                }
+                service.add_message(
+                    ctx, session, "user", [{"type": "note", "text": note, "late": late}]
+                )
         await ctx.db.flush()
         still_pending = [
             p

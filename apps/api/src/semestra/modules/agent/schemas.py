@@ -87,6 +87,10 @@ class AgentSessionDetail(BaseModel):
     proposals: list[AgentProposalOut]
     attachments: list[AgentAttachmentOut]
     generating: bool = Field(description="An answer is being generated right now.")
+    regenerable: str | None = Field(
+        default=None,
+        description="The answer that can be regenerated (its first message's id), if any.",
+    )
 
 
 class AgentSessionListInput(BaseModel):

@@ -947,6 +947,75 @@ async def test_proposal_decided_after_new_message_becomes_a_note(agent: Agent, m
     assert "Waiting for the user's decision" in str(model.results(-1)[0].content)
 
 
+async def _late_approval(agent: Agent, model: FakeModel) -> tuple[str, str]:
+    """A card of the first answer approved after the user moved on: (session id, the id of the
+    message after which it ran)."""
+    _, _, lab = await agent.course_with_lab()
+    session = await agent.session()
+    model.then(
+        call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 9})
+    )
+    [proposal] = events_named(await agent.send(session["id"], "9"), "proposal")
+    model.then(say("Still waiting for you."))
+    await agent.send(session["id"], "something else")
+    [second] = [
+        m["id"]
+        for m in (await agent.detail(session["id"]))["messages"]
+        if m["role"] == "user" and m["content"][0].get("text") == "something else"
+    ]
+    model.then(say("Recorded."))
+    await agent.decide(session["id"], proposal["id"])
+    return session["id"], second
+
+
+async def test_an_answer_with_a_late_decision_cannot_be_regenerated(
+    agent: Agent, model: FakeModel
+):
+    """Regenerating would drop the note that the card ran: the model would think it had not."""
+    session_id, _ = await _late_approval(agent, model)
+    detail = await agent.detail(session_id)
+    assert detail["regenerable"] is None
+    answer = detail["messages"][-1]["id"]
+    for m in detail["messages"]:
+        if m["role"] == "assistant" and m["content"][0].get("text") == "Still waiting for you.":
+            answer = m["id"]
+    out = await agent.stream(
+        f"/agent/sessions/{session_id}/messages/{answer}:regenerate", {}, status=409
+    )
+    assert out[0][1]["error"]["code"] == "agent.cannot_regenerate"
+
+
+async def test_editing_after_a_late_decision_tells_the_model_it_ran(
+    agent: Agent, model: FakeModel
+):
+    session_id, second = await _late_approval(agent, model)
+    model.then(say("ok"))
+    await agent.stream(
+        f"/agent/sessions/{session_id}/messages/{second}:edit", {"text": "never mind"}
+    )
+    prompt = str(model.prompts(-1))
+    assert "Already done earlier" in prompt
+    assert "grading.assessment.update" in prompt
+
+
+async def test_the_regenerable_answer_skips_notes(agent: Agent, model: FakeModel):
+    """A pause note or Continue is Semestra's, not the user's: the answer before it is the one
+    to regenerate, as the server decides it."""
+    session = await agent.session()
+    model.then(say("first"))
+    await agent.send(session["id"], "hi")
+    detail = await agent.detail(session["id"])
+    assert detail["regenerable"] == detail["messages"][1]["id"]
+    user = await _me(agent)
+    async with agent_ctx(agent.app.state, user, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        service.add_message(ctx, row, "user", [{"type": "note", "text": "paused"}])
+        service.add_message(ctx, row, "assistant", [{"type": "text", "text": "more"}])
+        await ctx.db.commit()
+    detail = await agent.detail(session["id"])
+    assert detail["regenerable"] == detail["messages"][1]["id"]
+
+
 # --- stopping -------------------------------------------------------------------------------
 
 
