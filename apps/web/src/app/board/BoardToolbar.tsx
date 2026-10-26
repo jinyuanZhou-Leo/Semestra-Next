@@ -53,6 +53,8 @@ export function useBoardEditing(): boolean {
 
 /** "Add card", the default-layout menu and "Done". */
 export function BoardEditActions() {
+  // Absent while a card being added is still on its way to the server.
+  const canFinish = useHasHostAction('board.done')
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => runHostAction('board.add')}>
@@ -92,7 +94,7 @@ export function BoardEditActions() {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button size="sm" onClick={() => runHostAction('board.done')}>
+      <Button size="sm" disabled={!canFinish} onClick={() => runHostAction('board.done')}>
         <Check aria-hidden />
         {m.board_done()}
       </Button>

@@ -1225,6 +1225,7 @@
   "board_card_remove_short": "移除",
   "board_card_keyboard": "按回车选中，方向键移动，Esc 取消选中。",
   "board_card_keyboard_narrow": "按回车选中，Esc 取消选中。",
+  "board_card_selected": "已选中。按 Tab 进入尺寸、设置和移除，按 Esc 取消选中。",
   "host_plugin_failed_title": "这里出了点问题",
   "host_plugin_failed_description": "这部分内容无法显示。请重试或刷新页面。",
   "hotkeys_edit_board": "编辑本页卡片",

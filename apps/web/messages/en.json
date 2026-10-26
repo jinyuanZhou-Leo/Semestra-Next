@@ -1225,6 +1225,7 @@
   "board_card_remove_short": "Remove",
   "board_card_keyboard": "Press Enter to select, arrow keys to move, Escape to deselect.",
   "board_card_keyboard_narrow": "Press Enter to select, Escape to deselect.",
+  "board_card_selected": "Selected. Press Tab for size, settings and remove, Escape to deselect.",
   "host_plugin_failed_title": "Something went wrong here",
   "host_plugin_failed_description": "This part of the page couldn't be shown. Try again, or reload the page.",
   "hotkeys_edit_board": "Edit the cards on this page",

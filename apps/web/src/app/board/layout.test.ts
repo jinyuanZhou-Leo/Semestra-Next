@@ -20,8 +20,13 @@ const at = (items: LayoutItem[]) =>
 
 type Row = [id: string, size: CardSize, x: number, y: number]
 type Cases = {
-  compact: { name: string; cards: Row[]; expected: Row[] }[]
-  first_free: { name: string; cards: Row[]; sizes: Record<CardSize, [number, number]> }[]
+  compact: { name: string; cols?: number; cards: Row[]; expected: Row[] }[]
+  first_free: {
+    name: string
+    cols?: number
+    cards: Row[]
+    sizes: Record<CardSize, [number, number]>
+  }[]
 }
 // The same cases the backend's grid.py is tested on: both sides must place cards alike.
 const cases = JSON.parse(
@@ -36,15 +41,15 @@ const cases = JSON.parse(
 const toItems = (list: Row[]): LayoutItem[] => list.map(([id, size, x, y]) => ({ id, size, x, y }))
 
 describe('compact', () => {
-  test.each(cases.compact)('$name', ({ cards, expected }) => {
-    expect(compact(toItems(cards))).toEqual(toItems(expected))
+  test.each(cases.compact)('$name', ({ cards, expected, cols }) => {
+    expect(compact(toItems(cards), cols)).toEqual(toItems(expected))
   })
 })
 
 describe('first free spot', () => {
-  test.each(cases.first_free)('$name', ({ cards, sizes }) => {
+  test.each(cases.first_free)('$name', ({ cards, sizes, cols }) => {
     for (const [size, [x, y]] of Object.entries(sizes)) {
-      expect(firstFree(toItems(cards), size as CardSize)).toEqual({ x, y })
+      expect(firstFree(toItems(cards), size as CardSize, cols)).toEqual({ x, y })
     }
   })
 })

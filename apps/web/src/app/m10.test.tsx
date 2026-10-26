@@ -90,6 +90,40 @@ test('a board edit that fails to save is rolled back', async () => {
   expect(await screen.findByRole('region', { name: 'Storage' })).toBeInTheDocument()
 })
 
+test('a single-instance card removed while editing comes back when added again', async () => {
+  wideScreen()
+  let adds = 0
+  server.use(
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 1, by_module: {} }),
+    ),
+    http.get(`${API}/layouts/boards/term/t1`, () =>
+      HttpResponse.json(board([{ instance_id: 'c1', card_id: 'template.storage' }])),
+    ),
+    http.post(`${API}/layouts/boards/term/t1/cards`, () => {
+      adds += 1
+      return HttpResponse.json(
+        { error: { code: 'layouts.card_not_multiple', params: {}, request_id: 'r' } },
+        { status: 422 },
+      )
+    }),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[template]}>
+      <CardGrid scope={scope} />
+    </ModuleRegistry>,
+  )
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Edit layout' }))
+  await user.click(screen.getByRole('region', { name: 'Storage' }))
+  await user.click(screen.getByRole('button', { name: 'Remove' }))
+  await user.click(screen.getByRole('button', { name: 'Add card' }))
+  await user.click(await screen.findByRole('button', { name: 'Storage' }))
+  // The same instance is back (in its old spot, so "Done" has nothing to save).
+  expect(await screen.findByRole('region', { name: 'Storage' })).toBeInTheDocument()
+  expect(adds).toBe(0)
+})
+
 test('a selected card shows its toolbar; narrow boards cannot drag or resize by the corner', async () => {
   server.use(
     http.get(`${API}/storage/usage`, () =>

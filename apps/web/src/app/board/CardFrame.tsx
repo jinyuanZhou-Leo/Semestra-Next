@@ -1,5 +1,5 @@
 import { GripVertical, Settings2, Trash2 } from 'lucide-react'
-import { type KeyboardEvent, useId, useState } from 'react'
+import { type KeyboardEvent, useId, useRef, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,8 @@ type Props = {
   toolbarHidden: boolean
   /** The card is in the top row, where the toolbar goes below it instead of above. */
   toolbarBelow: boolean
+  /** The card is in the left half: the toolbar lines up with its left edge, not its right. */
+  toolbarStart: boolean
   /** The size a running resize would snap to. */
   resizingTo?: CardSize
   onSelect: (selected: boolean) => void
@@ -62,6 +64,7 @@ export function CardFrame({
   selected,
   toolbarHidden,
   toolbarBelow,
+  toolbarStart,
   resizingTo,
   onSelect,
   onMove,
@@ -71,6 +74,7 @@ export function CardFrame({
 }: Props) {
   const title = contribution.title()
   const hintId = useId()
+  const frame = useRef<HTMLElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { save } = useCardSettings<Record<string, unknown>>(card.id)
   const settings = parseCardSettings(contribution, card.settings)
@@ -103,10 +107,18 @@ export function CardFrame({
     }
   }
 
+  /** Escape in the toolbar deselects and puts the focus back on the card. */
+  const onToolbarKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape') return
+    onSelect(false)
+    frame.current?.focus()
+  }
+
   return (
     <>
       {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- see tabIndex */}
       <section
+        ref={frame}
         aria-label={title}
         aria-describedby={editing ? hintId : undefined}
         data-card={contribution.id}
@@ -157,8 +169,12 @@ export function CardFrame({
               ) : null}
             </div>
           ) : (
-            <span id={hintId} className="sr-only">
-              {movable ? m.board_card_keyboard() : m.board_card_keyboard_narrow()}
+            <span id={hintId} className="sr-only" aria-live="polite">
+              {selected
+                ? m.board_card_selected()
+                : movable
+                  ? m.board_card_keyboard()
+                  : m.board_card_keyboard_narrow()}
             </span>
           )}
         </header>
@@ -181,9 +197,12 @@ export function CardFrame({
           role="toolbar"
           aria-label={m.board_card_options({ card: title })}
           data-board-toolbar
+          tabIndex={-1}
+          onKeyDown={onToolbarKeyDown}
           className={cn(
-            'absolute right-0 z-30 flex items-center gap-1 rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10',
+            'absolute z-30 flex items-center gap-1 rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10',
             toolbarBelow ? 'top-full mt-2' : 'bottom-full mb-2',
+            toolbarStart ? 'left-0' : 'right-0',
           )}
         >
           {contribution.sizes.length > 1 ? (

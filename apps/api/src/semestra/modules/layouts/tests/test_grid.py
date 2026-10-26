@@ -18,13 +18,14 @@ def _cards(rows: list[list[Any]]) -> list[Placed]:
 
 @pytest.mark.parametrize("case", CASES["compact"], ids=lambda c: c["name"])
 def test_compact(case: dict[str, Any]) -> None:
-    out = grid.compact(_cards(case["cards"]))
+    cols = case.get("cols", grid.COLS)
+    out = grid.compact(_cards(case["cards"]), cols)
     assert [[p.instance_id, p.size, p.x, p.y] for p in out] == case["expected"]
-    assert grid.valid(out)
+    assert grid.valid(out, cols)
 
 
 @pytest.mark.parametrize("case", CASES["first_free"], ids=lambda c: c["name"])
 def test_first_free(case: dict[str, Any]) -> None:
     cards = _cards(case["cards"])
     for size, spot in case["sizes"].items():
-        assert list(grid.first_free(cards, size)) == spot, size
+        assert list(grid.first_free(cards, size, case.get("cols", grid.COLS))) == spot, size

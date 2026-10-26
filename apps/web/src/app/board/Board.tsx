@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { LayoutDashboard, Pencil } from 'lucide-react'
 import { type Ref, useEffect, useRef, useState } from 'react'
 import { GridLayout, type Layout, type LayoutItem as GridItem } from 'react-grid-layout'
-import type { LayoutConstraint } from 'react-grid-layout/core'
+import type { LayoutConstraint, ResizeHandleAxis } from 'react-grid-layout/core'
 import 'react-grid-layout/css/styles.css'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -60,7 +60,11 @@ const ROW = 160
 const GAP = 16
 const GRID_MARGIN = [GAP, GAP] as const
 const GRID_PADDING = [0, 0] as const
-const RESIZE_HANDLES = ['se'] as const
+// A card against the right edge cannot grow to the right (the grid stops a resize at its edge),
+// so it grows to the left from its bottom-left corner. Every card gets both corners and
+// `board.css` shows the one its `data-resize-corner` names: the grid keeps an item's handles
+// until its element changes, so per-item handles would lag a card that moved to or from the edge.
+const RESIZE_HANDLES = ['se', 'sw'] as const
 
 export type DraftCard = PlacedCard & {
   cardId: string
@@ -126,11 +130,11 @@ async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<B
 }
 
 /** The corner a card is resized by (react-grid-layout's handle, drawn with tokens). */
-const resizeHandle = (_axis: unknown, ref: Ref<HTMLElement>) => (
+const resizeHandle = (axis: ResizeHandleAxis, ref: Ref<HTMLElement>) => (
   <span
     ref={ref}
     aria-hidden
-    className="react-resizable-handle react-resizable-handle-se board-resize-handle"
+    className={`react-resizable-handle react-resizable-handle-${axis} board-resize-handle`}
   />
 )
 
@@ -190,6 +194,8 @@ function BoardView({
   // out of the draft and removed on save) and for the previous save.
   const canEdit = useInstalledPluginsReady() && !fetching && !saving
   const [adding, setAdding] = useState(false)
+  /** Cards being created on the server: "Done" waits for them so none is left behind. */
+  const [creating, setCreating] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   /** A card being dragged or resized: its toolbar hides; `size` is where a resize would snap. */
   const [active, setActive] = useState<{ id: string; size?: CardSize } | null>(null)
@@ -252,7 +258,7 @@ function BoardView({
   }
 
   function finishEditing() {
-    if (!draft) return
+    if (!draft || creating > 0) return
     const next = normalize(draft)
     setDraft(null)
     setSelected(null)
@@ -267,7 +273,7 @@ function BoardView({
   useHostAction('board.edit', startEditing, !editing && canEdit)
   useHostAction('board.shown', () => {}, !editing)
   useHostAction('board.editing', () => {}, editing)
-  useHostAction('board.done', finishEditing, editing)
+  useHostAction('board.done', finishEditing, editing && creating === 0)
   useHostAction(
     'board.add',
     () => {
@@ -284,9 +290,14 @@ function BoardView({
     )
   }
 
-  /** Creates a card on the server right away, so its content shows while still editing. */
-  async function create(card: CardContribution, size: CardSize): Promise<BoardCard | undefined> {
+  /**
+   * Creates a card on the server right away, so its content shows while still editing. The
+   * cached board gets it too: it is what "Done" compares the draft with, and the card has to be
+   * saved away if it is removed again before then.
+   */
+  async function create(card: CardContribution, size: CardSize): Promise<DraftCard | undefined> {
     const settings = card.settings?.schema.safeParse({})
+    setCreating((n) => n + 1)
     return layoutsCardAdd({
       path: ref,
       body: {
@@ -296,23 +307,40 @@ function BoardView({
       },
       throwOnError: true,
     })
-      .then((result) => result.data)
+      .then(({ data: created }) => {
+        queryClient.setQueryData<BoardData>(boardOptions(ref).queryKey, (current) =>
+          current && !current.cards.some((c) => c.instance_id === created.instance_id)
+            ? { ...current, cards: [...current.cards, created] }
+            : current,
+        )
+        return fromServer(created)
+      })
       .catch((err: unknown) => {
         toastError(err)
         return undefined
       })
+      .finally(() => setCreating((n) => n - 1))
+  }
+
+  /**
+   * Instances still on the server that the draft dropped, to bring back instead of creating new
+   * ones: a card that allows one instance cannot be added twice, and its content is kept.
+   */
+  function removed(current: readonly DraftCard[]): DraftCard[] {
+    return saved.filter((s) => !current.some((c) => c.id === s.id))
   }
 
   async function addCard(card: CardContribution) {
     setAdding(false)
-    const created = await create(card, card.defaultSize)
-    if (!created) return
+    const back = card.multiple ? undefined : removed(draft ?? []).find((c) => c.cardId === card.id)
+    const added = back ?? (await create(card, card.defaultSize))
+    if (!added) return
     setDraft((current) => {
       if (!current) return current
-      const spot = firstFree(layoutAt(current, COLS), created.size)
-      return [...current, { ...fromServer(created), ...spot, positions: [] }]
+      const spot = firstFree(layoutAt(current, COLS), added.size)
+      return [...current, { ...added, ...spot, positions: [] }]
     })
-    setSelected(created.instance_id)
+    setSelected(added.id)
   }
 
   async function restoreDefault() {
@@ -323,15 +351,18 @@ function BoardView({
       .then((result) => result.data)
       .catch(toastError)
     if (!template) return
+    const current = draft ?? saved
     const reuse = new Map<string, DraftCard[]>()
-    for (const c of draft ?? saved) reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
+    for (const c of [...current, ...removed(current)]) {
+      reuse.set(c.cardId, [...(reuse.get(c.cardId) ?? []), c])
+    }
     const next: DraftCard[] = []
     for (const t of template.cards) {
       const card = known.get(t.card_id)
       if (!card || !card.sizes.includes(t.size)) continue
       if (!card.multiple && next.some((c) => c.cardId === card.id)) continue
       const existing = reuse.get(card.id)?.shift()
-      const instance = existing ?? (await create(card, t.size).then((c) => c && fromServer(c)))
+      const instance = existing ?? (await create(card, t.size))
       if (instance) next.push({ ...instance, size: t.size, x: t.x, y: t.y, positions: [] })
     }
     setSelected(null)
@@ -389,6 +420,12 @@ function BoardView({
   })
   const position = new Map(items.map((i) => [i.id, i]))
 
+  /** Whether a card sits against the right edge and has a wider size to grow into. */
+  function growsLeft(item: LayoutItem, sizes: readonly CardSize[]): boolean {
+    const [w] = span(item.size, cols)
+    return item.x + w === cols && sizes.some((size) => span(size, cols)[0] > w)
+  }
+
   /** The grid after a drag or resize: back into the draft, sizes from the snapped spans. */
   function dropped(next: Layout) {
     setActive(null)
@@ -401,8 +438,11 @@ function BoardView({
     )
   }
 
+  // Called on every pointer move: only a new snapped size re-renders the board.
   const resizing = (_layout: Layout, _old: GridItem | null, item: GridItem | null) => {
-    if (item) setActive({ id: item.i, size: sizeOf(item.w, item.h) })
+    if (!item) return
+    const size = sizeOf(item.w, item.h)
+    setActive((a) => (a?.id === item.i && a.size === size ? a : { id: item.i, size }))
   }
 
   return (
@@ -453,14 +493,15 @@ function BoardView({
           </EmptyContent>
         </Empty>
       ) : (
-        // Clicking the grid around the cards clears the selection.
-        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        // Pressing on the grid around the cards clears the selection (on press, not click: a
+        // resize that ends outside its card would otherwise "click" the grid).
+        // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
         <div
           ref={setContainer}
           className={cn(
             editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
           )}
-          onClick={(event) => {
+          onPointerDown={(event) => {
             const target = event.target as HTMLElement
             if (target === event.currentTarget || target.classList.contains('react-grid-layout')) {
               setSelected(null)
@@ -507,8 +548,14 @@ function BoardView({
                   const contribution = known.get(card.cardId)
                   if (!contribution) return null
                   const at = position.get(card.id) ?? card
+                  const [w] = span(at.size, cols)
                   return (
-                    <div key={card.id} className={cn(selected === card.id && 'z-20')}>
+                    <div
+                      key={card.id}
+                      className={cn(selected === card.id && 'z-20')}
+                      // Which resize corner `board.css` shows (see RESIZE_HANDLES).
+                      data-resize-corner={growsLeft(at, contribution.sizes) ? 'sw' : 'se'}
+                    >
                       <CardFrame
                         scope={scope}
                         card={card}
@@ -518,6 +565,7 @@ function BoardView({
                         selected={editing && selected === card.id}
                         toolbarHidden={active?.id === card.id}
                         toolbarBelow={at.y === 0}
+                        toolbarStart={at.x + w / 2 < cols / 2}
                         resizingTo={active?.id === card.id ? active.size : undefined}
                         onSelect={(on) => setSelected(on ? card.id : null)}
                         onMove={(dx, dy) =>
