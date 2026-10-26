@@ -1,8 +1,8 @@
 import type { CourseGrade, TermGrades } from '@semestra/api-client'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Calculator, Hourglass } from 'lucide-react'
-import { createContext, useContext } from 'react'
+import { BookOpen, Calculator } from 'lucide-react'
+import { createContext, useContext, useId } from 'react'
 import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
@@ -14,8 +14,9 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Label } from '@/ui/label'
+import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { Toggle } from '@/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
@@ -377,6 +378,7 @@ function TermToolbar({
   includeInProgress: boolean
   onIncludeInProgress: (value: boolean) => void
 }) {
+  const includeId = useId()
   const plan = (
     <Button variant="outline" size="sm" disabled={!canPlan} onClick={onPlan}>
       <Calculator aria-hidden />
@@ -399,18 +401,17 @@ function TermToolbar({
         </Tooltip>
       )}
       <Tooltip>
-        <TooltipTrigger
-          render={
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={includeInProgress}
-              onPressedChange={onIncludeInProgress}
-            />
-          }
-        >
-          <Hourglass aria-hidden />
-          {m.grading_count_in_progress()}
+        {/* The whole switch and its label explain what "unfinished" counts. */}
+        <TooltipTrigger render={<div className="flex items-center gap-2 px-1" />}>
+          <Switch
+            id={includeId}
+            size="sm"
+            checked={includeInProgress}
+            onCheckedChange={onIncludeInProgress}
+          />
+          <Label htmlFor={includeId} className="font-normal">
+            {m.grading_count_in_progress()}
+          </Label>
         </TooltipTrigger>
         <TooltipContent>{m.grading_include_in_progress()}</TooltipContent>
       </Tooltip>
