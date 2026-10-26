@@ -573,9 +573,18 @@ async def detail(ctx: Ctx, session_id: str) -> AgentSessionDetail:
         attachments=[attachment_out(a) for a in await attachments(ctx, row.id)],
         generating=ctx.state.agent.generating(row.id),
         regenerable=regenerable(rows, props),
+        compactable=compactable(row, rows),
         context=_context(row),
         compaction=_compaction(row, rows),
     )
+
+
+def compactable(session: AgentSession, rows: Sequence[AgentMessage]) -> bool:
+    """Whether compacting now has turns to summarize: more than one typed user turn after the
+    last summary (`compaction.compact_now` keeps the last). The chat offers it from this."""
+    summary = _compaction(session, rows)
+    at = next((i for i, r in enumerate(rows) if summary and r.id == summary.until), -1)
+    return sum(1 for r in rows[at + 1 :] if history.is_typed(r)) > 1
 
 
 def _context(session: AgentSession) -> ContextUsage | None:

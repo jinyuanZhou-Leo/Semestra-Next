@@ -192,7 +192,7 @@ export function Composer({
   context?: { used: number; window: number } | null
   /** There are turns before the last message to compact. */
   canCompact?: boolean
-  /** Compacts the conversation now (`/compact` or the context ring), keeping `focus`. */
+  /** Compacts the conversation now (`/compact` or the context ring's button), keeping `focus`. */
   onCompact?: (focus: string) => Promise<boolean>
 }) {
   const id = useId()
@@ -473,12 +473,17 @@ export function Composer({
             >
               <Plus />
             </IconButton>
-            {context && onCompact ? (
+            {context && context.window > 0 && onCompact ? (
               <ContextMeter
                 used={context.used}
                 window={context.window}
                 canCompact={canCompact && !generating && !disabled}
-                onCompact={(focus) => void onCompact(focus)}
+                onCompact={() => {
+                  // Like `/compact`: what to keep is typed here, and sending compacts.
+                  setCompacting(true)
+                  setSkill(null)
+                  textarea.current?.focus()
+                }}
               />
             ) : null}
           </div>

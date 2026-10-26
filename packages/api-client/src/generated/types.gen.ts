@@ -298,6 +298,12 @@ export type AgentSessionDetail = {
      */
     regenerable?: string | null;
     /**
+     * Compactable
+     *
+     * There are turns before the last message to compact now.
+     */
+    compactable?: boolean;
+    /**
      * How full the context is.
      */
     context?: ContextUsage | null;

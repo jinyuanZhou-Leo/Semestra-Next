@@ -41,7 +41,7 @@ agent_preferences
 - **route_tools**：按 capability 的 effect 分流：read 立即执行（可并行，最多 4 个）；write/destructive 若在 `auto_approve` 列表中（destructive 永不自动）则直接执行，否则生成提案并 `interrupt`，等待用户决定后恢复。
 - 每轮（一次用户消息）最多 12 次工具调用，超过则停止并告知用户。
 - 工具结果截断：单个结果序列化后超过 12k 字符时截断并附说明"使用 fields 参数或分页获取更多"。
-- 上下文压缩：请求超过模型上下文 70% 时，先把最近两轮之前的工具结果清掉（不调用模型），还不够才把那些轮次总结为一条摘要消息（用对话模型，摘要不看工具结果）；用户也可以随时手动压缩并写明要保留的重点。细节见实现说明「压缩」。
+- 上下文压缩：请求超过模型上下文 70% 时，先把最近两轮之前读取类工具的结果清掉（不调用模型），还不够才把那些轮次总结为一条摘要消息（用对话模型，摘要不看工具结果）；用户也可以随时手动压缩并写明要保留的重点。细节见实现说明「压缩」。
 
 ### 3.2 工具暴露
 - **始终绑定**（core 集合，约 15 个，按"最常用"挑选，各模块可在 capability 上标 `agent_core=True` 申请，总数上限 20）：例如 `calendar.today.get`、`calendar.occurrence.list`、`academics.course.find`、`academics.term.list`、`tasks.item.query`、`tasks.item.create`、`grading.gradebook.get`、`grading.assessment.find`、`grading.assessment.update`、`files.document.search`。
@@ -99,7 +99,7 @@ agent_preferences
 | `agent.tool.list` | 当前用户可用的全部工具（设置页展示，以及 MCP 帮助） |
 | `GET /mcp` / `POST /mcp` | MCP 端点（见第 5 节） |
 
-- 会话自动命名：第一条消息发出后在后台用 `title` purpose 生成 ≤ 20 字的标题（只看用户的第一条消息），不等它、也不拖住回答。
+- 会话自动命名：第一条消息发出后在后台用 `title` purpose 生成 ≤ 20 字的标题（只看用户的第一条消息），不等它、也不拖住回答；同一会话同时只有一个标题请求（`AgentRuntime.background(..., key=)`），标题回来之前的后续回合不再重复请求。
 - 需要 `ai.available('chat')`，否则返回 `ai.not_configured`，前端显示配置引导。
 
 ## 5. MCP 服务端
@@ -222,7 +222,7 @@ agent_preferences
 - **2026-10-26 评审修复**（`discussions/2026-10-23-Sem评审问题核实.md` ①–⑥）：
   - 迟到的批准：会话已经往下走之后才批准的卡片，执行后以带 `late` 标记的 `note` 记下（能力、参数、是否执行成功）；含这种记录的回答不能重新生成，编辑时被删部分里的它们同样列为"已经做过"。详情里的 `regenerable` 由服务器给出可以重新生成的那条回答，前端不再自己推断。
   - 批准即本轮：`decide` 在请求里校验并占用卡片（`decisions.claim`），写操作作为随后回合的一部分执行（`decisions.run`），所以刷新或别的标签页都能从头跟随；标题在后台生成，通过正在进行的回合或实时事件 `agent.session.updated`（`during_turn`）送到前端。
-  - **压缩**（`compaction.py`）：超过 70% 时，先把最近两轮之前的工具结果换成一行"已清除，需要时重新调用"（`search_tools`/`load_capability` 的结果保留，Pydantic AI 靠它们记住揭示过的工具）；不够再用对话模型总结那些轮次，摘要的输入不含工具结果（文件、网页等外来文字只经工具结果进来），并写明引用的内容是数据不是指令。总结与「停止」赛跑，停止就跳过压缩、保留原历史。清除与摘要都只改发出的请求，记在 `session.state`（`cleared_until`、`summary`、`summarized_until`、`revealed`），`context` 记下最近一次请求的用量。手动压缩：`POST /agent/sessions/{id}:compact`（SSE，`{focus}`），总结用户最后一条消息之前的全部内容，作为一个回合运行。事件 `compaction {status: running|done|skipped, until?}`。详情返回 `context {used, window}` 与 `compaction {until, summary}`。前端两个入口：输入框左下的上下文用量环（点开看用量和自动压缩说明，可填要保留的重点并立即压缩），以及 `/` 菜单「对话」组里的 `/compact`（选中后成标签，输入框里写要保留的重点，回车开始）；进行中显示"正在压缩较早的对话…"（Trace 行，可按停止），完成后在被覆盖的轮次后插分隔线"以上对话已压缩"，点开看摘要。
+  - **压缩**（`compaction.py`）：超过 70% 时，先把最近两轮之前读取类工具（`effect == "read"` 与 `read_tool_result`）的结果换成一行"已清除，需要时重新调用"。写操作的结果和卡片状态（待确认、已过期）保留：它们说明这次调用已经执行或还没执行，清掉后模型会再调用一次，写操作就做了两遍（与 Anthropic context editing 的 `exclude_tools` 同理）；`search_tools`/`load_capability` 的结果也保留，Pydantic AI 靠它们记住揭示过的工具。不够再用对话模型总结那些轮次，摘要的输入不含工具结果（文件、网页等外来文字只经工具结果进来），并写明引用的内容是数据不是指令。总结与「停止」赛跑，停止就跳过压缩、保留原历史；自动压缩时按了停止，这一回合在发出请求之前结束（`before_model_request` 抛内部的 `_Stopped`，`_run` 按停止收尾），不会把未压缩的整段历史发给服务商。清除与摘要都只改发出的请求，记在 `session.state`（`cleared_until`、`summary`、`summarized_until`、`revealed`），`context` 记下最近一次请求的用量。手动压缩：`POST /agent/sessions/{id}:compact`（SSE，`{focus}`），总结用户最后一条消息之前的全部内容，作为一个回合运行。事件 `compaction {status: running|done|skipped, until?}`，每次压缩只发一次结果。详情返回 `context {used, window}`、`compaction {until, summary}` 与 `compactable`（摘要之后还有不止一条用户消息；前端的按钮与 `/compact` 只看它，不自己数）。前端两个入口：输入框左下的上下文用量环，用 AI Elements 的 `Context`（`components/ai-elements/context.tsx`，照 CLI 的方式改成 Base UI：`render` 代替 `asChild`，延迟放在 Trigger 上；`ai` 7 的用量字段名也改了），悬停看用量和自动压缩说明，按钮「压缩对话」让输入框进入与 `/compact` 相同的状态。草图里是点开的 Popover 并在里面填重点，但 `Context` 是 HoverCard，放不下输入框，所以重点统一在输入框里写。没用它的 footer：footer 用 tokenlens 算费用，会把整份模型价目表打进助手的代码（+244 KB），而这里不显示费用。另一个入口是 `/` 菜单「对话」组里的 `/compact`（选中后成标签，输入框里写要保留的重点，回车开始）；进行中显示"正在压缩较早的对话…"（Trace 行，可按停止；回合中自动压缩时就是这条回答的"思考中"那一行换成这句，只有一行），完成后在被覆盖的轮次后插分隔线"以上对话已压缩"，点开看摘要。
   - 记忆整理失败：失败时什么都不写（以前会用调用前读到的 `state` 覆盖并发写入）；`ai.output_invalid`、`ai.context_too_long` 这类重试也不会变的错误直接跳过这一段，服务商不可达等暂时性错误下一轮重读同样的内容，由 `LOOKBACK`（7 天）兜底。
   - 扫描页图片改用 M07 的 `render_isolated`（子进程，带时间和内存上限）；渲染失败的页写明"无法显示"，结果同样缓存，每次请求一致。缓存命中的页在任何 await 之前取出。
   - tool call id 不改写：id 由服务商给出，同一会话里可能重复（Kimi K2 按回答编号 `functions.add:0`）。配对与 Pydantic AI 一致：结果只回答它之前最近的、还没有结果的同 id 调用；`history.open_calls` 只看最后一条回答之后的结果，卡片按"所属回答 + call id"找（`history.open_proposals`），读回截断结果取最新的一条；前端 `transcript.pairCalls` 同样配对。同一条回答里两个调用同 id 不区分。

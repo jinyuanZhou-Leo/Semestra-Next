@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
     TextPart,
     ThinkingPart,
     ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaThinkingPart, FunctionModel
@@ -1077,7 +1078,13 @@ async def test_a_slow_title_does_not_hold_the_chat(app: FastAPI, agent: Agent, m
         await release.wait()
         return "Late title"
 
-    app.state.agent.small_complete = slow_title
+    calls_made: list[Any] = []
+
+    async def counted(ctx: Any, messages: Any) -> str:
+        calls_made.append(messages)
+        return await slow_title(ctx, messages)
+
+    app.state.agent.small_complete = counted
     session = await agent.session()
     model.then(say("Hi."), say("Again."))
     events = await agent.send(session["id"], "hello")
@@ -1090,6 +1097,7 @@ async def test_a_slow_title_does_not_hold_the_chat(app: FastAPI, agent: Agent, m
         await app.state.agent.drain()
         await drain(app.state)
     assert (await agent.detail(session["id"]))["session"]["title"] == "Late title"
+    assert len(calls_made) == 1  # the second turn did not ask again while the first was out
     updated = {"session_id": session["id"], "during_turn": False}
     assert {"type": "agent.session.updated", "data": updated} in [
         {k: v for k, v in e.items() if k != "origin"} for e in pushed
@@ -1431,6 +1439,45 @@ async def test_compaction_clears_old_tool_results_first(
     assert INJECTED not in model.last_text()
 
 
+async def test_clearing_keeps_what_writes_returned(
+    app: FastAPI, agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """A write's result says it already ran: cleared, the model would be told to call it again."""
+    _big_search(monkeypatch, 8_000)
+    _, _, lab = await agent.course_with_lab()
+    await _auto_approve(agent, "grading.assessment.update")
+    program = await agent.program()
+    session = await agent.session()
+    model.then(
+        _found("files.document.search", "grading.assessment.update"),
+        calls(
+            [
+                ("files.document.search", {"program_id": program["id"], "query": "notes"}),
+                ("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": 60}),
+            ]
+        ),
+        say("Read them and saved 60."),
+    )
+    await agent.send(session["id"], "read my notes and save 60")
+    for i in range(1, 3):
+        model.then(say(f"answer {i}"))
+        await agent.send(session["id"], f"question {i}")
+    model.context_window = 4_000
+    await report_input_tokens(app, session["id"], 2_900)
+    model.then(say("fine"))
+    await agent.send(session["id"], "question 3")
+    returned = {
+        p.tool_name: p.content
+        for m in model.requests[-1][0]
+        if isinstance(m, ModelRequest)
+        for p in m.parts
+        if isinstance(p, ToolReturnPart)
+    }
+    assert returned["files__document__search"] == compaction.CLEARED
+    assert returned["grading__assessment__update"] != compaction.CLEARED
+    assert returned["search_tools"] != compaction.CLEARED
+
+
 async def test_the_summary_never_sees_what_tools_returned(
     app: FastAPI, agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
 ):
@@ -1473,12 +1520,40 @@ async def test_stop_while_compacting(app: FastAPI, agent: Agent, model: FakeMode
     model.context_window = 4_000
     await report_input_tokens(app, session["id"], 2_900)
     model.then(say("fine"))
+    sent = len(model.requests)
     sending = asyncio.create_task(agent.send(session["id"], "question 3"))
     await stuck.wait()
     await agent.call("POST", f"/agent/sessions/{session['id']}:stop")
     events = await asyncio.wait_for(sending, timeout=5)
     assert ("compaction", {"status": "skipped"}) in events
-    assert (await agent.detail(session["id"]))["compaction"] is None
+    # The turn ends there: the uncompacted request is never sent.
+    assert len(model.requests) == sent
+    assert [d.get("stopped") for n, d in events if n == "message_end"] == [True]
+    detail = await agent.detail(session["id"])
+    assert detail["compaction"] is None
+    assert detail["generating"] is False
+    assert detail["messages"][-1]["role"] == "user"
+
+
+async def test_stop_while_compacting_on_demand(app: FastAPI, agent: Agent, model: FakeModel):
+    stuck = asyncio.Event()
+
+    async def never(ctx: Any, messages: Any) -> str:
+        stuck.set()
+        await asyncio.Event().wait()
+        return ""
+
+    app.state.agent.summarize = never
+    session = await agent.session()
+    for i in range(2):
+        model.then(say(f"answer {i}"))
+        await agent.send(session["id"], f"question {i}")
+    compacting = asyncio.create_task(agent.stream(f"/agent/sessions/{session['id']}:compact", {}))
+    await stuck.wait()
+    await agent.call("POST", f"/agent/sessions/{session['id']}:stop")
+    events = await asyncio.wait_for(compacting, timeout=5)
+    assert [d["status"] for n, d in events if n == "compaction"] == ["running", "skipped"]
+    assert (await agent.detail(session["id"]))["compactable"] is True
 
 
 async def test_compacting_on_demand(app: FastAPI, agent: Agent, model: FakeModel):
@@ -1493,6 +1568,7 @@ async def test_compacting_on_demand(app: FastAPI, agent: Agent, model: FakeModel
     for i in range(2):
         model.then(say(f"answer {i}"))
         await agent.send(session["id"], f"question {i}")
+    assert (await agent.detail(session["id"]))["compactable"] is True
     events = await agent.stream(
         f"/agent/sessions/{session['id']}:compact", {"focus": "the lab dates"}
     )
@@ -1500,6 +1576,8 @@ async def test_compacting_on_demand(app: FastAPI, agent: Agent, model: FakeModel
     assert "the lab dates" in prompts[0]
     detail = await agent.detail(session["id"])
     assert detail["compaction"]["summary"] == "what matters"
+    # Only the last question is left after the summary: nothing more to compact.
+    assert detail["compactable"] is False
     # Up to the answer before the last question.
     assert detail["compaction"]["until"] == detail["messages"][1]["id"]
     model.then(say("ok"))
@@ -1514,8 +1592,9 @@ async def test_nothing_to_compact_on_demand(agent: Agent, model: FakeModel):
     session = await agent.session()
     model.then(say("answer"))
     await agent.send(session["id"], "only question")
+    assert (await agent.detail(session["id"]))["compactable"] is False
     events = await agent.stream(f"/agent/sessions/{session['id']}:compact", {})
-    assert ("compaction", {"status": "skipped"}) in events
+    assert [d["status"] for n, d in events if n == "compaction"] == ["skipped"]
 
 
 def test_user_turns_are_rows_the_person_wrote():

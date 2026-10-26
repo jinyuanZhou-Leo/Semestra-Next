@@ -1,7 +1,7 @@
 """Compaction (M12 §3.4): when a request would fill more than `COMPACT_RATIO` of the context
 window, the turns before the last `KEEP_USER_TURNS` are made smaller. First their tool results
-are cleared (no model call: most of what fills a long conversation is what tools returned, and
-outside text such as files and Canvas pages arrives that way); when that is not enough, those
+are cleared (no model call: most of what fills a long conversation is what read tools returned,
+and outside text such as files and Canvas pages arrives that way); when that is not enough, those
 turns are summarized by the chat model. Only the request changes; the stored history stays as
 it is. What was cleared and the summary are kept in the session and reused until the next
 compaction. The user can also compact on demand (`compact_now`)."""
@@ -9,11 +9,12 @@ compaction. The user can also compact on demand (`compact_now`)."""
 import asyncio
 from collections.abc import Awaitable, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, ToolReturnPart
 from starlette.datastructures import State
 
+from semestra.core.capability import registry
 from semestra.core.errors import AppError
 from semestra.modules.agent import history, tools
 from semestra.modules.agent.runtime import ChatLike, agent_ctx
@@ -25,8 +26,6 @@ COMPACT_RATIO = 0.7
 KEEP_USER_TURNS = 2
 
 CLEARED = "[Result cleared to save space. Call the tool again if you need it.]"
-# Kept: what they found is how the tools they revealed stay callable (Pydantic AI reads them).
-KEPT = frozenset({tools.SEARCH_TOOLS, tools.LOAD_CAPABILITY})
 
 SUMMARY_PROMPT = (
     "Summarize this conversation between a student and their study assistant for the "
@@ -51,13 +50,17 @@ class Compacting(Protocol):
     cancel: asyncio.Event
 
 
+# The request made smaller and its size, or why it was not.
+type Smaller = tuple[list[ModelMessage], int] | Literal["nothing", "stopped"]
+
+
 async def compact(turn: Compacting, messages: list[ModelMessage]) -> list[ModelMessage]:
     messages = _applied(turn, messages)
     window = turn.model.context_window
     tokens = history.prompt_tokens(messages)
     if tokens > COMPACT_RATIO * window:
         smaller = await _smaller(turn, messages, KEEP_USER_TURNS, tokens, focus=None)
-        if smaller is not None:
+        if not isinstance(smaller, str):
             messages, tokens = smaller
     turn.memo["context"] = {"used": tokens, "window": window}
     return messages
@@ -82,8 +85,8 @@ def _applied(turn: Compacting, messages: list[ModelMessage]) -> list[ModelMessag
 
 
 def _cleared(rows: Rows, messages: Sequence[ModelMessage]) -> list[ModelMessage]:
-    """The messages with the tool results (but `KEPT`) replaced by `CLEARED`; new part objects,
-    so the run's own history keeps the results."""
+    """The messages with the results of read tools replaced by `CLEARED`; new part objects, so
+    the run's own history keeps the results."""
     out: list[ModelMessage] = []
     for m in messages:
         if not isinstance(m, ModelRequest) or not any(_clearable(p) for p in m.parts):
@@ -102,26 +105,35 @@ def _cleared(rows: Rows, messages: Sequence[ModelMessage]) -> list[ModelMessage]
 
 
 def _clearable(part: object) -> bool:
-    return (
-        isinstance(part, ToolReturnPart) and part.tool_name not in KEPT and part.content != CLEARED
-    )
+    """Only what a read returned: it can be read again. A write's result (and a card's status)
+    is what tells the model it already ran, so calling it again would do it twice; and
+    `search_tools`/`load_capability` results are how the tools they revealed stay callable
+    (Pydantic AI reads them)."""
+    if not isinstance(part, ToolReturnPart) or part.content == CLEARED:
+        return False
+    if part.tool_name == tools.READ_RESULT:
+        return True
+    try:
+        return registry.get(tools.capability_name(part.tool_name)).effect == "read"
+    except AppError:
+        return False
 
 
 async def _smaller(
     turn: Compacting, messages: list[ModelMessage], keep: int, tokens: int, focus: str | None
-) -> tuple[list[ModelMessage], int] | None:
-    """The request with the turns before the last `keep` made smaller, and its size; None when
-    there is nothing to compact (or the user stopped it). `tokens` is the request's size now.
-    A `focus` (on demand) always summarizes."""
+) -> Smaller:
+    """The request with the turns before the last `keep` made smaller, and its size; "nothing"
+    when there is nothing to compact, "stopped" when the user stopped the summary (announced as
+    skipped). `tokens` is the request's size now. A `focus` (on demand) always summarizes."""
     memo, rows = turn.memo, turn.rows
     starts = [i for i, m in enumerate(messages) if rows.typed(m)]
     if len(starts) <= keep:
-        return None
+        return "nothing"
     cut = starts[-keep] if keep else len(messages)
     older = messages[:cut]
     last = next((r for r in map(rows.row_id, reversed(older)) if r), None)
     if last is None:
-        return None
+        return "nothing"
     cleared = _cleared(rows, older)
     saved = history.estimate_tokens(older) - history.estimate_tokens(cleared)
     if focus is None and tokens - saved <= COMPACT_RATIO * turn.model.context_window:
@@ -138,7 +150,7 @@ async def _smaller(
     summary = await _unless_stopped(turn.cancel, _summarize(turn, prompt, text))
     if not summary:
         await rt.announce(turn.session_id, sse(event("compaction", status="skipped")))
-        return None
+        return "stopped"
     revealed = list(dict.fromkeys([*memo.get("revealed", []), *history.revealed_tools(older)]))
     memo.update(summary=summary, summarized_until=last, revealed=revealed)
     memo.pop("cleared_until", None)  # the summary covers what was cleared
@@ -197,13 +209,13 @@ async def compact_now(
     model: ChatLike,
     memo: dict[str, Any],
     focus: str | None,
-) -> bool:
+) -> Literal["nothing", "stopped", "done"]:
     """Summarizes everything before the user's last message, now (the user asked). Updates
-    `memo`; False when there is nothing to compact or it was stopped."""
+    `memo` when done."""
     job = _OnDemand(state, user_id, session_id, model, memo, rows, cancel)
     messages = _applied(job, messages)
     smaller = await _smaller(job, messages, 1, history.prompt_tokens(messages), focus=focus or "")
-    if smaller is None:
-        return False
+    if isinstance(smaller, str):
+        return smaller
     memo["context"] = {"used": smaller[1], "window": model.context_window}
-    return True
+    return "done"

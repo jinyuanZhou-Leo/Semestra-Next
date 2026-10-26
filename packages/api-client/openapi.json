@@ -16067,6 +16067,12 @@
             "title": "Regenerable",
             "description": "The answer that can be regenerated (its first message's id), if any."
           },
+          "compactable": {
+            "type": "boolean",
+            "title": "Compactable",
+            "description": "There are turns before the last message to compact now.",
+            "default": false
+          },
           "context": {
             "anyOf": [
               {

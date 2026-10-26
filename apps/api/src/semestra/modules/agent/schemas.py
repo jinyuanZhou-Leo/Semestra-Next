@@ -101,6 +101,9 @@ class AgentSessionDetail(BaseModel):
         default=None,
         description="The answer that can be regenerated (its first message's id), if any.",
     )
+    compactable: bool = Field(
+        default=False, description="There are turns before the last message to compact now."
+    )
     context: ContextUsage | None = Field(default=None, description="How full the context is.")
     compaction: CompactionOut | None = Field(
         default=None, description="The summary that stands in for the earlier conversation."

@@ -291,6 +291,7 @@ function AssistantMessage({
   citations,
   busy,
   active,
+  compacting,
   showReasoning,
   onDecide,
   footer,
@@ -301,6 +302,8 @@ function AssistantMessage({
   busy: boolean
   /** This answer is being written now. */
   active: boolean
+  /** Its request is being compacted first. */
+  compacting: boolean
   showReasoning: boolean
   onDecide: (decisions: Decision[]) => void
   /** Copy and regenerate under the answer; `null` while there is nothing to act on. */
@@ -312,7 +315,12 @@ function AssistantMessage({
   return (
     <Message>
       <MessageContent className="gap-3">
-        <Thinking item={item} active={active} showReasoning={showReasoning} />
+        <Thinking
+          item={item}
+          active={active}
+          compacting={compacting}
+          showReasoning={showReasoning}
+        />
         {item.answer ? (
           <Markdown text={item.answer} citations={citations} streaming={active} />
         ) : null}
@@ -548,8 +556,7 @@ export function Conversation({
   )
   const regenerateId = detail && !chat.generating ? (detail.regenerable ?? null) : null
   const paused = detail && !chat.generating ? pausedReason(detail) : null
-  // The last message is always kept: compacting needs a turn before it.
-  const canCompact = items.filter((item) => item.kind === 'user').length > 1
+  const canCompact = detail?.compactable ?? false
 
   async function compact(focus: string): Promise<boolean> {
     setSent((n) => n + 1)
@@ -763,6 +770,7 @@ export function Conversation({
                           citations={citations}
                           busy={chat.generating}
                           active={item === lastAssistant && chat.generating}
+                          compacting={item === lastAssistant && chat.generating && chat.compacting}
                           showReasoning={showReasoning}
                           onDecide={(decisions) => void chat.decide(decisions)}
                           latest={item === lastAssistant}
@@ -804,7 +812,8 @@ export function Conversation({
                   ))}
                 </Suspense>
               )}
-              {chat.compacting ? (
+              {/* Compacting before an answer shows on that answer's line, so one line runs. */}
+              {chat.compacting && !(chat.generating && items.at(-1)?.kind === 'assistant') ? (
                 <CompactingNotice />
               ) : chat.generating && items.at(-1)?.kind === 'user' ? (
                 <ThinkingPlaceholder />

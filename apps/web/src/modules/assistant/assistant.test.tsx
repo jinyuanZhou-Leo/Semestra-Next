@@ -815,11 +815,13 @@ function compactable() {
     msg('a2', 'assistant', [{ type: 'text', text: 'Moved it to Thursday.' }]),
   ]
   srv.detail.context = { used: 90_000, window: 128_000 }
+  srv.detail.compactable = true
   const sent: unknown[] = []
   server.use(
     http.post(`${API}/agent/sessions/s1\\:compact`, async ({ request }) => {
       sent.push(await request.json())
       srv.detail.compaction = { until: 'a1', summary: 'Three review weeks are planned.' }
+      srv.detail.compactable = false
       return sse([
         ['compaction', { status: 'running' }],
         ['compaction', { status: 'done', until: 'a1' }],
@@ -855,11 +857,51 @@ test('/compact keeps what the user names, and the summary shows under a divider'
 test('the context ring shows how full the conversation is and compacts from there', async () => {
   const sent = compactable()
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Context 70% used' }))
-  expect(await screen.findByText('About 90K / 128K tokens')).toBeInTheDocument()
-  await userEvent.type(screen.getByLabelText('What to keep (optional)'), 'deadlines')
+  const input = await messageInput()
+  await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
+  expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
+  // Compacting starts in the composer, as `/compact` does.
+  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  await userEvent.type(input, 'deadlines{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
+  // After it, only the last turn is left: nothing more to compact.
+  await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  await userEvent.type(input, '/comp')
+  expect(screen.queryByRole('option', { name: /Compact conversation/ })).not.toBeInTheDocument()
+})
+
+test('compacting before an answer shows on the line of that answer', async () => {
+  compactable()
+  let finish: (() => void) | undefined
+  srv.reply = () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encode = (text: string) => controller.enqueue(new TextEncoder().encode(text))
+        encode('event: message_start\ndata: {"message_id":"a3"}\n\n')
+        encode('event: compaction\ndata: {"status":"running"}\n\n')
+        finish = () => {
+          srv.detail.messages = [
+            ...srv.detail.messages,
+            msg('u3', 'user', [{ type: 'text', text: 'And the labs?' }]),
+            msg('a3', 'assistant', [{ type: 'text', text: 'Here it is.' }]),
+          ]
+          encode('event: compaction\ndata: {"status":"done","until":"a1"}\n\n')
+          encode('event: text_delta\ndata: {"message_id":"a3","text":"Here it is."}\n\n')
+          encode('event: message_end\ndata: {"message_id":"a3"}\n\n')
+          controller.close()
+        }
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.type(await messageInput(), 'And the labs?{Enter}')
+  expect(await screen.findAllByText('Compacting earlier turns…')).toHaveLength(1)
+  expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
+  finish?.()
+  expect(await screen.findByText('Here it is.')).toBeInTheDocument()
+  expect(screen.queryByText('Compacting earlier turns…')).not.toBeInTheDocument()
 })
 
 test('the editor closes as soon as the edit is sent, while the answer streams', async () => {

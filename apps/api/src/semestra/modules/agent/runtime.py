@@ -154,6 +154,7 @@ class AgentRuntime:
         self._running: dict[str, asyncio.Event] = {}
         self._generations: dict[str, Generation] = {}
         self._background: set[asyncio.Task[Any]] = set()
+        self._keyed: dict[str, asyncio.Task[Any]] = {}
 
     def generating(self, session_id: str) -> bool:
         return session_id in self._running
@@ -182,7 +183,7 @@ class AgentRuntime:
             # Released before it started (the request failed): nothing to follow.
             gen.done = True
             self._forget(gen)
-            asyncio.get_running_loop().create_task(gen.close())
+            self.background(gen.close())
 
     @contextmanager
     def slot(self, user_id: str, session_id: str) -> Generator[asyncio.Event]:
@@ -219,19 +220,26 @@ class AgentRuntime:
             loop = asyncio.get_running_loop()
             loop.call_later(KEEP_FINISHED_SECONDS, self._forget, gen)
 
-    def background[T](self, work: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
+    def background(self, work: Coroutine[Any, Any, Any], *, key: str | None = None) -> None:
         """Runs work that belongs to no turn (a title): kept until it ends, logged if it fails,
-        cancelled at shutdown."""
+        cancelled at shutdown. With a `key`, skipped while work with that key is still running
+        (a second turn before the first title came back)."""
+        if key is not None and key in self._keyed:
+            work.close()
+            return
         task = asyncio.create_task(work)
         self._background.add(task)
+        if key is not None:
+            self._keyed[key] = task
 
-        def done(t: asyncio.Task[T]) -> None:
+        def done(t: asyncio.Task[Any]) -> None:
             self._background.discard(t)
+            if key is not None and self._keyed.get(key) is t:
+                del self._keyed[key]
             if not t.cancelled() and t.exception() is not None:
                 log.error("agent_background_failed", exc_info=t.exception())
 
         task.add_done_callback(done)
-        return task
 
     async def drain(self) -> None:
         """Waits for the background work (tests)."""

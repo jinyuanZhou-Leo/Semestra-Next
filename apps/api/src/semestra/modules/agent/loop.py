@@ -143,6 +143,10 @@ def _tool_return(cap: Capability | None, call_id: str, result: Outcome, turn: Tu
 STOPPED = "agent.stopped"
 
 
+class _Stopped(Exception):
+    """Stop pressed before the model request was sent (during compaction)."""
+
+
 async def _unless_stopped(turn: Turn, work: Awaitable[Outcome]) -> Outcome:
     """A read gives up when the user presses Stop; it changed nothing, so nothing is lost."""
     task = asyncio.ensure_future(work)
@@ -307,6 +311,9 @@ class _Hooks(AbstractCapability[Turn]):
         turn = ctx.deps
         messages = [m for m in (_replayable(m, turn) for m in request_context.messages) if m]
         request_context.messages = await compact(turn, messages)
+        if turn.cancel.is_set():
+            # Stopped while compacting: the turn ends here, before the request goes out.
+            raise _Stopped
         if not _defers_tools(request_context.model):
             params = request_context.model_request_parameters
             params.function_tools = _tool_order(params.function_tools, request_context.messages)
@@ -560,7 +567,9 @@ async def generate(
             if not session.title:
                 # Alongside the first answer, not after it: the chat is free as soon as the
                 # answer is; the title reaches the list as an event whenever it is ready.
-                state.agent.background(_title(state, user_id, session_id))
+                state.agent.background(
+                    _title(state, user_id, session_id), key=f"title:{session_id}"
+                )
             ctx.scope = service.scope_ref(session)
             async with state.agent.chat_model(ctx) as model:
                 prepared = await _prepare(ctx, session, model, cancel)
@@ -590,9 +599,10 @@ async def compact_session(
             done = await compact_now(
                 state, user_id, session_id, cancel, messages, marks, model, memo, focus
             )
-    if not done:
+    if done == "nothing":
         yield event("compaction", status="skipped")
-        return
+    if done != "done":
+        return  # when stopped, compaction announced it
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
         keys = ("summary", "summarized_until", "revealed", "cleared_until", "context")
@@ -684,6 +694,10 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
         history_ = [*messages, *([pending] if pending is not None else [])]
         async for item in _close(prepared, history_):
             yield item
+    except _Stopped:
+        await _keep(store, answer, current)
+        if answer is not None:
+            yield event("message_end", message_id=answer.message_id, stopped=True)
     except AppError as exc:
         await _keep(store, answer, current)
         yield event("error", code=exc.code, params=exc.params)
