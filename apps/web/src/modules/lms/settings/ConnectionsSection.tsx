@@ -14,7 +14,7 @@ import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -31,21 +31,54 @@ import {
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useOfferedProviders, useProviderName, useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
+import type { LmsLogo, LmsProviderUi } from '../types'
 import { ConnectionForm } from './ConnectionForm'
 
+/** Short badge words for a connection's last error, like the AI providers' (M09 §7.1). */
+const ERROR_LABEL: Record<string, () => string> = {
+  'lms.invalid_credentials': () => m.lms_status_invalid_credentials(),
+  'lms.credentials_missing': () => m.lms_status_credentials_missing(),
+  'lms.forbidden': () => m.lms_status_forbidden(),
+  'lms.unreachable': () => m.lms_status_unreachable(),
+  'lms.rate_limited': () => m.lms_status_rate_limited(),
+  'lms.invalid_config': () => m.lms_status_address(),
+  'lms.blocked_address': () => m.lms_status_address(),
+}
+
+/** Errors whose sentence needs parameters the connection does not keep: the badge says it all. */
+const NO_DETAIL = new Set(['lms.rate_limited'])
+
 export function ConnectionStatus({ connection }: { connection: Connection }) {
-  if (connection.status === 'error' || !connection.has_credentials) {
-    const code = connection.last_error_code ?? 'lms.credentials_missing'
-    return <Badge variant="destructive">{errorMessage({ error: { code, params: {} } })}</Badge>
-  }
-  if (connection.last_error_code) {
-    // A transient failure (unreachable, rate limited) keeps the connection usable.
-    const code = connection.last_error_code
-    return <Badge variant="outline">{errorMessage({ error: { code, params: {} } })}</Badge>
-  }
-  return <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
+  const broken = connection.status === 'error' || !connection.has_credentials
+  const code = broken
+    ? (connection.last_error_code ?? 'lms.credentials_missing')
+    : connection.last_error_code
+  if (!code) return <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
+  // A transient failure (unreachable, rate limited) keeps the connection usable.
+  const variant = broken ? 'destructive' : 'outline'
+  const label = ERROR_LABEL[code]?.() ?? m.lms_status_error()
+  if (NO_DETAIL.has(code)) return <Badge variant={variant}>{label}</Badge>
+  // The badge names the problem; the full sentence is its tooltip.
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<Badge variant={variant} tabIndex={0} />}>{label}</TooltipTrigger>
+      <TooltipContent className="max-w-64">
+        {errorMessage({ error: { code, params: {} } })}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** A platform's mark in the same tile as the AI providers'. */
+function LogoTile({ logo: Logo }: { logo: LmsLogo }) {
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background text-foreground">
+      <Logo aria-hidden className="size-4" />
+    </span>
+  )
 }
 
 type RowHandlers = {
@@ -69,18 +102,14 @@ function NameCell({ row }: CellProps) {
   const connection = row.original
   const ui = useProviderUis().get(connection.provider)
   const providerName = useProviderName(connection.provider)
-  const Logo = ui?.logo ?? Link2
   const details = [
     providerName,
     ui?.summary?.(connection.config) ?? null,
     connection.account_name,
-    ...Object.values(connection.credentials_hint),
   ].filter(Boolean)
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
-        <Logo aria-hidden className="size-4 text-muted-foreground" />
-      </span>
+      <LogoTile logo={ui?.logo ?? Link2} />
       <div className="min-w-0">
         <div className="truncate font-medium">{connection.display_name}</div>
         <div className="truncate text-xs text-muted-foreground">{details.join(' · ')}</div>
@@ -89,41 +118,29 @@ function NameCell({ row }: CellProps) {
   )
 }
 
-function UsageCell({ row }: CellProps) {
-  const connection = row.original
-  return (
-    <span className="text-muted-foreground">
-      {connection.program_ids.length > 0
-        ? m.lms_connection_usage({
-            programs: connection.program_ids.length,
-            courses: connection.link_count,
-          })
-        : m.lms_connection_unused()}
-    </span>
-  )
-}
-
 function StatusCell({ row }: CellProps) {
   const { checkingId } = useRowHandlers()
   const connection = row.original
-  // Two lines in every state (badge or spinner, then the last check), so checking a connection
-  // never changes the row's height.
+  const checking = checkingId === connection.id
+  // One line: the badge (a spinner while checking), then how long ago it was last checked.
   return (
-    <div className="flex flex-col items-start gap-0.5">
-      <div className="flex h-5 items-center">
-        {checkingId === connection.id ? (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Spinner aria-hidden className="size-3.5" />
-            {m.lms_connection_checking()}
-          </span>
-        ) : (
-          <ConnectionStatus connection={connection} />
-        )}
-      </div>
-      {connection.last_checked_at ? (
-        <span className="text-xs text-muted-foreground">
-          {m.lms_connection_checked_at({ time: formatDateTime(connection.last_checked_at) })}
+    <div className="flex h-5 items-center gap-2">
+      {checking ? (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner aria-hidden className="size-3.5" />
+          {m.lms_connection_checking()}
         </span>
+      ) : (
+        <ConnectionStatus connection={connection} />
+      )}
+      {connection.last_checked_at && !checking ? (
+        <time
+          dateTime={connection.last_checked_at}
+          title={formatDateTime(connection.last_checked_at)}
+          className="text-xs text-muted-foreground"
+        >
+          {formatTimeAgo(connection.last_checked_at)}
+        </time>
       ) : null}
     </div>
   )
@@ -161,7 +178,6 @@ const columns = column.columns([
     header: () => m.lms_connection_name(),
     cell: NameCell,
   }),
-  column.display({ id: 'usage', header: () => m.lms_connection_used_by(), cell: UsageCell }),
   column.display({ id: 'status', header: () => m.lms_connection_status(), cell: StatusCell }),
   column.display({
     id: 'actions',
@@ -172,17 +188,23 @@ const columns = column.columns([
 
 const COLUMN_CLASS: Record<string, string> = {
   name: 'w-full max-w-0',
-  usage: 'hidden whitespace-nowrap md:table-cell',
   status: 'whitespace-nowrap',
   actions: 'w-10',
 }
 
 /**
  * The first step of "Add connection": the platforms the server offers and the frontend has a
- * form for, from `lms.providerUi` (a step even with one platform, so the list grows in place).
+ * form for, from `lms.providerUi`. Skipped while there is only one.
  */
-function ProviderPicker({ onPick }: { onPick: (kind: string) => void }) {
-  const { providers, isPending } = useOfferedProviders()
+function ProviderPicker({
+  providers,
+  isPending,
+  onPick,
+}: {
+  providers: LmsProviderUi[]
+  isPending: boolean
+  onPick: (kind: string) => void
+}) {
   // One row's height while loading, so the dialog does not grow when the list arrives.
   if (isPending) return <Skeleton className="h-[4.5rem] w-full rounded-2xl" />
   if (providers.length === 0) {
@@ -224,25 +246,37 @@ function ProviderPicker({ onPick }: { onPick: (kind: string) => void }) {
 
 /** Remounted on every open (see `addKey`), so closing keeps the title through the exit animation. */
 function AddConnectionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [kind, setKind] = useState<string | null>(null)
+  const { providers, isPending } = useOfferedProviders()
+  const [picked, setPicked] = useState<string | null>(null)
+  // With one platform there is nothing to pick: the dialog opens on its form.
+  const kind = picked ?? (providers.length === 1 ? (providers[0]?.kind ?? null) : null)
+  const ui = useProviderUis().get(kind ?? '')
   const name = useProviderName(kind)
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {kind && name
-              ? m.lms_connection_add_provider({ provider: name })
-              : m.lms_connection_add()}
-          </DialogTitle>
+          <div className="flex items-center gap-3">
+            {ui ? <LogoTile logo={ui.logo} /> : null}
+            <DialogTitle>
+              {kind && name
+                ? m.lms_connection_add_provider({ provider: name })
+                : m.lms_connection_add()}
+            </DialogTitle>
+          </div>
           <DialogDescription>
             {kind ? m.lms_connection_note() : m.lms_connection_pick_provider()}
           </DialogDescription>
         </DialogHeader>
         {!open ? null : kind ? (
-          <ConnectionForm key={kind} kind={kind} onSaved={onClose} onBack={() => setKind(null)} />
+          <ConnectionForm
+            key={kind}
+            kind={kind}
+            onSaved={onClose}
+            onBack={providers.length > 1 ? () => setPicked(null) : undefined}
+          />
         ) : (
-          <ProviderPicker onPick={setKind} />
+          <ProviderPicker providers={providers} isPending={isPending} onPick={setPicked} />
         )}
       </DialogContent>
     </Dialog>

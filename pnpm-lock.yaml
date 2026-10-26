@@ -353,6 +353,9 @@ importers:
       '@fullcalendar/timegrid':
         specifier: 6.1.22
         version: 6.1.22(@fullcalendar/core@6.1.22)
+      '@lobehub/icons-static-svg':
+        specifier: 1.96.0
+        version: 1.96.0
       '@semestra/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
@@ -482,6 +485,9 @@ importers:
       shiki:
         specifier: 4.5.0
         version: 4.5.0
+      simple-icons:
+        specifier: 16.35.0
+        version: 16.35.0
       sonner:
         specifier: 2.0.8
         version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1783,6 +1789,9 @@ packages:
 
   '@lix-js/sdk@0.20.1':
     resolution: {integrity: sha512-oscOFP8Cr1My6Wh2KVYC9+aJ1mHs+d7vnD+7PPJaA4L+Y1FR37Sm99SrFGfvUizaj/XtRi2GlDF2IOFt9iXMNQ==}
+
+  '@lobehub/icons-static-svg@1.96.0':
+    resolution: {integrity: sha512-BqfhytF77ecdG7y8zVbWR6WXsuUEP9zB5DTo5qeJPyH3wEwPXijpu/oPJSMfwCqt19OLLm+t5qXSrL3DVEikQg==}
 
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
@@ -6618,6 +6627,10 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
+  simple-icons@16.35.0:
+    resolution: {integrity: sha512-TCfl/2+GTrx0nCo4pEWGvxhOb8c6NsqOU1OpwjtF4lwJAthB8IYVD0fuIMjLMg6JFuG1YBO0t1iETQqJLqkoJA==}
+    engines: {node: '>=0.12.18'}
+
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
@@ -8688,6 +8701,8 @@ snapshots:
       '@bytecodealliance/jco-transpile': 0.13.0
       binaryen: 130.0.0
       fflate: 0.8.3
+
+  '@lobehub/icons-static-svg@1.96.0': {}
 
   '@lukeed/ms@2.0.2': {}
 
@@ -13785,6 +13800,8 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
+
+  simple-icons@16.35.0: {}
 
   sisteransi@1.0.5: {}
 

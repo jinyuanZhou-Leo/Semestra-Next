@@ -14,7 +14,7 @@ import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatTimeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -40,16 +40,10 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/u
 import { Input } from '@/ui/input'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { KIND_INFO, type Capability } from '../labels'
+import { KIND_INFO, PROVIDER_ERROR_LABEL, type Capability } from '../labels'
+import { hostOf, providerLogo } from '../presets'
 import { invalidateAi } from '../queries'
-import { CapabilityChecks, ProviderForm } from './ProviderForm'
-
-/** Short badge words for the errors that say something about the provider itself (M06 §8). */
-const ERROR_LABEL: Record<string, () => string> = {
-  'ai.invalid_key': () => m.ai_provider_status_invalid_key(),
-  'ai.out_of_credit': () => m.ai_provider_status_out_of_credit(),
-  'ai.provider_unreachable': () => m.ai_provider_status_unreachable(),
-}
+import { AddProviderFlow, CapabilityChecks, type FlowHeader, LogoTile } from './ProviderForm'
 
 function StatusBadge({ provider }: { provider: Provider }) {
   if (!provider.enabled) return <Badge variant="outline">{m.ai_provider_status_off()}</Badge>
@@ -59,7 +53,7 @@ function StatusBadge({ provider }: { provider: Provider }) {
     return (
       <Tooltip>
         <TooltipTrigger render={<Badge variant="destructive" tabIndex={0} />}>
-          {ERROR_LABEL[code]?.() ?? m.ai_provider_status_error()}
+          {PROVIDER_ERROR_LABEL[code]?.() ?? m.ai_provider_status_error()}
         </TooltipTrigger>
         <TooltipContent className="max-w-64">
           {errorMessage({ error: { code, params: {} } })}
@@ -68,6 +62,18 @@ function StatusBadge({ provider }: { provider: Provider }) {
     )
   }
   return <Badge variant="secondary">{m.ai_provider_status_ok()}</Badge>
+}
+
+function AddDialogHeader({ title, description, logo }: FlowHeader) {
+  return (
+    <DialogHeader>
+      <div className="flex items-center gap-3">
+        {logo !== undefined ? <LogoTile logo={logo} /> : null}
+        <DialogTitle>{title}</DialogTitle>
+      </div>
+      <DialogDescription>{description}</DialogDescription>
+    </DialogHeader>
+  )
 }
 
 function EditProviderDialog({
@@ -81,7 +87,10 @@ function EditProviderDialog({
     <Dialog open={provider !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{m.ai_provider_edit_title()}</DialogTitle>
+          <div className="flex items-center gap-3">
+            {provider ? <LogoTile logo={providerLogo(provider)} /> : null}
+            <DialogTitle>{m.ai_provider_edit_title()}</DialogTitle>
+          </div>
           <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
         </DialogHeader>
         {provider ? (
@@ -196,19 +205,20 @@ type CellProps = CellContext<typeof settingsTableFeatures, Provider>
 
 function NameCell({ row }: CellProps) {
   const provider = row.original
-  const Icon = KIND_INFO[provider.kind].icon
-  const details = [provider.key_hint, provider.base_url].filter(Boolean)
+  const info = KIND_INFO[provider.kind]
+  // An endpoint is told apart by its protocol and host, a service's own API by its key.
+  const details = info.needsBaseUrl
+    ? [info.name(), provider.base_url ? hostOf(provider.base_url) : null]
+    : [m.ai_provider_official(), provider.key_hint]
   return (
     // A switched-off provider is dimmed so the ones in use stand out.
     <div className={cn('flex min-w-0 items-center gap-3', !provider.enabled && 'opacity-60')}>
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
-        <Icon aria-hidden className="size-4 text-muted-foreground" />
-      </span>
+      <LogoTile logo={providerLogo(provider)} />
       <div className="min-w-0">
         <div className="truncate font-medium">{provider.display_name}</div>
-        {details.length ? (
-          <div className="truncate text-xs text-muted-foreground">{details.join(' · ')}</div>
-        ) : null}
+        <div className="truncate text-xs text-muted-foreground">
+          {details.filter(Boolean).join(' · ')}
+        </div>
       </div>
     </div>
   )
@@ -217,24 +227,25 @@ function NameCell({ row }: CellProps) {
 function StatusCell({ row }: CellProps) {
   const { testingId } = useRowHandlers()
   const provider = row.original
-  // Two lines in every state (the badge, or a spinner while testing, over the last check), so
-  // testing a connection never changes the row's height.
+  // One line: the badge (a spinner while testing), then how long ago it was last checked.
   return (
-    <div className="flex flex-col items-start gap-0.5">
-      <div className="flex h-5 items-center">
-        {testingId === provider.id ? (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Spinner aria-hidden className="size-3.5" />
-            {m.ai_provider_checking()}
-          </span>
-        ) : (
-          <StatusBadge provider={provider} />
-        )}
-      </div>
-      {provider.last_checked_at ? (
-        <span className="text-xs text-muted-foreground">
-          {m.ai_provider_checked_at({ time: formatDateTime(provider.last_checked_at) })}
+    <div className="flex h-5 items-center gap-2">
+      {testingId === provider.id ? (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner aria-hidden className="size-3.5" />
+          {m.ai_provider_checking()}
         </span>
+      ) : (
+        <StatusBadge provider={provider} />
+      )}
+      {provider.last_checked_at && testingId !== provider.id ? (
+        <time
+          dateTime={provider.last_checked_at}
+          title={formatDateTime(provider.last_checked_at)}
+          className="text-xs text-muted-foreground"
+        >
+          {formatTimeAgo(provider.last_checked_at)}
+        </time>
       ) : null}
     </div>
   )
@@ -273,15 +284,6 @@ const columns = column.columns([
     header: () => m.ai_provider_name(),
     cell: NameCell,
   }),
-  column.accessor((p) => p.kind, {
-    id: 'kind',
-    header: () => m.ai_provider_type(),
-    cell: ({ row }) => (
-      <span className={cn('text-muted-foreground', !row.original.enabled && 'opacity-60')}>
-        {KIND_INFO[row.original.kind].name()}
-      </span>
-    ),
-  }),
   column.display({ id: 'status', header: () => m.ai_provider_status(), cell: StatusCell }),
   column.display({
     id: 'actions',
@@ -292,19 +294,24 @@ const columns = column.columns([
 
 const COLUMN_CLASS: Record<string, string> = {
   name: 'w-full max-w-0',
-  kind: 'hidden whitespace-nowrap sm:table-cell',
   status: 'whitespace-nowrap',
   actions: 'w-10',
 }
 
 /**
- * Account settings → AI → providers (M06 §7): the user's keys as a table of name, type and
- * state; edit, test, switch off and delete sit in each row's "⋯" menu.
+ * Account settings → AI → providers (M06 §7): the user's keys as a table of service and state;
+ * edit, test, switch off and delete sit in each row's "⋯" menu.
  */
 export function ProvidersSection() {
   const queryClient = useQueryClient()
   const providers = useQuery(aiProviderListOptions())
   const [adding, setAdding] = useState(false)
+  // A new key on every open, so the flow starts again at the service picker.
+  const [addKey, setAddKey] = useState(0)
+  const startAdding = () => {
+    setAddKey((k) => k + 1)
+    setAdding(true)
+  }
   const [editing, setEditing] = useState<Provider | null>(null)
   // The last provider asked about stays set so the dialog keeps its text while it closes.
   const [deleting, setDeleting] = useState<Provider | null>(null)
@@ -362,7 +369,7 @@ export function ProvidersSection() {
               <EmptyDescription>{m.ai_providers_empty_description()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" onClick={() => setAdding(true)}>
+              <Button size="sm" onClick={startAdding}>
                 <Plus aria-hidden />
                 {m.ai_provider_add()}
               </Button>
@@ -379,7 +386,7 @@ export function ProvidersSection() {
               getRowId={(provider) => provider.id}
               columnClassName={COLUMN_CLASS}
               footer={
-                <ActionRow icon={Plus} onClick={() => setAdding(true)}>
+                <ActionRow icon={Plus} onClick={startAdding}>
                   {m.ai_provider_add()}
                 </ActionRow>
               }
@@ -389,11 +396,7 @@ export function ProvidersSection() {
       </AsyncBoundary>
       <Dialog open={adding} onOpenChange={setAdding}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{m.ai_provider_add()}</DialogTitle>
-            <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
-          </DialogHeader>
-          <ProviderForm onSaved={() => setAdding(false)} />
+          <AddProviderFlow key={addKey} onSaved={() => setAdding(false)} Header={AddDialogHeader} />
         </DialogContent>
       </Dialog>
       <EditProviderDialog provider={editing} onClose={() => setEditing(null)} />

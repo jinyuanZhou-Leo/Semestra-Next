@@ -1,5 +1,4 @@
 import type { Provider } from '@semestra/api-client'
-import { Bot, Gem, type LucideIcon, Plug, PlugZap, Server, Sparkle, Waypoints } from 'lucide-react'
 import type { Message } from '@/app/extensions'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
@@ -28,7 +27,6 @@ export const CAPABILITIES: readonly Capability[] = [
 type KindInfo = {
   name: Message
   hint: Message
-  icon: LucideIcon
   needsKey: boolean
   needsBaseUrl: boolean
   /** The user picks the capabilities (endpoints and local models differ). */
@@ -41,7 +39,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   anthropic: {
     name: m.ai_kind_anthropic,
     hint: m.ai_kind_anthropic_hint,
-    icon: Sparkle,
     needsKey: true,
     needsBaseUrl: false,
     chooseCapabilities: false,
@@ -50,7 +47,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   openai: {
     name: m.ai_kind_openai,
     hint: m.ai_kind_openai_hint,
-    icon: Bot,
     needsKey: true,
     needsBaseUrl: false,
     chooseCapabilities: false,
@@ -59,7 +55,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   gemini: {
     name: m.ai_kind_gemini,
     hint: m.ai_kind_gemini_hint,
-    icon: Gem,
     needsKey: true,
     needsBaseUrl: false,
     chooseCapabilities: false,
@@ -68,7 +63,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   openai_compatible: {
     name: m.ai_kind_openai_compatible,
     hint: m.ai_kind_openai_compatible_hint,
-    icon: Plug,
     needsKey: false,
     needsBaseUrl: true,
     chooseCapabilities: true,
@@ -78,7 +72,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   openai_responses: {
     name: m.ai_kind_openai_responses,
     hint: m.ai_kind_openai_responses_hint,
-    icon: Waypoints,
     needsKey: false,
     needsBaseUrl: true,
     chooseCapabilities: true,
@@ -88,7 +81,6 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   anthropic_compatible: {
     name: m.ai_kind_anthropic_compatible,
     hint: m.ai_kind_anthropic_compatible_hint,
-    icon: PlugZap,
     needsKey: false,
     needsBaseUrl: true,
     chooseCapabilities: true,
@@ -98,13 +90,19 @@ export const KIND_INFO: Record<ProviderKind, KindInfo> = {
   ollama: {
     name: m.ai_kind_ollama,
     hint: m.ai_kind_ollama_hint,
-    icon: Server,
     needsKey: false,
     needsBaseUrl: true,
     chooseCapabilities: true,
     defaultCapabilities: ['chat', 'tools', 'structured', 'embedding'],
     baseUrlPlaceholder: 'http://localhost:11434',
   },
+}
+
+/** Short badge words for the errors that say something about the provider itself (M06 §8). */
+export const PROVIDER_ERROR_LABEL: Record<string, Message> = {
+  'ai.invalid_key': m.ai_provider_status_invalid_key,
+  'ai.out_of_credit': m.ai_provider_status_out_of_credit,
+  'ai.provider_unreachable': m.ai_provider_status_unreachable,
 }
 
 export const PURPOSE_TITLES: Record<AiPurpose, Message> = {

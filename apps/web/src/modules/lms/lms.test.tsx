@@ -108,12 +108,16 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
   const dialog = await screen.findByRole('dialog')
-  // The platform comes first, even with only one (M09 §7.1).
-  await userEvent.click(await within(dialog).findByRole('button', { name: /^Canvas/ }))
-  expect(within(dialog).getByText('Add Canvas connection')).toBeInTheDocument()
+  // With one platform there is nothing to pick: the dialog opens on its form (M09 §7.1).
+  expect(await within(dialog).findByText('Add Canvas connection')).toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: 'Back' })).toBeNull()
   const save = within(dialog).getByRole('button', { name: 'Check and save' })
   expect(save).toBeDisabled()
   await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
+  // The steps to make a token stay in view; the first links to the school's settings.
+  expect(
+    within(dialog).getByRole('link', { name: 'In Canvas, open Account → Settings' }),
+  ).toHaveAttribute('href', 'https://q.utoronto.ca/profile/settings')
   await userEvent.type(within(dialog).getByLabelText('API token'), 'wrong-token')
   await userEvent.click(save)
   expect(await within(dialog).findByText("The API token isn't valid")).toBeInTheDocument()
@@ -129,11 +133,11 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
     credentials: { access_token: '7~abcdefghxy' },
   })
   expect(await screen.findByText('U of T Quercus')).toBeInTheDocument()
-  expect(screen.getByText(/7~ab…xy/)).toBeInTheDocument()
+  expect(screen.getByText(/Canvas · q\.utoronto\.ca/)).toBeInTheDocument()
   expect(screen.queryByText(/abcdefgh/)).toBeNull()
 })
 
-test('the platform list shows what the server offers and the frontend has a form for', async () => {
+test('platforms the frontend has no form for are not offered', async () => {
   server.use(
     http.get(`${API}/lms/providers`, () =>
       HttpResponse.json({
@@ -148,11 +152,9 @@ test('the platform list shows what the server offers and the frontend has a form
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
   const dialog = await screen.findByRole('dialog')
-  const canvas = await within(dialog).findByRole('button', { name: /^Canvas/ })
-  expect(within(dialog).queryByRole('button', { name: /Moodle/ })).toBeNull()
-  await userEvent.click(canvas)
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Back' }))
-  expect(within(dialog).getByRole('button', { name: /^Canvas/ })).toBeInTheDocument()
+  // Moodle has no form here, so Canvas is the only platform and its form opens directly.
+  expect(await within(dialog).findByText('Add Canvas connection')).toBeInTheDocument()
+  expect(within(dialog).queryByText(/Moodle/)).toBeNull()
 })
 
 test('without an offered platform the first step says so instead of staying blank', async () => {
@@ -174,8 +176,10 @@ test('a failed check that keeps the connection usable still shows on its row', a
     ),
   )
   renderWithRouter(<ConnectionsSection />)
+  // A short badge, like the AI providers'; the sentence is on hover.
+  await userEvent.hover(await screen.findByText('Unreachable'))
   expect(await screen.findByText("The platform can't be reached right now")).toBeInTheDocument()
-  expect(screen.queryByText('Connected')).not.toBeInTheDocument()
+  expect(screen.queryByText('Working')).not.toBeInTheDocument()
 })
 
 test('deleting a connection in use says what it unlinks and detaches everything', async () => {
