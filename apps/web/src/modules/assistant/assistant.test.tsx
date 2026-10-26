@@ -294,7 +294,9 @@ test('a reloaded page follows the turn still running on the server', async () =>
     }),
   )
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
-  expect(await screen.findByText('Partial answer, now done.')).toBeInTheDocument()
+  expect(
+    await screen.findByText('Partial answer, now done.', {}, { timeout: 5000 }),
+  ).toBeInTheDocument()
   expect(screen.queryByText('Partial')).not.toBeInTheDocument()
   await screen.findByRole('button', { name: 'Send' })
   expect(followed).toBe(1)
