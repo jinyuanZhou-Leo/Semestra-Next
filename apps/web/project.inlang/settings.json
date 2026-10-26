@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/project-settings",
   "baseLocale": "en",
   "locales": ["en", "zh-CN"],
-  "modules": ["https://cdn.jsdelivr.net/npm/@inlang/plugin-message-format@4.5.4/dist/index.js"],
+  "modules": ["/tmp/claude-0/-home-user-Semestra-Next/3354ac1f-57a1-589b-b954-99cc71285397/scratchpad/inlang/package/dist/index.js"],
   "plugin.inlang.messageFormat": {
     "pathPattern": "./messages/{locale}.json"
   }

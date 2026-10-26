@@ -262,7 +262,10 @@
   scroll-behavior: auto !important;
 }
 
-/* A language or clock change re-mounts the app (app/locale.tsx): nothing plays its entrance again. */
+/*
+ * A language or clock change re-mounts the app (app/locale.tsx): nothing plays its entrance again.
+ * Only safe while `STILL_MS` there outlasts every finite entrance animation (see its comment).
+ */
 [data-remounting] *,
 [data-remounting] *::before,
 [data-remounting] *::after {

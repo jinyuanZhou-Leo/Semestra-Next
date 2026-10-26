@@ -31,21 +31,43 @@ function applyLocale(locale: AppLocale | null): AppLocale {
   return getLocale()
 }
 
-/** Longer than any entrance animation, so none of them plays again once motion is back. */
-const STILL_MS = 500
-let stillTimer: ReturnType<typeof setTimeout> | undefined
+/**
+ * How long animations stay instant once the re-mount has committed. A suppressed animation is
+ * not gone: when motion comes back it continues from its original start, so this must outlast the
+ * longest finite entrance animation (AiAction's success, 440 ms) or that one replays from midway.
+ * Raise it when adding a longer one.
+ */
+const STILL_MS = 700
+/** Drops the attribute even if no re-mount follows, so motion never stays off. */
+const STILL_FALLBACK_MS = 3000
+let fallbackTimer: ReturnType<typeof setTimeout> | undefined
 
 /**
  * The re-mount in `LocaleProvider` mounts everything on screen again, which would replay entrance
  * animations: an open settings dialog would close and zoom in again. `data-remounting` on `<html>`
- * makes animations and transitions finish at once for a moment (theme.css), so the new tree simply
- * replaces the old one.
+ * makes animations and transitions finish at once (theme.css) until `STILL_MS` after the re-mount
+ * has committed, so the new tree simply replaces the old one.
  */
 function holdStill() {
   const root = document.documentElement
   root.setAttribute('data-remounting', '')
-  clearTimeout(stillTimer)
-  stillTimer = setTimeout(() => root.removeAttribute('data-remounting'), STILL_MS)
+  clearTimeout(fallbackTimer)
+  fallbackTimer = setTimeout(() => root.removeAttribute('data-remounting'), STILL_FALLBACK_MS)
+}
+
+/**
+ * Mounted again with the tree it sits in: restores motion `STILL_MS` after the re-mount has
+ * committed. Counted from the commit, not the click, since rendering the whole app again takes a
+ * while.
+ */
+function MotionBack() {
+  useEffect(() => {
+    const root = document.documentElement
+    if (!root.hasAttribute('data-remounting')) return
+    const timer = setTimeout(() => root.removeAttribute('data-remounting'), STILL_MS)
+    return () => clearTimeout(timer)
+  }, [])
+  return null
 }
 
 export function wasLocaleChosenSignedOut(): boolean {
@@ -99,7 +121,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   return (
     <LocaleContext value={value}>
-      <Fragment key={`${locale}:${formatVersion}`}>{children}</Fragment>
+      <Fragment key={`${locale}:${formatVersion}`}>
+        <MotionBack />
+        {children}
+      </Fragment>
     </LocaleContext>
   )
 }
