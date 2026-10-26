@@ -61,6 +61,12 @@ export type ViewItem =
       /** How long the model worked before answering; null for answers stored without it. */
       thinkingMs: number | null
     }
+  | {
+      /** Where the turns above were compacted: what the model sees of them is the summary. */
+      kind: 'compacted'
+      id: string
+      summary: string
+    }
 
 type AssistantItem = Extract<ViewItem, { kind: 'assistant' }>
 
@@ -182,17 +188,31 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
       ),
     )
   }
-  for (const message of detail.messages) {
+  // The divider goes before the first message of the user's the summary does not cover.
+  const compaction = detail.compaction ?? null
+  let summarized = compaction ? detail.messages.findIndex((m) => m.id === compaction.until) : -1
+  const divide = () => {
+    if (!compaction || summarized < 0) return
+    summarized = -1
+    items.push({
+      kind: 'compacted',
+      id: `compacted-${compaction.until}`,
+      summary: compaction.summary,
+    })
+  }
+  detail.messages.forEach((message, index) => {
     if (message.role === 'user') {
       const content = message.content
-      if (content.every((b) => b.type === 'note')) continue
+      if (content.every((b) => b.type === 'note')) return
       closeTurn()
+      if (summarized >= 0 && index > summarized) divide()
       items.push(reuse(message, [message], () => userItem(message)))
     } else if (message.role === 'assistant') {
       turn.push(message)
     }
-  }
+  })
   closeTurn()
+  divide()
   return items
 }
 

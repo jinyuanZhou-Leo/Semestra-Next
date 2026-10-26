@@ -126,6 +126,7 @@ function eventHandler(
   id: string,
   restart: boolean,
   setError: (error: ChatError) => void,
+  onCompaction: (status: 'running' | 'done' | 'skipped') => void,
 ) {
   const batch = batcher((events) =>
     queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
@@ -143,6 +144,10 @@ function eventHandler(
   const onEvent = (event: AgentEvent) => {
     if (event.event === 'error') {
       setError(event.data)
+      return
+    }
+    if (event.event === 'compaction') {
+      onCompaction(event.data.status)
       return
     }
     batch.push(event)
@@ -193,6 +198,10 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ChatError | null>(null)
+  // Older turns are being compacted (a turn's own, or one the user asked for).
+  const [compacting, setCompacting] = useState(false)
+  const skipped = useRef(false)
+  const stopped = useRef(false)
   const controller = useRef<AbortController | null>(null)
   // The conversation this hook creates on the first upload or send: one request at a time,
   // and the key makes the server return the same conversation if two get through anyway.
@@ -211,7 +220,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     setError(null)
     const abort = new AbortController()
     controller.current = abort
-    const { onEvent, flush } = eventHandler(queryClient, id, false, setError)
+    const { onEvent, flush } = eventHandler(queryClient, id, false, setError, onCompaction)
     streaming.add(id)
     const result = await streamTurn(
       (handle, onId) => streamAgent(path, body, handle, onId, abort.signal),
@@ -228,8 +237,14 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       current ? { ...current, generating: false } : current,
     )
     setBusy(false)
+    setCompacting(false)
     await settle(queryClient, id)
     return result.started
+  }
+
+  function onCompaction(status: 'running' | 'done' | 'skipped') {
+    setCompacting(status === 'running')
+    if (status === 'skipped') skipped.current = true
   }
 
   // A turn this page did not start (another tab, or one running before a reload): follow it.
@@ -239,10 +254,13 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     const abort = new AbortController()
     streaming.add(sessionId)
     const follow = (attempt: number, round = 1): Promise<void> => {
-      const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError)
+      const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError, (status) =>
+        setCompacting(status === 'running'),
+      )
       return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
         async () => {
           flush()
+          setCompacting(false)
           if (abort.signal.aborted) return
           await settle(queryClient, sessionId)
           // Another turn began as this one ended (a card decided in another tab): follow it
@@ -399,8 +417,24 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:edit`, { text })
   }
 
+  /**
+   * Summarizes the turns before the last message now, keeping `focus` in particular. `skipped`:
+   * there was nothing to compact yet.
+   */
+  async function compact(focus: string): Promise<'done' | 'skipped' | 'stopped' | 'failed'> {
+    if (!sessionId) return 'failed'
+    skipped.current = false
+    stopped.current = false
+    setCompacting(true)
+    const started = await run(sessionId, `/agent/sessions/${sessionId}:compact`, { focus })
+    if (!started) return 'failed'
+    if (stopped.current) return 'stopped'
+    return skipped.current ? 'skipped' : 'done'
+  }
+
   async function stop() {
     if (!sessionId) return
+    stopped.current = true
     try {
       await agentSessionStop({ path: { id: sessionId }, throwOnError: true })
     } catch {
@@ -416,6 +450,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     loadError: detail.error,
     busy,
     generating,
+    compacting,
     error,
     clearError: () => setError(null),
     ensureSession,
@@ -424,6 +459,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     regenerate,
     resume,
     edit,
+    compact,
     stop,
   }
 }

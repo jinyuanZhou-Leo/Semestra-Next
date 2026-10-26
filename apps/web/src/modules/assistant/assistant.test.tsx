@@ -805,6 +805,61 @@ test('an answer that paused at the step limit can be continued', async () => {
   expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument()
 })
 
+function compactable() {
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Plan my MAT137 review' }]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Planned three weeks.' }]),
+    msg('u2', 'user', [{ type: 'text', text: 'Move Wednesday' }]),
+    msg('a2', 'assistant', [{ type: 'text', text: 'Moved it to Thursday.' }]),
+  ]
+  srv.detail.context = { used: 90_000, window: 128_000 }
+  const sent: unknown[] = []
+  server.use(
+    http.post(`${API}/agent/sessions/s1\\:compact`, async ({ request }) => {
+      sent.push(await request.json())
+      srv.detail.compaction = { until: 'a1', summary: 'Three review weeks are planned.' }
+      return sse([
+        ['compaction', { status: 'running' }],
+        ['compaction', { status: 'done', until: 'a1' }],
+      ])
+    }),
+  )
+  return sent
+}
+
+test('/compact keeps what the user names, and the summary shows under a divider', async () => {
+  const sent = compactable()
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const input = await messageInput()
+  await userEvent.type(input, '/comp')
+  await userEvent.click(await screen.findByRole('option', { name: /Compact conversation/ }))
+  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  await userEvent.type(input, 'the study times{Enter}')
+  await waitFor(() => expect(sent).toEqual([{ focus: 'the study times' }]))
+  const divider = await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  // Between the turns it covers and the ones kept as they are.
+  const texts = ['Planned three weeks.', 'Earlier turns compacted', 'Move Wednesday']
+  const order = texts.map((t) => screen.getByText(t))
+  for (let i = 1; i < order.length; i++) {
+    const prev = order[i - 1] as Node
+    expect(
+      prev.compareDocumentPosition(order[i] as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  }
+  await userEvent.click(divider)
+  expect(await screen.findByText('Three review weeks are planned.')).toBeVisible()
+})
+
+test('the context ring shows how full the conversation is and compacts from there', async () => {
+  const sent = compactable()
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Context 70% used' }))
+  expect(await screen.findByText('About 90K / 128K tokens')).toBeInTheDocument()
+  await userEvent.type(screen.getByLabelText('What to keep (optional)'), 'deadlines')
+  await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
+  await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
+})
+
 test('the editor closes as soon as the edit is sent, while the answer streams', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [{ type: 'text', text: 'What is due?' }]),

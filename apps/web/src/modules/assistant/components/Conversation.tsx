@@ -8,9 +8,11 @@ import {
 } from '@semestra/api-client'
 import { agentSessionGetQueryKey, settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Brain,
   Check,
+  ChevronDown,
   Copy,
   FileText,
   FileUp,
@@ -18,6 +20,7 @@ import {
   MessageCircle,
   MessageCircleDashed,
   MessageSquareText,
+  Minimize2,
   Pencil,
   Play,
   RotateCcw,
@@ -39,6 +42,7 @@ import {
   AttachmentTitle,
 } from '@/ui/attachment'
 import { Badge } from '@/ui/badge'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import { Bubble, BubbleContent } from '@/ui/bubble'
 import { Button } from '@/ui/button'
 import {
@@ -61,6 +65,7 @@ import {
   useMessageScroller,
 } from '@/ui/message-scroller'
 import { Label } from '@/ui/label'
+import { Separator } from '@/ui/separator'
 import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
@@ -420,6 +425,53 @@ function ThinkingPlaceholder() {
   )
 }
 
+function CompactingNotice() {
+  return (
+    <Trace aria-live="polite">
+      <TraceLine status="running">
+        <TraceIcon>
+          <Minimize2 />
+        </TraceIcon>
+        <TraceTitle>{m.assistant_compacting()}</TraceTitle>
+      </TraceLine>
+    </Trace>
+  )
+}
+
+/** Where earlier turns were compacted; opened, what Sem keeps of them (M12 §3.4). */
+function CompactedDivider({ summary }: { summary: string }) {
+  return (
+    <Collapsible className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <Separator className="flex-1" />
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="xs"
+              className="group/trigger text-muted-foreground data-[panel-open]:text-foreground"
+            />
+          }
+        >
+          <Minimize2 aria-hidden />
+          {m.assistant_compacted()}
+          <ChevronDown
+            aria-hidden
+            className="transition-transform group-data-[panel-open]/trigger:rotate-180"
+          />
+        </CollapsibleTrigger>
+        <Separator className="flex-1" />
+      </div>
+      <CollapsibleContent className="rounded-2xl bg-muted/60 px-4 py-3 text-sm">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
+          {m.assistant_compacted_summary()}
+        </p>
+        <p className="whitespace-pre-wrap">{summary}</p>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 /**
  * One conversation with the assistant: the transcript, confirmation cards and the input.
  * Shared by the side panel and the full page. `sessionId` null is a new conversation, created
@@ -496,6 +548,15 @@ export function Conversation({
   )
   const regenerateId = detail && !chat.generating ? (detail.regenerable ?? null) : null
   const paused = detail && !chat.generating ? pausedReason(detail) : null
+  // The last message is always kept: compacting needs a turn before it.
+  const canCompact = items.filter((item) => item.kind === 'user').length > 1
+
+  async function compact(focus: string): Promise<boolean> {
+    setSent((n) => n + 1)
+    const result = await chat.compact(focus)
+    if (result === 'skipped') toast(m.assistant_compact_nothing())
+    return result !== 'failed'
+  }
 
   const questionKey = question?.key
   useEffect(() => {
@@ -683,7 +744,9 @@ export function Conversation({
                 <Suspense fallback={<ConversationSkeleton />}>
                   {items.map((item) => (
                     <MessageScrollerItem key={item.id} messageId={item.id}>
-                      {item.kind === 'user' ? (
+                      {item.kind === 'compacted' ? (
+                        <CompactedDivider summary={item.summary} />
+                      ) : item.kind === 'user' ? (
                         <UserMessage
                           item={item}
                           scope={scope}
@@ -741,7 +804,11 @@ export function Conversation({
                   ))}
                 </Suspense>
               )}
-              {chat.generating && items.at(-1)?.kind === 'user' ? <ThinkingPlaceholder /> : null}
+              {chat.compacting ? (
+                <CompactingNotice />
+              ) : chat.generating && items.at(-1)?.kind === 'user' ? (
+                <ThinkingPlaceholder />
+              ) : null}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
@@ -819,6 +886,9 @@ export function Conversation({
           focusInput={focusInput}
           initialText={initialText}
           onTextChange={onTextChange}
+          context={sessionId ? (detail?.context ?? null) : null}
+          canCompact={canCompact}
+          onCompact={compact}
         />
       </div>
     </section>
