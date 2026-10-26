@@ -294,8 +294,6 @@ test('a reloaded page follows the turn still running on the server', async () =>
     }),
   )
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
-  // The first answer this file renders waits for Streamdown to load its plugins, which takes
-  // longer than the default second when the test files run in parallel.
   expect(
     await screen.findByText('Partial answer, now done.', {}, { timeout: 5000 }),
   ).toBeInTheDocument()
