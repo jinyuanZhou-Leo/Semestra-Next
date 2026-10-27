@@ -197,7 +197,9 @@ export function ApprovalsSection() {
     if (next === 'module') return setByModule(true)
     if (next === 'auto') return setConfirming(true)
     setByModule(false)
-    setTools(writes, false)
+    // Clears the whole list, including actions of plugins that are not installed right now, so
+    // reinstalling one does not bring back its auto-approvals.
+    update({ auto_approve: [] })
   }
   const rows: ModuleRow[] = groups.map((group) => ({
     ...group,

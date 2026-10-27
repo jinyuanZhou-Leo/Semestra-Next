@@ -1177,7 +1177,7 @@ test('Sem changes ask every time, by module or all auto-approved', async () => {
       auto_approve: ['grading.assessment.update', 'layouts.card.add'],
     }),
   )
-  expect(await within(table).findByText('Auto-approved: 1 of 2')).toBeInTheDocument()
+  expect(await within(table).findByText('1 of 2 auto-approved')).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
 
   // Auto-approving everything asks first; cancelling changes nothing.
