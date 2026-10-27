@@ -1,5 +1,5 @@
 import { CalendarIcon } from 'lucide-react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
 import { calendarLocale } from '@/lib/calendar'
 import { formatDate } from '@/lib/format'
@@ -83,6 +83,9 @@ export function DateRangeField({
   className?: string
 }) {
   const generated = useId()
+  // The first click of a new range lives here until the second one; only whole ranges reach
+  // `onChange`, so autosaving callers never store a half-picked range.
+  const [pending, setPending] = useState<DateRange | null>(null)
   const buttonId = id ?? generated
   const from = parseIsoDate(start)
   const to = parseIsoDate(end)
@@ -100,7 +103,11 @@ export function DateRangeField({
     ...(maxDate ? [{ after: maxDate }] : []),
   ]
   return (
-    <Popover>
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) setPending(null)
+      }}
+    >
       <PopoverTrigger
         render={
           <Button
@@ -135,16 +142,18 @@ export function DateRangeField({
           mode="range"
           numberOfMonths={2}
           defaultMonth={from ?? minDate}
-          selected={from ? ({ from, to } satisfies DateRange) : undefined}
+          resetOnSelect
+          required
+          selected={pending ?? { from, to }}
           disabled={disabled.length > 0 ? disabled : undefined}
           modifiers={struck.length > 0 ? { holiday: struck } : undefined}
           modifiersClassNames={{ holiday: 'text-muted-foreground line-through' }}
-          onSelect={(range) =>
-            onChange(
-              range?.from ? toIsoDate(range.from) : '',
-              range?.to ? toIsoDate(range.to) : range?.from ? toIsoDate(range.from) : '',
-            )
-          }
+          onSelect={(range) => {
+            if (range?.from && range.to) {
+              setPending(null)
+              onChange(toIsoDate(range.from), toIsoDate(range.to))
+            } else setPending(range)
+          }}
         />
       </PopoverContent>
     </Popover>

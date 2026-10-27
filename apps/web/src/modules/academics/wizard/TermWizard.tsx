@@ -59,7 +59,24 @@ function basicsProblems(draft: WizardDraft) {
   return {
     name: draft.name.trim() ? null : m.academics_required(),
     dates: draft.start && draft.end ? null : m.academics_required(),
+    breaks: breaksProblem(draft),
   }
+}
+
+/** The checks `academics.term.create` makes on breaks, shown before the last step. */
+function breaksProblem(draft: WizardDraft): string | null {
+  const breaks = completeBreaks(draft.breaks).toSorted((a, b) =>
+    a.start_date.localeCompare(b.start_date),
+  )
+  if (draft.start && draft.end) {
+    const outside = breaks.some((b) => b.start_date < draft.start || b.end_date > draft.end)
+    if (outside) return m.error_academics_break_out_of_range()
+  }
+  const overlaps = breaks.some((b, i) => {
+    const prev = breaks[i - 1]
+    return prev !== undefined && b.start_date <= prev.end_date
+  })
+  return overlaps ? m.error_academics_breaks_overlap() : null
 }
 
 /**
@@ -174,7 +191,7 @@ export function TermWizard({
 
   const next = () => {
     setTouched(true)
-    if (problems.name || problems.dates) return
+    if (problems.name || problems.dates || problems.breaks) return
     setTouched(false)
     patch({ step: 1 })
   }
@@ -340,6 +357,7 @@ export function TermWizard({
               min={draft.start || undefined}
               max={draft.end || undefined}
             />
+            {problems.breaks ? <FieldError>{problems.breaks}</FieldError> : null}
           </SettingsBlock>
           <SettingsGroup>
             <SettingRow
