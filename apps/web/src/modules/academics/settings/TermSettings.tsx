@@ -4,22 +4,23 @@ import {
   academicsTermUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDownIcon } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { DangerZone, SettingRow, SettingsGroup, TextRow, useAutosave } from '@/app/settings'
+import {
+  DangerZone,
+  SettingRow,
+  SettingsBlock,
+  SettingsGroup,
+  TextRow,
+  useAutosave,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
-import { formatDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Calendar } from '@/ui/calendar'
-import { FieldError } from '@/ui/field'
-import { Item, ItemContent, ItemTitle } from '@/ui/item'
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Switch } from '@/ui/switch'
-import { BreaksEditor, completeBreaks } from '../components/BreaksEditor'
+import { BreaksTable, completeBreaks } from '../components/BreaksTable'
+import { DateRangeField } from '../components/DateRangeField'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { invalidateAcademics } from '../queries'
 
@@ -48,8 +49,6 @@ function TermBasics({ term }: { term: Term }) {
   const [end, setEnd] = useState(term.end_date)
   const [breaks, setBreaks] = useState<BreakIn[]>(term.breaks)
   const [countBreakWeeks, setCountBreakWeeks] = useState(term.count_break_weeks)
-  const id = useId()
-  const rangeInvalid = Boolean(start && end && end < start)
   return (
     <>
       <SettingsGroup>
@@ -59,34 +58,25 @@ function TermBasics({ term }: { term: Term }) {
           required
           onChange={(name) => queue({ name })}
         />
-        <SettingRow label={m.academics_term_start()} htmlFor={`${id}-start`}>
-          <IsoDateField
-            id={`${id}-start`}
-            className="w-44"
-            value={start}
-            onChange={(value) => {
-              setStart(value)
-              if (!(end && end < value)) queue({ start_date: value, end_date: end })
-            }}
-          />
-        </SettingRow>
-        <SettingRow label={m.academics_term_end()} htmlFor={`${id}-end`}>
-          <div className="flex flex-col items-end gap-1">
-            <IsoDateField
-              id={`${id}-end`}
-              className="w-44"
-              value={end}
-              invalid={rangeInvalid}
-              describedBy={rangeInvalid ? `${id}-end-error` : undefined}
-              onChange={(value) => {
-                setEnd(value)
-                if (!(start && value < start)) queue({ start_date: start, end_date: value })
+        <SettingRow label={m.academics_term_dates()}>
+          {(labelId) => (
+            <DateRangeField
+              labelledBy={labelId}
+              className="w-80"
+              start={start}
+              end={end}
+              weeks
+              holidays={completeBreaks(breaks).map((b) => ({
+                start: b.start_date,
+                end: b.end_date,
+              }))}
+              onChange={(nextStart, nextEnd) => {
+                setStart(nextStart)
+                setEnd(nextEnd)
+                if (nextStart && nextEnd) queue({ start_date: nextStart, end_date: nextEnd })
               }}
             />
-            <FieldError id={`${id}-end-error`} className="text-xs">
-              {rangeInvalid ? m.error_academics_term_date_range_invalid() : null}
-            </FieldError>
-          </div>
+          )}
         </SettingRow>
         <SettingRow
           label={m.academics_term_count_break_weeks()}
@@ -103,22 +93,19 @@ function TermBasics({ term }: { term: Term }) {
             />
           )}
         </SettingRow>
-        <Item>
-          <ItemContent className="gap-2">
-            <ItemTitle>{m.academics_term_breaks()}</ItemTitle>
-            <BreaksEditor
-              value={breaks}
-              min={start}
-              max={end}
-              onChange={(next) => {
-                setBreaks(next)
-                // Half-filled rows wait until they are complete.
-                if (completeBreaks(next).length === next.length) queue({ breaks: next })
-              }}
-            />
-          </ItemContent>
-        </Item>
       </SettingsGroup>
+      <SettingsBlock title={m.academics_term_breaks()}>
+        <BreaksTable
+          value={breaks}
+          min={start}
+          max={end}
+          onChange={(next) => {
+            setBreaks(next)
+            // Half-filled rows wait until they are complete.
+            if (completeBreaks(next).length === next.length) queue({ breaks: next })
+          }}
+        />
+      </SettingsBlock>
     </>
   )
 }
@@ -146,78 +133,5 @@ function TermDanger({ term }: { term: Term }) {
       </DangerZone>
       <DeleteTermDialog term={term} open={deleting} onOpenChange={setDeleting} />
     </>
-  )
-}
-
-function parseIsoDate(value: string): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return undefined
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(year, month - 1, day)
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return undefined
-  }
-  return date
-}
-
-function toIsoDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
-/** One `yyyy-MM-dd` day, edited with the base-luma date picker. */
-function IsoDateField({
-  id,
-  value,
-  onChange,
-  invalid,
-  describedBy,
-  className,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-  invalid?: boolean
-  describedBy?: string
-  className?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const selected = parseIsoDate(value)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            id={id}
-            aria-invalid={invalid || undefined}
-            aria-describedby={describedBy}
-            data-empty={!selected}
-            className={cn(
-              'justify-between text-left font-normal data-[empty=true]:text-muted-foreground',
-              className,
-            )}
-          />
-        }
-      >
-        {value && selected ? formatDate(value) : <span>{m.academics_date_placeholder()}</span>}
-        <ChevronDownIcon data-icon="inline-end" />
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selected}
-          defaultMonth={selected}
-          onSelect={(next) => {
-            onChange(next ? toIsoDate(next) : '')
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
   )
 }

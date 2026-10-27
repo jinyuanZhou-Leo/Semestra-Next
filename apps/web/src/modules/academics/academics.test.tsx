@@ -368,17 +368,24 @@ function dayButtonName(iso: string): string {
 }
 
 /** Opens the date picker labeled `name` and chooses `iso` (`yyyy-MM-dd`). */
-async function pickDate(name: string, iso: string) {
+/** Opens the range picker `name` and clicks the first and the last day of the range. */
+async function pickDates(name: string, start: string, end: string) {
   await userEvent.click(screen.getByRole('button', { name }))
+  for (const iso of [start, end]) await clickDay(iso)
+}
+
+async function clickDay(iso: string) {
   const [year, month] = iso.split('-').map(Number) as [number, number]
   const target = year * 12 + (month - 1)
+  const label = new RegExp(`^${dayButtonName(iso)}`)
   for (let i = 0; i < 36; i++) {
-    const day = screen.queryByRole('button', { name: dayButtonName(iso) })
+    const day = screen.queryByRole('button', { name: label })
     if (day) {
       await userEvent.click(day)
       return
     }
-    const caption = screen.getByText(new RegExp(`^(${MONTHS.join('|')}) \\d{4}$`))
+    // Two months are shown; the first one decides the direction.
+    const caption = screen.getAllByText(new RegExp(`^(${MONTHS.join('|')}) \\d{4}$`))[0]!
     const [monthName, yearText] = caption.textContent!.split(' ')
     const shown = Number(yearText) * 12 + MONTHS.indexOf(monthName!)
     await userEvent.click(
@@ -392,9 +399,9 @@ async function pickDate(name: string, iso: string) {
 
 test('the term wizard survives a reload and creates the term in one request', async () => {
   const first = mount('/p/p1/terms/new')
-  await screen.findByRole('button', { name: 'First day' })
-  await pickDate('First day', '2026-09-08')
-  await pickDate('Last day', '2026-12-20')
+  await screen.findByRole('button', { name: 'Dates' })
+  await pickDates('Dates', '2026-09-08', '2026-12-20')
+  await userEvent.keyboard('{Escape}')
   expect(screen.getByLabelText('Name')).toHaveValue('Fall 2026')
   await userEvent.click(screen.getByRole('button', { name: 'Next' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Add course' }))
@@ -404,8 +411,7 @@ test('the term wizard survives a reload and creates the term in one request', as
   // A reload: the same tab, a new app.
   const { router } = mount('/p/p1/terms/new')
   expect(await screen.findByLabelText('Title, row 1')).toHaveValue('Signals')
-  await userEvent.click(screen.getByRole('button', { name: 'Next' }))
-  expect(await screen.findByText('New courses: 1')).toBeInTheDocument()
+  expect(screen.getByText('Fall 2026 · New courses: 1')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Create term' }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/t/t3'))
   expect(world.termCreates).toEqual([
