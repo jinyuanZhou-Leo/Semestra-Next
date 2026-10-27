@@ -16,7 +16,7 @@ import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import { groupByTerm } from './external'
 import { CoursePicker } from './import/CoursePicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
-import { CourseLmsSection } from './settings/CourseLmsSection'
+import { CourseLmsSection, pickerGroups } from './settings/CourseLmsSection'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -223,12 +223,13 @@ test("a program's connection is locked while courses are linked through it", asy
   expect(screen.getByRole('combobox', { name: 'Connection' })).toBeDisabled()
 })
 
-test('course settings: guidance without a binding, then sync switch and unlink', async () => {
+test('course settings: guidance without a binding, then the calendar switch and unlink', async () => {
   const scope = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
   server.use(
     http.get(`${API}/courses/c1/lms-link`, () =>
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
     ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
   )
   const first = renderWithRouter(<CourseLmsSection scope={scope} />)
   expect(await screen.findByText('No LMS connection for this program')).toBeInTheDocument()
@@ -239,6 +240,14 @@ test('course settings: guidance without a binding, then sync switch and unlink',
   server.use(
     http.get(`${API}/courses/c1/lms-link`, () =>
       HttpResponse.json({ course_id: 'c1', link: link(), program_connection_id: 'k1' }),
+    ),
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: connection(),
+        link_count: 1,
+      }),
     ),
     http.patch(`${API}/courses/c1/lms-link`, async ({ request }) => {
       patched(await request.json())
@@ -255,12 +264,33 @@ test('course settings: guidance without a binding, then sync switch and unlink',
     'href',
     'https://q.utoronto.ca/courses/101',
   )
-  await userEvent.click(screen.getByRole('switch', { name: 'Sync' }))
+  await userEvent.click(screen.getByRole('switch', { name: 'Calendar and assignment changes' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ sync_enabled: false }))
-  await userEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+  await userEvent.click(screen.getByRole('button', { name: /^Actions for/ }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Unlink…' }))
   const confirm = await screen.findByRole('alertdialog')
   await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))
   await waitFor(() => expect(deleted).toHaveBeenCalled())
+})
+
+test('the course picker suggests the course with the same code', () => {
+  const groups = pickerGroups(
+    [
+      external({
+        external_id: '1',
+        code: 'APS105H1 F LEC0101',
+        name: 'Computer Fundamentals',
+        term: '2026 Fall',
+      }),
+      external({ external_id: '2', code: 'MAT188H1 F', name: 'Linear Algebra', term: '2026 Fall' }),
+    ],
+    'APS105H1',
+    'c1',
+  )
+  expect(groups.map((g) => [g.label, g.items.map((c) => c.external_id)])).toEqual([
+    ['Suggested', ['1']],
+    ['2026 Fall', ['2']],
+  ])
 })
 
 test('external courses group by term, current terms first', () => {

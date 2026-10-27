@@ -39,7 +39,7 @@ import type { LmsLogo, LmsProviderUi } from '../types'
 import { ConnectionForm } from './ConnectionForm'
 
 /** Short badge words for a connection's last error, like the AI providers' (M09 §7.1). */
-const ERROR_LABEL: Record<string, () => string> = {
+export const ERROR_LABEL: Record<string, () => string> = {
   'lms.invalid_credentials': () => m.lms_status_invalid_credentials(),
   'lms.credentials_missing': () => m.lms_status_credentials_missing(),
   'lms.forbidden': () => m.lms_status_forbidden(),
@@ -74,7 +74,7 @@ export function ConnectionStatus({ connection }: { connection: Connection }) {
 }
 
 /** A platform's mark in the same tile as the AI providers'. */
-function LogoTile({ logo: Logo }: { logo: LmsLogo }) {
+export function LogoTile({ logo: Logo }: { logo: LmsLogo }) {
   return (
     <BrandTile>
       <Logo aria-hidden className="size-4" />
