@@ -15,7 +15,7 @@ export default function ListCard({ scope, settings }: CardProps<ListCardSettings
   }
   const selection = parseSelection(settings.source)
   const tasks = useTasks(taskScope, selection, { sort: 'manual', completed: 'hide' })
-  const actions = useTaskActions()
+  const { actions } = useTaskActions()
   if (!tasks.data) return null
   return (
     <div className="flex h-full flex-col overflow-y-auto">

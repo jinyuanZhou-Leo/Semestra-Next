@@ -340,7 +340,7 @@ export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
   const lists = useTaskLists(programId).data?.items ?? []
   const counts = useTaskCounts({ programId }).data
   const courses = useCourses(programId).data?.items ?? []
-  const actions = useTaskActions()
+  const { actions } = useTaskActions()
   const [coursesOpen, setCoursesOpen] = useUiPref('tasks.sidebar_courses_open', false)
   const onSelect = (next: Selection) => {
     select(next)

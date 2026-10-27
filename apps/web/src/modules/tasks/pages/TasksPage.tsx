@@ -90,7 +90,7 @@ export default function TasksPage({ scope }: PageProps) {
     scope: `${scopeId}.${key}`,
   })
   const settings = useTaskSettings(programId)
-  const actions = useTaskActions()
+  const { actions, pending } = useTaskActions()
   const lists = useTaskLists(programId)
   const counts = useTaskCounts(taskScope)
   const courses = useCourses(programId, termId).data?.items ?? []
@@ -483,7 +483,7 @@ export default function TasksPage({ scope }: PageProps) {
         title={m.tasks_clear_title()}
         description={m.tasks_clear_description({ count: doneTotal })}
         confirmLabel={m.tasks_clear_completed()}
-        pending={actions.pending}
+        pending={pending}
         onConfirm={() => {
           void actions.clearCompleted(programId, clearScope).then(() => setClearing(false))
         }}

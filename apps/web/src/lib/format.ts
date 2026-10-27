@@ -18,7 +18,8 @@ const formatters = new Map<string, Formatter>()
 /**
  * An `Intl` formatter for these options in the interface language (or `locale`), built once:
  * building one costs about 70 times as much as formatting with it, and a table or task list
- * formats hundreds of values per render.
+ * formats hundreds of values per render. One without a `timeZone` keeps the system time zone it
+ * was built in, even if the system's changes while the page is open.
  */
 export function intl<F extends Formatter, O extends object>(
   Kind: new (locale: string, options: O) => F,

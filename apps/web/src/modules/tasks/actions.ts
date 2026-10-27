@@ -46,8 +46,9 @@ function restore(queryClient: QueryClient, snapshot: Snapshot | undefined) {
 }
 
 /**
- * Every change a task view can make, each refreshing the task queries and toasting failures. The
- * functions stay the same while the mutations run, so the rows handed them are not re-rendered.
+ * Every change a task view can make, each refreshing the task queries and toasting failures.
+ * `actions` stays the same object while the mutations run, so the rows handed it are not
+ * re-rendered; `pending` (adding, deleting or clearing in progress) is kept out of it for that.
  */
 export function useTaskActions() {
   const queryClient = useQueryClient()
@@ -132,7 +133,7 @@ export function useTaskActions() {
     deleteList: deleteList.mutateAsync,
     reorderLists: reorderLists.mutateAsync,
   }
-  return {
+  const actions = {
     create: (programId: string, body: TaskCreateInputBody) =>
       run.create({ path: { program_id: programId }, body }),
     update: (taskId: string, body: TaskUpdateInputBody) =>
@@ -154,8 +155,9 @@ export function useTaskActions() {
       run.deleteList({ path: { list_id: listId }, query: { delete_tasks: deleteTasks } }),
     reorderLists: (programId: string, listIds: string[]) =>
       run.reorderLists({ path: { program_id: programId }, body: { list_ids: listIds } }),
-    pending: create.isPending || clear.isPending || deleteList.isPending || remove.isPending,
   }
+  const pending = create.isPending || clear.isPending || deleteList.isPending || remove.isPending
+  return { actions, pending }
 }
 
-export type TaskActions = ReturnType<typeof useTaskActions>
+export type TaskActions = ReturnType<typeof useTaskActions>['actions']
