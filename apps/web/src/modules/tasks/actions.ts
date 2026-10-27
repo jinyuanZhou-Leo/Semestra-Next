@@ -45,7 +45,10 @@ function restore(queryClient: QueryClient, snapshot: Snapshot | undefined) {
   for (const [key, page] of snapshot ?? []) queryClient.setQueryData(key, page)
 }
 
-/** Every change a task view can make, each refreshing the task queries and toasting failures. */
+/**
+ * Every change a task view can make, each refreshing the task queries and toasting failures. The
+ * functions stay the same while the mutations run, so the rows handed them are not re-rendered.
+ */
 export function useTaskActions() {
   const queryClient = useQueryClient()
   const shared = { onError: toastError, onSettled: () => invalidateTasks(queryClient) }
@@ -116,28 +119,41 @@ export function useTaskActions() {
   const updateList = useMutation({ ...tasksListUpdateMutation(), ...shared })
   const deleteList = useMutation({ ...tasksListDeleteMutation(), ...shared })
   const reorderLists = useMutation({ ...tasksListReorderMutation(), ...shared })
+  // `mutateAsync` stays the same function while a mutation runs; the result objects do not.
+  const run = {
+    create: create.mutateAsync,
+    update: update.mutateAsync,
+    complete: complete.mutateAsync,
+    move: move.mutateAsync,
+    remove: remove.mutateAsync,
+    clear: clear.mutateAsync,
+    createList: createList.mutateAsync,
+    updateList: updateList.mutateAsync,
+    deleteList: deleteList.mutateAsync,
+    reorderLists: reorderLists.mutateAsync,
+  }
   return {
     create: (programId: string, body: TaskCreateInputBody) =>
-      create.mutateAsync({ path: { program_id: programId }, body }),
+      run.create({ path: { program_id: programId }, body }),
     update: (taskId: string, body: TaskUpdateInputBody) =>
-      update.mutateAsync({ path: { task_id: taskId }, body }),
+      run.update({ path: { task_id: taskId }, body }),
     complete: (taskId: string, completed: boolean) =>
-      complete.mutateAsync({ path: { task_id: taskId }, body: { completed } }),
+      run.complete({ path: { task_id: taskId }, body: { completed } }),
     move: (taskId: string, body: { list_id?: string | null; before_task_id?: string | null }) =>
-      move.mutateAsync({ path: { task_id: taskId }, body }),
-    remove: (taskId: string) => remove.mutateAsync({ path: { task_id: taskId } }),
+      run.move({ path: { task_id: taskId }, body }),
+    remove: (taskId: string) => run.remove({ path: { task_id: taskId } }),
     clearCompleted: (
       programId: string,
       body: { list_id?: string; term_id?: string; course_id?: string },
-    ) => clear.mutateAsync({ path: { program_id: programId }, body }),
+    ) => run.clear({ path: { program_id: programId }, body }),
     createList: (programId: string, body: { name: string; term_id?: string | null }) =>
-      createList.mutateAsync({ path: { program_id: programId }, body }),
+      run.createList({ path: { program_id: programId }, body }),
     renameList: (listId: string, name: string) =>
-      updateList.mutateAsync({ path: { list_id: listId }, body: { name } }),
+      run.updateList({ path: { list_id: listId }, body: { name } }),
     deleteList: (listId: string, deleteTasks: boolean) =>
-      deleteList.mutateAsync({ path: { list_id: listId }, query: { delete_tasks: deleteTasks } }),
+      run.deleteList({ path: { list_id: listId }, query: { delete_tasks: deleteTasks } }),
     reorderLists: (programId: string, listIds: string[]) =>
-      reorderLists.mutateAsync({ path: { program_id: programId }, body: { list_ids: listIds } }),
+      run.reorderLists({ path: { program_id: programId }, body: { list_ids: listIds } }),
     pending: create.isPending || clear.isPending || deleteList.isPending || remove.isPending,
   }
 }

@@ -7,7 +7,14 @@ import {
   useEffect,
   useState,
 } from 'react'
-import { getLocale, localStorageKey, setLocale } from '@/paraglide/runtime'
+import {
+  type Locale,
+  getLocale,
+  localStorageKey,
+  overwriteGetLocale,
+  overwriteSetLocale,
+  setLocale,
+} from '@/paraglide/runtime'
 
 export type AppLocale = 'en' | 'zh-CN'
 export const APP_LOCALES: readonly AppLocale[] = ['en', 'zh-CN']
@@ -24,10 +31,23 @@ function remember(key: string, value: string | null) {
   }
 }
 
+// Paraglide works the locale out from its strategies (storage, then the browser) on every message
+// call. It only changes through `setLocale` or `applyLocale`, so the answer is kept until then.
+const resolveLocale = getLocale
+const storeLocale = setLocale
+let resolved: Locale | undefined
+overwriteGetLocale(() => (resolved ??= resolveLocale()))
+overwriteSetLocale((locale, options) => {
+  const done = storeLocale(locale, options)
+  resolved = undefined
+  return done
+})
+
 /** Makes Paraglide use `locale`; null forgets the stored choice so the browser language wins. */
 function applyLocale(locale: AppLocale | null): AppLocale {
   if (locale === null) remember(localStorageKey, null)
   else setLocale(locale, { reload: false })
+  resolved = undefined
   return getLocale()
 }
 

@@ -12,6 +12,28 @@ export type FormatPreferences = {
   weekStart: 0 | 1 | 7
 }
 
+type Formatter = Intl.DateTimeFormat | Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.ListFormat
+const formatters = new Map<string, Formatter>()
+
+/**
+ * An `Intl` formatter for these options in the interface language (or `locale`), built once:
+ * building one costs about 70 times as much as formatting with it, and a table or task list
+ * formats hundreds of values per render.
+ */
+export function intl<F extends Formatter, O extends object>(
+  Kind: new (locale: string, options: O) => F,
+  options: NoInfer<O>,
+  locale: string = getLocale(),
+): F {
+  const key = `${Kind.name} ${locale} ${JSON.stringify(options)}`
+  let formatter = formatters.get(key) as F | undefined
+  if (!formatter) {
+    formatter = new Kind(locale, options)
+    formatters.set(key, formatter)
+  }
+  return formatter
+}
+
 let preferences: FormatPreferences = { timeFormat: 'auto', weekStart: 0 }
 
 export function getFormatPreferences(): FormatPreferences {
@@ -43,7 +65,7 @@ export function firstDayFor(weekStart: FormatPreferences['weekStart']): 1 | 7 {
 }
 
 export function formatDateTime(value: string | Date, opts: { hour12?: boolean } = {}): string {
-  return new Intl.DateTimeFormat(getLocale(), {
+  return intl(Intl.DateTimeFormat, {
     dateStyle: 'medium',
     timeStyle: 'short',
     ...hourCycle(opts),
@@ -62,7 +84,7 @@ const AGO_UNITS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
 /** "5 minutes ago", "yesterday", "now": a past moment in its largest whole unit. */
 export function formatTimeAgo(value: string | Date, now: number = Date.now()): string {
   const seconds = Math.max(0, (now - new Date(value).getTime()) / 1000)
-  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' })
+  const rtf = intl(Intl.RelativeTimeFormat, { numeric: 'auto' })
   for (const [unit, size] of AGO_UNITS) {
     if (seconds >= size) return rtf.format(-Math.floor(seconds / size), unit)
   }
@@ -76,7 +98,7 @@ export function formatDaysUntil(value: string | Date, now: number = Date.now()):
   const today = new Date(now)
   today.setHours(0, 0, 0, 0)
   const days = Math.round((day.getTime() - today.getTime()) / 86_400_000)
-  return new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' }).format(days, 'day')
+  return intl(Intl.RelativeTimeFormat, { numeric: 'auto' }).format(days, 'day')
 }
 
 /**
@@ -87,7 +109,7 @@ export function formatDate(value: string | Date, opts: { short?: boolean } = {})
   // `new Date('2026-01-15')` is midnight UTC, which west of Greenwich is still the 14th locally:
   // a date without a time is a calendar day and keeps its own day.
   const calendarDay = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-  return new Intl.DateTimeFormat(getLocale(), {
+  return intl(Intl.DateTimeFormat, {
     ...(opts.short ? { month: 'short', day: 'numeric' } : { dateStyle: 'medium' }),
     ...(calendarDay ? { timeZone: 'UTC' } : {}),
   }).format(new Date(value))
@@ -99,28 +121,26 @@ export function formatTime(value: string | Date, opts: { hour12?: boolean } = {}
     typeof value === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(value)
       ? new Date(`1970-01-01T${value}`)
       : new Date(value)
-  return new Intl.DateTimeFormat(getLocale(), { timeStyle: 'short', ...hourCycle(opts) }).format(
-    date,
-  )
+  return intl(Intl.DateTimeFormat, { timeStyle: 'short', ...hourCycle(opts) }).format(date)
 }
 
 /** `ratio` is a fraction: 0.875 → "87.5%". */
 export function formatPercent(ratio: number, maxFractionDigits = 1): string {
-  return new Intl.NumberFormat(getLocale(), {
+  return intl(Intl.NumberFormat, {
     style: 'percent',
     maximumFractionDigits: maxFractionDigits,
   }).format(ratio)
 }
 
 export function formatGpa(value: number, fractionDigits = 2): string {
-  return new Intl.NumberFormat(getLocale(), {
+  return intl(Intl.NumberFormat, {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   }).format(value)
 }
 
 export function formatCredits(value: number): string {
-  return new Intl.NumberFormat(getLocale(), { maximumFractionDigits: 2 }).format(value)
+  return intl(Intl.NumberFormat, { maximumFractionDigits: 2 }).format(value)
 }
 
 export function formatBytes(bytes: number): string {
@@ -131,7 +151,7 @@ export function formatBytes(bytes: number): string {
     value /= 1024
     unit += 1
   }
-  return new Intl.NumberFormat(getLocale(), {
+  return intl(Intl.NumberFormat, {
     style: 'unit',
     unit: units[unit],
     unitDisplay: 'short',
@@ -141,7 +161,7 @@ export function formatBytes(bytes: number): string {
 
 /** A count; `compact` writes large numbers short ("12K", "1.2万"). */
 export function formatCount(value: number, opts: { compact?: boolean } = {}): string {
-  return new Intl.NumberFormat(getLocale(), {
+  return intl(Intl.NumberFormat, {
     notation: opts.compact ? 'compact' : 'standard',
     maximumFractionDigits: opts.compact ? 1 : 0,
   }).format(value)
@@ -149,7 +169,7 @@ export function formatCount(value: number, opts: { compact?: boolean } = {}): st
 
 /** An amount in US dollars (provider prices); small amounts keep enough digits to be non-zero. */
 export function formatUsd(value: number): string {
-  return new Intl.NumberFormat(getLocale(), {
+  return intl(Intl.NumberFormat, {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,

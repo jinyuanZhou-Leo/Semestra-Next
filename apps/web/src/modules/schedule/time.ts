@@ -1,6 +1,6 @@
 import { TZDate } from '@date-fns/tz'
 import { addDays, format } from 'date-fns'
-import { getLocale } from '@/paraglide/runtime'
+import { intl } from '@/lib/format'
 
 /**
  * Calendar times are shown in the Program's time zone, whatever the browser's is (M04 §2).
@@ -76,7 +76,7 @@ export function todayIn(tz: string): string {
 export function weekdayName(weekday: number, width: 'long' | 'short' = 'long'): string {
   // 2024-01-01 was a Monday.
   const date = new Date(2024, 0, weekday)
-  return new Intl.DateTimeFormat(getLocale(), { weekday: width }).format(date)
+  return intl(Intl.DateTimeFormat, { weekday: width }).format(date)
 }
 
 /** ISO weekday (1 = Monday … 7 = Sunday) of a `Date`. */
@@ -86,7 +86,7 @@ export function isoWeekday(local: Date): number {
 
 /** Formats a wall-clock time string ("10:00" or "10:00:00") as a time of day. */
 export function timeLabel(value: string): string {
-  return new Intl.DateTimeFormat(getLocale(), { timeStyle: 'short' }).format(
+  return intl(Intl.DateTimeFormat, { timeStyle: 'short' }).format(
     new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value}`),
   )
 }

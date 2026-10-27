@@ -1,6 +1,6 @@
 import type { EventType, Meeting, Occurrence } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
-import { getLocale } from '@/paraglide/runtime'
+import { intl } from '@/lib/format'
 import { localDay } from './time'
 
 const BUILTIN_NAMES: Record<string, () => string> = {
@@ -26,14 +26,14 @@ export function timeRange(
   tz: string,
 ): string {
   if (o.all_day) return m.schedule_all_day()
-  const fmt = new Intl.DateTimeFormat(getLocale(), { timeStyle: 'short', timeZone: tz })
+  const fmt = intl(Intl.DateTimeFormat, { timeStyle: 'short', timeZone: tz })
   const start = fmt.format(new Date(o.start_at))
   if (!o.end_at || o.end_at === o.start_at) return start
   return `${start} – ${fmt.format(new Date(o.end_at))}`
 }
 
 export function dayLabel(day: string): string {
-  return new Intl.DateTimeFormat(getLocale(), {
+  return intl(Intl.DateTimeFormat, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -41,7 +41,7 @@ export function dayLabel(day: string): string {
 }
 
 export function longDayLabel(day: string): string {
-  return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'full' }).format(localDay(day))
+  return intl(Intl.DateTimeFormat, { dateStyle: 'full' }).format(localDay(day))
 }
 
 /** A meeting named by its section: "LEC0101", or "TUT 2" when the code doesn't carry the type. */

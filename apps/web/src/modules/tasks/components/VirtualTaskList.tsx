@@ -146,12 +146,20 @@ export function VirtualTaskList({
     cache.current = { renderRow, tasks, rows: new Map() }
   }
   const rows = cache.current.rows
+  // A task keeps its `VirtualRow` while its place is the same, so a row that is rendered again
+  // with nothing of its own changed is skipped (`TaskRow` is a `memo`).
+  const places = useRef(new Map<string, VirtualRow>())
   const row = (index: number) => {
     const task = tasks[index]
     if (!task) return null
     let node = rows.get(task.id)
     if (node === undefined) {
-      node = renderRow(task, { index, count: tasks.length, measure: virtualizer.measureElement })
+      let place = places.current.get(task.id)
+      if (place?.index !== index || place.count !== tasks.length) {
+        place = { index, count: tasks.length, measure: virtualizer.measureElement }
+        places.current.set(task.id, place)
+      }
+      node = renderRow(task, place)
       rows.set(task.id, node)
     }
     return node

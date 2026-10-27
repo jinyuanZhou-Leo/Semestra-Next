@@ -3,7 +3,7 @@ import { capabilityMessages } from '@/lib/message-groups/capabilities.gen'
 import { errorMessages } from '@/lib/message-groups/errors.gen'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
-import { formatDate, formatDateTime } from '@/lib/format'
+import { formatDate, formatDateTime, intl } from '@/lib/format'
 import { TYPE_LABELS } from '@/modules/imports/labels'
 import type { ItemType } from '@/modules/imports/types'
 import type { Step } from './transcript'
@@ -109,7 +109,7 @@ function dateRange(record: Record<string, unknown>): string | null {
   if (typeof start !== 'string' || !DAY.test(start)) return null
   if (typeof end !== 'string' || !DAY.test(end) || end === start) return formatDate(start)
   // Calendar days: formatted in UTC so they keep their own day (as `formatDate` does).
-  return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeZone: 'UTC' }).formatRange(
+  return intl(Intl.DateTimeFormat, { dateStyle: 'medium', timeZone: 'UTC' }).formatRange(
     new Date(start),
     new Date(end),
   )
@@ -128,7 +128,7 @@ export function formatValue(value: unknown, field?: string): string {
     const parts = value.map((each) => formatValue(each, field))
     // Chinese "unit" lists have no separator at all ("Lab 1Lab 2").
     if (getLocale().startsWith('zh')) return parts.join('、')
-    return new Intl.ListFormat(getLocale(), { type: 'unit' }).format(parts)
+    return intl(Intl.ListFormat, { type: 'unit' }).format(parts)
   }
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>
