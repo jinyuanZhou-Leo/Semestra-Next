@@ -39,6 +39,10 @@ import { type Chip, chipNode, chipOf, type PromptValue, readPrompt } from '../pr
 import { termScope, useProgramEntities } from '../scope'
 import { ChipCourses, RefChip } from './RefChip'
 
+/** The editable area's look, shared with the composer's stand-in while the editor is created. */
+export const PROMPT_CLASS =
+  'max-h-48 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 min-h-12 w-full overflow-y-auto px-3 py-2.5 text-base leading-6 wrap-break-word whitespace-pre-wrap outline-none md:text-sm [&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-muted-foreground [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]'
+
 /** `/compact`: what the `/` menu offers besides skills. */
 const COMPACT = '/compact'
 
@@ -295,8 +299,7 @@ export function PromptEditor({
         'aria-autocomplete': 'list',
         'aria-label': label,
         'data-slot': 'input-group-control',
-        class:
-          'max-h-48 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 min-h-12 w-full overflow-y-auto px-3 py-2.5 text-base leading-6 wrap-break-word whitespace-pre-wrap outline-none md:text-sm [&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-muted-foreground [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]',
+        class: PROMPT_CLASS,
       },
     },
     onUpdate: ({ editor: e }) => {

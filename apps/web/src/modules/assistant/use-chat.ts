@@ -8,6 +8,7 @@ import { agentSessionGetOptions, agentSessionGetQueryKey } from '@semestra/api-c
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
+import { preloadMarkdown } from './components/Markdown'
 import { MEMORY_QUERIES } from './memory'
 import type { MessageReference } from './prompt'
 import { type AgentEvent, followAgent, streamAgent } from './stream'
@@ -329,6 +330,8 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     // A second Enter or click before the first send has started its turn.
     if (sending.current) return false
     sending.current = true
+    // The answer needs the renderer, if the conversation has not loaded it yet.
+    void preloadMarkdown()
     // `.finally` rather than try/finally, which the React Compiler cannot lower.
     return sendOnce(input).finally(() => {
       sending.current = false

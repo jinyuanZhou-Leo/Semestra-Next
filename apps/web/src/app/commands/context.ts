@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import type { CommandContext, Scope } from '../extensions'
@@ -12,17 +13,19 @@ export function scopeFromParams({ programId, termId, courseId }: Params): Scope 
   return { kind: 'program', programId }
 }
 
-/** What commands get to work with: the current scope and Program, and navigation. */
+/** What commands get to work with: the current scope and Program, navigation and the cache. */
 export function useCommandContext(): CommandContext {
   const params = useParams({ strict: false }) as Params
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { programId, termId, courseId } = params
   return useMemo(
     () => ({
       scope: scopeFromParams({ programId, termId, courseId }),
       programId,
       navigate: (to: string) => router.history.push(to),
+      queryClient,
     }),
-    [router, programId, termId, courseId],
+    [router, queryClient, programId, termId, courseId],
   )
 }

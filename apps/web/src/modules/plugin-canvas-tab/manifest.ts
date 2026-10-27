@@ -1,14 +1,11 @@
 import type { CourseLinkState } from '@semestra/api-client'
-import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { ExternalLink, School } from 'lucide-react'
 import { defineModule, type Scope, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { openLinkedCourse } from './open-in-canvas'
+import { courseLinkOptions, openLinkedCourse } from './open-in-canvas'
 
-/** The course's LMS link: shared with the course info card and the gradebook banner (M09). */
 function linkQuery(scope: Scope) {
-  if (scope.kind !== 'course') return null
-  return { ...lmsCourseLinkGetOptions({ path: { course_id: scope.courseId } }), staleTime: 60_000 }
+  return scope.kind === 'course' ? courseLinkOptions(scope.courseId) : null
 }
 
 /**
@@ -42,7 +39,8 @@ export default defineModule({
       title: m.canvas_tab_open_in_canvas,
       icon: ExternalLink,
       scopes: ['course'],
-      run: ({ scope }) => (scope?.kind === 'course' ? openLinkedCourse(scope.courseId) : undefined),
+      run: ({ scope, queryClient }) =>
+        scope?.kind === 'course' ? openLinkedCourse(queryClient, scope.courseId) : undefined,
     },
   ],
   uiPrefPrefixes: ['canvas-tab.'],

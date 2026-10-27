@@ -133,6 +133,17 @@ export type CardContribution = {
     fields?: FieldOverrides
   }
   multiple: boolean
+  /**
+   * Starts the card's main data along with its code when a page shows the board it is on, so it
+   * does not wait for the card to mount (like `PageContribution.prefetch`, but not for a hovered
+   * link). Only data that does not depend on the card's settings. `scope` is the page's (the
+   * Program's for Today); `modules` are the modules in use.
+   */
+  prefetch?: (
+    scope: Scope,
+    queryClient: QueryClient,
+    options: { modules: readonly ModuleManifest[] },
+  ) => void
   /** Buttons in the card's header next to its title (e.g. a counter's reset). */
   // oxlint-disable-next-line no-explicit-any
   headerActions?: ComponentType<CardProps<any>>
@@ -213,6 +224,8 @@ export type CommandContext = {
   /** The Program being viewed (also on account settings pages). */
   programId?: string
   navigate: (to: string) => void
+  /** For commands that need data: read it through the cache (`fetchQuery`). */
+  queryClient: QueryClient
 }
 
 /**

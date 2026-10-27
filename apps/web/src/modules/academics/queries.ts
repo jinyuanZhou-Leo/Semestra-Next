@@ -7,7 +7,8 @@ import {
   academicsTermListOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQueries, useQuery } from '@tanstack/react-query'
-import type { CourseColumn } from './types'
+import type { ModuleManifest, Scope } from '@/app/extensions'
+import { COURSE_COLUMNS, type CourseColumn } from './types'
 
 export function usePrograms() {
   return useQuery(academicsProgramListOptions())
@@ -85,6 +86,22 @@ export function courseTermId(
   if (fromTerm && course.term_ids.includes(fromTerm)) return fromTerm
   const current = terms?.find((t) => t.is_current && course.term_ids.includes(t.id))
   return current?.id ?? course.end_term_id
+}
+
+/** The term's courses card: its courses and its extra columns' data (`CardContribution.prefetch`). */
+export function prefetchTermCourses(
+  scope: Scope,
+  queryClient: QueryClient,
+  { modules }: { modules: readonly ModuleManifest[] },
+) {
+  if (scope.kind !== 'term') return
+  void queryClient.prefetchQuery(courseListOptions(scope.programId, scope.termId))
+  for (const module of modules) {
+    for (const column of (module.extensions?.[COURSE_COLUMNS] ?? []) as readonly CourseColumn[]) {
+      if (column.showInTermCard && column.query)
+        void queryClient.prefetchQuery(column.query(scope.programId))
+    }
+  }
 }
 
 /**

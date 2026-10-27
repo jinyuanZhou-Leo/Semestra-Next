@@ -76,12 +76,21 @@ export function useCalendarInfo(termId: string) {
   })
 }
 
+export function todayOptions(programId: string) {
+  return calendarTodayGetOptions({ path: { program_id: programId } })
+}
+
 export function useToday(programId: string) {
   return useQuery({
-    ...calendarTodayGetOptions({ path: { program_id: programId } }),
+    ...todayOptions(programId),
     // Keep "now" fresh on a page that stays open all day.
     refetchInterval: 5 * 60_000,
   })
+}
+
+/** The Today and Upcoming cards' data (`CardContribution.prefetch`). */
+export function prefetchToday(scope: Scope, queryClient: QueryClient) {
+  void queryClient.prefetchQuery(todayOptions(scope.programId))
 }
 
 export type OccurrenceParams = CalendarOccurrenceListData['query']

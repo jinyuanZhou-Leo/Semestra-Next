@@ -46,6 +46,7 @@ export default defineModule({
     id: 'hello.note', scopes: ['program','term','course','today'],
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
     component: preloadable(...),
+    prefetch: (scope, queryClient) => ...,   // 可选：卡片代码加载时同时开始取数据（queryClient.prefetchQuery）
     settings: { schema: zodSchema, component: preloadable(...) },   // component 可省，省略则按 schema 自动生成表单
     multiple: true,
     headerActions: ...,        // 卡片头部操作（计数器的"重置"）
