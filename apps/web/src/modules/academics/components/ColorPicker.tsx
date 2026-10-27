@@ -15,7 +15,7 @@ const SLOTS = Array.from({ length: SUBJECT_PALETTE_SIZE }, (_, i) => i + 1)
 const INHERIT = 'inherit'
 
 /** Every swatch is the same circle. */
-const SWATCH = 'size-7 border-foreground/10 after:inset-0'
+const SWATCH = 'size-7 border-foreground/10'
 
 /** A follow-something swatch whose color varies (each course its own): a wheel of the palette. */
 const PALETTE_WHEEL = `conic-gradient(${SLOTS.map((slot) => `var(--subject-${slot})`).join(', ')}, var(--subject-1))`
@@ -48,9 +48,6 @@ export function ColorPicker({
   menu?: boolean
 }) {
   const hex = value != null && 'hex' in value ? value.hex : null
-  const inheritStyle: CSSProperties = inheritColor
-    ? { backgroundColor: inheritColor }
-    : { backgroundImage: PALETTE_WHEEL }
   return (
     <div className="flex flex-wrap items-center gap-2">
       <RadioGroup
@@ -71,7 +68,8 @@ export function ColorPicker({
                     // alone shows the choice.
                     className={cn(SWATCH, '*:data-[slot=radio-group-indicator]:hidden')}
                     menu={menu}
-                    style={inheritStyle}
+                    color={inheritColor}
+                    style={inheritColor ? undefined : { backgroundImage: PALETTE_WHEEL }}
                   />
                   <Link2
                     aria-hidden
@@ -101,7 +99,7 @@ export function ColorPicker({
             // The color input covers the whole swatch, so a plain span is enough to hold it.
             <span
               className={cn(
-                'relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-border ring-offset-2 ring-offset-background focus-within:ring-2 focus-within:ring-ring',
+                'relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed border-border transition-transform duration-300 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 ring-offset-2 ring-offset-background focus-within:ring-2 focus-within:ring-ring',
                 hex &&
                   (menu
                     ? 'border-solid border-foreground/10 ring-2 ring-primary'

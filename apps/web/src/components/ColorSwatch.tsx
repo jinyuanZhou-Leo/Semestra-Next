@@ -26,7 +26,7 @@ export function ColorSwatch({ color, checkColor, menu, className, style, ...prop
     <RadioGroupItem
       {...props}
       className={cn(
-        'size-8 bg-primary',
+        'size-8 bg-primary after:inset-0',
         menu
           ? 'ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-primary'
           : 'color-swatch transition-transform duration-300 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 data-checked:bg-clip-content data-checked:p-[3px]',

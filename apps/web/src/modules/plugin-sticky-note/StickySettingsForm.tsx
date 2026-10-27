@@ -1,9 +1,9 @@
-import { useId } from 'react'
+import { type CSSProperties, useId } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldLegend, FieldSet } from '@/ui/field'
 import { ColorSwatch } from '@/components/ColorSwatch'
 import { RadioGroup } from '@/ui/radio-group'
-import { colorTint } from '../plugin-kit/colors'
+import { colorTint, colorVar } from '../plugin-kit/colors'
 import { NOTE_COLORS, type StickySettings } from './schema'
 
 type Props = { value: StickySettings; onChange: (value: StickySettings) => void }
@@ -40,6 +40,8 @@ export default function StickySettingsForm({ value, onChange }: Props) {
             className="rounded-lg border-border"
             color={colorTint(color, 40)}
             checkColor="var(--foreground)"
+            // The ring is the full color; the fill stays the soft tint.
+            style={{ '--swatch-color': colorVar(color) } as CSSProperties}
           />
         ))}
       </RadioGroup>
