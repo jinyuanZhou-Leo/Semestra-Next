@@ -7,32 +7,25 @@ The same notes in Chinese are in the JSON files and on the docs site.
 
 ### New
 
+- **Sem:** See how full a conversation is and compact it yourself, from the ring by the input or with /compact, keeping what you name. Compacted turns are marked and their summary can be opened.
+- **Sem:** Skills picked with / and courses or terms picked with @ now show as chips right in the text you type, and in your sent messages.
 - **AI:** The AI usage page can now show just today's requests, tokens and estimated cost.
 - **Settings:** The theme previews in Settings → Preferences now show a more detailed mini app and follow your accent color in all three modes, and picking an accent color plays a short focus animation.
 - **Data:** Settings → Data now shows how much of your storage you use, what takes the space (by course or file type), and how much data your account holds.
-- **Sem:** See how full a conversation is and compact it yourself, from the ring by the input or with /compact, keeping what you name. Compacted turns are marked and their summary can be opened.
-- **Sem:** Skills picked with / and courses or terms picked with @ now show as chips right in the text you type, and in your sent messages.
 
 ### Improved
 
-- **Settings:** AI providers and LMS connections show brand logos and short statuses, adding DeepSeek, Kimi, Qwen or OpenRouter only asks for a key, and each AI task picks its model from one searchable list.
-- **AI:** The Permissions page now covers both Sem and MCP clients. Choose whether Sem asks before every change, by module, or never, and turn on deleting for MCP clients in the same place.
 - **Overview & Today:** Drag a card's corner to resize it, click a card to change its size, settings or remove it, see card contents while editing, and get more columns on large screens instead of stretched cards.
+- **Grades:** The term grades page now matches the course gradebook, with a breakdown ring of each course's credits, the term GPA beside it, and a Plan mode where you type the final percentages you expect and set a term GPA to aim for.
 - **Canvas:** Files show their size and last update in columns and can be sorted by name, size or date.
 - **Canvas:** A cleaner course menu with icons and an "Open in Canvas" group, scores and status badges for assignments, quizzes and grades, overdue module items marked, and announcement previews.
-- **Grades:** Term grades: the page now matches the course gradebook, with a breakdown ring of each course's credits, the term GPA beside it, and a Plan mode where you type the final percentages you expect and set a term GPA to aim for.
+- **AI:** AI providers and LMS connections show brand logos and short statuses, adding DeepSeek, Kimi, Qwen or OpenRouter only asks for a key, and each AI task picks its model from one searchable list.
+- **AI:** The Permissions page now covers both Sem and MCP clients. Choose whether Sem asks before every change, by module, or never, and turn on deleting for MCP clients in the same place.
 
 ### Fixed
 
-- **AI:** The add-provider dialog now scrolls on small windows instead of running off the screen.
-- **Import:** Long syllabi are no longer cut off and reported as having no useful information, and an AI provider account out of credit now says so.
-- **Overview & Today:** Cards no longer wiggle, resizing from the corner is smoother, every card resizes from its bottom-right corner, and removing a card asks first.
-- **Overview & Today:** A dragged card now follows the pointer smoothly instead of jumping from cell to cell.
-- **Canvas:** Previewing, downloading and saving Canvas files works again, and images inside Canvas pages load.
 - **General:** Course, habit and sticky-note color pickers now use the same animated swatches as the accent color, and the selection ring settles a little faster.
 - **General:** Closing a dialog no longer makes the blurred background flash back for a moment.
-- **Grades:** "Group by category" and "Count unfinished" in the gradebook are now switches, so it is clear whether they are on.
-- **Grades:** GPA settings: the preset picker now shows the conversion table in use, and picking another preset switches the table after a confirmation.
 - **General:** The "Add term" picker in the sidebar and the level path in settings keep a small gap between highlighted rows again.
 - **Sem:** An approved change and the answer after it can be followed after a reload or in another tab, and a slow title no longer holds up the answer.
 - **Sem:** Long conversations keep more of what was said, since what earlier lookups returned is cleared before anything is summarized, and pressing Stop while compacting ends the turn and keeps the history as it was.
@@ -40,8 +33,15 @@ The same notes in Chinese are in the JSON files and on the docs site.
 - **Sem:** Sem keeps trying to learn from a conversation while your AI provider is unreachable, instead of giving up after a few tries.
 - **Sem:** With providers that reuse tool call ids, approvals and steps now match the right answer.
 - **Sem:** A scanned PDF page that cannot be rendered is noted in the conversation instead of breaking the answer.
-- **Settings:** Changing the language, clock format or first day of the week in Settings no longer makes the settings window close and pop open again.
 - **Sem:** The slash commands in the skills menu now line up at the right edge.
+- **Overview & Today:** Cards no longer wiggle, resizing from the corner is smoother, every card resizes from its bottom-right corner, and removing a card asks first.
+- **Overview & Today:** A dragged card now follows the pointer smoothly instead of jumping from cell to cell.
+- **Grades:** "Group by category" and "Count unfinished" in the gradebook are now switches, so it is clear whether they are on.
+- **Grades:** The preset picker in GPA settings now shows the conversion table in use, and picking another preset switches the table after a confirmation.
+- **Import:** Long syllabi are no longer cut off and reported as having no useful information, and an AI provider account out of credit now says so.
+- **Canvas:** Previewing, downloading and saving Canvas files works again, and images inside Canvas pages load.
+- **AI:** The add-provider dialog now scrolls on small windows instead of running off the screen.
+- **Settings:** Changing the language, clock format or first day of the week in Settings no longer makes the settings window close and pop open again.
 - **Account:** In the "Create API token" dialog, the permission and expiry options no longer sit in a track stretched across the whole dialog.
 
 ## 1.2.0 (2026-10-23)
@@ -53,26 +53,26 @@ The same notes in Chinese are in the JSON files and on the docs site.
 ### Improved
 
 - **Grades:** A course percentage is now rounded to a whole number before its letter grade and GPA are looked up (84.5% counts as 85%). You can turn this off in the Program's GPA settings.
-- **Account:** Account security: creating an API token or changing your email asks for your password if you signed in more than 10 minutes ago, changing or resetting your password also revokes your API tokens, and your old address is told when your email changes.
+- **Account:** Creating an API token or changing your email asks for your password if you signed in more than 10 minutes ago, changing or resetting your password also revokes your API tokens, and your old address is told when your email changes.
 
 ### Fixed
 
-- **Files:** Files and imports: import uploads count toward your storage, unsubmitted imports are cleaned up after 30 days, and two commits of the same import can no longer both write. File processing is faster and more robust (first-page thumbnails only, scanned pages read in parallel and one bad page no longer fails the file, missing embeddings are retried). Search is quicker, long file lists scroll smoothly, and uploads show real progress. Syllabus imports wait for course files that are still processing, read GBK text and phone photos correctly, cancel classes on "no class" dates, and share category weights across their assessments.
-- **Grades:** With "Hide GPA" on, letter grades are hidden too.
-- **Calendar:** Opening an assessment deadline goes to the course's grades and highlights that assessment.
-- **Grades:** Plan mode no longer shows the average so far as the planned grade; it says how many items still need an assumed score.
-- **Canvas:** Pages load faster, Refresh fetches the course once instead of skipping the cache from then on, and the app no longer stalls while a Canvas file preview loads.
-- **Data:** Restoring a large backup no longer makes other saves fail while its files are copied; the last 3 backups are kept, and a new upload replaces one you did not restore.
-- **Account:** The "manage devices" link in sign-in emails, signing up again right after deleting an account, and Sem turning Canvas writes or memory back on by itself. API: settings values moved to /me/settings.
 - **General:** Live updates send fewer requests: changes arriving together refresh once, and reconnecting no longer reloads every page's data.
-- **Calendar:** Calendar export: exporting many weeks as PNG or PDF no longer fails.
-- **Calendar:** Calendar import: ICS files now keep moved and cancelled classes and every repeat rule. Importing the same file again keeps the sections you hid and your notes, removes cancellations the file no longer has, and no longer duplicates exams.
-- **Calendar:** Course schedule: "Keep only this section" now keeps every weekly class of that section.
-- **Calendar:** Course schedule: moved classes show their new end time, and subscribed calendars in Outlook pick up changes to classes.
-- **Terms & courses:** Deleting a term now keeps the events of courses that continue in other terms.
 - **Sem:** Changes you approved on a card no longer show as failed steps, update cards show what each field was before, and tidying Sem's memory no longer slows the app down.
-- **AI:** AI settings: the small model's purpose is now called "Light tasks", since it also summarizes long conversations and tidies Sem's memory.
-- **Tasks:** Tasks: tasks made from assessments now follow course deletes and setting changes, the Completed section loads faster, and term lists show tasks from every term.
+- **Terms & courses:** Deleting a term now keeps the events of courses that continue in other terms.
+- **Grades:** With "Hide GPA" on, letter grades are hidden too.
+- **Grades:** Plan mode no longer shows the average so far as the planned grade; it says how many items still need an assumed score.
+- **Calendar:** Opening an assessment deadline goes to the course's grades and highlights that assessment.
+- **Calendar:** Exporting many calendar weeks as PNG or PDF no longer fails.
+- **Calendar:** Importing an ICS file now keeps moved and cancelled classes and every repeat rule. Importing the same file again keeps the sections you hid and your notes, removes cancellations the file no longer has, and no longer duplicates exams.
+- **Calendar:** "Keep only this section" in a course's schedule now keeps every weekly class of that section.
+- **Calendar:** Moved classes in a course's schedule show their new end time, and subscribed calendars in Outlook pick up changes to classes.
+- **Tasks:** Tasks made from assessments now follow course deletes and setting changes, the Completed section loads faster, and term lists show tasks from every term.
+- **Files:** Import uploads count toward your storage, unsubmitted imports are cleaned up after 30 days, and two commits of the same import can no longer both write. File processing is faster and more robust (first-page thumbnails only, scanned pages read in parallel and one bad page no longer fails the file, missing embeddings are retried). Search is quicker, long file lists scroll smoothly, and uploads show real progress. Syllabus imports wait for course files that are still processing, read GBK text and phone photos correctly, cancel classes on "no class" dates, and share category weights across their assessments.
+- **Canvas:** Pages load faster, Refresh fetches the course once instead of skipping the cache from then on, and the app no longer stalls while a Canvas file preview loads.
+- **AI:** The small model's purpose in AI settings is now called "Light tasks", since it also summarizes long conversations and tidies Sem's memory.
+- **Account:** The "manage devices" link in sign-in emails, signing up again right after deleting an account, and Sem turning Canvas writes or memory back on by itself. API: settings values moved to /me/settings.
+- **Data:** Restoring a large backup no longer makes other saves fail while its files are copied; the last 3 backups are kept, and a new upload replaces one you did not restore.
 
 ## 1.1.1 (2026-10-22)
 

@@ -63,7 +63,13 @@ for (const lang of ['en', 'zh'] as const) {
         if (items.length === 0) return ''
         const lines = items.map((item) => {
           const area = item.area ? areas[item.area]?.[lang] : undefined
-          const label = area ? `**${escapeMdx(area)}**${lang === 'zh' ? '：' : ': '}` : ''
+          // Same as CHANGELOG.md; in Chinese the colon goes after the bold, or `**` before a CJK
+          // character would not close it.
+          const label = area
+            ? lang === 'zh'
+              ? `**${escapeMdx(area)}**：`
+              : `**${escapeMdx(area)}:** `
+            : ''
           return `- ${label}${escapeMdx(item[lang])}`
         })
         return `### ${t.kinds[kind]}\n\n${lines.join('\n')}\n`

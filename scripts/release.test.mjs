@@ -25,14 +25,10 @@ test('rejects a missing section', () => {
   assert.match(parseNote(`${AREA}Plain text.`, 'minor'), /needs both/)
 })
 
-test('needs a known area', () => {
-  assert.match(parseNote('<!-- en -->\nA.\n<!-- zh -->\n甲。', 'patch'), /needs an <!-- area/)
-  assert.match(parseNote('<!-- area: nope -->\n<!-- en -->\nA.\n<!-- zh -->\n甲。', 'patch'), /needs an/)
-})
-
-test('rejects a misspelled marker', () => {
-  const note = parseNote('<!-- fix -->\n<!-- en -->\nA.\n<!-- zh -->\n甲。', 'patch')
-  assert.match(note, /unknown marker <!-- fix -->/)
+test('rejects an unknown area and leaves a missing one to the check', () => {
+  const body = '<!-- en -->\nA.\n<!-- zh -->\n甲。'
+  assert.match(parseNote(`<!-- area: nope -->\n${body}`, 'patch'), /unknown area "nope"/)
+  assert.equal(parseNote(body, 'patch').area, undefined)
 })
 
 test('dates releases in the given time zone', () => {

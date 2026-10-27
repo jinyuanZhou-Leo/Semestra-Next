@@ -84,8 +84,10 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter "@semestra/web..."
 COPY apps/web apps/web
 COPY packages/api-client packages/api-client
-# The About page and the "What's new" dialog read them (apps/web/src/modules/settings).
+# The About page and the "What's new" dialog read them (apps/web/src/modules/settings), with the
+# names of the areas the notes are grouped by.
 COPY release-notes release-notes
+COPY .changeset/areas.json .changeset/areas.json
 # Empty origin = same-origin requests, which is what the all-in-one image serves.
 ARG VITE_API_ORIGIN=""
 # Optional, baked into the bundle. The published image is shared by the hosted and self-hosted
@@ -118,10 +120,11 @@ COPY apps/site apps/site
 COPY apps/docs apps/docs
 # The docs read these from outside apps/docs: the API reference is generated from the committed
 # schema, the MCP catalog uses the capability list plus the app's capability titles, and the
-# changelog comes from the release notes.
+# changelog comes from the release notes and their area names.
 COPY packages/api-client/openapi.json packages/api-client/capabilities.json packages/api-client/
 COPY apps/web/messages/en.json apps/web/messages/zh-CN.json apps/web/messages/
 COPY release-notes release-notes
+COPY .changeset/areas.json .changeset/areas.json
 ARG SITE_URL=https://semestra.jyleo.cc
 ENV PUBLIC_SITE_URL=${SITE_URL} SITE_URL=${SITE_URL}
 RUN pnpm --filter @semestra/site build && pnpm --filter @semestra/docs build
