@@ -24,7 +24,7 @@ import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useModules } from '@/app/registry'
-import { useSettingsDialog } from '@/app/settings'
+import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
@@ -317,7 +317,12 @@ export function AppSidebar({ programId }: { programId: string }) {
   return (
     <Sidebar collapsible="icon" data-tour="sidebar">
       <SidebarHeader>
-        {program ? <ProgramHeader programs={programs} current={program} /> : null}
+        {/* Keeps the switcher's height while the Programs load, so the entries below stay put. */}
+        {program ? (
+          <ProgramHeader programs={programs} current={program} />
+        ) : (
+          <div className="h-14" />
+        )}
       </SidebarHeader>
       <SidebarContent>
         <nav

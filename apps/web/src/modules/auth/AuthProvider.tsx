@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { toApiError } from '@/app/api'
+import { clearCollapsedMirror } from '@/app/boot'
 import { setSignedIn } from '@/app/session-expiry'
 import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       setSignedIn(false)
+      clearCollapsedMirror()
       queryClient.clear()
       resetUiPrefs(queryClient)
       await navigate({ to })

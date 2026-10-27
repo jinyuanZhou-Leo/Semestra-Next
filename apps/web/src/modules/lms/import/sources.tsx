@@ -1,30 +1,44 @@
-import { lmsCourseQueueUpdates } from '@semestra/api-client'
+import { type ImportSessionDetail, lmsCourseQueueUpdates } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
-import type { CommandContribution } from '@/app/extensions'
+import { Suspense, useEffect } from 'react'
+import { type CommandContribution, preload, preloadable } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
 import { wizardImportSource } from '@/modules/imports/entries'
 import { openImport } from '@/modules/imports/launcher'
 import { m } from '@/paraglide/messages'
 import { useProgramProviderName } from '../providers'
-import { AssignmentPicker } from './AssignmentPicker'
-import { type CourseImportTarget, CoursePicker } from './CoursePicker'
+import type { CourseImportTarget } from './CoursePicker'
+
+type Started = { onStarted: (session: ImportSessionDetail) => void }
+
+// The pickers load when an import starts, not with the app (this file is part of the manifest).
+const CoursePicker = preloadable<Started & { programId: string; target: CourseImportTarget }>(() =>
+  import('./CoursePicker').then((mod) => ({ default: mod.CoursePicker })),
+)
+const AssignmentPicker = preloadable<Started & { courseId: string }>(() =>
+  import('./AssignmentPicker').then((mod) => ({ default: mod.AssignmentPicker })),
+)
 
 /** "Import courses from {provider}": the Program's platform, "LMS" while unbound or loading. */
 function CoursesTitle({ programId }: { programId: string }) {
   const provider = useProgramProviderName(programId)
+  // Shown before the user picks this source, so the picker is there when the dialog opens.
+  useEffect(() => void preload(CoursePicker), [])
   return provider ? m.lms_import_courses_from({ provider }) : m.lms_import_courses()
 }
 
 /** "{provider} assignments" for a course's gradebook menu, from the Program's platform. */
 function AssignmentsTitle({ programId }: { programId: string }) {
   const provider = useProgramProviderName(programId)
+  useEffect(() => void preload(AssignmentPicker), [])
   return provider ? m.lms_import_assignments_from({ provider }) : m.lms_import_assignments()
 }
 
 /** The M08 import dialog, starting with the course picker (M09 §7.2). */
 function courseRequest(programId: string, target: CourseImportTarget, mode: 'wizard' | 'direct') {
+  void preload(CoursePicker)
   return {
     programId,
     mode,
@@ -33,11 +47,11 @@ function courseRequest(programId: string, target: CourseImportTarget, mode: 'wiz
       title: m.lms_import_courses,
       Title: () => <CoursesTitle programId={programId} />,
       hint: m.lms_import_courses_hint,
-      component: ({
-        onStarted,
-      }: {
-        onStarted: Parameters<typeof CoursePicker>[0]['onStarted']
-      }) => <CoursePicker programId={programId} target={target} onStarted={onStarted} />,
+      component: ({ onStarted }: Started) => (
+        <Suspense fallback={null}>
+          <CoursePicker programId={programId} target={target} onStarted={onStarted} />
+        </Suspense>
+      ),
     },
   }
 }
@@ -75,6 +89,7 @@ export const assignmentSource: AssessmentImportSource = {
   query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   icon: ClipboardList,
   launch: async ({ programId, courseId }) => {
+    void preload(AssignmentPicker)
     await openImport({
       programId,
       mode: 'direct',
@@ -84,7 +99,9 @@ export const assignmentSource: AssessmentImportSource = {
         Title: () => <AssignmentsTitle programId={programId} />,
         hint: m.lms_import_assignments_hint,
         component: ({ onStarted }) => (
-          <AssignmentPicker courseId={courseId} onStarted={onStarted} />
+          <Suspense fallback={null}>
+            <AssignmentPicker courseId={courseId} onStarted={onStarted} />
+          </Suspense>
         ),
       },
     })

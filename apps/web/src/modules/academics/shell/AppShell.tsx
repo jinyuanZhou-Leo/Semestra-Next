@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import { MonitorSmartphone } from 'lucide-react'
-import { Fragment, type ReactNode, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useState } from 'react'
+import { readCollapsedMirror, writeCollapsedMirror } from '@/app/boot'
 import { ShellSidebarOpen, ShellToolbarSlot } from '@/app/host/ShellToolbar'
 import { useModules } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
@@ -76,7 +77,10 @@ function ShellInset({ programId, children }: { programId: string; children: Reac
  * the assistant panel docked on the right.
  */
 export function AppShell({ programId, children }: { programId: string; children: ReactNode }) {
-  const [collapsed, setCollapsed] = useUiPref('layout.sidebar_collapsed', false)
+  // Until the UI preferences load, the last value this browser saw, as the boot screen drew it.
+  const [mirrored] = useState(readCollapsedMirror)
+  const [collapsed, setCollapsed] = useUiPref('layout.sidebar_collapsed', mirrored)
+  useEffect(() => writeCollapsedMirror(collapsed), [collapsed])
   // The assistant (M12) docks beside the content when it is installed.
   const Dock = useModules().find((module) => module.assistant)?.assistant?.Dock ?? Fragment
   return (

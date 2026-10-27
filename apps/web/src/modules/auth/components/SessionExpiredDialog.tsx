@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useSyncExternalStore } from 'react'
+import { preload, preloadable } from '@/app/extensions'
 import { isReauthPending, settleReauth, subscribeReauth } from '@/app/session-expiry'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -11,8 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
+import { Spinner } from '@/ui/spinner'
+import { whenSettled } from '@/lib/when-settled'
 import { useAuth } from '../useAuth'
-import { LoginFlow } from './LoginFlow'
+import type { LoginFlow as LoginFlowComponent } from './LoginFlow'
+
+// The sign-in form (with its code input) is not part of the first load: it loads once the page
+// has settled, or when the dialog opens before that.
+const LoginFlow = preloadable<Parameters<typeof LoginFlowComponent>[0]>(() =>
+  import('./LoginFlow').then((mod) => ({ default: mod.LoginFlow })),
+)
 
 /**
  * Shown over the current page when a request returns 401 while we believed to be signed in.
@@ -22,6 +31,7 @@ export function SessionExpiredDialog() {
   const open = useSyncExternalStore(subscribeReauth, isReauthPending, () => false)
   const queryClient = useQueryClient()
   const { user, signOut } = useAuth()
+  useEffect(() => whenSettled(() => void preload(LoginFlow)), [])
 
   return (
     <Dialog open={open} modal>
@@ -31,18 +41,20 @@ export function SessionExpiredDialog() {
           <DialogDescription>{m.auth_session_expired_desc()}</DialogDescription>
         </DialogHeader>
         {open ? (
-          <LoginFlow
-            compact
-            initialEmail={user?.email ?? ''}
-            onSignedIn={(next) => {
-              if (user && next.id !== user.id) {
-                window.location.assign('/')
-                return
-              }
-              void queryClient.invalidateQueries()
-              settleReauth(true)
-            }}
-          />
+          <Suspense fallback={<Spinner className="mx-auto" />}>
+            <LoginFlow
+              compact
+              initialEmail={user?.email ?? ''}
+              onSignedIn={(next) => {
+                if (user && next.id !== user.id) {
+                  window.location.assign('/')
+                  return
+                }
+                void queryClient.invalidateQueries()
+                settleReauth(true)
+              }}
+            />
+          </Suspense>
         ) : null}
         <DialogFooter className="sm:justify-start">
           <Button

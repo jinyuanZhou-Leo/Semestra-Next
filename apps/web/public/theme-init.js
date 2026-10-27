@@ -20,6 +20,15 @@
   if (accent && /^[a-z]+$/.test(accent)) root.setAttribute('data-accent', accent)
   var motion = read('semestra.reduce-motion')
   if (motion === 'on' || motion === 'off') root.setAttribute('data-reduce-motion', motion)
+  // The boot screen in index.html: the shell's frame on `/` and a Program's pages when this
+  // browser has shown the shell before (the app mirrors its collapsed sidebar here and removes
+  // the value on sign-out) on a desktop-sized window; the brand mark otherwise.
+  var collapsed = read('semestra.sidebar-collapsed')
+  var shell =
+    collapsed !== null &&
+    /^\/(p\/|$)/.test(location.pathname) &&
+    window.matchMedia('(min-width: 768px)').matches
+  root.setAttribute('data-boot', shell ? (collapsed === 'true' ? 'rail' : 'shell') : 'brand')
   var locale = read('PARAGLIDE_LOCALE')
   if (locale === 'en' || locale === 'zh-CN') root.setAttribute('lang', locale)
 })()

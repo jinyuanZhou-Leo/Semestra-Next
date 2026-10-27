@@ -37,12 +37,15 @@ function signedOut() {
 const signedIn = http.get(`${API}/account/me`, () => HttpResponse.json(user))
 
 test('signed-out visitors to a protected page are sent to /login?redirect=…', async () => {
-  server.use(signedOut(), noGoogle, healthy)
-  const router = mount('/settings/account?tab=tokens')
+  // Every request of the page answers 401, as the server does for a signed-out visitor.
+  const e = apiError('common.unauthenticated', 401)
+  const anything = http.all(`${API}/*`, () => HttpResponse.json(e.body, { status: 401 }))
+  server.use(noGoogle, healthy, anything)
+  const router = mount('/p/p1/grades?view=plan')
 
   expect(await screen.findByRole('heading', { name: 'Welcome to Semestra' })).toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/login')
-  expect(router.state.location.search).toEqual({ redirect: '/settings/account?tab=tokens' })
+  expect(router.state.location.search).toEqual({ redirect: '/p/p1/grades?view=plan' })
 })
 
 /** A new account: no Programs yet, so `/` leads to onboarding; no plugins in the catalog. */

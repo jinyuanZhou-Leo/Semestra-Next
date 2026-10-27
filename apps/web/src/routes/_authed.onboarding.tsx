@@ -5,9 +5,11 @@ import {
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Onboarding } from '@/modules/academics/onboarding/Onboarding'
 import { onboardingInProgress } from '@/modules/academics/onboarding/progress'
+import { requireSignIn } from '@/modules/auth/redirect'
 
 export const Route = createFileRoute('/_authed/onboarding')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
+    await requireSignIn(context.queryClient, location.href)
     const me = await context.queryClient.ensureQueryData(accountProfileGetOptions())
     const programs = await context.queryClient.fetchQuery({
       ...academicsProgramListOptions(),

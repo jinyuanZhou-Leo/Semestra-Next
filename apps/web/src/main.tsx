@@ -29,6 +29,12 @@ declare module '@tanstack/react-router' {
   }
 }
 
+// The boot screen in index.html stays until the first page has rendered (and painted).
+const stopBoot = router.subscribe('onRendered', () => {
+  stopBoot()
+  requestAnimationFrame(() => document.getElementById('boot')?.remove())
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

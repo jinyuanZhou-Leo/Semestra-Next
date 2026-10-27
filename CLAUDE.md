@@ -86,7 +86,7 @@ docs/                设计稿与模块规格
 - **设置分区的外观走 `app/settings/rows.tsx`**：`SettingsGroup`（圆角列表，自动分隔线）+ `SettingRow` / `TextRow` / `NumberRow` / `ActionRow` / `SettingsBlock` / `SettingsNote`，不要在分区里用 `Card`、手写 `ItemGroup` + `ItemSeparator`；条件渲染多行用数组，别用 Fragment；删除类操作放该组最后一个 `danger: true` 的分区（M11 §5.6）。
 - **多选一设置用 `ChoiceControl`（`app/settings/choice.tsx`）**：≤4 个短选项且都不需要解释时是分段控件（浅灰轨道 + 选中项白底凸起），有选项需要一句解释（`hint`）或超过 4 个时是下拉，选项里两行（名称 + 说明）。自动生成表单的选项说明写 `settings_<ns>_<字段>_option_<值>_description`。不要在设置行里直接用 `ToggleGroup`/`Select` 做多选一；设置以外的分段切换（如日历视图）给 `ToggleGroup` 加 `lib/segmented.ts` 的 `SEGMENTED`/`SEGMENT` 类。
 - **时间输入**：shadcn 没有 Time Picker，用官方 date-picker-time 的写法：`InputGroup` + `InputGroupInput type="time"`（加 `lib/time-input.ts` 的 `TIME_INPUT` 类隐藏浏览器自带的时钟）+ `InputGroupAddon` 里放 `Clock2`；不要再直接用裸 `<Input type="time">`，也不做封装组件。
-- **界面状态与设置不是一回事**：排序、折叠等记忆状态用 `useUiPref('<模块>.<名称>', 默认值)`，不要放进设置，也不要直接用 localStorage（除了首屏防闪烁必须的主题/强调色/语言）。
+- **界面状态与设置不是一回事**：排序、折叠等记忆状态用 `useUiPref('<模块>.<名称>', 默认值)`，不要放进设置，也不要直接用 localStorage（除了首屏防闪烁必须的主题/强调色/语言，以及启动画面用的侧边栏折叠镜像 `semestra.sidebar-collapsed`，见 `app/boot.ts`）。
 - **`src/ui/` 禁止手改，冲突一律取 CLI 官方版本**：合并时 `src/ui/` 下出现冲突（包括两边各自新增同名组件的 add/add），不要手动合并两边的内容，而是在 `apps/web` 运行 `CI=1 pnpm dlx shadcn@latest add <组件> --overwrite --yes </dev/null` 重新生成并以生成结果为准；也不要为了让某个分支编译通过去改 `src/ui/`，改调用方。合并后可在 `apps/web` 跑一次 `add --all --overwrite`，`git status` 应该没有变化。
 - **UI 尽量直接用 shadcn 官方组件，不要做薄封装**：页面和模块里直接组合 `@/ui/*`（表单字段 `Field` + `Input` + `FieldError`，空状态 `Empty`，列表行 `Item`，2–5 个选项 `ToggleGroup`，单选卡片 `FieldLabel` > `Field` > `RadioGroupItem`，进度 `Progress`，加载 `Spinner`，表格 `Table`），不要手写同类控件，也不要为了"保持旧接口"或读屏文字这类小问题再包一层（教训：曾为把 `Dialog`/`Sheet` 关闭按钮的英文 sr-only "Close" 换成翻译而写了 `AppDialogContent`/`AppSheetContent`，又给 `Field`、`Empty`、`RadioGroup` 套了 `TextField`、`EmptyState`、`RadioCard` 等，后来全部删掉，并且每次重新生成组件都会让依赖旧接口的分支 typecheck 失败）。生成组件里写死的英文读屏文字可以接受。只有带真实行为（状态、数据加载、业务逻辑）的组件才放 `src/components/`，例如 `ConfirmDialog`、`AsyncBoundary`、`AiAction`。
 - **以色块选颜色用 `ColorSwatch`**（`components/ColorSwatch.tsx`，放进 `RadioGroup`）：选中时外圈由外向内收缩、对勾从左向右显现，选中态外径与其他色块相同；样式在 `theme.css` 的 `.color-swatch`，对勾依赖 shadcn `RadioGroupItem` 的 indicator `<span>`（`settings-page.test.tsx` 钉住）。下拉/弹层里的色块传 `menu`（只有静态圆环）。新的色块选择别再手写 `ring-offset` 那套。
@@ -101,6 +101,8 @@ docs/                设计稿与模块规格
 - **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
 - **`@capability`、`@job_handler`、`@periodic`、`@events.subscribe` 在 import 时注册**：模块 `__init__.py` 必须 import 定义它们的文件。
 - **后台任务在自己的事务里写过库之后不要再 `ctx.stage()`/`ctx.report()`**：进度用单独的短事务写，SQLite 只允许一个写者，会等满 `busy_timeout` 后报 `database is locked`。把最后一次进度报告放在第一次写库之前（M13 导入就是这样）。
+- **`/_authed` 的登录检查在 loader 里，不在 `beforeLoad`**（为了让外壳代码和数据与 `/account/me` 并行，M01 §12）：子路由的 `beforeLoad` 要读数据时先 `await requireSignIn(queryClient, location.href)`，否则未登录访问会先收到 401 而不是跳到登录页。
+- **`index.html` 里有启动画面（`#boot`）**：它按真实外壳的尺寸画侧边栏（宽 16rem，各行 36px，顶部切换器 56px），在首个页面渲染完成前显示（M11 §9）。改了侧边栏的结构或尺寸，要同步改这里，否则加载完成时页面会跳一下。
 - jsdom 没有 `EventSource`：`test-setup.ts` 装了 `FakeEventSource`（`src/test-event-source.ts`），测试里用 `FakeEventSource.last().emit({type, data})` 模拟推送。
 
 ## 已完成的模块

@@ -1,7 +1,9 @@
 import type { Term } from '@semestra/api-client'
+import { academicsTermListOptions } from '@semestra/api-client/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useUiPref } from '@/app/ui-pref'
-import { useTerms } from './queries'
+import { readUiPref, useUiPref } from '@/app/ui-pref'
+import { courseListOptions, useTerms } from './queries'
 
 /** UI state `academics.current_term.<programId>`: a term id the user chose, null for "by date". */
 export const CURRENT_TERM_KEY = 'academics.current_term'
@@ -49,4 +51,17 @@ export function useCurrentTerm(programId: string) {
     isLoading: termsQuery.isPending,
     setCurrentTerm: setChosenId,
   }
+}
+
+/**
+ * Starts the courses of the current term (the sidebar lists them) once the terms and the chosen
+ * term are known, from the Program's route loader instead of after the shell has rendered.
+ */
+export async function prefetchCurrentTermCourses(queryClient: QueryClient, programId: string) {
+  const [terms, chosenId] = await Promise.all([
+    queryClient.ensureQueryData(academicsTermListOptions({ path: { program_id: programId } })),
+    readUiPref<string | null>(queryClient, `${CURRENT_TERM_KEY}.${programId}`),
+  ])
+  const term = terms.items.find((t) => t.id === chosenId) ?? termByDate(terms.items, localToday())
+  if (term) await queryClient.ensureQueryData(courseListOptions(programId, term.id))
 }
