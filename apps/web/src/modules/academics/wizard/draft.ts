@@ -106,3 +106,14 @@ export function newRowKey(): string {
   counter += 1
   return `row-${Date.now().toString(36)}-${counter}`
 }
+
+export function rowIsEmpty(row: DraftRow): boolean {
+  return !row.code.trim() && !row.title.trim() && !row.credits.trim()
+}
+
+/** Blank is fine (the Program's default); otherwise a number from 0 to 100. */
+export function creditsProblem(text: string): boolean {
+  if (text.trim() === '') return false
+  const n = Number(text)
+  return !(n >= 0 && n <= 100)
+}
