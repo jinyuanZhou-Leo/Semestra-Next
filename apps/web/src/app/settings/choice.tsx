@@ -82,7 +82,8 @@ export function ChoiceControl<T extends string>({
         value={[shown]}
         onValueChange={(next) => pick(next[0])}
         size="sm"
-        className={SEGMENTED}
+        // `Field` stretches its children (`*:w-full`); the track should hug its options.
+        className={cn(SEGMENTED, 'w-fit!')}
       >
         {follow ? (
           <Tooltip>
