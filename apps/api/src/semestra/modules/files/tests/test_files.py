@@ -542,6 +542,26 @@ async def test_quota_and_size_limits_leave_no_orphans(fx: Fx, settings: Settings
     assert usage["files_bytes"] == 0
 
 
+async def test_usage_breakdown_by_course_and_type(fx: Fx):
+    pdf = await fx.upload("syllabus.pdf", make_pdf(SYLLABUS))
+    png = await fx.upload("scan.png", make_png())
+    other = await fx.new_course("Calculus", code="MAT137", alias="Calc")
+    notes = await fx.upload("notes.txt", b"x" * 10, course_id=other)
+    await fx.call("POST", f"/courses/{other}/file-links", json={"url": "https://example.com"})
+
+    breakdown = await fx.call("GET", "/files-usage/breakdown")
+    assert [(c["name"], c["files"], c["bytes"]) for c in breakdown["by_course"]] == [
+        ("APS105", 2, pdf["size_bytes"] + png["size_bytes"]),
+        ("Calc", 1, 10),
+    ]
+    assert breakdown["by_course"][0]["color"].startswith("subject-")
+    assert {t["type"]: (t["files"], t["bytes"]) for t in breakdown["by_type"]} == {
+        "pdf": (1, pdf["size_bytes"]),
+        "image": (1, png["size_bytes"]),
+        "text": (1, notes["size_bytes"]),
+    }
+
+
 async def test_delete_removes_bytes_index_and_page_images(fx: Fx):
     item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
     assert any(item["id"] in k for k in await storage_keys(fx))

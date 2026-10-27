@@ -26,7 +26,7 @@ from semestra.modules.files import service as files_service
 from semestra.modules.files.models import FilesItem
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsImportedRef
-from semestra.modules.portability import registry
+from semestra.modules.portability import registry, service
 from semestra.modules.portability.registry import Adapter, ImportReport
 from semestra.modules.portability.tests.dataset import (
     FEED_TOKEN_HASH,
@@ -128,6 +128,11 @@ async def test_every_user_table_has_an_adapter_and_purge_empties_it(
     assert missing == [], f"no portability adapter covers {missing}"
     for table in tables:
         assert await _count(app, table, user.id) > 0, f"the dataset leaves {table.name} empty"
+    # The data overview counts every covered table, and only the user's own rows.
+    async with system_ctx(app.state, user.id) as ctx:
+        counts = await service.data_counts(ctx)
+    assert counts.tables == {t.name: await _count(app, t, user.id) for t in tables}
+    assert counts.limits == {"agent_memories": 60}
 
     async with system_ctx(app.state, user.id) as ctx:
         for adapter in reversed(registry.adapters()):

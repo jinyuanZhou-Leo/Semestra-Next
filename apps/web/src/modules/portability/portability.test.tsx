@@ -93,6 +93,10 @@ function mount(group: 'data' = 'data', signOut: AuthState['signOut'] = async () 
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 0, quota_bytes: 0, by_module: {} }),
     ),
+    http.get(`${API}/files-usage/breakdown`, () =>
+      HttpResponse.json({ by_course: [], by_type: [] }),
+    ),
+    http.get(`${API}/me/data-counts`, () => HttpResponse.json({ tables: {}, limits: {} })),
   )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
@@ -102,6 +106,61 @@ function mount(group: 'data' = 'data', signOut: AuthState['signOut'] = async () 
     </AuthContext.Provider>,
   )
 }
+
+test('shows the quota used and what takes it; without a quota, only the bytes used', async () => {
+  const MB = 1024 * 1024
+  const storage = (quota: number) =>
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({
+        used_bytes: 25 * MB,
+        quota_bytes: quota,
+        by_module: { files: 22 * MB, agent: 3 * MB, imports: 0 },
+      }),
+    )
+  const view = mount()
+  server.use(
+    storage(50 * MB),
+    http.get(`${API}/files-usage/breakdown`, () =>
+      HttpResponse.json({
+        by_course: [
+          {
+            course_id: 'c1',
+            program_id: 'p1',
+            program_name: 'Math',
+            name: 'MAT237',
+            color: 'subject-1',
+            files: 4,
+            bytes: 22 * MB,
+          },
+        ],
+        by_type: [{ type: 'pdf', files: 4, bytes: 22 * MB }],
+      }),
+    ),
+    http.get(`${API}/me/data-counts`, () =>
+      HttpResponse.json({
+        tables: { agent_attachments: 2, academics_courses: 7, agent_memories: 3 },
+        limits: { agent_memories: 60 },
+      }),
+    ),
+  )
+
+  expect(await screen.findByText('25 MB used of 50 MB')).toBeInTheDocument()
+  expect(screen.getByText('Free')).toBeInTheDocument()
+  const table = await screen.findByRole('table')
+  const [, course, sem] = within(table).getAllByRole('row')
+  expect(course).toHaveTextContent(/^MAT2374.*22 MB$/)
+  expect(sem).toHaveTextContent(/^Sem attachments2.*3 MB$/)
+  await userEvent.click(screen.getByRole('button', { name: 'By type' }))
+  expect(within(table).getAllByRole('row')[1]).toHaveTextContent(/^PDF4/)
+  expect(await screen.findByText(/Courses 7/)).toBeInTheDocument()
+  expect(screen.getByText(/Memories 3 \/ 60/)).toBeInTheDocument()
+
+  view.unmount()
+  mount()
+  server.use(storage(0))
+  expect(await screen.findByText('25 MB used, no storage limit')).toBeInTheDocument()
+  expect(screen.queryByText('Free')).not.toBeInTheDocument()
+})
 
 test('starts an export and offers the finished file for download', async () => {
   let exports: unknown[] = []

@@ -8,6 +8,7 @@ from semestra.core.jobs import JobOut
 from semestra.modules.portability import service
 from semestra.modules.portability.schemas import (
     AccountDeleteInput,
+    DataCounts,
     ExportList,
     ExportOut,
     ExportStartInput,
@@ -22,6 +23,22 @@ TAGS = ("portability",)
 
 class Discarded(BaseModel):
     id: str
+
+
+@capability(
+    name="portability.data_count.get",
+    summary="Count the user's data: rows per table, for the data settings overview.",
+    description="""Every table the portability adapters cover (the user data purged with the
+account, whether or not a backup exports it), and the caps some modules put on a table. Not for
+agents.""",
+    effect="read",
+    http=Http("GET", "/me/data-counts"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def counts_get(ctx: Ctx, inp: NoInput) -> DataCounts:
+    del inp
+    return await service.data_counts(ctx)
 
 
 @capability(

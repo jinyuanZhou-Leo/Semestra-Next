@@ -83,6 +83,7 @@ ADAPTER = table_adapter(
             exclude=("source_session_id",),
             upsert_on=("name",),
             transform=_memory,
+            limit=memory.MAX_MEMORIES,
         ),
     ),
 )

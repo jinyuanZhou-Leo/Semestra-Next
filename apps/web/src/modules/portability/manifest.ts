@@ -1,4 +1,4 @@
-import { DatabaseBackup, Download, Trash2, Upload } from 'lucide-react'
+import { DatabaseBackup, Download, HardDrive, Trash2, Upload } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
@@ -12,6 +12,16 @@ export default defineModule({
   description: m.portability_description,
   icon: DatabaseBackup,
   settingsSections: [
+    {
+      id: 'storage',
+      level: 'account',
+      group: 'data',
+      title: m.portability_storage_title,
+      description: m.portability_storage_desc,
+      icon: HardDrive,
+      order: 5,
+      component: preloadable(() => sections().then((s) => ({ default: s.StorageSection }))),
+    },
     {
       id: 'export',
       level: 'account',

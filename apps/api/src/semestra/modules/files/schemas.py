@@ -297,3 +297,29 @@ class FilesUsageGet(BaseModel):
     files_bytes: int = Field(description="Of which course files")
     quota_bytes: int = Field(description="0 means unlimited")
     max_upload_bytes: int
+
+
+FileType = Literal["pdf", "image", "office", "text", "other"]
+
+
+class CourseUsage(BaseModel):
+    course_id: Id
+    program_id: Id
+    program_name: str
+    name: str = Field(description="The course's alias, else its code, else its title")
+    color: str = Field(description="The course's resolved color (see Course.resolved_color)")
+    files: int
+    bytes: int
+
+
+class TypeUsage(BaseModel):
+    type: FileType
+    files: int
+    bytes: int
+
+
+class FilesUsageBreakdown(BaseModel):
+    """Course files by course and by type, largest first; links take no space and are left out."""
+
+    by_course: list[CourseUsage]
+    by_type: list[TypeUsage]

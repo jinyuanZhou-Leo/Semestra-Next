@@ -13,6 +13,7 @@ from semestra.modules.files.schemas import (
     DocumentReadInput,
     FilesItemList,
     FilesItemListInput,
+    FilesUsageBreakdown,
     FilesUsageGet,
     FolderCreateInput,
     FolderDeleteInput,
@@ -246,6 +247,21 @@ async def document_outline(ctx: Ctx, inp: ItemRef) -> DocumentOutline:
 async def usage(ctx: Ctx, inp: NoInput) -> FilesUsageGet:
     del inp
     return await service.usage(ctx)
+
+
+@capability(
+    name="files.usage.breakdown",
+    summary="Break course file storage down by course and by file type.",
+    description="""Bytes and file counts per course and per type (PDF, image, Office, text,
+other), largest first. Shown on the account's data settings.""",
+    effect="read",
+    http=Http("GET", "/files-usage/breakdown"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def usage_breakdown(ctx: Ctx, inp: NoInput) -> FilesUsageBreakdown:
+    del inp
+    return await service.usage_breakdown(ctx)
 
 
 @capability(
