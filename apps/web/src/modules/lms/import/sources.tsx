@@ -1,7 +1,7 @@
 import { type ImportSessionDetail, lmsCourseQueueUpdates } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { type CommandContribution, preload, preloadable } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
@@ -24,12 +24,15 @@ const AssignmentPicker = preloadable<Started & { courseId: string }>(() =>
 /** "Import courses from {provider}": the Program's platform, "LMS" while unbound or loading. */
 function CoursesTitle({ programId }: { programId: string }) {
   const provider = useProgramProviderName(programId)
+  // Shown before the user picks this source, so the picker is there when the dialog opens.
+  useEffect(() => void preload(CoursePicker), [])
   return provider ? m.lms_import_courses_from({ provider }) : m.lms_import_courses()
 }
 
 /** "{provider} assignments" for a course's gradebook menu, from the Program's platform. */
 function AssignmentsTitle({ programId }: { programId: string }) {
   const provider = useProgramProviderName(programId)
+  useEffect(() => void preload(AssignmentPicker), [])
   return provider ? m.lms_import_assignments_from({ provider }) : m.lms_import_assignments()
 }
 

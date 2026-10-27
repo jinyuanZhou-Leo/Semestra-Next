@@ -13,8 +13,9 @@ import { AppShell } from '@/modules/academics/shell/AppShell'
 export const Route = createFileRoute('/_authed/p/$programId')({
   // The shell and every page start from the Program, its terms and its sidebar (with the current
   // term's courses); fetch them with the page's code instead of after the first render. Not
-  // awaited: the shell shows its own loading state and errors. Only when not cached: the loader runs on every navigation and
-  // hover, and the shell, which stays mounted, is kept fresh by realtime events.
+  // awaited: the shell shows its own loading state and errors. Only when not cached: the loader
+  // runs on every navigation and hover, and the shell, which stays mounted, is kept fresh by
+  // realtime events.
   loader: ({ context: { queryClient }, params: { programId } }) => {
     const path = { program_id: programId }
     const ignore = () => undefined

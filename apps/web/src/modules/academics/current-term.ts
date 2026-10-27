@@ -63,5 +63,5 @@ export async function prefetchCurrentTermCourses(queryClient: QueryClient, progr
     readUiPref<string | null>(queryClient, `${CURRENT_TERM_KEY}.${programId}`),
   ])
   const term = terms.items.find((t) => t.id === chosenId) ?? termByDate(terms.items, localToday())
-  if (term) await queryClient.prefetchQuery(courseListOptions(programId, term.id))
+  if (term) await queryClient.ensureQueryData(courseListOptions(programId, term.id))
 }
