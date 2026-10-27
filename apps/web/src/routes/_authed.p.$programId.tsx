@@ -12,11 +12,14 @@ import { AppShell } from '@/modules/academics/shell/AppShell'
 export const Route = createFileRoute('/_authed/p/$programId')({
   // The shell and every page start from the Program, its terms and its sidebar; fetch them with
   // the page's code instead of after the first render. Not awaited: the shell shows its own
-  // loading state.
+  // loading state and errors. Only when not cached: the loader runs on every navigation and
+  // hover, and the shell, which stays mounted, is kept fresh by realtime events.
   loader: ({ context: { queryClient }, params: { programId } }) => {
-    void queryClient.prefetchQuery(academicsProgramGetOptions({ path: { program_id: programId } }))
-    void queryClient.prefetchQuery(academicsTermListOptions({ path: { program_id: programId } }))
-    void queryClient.prefetchQuery(navOptions('program'))
+    const path = { program_id: programId }
+    const ignore = () => undefined
+    queryClient.ensureQueryData(academicsProgramGetOptions({ path })).catch(ignore)
+    queryClient.ensureQueryData(academicsTermListOptions({ path })).catch(ignore)
+    queryClient.ensureQueryData(navOptions('program')).catch(ignore)
   },
   component: ProgramLayout,
 })

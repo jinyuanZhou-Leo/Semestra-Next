@@ -91,8 +91,12 @@ export function preloadPage(
   } = {},
 ): Promise<void> {
   const parts: unknown[] = []
-  // The scope's page tabs (or the Program's sidebar) render with the page (`navOptions`).
-  void queryClient.prefetchQuery(layoutsNavGetOptions({ path: { scope_type: scope.kind } }))
+  // The scope's page tabs (or the Program's sidebar) render with the page (`navOptions`, not
+  // imported: host/nav imports this file). Only when not cached: this runs on every hover, and
+  // the Program's sidebar stays mounted, kept fresh by realtime events.
+  queryClient
+    .ensureQueryData(layoutsNavGetOptions({ path: { scope_type: scope.kind } }))
+    .catch(() => undefined)
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue

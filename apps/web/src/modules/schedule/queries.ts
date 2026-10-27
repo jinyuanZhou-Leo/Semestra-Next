@@ -11,13 +11,15 @@ import {
   scheduleFeedListOptions,
   scheduleMeetingListForTermOptions,
   scheduleMeetingListOptions,
+  settingsPreferenceGetOptions,
   settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 import { addMonths } from 'date-fns'
 import type { ModuleManifest, Scope } from '@/app/extensions'
+import { PREFERENCES_STALE } from '@/app/preferences'
 import { readUiPref } from '@/app/ui-pref'
-import { firstDayOfWeek } from '@/lib/format'
+import { firstDayFor } from '@/lib/format'
 import { courseListOptions } from '@/modules/academics/queries'
 import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from './filters'
 import { isoDay, localDay, plusDays, todayIn, weekStartOf } from './time'
@@ -188,7 +190,9 @@ export function prefetchCalendarPage(
         readUiPref<CalendarFilters>(queryClient, `calendar.filters.${termId}`),
         queryClient.fetchQuery(academicsProgramGetOptions({ path: { program_id: programId } })),
         queryClient.fetchQuery(academicsTermListOptions({ path: { program_id: programId } })),
-      ]).then(([values, nav, filters, program, terms]) => {
+        // The week start: the page renders after `PreferencesSync` has applied it, this runs before.
+        queryClient.fetchQuery({ ...settingsPreferenceGetOptions(), staleTime: PREFERENCES_STALE }),
+      ]).then(([values, nav, filters, program, terms, preferences]) => {
         const defaults = {
           ...DEFAULT_CALENDAR_SETTINGS,
           ...(values.values as Partial<CalendarSettings>),
@@ -208,7 +212,7 @@ export function prefetchCalendarPage(
         const date = calendarAnchor(nav, term, todayIn(program.timezone))
         return queryClient.prefetchQuery(
           occurrenceOptions(programId, {
-            ...occurrenceRange(view, date, firstDayOfWeek()),
+            ...occurrenceRange(view, date, firstDayFor(preferences.week_start)),
             term_id: termId,
             sources,
           }),
