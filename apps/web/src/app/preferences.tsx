@@ -11,9 +11,11 @@ import { getFormatPreferences, setFormatPreferences } from '@/lib/format'
 import { clearLocaleChosen, useLocale, wasLocaleChosenSignedOut } from './locale'
 import { useTheme } from './theme'
 
+export const PREFERENCES_STALE = 5 * 60_000
+
 /** The signed-in user's preferences (M11 §2); undefined while loading. */
 export function usePreferences() {
-  return useQuery({ ...settingsPreferenceGetOptions(), staleTime: 5 * 60_000 })
+  return useQuery({ ...settingsPreferenceGetOptions(), staleTime: PREFERENCES_STALE })
 }
 
 /** The preferences a patch may change; `locale` and `active_program_id` also accept null. */

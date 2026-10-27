@@ -79,8 +79,14 @@ export type PageContribution = {
    * the page's own queries find it in the cache instead of waiting for the page to mount. Use
    * `queryClient.prefetchQuery` (it never throws): the page still loads and reports its data.
    * `preload` is true for a hovered link, which may never be followed: keep that part cheap.
+   * `modules` are the modules in use (core and installed plugins), for data that depends on what
+   * other modules contribute (the calendar's sources).
    */
-  prefetch?: (scope: Scope, queryClient: QueryClient, options: { preload: boolean }) => void
+  prefetch?: (
+    scope: Scope,
+    queryClient: QueryClient,
+    options: { preload: boolean; modules: readonly ModuleManifest[] },
+  ) => void
   order: number
   /** `data` is what `availabilityQuery` loaded (undefined without one). */
   isAvailable?: (scope: Scope, data: unknown) => boolean

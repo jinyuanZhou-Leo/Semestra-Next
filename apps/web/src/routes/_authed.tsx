@@ -1,11 +1,12 @@
 import {
   accountProfileGetOptions,
   pluginsCatalogListOptions,
+  settingsPreferenceGetOptions,
 } from '@semestra/api-client/react-query'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { toApiError } from '@/app/api'
 import { CommandCenter } from '@/app/commands'
-import { PreferencesSync } from '@/app/preferences'
+import { PREFERENCES_STALE, PreferencesSync } from '@/app/preferences'
 import { useRealtime } from '@/app/realtime'
 import { InstalledPluginsProvider, uiPrefPrefixes, useOverlays } from '@/app/registry'
 import { SettingsDialog } from '@/app/settings'
@@ -24,6 +25,11 @@ export const Route = createFileRoute('/_authed')({
       if (!preload) void prefetchUiPrefs(context.queryClient, uiPrefPrefixes())
       // Which plugins are installed decides the pages, cards and commands shown (M10).
       void context.queryClient.prefetchQuery(pluginsCatalogListOptions())
+      // Theme, language and formats; the signed-in layout reads them (`usePreferences`).
+      void context.queryClient.prefetchQuery({
+        ...settingsPreferenceGetOptions(),
+        staleTime: PREFERENCES_STALE,
+      })
     } catch (err) {
       if (toApiError(err).status === 401) {
         throw redirect({ to: '/login', search: { redirect: location.href } })

@@ -8,6 +8,7 @@ import {
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { courseColumns } from './extensions/columns'
+import { prefetchGradesPage } from './queries'
 import { ScalePresetField } from './extensions/SetupField'
 
 /** Queries that show grades; any change to grades or to the courses behind them refetches them. */
@@ -62,6 +63,7 @@ export default defineModule({
       title: m.grading_nav_grades,
       icon: NotebookPen,
       component: preloadable(() => import('./pages/GradesPage')),
+      prefetch: prefetchGradesPage,
       order: 20,
     },
   ],

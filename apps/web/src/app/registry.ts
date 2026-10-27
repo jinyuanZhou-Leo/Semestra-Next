@@ -1,5 +1,5 @@
 import type { PluginCatalog } from '@semestra/api-client'
-import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
+import { layoutsNavGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { type QueryClient, skipToken, useQueries, useQuery } from '@tanstack/react-query'
 import {
   type ComponentType,
@@ -91,11 +91,13 @@ export function preloadPage(
   } = {},
 ): Promise<void> {
   const parts: unknown[] = []
+  // The scope's page tabs (or the Program's sidebar) render with the page (`navOptions`).
+  void queryClient.prefetchQuery(layoutsNavGetOptions({ path: { scope_type: scope.kind } }))
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
       parts.push(page.component, page.sidebarNav)
-      page.prefetch?.(scope, queryClient, { preload: hovered })
+      page.prefetch?.(scope, queryClient, { preload: hovered, modules })
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules)
     }
   }

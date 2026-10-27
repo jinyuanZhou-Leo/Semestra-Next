@@ -1,6 +1,8 @@
-import type { CalendarOccurrenceListData, Meeting } from '@semestra/api-client'
+import type { CalendarOccurrenceListData, Meeting, Term } from '@semestra/api-client'
 import {
+  academicsProgramGetOptions,
   academicsTermGetWeeksOptions,
+  academicsTermListOptions,
   calendarOccurrenceListOptions,
   calendarTodayGetOptions,
   scheduleConflictListOptions,
@@ -12,9 +14,13 @@ import {
   settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { Scope } from '@/app/extensions'
+import { addMonths } from 'date-fns'
+import type { ModuleManifest, Scope } from '@/app/extensions'
 import { readUiPref } from '@/app/ui-pref'
+import { firstDayOfWeek } from '@/lib/format'
 import { courseListOptions } from '@/modules/academics/queries'
+import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from './filters'
+import { isoDay, localDay, plusDays, todayIn, weekStartOf } from './time'
 
 export function useEventTypes(programId: string) {
   return useQuery({
@@ -78,12 +84,55 @@ export function useToday(programId: string) {
 
 export type OccurrenceParams = CalendarOccurrenceListData['query']
 
+export function occurrenceOptions(programId: string, params: OccurrenceParams) {
+  return calendarOccurrenceListOptions({ path: { program_id: programId }, query: params })
+}
+
 export function useOccurrences(programId: string, params: OccurrenceParams, enabled = true) {
   return useQuery({
-    ...calendarOccurrenceListOptions({ path: { program_id: programId }, query: params }),
+    ...occurrenceOptions(programId, params),
     placeholderData: keepPreviousData,
     enabled,
   })
+}
+
+export type CalendarView = CalendarSettings['default_view']
+/** Where the term calendar was left (`calendar.nav.<termId>`): its view and a day it showed. */
+export type CalendarNav = { view: CalendarView; date: string }
+
+/** The day the calendar opens on: where it was left, else today within the term, else its start. */
+export function calendarAnchor(
+  nav: CalendarNav | null | undefined,
+  term: Pick<Term, 'start_date' | 'end_date'>,
+  today: string,
+): string {
+  return nav?.date ?? (today >= term.start_date && today <= term.end_date ? today : term.start_date)
+}
+
+/**
+ * The days the calendar asks occurrences for: the week around `date`, or the six-week grid of its
+ * month. Worked out here instead of read back from FullCalendar, so the request starts with the
+ * page (and from its prefetch) rather than after the calendar has drawn. It covers what
+ * FullCalendar shows, which may be less (hidden weekends); occurrences outside are not drawn.
+ */
+export function occurrenceRange(
+  view: Exclude<CalendarView, 'timetable'>,
+  date: string,
+  firstDay: 1 | 7,
+): { start: string; end: string } {
+  if (view === 'month') {
+    const start = weekStartOf(`${date.slice(0, 7)}-01`, firstDay)
+    return { start, end: plusDays(start, 42) }
+  }
+  const start = weekStartOf(date, firstDay)
+  return { start, end: plusDays(start, 7) }
+}
+
+/** A day in the period before (`-1`) or after (`1`) the one `date` is in, as the arrows move. */
+export function stepPeriod(view: Exclude<CalendarView, 'timetable'>, date: string, step: -1 | 1) {
+  return view === 'month'
+    ? isoDay(addMonths(localDay(`${date.slice(0, 7)}-01`), step))
+    : plusDays(date, 7 * step)
 }
 
 export type CalendarSettings = {
@@ -117,41 +166,56 @@ function calendarSettingsOptions(termId?: string) {
 }
 
 /**
- * What the term calendar needs before it can ask for its dates (`PageContribution.prefetch`):
- * its settings (the view), the term's weeks and courses. The occurrences wait for the dates;
- * when the calendar opens on the timetable, which shows meetings instead, they start too.
+ * What the term calendar needs (`PageContribution.prefetch`): its settings, the term's weeks and
+ * courses, and what it opens on: the occurrences of the first week (or month), or the meetings
+ * when it opens on the timetable. A hovered link gets the cheap part only.
  */
 export function prefetchCalendarPage(
   scope: Scope,
   queryClient: QueryClient,
-  { preload }: { preload: boolean },
+  { preload, modules }: { preload: boolean; modules: readonly ModuleManifest[] },
 ) {
   if (scope.kind !== 'term') return
-  const { termId } = scope
+  const { programId, termId } = scope
   void queryClient.prefetchQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } }))
   const settings = queryClient.fetchQuery(calendarSettingsOptions(termId))
-  const courses = queryClient.fetchQuery(courseListOptions(scope.programId, termId))
-  // A hovered link stops here: the meetings wait for the click.
-  const meetings = preload
+  const courses = queryClient.fetchQuery(courseListOptions(programId, termId))
+  const opening = preload
     ? Promise.resolve()
     : Promise.all([
         settings,
-        readUiPref<{ view?: CalendarSettings['default_view'] }>(
-          queryClient,
-          `calendar.nav.${termId}`,
-        ),
-      ]).then(([values, nav]) => {
-        const view =
-          nav?.view ??
-          { ...DEFAULT_CALENDAR_SETTINGS, ...(values.values as Partial<CalendarSettings>) }
-            .default_view
-        if (view !== 'timetable') return
+        readUiPref<CalendarNav>(queryClient, `calendar.nav.${termId}`),
+        readUiPref<CalendarFilters>(queryClient, `calendar.filters.${termId}`),
+        queryClient.fetchQuery(academicsProgramGetOptions({ path: { program_id: programId } })),
+        queryClient.fetchQuery(academicsTermListOptions({ path: { program_id: programId } })),
+      ]).then(([values, nav, filters, program, terms]) => {
+        const defaults = {
+          ...DEFAULT_CALENDAR_SETTINGS,
+          ...(values.values as Partial<CalendarSettings>),
+        }
+        const view = nav?.view ?? defaults.default_view
+        if (view === 'timetable') {
+          return queryClient.prefetchQuery(
+            scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+          )
+        }
+        const term = terms.items.find((t) => t.id === termId)
+        const sources = visibleSources(
+          filters ?? DEFAULT_FILTERS,
+          modules.flatMap((m) => m.calendarSources ?? []),
+        )
+        if (!term || sources.length === 0) return
+        const date = calendarAnchor(nav, term, todayIn(program.timezone))
         return queryClient.prefetchQuery(
-          scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+          occurrenceOptions(programId, {
+            ...occurrenceRange(view, date, firstDayOfWeek()),
+            term_id: termId,
+            sources,
+          }),
         )
       })
   // The page's own queries report errors.
-  Promise.all([settings, courses, meetings]).catch(() => undefined)
+  Promise.all([settings, courses, opening]).catch(() => undefined)
 }
 
 /** `useCalendarSettings` plus whether the Program's values are still loading (defaults only). */

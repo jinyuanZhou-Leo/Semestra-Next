@@ -28,7 +28,7 @@ import { TermPlanTarget } from '../components/TargetCard'
 import { TermComposition, courseStatusLabel } from '../components/TermComposition'
 import { percentText } from '../display'
 import { parseScore } from '../score'
-import { useTermGrades } from '../queries'
+import { IN_PROGRESS_PREF, useTermGrades } from '../queries'
 import { useTermPlanSimulation } from '../use-plan'
 
 const features = tableFeatures({})
@@ -188,7 +188,7 @@ const DEFAULT_TERM_WHAT_IF: TermWhatIf = { plan: false, scores: {}, targetGpa: n
 /** A term's courses with their grades, the term GPA and plan mode for unfinished courses. */
 export default function TermGradesPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
-  const [includeInProgress, setIncludeInProgress] = useUiPref('grading.term.in_progress', false)
+  const [includeInProgress, setIncludeInProgress] = useUiPref(IN_PROGRESS_PREF, false)
   return (
     <AsyncBoundary query={useTermGrades(termId, includeInProgress)}>
       {(term) => (
