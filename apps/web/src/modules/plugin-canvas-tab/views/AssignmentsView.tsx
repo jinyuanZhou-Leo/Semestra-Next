@@ -115,6 +115,15 @@ const columns = column.columns([
   }),
 ])
 
+/** Fixed widths (with `table-fixed`): opening a description or folding a group doesn't move the
+ * columns; the name takes the rest. */
+const WIDTHS: Record<string, string> = {
+  select: 'w-10',
+  due: 'w-44',
+  score: 'w-24',
+  submission: 'w-40',
+}
+
 type Kind = AssignmentImportKind
 
 /**
@@ -245,12 +254,12 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
             />
           </div>
         </div>
-        <Table>
+        <Table className="min-w-xl table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id} className="hover:bg-transparent">
                 {group.headers.map((h) => (
-                  <TableHead key={h.id} className={h.column.id === 'select' ? 'w-8' : undefined}>
+                  <TableHead key={h.id} className={WIDTHS[h.column.id]}>
                     <table.FlexRender header={h} />
                   </TableHead>
                 ))}
