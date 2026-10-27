@@ -35,7 +35,7 @@ import {
   AttachmentTitle,
 } from '@/ui/attachment'
 import { Badge } from '@/ui/badge'
-import { Command, CommandGroup, CommandItem, CommandList } from '@/ui/command'
+import { Command, CommandGroup, CommandItem, CommandList, CommandShortcut } from '@/ui/command'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/ui/input-group'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -102,7 +102,7 @@ function OptionLabel({ option }: { option: Option }) {
     <>
       {icon}
       <span className="truncate">{label}</span>
-      {hint ? <span className="ml-auto truncate text-xs text-muted-foreground">{hint}</span> : null}
+      {hint ? <CommandShortcut className="truncate tracking-normal">{hint}</CommandShortcut> : null}
     </>
   )
 }
