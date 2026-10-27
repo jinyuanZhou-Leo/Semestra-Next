@@ -3,7 +3,8 @@ import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
+import { ColorSwatch } from '@/components/ColorSwatch'
+import { RadioGroup } from '@/ui/radio-group'
 import { Switch } from '@/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { COLOR_TOKENS, colorVar } from '../plugin-kit/colors'
@@ -126,13 +127,14 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           className="flex flex-wrap gap-2"
         >
           {COLOR_TOKENS.map((token) => (
-            <RadioGroupItem
+            <ColorSwatch
               key={token}
               value={token}
               aria-label={COLOR_NAMES[token]()}
               title={COLOR_NAMES[token]()}
-              className="size-7 rounded-full ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-foreground/60"
-              style={{ backgroundColor: colorVar(token) }}
+              className="size-7"
+              color={colorVar(token)}
+              checkColor="var(--background)"
             />
           ))}
         </RadioGroup>

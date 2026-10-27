@@ -246,40 +246,42 @@
 }
 
 /*
- * Accent swatch (settings → appearance): the ring contracts from outside onto the chosen swatch and
- * the check is revealed left to right. The checked swatch keeps its outer size: the ring takes the
- * edge and the fill shrinks inside it (`p-[3px]` + `bg-clip-content` on the item). The check styles
- * the radio's indicator `<span>` from `ui/radio-group.tsx`; settings-page.test.tsx pins that shape. The ring only transitions on the way in, so deselecting the
- * old swatch is instant. The radio's own dot is replaced by the check mask.
+ * Color swatch (`components/ColorSwatch.tsx`: accent, course, habit and sticky-note colors): the
+ * ring contracts from outside onto the chosen swatch and the check is revealed left to right. The
+ * checked swatch keeps its outer size: the ring takes the edge and the fill shrinks inside it
+ * (`p-[3px]` + `bg-clip-content` on the item). The ring only transitions on the way in, so
+ * deselecting the old swatch is instant. The ring takes `--swatch-color` (default: the accent); the
+ * check is the radio's own indicator `<span>` from `ui/radio-group.tsx` turned into a mask
+ * (settings-page.test.tsx pins that shape), drawn in `--swatch-check`.
  */
-.accent-swatch::before {
+.color-swatch::before {
   content: '';
   position: absolute;
   /* -1px: the radio's own 1px (transparent) border sits outside the padding box, so the ring ends flush with the swatch's outer edge. */
   inset: -1px;
-  border-radius: 9999px;
-  border: 2px solid var(--primary);
+  border-radius: inherit;
+  border: 2px solid var(--swatch-color, var(--primary));
   opacity: 0;
   scale: 1.8;
   pointer-events: none;
 }
-.accent-swatch[data-checked]::before {
+.color-swatch[data-checked]::before {
   opacity: 1;
   scale: 1;
   transition:
-    scale 0.5s cubic-bezier(0.2, 0.8, 0.25, 1),
-    opacity 0.2s ease-out;
+    scale 0.3s cubic-bezier(0.2, 0.8, 0.25, 1),
+    opacity 0.15s ease-out;
 }
-.accent-swatch [data-slot='radio-group-indicator'] > span {
+.color-swatch [data-slot='radio-group-indicator'] > span {
   width: 1rem;
   height: 1rem;
   border-radius: 0;
-  background: var(--primary-foreground);
+  background: var(--swatch-check, var(--primary-foreground));
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")
     center / contain no-repeat;
-  animation: accent-check-in 0.3s 0.2s ease-out backwards;
+  animation: color-swatch-check-in 0.2s 0.12s ease-out backwards;
 }
-@keyframes accent-check-in {
+@keyframes color-swatch-check-in {
   from {
     clip-path: inset(0 100% 0 0);
   }
@@ -288,8 +290,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .accent-swatch[data-checked]::before,
-  .accent-swatch [data-slot='radio-group-indicator'] > span {
+  .color-swatch[data-checked]::before,
+  .color-swatch [data-slot='radio-group-indicator'] > span {
     transition: none;
     animation: none;
   }

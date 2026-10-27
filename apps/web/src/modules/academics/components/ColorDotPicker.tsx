@@ -53,7 +53,13 @@ export function ColorDotPicker({
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
       <PopoverContent align="start" className="w-auto max-w-80">
-        <ColorPicker label={label} inheritLabel={inheritLabel} value={value} onChange={onChange} />
+        <ColorPicker
+          menu
+          label={label}
+          inheritLabel={inheritLabel}
+          value={value}
+          onChange={onChange}
+        />
       </PopoverContent>
     </Popover>
   )
