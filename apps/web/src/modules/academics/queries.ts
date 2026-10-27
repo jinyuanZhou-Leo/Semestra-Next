@@ -88,10 +88,6 @@ export function courseTermId(
   return current?.id ?? course.end_term_id
 }
 
-/**
- * What the extension columns asked for with `CourseColumn.query`, keyed by column id. The list
- * of columns may change when a plugin is installed, which `useQueries` allows.
- */
 /** The term's courses card: its courses and its extra columns' data (`CardContribution.prefetch`). */
 export function prefetchTermCourses(
   scope: Scope,
@@ -108,6 +104,10 @@ export function prefetchTermCourses(
   }
 }
 
+/**
+ * What the extension columns asked for with `CourseColumn.query`, keyed by column id. The list
+ * of columns may change when a plugin is installed, which `useQueries` allows.
+ */
 export function useColumnData(
   columns: readonly CourseColumn[],
   programId: string,

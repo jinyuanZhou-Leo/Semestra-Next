@@ -24,9 +24,10 @@ export type MarkdownProps = {
 }
 
 // The renderer (Streamdown with code, math and diagram plugins) is most of the Sem page's
-// weight, so it is its own chunk. A conversation starts loading it as it opens
-// (`preloadMarkdown`), while the conversation itself is still being fetched; not when this
-// module loads, which happens on an idle preload, where evaluating it would block the page.
+// weight, so it is its own chunk. An open conversation starts loading it while its messages
+// are fetched, a new one once the panel has settled or a message is sent (`preloadMarkdown`);
+// not when this module loads, which happens on an idle preload, where evaluating it would block
+// the page.
 // `preloadable`, not `lazy`: once loaded it renders at once, so the first answer of a new
 // conversation does not swap the conversation for its loading state.
 const Response = preloadable<MarkdownProps>(() => import('./Response'))

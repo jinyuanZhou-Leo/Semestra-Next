@@ -568,10 +568,13 @@ export function Conversation({
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
   const programId = scope?.program_id ?? pageScope?.program_id
   const { courses } = useProgramEntities(programId)
-  // Answers need the Markdown renderer. Evaluating it is a long task, so a new conversation
-  // loads it once the panel has settled, or when the first message is sent (`useChat`); a
-  // conversation with answers loads it as they render.
-  useEffect(() => whenSettled(() => void preloadMarkdown()), [])
+  // Answers need the Markdown renderer. An open conversation loads it at once, alongside its
+  // messages. Evaluating it is a long task, so a new conversation waits until the panel has
+  // settled, or until the first message is sent (`useChat`).
+  useEffect(
+    () => (sessionId ? void preloadMarkdown() : whenSettled(() => void preloadMarkdown())),
+    [sessionId],
+  )
   const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
   useEffect(() => {
     reportTemporary(temporary)
