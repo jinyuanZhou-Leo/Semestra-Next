@@ -1,16 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
+import { docsUrl } from '@/lib/docs'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { getLocale } from '@/paraglide/runtime'
 import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion'
 import { compareVersions, loadRelease, releaseVersions } from './release-notes'
 import { ReleaseNotes } from './ReleaseNotes'
 
 export const REPOSITORY_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
-/** The public docs; self-hosted builds link there too. */
-const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'https://semestra.jyleo.cc/docs'
 
 /** Versions listed under "Earlier versions"; the docs changelog has all of them. */
 const EARLIER_VERSIONS = 5
@@ -32,7 +30,7 @@ export default function AboutSettings() {
   })
   const current = releases.find((release) => release.version === SEMESTRA_VERSION)
   const earlier = releases.filter((release) => release !== current).slice(0, EARLIER_VERSIONS)
-  const docsUrl = `${DOCS_URL}/${getLocale() === 'zh-CN' ? 'zh' : 'en'}`
+  const docsHome = docsUrl()
 
   return (
     <div className="space-y-6">
@@ -58,7 +56,7 @@ export default function AboutSettings() {
           labelId="about-docs"
           description={m.settings_about_docs_note()}
         >
-          <a href={docsUrl} target="_blank" rel="noreferrer noopener" className={LINK}>
+          <a href={docsHome} target="_blank" rel="noreferrer noopener" className={LINK}>
             {m.settings_about_docs_link()}
             <ExternalLink aria-hidden className="size-3.5" />
           </a>
@@ -86,7 +84,7 @@ export default function AboutSettings() {
           title={m.settings_about_earlier()}
           action={
             <a
-              href={`${docsUrl}/changelog`}
+              href={docsUrl('changelog')}
               target="_blank"
               rel="noreferrer noopener"
               className={LINK}

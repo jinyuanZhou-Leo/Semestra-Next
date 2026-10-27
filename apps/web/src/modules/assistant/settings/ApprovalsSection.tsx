@@ -1,34 +1,30 @@
 import type { AgentToolInfo } from '@semestra/api-client'
 import { agentPreferenceGetOptions, agentToolListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, type LucideIcon, PencilLine, Trash2 } from 'lucide-react'
-import { type ReactNode, useId, useState } from 'react'
-import { SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
+import { createColumnHelper } from '@tanstack/react-table'
+import { Lock } from 'lucide-react'
+import { createContext, use, useState } from 'react'
+import {
+  ChoiceControl,
+  RowMenu,
+  SettingRow,
+  SettingsGroup,
+  SettingsNote,
+  SettingsTable,
+  settingsTableFeatures,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
-import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { DropdownMenuItem } from '@/ui/dropdown-menu'
+import { Item, ItemActions, ItemContent, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
-import { EFFECT_TITLES, type ToolGroup, useToolGroups, useUpdatePreferences } from './shared'
-import { FOLD_GROUP_CLASS, FoldTrigger, ToolItems } from './ToolList'
+import { capabilityTitle } from '../labels'
+import { type ToolGroup, useToolGroups, useUpdatePreferences } from './shared'
 
-type Effect = AgentToolInfo['effect']
-type RenderTool = (tool: AgentToolInfo, labelId: string) => ReactNode
-
-const EFFECT_ICONS: Record<Effect, LucideIcon> = {
-  read: Eye,
-  write: PencilLine,
-  destructive: Trash2,
-}
-
-const EFFECT_DESCRIPTIONS: Record<Effect, () => string> = {
-  read: m.assistant_permissions_read_description,
-  write: m.assistant_permissions_write_description,
-  destructive: m.assistant_permissions_destructive_description,
-}
+type Mode = 'ask' | 'module' | 'auto'
 
 /** The auto-approve list with every tool of `tools` turned on or off, the others kept. */
 function withAll(chosen: ReadonlySet<string>, tools: readonly AgentToolInfo[], on: boolean) {
@@ -40,137 +36,187 @@ function withAll(chosen: ReadonlySet<string>, tools: readonly AgentToolInfo[], o
   return [...next].toSorted()
 }
 
-/** How many of `tools` run without asking: all, some (mixed) or none. */
-function countOn(chosen: ReadonlySet<string>, tools: readonly AgentToolInfo[]) {
-  const on = tools.filter((tool) => chosen.has(tool.name)).length
-  return {
-    on,
-    total: tools.length,
-    all: tools.length > 0 && on === tools.length,
-    some: on > 0 && on < tools.length,
-  }
-}
-
-/**
- * A switch for several tools at once. It is on only when all of them are; when some are, the
- * label beside it says "Partly on · 4/63", so an off switch never hides approved changes.
- */
-function BulkSwitch({
-  count,
-  label,
-  disabled,
-  onChange,
-}: {
-  count: ReturnType<typeof countOn>
-  label: string
-  disabled?: boolean
-  onChange: (on: boolean) => void
-}) {
+/** A rule that cannot be changed, such as "No approval needed", in place of a control. */
+function Fixed({ children, locked }: { children: string; locked?: boolean }) {
   return (
-    <span className="flex items-center gap-2">
-      {count.some ? (
-        <Badge variant="secondary" className="tabular-nums">
-          {m.assistant_permissions_partial({ on: count.on, total: count.total })}
-        </Badge>
-      ) : (
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {m.assistant_permissions_count({ on: count.on, total: count.total })}
-        </span>
-      )}
-      <Switch
-        aria-label={label}
-        checked={count.all}
-        disabled={disabled || count.total === 0}
-        onCheckedChange={() => onChange(!count.all)}
-      />
+    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      {locked ? <Lock aria-hidden className="size-3.5" /> : null}
+      {children}
     </span>
   )
 }
 
-/**
- * One kind of effect (read, change, delete): what it means, its rule or master switch, and the
- * tools it covers by module, folded away until asked for.
- */
-function EffectPanel({
-  effect,
-  tools,
-  control,
-  footer,
-  renderTool,
-  renderModule,
-}: {
-  effect: Effect
-  tools: readonly AgentToolInfo[]
-  control: ReactNode
-  footer?: ReactNode
-  renderTool?: RenderTool
-  renderModule?: (group: ToolGroup) => ReactNode
-}) {
-  const id = useId()
-  const groups = useToolGroups(tools)
-  const Icon = EFFECT_ICONS[effect]
+type ModuleRow = ToolGroup & { on: number }
+
+type ModuleActions = {
+  setTools: (tools: readonly AgentToolInfo[], on: boolean) => void
+  choose: (group: ToolGroup) => void
+}
+
+const ModuleContext = createContext<ModuleActions | null>(null)
+
+function useModuleActions() {
+  const actions = use(ModuleContext)
+  if (!actions) throw new Error('module rows render inside ApprovalsSection')
+  return actions
+}
+
+function ModuleSwitch({ row }: { row: ModuleRow }) {
+  const { setTools } = useModuleActions()
+  const all = row.on === row.tools.length
   return (
-    <Collapsible>
-      <Item>
-        <ItemMedia variant="icon">
-          <Icon aria-hidden />
-        </ItemMedia>
-        <ItemContent className="min-w-0 basis-56">
-          <ItemTitle id={`${id}-title`}>{EFFECT_TITLES[effect]()}</ItemTitle>
-          <ItemDescription>{EFFECT_DESCRIPTIONS[effect]()}</ItemDescription>
-          {footer}
-        </ItemContent>
-        <ItemActions className="shrink-0 gap-3">
-          {control}
-          <FoldTrigger count={tools.length} describedBy={`${id}-title`} />
-        </ItemActions>
-      </Item>
-      <CollapsibleContent>
-        <div className="space-y-4 border-t bg-muted/30 px-4 py-3">
-          {groups.map((group) => (
-            <section key={group.id} aria-label={group.title} className="space-y-1.5">
-              <div className="flex min-h-7 items-center justify-between gap-3">
-                <h4 className="text-xs font-medium text-muted-foreground">{group.title}</h4>
-                {renderModule?.(group)}
-              </div>
-              <ToolItems tools={group.tools} action={renderTool} />
-            </section>
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+    <div className="flex items-center justify-end gap-2">
+      {row.on > 0 && !all ? (
+        <Badge variant="secondary">{m.assistant_permissions_partial()}</Badge>
+      ) : null}
+      <Switch
+        aria-label={m.assistant_permissions_auto_module({ module: row.title })}
+        checked={all}
+        onCheckedChange={(on) => setTools(row.tools, on)}
+      />
+    </div>
   )
 }
 
-type Bulk = { tools: readonly AgentToolInfo[]; module?: string }
+function ModuleMenu({ row }: { row: ModuleRow }) {
+  const { choose } = useModuleActions()
+  return (
+    <RowMenu label={m.common_more_actions()}>
+      <DropdownMenuItem onClick={() => choose(row)}>
+        {m.assistant_permissions_choose_tools()}
+      </DropdownMenuItem>
+    </RowMenu>
+  )
+}
+
+function moduleSummary({ on, tools }: ModuleRow) {
+  const total = tools.length
+  if (on === 0) return m.assistant_permissions_module_none({ total })
+  if (on === total) return m.assistant_permissions_module_all({ total })
+  return m.assistant_permissions_module_some({ on, total })
+}
+
+const column = createColumnHelper<typeof settingsTableFeatures, ModuleRow>()
+
+const columns = column.columns([
+  column.accessor((row) => row.title, {
+    id: 'name',
+    header: () => m.assistant_permissions_module(),
+    cell: ({ row }) => (
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{row.original.title}</div>
+        <div className="truncate text-xs text-muted-foreground">{moduleSummary(row.original)}</div>
+      </div>
+    ),
+  }),
+  column.display({
+    id: 'auto',
+    header: () => <span className="block text-right">{m.assistant_permissions_auto()}</span>,
+    cell: ({ row }) => <ModuleSwitch row={row.original} />,
+  }),
+  column.display({
+    id: 'menu',
+    header: () => <span className="sr-only">{m.common_more_actions()}</span>,
+    cell: ({ row }) => <ModuleMenu row={row.original} />,
+  }),
+])
+
+/** One module's changes, each with its own switch. */
+function ToolsDialog({
+  group,
+  open,
+  onOpenChange,
+  chosen,
+  setTools,
+}: {
+  group: ToolGroup | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  chosen: ReadonlySet<string>
+  setTools: (tools: readonly AgentToolInfo[], on: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {m.assistant_permissions_tools_title({ module: group?.title ?? '' })}
+          </DialogTitle>
+          <DialogDescription>{m.assistant_permissions_tools_description()}</DialogDescription>
+        </DialogHeader>
+        <div className="-mx-6 max-h-[60vh] overflow-y-auto px-6">
+          <SettingsGroup>
+            {(group?.tools ?? []).map((tool) => (
+              <Item key={tool.name} size="sm">
+                <ItemContent className="min-w-0">
+                  <ItemTitle>{capabilityTitle(tool.name)}</ItemTitle>
+                </ItemContent>
+                <ItemActions>
+                  <Switch
+                    aria-label={capabilityTitle(tool.name)}
+                    checked={chosen.has(tool.name)}
+                    onCheckedChange={(on) => setTools([tool], on)}
+                  />
+                </ItemActions>
+              </Item>
+            ))}
+          </SettingsGroup>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 /**
- * What the assistant (Sem) may do (M12 §6.2), by effect: reading never asks; changes can
- * be auto-approved all at once, per module or per tool; deleting always asks. Turning on several
- * changes at once asks first, since content Sem reads could then trigger all of them.
+ * What Sem may do without asking (M12 §6.2): reading never asks and deleting always does; changes
+ * ask every time, are auto-approved by module (down to single actions), or are all auto-approved.
+ * The three are one auto-approve list: empty, partial or full.
  */
 export function ApprovalsSection() {
   const catalog = useQuery(agentToolListOptions())
   const preferences = useQuery(agentPreferenceGetOptions())
   const update = useUpdatePreferences()
-  const settings = useSettingsDialog()
-  // Kept after closing so the dialog keeps its text while it animates out.
-  const [bulk, setBulk] = useState<Bulk | null>(null)
+  // "By module" picked while none or all are on; otherwise the mode follows the list.
+  const [byModule, setByModule] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const tools = catalog.data?.items ?? []
-  const reads = tools.filter((tool) => tool.effect === 'read')
+  // Kept after closing so the dialog keeps its text while it animates out.
+  const [chosenGroup, setChosenGroup] = useState<ToolGroup | null>(null)
+  const [choosing, setChoosing] = useState(false)
   // Memory tools never ask, so there is nothing to approve for them.
-  const writes = tools.filter((tool) => tool.effect === 'write' && tool.confirm)
-  const deletes = tools.filter((tool) => tool.effect === 'destructive')
+  const writes = (catalog.data?.items ?? []).filter(
+    (tool) => tool.effect === 'write' && tool.confirm,
+  )
+  const groups = useToolGroups(writes)
   const chosen = new Set(preferences.data?.auto_approve ?? [])
-  const setTools = (subset: readonly AgentToolInfo[], on: boolean) =>
-    update({ auto_approve: withAll(chosen, subset, on) })
-  const setMany = (next: Bulk, on: boolean) => {
-    if (!on) return setTools(next.tools, false)
-    setBulk(next)
-    setConfirming(true)
+  const on = writes.filter((tool) => chosen.has(tool.name)).length
+  const partial = on > 0 && on < writes.length
+  const mode: Mode = byModule || partial ? 'module' : on > 0 ? 'auto' : 'ask'
+  const setTools = (subset: readonly AgentToolInfo[], value: boolean) =>
+    update({ auto_approve: withAll(chosen, subset, value) })
+  const pick = (next: Mode) => {
+    if (next === 'module') return setByModule(true)
+    if (next === 'auto') return setConfirming(true)
+    setByModule(false)
+    // Clears the whole list, including actions of plugins that are not installed right now, so
+    // reinstalling one does not bring back its auto-approvals.
+    update({ auto_approve: [] })
   }
-  const bulkCount = bulk?.tools.length ?? 0
+  const rows: ModuleRow[] = groups.map((group) => ({
+    ...group,
+    on: group.tools.filter((tool) => chosen.has(tool.name)).length,
+  }))
+  // Changes made in the table keep it open, even when they end up turning all or none on.
+  const setModuleTools = (subset: readonly AgentToolInfo[], value: boolean) => {
+    setByModule(true)
+    setTools(subset, value)
+  }
+  const actions: ModuleActions = {
+    setTools: setModuleTools,
+    choose: (group) => {
+      setChosenGroup(group)
+      setChoosing(true)
+    },
+  }
 
   return (
     <AsyncBoundary query={catalog}>
@@ -178,74 +224,68 @@ export function ApprovalsSection() {
         <AsyncBoundary query={preferences}>
           {() => (
             <div className="space-y-3">
-              <SettingsGroup className={FOLD_GROUP_CLASS}>
-                <EffectPanel
-                  key="read"
-                  effect="read"
-                  tools={reads}
-                  control={
-                    <Badge variant="secondary">{m.assistant_permissions_no_confirm()}</Badge>
-                  }
-                />
-                <EffectPanel
-                  key="write"
-                  effect="write"
-                  tools={writes}
-                  control={
-                    <BulkSwitch
-                      count={countOn(chosen, writes)}
-                      label={m.assistant_permissions_auto_all()}
-                      onChange={(on) => setMany({ tools: writes }, on)}
-                    />
-                  }
-                  renderModule={(group) => (
-                    <BulkSwitch
-                      count={countOn(chosen, group.tools)}
-                      label={m.assistant_permissions_auto_module({ module: group.title })}
-                      onChange={(on) => setMany({ tools: group.tools, module: group.title }, on)}
+              <SettingsGroup>
+                <SettingRow
+                  label={m.assistant_permissions_read()}
+                  description={m.assistant_permissions_read_description()}
+                >
+                  <Fixed>{m.assistant_permissions_no_approval()}</Fixed>
+                </SettingRow>
+                <SettingRow
+                  label={m.assistant_permissions_write()}
+                  description={m.assistant_permissions_write_description()}
+                >
+                  {(labelId) => (
+                    <ChoiceControl
+                      labelId={labelId}
+                      value={mode}
+                      onChange={pick}
+                      disabled={writes.length === 0}
+                      options={[
+                        { value: 'ask', label: m.assistant_permissions_mode_ask() },
+                        { value: 'module', label: m.assistant_permissions_mode_module() },
+                        { value: 'auto', label: m.assistant_permissions_mode_auto() },
+                      ]}
                     />
                   )}
-                  renderTool={(tool, labelId) => (
-                    <Switch
-                      aria-labelledby={labelId}
-                      checked={chosen.has(tool.name)}
-                      onCheckedChange={(checked) => setTools([tool], checked)}
-                    />
-                  )}
-                />
-                <EffectPanel
-                  key="destructive"
-                  effect="destructive"
-                  tools={deletes}
-                  control={<Badge variant="outline">{m.assistant_permissions_always_asks()}</Badge>}
-                  footer={
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto self-start p-0 text-xs"
-                      onClick={() => settings.select('ai-mcp', 'assistant-mcp')}
-                    >
-                      {m.assistant_permissions_mcp_link()}
-                    </Button>
-                  }
-                />
+                </SettingRow>
+                <SettingRow
+                  label={m.assistant_permissions_destructive()}
+                  description={m.assistant_permissions_destructive_description()}
+                >
+                  <Fixed locked>{m.assistant_permissions_mode_ask()}</Fixed>
+                </SettingRow>
               </SettingsGroup>
-              <SettingsNote>{m.assistant_settings_approvals_note()}</SettingsNote>
+              {mode === 'module' ? (
+                <ModuleContext value={actions}>
+                  <SettingsTable
+                    label={m.assistant_permissions_modules()}
+                    data={rows}
+                    columns={columns}
+                    getRowId={(row) => row.id}
+                    columnClassName={{ name: 'w-full max-w-0', menu: 'w-12' }}
+                  />
+                </ModuleContext>
+              ) : null}
+              {mode === 'ask' ? null : (
+                <SettingsNote>{m.assistant_settings_approvals_note()}</SettingsNote>
+              )}
+              <ToolsDialog
+                group={chosenGroup}
+                open={choosing}
+                onOpenChange={setChoosing}
+                chosen={chosen}
+                setTools={setModuleTools}
+              />
               <ConfirmDialog
                 open={confirming}
                 onOpenChange={setConfirming}
-                title={
-                  bulk?.module
-                    ? m.assistant_permissions_confirm_module_title({
-                        module: bulk.module,
-                        count: bulkCount,
-                      })
-                    : m.assistant_permissions_confirm_all_title({ count: bulkCount })
-                }
+                title={m.assistant_permissions_confirm_all_title({ count: writes.length })}
                 description={m.assistant_permissions_confirm_description()}
                 confirmLabel={m.assistant_permissions_confirm_label()}
                 onConfirm={() => {
-                  if (bulk) setTools(bulk.tools, true)
+                  setByModule(false)
+                  setTools(writes, true)
                   setConfirming(false)
                 }}
               />
