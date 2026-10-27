@@ -1,5 +1,6 @@
 import { GripVertical, Settings2, Trash2 } from 'lucide-react'
-import { type KeyboardEvent, useId, useRef, useState } from 'react'
+import { type KeyboardEvent, useId, useRef } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
@@ -37,10 +38,14 @@ type Props = {
   /** Moves the card by whole cells (keyboard). */
   onMove: (dx: number, dy: number) => void
   onResize: (size: CardSize) => void
-  onRemove: () => void
-  /** Settings changed while editing (kept in the draft so the saved layout carries them). */
-  onDraftSettings: (settings: Record<string, unknown>) => void
+  /**
+   * Opens the card's settings or the remove confirmation. The board renders those dialogs outside
+   * the grid: pressing inside a portal would otherwise bubble to the grid item and drag the card.
+   */
+  onOpenDialog: (dialog: CardDialogKind) => void
 }
+
+export type CardDialogKind = 'settings' | 'remove'
 
 const ARROWS: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
@@ -69,29 +74,15 @@ export function CardFrame({
   onSelect,
   onMove,
   onResize,
-  onRemove,
-  onDraftSettings,
+  onOpenDialog,
 }: Props) {
   const title = contribution.title()
   const hintId = useId()
   const frame = useRef<HTMLElement>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const { save } = useCardSettings<Record<string, unknown>>(card.id)
   const settings = parseCardSettings(contribution, card.settings)
   const Body = contribution.component
   const Actions = contribution.headerActions
   const props = { scope, instanceId: card.id, size: card.size, settings }
-
-  const submitSettings = async (value: unknown) => {
-    const next = value as Record<string, unknown>
-    try {
-      await save(next)
-      if (editing) onDraftSettings(next)
-    } catch (err) {
-      toastError(err)
-      throw err
-    }
-  }
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return
@@ -130,10 +121,9 @@ export function CardFrame({
         onKeyDown={editing ? onKeyDown : undefined}
         className={cn(
           'group/board-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10 outline-none',
-          editing &&
-            'animate-jiggle select-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:animate-none',
+          editing && 'select-none focus-visible:ring-2 focus-visible:ring-ring',
           editing && movable && 'cursor-grab active:cursor-grabbing',
-          selected && 'animate-none shadow-lg ring-2 ring-primary',
+          selected && 'shadow-lg ring-2 ring-primary',
         )}
       >
         <header className="flex h-9 shrink-0 items-center gap-1.5 px-4 pt-3 pb-1">
@@ -158,7 +148,7 @@ export function CardFrame({
                         size="icon-xs"
                         aria-label={m.board_card_settings({ card: title })}
                         className="opacity-0 group-hover/board-card:opacity-100 focus-visible:opacity-100"
-                        onClick={() => setSettingsOpen(true)}
+                        onClick={() => onOpenDialog('settings')}
                       />
                     }
                   >
@@ -224,24 +214,78 @@ export function CardFrame({
             <Separator orientation="vertical" className="mx-0.5 h-5 self-center" />
           ) : null}
           {contribution.settings ? (
-            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Button variant="ghost" size="sm" onClick={() => onOpenDialog('settings')}>
               <Settings2 aria-hidden />
               {m.board_card_settings_short()}
             </Button>
           ) : null}
-          <Button variant="destructive" size="sm" onClick={onRemove}>
+          <Button variant="destructive" size="sm" onClick={() => onOpenDialog('remove')}>
             <Trash2 aria-hidden />
             {m.board_card_remove_short()}
           </Button>
         </div>
       ) : null}
+    </>
+  )
+}
+
+/**
+ * A card's settings or remove confirmation, rendered by the board outside the grid. Settings
+ * changed while editing go into the draft too, so the saved layout carries them.
+ */
+export function CardDialog({
+  scope,
+  card,
+  contribution,
+  dialog,
+  open,
+  editing,
+  onClose,
+  onRemove,
+  onDraftSettings,
+}: {
+  scope: Scope
+  card: DraftCard
+  contribution: CardContribution
+  dialog: CardDialogKind
+  /** Kept mounted after closing so the dialog animates out (also when the card was removed). */
+  open: boolean
+  editing: boolean
+  onClose: () => void
+  onRemove: () => void
+  onDraftSettings: (settings: Record<string, unknown>) => void
+}) {
+  const { save } = useCardSettings<Record<string, unknown>>(card.id)
+  const title = contribution.title()
+
+  const submitSettings = async (value: unknown) => {
+    const next = value as Record<string, unknown>
+    try {
+      await save(next)
+      if (editing) onDraftSettings(next)
+    } catch (err) {
+      toastError(err)
+      throw err
+    }
+  }
+
+  return (
+    <>
+      <ConfirmDialog
+        open={open && dialog === 'remove'}
+        onOpenChange={(next) => !next && onClose()}
+        title={m.board_card_remove_title({ card: title })}
+        description={m.board_card_remove_description()}
+        confirmLabel={m.board_card_remove_short()}
+        onConfirm={onRemove}
+      />
       {contribution.settings ? (
         <CardSettingsDialog
           card={contribution}
           scope={scope}
-          value={settings}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
+          value={parseCardSettings(contribution, card.settings)}
+          open={open && dialog === 'settings'}
+          onOpenChange={(next) => !next && onClose()}
           onSubmit={submitSettings}
         />
       ) : null}
