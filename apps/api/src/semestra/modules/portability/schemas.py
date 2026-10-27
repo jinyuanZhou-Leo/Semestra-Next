@@ -127,3 +127,9 @@ class AccountDeleteJobInput(BaseModel):
 
 class AccountDeleteJobResult(BaseModel):
     user_id: str
+
+
+class DataCounts(BaseModel):
+    tables: dict[str, int] = Field(
+        description="Rows the user has in each table that a backup covers, by table name"
+    )

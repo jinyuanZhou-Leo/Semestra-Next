@@ -2,3 +2,4 @@
 export { DeleteAccountSection } from './DeleteAccountSection'
 export { ExportSection } from './ExportSection'
 export { RestoreSection } from './RestoreSection'
+export { StorageSection } from './StorageSection'

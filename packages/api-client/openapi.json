@@ -5877,6 +5877,46 @@
         }
       }
     },
+    "/files-usage/breakdown": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Break course file storage down by course and by file type.",
+        "description": "Bytes and file counts per course and per type (PDF, image, Office, text,\nother), largest first. Shown on the account's data settings.",
+        "operationId": "filesUsageBreakdown",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilesUsageBreakdown"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/files-usage": {
       "get": {
         "tags": [
@@ -11936,6 +11976,46 @@
             "description": "Default Response"
           }
         }
+      }
+    },
+    "/me/data-counts": {
+      "get": {
+        "tags": [
+          "portability"
+        ],
+        "summary": "Count the user's data: rows per table, for the data settings overview.",
+        "description": "Only tables a backup covers. Not for agents.",
+        "operationId": "portabilityDataCountGet",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataCounts"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
       }
     },
     "/me/exports": {
@@ -21008,6 +21088,50 @@
         "type": "object",
         "title": "CourseUpdateInputBody"
       },
+      "CourseUsage": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Course Id"
+          },
+          "program_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Program Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The course's alias, else its code, else its title"
+          },
+          "color": {
+            "type": "string",
+            "title": "Color",
+            "description": "The course's resolved color (see Course.resolved_color)"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "program_id",
+          "name",
+          "color",
+          "files",
+          "bytes"
+        ],
+        "title": "CourseUsage"
+      },
       "CoursesImportInputBody": {
         "properties": {
           "external_course_ids": {
@@ -21074,6 +21198,23 @@
           "external_course_ids"
         ],
         "title": "CoursesImportInputBody"
+      },
+      "DataCounts": {
+        "properties": {
+          "tables": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Tables",
+            "description": "Rows the user has in each table that a backup covers, by table name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tables"
+        ],
+        "title": "DataCounts"
       },
       "DayFocus": {
         "properties": {
@@ -22749,6 +22890,31 @@
           "next_cursor"
         ],
         "title": "FilesItemList"
+      },
+      "FilesUsageBreakdown": {
+        "properties": {
+          "by_course": {
+            "items": {
+              "$ref": "#/components/schemas/CourseUsage"
+            },
+            "type": "array",
+            "title": "By Course"
+          },
+          "by_type": {
+            "items": {
+              "$ref": "#/components/schemas/TypeUsage"
+            },
+            "type": "array",
+            "title": "By Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_course",
+          "by_type"
+        ],
+        "title": "FilesUsageBreakdown",
+        "description": "Course files by course and by type, largest first; links take no space and are left out."
       },
       "FilesUsageGet": {
         "properties": {
@@ -33645,6 +33811,36 @@
           "expires_in"
         ],
         "title": "TokenPair"
+      },
+      "TypeUsage": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "image",
+              "office",
+              "text",
+              "other"
+            ],
+            "title": "Type"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "files",
+          "bytes"
+        ],
+        "title": "TypeUsage"
       },
       "UiStateEntry": {
         "properties": {

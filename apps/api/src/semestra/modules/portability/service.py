@@ -11,13 +11,14 @@ from typing import Any
 import anyio
 import structlog
 from fastapi import UploadFile
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.datastructures import State
 
 from semestra import __version__
 from semestra.core.config import Settings
 from semestra.core.context import Ctx
+from semestra.core.db import Base
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue
 from semestra.core.storage import get_storage, remaining_quota
@@ -41,6 +42,7 @@ from semestra.modules.portability.schemas import (
     REPLACE_DATA_PHRASES,
     AccountDeleteInput,
     AccountDeleteJobInput,
+    DataCounts,
     ExportJobInput,
     ExportOut,
     ImportJobInput,
@@ -640,6 +642,24 @@ async def discard_import(ctx: Ctx, archive_id: str) -> None:
     if key:
         storage = get_storage(ctx)
         ctx.after_commit.append(lambda: storage.delete(key))
+
+
+# --- counts ---------------------------------------------------------------------------------
+
+
+async def data_counts(ctx: Ctx) -> DataCounts:
+    """How many rows the user has in every table the adapters cover (M13 §7, data overview)."""
+    tables: dict[str, int] = {}
+    for adapter in adapters():
+        for name in adapter.tables:
+            table = Base.metadata.tables[name]
+            tables[name] = (
+                await ctx.db.scalar(
+                    select(func.count()).select_from(table).where(table.c.user_id == ctx.user_id)
+                )
+                or 0
+            )
+    return DataCounts(tables=tables)
 
 
 # --- account deletion -----------------------------------------------------------------------

@@ -24,17 +24,22 @@ from semestra.modules.files.models import (
     FilesItem,
 )
 from semestra.modules.files.parse import detect
+from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
+    CourseUsage,
     FilesItemList,
     FilesItemListInput,
+    FilesUsageBreakdown,
     FilesUsageGet,
+    FileType,
     FolderDeleteInput,
     FolderOut,
     ItemOut,
     ItemRef,
     ItemUpdateInput,
     SourceKind,
+    TypeUsage,
 )
 from semestra.modules.files.vectors import get_vector_store
 
@@ -768,4 +773,67 @@ async def usage(ctx: Ctx) -> FilesUsageGet:
         files_bytes=total.by_module.get("files", 0),
         quota_bytes=total.quota_bytes,
         max_upload_bytes=ctx.settings.files_max_upload_bytes,
+    )
+
+
+_OFFICE_MIMES = frozenset({DOCX, PPTX, XLSX, "application/x-ole-storage"})
+
+
+def file_type(mime: str | None) -> FileType:
+    if mime == "application/pdf":
+        return "pdf"
+    if mime in _OFFICE_MIMES:
+        return "office"
+    if mime and mime.startswith("image/"):
+        return "image"
+    if mime and mime.startswith("text/"):
+        return "text"
+    return "other"
+
+
+async def usage_breakdown(ctx: Ctx) -> FilesUsageBreakdown:
+    rows = (
+        await ctx.db.execute(
+            select(
+                FilesItem.course_id,
+                FilesItem.mime_type,
+                func.count(),
+                func.coalesce(func.sum(FilesItem.size_bytes), 0),
+            )
+            .where(FilesItem.user_id == ctx.user_id, FilesItem.kind == "file")
+            .group_by(FilesItem.course_id, FilesItem.mime_type)
+        )
+    ).all()
+    per_course: dict[str, list[int]] = {}
+    per_type: dict[FileType, list[int]] = {}
+    for course_id, mime, files, size in rows:
+        for totals in (
+            per_course.setdefault(course_id, [0, 0]),
+            per_type.setdefault(file_type(mime), [0, 0]),
+        ):
+            totals[0] += files
+            totals[1] += size
+    by_course: list[CourseUsage] = []
+    courses = await academics.courses_by_id(ctx, list(per_course))
+    for program_id in sorted({c.program_id for c in courses}):
+        program = await academics.get_program_row(ctx, program_id)
+        own = [c for c in courses if c.program_id == program_id]
+        for course in await academics.courses_out(ctx, program, own):
+            files, size = per_course[course.id]
+            by_course.append(
+                CourseUsage(
+                    course_id=course.id,
+                    program_id=program_id,
+                    name=course.alias or course.code or course.title,
+                    color=course.resolved_color,
+                    files=files,
+                    bytes=size,
+                )
+            )
+    return FilesUsageBreakdown(
+        by_course=sorted(by_course, key=lambda c: (-c.bytes, c.name)),
+        by_type=sorted(
+            (TypeUsage(type=t, files=f, bytes=b) for t, (f, b) in per_type.items()),
+            key=lambda t: -t.bytes,
+        ),
     )
