@@ -20570,6 +20570,19 @@
             ],
             "title": "Default View"
           },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At",
+            "description": "When the course was last read from the platform (cached)"
+          },
           "truncated": {
             "type": "boolean",
             "title": "Truncated"

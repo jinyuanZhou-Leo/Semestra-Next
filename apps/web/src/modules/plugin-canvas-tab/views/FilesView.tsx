@@ -10,10 +10,25 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, File, Folder, FolderOpen, Lock, Search } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  File,
+  FileArchive,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
+  Folder,
+  FolderOpen,
+  Lock,
+  Presentation,
+  Search,
+} from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { useDebounced } from '@/modules/files/hooks'
 import { m } from '@/paraglide/messages'
 import {
@@ -43,10 +58,26 @@ function compareText(a: string, b: string) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 }
 
+/** A file's icon by its type: documents, slides, sheets, archives, images, video, the rest. */
+function FileIcon({ file }: { file: FileMeta }) {
+  const mime = file.mime_type ?? ''
+  const name = file.name.toLowerCase()
+  let Icon = File
+  if (mime.startsWith('image/')) Icon = FileImage
+  else if (mime.startsWith('video/')) Icon = FileVideo
+  else if (/presentationml|powerpoint/.test(mime) || /\.pptx?$/.test(name)) Icon = Presentation
+  else if (/spreadsheetml|ms-excel|csv/.test(mime) || /\.(xlsx?|csv)$/.test(name))
+    Icon = FileSpreadsheet
+  else if (/zip|compressed|gzip|x-tar/.test(mime) || /\.(zip|gz|tar|7z|rar)$/.test(name))
+    Icon = FileArchive
+  else if (/pdf|wordprocessingml|msword|^text\//.test(mime)) Icon = FileText
+  return <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+}
+
 function NameCell({ row }: CellProps) {
   return (
     <span className="flex min-w-0 items-center gap-2.5">
-      <File aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <FileIcon file={row.original} />
       <span className="truncate">{row.original.name}</span>
     </span>
   )
@@ -100,6 +131,8 @@ const columns = column.columns([
 ])
 
 const WIDTHS: Record<string, string> = { size: 'w-24', updated: 'w-44', actions: 'w-28' }
+/** Inset of the first and last column inside the table's rounded border. */
+const EDGE = 'first:pl-4 last:pr-3'
 const CELL_CLASS: Record<string, string> = {
   size: 'text-muted-foreground tabular-nums',
   updated: 'text-muted-foreground tabular-nums',
@@ -117,7 +150,7 @@ export function FilesView({ selected }: { selected?: string }) {
   const deferred = useDebounced(term.trim(), 300)
   const searching = deferred.length >= MIN_TERM
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col gap-4">
       <InputGroup className="sm:max-w-sm">
         <InputGroupAddon>
           <Search aria-hidden />
@@ -148,7 +181,7 @@ function FolderView({ folderId }: { folderId?: string }) {
   return (
     <CanvasBoundary query={listing}>
       {(data) => (
-        <div className="space-y-3">
+        <div className="flex flex-1 flex-col gap-3">
           <Trail trail={data.trail.length > 0 ? data.trail : [data.folder]} />
           {data.folders.length === 0 && data.files.length === 0 ? (
             <Empty>
@@ -238,81 +271,83 @@ function FileTable({
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
   })
   return (
-    <Table className="min-w-xl table-fixed">
-      <TableHeader>
-        {table.getHeaderGroups().map((group) => (
-          <TableRow key={group.id} className="hover:bg-transparent">
-            {group.headers.map((h) => {
-              const sorted = h.column.getIsSorted()
-              return (
-                <TableHead
-                  key={h.id}
-                  scope="col"
-                  aria-sort={
-                    sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined
-                  }
-                  className={WIDTHS[h.column.id]}
-                >
-                  {h.column.getCanSort() ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={h.column.getToggleSortingHandler()}
-                      className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
-                    >
+    <div className="overflow-hidden rounded-2xl border">
+      <Table className="min-w-xl table-fixed">
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id} className="hover:bg-transparent">
+              {group.headers.map((h) => {
+                const sorted = h.column.getIsSorted()
+                return (
+                  <TableHead
+                    key={h.id}
+                    scope="col"
+                    aria-sort={
+                      sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined
+                    }
+                    className={cn(EDGE, WIDTHS[h.column.id])}
+                  >
+                    {h.column.getCanSort() ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={h.column.getToggleSortingHandler()}
+                        className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <table.FlexRender header={h} />
+                        {sorted === 'asc' ? (
+                          <ArrowUp aria-hidden className="size-3" />
+                        ) : sorted === 'desc' ? (
+                          <ArrowDown aria-hidden className="size-3" />
+                        ) : null}
+                      </Button>
+                    ) : (
                       <table.FlexRender header={h} />
-                      {sorted === 'asc' ? (
-                        <ArrowUp aria-hidden className="size-3" />
-                      ) : sorted === 'desc' ? (
-                        <ArrowDown aria-hidden className="size-3" />
-                      ) : null}
-                    </Button>
-                  ) : (
-                    <table.FlexRender header={h} />
-                  )}
-                </TableHead>
-              )
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {folders.map((f) => (
-          <TableRow key={f.external_id}>
-            <TableCell>
-              <button
-                type="button"
-                onClick={() => onOpenFolder?.(f)}
-                className="flex max-w-full min-w-0 items-center gap-2.5 font-medium hover:underline"
-              >
-                <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{f.name}</span>
-              </button>
-            </TableCell>
-            <TableCell colSpan={2} className="truncate text-muted-foreground">
-              {m.canvas_tab_folder_counts({
-                files: f.files_count ?? 0,
-                folders: f.folders_count ?? 0,
+                    )}
+                  </TableHead>
+                )
               })}
-            </TableCell>
-            <TableCell>
-              {/* As tall as the action buttons, so every row has the same height. */}
-              {f.locked ? <LockedMark /> : <span aria-hidden className="block size-8" />}
-            </TableCell>
-          </TableRow>
-        ))}
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id}>
-            {row.getAllCells().map((cell) => (
-              <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
-                <table.FlexRender cell={cell} />
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {folders.map((f) => (
+            <TableRow key={f.external_id}>
+              <TableCell className={EDGE}>
+                <button
+                  type="button"
+                  onClick={() => onOpenFolder?.(f)}
+                  className="flex max-w-full min-w-0 items-center gap-2.5 font-medium hover:underline"
+                >
+                  <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{f.name}</span>
+                </button>
               </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+              <TableCell className={cn(EDGE, CELL_CLASS.size)}>
+                {m.canvas_tab_module_items({
+                  count: (f.files_count ?? 0) + (f.folders_count ?? 0),
+                })}
+              </TableCell>
+              <TableCell className={EDGE} />
+              <TableCell className={EDGE}>
+                {/* As tall as the action buttons, so every row has the same height. */}
+                {f.locked ? <LockedMark /> : <span aria-hidden className="block size-8" />}
+              </TableCell>
+            </TableRow>
+          ))}
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className={cn(EDGE, CELL_CLASS[cell.column.id])}>
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 

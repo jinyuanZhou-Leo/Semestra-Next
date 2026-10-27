@@ -229,6 +229,9 @@ class CourseOverview(BaseModel):
     course: LmsCourse
     navigation: list[NavTab]
     default_view: str | None
+    fetched_at: datetime | None = Field(
+        default=None, description="When the course was last read from the platform (cached)"
+    )
     truncated: bool
 
 

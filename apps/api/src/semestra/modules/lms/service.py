@@ -478,8 +478,14 @@ async def cached(
 
 
 def _dump(value: Any) -> Any:
+    """JSON form for the cache. Fields kept from clients (`exclude=True`: a file's download
+    address) stay in: the cache is server-side, and reads rebuild their DTOs from it."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
+        data = value.model_dump(mode="json")
+        for name, field in type(value).model_fields.items():
+            if field.exclude is True and getattr(value, name) is not None:
+                data[name] = getattr(value, name)
+        return data
     if isinstance(value, list):
         return [_dump(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
     return value

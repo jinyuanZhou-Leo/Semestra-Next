@@ -2866,6 +2866,12 @@ export type CourseOverview = {
      */
     default_view: string | null;
     /**
+     * Fetched At
+     *
+     * When the course was last read from the platform (cached)
+     */
+    fetched_at?: string | null;
+    /**
      * Truncated
      */
     truncated: boolean;

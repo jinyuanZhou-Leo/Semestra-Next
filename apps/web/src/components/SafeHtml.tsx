@@ -26,21 +26,39 @@ function sanitize(html: string): string {
   })
 }
 
+/** Points marked images (`img[data-lms-kind]`) at the app's own address for them. */
+function withImages(html: string, imageSrc: (link: InternalLink) => string | null): string {
+  const template = document.createElement('template')
+  template.innerHTML = html
+  for (const img of template.content.querySelectorAll('img[data-lms-kind][data-lms-ref]')) {
+    const src = imageSrc({
+      kind: img.getAttribute('data-lms-kind') ?? '',
+      ref: img.getAttribute('data-lms-ref') ?? '',
+    })
+    if (src) img.setAttribute('src', src)
+  }
+  return template.innerHTML
+}
+
 /**
  * HTML from outside the app (LMS pages, announcements, syllabi), cleaned once more in the browser
  * although the backend already did (M00, M16 §4). Images load lazily, wide tables scroll
  * sideways, links open in a new tab; `onInternalLink` takes over links into the platform that the
- * app can open itself.
+ * app can open itself, and `imageSrc` loads marked images from the app (a platform file whose own
+ * address needs a platform session).
  */
 export function SafeHtml({
   html,
   onInternalLink,
+  imageSrc,
   className,
 }: {
   html: string
   onInternalLink?: (link: InternalLink) => boolean | void
+  imageSrc?: (link: InternalLink) => string | null
   className?: string
 }) {
+  const clean = sanitize(html)
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!onInternalLink || event.defaultPrevented || event.button !== 0) return
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -71,7 +89,7 @@ export function SafeHtml({
       )}
       onClick={onClick}
       // oxlint-disable-next-line react/no-danger -- sanitized just above
-      dangerouslySetInnerHTML={{ __html: sanitize(html) }}
+      dangerouslySetInnerHTML={{ __html: imageSrc ? withImages(clean, imageSrc) : clean }}
     />
   )
 }

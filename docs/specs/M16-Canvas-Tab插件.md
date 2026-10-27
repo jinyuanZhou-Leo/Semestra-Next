@@ -35,12 +35,12 @@ defineModule({
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
 ## 3. 页面结构
-- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。顶部栏：课程外部名称和代码、"在 Canvas 中打开"、"刷新"（调用 `lms.course.refresh`）、M09 导出的 `<LmsUpdatesBanner>`。
+- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里）：导航栏顶部是"Canvas"小标签与课程代码、学期，底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
 - 导航栏数据：`lms.course.overview.navigation`。显示规则：
   - 内置类型 `home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus` 使用本插件的原生视图。
   - `files`、`discussions` 隐藏（与旧版一致）。
-  - `external` → 启动提示卡（说明这是外部工具，按钮在新标签页中打开 Canvas 中对应的页签）。
-  - `unknown` → "此页面暂不支持在 Semestra 中显示"，带"在 Canvas 中打开"按钮。
+  - 原生视图带图标；`external` 与 `unknown` 放在分隔线下的"在 Canvas 中打开"一组，有地址时直接在新标签页打开 Canvas（窄屏下拉里同样分组）。
+  - 通过链接或记住的位置进入 `external` 时显示启动提示卡（说明这是外部工具，按钮在新标签页中打开）；`unknown` 显示"此页面暂不支持在 Semestra 中显示"，带"在 Canvas 中打开"按钮。
 - 当前位置 `{ tab, detailRef? }` 存在 `useUiPref('canvas-tab.location.<courseId>')`，离开再回来时恢复；同时同步到 URL search 参数，可以分享或刷新。
 
 ## 4. 各视图
@@ -105,3 +105,14 @@ defineModule({
   - 单元：标题行显示进度（已完成/进行中/未解锁），展开后说明前置单元和是否需按顺序完成；条目显示截止时间、分值、锁（悬停看 Canvas 给的原因）与完成要求（圆圈/对勾，悬停看要求）。
   - 测验表新增限时、次数（已用/允许）和我的得分（通过 `assignment_id` 对上作业列表里的 submission）；锁定的测验在标题后显示锁和原因。锁定页面在空状态里显示原因。
   - 打开未读公告时，若账户设置"允许在平台上做修改"已开，同时在 Canvas 上标为已读，列表和课程看板上的未读点随之消失（直接改查询缓存，不重新请求）；失败不提示。
+- **界面调整（2026-10-27 界面评估后，标题区按方案乙）**：
+  - 宽度 ≥ `xl` 时才显示左侧菜单列（1024 宽加上应用侧边栏后表格放不下），更窄时是下拉加控件。去掉内容区上方的大标题行；课程代码与学期放在左侧菜单顶部，"更新于…"、刷新、在 Canvas 中打开放在菜单底部（图标按钮带 tooltip）。`CourseOverview` 新增 `fetched_at`：概览这次从平台读取的时间，随缓存一起存，刷新后更新。详情页（公告、页面、syllabus）的"在 Canvas 中打开"改为图标按钮。
+  - 页面根是 `flex flex-col`，内容区是占满剩余高度的 flex 列，外部工具、锁定页面、空文件夹等空状态垂直居中。
+  - 作业表列为 名称 / 截止 / 得分 / 提交：得分写成"8.5 / 10"（未出分"– / 10"），状态用 `Badge`（已评分、已提交、迟交、缺交为 destructive、7 天内截止显示"N 天后截止"），已导入改成名称后的徽章，锁定的作业名称后有锁（悬停看原因）。状态组件 `SubmissionStatus` 与 `ScoreText` 在 `views/common.tsx`，作业、测验与成绩共用。没勾选时两个导入按钮显示为禁用（`AiAction` 只在运行中与完成时保持满色，调用方传入的 `disabled` 照常变淡）。作业详情里没有值的事实格不显示。
+  - 测验得分同样是"得分 / 满分"，缺交时加"缺交"徽章；"在 Canvas 中打开"带 tooltip。
+  - 成绩页：总评作为表格上方的一行摘要（"当前成绩 84.6% · A-"），其余按作业组分组（组行显示权重），状态与作业页一致（数据来自作业列表，按 `external_id` 对应）。
+  - 文件：表格（#139）加上圆角边框，按类型给图标（PDF、幻灯片、表格、压缩包、图片、视频），文件夹的大小列显示"N 项"。预览对话框副标题是"Word 文档 · 86 KB"这类类型名（`fileKindLabel`），不是 MIME。PDF、图片预览前先请求一次内容（收到响应头就中止下载），失败时显示和其它读取一样的 `Alert`，而不是 iframe 里的错误 JSON。预览、下载、保存按钮的 tooltip 只写动作，读屏名称仍带文件名。
+  - 单元：行尾分成固定宽度的两列（文件按钮/外链标记，完成状态），每行对齐；截止已过且未完成的条目圆圈变红并标"已逾期"；"进行中"的单元默认展开；文件名可以直接点开预览。
+  - 公告列表：未读的标题加粗，前面有圆点（之前是行内 span，宽度为 0 不显示）；每条多一行正文摘要（前端从清洗后的 HTML 取文字）。
+  - **Canvas 正文里的图片**：Canvas 的图片地址（`/courses/:id/files/:id/preview` 等）要 Canvas 登录才能看。M09 清洗 HTML 时，指向本课程文件的 `<img>` 和链接一样带上 `data-lms-kind="file"`/`data-lms-ref`，`SafeHtml` 新增 `imageSrc`，插件把这些图片指向文件代理 `/courses/{id}/lms/files/{fid}/content`。
+  - **修复**：`FileMeta.download_url` 标了 `exclude=True`，而所有读接口都经 `service.cached()` 把 DTO 转成 JSON 再还原，下载地址因此丢失，Canvas 上的文件预览、下载和"保存到课程文件"一律报 `lms.forbidden`。缓存的 JSON 现在保留 `exclude=True` 的字段（只在服务端），对外的 schema 仍不输出它；测试用的假 provider 也像 Canvas 一样在没有下载地址时报错。

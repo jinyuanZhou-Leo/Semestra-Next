@@ -109,6 +109,8 @@ class FakeProvider:
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         if "/pages/" in url:
             return InternalRef(kind="page", ref=url.rsplit("/", 1)[-1])
+        if "/files/" in url:
+            return InternalRef(kind="file", ref=url.split("/files/", 1)[1].split("/", 1)[0])
         return None
 
     def _auth(self, creds: BaseModel) -> None:
@@ -156,7 +158,7 @@ class FakeProvider:
             Announcement(
                 external_id=f"n{course_id}", external_course_id=course_id, title="Welcome",
                 html='<p>Hi <script>alert(1)</script><a href="https://fake/courses/1/pages/intro">'
-                     "intro</a></p>",
+                     'intro</a><img src="https://fake/courses/1/files/77/preview" alt="x"></p>',
             )
             for course_id in course_ids
         ]  # fmt: skip
@@ -212,11 +214,19 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
         self.calls.append(("file", file_id))
-        return FileMeta(external_id=file_id, name="notes.txt", mime_type="text/plain", size_bytes=5)
+        return FileMeta(
+            external_id=file_id,
+            name="notes.txt",
+            mime_type="text/plain",
+            size_bytes=5,
+            download_url=f"https://lms.example/files/{file_id}/download",
+        )
 
     async def open_file(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file: FileMeta
     ) -> AsyncIterator[bytes]:
+        if not file.download_url:  # as Canvas: nothing to fetch without it
+            raise lms_error("lms.forbidden")
         yield b"he"
         yield b"llo"
 

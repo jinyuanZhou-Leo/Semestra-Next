@@ -12,7 +12,7 @@ import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { OpenInCanvas, useInternalLinks } from './common'
+import { OpenInCanvasIcon, useFileImages, useInternalLinks } from './common'
 
 /**
  * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): an AI extraction of the
@@ -55,6 +55,7 @@ export function SyllabusImportButton() {
 export function SyllabusView() {
   const { courseId } = useCanvasPage()
   const onLink = useInternalLinks()
+  const images = useFileImages()
   const syllabus = useQuery({
     ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -62,16 +63,16 @@ export function SyllabusView() {
   return (
     <CanvasBoundary query={syllabus}>
       {(data) => (
-        <article className="space-y-4">
+        <article className="flex flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-heading text-lg font-semibold">{m.canvas_tab_syllabus()}</h2>
             <div className="flex items-center gap-2">
               {data.html ? <SyllabusImportButton /> : null}
-              {data.web_url ? <OpenInCanvas href={data.web_url} /> : null}
+              {data.web_url ? <OpenInCanvasIcon href={data.web_url} /> : null}
             </div>
           </div>
           {data.html ? (
-            <SafeHtml html={data.html} onInternalLink={onLink} />
+            <SafeHtml html={data.html} onInternalLink={onLink} imageSrc={images} />
           ) : (
             <Empty>
               <EmptyHeader>

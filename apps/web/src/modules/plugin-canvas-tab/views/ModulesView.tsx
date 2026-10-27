@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
+  CircleAlert,
   CircleCheck,
   ClipboardList,
   ExternalLink,
@@ -17,8 +18,9 @@ import {
   Paperclip,
   Puzzle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
   AlertDialog,
@@ -141,7 +143,8 @@ function ModuleSection({
   focused: boolean
   onExternal: (url: string) => void
 }) {
-  const [open, setOpen] = useState(focused)
+  // The module the user is working through opens by itself.
+  const [open, setOpen] = useState(focused || module.state === 'started')
   const ref = useScrollIntoView<HTMLDivElement>(focused ? module.external_id : undefined)
   const meta = [
     m.canvas_tab_module_items({ count: module.item_count ?? 0 }),
@@ -273,60 +276,56 @@ function requirementLabel(c: Completion): string {
   }
 }
 
-/** Due date, points, the lock and the completion check after an item's title. */
-function ItemStatus({ item }: { item: ModuleItem }) {
-  const meta = [
-    item.due_at ? m.canvas_tab_due_at({ time: formatDateTime(item.due_at) }) : null,
-    item.points != null ? m.canvas_tab_points({ points: item.points }) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  const completion = item.completion
+function LockIcon({ explanation }: { explanation?: string | null }) {
+  const why = explanation || m.canvas_tab_item_locked()
   return (
-    <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-      {meta ? <span className="hidden sm:inline">{meta}</span> : null}
-      {item.locked ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={item.lock_explanation || m.canvas_tab_item_locked()}
-          >
-            <Lock aria-hidden className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">
-            {item.lock_explanation || m.canvas_tab_item_locked()}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
-      {completion ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={`${requirementLabel(completion)}: ${
-              completion.completed
-                ? m.canvas_tab_requirement_done()
-                : m.canvas_tab_requirement_todo()
-            }`}
-          >
-            {completion.completed ? (
-              <CircleCheck aria-hidden className="size-4 text-primary" />
-            ) : (
-              <Circle aria-hidden className="size-4" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>
-            {requirementLabel(completion)}
-            {' · '}
-            {completion.completed
-              ? m.canvas_tab_requirement_done()
-              : m.canvas_tab_requirement_todo()}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        className="inline-flex shrink-0 rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        aria-label={why}
+      >
+        <Lock aria-hidden className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{why}</TooltipContent>
+    </Tooltip>
   )
 }
 
+/** The completion check at the end of a row; red when the item is past due and not done. */
+function CompletionMark({ completion, overdue }: { completion: Completion; overdue: boolean }) {
+  const state = completion.completed
+    ? m.canvas_tab_requirement_done()
+    : overdue
+      ? m.canvas_tab_overdue()
+      : m.canvas_tab_requirement_todo()
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        aria-label={`${requirementLabel(completion)}: ${state}`}
+      >
+        {completion.completed ? (
+          <CircleCheck aria-hidden className="size-4 text-primary" />
+        ) : overdue ? (
+          <CircleAlert aria-hidden className="size-4 text-destructive" />
+        ) : (
+          <Circle aria-hidden className="size-4 text-muted-foreground" />
+        )}
+      </TooltipTrigger>
+      <TooltipContent>
+        {requirementLabel(completion)}
+        {' · '}
+        {state}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * One item: its link (and lock) take the room; due date and points, the actions (file buttons
+ * or the external-link mark) and the completion check sit in fixed columns at the end, so they
+ * line up from row to row.
+ */
 function ModuleItemRow({
   item,
   onExternal,
@@ -334,15 +333,50 @@ function ModuleItemRow({
   item: ModuleItem
   onExternal: (url: string) => void
 }) {
+  const [now] = useState(Date.now)
   if (item.kind === 'subheader') {
     return <p className="pt-2 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
   }
+  const completion = item.completion
+  const overdue =
+    completion != null &&
+    !completion.completed &&
+    item.due_at != null &&
+    new Date(item.due_at).getTime() < now
+  const meta = [
+    item.due_at ? m.canvas_tab_due_at({ time: formatDateTime(item.due_at) }) : null,
+    item.points != null ? m.canvas_tab_points({ points: item.points }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const file = item.kind === 'file' && item.target ? item.target.ref : null
+  const leaves =
+    !file && !(item.target && refLocation(item.target)) && (item.external_url || item.web_url)
   return (
-    <div className="flex items-center gap-2">
-      <div className="min-w-0 flex-1">
+    <div className="flex min-h-8 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <ModuleItemLink item={item} onExternal={onExternal} />
+        {item.locked ? <LockIcon explanation={item.lock_explanation} /> : null}
       </div>
-      <ItemStatus item={item} />
+      {meta ? (
+        <span
+          className={cn(
+            'hidden shrink-0 text-xs whitespace-nowrap sm:inline',
+            overdue ? 'text-destructive' : 'text-muted-foreground',
+          )}
+        >
+          {overdue ? `${m.canvas_tab_overdue()} · ${meta}` : meta}
+        </span>
+      ) : null}
+      <div className="flex w-24 shrink-0 items-center justify-end">
+        {file ? <FileActions fileId={file} name={item.title} /> : null}
+        {leaves ? (
+          <ExternalLink aria-hidden className="mr-2 size-3.5 text-muted-foreground" />
+        ) : null}
+      </div>
+      <span className="flex w-5 shrink-0 justify-center">
+        {completion ? <CompletionMark completion={completion} overdue={overdue} /> : null}
+      </span>
     </div>
   )
 }
@@ -362,20 +396,16 @@ function ModuleItemLink({
       <span className="min-w-0 truncate">{item.title}</span>
     </>
   )
-  const rowClass = 'h-auto min-h-8 justify-start gap-2 px-2 py-1 font-normal'
+  const rowClass = 'h-auto min-h-8 min-w-0 justify-start gap-2 px-2 py-1 font-normal'
 
   if (item.kind === 'file' && item.target) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-sm">{label}</span>
-        <FileActions fileId={item.target.ref} name={item.title} />
-      </div>
-    )
+    const fileId = item.target.ref
+    return <FileName fileId={fileId}>{label}</FileName>
   }
   const inApp = item.target ? refLocation(item.target) : null
   if (inApp) {
     return (
-      <Button variant="ghost" size="sm" className={`w-full ${rowClass}`} onClick={() => go(inApp)}>
+      <Button variant="ghost" size="sm" className={rowClass} onClick={() => go(inApp)}>
         {label}
       </Button>
     )
@@ -383,14 +413,8 @@ function ModuleItemLink({
   if (item.kind === 'external_url' && item.external_url) {
     const url = item.external_url
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`w-full ${rowClass}`}
-        onClick={() => onExternal(url)}
-      >
+      <Button variant="ghost" size="sm" className={rowClass} onClick={() => onExternal(url)}>
         {label}
-        <ExternalLink aria-hidden className="ml-auto size-3.5 text-muted-foreground" />
       </Button>
     )
   }
@@ -399,15 +423,29 @@ function ModuleItemLink({
       <Button
         variant="ghost"
         size="sm"
-        className={`w-full ${rowClass}`}
+        className={rowClass}
         nativeButton={false}
         // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
         render={<a href={item.web_url} target="_blank" rel="noopener noreferrer" />}
       >
         {label}
-        <ExternalLink aria-hidden className="ml-auto size-3.5 text-muted-foreground" />
       </Button>
     )
   }
-  return <span className="flex items-center gap-2 px-2 py-1 text-sm">{label}</span>
+  return <span className="flex min-w-0 items-center gap-2 px-2 py-1 text-sm">{label}</span>
+}
+
+/** A file's name opens its preview, like the eye button next to it. */
+function FileName({ fileId, children }: { fileId: string; children: ReactNode }) {
+  const { openFile } = useCanvasPage()
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-auto min-h-8 min-w-0 justify-start gap-2 px-2 py-1 font-normal"
+      onClick={() => openFile(fileId)}
+    >
+      {children}
+    </Button>
+  )
 }
