@@ -51,7 +51,11 @@ function statusItems(): PurposeStatus[] {
     const p = world.providers.find(
       (x) =>
         x.enabled &&
-        (own ? x.id === own.provider_id : !['openai_compatible', 'ollama'].includes(x.kind)),
+        (own
+          ? x.id === own.provider_id
+          : !['openai_compatible', 'openai_responses', 'anthropic_compatible', 'ollama'].includes(
+              x.kind,
+            )),
     )
     const ok =
       p !== undefined &&
@@ -250,6 +254,12 @@ test('adding a provider checks the key; a rejected key is explained in the form'
   expect(await screen.findByText('No provider connected yet.')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
+  // Step one: the services we know.
+  await user.click(within(dialog).getByRole('button', { name: /^Anthropic/ }))
+  expect(within(dialog).getByRole('heading', { name: 'Connect Anthropic' })).toBeInTheDocument()
+  expect(
+    within(dialog).getByRole('link', { name: 'Create a key at console.anthropic.com' }),
+  ).toHaveAttribute('href', 'https://console.anthropic.com/settings/keys')
   const save = within(dialog).getByRole('button', { name: 'Check and save' })
   expect(save).toBeDisabled()
 
@@ -277,11 +287,12 @@ test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for
   renderWithQuery(<ProvidersSection />)
   await user.click(await screen.findByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
-  await user.click(within(dialog).getByRole('combobox', { name: 'Provider' }))
-  await user.click(await screen.findByRole('option', { name: 'OpenAI-compatible' }))
+  await user.click(within(dialog).getByRole('button', { name: /^Other compatible API/ }))
+  // The format is the only protocol word left, and only here.
+  expect(within(dialog).getByText('API format')).toBeInTheDocument()
   expect(within(dialog).getByLabelText('API key (optional)')).toBeInTheDocument()
   await user.type(within(dialog).getByLabelText('Base URL'), 'https://api.deepseek.com/v1')
-  await user.click(within(dialog).getByRole('checkbox', { name: 'Images' }))
+  await user.click(within(dialog).getByRole('checkbox', { name: 'Read images' }))
   await user.type(within(dialog).getByLabelText('Model'), 'deepseek-chat')
   await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -305,6 +316,64 @@ test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for
   )
 })
 
+test('a known service fills in its address, format and model; only the key is asked for', async () => {
+  const user = userEvent.setup()
+  renderWithQuery(<ProvidersSection />)
+  await user.click(await screen.findByRole('button', { name: 'Add provider' }))
+  const dialog = await screen.findByRole('dialog')
+  await user.click(within(dialog).getByRole('button', { name: /^DeepSeek/ }))
+  expect(within(dialog).queryByLabelText('Base URL')).not.toBeInTheDocument()
+  expect(within(dialog).getByText('api.deepseek.com · deepseek-flash')).toBeInTheDocument()
+  const save = within(dialog).getByRole('button', { name: 'Check and save' })
+  // A hosted service always needs its key.
+  expect(save).toBeDisabled()
+  await user.type(within(dialog).getByLabelText('API key'), 'sk-deep')
+  await user.click(save)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(requests[0]).toMatchObject({
+    method: 'POST',
+    body: {
+      kind: 'anthropic_compatible',
+      display_name: 'DeepSeek',
+      base_url: 'https://api.deepseek.com/anthropic',
+      api_key: 'sk-deep',
+      capabilities: ['chat', 'tools'],
+    },
+  })
+  const assigned = requests.filter((r) => r.method === 'PUT').map((r) => r.body)
+  expect(assigned).toContainEqual({
+    purpose: 'chat',
+    provider_id: 'pv1',
+    model: 'deepseek-flash',
+  })
+})
+
+test('a service with two sites asks which one the key is from and saves its default model', async () => {
+  const user = userEvent.setup()
+  renderWithQuery(<ProvidersSection />)
+  await user.click(await screen.findByRole('button', { name: 'Add provider' }))
+  const dialog = await screen.findByRole('dialog')
+  await user.click(within(dialog).getByRole('button', { name: /^Kimi/ }))
+  // The English interface starts on the international site.
+  expect(within(dialog).getByRole('link', { name: /platform\.moonshot\.ai/ })).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'Mainland China' }))
+  expect(within(dialog).getByRole('link', { name: /platform\.moonshot\.cn/ })).toBeInTheDocument()
+  await user.type(within(dialog).getByLabelText('API key'), 'sk-kimi')
+  await user.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(requests[0]).toMatchObject({
+    method: 'POST',
+    body: {
+      kind: 'openai_compatible',
+      display_name: 'Kimi',
+      base_url: 'https://api.moonshot.cn/v1',
+    },
+  })
+  // Only the key was typed, yet the tasks nothing served now have a model.
+  const assigned = requests.filter((r) => r.method === 'PUT').map((r) => r.body)
+  expect(assigned).toContainEqual({ purpose: 'chat', provider_id: 'pv1', model: 'kimi-k2.6' })
+})
+
 test('a provider row shows name, type and state; its menu tests, switches off and deletes', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
@@ -319,7 +388,10 @@ test('a provider row shows name, type and state; its menu tests, switches off an
   expect(within(row).getByText('Anthropic', { selector: '.font-medium' })).toBeInTheDocument()
   expect(within(row).getByText('Working')).toBeInTheDocument()
   // Actions live in one "⋯" menu instead of three buttons on the row.
-  expect(within(row).getAllByRole('button')).toHaveLength(1)
+  const menus = within(row)
+    .getAllByRole('button')
+    .filter((b) => b.getAttribute('aria-haspopup') === 'menu')
+  expect(menus).toHaveLength(1)
 
   const openMenu = () =>
     user.click(within(row).getByRole('button', { name: 'Actions for Anthropic' }))
@@ -369,38 +441,91 @@ test('an error the badge has no word for shows "Error"', async () => {
   expect(within(row).getByText('Error')).toBeInTheDocument()
 })
 
-test('each purpose shows the model in use and can be switched to another model', async () => {
+const modelBox = (purpose: string) => screen.getByRole('combobox', { name: `Model for ${purpose}` })
+
+test('each task shows its model, marked Auto while it follows the recommendation', async () => {
   world.providers.push(provider())
-  const user = userEvent.setup()
   renderWithQuery(<ModelsSection />)
-  expect(
-    await screen.findAllByText('Using Anthropic · claude-sonnet-5-5 (recommended)'),
-  ).toHaveLength(4)
+  await waitFor(() => expect(modelBox('Reading documents')).toHaveTextContent('Claude Sonnet 5.5'))
+  expect(modelBox('Reading documents')).toHaveTextContent('Auto')
+  // Nothing serves embeddings: the box says so and the row explains why.
+  expect(modelBox('Search')).toHaveTextContent('Unavailable')
   expect(
     screen.getByText('Not available: connect a provider that supports this.'),
   ).toBeInTheDocument()
+})
 
-  await user.click(screen.getByRole('combobox', { name: 'Provider for Reading documents' }))
-  await user.click(await screen.findByRole('option', { name: 'Anthropic' }))
-  // The recommended model of that provider is saved straight away …
+test('a model is picked from one searchable list, and Auto goes back to the recommendation', async () => {
+  world.providers.push(provider())
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  await waitFor(() => expect(modelBox('Reading documents')).toHaveTextContent('Claude Sonnet 5.5'))
+  await user.click(modelBox('Reading documents'))
+  expect(await screen.findByRole('option', { name: /Auto \(recommended\)/ })).toHaveTextContent(
+    'Currently Anthropic · Claude Sonnet 5.5',
+  )
+  await user.type(screen.getByPlaceholderText('Search models'), 'haiku')
+  expect(screen.queryByRole('option', { name: /Claude Sonnet 5.5/ })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('option', { name: /Claude Haiku 5.5/ }))
   await waitFor(() =>
     expect(requests.at(-1)).toMatchObject({
       method: 'PUT',
-      body: { purpose: 'extraction', provider_id: 'pv1', model: 'claude-sonnet-5-5' },
-    }),
-  )
-  // … and another model is one pick away.
-  await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
-  const model = await screen.findByRole('combobox', { name: 'Reading documents' })
-  await waitFor(() => expect(model).toHaveTextContent('Claude Sonnet 5.5'))
-  await user.click(model)
-  await user.click(await screen.findByRole('option', { name: 'Claude Haiku 5.5' }))
-  await waitFor(() =>
-    expect(requests.at(-1)).toMatchObject({
       body: { purpose: 'extraction', provider_id: 'pv1', model: 'claude-haiku-5-5' },
     }),
   )
-  expect(await screen.findByText('Using Anthropic · claude-haiku-5-5')).toBeInTheDocument()
+  await waitFor(() => expect(modelBox('Reading documents')).toHaveTextContent('Claude Haiku 5.5'))
+  expect(modelBox('Reading documents')).not.toHaveTextContent('Auto')
+
+  await user.click(modelBox('Reading documents'))
+  await user.click(await screen.findByRole('option', { name: /Auto \(recommended\)/ }))
+  await waitFor(() =>
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      body: { purpose: 'extraction', provider_id: null },
+    }),
+  )
+})
+
+test('an endpoint that lists no models takes the name typed into the search box', async () => {
+  world.providers.push(
+    provider({
+      kind: 'openai_compatible',
+      display_name: 'My server',
+      base_url: 'https://llm.example.com/v1',
+      capabilities: ['chat', 'tools'],
+    }),
+  )
+  server.use(
+    http.get(`${API}/ai/providers/:id/models`, () =>
+      HttpResponse.json({ items: [], manual_entry: true }),
+    ),
+  )
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  await user.click(await screen.findByRole('combobox', { name: 'Model for Sem' }))
+  await user.type(await screen.findByPlaceholderText('Search or type a model name'), 'qwen3')
+  await user.click(await screen.findByRole('option', { name: 'Use “qwen3”' }))
+  await waitFor(() =>
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      body: { purpose: 'chat', provider_id: 'pv1', model: 'qwen3' },
+    }),
+  )
+})
+
+test('a task whose provider is failing says so under it', async () => {
+  world.providers.push(provider({ last_error_code: 'ai.out_of_credit' }))
+  renderWithQuery(<ModelsSection />)
+  expect(
+    await screen.findAllByText('Anthropic: Out of credit. This task fails until it is fixed.'),
+  ).toHaveLength(4)
+})
+
+test('with no provider the models page is one empty state that leads to adding one', async () => {
+  renderWithRouter(<ModelsSection />)
+  expect(await screen.findByText('No provider connected yet.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add provider' })).toBeInTheDocument()
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
 })
 
 const usage: UsageSummary = {

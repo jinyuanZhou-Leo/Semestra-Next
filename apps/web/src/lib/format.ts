@@ -45,6 +45,25 @@ export function formatDateTime(value: string | Date, opts: { hour12?: boolean } 
   }).format(new Date(value))
 }
 
+const AGO_UNITS: ReadonlyArray<[Intl.RelativeTimeFormatUnit, number]> = [
+  ['year', 365 * 86_400],
+  ['month', 30 * 86_400],
+  ['week', 7 * 86_400],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+]
+
+/** "5 minutes ago", "yesterday", "now": a past moment in its largest whole unit. */
+export function formatTimeAgo(value: string | Date, now: number = Date.now()): string {
+  const seconds = Math.max(0, (now - new Date(value).getTime()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' })
+  for (const [unit, size] of AGO_UNITS) {
+    if (seconds >= size) return rtf.format(-Math.floor(seconds / size), unit)
+  }
+  return rtf.format(0, 'second')
+}
+
 /**
  * A calendar day: a Date, an ISO timestamp, or a date-only `YYYY-MM-DD` from the API. `short`
  * leaves out the year ("Jan 15"), for chart axes and labels within one recent range.

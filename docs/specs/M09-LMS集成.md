@@ -166,7 +166,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ## 7. 前端
 ### 7.1 设置
-- **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：表格列出显示名、provider（logo）、实例地址、账户名、状态和最后检查时间，行操作有编辑、重新验证和删除。"添加连接"对话框：先选 provider（目前只有 Canvas），然后显示 provider 贡献的表单（Canvas：实例地址、访问令牌，附带折叠的"如何获取访问令牌"说明：Canvas → 账户 → 设置 → 新建访问令牌），最后验证并保存。手机上使用抽屉。
+- **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 令牌失效 / 缺少令牌 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；平台表单（Canvas：实例地址、访问令牌）下面一直显示获取令牌的 3 步说明（`credentialHelp` 收到当前填写的 config，第 1 步链接到 `https://<地址>/profile/settings`），最后验证并保存。手机上使用抽屉。
 - **Program 设置 → LMS**：选择绑定的连接；已有关联时禁用更换，并说明原因和关联数量。
 - **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：显示当前关联（外部名称和代码、provider 图标、最后同步时间与错误）、同步开关、"立即同步"、更换或解除关联。选择外部课程时按学年分组，已被其它课程关联的项灰显并注明是哪门课程；Program 未绑定连接时显示引导。
 

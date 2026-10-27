@@ -101,7 +101,7 @@ export function ConnectionForm({
               hints={connection?.credentials_hint ?? {}}
             />
           ) : null}
-          {Help ? <Help /> : null}
+          {Help ? <Help config={config} /> : null}
           <Field>
             <FieldLabel htmlFor={`${id}-name`}>{m.lms_connection_name()}</FieldLabel>
             <Input
