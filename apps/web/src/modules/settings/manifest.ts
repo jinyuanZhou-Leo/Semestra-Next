@@ -48,4 +48,7 @@ export default defineModule({
     'settings.preferences.updated': ['settingsPreferenceGet'],
     'settings.values.updated': ['settingsValueGet'],
   },
+  // Only `useUpdatePreferences` changes preferences from a tab, and it refetches them after its
+  // last change; the echo would refetch again, and could land between two quick changes.
+  realtimeSkipOwn: ['settings.preferences.updated'],
 })
