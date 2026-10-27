@@ -8,6 +8,7 @@ import {
 } from '@semestra/api-client'
 import { agentSessionGetQueryKey, settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { JSONContent } from '@tiptap/core'
 import { toast } from 'sonner'
 import {
   Brain,
@@ -24,7 +25,6 @@ import {
   Pencil,
   Play,
   RotateCcw,
-  Sparkles,
 } from 'lucide-react'
 import { type DragEvent, Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
@@ -41,7 +41,6 @@ import {
   AttachmentMedia,
   AttachmentTitle,
 } from '@/ui/attachment'
-import { Badge } from '@/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import { Bubble, BubbleContent } from '@/ui/bubble'
 import { Button } from '@/ui/button'
@@ -53,7 +52,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton } from '@/ui/input-group'
 import { Message, MessageContent, MessageFooter } from '@/ui/message'
 import {
   MessageScroller,
@@ -71,13 +70,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
-import { scopeKind } from '../scope'
+import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
+import { scopeKind, useProgramEntities } from '../scope'
 import { buildItems, citationsOf, pausedReason, type ViewItem } from '../transcript'
 import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown } from './Markdown'
+import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
+import { ChipCourses, RefChip } from './RefChip'
 import { ProposalCard } from './ProposalCard'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
@@ -164,53 +166,61 @@ const hoverActions =
 
 function UserMessage({
   item,
+  programId,
   scope,
   savedFiles,
   canEdit,
   onEdit,
 }: {
   item: Extract<ViewItem, { kind: 'user' }>
+  programId: string | undefined
   /** Where the conversation works: the courses its attachments can be saved to. */
   scope: AgentScope | null
   /** Course file each attachment was saved as, by attachment id. */
   savedFiles: ReadonlyMap<string, string>
   canEdit: boolean
   /** Resolves false when the edit could not be sent; the editor stays open. */
-  onEdit: (text: string) => Promise<boolean>
+  onEdit: (text: string, references: MessageReference[]) => Promise<boolean>
 }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const editing = draft !== null
-  const editor = useRef<HTMLTextAreaElement>(null)
+  // What the editor starts with while editing; the editor reports `draft` as it changes.
+  const [opened, setOpened] = useState<JSONContent | null>(null)
+  const [draft, setDraft] = useState<PromptValue | null>(null)
+  const editing = opened !== null
+  const editor = useRef<PromptEditorHandle>(null)
+  const skill: Chip | null = item.skill
+    ? { kind: 'skill', id: '', label: skillTitle(item.skill) }
+    : null
 
   // The editor opens with the caret after the text.
   useEffect(() => {
-    const field = editor.current
-    if (!editing || !field) return
-    field.focus()
-    field.setSelectionRange(field.value.length, field.value.length)
+    if (editing) editor.current?.focus()
   }, [editing])
   const canSave =
     draft !== null &&
-    draft.trim() !== item.text.trim() &&
-    (draft.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+    (draft.text.trim() !== item.text.trim() ||
+      !sameReferences(draft.references, item.references)) &&
+    (draft.text.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+
+  function open() {
+    setDraft(null)
+    setOpened(promptDoc(item.text, item.references))
+  }
 
   async function save() {
-    if (draft === null || !canSave) return
+    if (draft === null || opened === null || !canSave) return
     const sent = draft
+    const reopen = promptDoc(sent.text, sent.references)
     // Closes at once: the transcript already shows the edit while the answer streams.
-    setDraft(null)
-    if (!(await onEdit(sent))) setDraft(sent)
+    setOpened(null)
+    if (!(await onEdit(sent.text, sent.references))) {
+      setDraft(sent)
+      setOpened(reopen)
+    }
   }
 
   return (
     <Message align="end">
       <MessageContent>
-        {item.skill ? (
-          <Badge variant="secondary" className="gap-1 self-end">
-            <Sparkles aria-hidden />
-            {skillTitle(item.skill)}
-          </Badge>
-        ) : null}
         {item.attachments.length > 0 ? (
           <AttachmentGroup className="justify-end">
             {item.attachments.map((att) => (
@@ -232,51 +242,53 @@ function UserMessage({
           </AttachmentGroup>
         ) : null}
         {editing ? (
-          <InputGroup className="w-full rounded-2xl">
-            <InputGroupTextarea
-              aria-label={m.assistant_edit_label()}
-              className="max-h-48 min-h-12"
-              value={draft}
-              ref={editor}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing || event.keyCode === 229) return
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  setDraft(null)
-                } else if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void save()
-                }
-              }}
-            />
-            <InputGroupAddon align="block-end" className="justify-end gap-1.5">
-              <InputGroupButton variant="ghost" size="sm" onClick={() => setDraft(null)}>
-                {m.common_cancel()}
-              </InputGroupButton>
-              <InputGroupButton
-                variant="default"
-                size="sm"
-                disabled={!canSave || !canEdit}
-                onClick={() => void save()}
-              >
-                {m.assistant_send()}
-              </InputGroupButton>
-            </InputGroupAddon>
-          </InputGroup>
-        ) : item.text ? (
+          <>
+            {skill ? (
+              <span className="self-end">
+                <RefChip chip={skill} />
+              </span>
+            ) : null}
+            <InputGroup className="relative w-full rounded-2xl">
+              <PromptEditor
+                ref={editor}
+                label={m.assistant_edit_label()}
+                programId={programId}
+                initialContent={opened}
+                className="w-full"
+                onChange={(value) => setDraft(value)}
+                onEnter={() => void save()}
+                onEscape={() => setOpened(null)}
+              />
+              <InputGroupAddon align="block-end" className="justify-end gap-1.5">
+                <InputGroupButton variant="ghost" size="sm" onClick={() => setOpened(null)}>
+                  {m.common_cancel()}
+                </InputGroupButton>
+                <InputGroupButton
+                  variant="default"
+                  size="sm"
+                  disabled={!canSave || !canEdit}
+                  onClick={() => void save()}
+                >
+                  {m.assistant_send()}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </>
+        ) : item.text || skill ? (
           <Bubble align="end" variant="muted">
-            <BubbleContent className="whitespace-pre-wrap">{item.text}</BubbleContent>
+            <BubbleContent className="leading-6 whitespace-pre-wrap">
+              {skill ? <RefChip chip={skill} /> : null}
+              {skill && item.text ? ' ' : null}
+              {segments(item.text, item.references).map((part, i) =>
+                typeof part === 'string' ? part : <RefChip key={i} chip={part} />,
+              )}
+            </BubbleContent>
           </Bubble>
         ) : null}
         {editing ? null : (
           <div className={cn('flex justify-end gap-0.5', hoverActions)}>
             {item.text ? <CopyAction text={item.text} /> : null}
-            <IconAction
-              label={m.assistant_edit()}
-              disabled={!canEdit}
-              onClick={() => setDraft(item.text)}
-            >
+            <IconAction label={m.assistant_edit()} disabled={!canEdit} onClick={open}>
               <Pencil />
             </IconAction>
           </div>
@@ -285,6 +297,9 @@ function UserMessage({
     </Message>
   )
 }
+
+const sameReferences = (a: readonly MessageReference[], b: readonly MessageReference[]) =>
+  a.length === b.length && a.every((r, i) => r.kind === b[i]?.kind && r.id === b[i]?.id)
 
 function AssistantMessage({
   item,
@@ -505,8 +520,8 @@ export function Conversation({
   contentClassName,
   initialTemporary = false,
   onTemporaryChange,
-  initialText,
-  onTextChange,
+  initialContent,
+  onContentChange,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -523,9 +538,9 @@ export function Conversation({
   initialTemporary?: boolean
   /** Reports whether the conversation shown is temporary, when it changes. */
   onTemporaryChange?: (temporary: boolean) => void
-  /** The input starts with this text, and reports what is typed (the hand-over keeps drafts). */
-  initialText?: string
-  onTextChange?: (text: string) => void
+  /** The input starts with this, and reports what is written (the hand-over keeps drafts). */
+  initialContent?: JSONContent | null
+  onContentChange?: (doc: JSONContent) => void
 }) {
   const queryClient = useQueryClient()
   const temporaryId = useId()
@@ -545,6 +560,8 @@ export function Conversation({
   const detail = chat.detail
   const scope = sessionId ? (detail?.session.scope ?? null) : newScope
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
+  const programId = scope?.program_id ?? pageScope?.program_id
+  const { courses } = useProgramEntities(programId)
   const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
   useEffect(() => {
     reportTemporary(temporary)
@@ -667,6 +684,7 @@ export function Conversation({
     setSent((n) => n + 1)
     const ok = await chat.send({
       text: input.text,
+      references: input.references,
       skill: input.skill ? { name: input.skill.name, title: input.skill.title } : null,
       attachmentIds: ready.map((a) => a.id as string),
       scope: sessionId ? null : newScope,
@@ -749,67 +767,72 @@ export function Conversation({
               ) : (
                 // Answers wait for their renderer together (see `Markdown`).
                 <Suspense fallback={<ConversationSkeleton />}>
-                  {items.map((item) => (
-                    <MessageScrollerItem key={item.id} messageId={item.id}>
-                      {item.kind === 'compacted' ? (
-                        <CompactedDivider summary={item.summary} />
-                      ) : item.kind === 'user' ? (
-                        <UserMessage
-                          item={item}
-                          scope={scope}
-                          savedFiles={savedFiles}
-                          canEdit={!chat.generating && !item.id.startsWith('pending-')}
-                          onEdit={(text) => {
-                            setSent((n) => n + 1)
-                            return chat.edit(item.id, text)
-                          }}
-                        />
-                      ) : (
-                        <AssistantMessage
-                          item={item}
-                          citations={citations}
-                          busy={chat.generating}
-                          active={item === lastAssistant && chat.generating}
-                          compacting={item === lastAssistant && chat.generating && chat.compacting}
-                          showReasoning={showReasoning}
-                          onDecide={(decisions) => void chat.decide(decisions)}
-                          latest={item === lastAssistant}
-                          footer={
-                            item.answer ||
-                            regenerateId === item.id ||
-                            (paused && item === lastAssistant) ? (
-                              // Kept in the layout while the answer streams, so nothing jumps.
-                              <div
-                                className={cn(
-                                  'flex gap-0.5',
-                                  item === lastAssistant && chat.generating && 'invisible',
-                                )}
-                              >
-                                {item.answer ? <CopyAction text={item.answer} /> : null}
-                                {regenerateId === item.id ? (
-                                  <IconAction
-                                    label={m.assistant_regenerate()}
-                                    onClick={() => void chat.regenerate(item.id)}
-                                  >
-                                    <RotateCcw />
-                                  </IconAction>
-                                ) : null}
-                                {paused && item === lastAssistant ? (
-                                  <PausedNotice
-                                    reason={paused}
-                                    onContinue={() => {
-                                      setSent((n) => n + 1)
-                                      void chat.resume()
-                                    }}
-                                  />
-                                ) : null}
-                              </div>
-                            ) : null
-                          }
-                        />
-                      )}
-                    </MessageScrollerItem>
-                  ))}
+                  <ChipCourses value={courses}>
+                    {items.map((item) => (
+                      <MessageScrollerItem key={item.id} messageId={item.id}>
+                        {item.kind === 'compacted' ? (
+                          <CompactedDivider summary={item.summary} />
+                        ) : item.kind === 'user' ? (
+                          <UserMessage
+                            item={item}
+                            programId={programId}
+                            scope={scope}
+                            savedFiles={savedFiles}
+                            canEdit={!chat.generating && !item.id.startsWith('pending-')}
+                            onEdit={(text, references) => {
+                              setSent((n) => n + 1)
+                              return chat.edit(item.id, text, references)
+                            }}
+                          />
+                        ) : (
+                          <AssistantMessage
+                            item={item}
+                            citations={citations}
+                            busy={chat.generating}
+                            active={item === lastAssistant && chat.generating}
+                            compacting={
+                              item === lastAssistant && chat.generating && chat.compacting
+                            }
+                            showReasoning={showReasoning}
+                            onDecide={(decisions) => void chat.decide(decisions)}
+                            latest={item === lastAssistant}
+                            footer={
+                              item.answer ||
+                              regenerateId === item.id ||
+                              (paused && item === lastAssistant) ? (
+                                // Kept in the layout while the answer streams, so nothing jumps.
+                                <div
+                                  className={cn(
+                                    'flex gap-0.5',
+                                    item === lastAssistant && chat.generating && 'invisible',
+                                  )}
+                                >
+                                  {item.answer ? <CopyAction text={item.answer} /> : null}
+                                  {regenerateId === item.id ? (
+                                    <IconAction
+                                      label={m.assistant_regenerate()}
+                                      onClick={() => void chat.regenerate(item.id)}
+                                    >
+                                      <RotateCcw />
+                                    </IconAction>
+                                  ) : null}
+                                  {paused && item === lastAssistant ? (
+                                    <PausedNotice
+                                      reason={paused}
+                                      onContinue={() => {
+                                        setSent((n) => n + 1)
+                                        void chat.resume()
+                                      }}
+                                    />
+                                  ) : null}
+                                </div>
+                              ) : null
+                            }
+                          />
+                        )}
+                      </MessageScrollerItem>
+                    ))}
+                  </ChipCourses>
                 </Suspense>
               )}
               {/* Compacting before an answer shows on that answer's line, so one line runs. */}
@@ -883,7 +906,7 @@ export function Conversation({
           ) : null}
         </div>
         <Composer
-          programId={scope?.program_id ?? pageScope?.program_id}
+          programId={programId}
           generating={chat.generating}
           disabled={!ai.available}
           attachments={attachments}
@@ -893,8 +916,8 @@ export function Conversation({
           onStop={() => void chat.stop()}
           onScope={(next) => void changeScope(next)}
           focusInput={focusInput}
-          initialText={initialText}
-          onTextChange={onTextChange}
+          initialContent={initialContent}
+          onContentChange={onContentChange}
           context={sessionId ? (detail?.context ?? null) : null}
           canCompact={canCompact}
           onCompact={compact}

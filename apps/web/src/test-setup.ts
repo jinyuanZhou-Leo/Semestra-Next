@@ -17,6 +17,9 @@ window.matchMedia ??= (query: string) =>
     removeListener() {},
     dispatchEvent: () => false,
   }) as MediaQueryList
+// ProseMirror (the assistant's input) measures the selection to scroll it into view.
+Range.prototype.getClientRects ??= () => [] as unknown as DOMRectList
+Range.prototype.getBoundingClientRect ??= () => new DOMRect()
 // jsdom prints "not implemented" for scrolling, which the router does on every navigation.
 window.scrollTo = () => {}
 // Calligraph splits text into per-character nodes; tests read the text AnimatedNumber also renders.

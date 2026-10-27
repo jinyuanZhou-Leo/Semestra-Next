@@ -198,15 +198,27 @@ class AgentStopResult(BaseModel):
 # --- streaming routes (not capabilities) --------------------------------------------------
 
 
+class MessageReference(BaseModel):
+    """A course or term picked with `@`; the text holds it as `@<label>`."""
+
+    kind: Literal["course", "term"]
+    id: str
+    label: str = Field(min_length=1, max_length=200)
+
+
 class SendMessageBody(BaseModel):
     text: str = Field(default="", max_length=20_000)
     attachment_ids: list[str] = Field(default_factory=list, max_length=10)
     scope: AgentScope | None = None
     skill: str | None = Field(default=None, description="Slash-command skill to apply.")
+    references: list[MessageReference] = Field(default_factory=list, max_length=20)
 
 
 class EditMessageBody(BaseModel):
     text: str = Field(default="", max_length=20_000)
+    references: list[MessageReference] | None = Field(
+        default=None, max_length=20, description="Replaces its references; null keeps them."
+    )
 
 
 class Decision(BaseModel):

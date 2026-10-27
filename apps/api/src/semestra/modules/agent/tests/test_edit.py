@@ -138,3 +138,36 @@ async def test_attachments_of_dropped_messages_are_deleted(agent: Agent, model: 
     assert ids == {kept["id"], unsent["id"]}
     usage = await agent.call("GET", "/storage/usage")
     assert usage["by_module"]["agent"] == 2 * len(b"some notes")
+
+
+async def test_references_reach_the_model_and_editing_replaces_them(agent: Agent, model: FakeModel):
+    program, course, _ = await agent.course_with_lab()
+    [term] = (await agent.call("GET", f"/programs/{program['id']}/terms"))["items"]
+    session = await agent.session()
+    out = await agent.stream(
+        f"/agent/sessions/{session['id']}/messages",
+        {"text": "@x", "references": [{"kind": "course", "id": "nope", "label": "x"}]},
+        status=404,
+    )
+    assert out[0][1]["error"]["code"] == "common.not_found"
+
+    model.then(say("Sure."))
+    ref = {"kind": "course", "id": course["id"], "label": "APS105H1"}
+    await agent.send(session["id"], "how is @APS105H1 going", references=[ref, ref])
+    assert model.prompts(-1)[-1][1:] == [
+        "how is @APS105H1 going",
+        f"[`@APS105H1` in the message is the course with id {course['id']}]",
+    ]
+    first = (await agent.detail(session["id"]))["messages"][0]
+    assert first["content"][1:] == [{"type": "reference", **ref}]
+
+    model.then(say("Sure."))
+    term_ref = {"kind": "term", "id": term["id"], "label": "Fall 2026"}
+    await agent.stream(
+        edit_url(session["id"], first["id"]), {"text": "and @Fall 2026?", "references": [term_ref]}
+    )
+    edited = (await agent.detail(session["id"]))["messages"][0]
+    assert edited["content"] == [
+        {"type": "text", "text": "and @Fall 2026?"},
+        {"type": "reference", **term_ref},
+    ]

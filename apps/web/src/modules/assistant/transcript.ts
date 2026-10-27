@@ -1,4 +1,5 @@
 import type { AgentMessageOut, AgentProposalOut, AgentSessionDetail } from '@semestra/api-client'
+import type { MessageReference } from './prompt'
 import type { AgentEvent, Citation, PauseReason, RememberedMemory, StepDisplay } from './stream'
 
 type Block = Record<string, unknown>
@@ -44,6 +45,8 @@ export type ViewItem =
       id: string
       text: string
       skill: Record<string, string> | null
+      /** Courses and terms picked with `@`, written as `@<label>` in the text. */
+      references: MessageReference[]
       attachments: AttachmentRef[]
     }
   | {
@@ -226,6 +229,11 @@ function userItem(message: AgentMessageOut): ViewItem {
       .map((b) => str(b.text))
       .join('\n'),
     skill: (content.find((b) => b.type === 'skill')?.title as Record<string, string>) ?? null,
+    references: content.flatMap((b) =>
+      b.type === 'reference' && (b.kind === 'course' || b.kind === 'term')
+        ? [{ kind: b.kind, id: str(b.id), label: str(b.label) }]
+        : [],
+    ),
     attachments: content
       .filter((b) => b.type === 'image_ref' || b.type === 'file_ref')
       .map((b) => ({
@@ -347,15 +355,21 @@ export function withEditedMessage(
   detail: AgentSessionDetail,
   id: string,
   text: string,
+  references: readonly MessageReference[] = [],
 ): AgentSessionDetail {
   const index = detail.messages.findIndex((m) => m.id === id)
   if (index < 0) return detail
   const kept = detail.messages.slice(0, index + 1)
   const message = kept[index]
   if (!message) return detail
-  const others = message.content.filter((b) => b.type !== 'text')
+  const others = message.content.filter((b) => b.type !== 'text' && b.type !== 'reference')
   const skill = others.findIndex((b) => b.type === 'skill')
-  const content = text ? others.toSpliced(skill + 1, 0, { type: 'text', text }) : others
+  const content = others.toSpliced(
+    skill + 1,
+    0,
+    ...(text ? [{ type: 'text', text }] : []),
+    ...references.map((r) => ({ type: 'reference', ...r })),
+  )
   const ids = new Set(kept.map((m) => m.id))
   return {
     ...detail,

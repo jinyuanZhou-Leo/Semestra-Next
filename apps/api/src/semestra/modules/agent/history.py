@@ -98,6 +98,11 @@ async def user_request(
                 f"[The user chose the skill `{block['name']}`]\n\n{block.get('body', '')}"
             )
             revealed += [tools.tool_name(t) for t in block.get("tools", [])]
+        elif kind == "reference":
+            content.append(
+                f"[`@{block.get('label', '')}` in the message is the {block.get('kind')} "
+                f"with id {block.get('id')}]"
+            )
         elif kind == "note":
             content.append(f"[Note] {block.get('text', '')}")
         elif kind in ("image_ref", "file_ref"):
