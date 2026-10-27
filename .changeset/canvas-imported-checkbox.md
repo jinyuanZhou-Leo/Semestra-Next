@@ -2,6 +2,7 @@
 '@semestra/web': patch
 ---
 
+<!-- area: canvas -->
 <!-- en -->
 In the Canvas tab, assignments you already imported now show a dimmed checkbox, so it is clear they can't be ticked again.
 

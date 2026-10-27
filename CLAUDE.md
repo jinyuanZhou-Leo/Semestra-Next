@@ -32,7 +32,7 @@ docs/                设计稿与模块规格
 ## 版本号与 changeset（1.0 起）
 
 - 全仓库一个产品版本号（SemVer），用 Changesets 管理，所有 `@semestra/*` 包同号；不要手改各 `package.json`/`pyproject.toml` 的 `version`。
-- **每个改动了 `apps/`、`packages/` 的 PR 都要带 changeset**：`pnpm changeset` 选 major/minor/patch，正文按 [.changeset/README.md](.changeset/README.md) 写 `<!-- en -->` 和 `<!-- zh -->` 两段面向学生的一句话（说能做什么，不写实现细节和 PR 号），一个改动一个文件；纯内部改动（重构、CI、测试、依赖）用 `pnpm changeset --empty`。CI 的 `changeset` job 会检查（`changeset status` + `pnpm release:check`）。
+- **每个改动了 `apps/`、`packages/` 的 PR 都要带 changeset**：`pnpm changeset` 选 major/minor/patch，正文按 [.changeset/README.md](.changeset/README.md) 写 `<!-- area: <模块> -->`（取值见 `.changeset/areas.json`，界面会在每条前显示模块名，正文不要再以“Sem：”之类开头）和 `<!-- en -->`、`<!-- zh -->` 两段面向学生的一句话（说能做什么，不写实现细节和 PR 号），一个改动一个文件；纯内部改动（重构、CI、测试、依赖）用 `pnpm changeset --empty`。CI 的 `changeset` job 会检查（`changeset status` + `pnpm release:check`）。
 - minor（新功能、可见改进）会在用户第一次打开新版本时弹「更新了什么」对话框，patch 只在设置 → 关于里列出；major 只用于用户需要做点什么的变化（备份格式、API 令牌/MCP 不兼容、自托管配置改名）。
 - 发版：合并 `Version` 工作流开的「Release (version packages)」PR（文案在 `.changeset/*.md` 里改，不要改版本 PR 里的 JSON，`main` 每次推送都会重建它），之后自动打 tag 并走 `release.yml`。`release-notes/<版本>.json` 是 app、文档站和 GitHub Release 共用的数据，只由 `pnpm release:version` 生成。
 

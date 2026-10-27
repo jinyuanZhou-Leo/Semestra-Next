@@ -3,6 +3,7 @@
 ---
 
 <!-- improved -->
+<!-- area: canvas -->
 <!-- en -->
 Course settings: link a course to Canvas by searching one list, with the matching course suggested first, and see its status and actions in a single row.
 <!-- zh -->

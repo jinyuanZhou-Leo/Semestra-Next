@@ -1,8 +1,11 @@
 import { getLocale } from '@/paraglide/runtime'
+import AREAS from '../../../../../.changeset/areas.json'
 
 /** One file of `release-notes/` at the repository root (written by `scripts/release.mjs`). */
 export type ReleaseItem = {
   kind: 'breaking' | 'new' | 'improved' | 'fixed'
+  /** A key of `.changeset/areas.json`: the part of the app the note is about. */
+  area?: string
   en: string
   zh: string
 }
@@ -61,7 +64,30 @@ export async function releasesBetween(after: string, upTo: string): Promise<Rele
   return releases.filter((release) => release !== undefined)
 }
 
+const AREA_ORDER = Object.keys(AREAS)
+
+function isZh() {
+  return getLocale().startsWith('zh')
+}
+
 /** An item's text in the interface language. */
 export function itemText(item: ReleaseItem): string {
-  return getLocale().startsWith('zh') ? item.zh : item.en
+  return isZh() ? item.zh : item.en
+}
+
+/** The name of the part of the app an item is about, in the interface language. */
+export function itemArea(item: ReleaseItem): string | undefined {
+  const area = item.area
+    ? (AREAS as Record<string, { en: string; zh: string }>)[item.area]
+    : undefined
+  return area && (isZh() ? area.zh : area.en)
+}
+
+/** Items in the order of `.changeset/areas.json`, so notes about one part sit together. */
+export function byArea(items: ReleaseItem[]): ReleaseItem[] {
+  const rank = (item: ReleaseItem) => {
+    const index = item.area ? AREA_ORDER.indexOf(item.area) : -1
+    return index === -1 ? AREA_ORDER.length : index
+  }
+  return items.toSorted((a, b) => rank(a) - rank(b))
 }

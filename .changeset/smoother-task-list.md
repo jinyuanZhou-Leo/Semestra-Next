@@ -2,6 +2,7 @@
 "@semestra/web": patch
 ---
 
+<!-- area: tasks -->
 <!-- en -->
 Selecting and checking off tasks in a long list responds faster, and task due dates show weekdays in the app's language.
 <!-- zh -->

@@ -5,6 +5,7 @@
   "items": [
     {
       "kind": "new",
+      "area": "general",
       "en": "Semestra 1.0: terms and courses, schedule and calendar, tasks, grades and GPA planning, course files, imports from syllabi, calendars and Canvas, and Sem, an assistant that works across all of them and asks before it changes anything.",
       "zh": "Semestra 1.0：学期与课程、课表与日历、待办、成绩与 GPA 规划、课程文件，从课程大纲、日历和 Canvas 导入，以及能在这些地方帮你做事、改动前先征求你同意的助手 Sem。"
     }
