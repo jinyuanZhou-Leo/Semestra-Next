@@ -8,8 +8,20 @@ import {
 } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { LayoutDashboard, Pencil } from 'lucide-react'
-import { type PointerEvent, useEffect, useRef, useState } from 'react'
-import { GridLayout, type Layout, type LayoutItem as GridItem } from 'react-grid-layout'
+import {
+  cloneElement,
+  type PointerEvent,
+  type ReactElement,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
+import {
+  GridLayout,
+  type GridLayoutProps,
+  type Layout,
+  type LayoutItem as GridItem,
+} from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -112,6 +124,38 @@ async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<B
  * saves the whole layout at once and rolls back with a message if that fails. Leaving the page
  * saves too.
  */
+/**
+ * react-grid-layout moves the dragged card only when that card's grid item re-renders, and grid
+ * items skip renders while their children stay the same: the placeholder follows the pointer but
+ * the card itself would jump from cell to cell, since the board keeps its children while a card
+ * is dragged (re-rendering every card on each move is what made dragging slow). A fresh element
+ * for the dragged card on each move lets only that grid item re-render; the card inside it still
+ * skips the render.
+ */
+function FollowingGrid({
+  children,
+  onDragStop,
+  ...props
+}: Omit<GridLayoutProps, 'children'> & { children: ReactElement[] }) {
+  const [drag, setDrag] = useState<{ id: string; move: number } | null>(null)
+  return (
+    <GridLayout
+      {...props}
+      onDrag={(_layout, _old, item) => {
+        if (item) setDrag((current) => ({ id: item.i, move: (current?.move ?? 0) + 1 }))
+      }}
+      onDragStop={(...args) => {
+        setDrag(null)
+        onDragStop?.(...args)
+      }}
+    >
+      {drag
+        ? children.map((child) => (child.key === drag.id ? cloneElement(child) : child))
+        : children}
+    </GridLayout>
+  )
+}
+
 export function Board({ scope, board }: { scope: Scope; board?: 'today' }) {
   const ref = boardRef(scope, board)
   const query = useBoard(ref)
@@ -515,7 +559,7 @@ function BoardView({
           }}
         >
           {container ? (
-            <GridLayout
+            <FollowingGrid
               width={width}
               layout={layout}
               gridConfig={{
@@ -530,15 +574,15 @@ function BoardView({
                 cancel: '[data-board-toolbar], .board-resize-handle',
               }}
               resizeConfig={RESIZE_OFF}
-              // Nothing re-renders while a card is dragged (the toolbar hides by CSS); the board
+              // The board doesn't re-render while a card is dragged (the toolbar hides by CSS); it
               // takes the new layout on drop.
               onDragStop={dropped}
             >
               {[...cards]
                 .sort((a, b) => readingOrder(position.get(a.id) ?? a, position.get(b.id) ?? b))
-                .map((card) => {
+                .flatMap((card) => {
                   const contribution = known.get(card.cardId)
-                  if (!contribution) return null
+                  if (!contribution) return []
                   const at = position.get(card.id) ?? card
                   const [w] = span(at.size, cols)
                   const sizing =
@@ -584,7 +628,7 @@ function BoardView({
                     </div>
                   )
                 })}
-            </GridLayout>
+            </FollowingGrid>
           ) : null}
         </div>
       )}
