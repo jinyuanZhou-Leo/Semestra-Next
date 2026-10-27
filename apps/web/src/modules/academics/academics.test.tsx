@@ -487,7 +487,7 @@ test('a level the page does not have opens on the current term, with the course 
   mount('/p/p1?settings=term/general')
   const dialog = await screen.findByRole('dialog', { name: 'Winter 2026' })
   const path = within(dialog).getByRole('list', { name: 'Settings level' })
-  expect(within(path).getByRole('button', { name: /Term\s*Winter 2026/ })).toHaveAttribute(
+  expect(await within(path).findByRole('button', { name: /Term\s*Winter 2026/ })).toHaveAttribute(
     'aria-current',
     'true',
   )
@@ -499,7 +499,7 @@ test('the level path switches levels and courses in the same dialog, with the sc
   const dialog = await screen.findByRole('dialog', { name: /APS105H1/ })
   const path = within(dialog).getByRole('list', { name: 'Settings level' })
 
-  await userEvent.click(within(path).getByRole('button', { name: /Program/ }))
+  await userEvent.click(await within(path).findByRole('button', { name: /Program/ }))
   await waitFor(() =>
     expect(router.state.location.search).toEqual({ settings: 'program/general', scope: 'p1' }),
   )

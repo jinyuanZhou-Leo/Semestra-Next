@@ -41,6 +41,17 @@ export function parseQuickAdd(
   { ignoreDate = false, ignorePriority = false } = {},
 ): QuickAdd {
   let text = input.trim()
+  // An empty field renders with every Today page; chrono's first parse is not free.
+  if (!text) {
+    return {
+      title: '',
+      dueDate: null,
+      dueTime: null,
+      priority: null,
+      dateText: null,
+      priorityText: null,
+    }
+  }
   let priority: Priority | null = null
   let priorityText: string | null = null
   const marks = [...text.matchAll(MARK)]

@@ -101,6 +101,7 @@ docs/                设计稿与模块规格
 - **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
 - **`@capability`、`@job_handler`、`@periodic`、`@events.subscribe` 在 import 时注册**：模块 `__init__.py` 必须 import 定义它们的文件。
 - **后台任务在自己的事务里写过库之后不要再 `ctx.stage()`/`ctx.report()`**：进度用单独的短事务写，SQLite 只允许一个写者，会等满 `busy_timeout` 后报 `database is locked`。把最后一次进度报告放在第一次写库之前（M13 导入就是这样）。
+- **`/_authed` 的登录检查在 loader 里，不在 `beforeLoad`**（为了让外壳代码和数据与 `/account/me` 并行，M01 §12）：子路由的 `beforeLoad` 要读数据时先 `await requireSignIn(queryClient, location.href)`，否则未登录访问会先收到 401 而不是跳到登录页。
 - jsdom 没有 `EventSource`：`test-setup.ts` 装了 `FakeEventSource`（`src/test-event-source.ts`），测试里用 `FakeEventSource.last().emit({type, data})` 模拟推送。
 
 ## 已完成的模块
