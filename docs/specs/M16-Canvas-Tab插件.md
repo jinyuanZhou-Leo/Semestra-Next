@@ -91,7 +91,7 @@ defineModule({
 **视图**
 - 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。
 - 公告列表的未读点来自 Canvas 公告（DiscussionTopic）的 `read_state`，M09 映射为 `Announcement.unread`；列表有 5 分钟缓存，在 Canvas 里读过后要等缓存过期或点"刷新"才消失。
-- 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.assignment.import`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。
+- 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.assignment.import`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选（Base UI 的勾选框是 span，生成样式里的 `disabled:` 匹配不到，所以调用方加 `data-disabled:` 让它变淡）。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。
 - 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
 - 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
 - **文件预览**：M07 的 `PreviewDialog` 只认 M07 自己的文件条目（`itemId`），不能预览 LMS 文件，所以插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 的预览以后若支持任意内容地址，再改用它。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
