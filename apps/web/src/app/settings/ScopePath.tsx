@@ -60,7 +60,7 @@ export function ScopePath({ path, onSelect }: Props) {
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu aria-label={m.settings_path_label()} className="relative gap-0">
+        <SidebarMenu aria-label={m.settings_path_label()} className="relative">
           {/* The line joining the nodes, drawn behind their dots. */}
           <span
             aria-hidden

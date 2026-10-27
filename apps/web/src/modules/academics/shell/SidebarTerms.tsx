@@ -29,7 +29,14 @@ import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -432,22 +439,24 @@ function AddTermPicker({
           <CommandInput placeholder={m.academics_sidebar_add_term_search()} />
           <CommandList>
             <CommandEmpty>{m.academics_sidebar_add_term_empty()}</CommandEmpty>
-            {terms.map((term) => (
-              <CommandItem
-                key={term.id}
-                value={term.id}
-                keywords={[term.name]}
-                onSelect={() => {
-                  onPick(term)
-                  setOpen(false)
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate">{term.name}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatDate(`${term.start_date}T00:00`)}
-                </span>
-              </CommandItem>
-            ))}
+            <CommandGroup>
+              {terms.map((term) => (
+                <CommandItem
+                  key={term.id}
+                  value={term.id}
+                  keywords={[term.name]}
+                  onSelect={() => {
+                    onPick(term)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{term.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatDate(`${term.start_date}T00:00`)}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
