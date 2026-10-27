@@ -3,6 +3,47 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.3.0 (2026-10-27)
+
+### New
+
+- The AI usage page can now show just today's requests, tokens and estimated cost.
+- The theme previews in Settings → Preferences now show a more detailed mini app and follow your accent color in all three modes, and picking an accent color plays a short focus animation.
+- Settings → Data now shows how much of your storage you use, what takes the space (by course or file type), and how much data your account holds.
+- Sem: see how full a conversation is and compact it yourself, from the ring by the input or with /compact, keeping what you name. Compacted turns are marked and their summary can be opened.
+- Sem: skills picked with / and courses or terms picked with @ now show as chips right in the text you type, and in your sent messages.
+
+### Improved
+
+- Settings: AI providers and LMS connections show brand logos and short statuses, adding DeepSeek, Kimi, Qwen or OpenRouter only asks for a key, and each AI task picks its model from one searchable list.
+- Settings: the Permissions page now covers both Sem and MCP clients. Choose whether Sem asks before every change, by module, or never, and turn on deleting for MCP clients in the same place.
+- Overview and Today cards: drag a card's corner to resize it, click a card to change its size, settings or remove it, see card contents while editing, and get more columns on large screens instead of stretched cards.
+- Canvas tab: files show their size and last update in columns and can be sorted by name, size or date.
+- Canvas tab: a cleaner course menu with icons and an "Open in Canvas" group, scores and status badges for assignments, quizzes and grades, overdue module items marked, and announcement previews.
+- Term grades: the page now matches the course gradebook, with a breakdown ring of each course's credits, the term GPA beside it, and a Plan mode where you type the final percentages you expect and set a term GPA to aim for.
+
+### Fixed
+
+- The add-provider dialog now scrolls on small windows instead of running off the screen.
+- AI import: long syllabi are no longer cut off and reported as having no useful information, and an AI provider account out of credit now says so.
+- Board editing: cards no longer wiggle, resizing from the corner is smoother, every card resizes from its bottom-right corner, and removing a card asks first.
+- Board editing: a dragged card now follows the pointer smoothly instead of jumping from cell to cell.
+- Canvas tab: previewing, downloading and saving Canvas files works again, and images inside Canvas pages load.
+- Course, habit and sticky-note color pickers now use the same animated swatches as the accent color, and the selection ring settles a little faster.
+- Closing a dialog no longer makes the blurred background flash back for a moment.
+- "Group by category" and "Count unfinished" in the gradebook are now switches, so it is clear whether they are on.
+- GPA settings: the preset picker now shows the conversion table in use, and picking another preset switches the table after a confirmation.
+- The "Add term" picker in the sidebar and the level path in settings keep a small gap between highlighted rows again.
+- Sem: an approved change and the answer after it can be followed after a reload or in another tab, and a slow title no longer holds up the answer.
+- Sem: long conversations keep more of what was said, since what earlier lookups returned is cleared before anything is summarized, and pressing Stop while compacting ends the turn and keeps the history as it was.
+- Sem: a change you approve after the conversation has moved on is no longer lost when you regenerate or edit a message.
+- Sem keeps trying to learn from a conversation while your AI provider is unreachable, instead of giving up after a few tries.
+- Sem: with providers that reuse tool call ids, approvals and steps now match the right answer.
+- Sem: a scanned PDF page that cannot be rendered is noted in the conversation instead of breaking the answer.
+- Changing the language, clock format or first day of the week in Settings no longer makes the settings window close and pop open again.
+- Sem: the slash commands in the skills menu now line up at the right edge.
+- In the "Create API token" dialog, the permission and expiry options no longer sit in a track stretched across the whole dialog.
+
 ## 1.2.0 (2026-10-23)
 
 ### New
