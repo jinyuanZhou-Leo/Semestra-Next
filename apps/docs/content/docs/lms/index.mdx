@@ -49,11 +49,21 @@ program is linked, the binding cannot be changed or removed.
 ## 3. Link courses
 
 Either [import courses from Canvas](./imports.mdx), which links them as they are created, or open
-an existing course's settings and pick its Canvas course. A Canvas course can be linked to only
-one course per program. A year-long course has a single link.
+an existing course's settings → **Integrations → LMS**, open the course list, search by code or
+name and pick one: picking links it. Canvas courses whose code matches come first under
+**Suggested**; past courses are hidden until you check **Include past courses** at the bottom of
+the list. A Canvas course can be linked to only one course per program, so ones linked elsewhere
+cannot be picked. A year-long course has a single link.
 
-Each link has a **sync** switch. When it is off, the course's Canvas deadlines leave the calendar
-and assignment changes are no longer detected; the Canvas tab and Sem can still read the course.
+A linked course shows as one row: the Canvas course, its term and connection, a status and when
+it was last refreshed. Its **⋯** menu has **Refresh course details** (reads the course's code,
+name, term and address from Canvas again; assignments and the calendar are not affected),
+**Change course…** (asks first) and **Unlink…**. When the course can't be read, the reason shows
+below; for an invalid token or missing permission you can open the LMS connections from there.
+
+Each link has a **Calendar and assignment changes** switch. When it is off, the course's Canvas
+deadlines leave the calendar and assignment changes are no longer detected; the Canvas tab and
+Sem can still read the course.
 
 ## What you get from a link
 
@@ -62,8 +72,8 @@ and assignment changes are no longer detected; the Canvas tab and Sem can still 
   listed with their size and last update, and can be sorted by name, size or date. Tabs the app
   can't show itself (People, external tools such as Piazza) are listed under **Open in Canvas**
   in the course menu and open Canvas in a new tab.
-- **Calendar**: assignment due dates and Canvas calendar events of synced courses appear in the
-  term calendar. Assignments you already imported are not shown twice.
+- **Calendar**: assignment due dates and Canvas calendar events of courses with **Calendar and
+  assignment changes** on appear in the term calendar. Assignments you already imported are not shown twice.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
 
