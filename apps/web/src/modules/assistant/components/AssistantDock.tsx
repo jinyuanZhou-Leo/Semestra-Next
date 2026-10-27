@@ -1,13 +1,16 @@
 import { useLocation } from '@tanstack/react-router'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { type ReactNode, Suspense, useEffect, useState } from 'react'
+import { preload, preloadable } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { whenSettled } from '@/lib/when-settled'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable'
 import { Spinner } from '@/ui/spinner'
 import { panel, usePanel } from '../store'
 
-// The conversation UI (Markdown, highlighting) loads the first time the panel opens.
-const AssistantPanel = lazy(() =>
+// The conversation UI (the editor, Markdown) is not part of the first load: it loads once the page
+// has settled, or when the panel opens before that.
+const AssistantPanel = preloadable<object>(() =>
   import('./AssistantPanel').then((mod) => ({ default: mod.AssistantPanel })),
 )
 
@@ -31,6 +34,7 @@ export function AssistantDock({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ASSISTANT_PAGE.test(href)) panel.setReturnTo(href)
   }, [href])
+  useEffect(() => whenSettled(() => void preload(AssistantPanel)), [])
   const shown = open && !isMobile && !ASSISTANT_PAGE.test(pathname)
   // Read here, where it is always mounted, so the remembered width stays in the cache.
   const [width, setWidth] = useUiPref('layout.assistant_width', PANEL_DEFAULT)

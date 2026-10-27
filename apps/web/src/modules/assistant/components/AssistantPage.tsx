@@ -159,7 +159,7 @@ export function AssistantPage({
           contentClassName="mx-auto w-full max-w-3xl"
           sessionId={sessionId}
           onTemporaryChange={setTemporary}
-          onTextChange={panel.setPageDraft}
+          onContentChange={panel.setPageDraft}
           pageScope={programScope(programId)}
           onCreated={(id) => {
             setCreated({ id, key })

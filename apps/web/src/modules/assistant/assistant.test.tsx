@@ -26,6 +26,7 @@ import { SidebarProvider } from '@/ui/sidebar'
 import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
 import manifest from './manifest'
+import { readPrompt } from './prompt'
 import { panel } from './store'
 import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
@@ -560,7 +561,7 @@ test('a question streams in as Markdown', async () => {
     path: '/agent/sessions/s1/messages',
     body: { text: 'Hello' },
   })
-  expect(input).toHaveValue('')
+  expect(input.textContent).toBe('')
 })
 
 test('the temporary chat switch turns the empty state into its explanation', async () => {
@@ -679,21 +680,63 @@ test('/ picks a skill and @ refers to a course, which works in its term', async 
   const input = await messageInput()
   await userEvent.type(input, '/gr')
   await userEvent.click(await screen.findByRole('option', { name: /Record grades/ }))
-  expect(screen.getByText('Record grades')).toBeInTheDocument()
-  expect(input).toHaveValue('')
+  // Both become chips in the text.
+  expect(input).toHaveTextContent(/^Record grades$/)
 
   await userEvent.type(input, 'for @MAT')
   await userEvent.keyboard('{Enter}')
-  expect(input).toHaveValue('for @MAT188H1 ')
+  expect(input).toHaveTextContent(/^Record grades for MAT188H1$/)
   expect(await screen.findByRole('button', { name: 'Working in: Winter 2026' })).toBeInTheDocument()
 
   await userEvent.type(input, '{Enter}')
   await waitFor(() => expect(srv.sent).toHaveLength(1))
   expect(srv.sent[0]?.body).toMatchObject({
     skill: 'record-grades',
-    text: 'for @MAT188H1 ',
+    text: ' for @MAT188H1 ',
+    references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
     scope: { program_id: 'p1', term_id: 't2', course_id: null },
   })
+})
+
+test('Chinese punctuation opens the menus, and @ works right after Chinese text', async () => {
+  srv.reply = () => sse([])
+  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  const input = await messageInput()
+  // Input methods type `、` for `/` in their Chinese punctuation mode.
+  await userEvent.type(input, '、gr')
+  expect(await screen.findByRole('option', { name: /Record grades/ })).toBeInTheDocument()
+  await userEvent.keyboard('{Enter}')
+  await userEvent.type(input, '这门课@MAT')
+  await userEvent.keyboard('{Enter}')
+  expect(input.querySelector('[data-chip=course]')).toHaveTextContent('MAT188H1')
+  await userEvent.type(input, '和＠Win')
+  await userEvent.keyboard('{Enter}')
+  expect(input.querySelector('[data-chip=term]')).toHaveTextContent('Winter 2026')
+})
+
+test('pasted mentions from elsewhere stay text, and a pasted skill becomes text', async () => {
+  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  const input = await messageInput()
+  await userEvent.click(input)
+  const html =
+    '<p>ask <span data-type="mention" data-id="42" data-label="Ann">@Ann</span> about ' +
+    '<span data-type="mention" data-id="skill:record-grades" data-label="Record grades" ' +
+    'data-mention-suggestion-char="/">/Record grades</span> in ' +
+    '<span data-type="mention" data-id="course:c2" data-label="MAT188H1" ' +
+    'data-mention-suggestion-char="@">@MAT188H1</span></p>'
+  const paste = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(paste, 'clipboardData', {
+    value: {
+      files: [],
+      types: ['text/html'],
+      getData: (t: string) => (t === 'text/html' ? html : ''),
+    },
+  })
+  input.dispatchEvent(paste)
+  await waitFor(() => expect(input).toHaveTextContent('ask @Ann about /Record grades in MAT188H1'))
+  expect(
+    [...input.querySelectorAll('[data-chip]')].map((c) => c.getAttribute('data-chip')),
+  ).toEqual(['course'])
 })
 
 test('the scope menu offers the whole program and the terms, the current one first', async () => {
@@ -762,17 +805,47 @@ test('editing a message sends the new text and drops what came after it', async 
   const [first] = await screen.findAllByRole('button', { name: 'Edit' })
   await userEvent.click(first as HTMLElement)
   const editor = screen.getByRole('textbox', { name: 'Edit message' })
-  expect(editor).toHaveValue('What is due?')
+  expect(editor).toHaveTextContent(/^What is due\?$/)
   expect(editor).toHaveFocus()
   await userEvent.type(editor, '{Backspace} this week?{Enter}')
 
   expect(await screen.findByText('Only Lab 3.')).toBeInTheDocument()
   expect(srv.sent[0]).toEqual({
     path: '/agent/sessions/s1/messages/u1:edit',
-    body: { text: 'What is due this week?' },
+    body: { text: 'What is due this week?', references: [] },
   })
   expect(screen.queryByText('And next week?')).not.toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+})
+
+test('a sent message shows its skill and references as chips, and editing keeps them', async () => {
+  srv.detail.messages = [
+    msg('u1', 'user', [
+      { type: 'skill', name: 'record-grades', title: { en: 'Record grades' } },
+      { type: 'text', text: 'Lab 3 of @MAT188H1 was 90' },
+      { type: 'reference', kind: 'course', id: 'c2', label: 'MAT188H1' },
+    ]),
+    msg('a1', 'assistant', [{ type: 'text', text: 'Done.' }]),
+  ]
+  srv.reply = () => sse([])
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await screen.findByText('Done.')
+  const chips = document.querySelectorAll('[data-chip]')
+  expect([...chips].map((c) => [c.getAttribute('data-chip'), c.textContent])).toEqual([
+    ['skill', 'Record grades'],
+    ['course', 'MAT188H1'],
+  ])
+
+  await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  const editor = screen.getByRole('textbox', { name: 'Edit message' })
+  expect(editor.querySelector('[data-chip=course]')).toHaveTextContent('MAT188H1')
+  await userEvent.type(editor, '5{Enter}')
+  await waitFor(() =>
+    expect(srv.sent[0]?.body).toEqual({
+      text: 'Lab 3 of @MAT188H1 was 905',
+      references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
+    }),
+  )
 })
 
 test('an answer that paused at the step limit can be continued', async () => {
@@ -837,7 +910,7 @@ test('/compact keeps what the user names, and the summary shows under a divider'
   const input = await messageInput()
   await userEvent.type(input, '/comp')
   await userEvent.click(await screen.findByRole('option', { name: /Compact conversation/ }))
-  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  expect(input).toHaveTextContent('What to keep (optional); press Enter to compact')
   await userEvent.type(input, 'the study times{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'the study times' }]))
   const divider = await screen.findByRole('button', { name: 'Earlier turns compacted' })
@@ -862,7 +935,7 @@ test('the context ring shows how full the conversation is and compacts from ther
   expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
   // Compacting starts in the composer, as `/compact` does.
-  expect(input).toHaveAttribute('placeholder', 'What to keep (optional); press Enter to compact')
+  expect(input).toHaveTextContent('What to keep (optional); press Enter to compact')
   await userEvent.type(input, 'deadlines{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
   // After it, only the last turn is left: nothing more to compact.
@@ -1274,7 +1347,7 @@ test('on the page, attaching a file to a new conversation keeps the text being t
   })
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/assistant/s1'))
   expect(await screen.findByText('notes.txt')).toBeInTheDocument()
-  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Look at this')
+  expect(screen.getByRole('textbox', { name: 'Message' })).toHaveTextContent(/^Look at this$/)
 })
 
 test('files dropped in quick succession into a new conversation create it once', async () => {
@@ -1564,8 +1637,8 @@ test('on the page, opening the panel hands over the conversation, its temporary 
     open: true,
     sessionId: null,
     temporary: true,
-    draft: 'half a thought',
   })
+  expect(readPrompt(panel.get().draft ?? {}).text).toBe('half a thought')
   // No page before it: back to Today.
   expect(navigate).toHaveBeenCalledWith('/p/p1/today')
   panel.reset()
