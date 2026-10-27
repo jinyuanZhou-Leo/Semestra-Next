@@ -13,7 +13,8 @@
 #   edge        Caddy with the landing page (/landing) and the docs (/docs) baked in; the hosted
 #               stack's reverse proxy in front of allinone (deploy/hosted/Caddyfile)
 
-ARG PYTHON_IMAGE=python:3.15-slim-bookworm
+# trixie: its SQLite (3.46) has the FTS5 contentless_delete option the files index needs (>= 3.43).
+ARG PYTHON_IMAGE=python:3.15-slim-trixie
 ARG NODE_IMAGE=node:26-slim
 
 # ---- backend dependencies ------------------------------------------------------------------
