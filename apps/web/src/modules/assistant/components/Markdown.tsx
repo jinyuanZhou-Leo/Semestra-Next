@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { preload, preloadable } from '@/app/extensions'
 import type { Citation } from '../stream'
 
 const CITE = /\[\[cite:([^\]\s]+)\]\]/g
@@ -27,9 +27,10 @@ export type MarkdownProps = {
 // weight, so it is its own chunk. A conversation starts loading it as it opens
 // (`preloadMarkdown`), while the conversation itself is still being fetched; not when this
 // module loads, which happens on an idle preload, where evaluating it would block the page.
-const load = () => import('./Response')
-const Response = lazy(load)
-export const preloadMarkdown = load
+// `preloadable`, not `lazy`: once loaded it renders at once, so the first answer of a new
+// conversation does not swap the conversation for its loading state.
+const Response = preloadable<MarkdownProps>(() => import('./Response'))
+export const preloadMarkdown = () => preload(Response)
 
 /**
  * An answer (M12 §6.1), rendered by AI Elements' `MessageResponse` (Streamdown): GFM, code,
