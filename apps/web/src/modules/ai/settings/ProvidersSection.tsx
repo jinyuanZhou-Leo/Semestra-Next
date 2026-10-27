@@ -388,7 +388,9 @@ export function ProvidersSection() {
         )}
       </AsyncBoundary>
       <Dialog open={adding} onOpenChange={setAdding}>
-        <DialogContent>
+        {/* Taller than the window (a long preset list, an endpoint's fields): the body scrolls
+            between the header and the buttons. */}
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <AddProviderFlow key={addKey} onSaved={() => setAdding(false)} Header={AddDialogHeader} />
         </DialogContent>
       </Dialog>

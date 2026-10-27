@@ -1,14 +1,10 @@
-import { formatDateTime, formatTimeAgo } from '@/lib/format'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { formatTimeAgo } from '@/lib/format'
 
-/** "1 hour ago", with the full date and time in a tooltip (hover or keyboard focus). */
+/** "1 hour ago" for a status line; the exact time stays in `dateTime` (owner: no tooltip). */
 export function TimeAgo({ value }: { value: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger className="cursor-default rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/30">
-        <time dateTime={value}>{formatTimeAgo(value)}</time>
-      </TooltipTrigger>
-      <TooltipContent>{formatDateTime(value)}</TooltipContent>
-    </Tooltip>
+    <time dateTime={value} className="text-xs text-muted-foreground">
+      {formatTimeAgo(value)}
+    </time>
   )
 }
