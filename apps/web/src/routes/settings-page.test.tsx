@@ -135,7 +135,7 @@ test('the theme previews follow the accent color and the chosen swatch shows a c
   await userEvent.click(screen.getByRole('radio', { name: 'Green' }))
   for (const preview of previews()) expect(preview).toHaveAttribute('data-accent', 'green')
 
-  // The check is the radio's indicator span (see `.accent-swatch` in theme.css).
+  // The check is the radio's indicator span (see `.color-swatch` in theme.css).
   const green = screen.getByRole('radio', { name: 'Green' })
   expect(green.querySelector('[data-slot=radio-group-indicator] > span')).not.toBeNull()
 })

@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { ACCENTS, type Accent, type ReduceMotion, type Theme } from '@/app/appearance'
 import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { useTheme } from '@/app/theme'
+import { ColorSwatch } from '@/components/ColorSwatch'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -169,13 +170,12 @@ function AppearanceForm({
           className="flex w-auto flex-wrap gap-2"
         >
           {ACCENTS.map((option) => (
-            <RadioGroupItem
+            <ColorSwatch
               key={option}
               value={option}
               data-accent={option}
               aria-label={ACCENT_LABELS[option]()}
               title={ACCENT_LABELS[option]()}
-              className="accent-swatch size-8 bg-primary transition-transform duration-300 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100 data-checked:bg-clip-content data-checked:p-[3px]"
             />
           ))}
         </RadioGroup>

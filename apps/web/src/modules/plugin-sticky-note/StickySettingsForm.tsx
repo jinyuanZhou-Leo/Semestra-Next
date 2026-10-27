@@ -1,8 +1,9 @@
-import { useId } from 'react'
+import { type CSSProperties, useId } from 'react'
 import { m } from '@/paraglide/messages'
 import { FieldLegend, FieldSet } from '@/ui/field'
-import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
-import { colorTint } from '../plugin-kit/colors'
+import { ColorSwatch } from '@/components/ColorSwatch'
+import { RadioGroup } from '@/ui/radio-group'
+import { colorTint, colorVar } from '../plugin-kit/colors'
 import { NOTE_COLORS, type StickySettings } from './schema'
 
 type Props = { value: StickySettings; onChange: (value: StickySettings) => void }
@@ -31,13 +32,16 @@ export default function StickySettingsForm({ value, onChange }: Props) {
         className="flex flex-wrap gap-2"
       >
         {NOTE_COLORS.map((color) => (
-          <RadioGroupItem
+          <ColorSwatch
             key={color}
             value={color}
             aria-label={NAMES[color]()}
             title={NAMES[color]()}
-            className="size-8 rounded-lg border-border ring-offset-2 ring-offset-background data-checked:ring-2 data-checked:ring-foreground/60"
-            style={{ backgroundColor: colorTint(color, 40) }}
+            className="rounded-lg border-border"
+            color={colorTint(color, 40)}
+            checkColor="var(--foreground)"
+            // The ring is the full color; the fill stays the soft tint.
+            style={{ '--swatch-color': colorVar(color) } as CSSProperties}
           />
         ))}
       </RadioGroup>
