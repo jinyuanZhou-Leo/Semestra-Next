@@ -107,7 +107,7 @@ export function LogoTile({ logo }: { logo: string | null }) {
 /** Step one of adding a provider: the services we know, then "another compatible endpoint". */
 function PresetPicker({ onPick }: { onPick: (preset: ProviderPreset) => void }) {
   return (
-    <ItemGroup className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <ItemGroup className={cn('grid grid-cols-2 gap-2 sm:grid-cols-3', SCROLL_BODY)}>
       {PRESETS.map((preset) => (
         <Item
           key={preset.id}
@@ -130,6 +130,10 @@ function PresetPicker({ onPick }: { onPick: (preset: ProviderPreset) => void }) 
     </ItemGroup>
   )
 }
+
+// The scrolling body of the add dialog (shadcn's "Scrollable Content" pattern): it reaches the
+// dialog's edges so the scrollbar sits at the side, and keeps room for focus rings.
+const SCROLL_BODY = '-mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1'
 
 export type FlowHeader = { title: string; description: string; logo?: string | null }
 
@@ -312,9 +316,9 @@ function ProviderForm({
   ) : null
 
   return (
-    <form onSubmit={(e) => void submit(e)} noValidate>
-      <fieldset disabled={pending}>
-        <FieldGroup>
+    <form onSubmit={(e) => void submit(e)} noValidate className="flex min-h-0 flex-col gap-6">
+      <fieldset disabled={pending} className="contents">
+        <FieldGroup className={SCROLL_BODY}>
           {folded ? null : endpointFields}
           {preset.regions && region ? (
             <Field>
@@ -392,15 +396,15 @@ function ProviderForm({
             />
           </Field>
           <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
-          <div className="flex items-center justify-between gap-2">
-            <Button type="button" variant="ghost" onClick={onBack}>
-              {m.ai_provider_back()}
-            </Button>
-            <Button type="submit" disabled={missing}>
-              {pending ? m.ai_provider_checking() : (submitLabel ?? m.ai_provider_save())}
-            </Button>
-          </div>
         </FieldGroup>
+        <div className="flex items-center justify-between gap-2">
+          <Button type="button" variant="ghost" onClick={onBack}>
+            {m.ai_provider_back()}
+          </Button>
+          <Button type="submit" disabled={missing}>
+            {pending ? m.ai_provider_checking() : (submitLabel ?? m.ai_provider_save())}
+          </Button>
+        </div>
       </fieldset>
     </form>
   )
