@@ -67,9 +67,8 @@ function RemoveCell({ row }: CellProps) {
   const { remove } = useBreaks()
   return (
     <Button
-      variant="ghost"
+      variant="destructive"
       size="icon-sm"
-      className="text-destructive hover:text-destructive"
       aria-label={m.academics_break_remove({
         name: row.original.value.name || m.academics_break_name(),
       })}

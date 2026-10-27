@@ -144,7 +144,7 @@ docs/                设计稿与模块规格
 ## UI 相关
  - 使用shadcn/ui组件前先使用context7查对应组件的文档
  - shadcn组件文件夹中的shadcn组件禁止修改 (apps/web/src/ui)
- - 删除/撤销/移除/退出登录一类按钮和菜单项一律用 shadcn 的 `destructive` variant（`Button`、`DropdownMenuItem` 都有）；删除、撤销、批量操作和退出登录要用 `ConfirmDialog`（退出登录用 `SignOutDialog`）二次确认；表单里尚未保存的行（草稿行、可再添加的条目）的移除按钮只标红，不弹确认，表格里每行一个的纯图标移除按钮用 `ghost` + `text-destructive`（整列红底太抢眼，owner 2026-10-27 在新建学期方案里确认）；但删除成绩分类、GPA 区间这类会改变换算结果的条目要确认。
+ - 删除/撤销/移除/退出登录一类按钮和菜单项一律用 shadcn 的 `destructive` variant（`Button`、`DropdownMenuItem` 都有）；删除、撤销、批量操作和退出登录要用 `ConfirmDialog`（退出登录用 `SignOutDialog`）二次确认；表单里尚未保存的行（草稿行、可再添加的条目）的移除按钮只标红，不弹确认；但删除成绩分类、GPA 区间这类会改变换算结果的条目要确认。
  - 立即生效的开/关（如成绩册的「按分类分组」「计入未结课」）用 shadcn `Switch` + `Label`，不要用 `Toggle` 按钮；表单里提交时才生效的勾选项仍用 `Checkbox`。
  - 英文文案用 sentence case（“New program”），样式上不用 `uppercase`。
  - 已知并接受的官方组件读屏问题（不要再为它们改代码或包一层）：`Dialog`/`Sheet` 关闭按钮读作英文 "Close"；`ItemGroup` 固定是 `role="list"`，但 `Item` 是普通 `div`、`ItemSeparator` 也直接放在列表里，读屏器拿不到列表项数量（PR #13 Codex 评审指出）。

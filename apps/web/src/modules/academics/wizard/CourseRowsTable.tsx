@@ -182,9 +182,8 @@ function RemoveCell({ row }: CellProps) {
         <TooltipTrigger
           render={
             <Button
-              variant="ghost"
+              variant={r.kept ? 'destructive' : 'ghost'}
               size="icon-sm"
-              className={r.kept ? 'text-destructive hover:text-destructive' : undefined}
               aria-label={label}
               onClick={() => onContinue(r.course.id, !r.kept)}
             />
@@ -198,9 +197,8 @@ function RemoveCell({ row }: CellProps) {
   }
   return (
     <Button
-      variant="ghost"
+      variant="destructive"
       size="icon-sm"
-      className="text-destructive hover:text-destructive"
       aria-label={m.academics_wizard_row_remove({ row: row.index + 1 })}
       onClick={() => onRemove(r.row.key)}
     >
