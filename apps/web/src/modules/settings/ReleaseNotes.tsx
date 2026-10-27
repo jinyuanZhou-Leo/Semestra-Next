@@ -2,7 +2,6 @@ import { type LucideIcon, Sparkles, TrendingUp, TriangleAlert, Wrench } from 'lu
 import type { Message } from '@/app/extensions'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import {
   byArea,
   itemArea,
@@ -42,9 +41,22 @@ const KINDS: Record<
   },
 }
 
+/** Consecutive notes about the same part of the app, so its name is written once. */
+function areaRuns(items: ReleaseItem[]) {
+  const runs: { area: string | undefined; items: ReleaseItem[] }[] = []
+  for (const item of items) {
+    const area = itemArea(item)
+    const last = runs.at(-1)
+    if (last && last.area === area) last.items.push(item)
+    else runs.push({ area, items: [item] })
+  }
+  return runs
+}
+
 /**
  * One version's notes, grouped as "Needs your attention", "New", "Improved", "Fixed": each group
- * has an icon in its color and a count, and each note names the part of the app it is about.
+ * has an icon in its color and a count, and inside it the notes sit under the part of the app
+ * they are about.
  */
 export function ReleaseNotes({ release, className }: { release: Release; className?: string }) {
   const groups = KIND_ORDER.map((kind) => ({
@@ -67,25 +79,26 @@ export function ReleaseNotes({ release, className }: { release: Release; classNa
               {title()}
               <span className="font-normal text-muted-foreground tabular-nums">{items.length}</span>
             </h4>
-            <ul className={cn('ml-3 space-y-2 border-l-2 pl-5 text-sm', rail)}>
-              {items.map((item, index) => {
-                const area = itemArea(item)
-                return (
-                  <li
-                    // Static list; two notes can share their text ("Fixed a typo.").
-                    key={index}
-                    className="leading-relaxed"
-                  >
-                    {area ? (
-                      <Badge variant="outline" className="mr-2 align-[1px] font-normal">
-                        {area}
-                      </Badge>
-                    ) : null}
-                    {itemText(item)}
-                  </li>
-                )
-              })}
-            </ul>
+            <div className={cn('ml-3 space-y-3 border-l-2 pl-5 text-sm', rail)}>
+              {areaRuns(items).map(({ area, items: notes }) => (
+                <div key={area ?? ''} className="space-y-1">
+                  {area ? (
+                    <h5 className="text-xs font-medium text-muted-foreground">{area}</h5>
+                  ) : null}
+                  <ul className="space-y-1.5">
+                    {notes.map((item, index) => (
+                      <li
+                        // Static list; two notes can share their text ("Fixed a typo.").
+                        key={index}
+                        className="leading-relaxed"
+                      >
+                        {itemText(item)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </section>
         )
       })}
