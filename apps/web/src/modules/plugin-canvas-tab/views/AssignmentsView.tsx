@@ -54,6 +54,8 @@ function SelectCell({ row }: CellProps) {
     <Checkbox
       aria-label={m.canvas_tab_select_assignment({ name: a.name })}
       disabled={a.imported_as.length > 0}
+      // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
+      className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
       checked={selected.has(a.external_id)}
       onCheckedChange={(on) => toggle(a.external_id, on)}
       onClick={(event) => event.stopPropagation()}
