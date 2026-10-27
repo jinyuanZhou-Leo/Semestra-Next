@@ -2,6 +2,7 @@
 "@semestra/web": patch
 ---
 
+<!-- area: general -->
 <!-- en -->
 Pages opened from a link or after a refresh show their data sooner, and the term calendar shows a week's classes as soon as you move to it.
 <!-- zh -->

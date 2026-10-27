@@ -2,6 +2,7 @@
 '@semestra/web': patch
 ---
 
+<!-- area: canvas -->
 <!-- en -->
 In the Canvas tab's assignments, the columns no longer shift when you open an assignment or fold a group.
 

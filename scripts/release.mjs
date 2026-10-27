@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Release notes and versioning on top of Changesets (see .changeset/README.md).
 //
-//   node scripts/release.mjs check     every pending changeset has an English and a Chinese note
+//   node scripts/release.mjs check     every pending changeset has an area and an English and a
+//                                      Chinese note
 //   node scripts/release.mjs version   write release-notes/<version>.json, then `changeset version`,
 //                                      sync apps/api (pyproject.toml, uv.lock, OpenAPI schema) and
 //                                      regenerate CHANGELOG.md
@@ -18,26 +19,40 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 const NOTES_DIR = path.join(ROOT, 'release-notes')
 const VERSION_SOURCE = path.join(ROOT, 'apps/web/package.json')
 const KINDS = ['breaking', 'new', 'improved', 'fixed']
+/** The part of the app each note is about: `{ key: { en, zh } }`, in display order. */
+export const AREAS = JSON.parse(readFileSync(path.join(ROOT, '.changeset/areas.json'), 'utf8'))
 const DEFAULT_KIND = { major: 'new', minor: 'new', patch: 'fixed' }
 const LEVELS = ['patch', 'minor', 'major']
 
-/** Splits a changeset body into `{ kind, en, zh }`; returns an error string when it is malformed. */
+/** Splits a changeset body into `{ kind, area, en, zh }`; returns an error string when it is malformed. */
 export function parseNote(summary, bump) {
   const markers = [...summary.matchAll(/<!--\s*([\s\S]*?)\s*-->/g)].map((m) => m[1])
-  const unknown = markers.filter((name) => name !== 'en' && name !== 'zh' && !KINDS.includes(name))
+  const unknown = markers.filter(
+    (name) => name !== 'en' && name !== 'zh' && !KINDS.includes(name) && !name.startsWith('area:'),
+  )
   if (unknown.length > 0) {
-    return `has an unknown marker <!-- ${unknown[0]} --> (use ${KINDS.join(', ')})`
+    return `has an unknown marker <!-- ${unknown[0]} --> (use ${KINDS.join(', ')} or area: <area>)`
   }
   const marker = summary.match(/<!--\s*(breaking|new|improved|fixed)\s*-->/)
+  const area = summary.match(/<!--\s*area:\s*([\w-]*)\s*-->/)?.[1]
   const en = summary.match(/<!--\s*en\s*-->([\s\S]*?)(?=<!--\s*zh\s*-->|$)/)
   const zh = summary.match(/<!--\s*zh\s*-->([\s\S]*?)(?=<!--\s*en\s*-->|$)/)
   const clean = (m) => m?.[1].replace(/<!--[\s\S]*?-->/g, '').trim() ?? ''
-  const note = { kind: marker?.[1] ?? DEFAULT_KIND[bump], en: clean(en), zh: clean(zh) }
+  const note = { kind: marker?.[1] ?? DEFAULT_KIND[bump], area, en: clean(en), zh: clean(zh) }
+  if (area !== undefined && !Object.hasOwn(AREAS, area)) {
+    return `has an unknown area "${area}" (use one of ${Object.keys(AREAS).join(', ')})`
+  }
   if (!note.en || !note.zh) return 'needs both an <!-- en --> and a <!-- zh --> section'
   return note
 }
 
-async function pendingNotes() {
+const MISSING_AREA = `needs an <!-- area: ... --> marker (one of the keys in .changeset/areas.json)`
+
+/**
+ * The notes of the pending changesets. `strict` (the PR check) also requires an area; the release
+ * itself takes a note without one (a changeset merged before areas existed) and lists it last.
+ */
+async function pendingNotes({ strict = false } = {}) {
   // Loaded here so `notes` runs without `pnpm install` (the release workflow).
   const { readChangesets } = await import('@changesets/read')
   const changesets = await readChangesets(ROOT)
@@ -48,6 +63,7 @@ async function pendingNotes() {
     const bump = LEVELS.findLast((level) => changeset.releases.some((r) => r.type === level))
     const note = parseNote(changeset.summary, bump)
     if (typeof note === 'string') errors.push(`.changeset/${changeset.id}.md ${note}`)
+    else if (strict && !note.area) errors.push(`.changeset/${changeset.id}.md ${MISSING_AREA}`)
     else notes.push({ ...note, bump })
   }
   return { notes, errors }
@@ -64,7 +80,7 @@ function currentVersion() {
 
 function allReleases() {
   return readdirSync(NOTES_DIR)
-    .filter((name) => name.endsWith('.json'))
+    .filter((name) => /^\d+\.\d+\.\d+.*\.json$/.test(name))
     .map((name) => JSON.parse(readFileSync(path.join(NOTES_DIR, name), 'utf8')))
     .toSorted((a, b) => compareVersions(b.version, a.version))
 }
@@ -74,6 +90,12 @@ function compareVersions(a, b) {
   const pb = b.split(/[.-]/).map(Number)
   for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i]
   return 0
+}
+
+/** Position in `areas.json`; a note without an area goes last. */
+function areaRank(note) {
+  const index = Object.keys(AREAS).indexOf(note.area)
+  return index === -1 ? Object.keys(AREAS).length : index
 }
 
 const KIND_TITLES = {
@@ -87,13 +109,16 @@ function renderGroups(release) {
   return KINDS.map((kind) => {
     const items = release.items.filter((item) => item.kind === kind)
     if (items.length === 0) return ''
-    return `### ${KIND_TITLES[kind]}\n\n${items.map((item) => `- ${item.en}`).join('\n')}\n`
+    const lines = items.map((item) =>
+      item.area ? `- **${AREAS[item.area]?.en ?? item.area}:** ${item.en}` : `- ${item.en}`,
+    )
+    return `### ${KIND_TITLES[kind]}\n\n${lines.join('\n')}\n`
   })
     .filter(Boolean)
     .join('\n')
 }
 
-function writeChangelog() {
+export function writeChangelog() {
   const sections = allReleases().map(
     (release) => `## ${release.version} (${release.date})\n\n${renderGroups(release)}`,
   )
@@ -104,7 +129,7 @@ function writeChangelog() {
 }
 
 async function check() {
-  const { notes, errors } = await pendingNotes()
+  const { notes, errors } = await pendingNotes({ strict: true })
   for (const error of errors) console.error(`::error::${error}`)
   console.log(`${notes.length} pending release note(s)`)
   if (errors.length > 0) process.exit(1)
@@ -129,8 +154,8 @@ async function version() {
     'patch',
   )
   const items = notes
-    .toSorted((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind))
-    .map(({ kind, en, zh }) => ({ kind, en, zh }))
+    .toSorted((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || areaRank(a) - areaRank(b))
+    .map(({ kind, area, en, zh }) => ({ kind, area, en, zh }))
   const notesFile = {
     version: next,
     date: today(process.env.RELEASE_TIMEZONE),

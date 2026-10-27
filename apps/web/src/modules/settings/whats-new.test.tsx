@@ -130,7 +130,9 @@ test('shows the dialog with confetti, and closing it remembers the version', asy
   const dialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
   expect(dialog).toHaveTextContent("What's new in Semestra 1.2")
   // Grouped "New" before "Fixed", whatever the order in the file.
-  const headings = [...dialog.querySelectorAll('h4')].map((h) => h.textContent)
+  const headings = [...dialog.querySelectorAll('section[aria-label]')].map((section) =>
+    section.getAttribute('aria-label'),
+  )
   expect(headings).toEqual(['New', 'Fixed'])
   await waitFor(() => expect(confetti).toHaveBeenCalledTimes(2))
   expect(confetti.mock.calls[0]![0]).toMatchObject({ disableForReducedMotion: true })

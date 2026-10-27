@@ -1,0 +1,19 @@
+{
+  "general": { "en": "General", "zh": "通用" },
+  "sem": { "en": "Sem", "zh": "Sem" },
+  "overview": { "en": "Overview & Today", "zh": "概览与今天" },
+  "courses": { "en": "Terms & courses", "zh": "学期与课程" },
+  "grades": { "en": "Grades", "zh": "成绩" },
+  "calendar": { "en": "Calendar", "zh": "日历与课表" },
+  "tasks": { "en": "Tasks", "zh": "待办" },
+  "files": { "en": "Files", "zh": "文件" },
+  "imports": { "en": "Import", "zh": "导入" },
+  "canvas": { "en": "Canvas", "zh": "Canvas" },
+  "plugins": { "en": "Plugins", "zh": "插件" },
+  "ai": { "en": "AI", "zh": "AI" },
+  "settings": { "en": "Settings", "zh": "设置" },
+  "account": { "en": "Account", "zh": "账户" },
+  "data": { "en": "Data", "zh": "数据" },
+  "api": { "en": "API & MCP", "zh": "API 与 MCP" },
+  "self-hosting": { "en": "Self-hosting", "zh": "自托管" }
+}

@@ -43,6 +43,7 @@ jobs:
               - *ci
               - apps/web/**
               - release-notes/**
+              - .changeset/areas.json
               - packages/**
               - package.json
               - pnpm-lock.yaml
@@ -59,6 +60,7 @@ jobs:
               - *ci
               - apps/docs/**
               - release-notes/**
+              - .changeset/areas.json
               - packages/api-client/openapi.json
               - packages/api-client/capabilities.json
               - package.json

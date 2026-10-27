@@ -8,10 +8,13 @@ type Kind = 'breaking' | 'new' | 'improved' | 'fixed'
 type Release = {
   version: string
   date: string
-  items: { kind: Kind; en: string; zh: string }[]
+  items: { kind: Kind; area?: string; en: string; zh: string }[]
 }
 
 const notesDir = path.resolve(import.meta.dirname, '../../../release-notes')
+const areas = JSON.parse(
+  await readFile(path.resolve(import.meta.dirname, '../../../.changeset/areas.json'), 'utf8'),
+) as Record<string, { en: string; zh: string }>
 const output = path.resolve(import.meta.dirname, '../content/docs')
 
 const kinds: Kind[] = ['breaking', 'new', 'improved', 'fixed']
@@ -42,7 +45,7 @@ function escapeMdx(value: string): string {
   return value.replace(/[{}<>]/g, (c) => `\\${c}`)
 }
 
-const files = (await readdir(notesDir)).filter((name) => name.endsWith('.json'))
+const files = (await readdir(notesDir)).filter((name) => /^\d+\.\d+\.\d+.*\.json$/.test(name))
 const releases = (
   await Promise.all(
     files.map(
@@ -58,7 +61,18 @@ for (const lang of ['en', 'zh'] as const) {
       .map((kind) => {
         const items = release.items.filter((item) => item.kind === kind)
         if (items.length === 0) return ''
-        return `### ${t.kinds[kind]}\n\n${items.map((item) => `- ${escapeMdx(item[lang])}`).join('\n')}\n`
+        const lines = items.map((item) => {
+          const area = item.area ? areas[item.area]?.[lang] : undefined
+          // Same as CHANGELOG.md; in Chinese the colon goes after the bold, or `**` before a CJK
+          // character would not close it.
+          const label = area
+            ? lang === 'zh'
+              ? `**${escapeMdx(area)}**：`
+              : `**${escapeMdx(area)}:** `
+            : ''
+          return `- ${label}${escapeMdx(item[lang])}`
+        })
+        return `### ${t.kinds[kind]}\n\n${lines.join('\n')}\n`
       })
       .filter(Boolean)
     return `## ${release.version}\n\n${release.date}\n\n${groups.join('\n')}`

@@ -5,151 +5,181 @@
   "items": [
     {
       "kind": "new",
+      "area": "sem",
+      "en": "See how full a conversation is and compact it yourself, from the ring by the input or with /compact, keeping what you name. Compacted turns are marked and their summary can be opened.",
+      "zh": "输入框旁的用量环会显示对话用掉了多少上下文，可以从这里或用 /compact 手动压缩，并写明想保留的重点；压缩过的部分会有分隔线，点开能看摘要。"
+    },
+    {
+      "kind": "new",
+      "area": "sem",
+      "en": "Skills picked with / and courses or terms picked with @ now show as chips right in the text you type, and in your sent messages.",
+      "zh": "用 / 选的技能和用 @ 引用的课程、学期会以标签的形式直接显示在输入的文字里，发出去的消息里也一样。"
+    },
+    {
+      "kind": "new",
+      "area": "ai",
       "en": "The AI usage page can now show just today's requests, tokens and estimated cost.",
       "zh": "AI 用量页现在可以只看今天的请求数、token 和估算费用。"
     },
     {
       "kind": "new",
+      "area": "settings",
       "en": "The theme previews in Settings → Preferences now show a more detailed mini app and follow your accent color in all three modes, and picking an accent color plays a short focus animation.",
       "zh": "设置 → 偏好里的主题预览更精致，三种模式都会跟随强调色，选择强调色时还有一个聚焦小动画。"
     },
     {
       "kind": "new",
+      "area": "data",
       "en": "Settings → Data now shows how much of your storage you use, what takes the space (by course or file type), and how much data your account holds.",
       "zh": "设置 → 数据 现在会显示存储空间用了多少、被哪些课程或文件类型占用，以及账户里各类数据的数量。"
     },
     {
-      "kind": "new",
-      "en": "Sem: see how full a conversation is and compact it yourself, from the ring by the input or with /compact, keeping what you name. Compacted turns are marked and their summary can be opened.",
-      "zh": "Sem：输入框旁的用量环会显示对话用掉了多少上下文，可以从这里或用 /compact 手动压缩，并写明想保留的重点；压缩过的部分会有分隔线，点开能看摘要。"
-    },
-    {
-      "kind": "new",
-      "en": "Sem: skills picked with / and courses or terms picked with @ now show as chips right in the text you type, and in your sent messages.",
-      "zh": "Sem：用 / 选的技能和用 @ 引用的课程、学期会以标签的形式直接显示在输入的文字里，发出去的消息里也一样。"
+      "kind": "improved",
+      "area": "overview",
+      "en": "Drag a card's corner to resize it, click a card to change its size, settings or remove it, see card contents while editing, and get more columns on large screens instead of stretched cards.",
+      "zh": "拖动右下角即可改大小，点选卡片就能切换尺寸、打开设置或移除，编辑时也能看清卡片内容；大屏上会显示更多列，卡片不再被拉得又宽又扁。"
     },
     {
       "kind": "improved",
-      "en": "Settings: AI providers and LMS connections show brand logos and short statuses, adding DeepSeek, Kimi, Qwen or OpenRouter only asks for a key, and each AI task picks its model from one searchable list.",
-      "zh": "设置：AI 服务商和 LMS 连接显示品牌 logo 和简短状态，添加 DeepSeek、Kimi、通义千问或 OpenRouter 只需填 key，每类 AI 任务在一个可搜索的列表里选模型。"
+      "area": "grades",
+      "en": "The term grades page now matches the course gradebook, with a breakdown ring of each course's credits, the term GPA beside it, and a Plan mode where you type the final percentages you expect and set a term GPA to aim for.",
+      "zh": "学期成绩页和课程成绩册统一，右侧环图显示各课程学分构成和学期 GPA；点「规划」后可以给未结课课程填预期最终成绩，并设一个目标学期 GPA。"
     },
     {
       "kind": "improved",
-      "en": "Settings: the Permissions page now covers both Sem and MCP clients. Choose whether Sem asks before every change, by module, or never, and turn on deleting for MCP clients in the same place.",
-      "zh": "设置：权限页同时管理 Sem 和 MCP 客户端。可以选择 Sem 修改数据前每次批准、按模块设置或全部自动批准，MCP 客户端的删除权限也在这里开启。"
+      "area": "canvas",
+      "en": "Files show their size and last update in columns and can be sorted by name, size or date.",
+      "zh": "文件的大小和更新时间分列显示，可以按名称、大小或时间排序。"
     },
     {
       "kind": "improved",
-      "en": "Overview and Today cards: drag a card's corner to resize it, click a card to change its size, settings or remove it, see card contents while editing, and get more columns on large screens instead of stretched cards.",
-      "zh": "概览与今天页的卡片：拖动右下角即可改大小，点选卡片就能切换尺寸、打开设置或移除，编辑时也能看清卡片内容；大屏上会显示更多列，卡片不再被拉得又宽又扁。"
+      "area": "canvas",
+      "en": "A cleaner course menu with icons and an \"Open in Canvas\" group, scores and status badges for assignments, quizzes and grades, overdue module items marked, and announcement previews.",
+      "zh": "课程菜单更清爽，带图标和\"在 Canvas 中打开\"分组；作业、测验和成绩显示得分与状态标记；逾期的单元条目会标出；公告列表显示正文摘要。"
     },
     {
       "kind": "improved",
-      "en": "Canvas tab: files show their size and last update in columns and can be sorted by name, size or date.",
-      "zh": "Canvas 页签：文件的大小和更新时间分列显示，可以按名称、大小或时间排序。"
+      "area": "ai",
+      "en": "AI providers and LMS connections show brand logos and short statuses, adding DeepSeek, Kimi, Qwen or OpenRouter only asks for a key, and each AI task picks its model from one searchable list.",
+      "zh": "AI 服务商和 LMS 连接显示品牌 logo 和简短状态，添加 DeepSeek、Kimi、通义千问或 OpenRouter 只需填 key，每类 AI 任务在一个可搜索的列表里选模型。"
     },
     {
       "kind": "improved",
-      "en": "Canvas tab: a cleaner course menu with icons and an \"Open in Canvas\" group, scores and status badges for assignments, quizzes and grades, overdue module items marked, and announcement previews.",
-      "zh": "Canvas 页签：课程菜单更清爽，带图标和\"在 Canvas 中打开\"分组；作业、测验和成绩显示得分与状态标记；逾期的单元条目会标出；公告列表显示正文摘要。"
-    },
-    {
-      "kind": "improved",
-      "en": "Term grades: the page now matches the course gradebook, with a breakdown ring of each course's credits, the term GPA beside it, and a Plan mode where you type the final percentages you expect and set a term GPA to aim for.",
-      "zh": "学期成绩：页面和课程成绩册统一，右侧环图显示各课程学分构成和学期 GPA；点「规划」后可以给未结课课程填预期最终成绩，并设一个目标学期 GPA。"
+      "area": "ai",
+      "en": "The Permissions page now covers both Sem and MCP clients. Choose whether Sem asks before every change, by module, or never, and turn on deleting for MCP clients in the same place.",
+      "zh": "权限页同时管理 Sem 和 MCP 客户端。可以选择 Sem 修改数据前每次批准、按模块设置或全部自动批准，MCP 客户端的删除权限也在这里开启。"
     },
     {
       "kind": "fixed",
-      "en": "The add-provider dialog now scrolls on small windows instead of running off the screen.",
-      "zh": "窗口较小时，添加服务商的弹窗可以滚动，不会再超出屏幕。"
-    },
-    {
-      "kind": "fixed",
-      "en": "AI import: long syllabi are no longer cut off and reported as having no useful information, and an AI provider account out of credit now says so.",
-      "zh": "AI 导入：较长的课程大纲不再被截断并提示\"没有找到可用的信息\"；AI 服务商账户余额不足时会直接说明。"
-    },
-    {
-      "kind": "fixed",
-      "en": "Board editing: cards no longer wiggle, resizing from the corner is smoother, every card resizes from its bottom-right corner, and removing a card asks first.",
-      "zh": "编辑看板：卡片不再晃动，拖角改尺寸更流畅，所有卡片都从右下角调整大小，移除卡片前会先确认。"
-    },
-    {
-      "kind": "fixed",
-      "en": "Board editing: a dragged card now follows the pointer smoothly instead of jumping from cell to cell.",
-      "zh": "编辑看板：拖动卡片时卡片会平滑地跟着鼠标走，不再一格一格地跳。"
-    },
-    {
-      "kind": "fixed",
-      "en": "Canvas tab: previewing, downloading and saving Canvas files works again, and images inside Canvas pages load.",
-      "zh": "Canvas 页签：Canvas 文件又能正常预览、下载和保存到课程文件，Canvas 页面里的图片也能显示了。"
-    },
-    {
-      "kind": "fixed",
+      "area": "general",
       "en": "Course, habit and sticky-note color pickers now use the same animated swatches as the accent color, and the selection ring settles a little faster.",
       "zh": "课程、习惯和便签的颜色选择也换成了和强调色一样的动画色块，选中圆环收缩得更快一些。"
     },
     {
       "kind": "fixed",
+      "area": "general",
       "en": "Closing a dialog no longer makes the blurred background flash back for a moment.",
       "zh": "关闭弹窗时，背景模糊不会再闪一下。"
     },
     {
       "kind": "fixed",
-      "en": "\"Group by category\" and \"Count unfinished\" in the gradebook are now switches, so it is clear whether they are on.",
-      "zh": "成绩册里的「按分类分组」和「计入未结课」改成了开关，一眼能看出是否打开。"
-    },
-    {
-      "kind": "fixed",
-      "en": "GPA settings: the preset picker now shows the conversion table in use, and picking another preset switches the table after a confirmation.",
-      "zh": "GPA 设置：预设下拉框会显示当前使用的换算表，选择其他预设并确认后即切换换算表。"
-    },
-    {
-      "kind": "fixed",
+      "area": "general",
       "en": "The \"Add term\" picker in the sidebar and the level path in settings keep a small gap between highlighted rows again.",
       "zh": "侧边栏的\"添加学期\"选择器和设置左上角的层级路径里，高亮的行之间重新留出了间距。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: an approved change and the answer after it can be followed after a reload or in another tab, and a slow title no longer holds up the answer.",
-      "zh": "Sem：批准后的修改和随后的回答在刷新或换标签页后也能接着看，起标题慢也不会拖住回答。"
+      "area": "sem",
+      "en": "An approved change and the answer after it can be followed after a reload or in another tab, and a slow title no longer holds up the answer.",
+      "zh": "批准后的修改和随后的回答在刷新或换标签页后也能接着看，起标题慢也不会拖住回答。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: long conversations keep more of what was said, since what earlier lookups returned is cleared before anything is summarized, and pressing Stop while compacting ends the turn and keeps the history as it was.",
-      "zh": "Sem：长对话压缩时先清掉较早的查询结果，再考虑总结，保留下来的对话更多；压缩时按停止会结束这一轮并保留原来的历史。"
+      "area": "sem",
+      "en": "Long conversations keep more of what was said, since what earlier lookups returned is cleared before anything is summarized, and pressing Stop while compacting ends the turn and keeps the history as it was.",
+      "zh": "长对话压缩时先清掉较早的查询结果，再考虑总结，保留下来的对话更多；压缩时按停止会结束这一轮并保留原来的历史。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: a change you approve after the conversation has moved on is no longer lost when you regenerate or edit a message.",
-      "zh": "Sem：对话继续往下之后才批准的修改，在重新生成或编辑消息时不会再被悄悄丢掉。"
+      "area": "sem",
+      "en": "A change you approve after the conversation has moved on is no longer lost when you regenerate or edit a message.",
+      "zh": "对话继续往下之后才批准的修改，在重新生成或编辑消息时不会再被悄悄丢掉。"
     },
     {
       "kind": "fixed",
+      "area": "sem",
       "en": "Sem keeps trying to learn from a conversation while your AI provider is unreachable, instead of giving up after a few tries.",
       "zh": "AI 服务商暂时连不上时，Sem 会继续尝试从对话中整理记忆，不会试几次就放弃。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: with providers that reuse tool call ids, approvals and steps now match the right answer.",
-      "zh": "Sem：使用会重复工具调用 id 的服务商时，批准和步骤会对应到正确的回答。"
+      "area": "sem",
+      "en": "With providers that reuse tool call ids, approvals and steps now match the right answer.",
+      "zh": "使用会重复工具调用 id 的服务商时，批准和步骤会对应到正确的回答。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: a scanned PDF page that cannot be rendered is noted in the conversation instead of breaking the answer.",
-      "zh": "Sem：附件里渲染不了的扫描页会在对话中注明，不会再让回答出错。"
+      "area": "sem",
+      "en": "A scanned PDF page that cannot be rendered is noted in the conversation instead of breaking the answer.",
+      "zh": "附件里渲染不了的扫描页会在对话中注明，不会再让回答出错。"
     },
     {
       "kind": "fixed",
+      "area": "sem",
+      "en": "The slash commands in the skills menu now line up at the right edge.",
+      "zh": "技能菜单里右侧的斜杠命令现在整齐靠右对齐。"
+    },
+    {
+      "kind": "fixed",
+      "area": "overview",
+      "en": "Cards no longer wiggle, resizing from the corner is smoother, every card resizes from its bottom-right corner, and removing a card asks first.",
+      "zh": "卡片不再晃动，拖角改尺寸更流畅，所有卡片都从右下角调整大小，移除卡片前会先确认。"
+    },
+    {
+      "kind": "fixed",
+      "area": "overview",
+      "en": "A dragged card now follows the pointer smoothly instead of jumping from cell to cell.",
+      "zh": "拖动卡片时卡片会平滑地跟着鼠标走，不再一格一格地跳。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "\"Group by category\" and \"Count unfinished\" in the gradebook are now switches, so it is clear whether they are on.",
+      "zh": "成绩册里的「按分类分组」和「计入未结课」改成了开关，一眼能看出是否打开。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "The preset picker in GPA settings now shows the conversion table in use, and picking another preset switches the table after a confirmation.",
+      "zh": "GPA 设置的预设下拉框会显示当前使用的换算表，选择其他预设并确认后即切换换算表。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Long syllabi are no longer cut off and reported as having no useful information, and an AI provider account out of credit now says so.",
+      "zh": "较长的课程大纲不再被截断并提示\"没有找到可用的信息\"；AI 服务商账户余额不足时会直接说明。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Previewing, downloading and saving Canvas files works again, and images inside Canvas pages load.",
+      "zh": "Canvas 文件又能正常预览、下载和保存到课程文件，Canvas 页面里的图片也能显示了。"
+    },
+    {
+      "kind": "fixed",
+      "area": "ai",
+      "en": "The add-provider dialog now scrolls on small windows instead of running off the screen.",
+      "zh": "窗口较小时，添加服务商的弹窗可以滚动，不会再超出屏幕。"
+    },
+    {
+      "kind": "fixed",
+      "area": "settings",
       "en": "Changing the language, clock format or first day of the week in Settings no longer makes the settings window close and pop open again.",
       "zh": "在设置里切换语言、时间格式或一周起始日时，设置窗口不再关闭后重新弹出。"
     },
     {
       "kind": "fixed",
-      "en": "Sem: the slash commands in the skills menu now line up at the right edge.",
-      "zh": "Sem：技能菜单里右侧的斜杠命令现在整齐靠右对齐。"
-    },
-    {
-      "kind": "fixed",
+      "area": "account",
       "en": "In the \"Create API token\" dialog, the permission and expiry options no longer sit in a track stretched across the whole dialog.",
       "zh": "「创建 API 令牌」对话框里，权限和有效期的选项不再被拉成一条横跨整个对话框的长条。"
     }
