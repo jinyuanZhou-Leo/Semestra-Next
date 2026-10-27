@@ -24,11 +24,12 @@ export type MarkdownProps = {
 }
 
 // The renderer (Streamdown with code, math and diagram plugins) is most of the Sem page's
-// weight, so it is its own chunk, fetched as soon as this module loads, while the
-// conversation itself is still being fetched.
+// weight, so it is its own chunk. A conversation starts loading it as it opens
+// (`preloadMarkdown`), while the conversation itself is still being fetched; not when this
+// module loads, which happens on an idle preload, where evaluating it would block the page.
 const load = () => import('./Response')
 const Response = lazy(load)
-void load()
+export const preloadMarkdown = load
 
 /**
  * An answer (M12 §6.1), rendered by AI Elements' `MessageResponse` (Streamdown): GFM, code,

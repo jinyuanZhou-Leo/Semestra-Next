@@ -77,7 +77,7 @@ import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
-import { Markdown } from './Markdown'
+import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
 import { ChipCourses, RefChip } from './RefChip'
 import { ProposalCard } from './ProposalCard'
@@ -567,6 +567,8 @@ export function Conversation({
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
   const programId = scope?.program_id ?? pageScope?.program_id
   const { courses } = useProgramEntities(programId)
+  // Answers need the Markdown renderer; it loads while the conversation is fetched.
+  useEffect(() => void preloadMarkdown(), [])
   const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
   useEffect(() => {
     reportTemporary(temporary)
