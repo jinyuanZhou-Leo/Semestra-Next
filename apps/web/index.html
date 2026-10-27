@@ -5,8 +5,70 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Semestra</title>
     <script src="/theme-init.js"></script>
+    <style>
+      /* The boot screen: shown from the first paint until the first page has rendered (main.tsx
+         removes it). theme-init.js picks the variant in data-boot: the shell's frame on Program
+         pages (`shell`, or `rail` with the sidebar collapsed), the brand mark elsewhere. Colors
+         are the app's tokens: the stylesheet Vite links in the head blocks the first paint. */
+      #boot { position: fixed; inset: 0; z-index: 50; display: flex; background: var(--background); }
+      #boot .shell { display: none; flex: 1; }
+      :root[data-boot='shell'] #boot .shell, :root[data-boot='rail'] #boot .shell { display: flex; }
+      :root[data-boot='shell'] #boot .mark, :root[data-boot='rail'] #boot .mark { display: none; }
+      #boot .side { width: 16rem; flex: none; display: flex; flex-direction: column; padding: 8px; background: var(--sidebar); border-right: 1px solid var(--sidebar-border); }
+      :root[data-boot='rail'] #boot .side { width: 3rem; }
+      :root[data-boot='rail'] #boot .t, :root[data-boot='rail'] #boot .label { display: none; }
+      :root[data-boot='rail'] #boot .row, :root[data-boot='rail'] #boot .head { padding: 0 8px; }
+      :root[data-boot='rail'] #boot .head { padding: 0; }
+      #boot .bar { border-radius: 6px; background: color-mix(in oklch, var(--sidebar-foreground) 8%, transparent); }
+      #boot .row { height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+      #boot .row .bar:first-child { width: 16px; height: 16px; border-radius: 4px; }
+      #boot .row .t { height: 12px; }
+      #boot .head { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+      #boot .label { height: 32px; display: flex; align-items: center; padding: 0 12px; }
+      #boot .label .bar { height: 10px; }
+      #boot .grow { flex: 1; }
+      #boot .rule { border-top: 1px solid var(--sidebar-border); margin-bottom: 8px; }
+      #boot .toolbar { height: 64px; display: flex; align-items: center; padding: 0 20px; }
+      #boot .toolbar .bar { width: 16px; height: 16px; border-radius: 4px; background: color-mix(in oklch, var(--foreground) 7%, transparent); }
+      #boot .mark { margin: auto; display: flex; align-items: center; gap: 10px; color: var(--foreground); font: 600 22px/1 'Figtree Variable', system-ui, sans-serif; }
+      #boot .mark svg { width: 30px; height: 30px; color: var(--primary); }
+      #boot .pulse { animation: boot-pulse 1.6s ease-in-out infinite; }
+      @keyframes boot-pulse { 50% { opacity: 0.55; } }
+      @media (prefers-reduced-motion: reduce) { :root:not([data-reduce-motion='off']) #boot .pulse { animation: none; } }
+      :root[data-reduce-motion='on'] #boot .pulse { animation: none; }
+    </style>
   </head>
   <body>
+    <div id="boot" aria-hidden="true">
+      <div class="shell">
+        <div class="side">
+          <div class="head"><div style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--primary)"></div><div class="t" style="display: grid; gap: 6px"><div class="bar" style="width: 132px; height: 12px"></div><div class="bar" style="width: 96px; height: 10px"></div></div></div>
+          <div style="height: 16px"></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 120px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 40px"></div></div>
+          <div style="height: 16px"></div>
+          <div class="label"><div class="bar" style="width: 40px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 70px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 50px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 46px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 104px"></div></div>
+          <div style="height: 32px"></div>
+          <div class="label"><div class="bar" style="width: 72px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 64px"></div></div>
+          <div class="grow"></div>
+          <div class="rule"></div>
+          <div class="label"><div class="bar" style="width: 48px"></div></div>
+          <div class="row"><div class="bar"></div><div class="bar t" style="width: 60px"></div></div>
+          <div style="height: 8px"></div>
+          <div class="head"><div class="bar" style="width: 32px; height: 32px; border-radius: 999px"></div><div class="t" style="display: grid; gap: 6px"><div class="bar" style="width: 40px; height: 12px"></div><div class="bar" style="width: 140px; height: 10px"></div></div></div>
+        </div>
+        <div class="grow"><div class="toolbar"><div class="bar"></div></div></div>
+      </div>
+      <div class="mark pulse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" /></svg>
+        Semestra
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
