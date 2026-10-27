@@ -36,11 +36,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
 
-type UsageRange = '7' | '30' | 'all'
+type UsageRange = '1' | '7' | '30' | 'all'
 
-const RANGES: readonly UsageRange[] = ['7', '30', 'all']
+const RANGES: readonly UsageRange[] = ['1', '7', '30', 'all']
 
 const RANGE_TITLES: Record<UsageRange, () => string> = {
+  '1': m.ai_usage_range_today,
   '7': () => m.ai_usage_range_days({ days: 7 }),
   '30': () => m.ai_usage_range_days({ days: 30 }),
   all: m.ai_usage_range_all,
@@ -408,7 +409,7 @@ function chatCacheRate(summary: UsageSummary): string {
 /** A clicked bar: the details table shows only its days. */
 type Selection = { range: UsageRange; start: string; end: string }
 
-/** Account settings → AI → usage over the last 7 or 30 days or all time (M06 §7). Costs are estimates. */
+/** Account settings → AI → usage over today, the last 7 or 30 days or all time (M06 §7). Costs are estimates. */
 export function UsageSection() {
   const [grouping, setGrouping] = useState<Grouping>('purpose')
   const [range, setRange] = useUiPref<UsageRange>('ai.usage_range', '30')
@@ -494,30 +495,35 @@ export function UsageSection() {
                   <EmptyTitle>
                     {range === 'all'
                       ? m.ai_usage_empty_all()
-                      : m.ai_usage_empty({ days: Number(range) })}
+                      : range === '1'
+                        ? m.ai_usage_empty_today()
+                        : m.ai_usage_empty({ days: Number(range) })}
                   </EmptyTitle>
                 </EmptyHeader>
               </Empty>
             ) : (
               <>
-                <SettingsBlock
-                  title={
-                    spanDays(summary) > DAILY_BARS_MAX
-                      ? m.ai_usage_chart_title_weekly()
-                      : m.ai_usage_chart_title()
-                  }
-                  description={m.ai_usage_chart_hint()}
-                >
-                  <div className="rounded-2xl border p-4">
-                    <UsageChart
-                      summary={summary}
-                      selected={selection?.start ?? null}
-                      onSelect={(bar) =>
-                        setPicked(bar ? { range, start: bar.start, end: bar.end } : null)
-                      }
-                    />
-                  </div>
-                </SettingsBlock>
+                {/* One day is a single bar, so today is just the totals and the table. */}
+                {range === '1' ? null : (
+                  <SettingsBlock
+                    title={
+                      spanDays(summary) > DAILY_BARS_MAX
+                        ? m.ai_usage_chart_title_weekly()
+                        : m.ai_usage_chart_title()
+                    }
+                    description={m.ai_usage_chart_hint()}
+                  >
+                    <div className="rounded-2xl border p-4">
+                      <UsageChart
+                        summary={summary}
+                        selected={selection?.start ?? null}
+                        onSelect={(bar) =>
+                          setPicked(bar ? { range, start: bar.start, end: bar.end } : null)
+                        }
+                      />
+                    </div>
+                  </SettingsBlock>
+                )}
                 <SettingsBlock
                   title={m.ai_usage_details()}
                   action={
