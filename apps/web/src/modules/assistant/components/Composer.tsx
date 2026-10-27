@@ -3,7 +3,8 @@ import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
   Attachment,
@@ -19,7 +20,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { EMPTY_PROMPT, type MessageReference, type PromptValue, readPrompt } from '../prompt'
 import { ContextMeter } from './ContextMeter'
-import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
+import { PROMPT_CLASS, PromptEditor, type PromptEditorHandle } from './PromptEditor'
 
 export type PendingAttachment = {
   key: string
@@ -110,10 +111,14 @@ export function Composer({
   const submitting = useRef(false)
   const skills = useQuery({ ...agentSkillListOptions(), staleTime: 5 * 60_000 }).data?.items ?? []
 
+  // Creating and focusing the editor (ProseMirror) is a long task: the conversation draws first,
+  // with a stand-in of the same size, and the editor takes its place in the next render.
+  const editorReady = useDeferredValue(true, false)
+
   // Opening the assistant means typing.
   useEffect(() => {
-    if (focusInput) editor.current?.focus()
-  }, [focusInput])
+    if (focusInput && editorReady) editor.current?.focus()
+  }, [focusInput, editorReady])
 
   const compacting = value.compact && Boolean(onCompact)
   const skill = value.skill ? (skills.find((s) => s.name === value.skill) ?? null) : null
@@ -176,25 +181,33 @@ export function Composer({
             </AttachmentGroup>
           </InputGroupAddon>
         ) : null}
-        <PromptEditor
-          ref={editor}
-          label={m.assistant_input_label()}
-          placeholder={m.assistant_input_placeholder()}
-          programId={programId}
-          slash
-          canCompact={Boolean(onCompact) && canCompact}
-          disabled={disabled}
-          initialContent={initialContent}
-          className="w-full"
-          onChange={(next, doc) => {
-            setValue(next)
-            editorDoc.current = doc
-            onContentChange?.(doc)
-          }}
-          onEnter={() => void submit()}
-          onFiles={onFiles}
-          onScope={onScope}
-        />
+        {editorReady ? (
+          <PromptEditor
+            ref={editor}
+            label={m.assistant_input_label()}
+            placeholder={m.assistant_input_placeholder()}
+            programId={programId}
+            slash
+            canCompact={Boolean(onCompact) && canCompact}
+            disabled={disabled}
+            initialContent={initialContent}
+            className="w-full"
+            onChange={(next, doc) => {
+              setValue(next)
+              editorDoc.current = doc
+              onContentChange?.(doc)
+            }}
+            onEnter={() => void submit()}
+            onFiles={onFiles}
+            onScope={onScope}
+          />
+        ) : (
+          <div aria-hidden className="w-full">
+            <div className={cn(PROMPT_CLASS, !value.text && 'text-muted-foreground')}>
+              {value.text || m.assistant_input_placeholder()}
+            </div>
+          </div>
+        )}
         <InputGroupAddon align="block-end" className="justify-between">
           <div className="flex items-center gap-1.5">
             <IconButton

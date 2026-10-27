@@ -8,6 +8,7 @@ import {
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { useProgram } from '@/modules/academics/queries'
 import { todayIn } from '@/modules/schedule/time'
+import type { Scope } from '@/app/extensions'
 import type { SortKey, Selection } from './types'
 
 const STALE = 15_000
@@ -80,14 +81,24 @@ function sameButLimit(a: readonly unknown[], b: readonly unknown[]): boolean {
 }
 
 /** The unfinished tasks due today or overdue, for the Today card (of a term: that term's). */
-export function useTodayTasks(programId: string, termId?: string) {
-  return useQuery({
+function todayTasksOptions(programId: string, termId?: string) {
+  return {
     ...tasksItemQueryOptions({
       path: { program_id: programId },
       query: { view: 'today', term_id: termId, sort: 'due', limit: 100 },
     }),
     staleTime: STALE,
-  })
+  }
+}
+
+export function useTodayTasks(programId: string, termId?: string) {
+  return useQuery(todayTasksOptions(programId, termId))
+}
+
+/** The Today card's data (`CardContribution.prefetch`). */
+export function prefetchTodayTasks(scope: Scope, queryClient: QueryClient) {
+  const termId = scope.kind === 'term' ? scope.termId : undefined
+  void queryClient.prefetchQuery(todayTasksOptions(scope.programId, termId))
 }
 
 type KeyHead = { _id?: unknown; query?: Record<string, unknown> } | undefined

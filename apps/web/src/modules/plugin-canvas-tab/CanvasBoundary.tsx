@@ -1,4 +1,4 @@
-import type { UseQueryResult } from '@tanstack/react-query'
+import { type UseQueryResult, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, Clock, KeyRound, Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useSettingsDialog } from '@/app/settings'
@@ -46,6 +46,7 @@ export function CanvasBoundary<T>({
   children: (data: T) => ReactNode
 }) {
   const settings = useSettingsDialog()
+  const queryClient = useQueryClient()
   const { courseId } = useCanvasPage()
   if (query.isPending) return skeleton ?? <ListSkeleton />
   if (query.isError) {
@@ -57,7 +58,11 @@ export function CanvasBoundary<T>({
           <AlertTitle>{m.canvas_tab_forbidden_title()}</AlertTitle>
           <AlertDescription>{m.canvas_tab_forbidden_hint()}</AlertDescription>
           <AlertAction>
-            <Button size="sm" variant="outline" onClick={() => void openLinkedCourse(courseId)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void openLinkedCourse(queryClient, courseId)}
+            >
               {m.canvas_tab_open_in_canvas()}
             </Button>
           </AlertAction>

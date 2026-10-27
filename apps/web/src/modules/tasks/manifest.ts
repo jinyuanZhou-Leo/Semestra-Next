@@ -3,6 +3,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { listCardSettingsSchema } from './cards/schema'
+import { prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
@@ -39,6 +40,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'l',
       component: preloadable(() => import('./cards/TodayCard')),
+      prefetch: prefetchTodayTasks,
       multiple: false,
     },
     {

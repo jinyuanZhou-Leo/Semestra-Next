@@ -11,6 +11,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
 import { academicsNavigation } from './commands'
+import { prefetchTermCourses } from './queries'
 
 /** Every query this module shows; any academics change refetches them (they are small). */
 const ACADEMICS_QUERIES = [
@@ -80,6 +81,7 @@ export default defineModule({
       sizes: ['l', 'xl'],
       defaultSize: 'xl',
       component: preloadable(() => import('./cards/TermCoursesCard')),
+      prefetch: prefetchTermCourses,
       multiple: false,
     },
     {

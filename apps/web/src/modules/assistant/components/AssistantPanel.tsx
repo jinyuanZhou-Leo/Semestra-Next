@@ -44,7 +44,10 @@ export function AssistantPanel() {
   const title = session ? sessionTitle(session) : m.assistant_name()
 
   return (
-    <aside aria-label={m.assistant_name()} className="flex h-full min-w-0 flex-col bg-background">
+    <aside
+      aria-label={m.assistant_name()}
+      className="flex h-full min-w-0 flex-col bg-background contain-strict"
+    >
       <header className="flex h-10 shrink-0 items-center gap-0.5 border-b px-2">
         <h2 className="min-w-0 flex-1 truncate px-1.5 text-sm font-medium">{title}</h2>
         <HeaderButton label={m.assistant_new()} onClick={() => panel.show(null)}>

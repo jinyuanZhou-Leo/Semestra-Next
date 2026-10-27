@@ -32,6 +32,7 @@ import { useSettingsDialog } from '@/app/settings'
 import { useAiStatus } from '@/hooks/use-ai-status'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
+import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription } from '@/ui/alert'
 import {
@@ -567,8 +568,10 @@ export function Conversation({
   const temporary = sessionId ? (detail?.session.temporary ?? false) : temporaryChoice
   const programId = scope?.program_id ?? pageScope?.program_id
   const { courses } = useProgramEntities(programId)
-  // Answers need the Markdown renderer; it loads while the conversation is fetched.
-  useEffect(() => void preloadMarkdown(), [])
+  // Answers need the Markdown renderer. Evaluating it is a long task, so a new conversation
+  // loads it once the panel has settled, or when the first message is sent (`useChat`); a
+  // conversation with answers loads it as they render.
+  useEffect(() => whenSettled(() => void preloadMarkdown()), [])
   const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
   useEffect(() => {
     reportTemporary(temporary)

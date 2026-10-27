@@ -13,7 +13,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './pages/TodaySubtitle'
-import { prefetchCalendarPage } from './queries'
+import { prefetchCalendarPage, prefetchToday } from './queries'
 
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
@@ -100,6 +100,7 @@ export default defineModule({
       sizes: ['m', 'l', 'xl'],
       defaultSize: 'l',
       component: preloadable(() => import('./cards/TodayCard')),
+      prefetch: prefetchToday,
       multiple: false,
     },
     {
@@ -110,6 +111,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'l',
       component: preloadable(() => import('./cards/UpcomingCard')),
+      prefetch: prefetchToday,
       multiple: false,
     },
     {

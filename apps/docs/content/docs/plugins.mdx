@@ -56,6 +56,7 @@ export default defineModule({
     id: 'hello.note', scopes: ['program','term','course','today'],
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
     component: preloadable(...),
+    prefetch: (scope, queryClient) => ...,   // optional: start the card's data with its code (queryClient.prefetchQuery)
     settings: { schema: zodSchema, component: preloadable(...) },   // component is optional; without it a form is generated from the schema
     multiple: true,
     headerActions: ...,        // card header actions (the counter's "reset")

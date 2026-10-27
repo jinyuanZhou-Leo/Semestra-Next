@@ -73,8 +73,9 @@ export const builtInModules: readonly ModuleManifest[] = [
  * Loads a page's code and its sidebar navigation before it renders, from a route loader (which
  * also runs when a link to the page is hovered); see `preloadable`. The router waits for it, so
  * the previous page stays on screen instead of a blank one. Meanwhile the page's data starts
- * (`PageContribution.prefetch`), and so does its board: the saved layout, then the code of the
- * cards in it, without holding up the switch (a card still loading shows its own skeleton).
+ * (`PageContribution.prefetch`), and so does its board: the saved layout, then the code and data
+ * (`CardContribution.prefetch`) of the cards in it, without holding up the switch (a card still
+ * loading shows its own skeleton).
  * Only installed modules count, so cards of plugins the account has not installed stay out.
  */
 export function preloadPage(
@@ -102,7 +103,7 @@ export function preloadPage(
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
       parts.push(page.component, page.sidebarNav)
       page.prefetch?.(scope, queryClient, { preload: hovered, modules })
-      if (page.board) preloadBoardCards(scope, page.board, queryClient, modules)
+      if (page.board) preloadBoardCards(scope, page.board, queryClient, modules, hovered)
     }
   }
   return Promise.all(parts.map(preload)).then(() => undefined)
@@ -113,6 +114,7 @@ function preloadBoardCards(
   board: 'scope' | 'today',
   queryClient: QueryClient,
   modules: readonly ModuleManifest[],
+  hovered: boolean,
 ) {
   const ref = boardRef(scope, board === 'today' ? 'today' : undefined)
   queryClient
@@ -121,8 +123,9 @@ function preloadBoardCards(
       const shown = new Set(layout.cards.map((card) => card.card_id))
       for (const module of modules) {
         for (const card of module.cards ?? []) {
-          if (shown.has(card.id) && card.scopes.includes(ref.scope_type))
-            void preload(card.component)
+          if (!shown.has(card.id) || !card.scopes.includes(ref.scope_type)) continue
+          void preload(card.component)
+          if (!hovered) card.prefetch?.(scope, queryClient, { modules })
         }
       }
     })
