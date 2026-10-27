@@ -26,6 +26,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { createContext, use, useRef, useState } from 'react'
+import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -47,6 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
+import { FILE_ITEM_ACTIONS, type FileItemAction } from '../types'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
 import { VirtualBody } from './VirtualBody'
@@ -63,6 +65,8 @@ export type BrowserHandlers = {
   act: (action: ItemAction) => void
   /** Read-only lists (the term page) hide editing. */
   readOnly?: boolean
+  /** The course's Program, for the menu entries other modules add (`files.itemActions`). */
+  programId?: string
 }
 
 const BrowserContext = createContext<BrowserHandlers | null>(null)
@@ -145,7 +149,8 @@ function PinCell({ row }: CellProps) {
 }
 
 export function ItemMenu({ item }: { item: ItemOut }) {
-  const { act } = useHandlers()
+  const { act, programId } = useHandlers()
+  const actions = useExtensions<FileItemAction>(FILE_ITEM_ACTIONS).filter((a) => a.accepts(item))
   const canReprocess =
     item.kind === 'file' && (item.doc_status === 'ready' || item.doc_status === 'failed')
   return (
@@ -168,7 +173,10 @@ export function ItemMenu({ item }: { item: ItemOut }) {
         </TooltipTrigger>
         <TooltipContent>{m.files_more_actions()}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        className={programId && actions.length > 0 ? 'w-72' : undefined}
+      >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
           <Pencil aria-hidden />
           {m.files_rename()}
@@ -187,6 +195,27 @@ export function ItemMenu({ item }: { item: ItemOut }) {
           </DropdownMenuItem>
         ) : null}
         {canReprocess ? <ReprocessItem item={item} /> : null}
+        {programId && actions.length > 0 ? (
+          <>
+            <DropdownMenuSeparator />
+            {actions.map((action) => (
+              <DropdownMenuItem
+                key={action.id}
+                onClick={() => void action.run({ programId, item })}
+              >
+                <action.icon aria-hidden />
+                <span className="min-w-0">
+                  <span className="block">{action.title()}</span>
+                  {action.description ? (
+                    <span className="block text-xs text-muted-foreground">
+                      {action.description()}
+                    </span>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

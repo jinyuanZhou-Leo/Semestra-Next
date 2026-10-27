@@ -1,23 +1,30 @@
 import type { ImportSessionDetail, Upload } from '@semestra/api-client'
 import { importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
-import { FileUp, X } from 'lucide-react'
+import { FileUp } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { useDropzone } from 'react-dropzone'
+import { toast } from 'sonner'
 import { AiAction, type AiActionState } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
 import { useJob } from '@/hooks/use-job'
 import { invalidateOperations, postWithProgress } from '@/app/api'
 import { errorMessage, toastError } from '@/lib/errors'
+import { formatBytes } from '@/lib/format'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
+import { useFilesUsage } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
 import { DialogFooter } from '@/ui/dialog'
+import { Field, FieldLabel } from '@/ui/field'
 import { Textarea } from '@/ui/textarea'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { storeSession } from '../queries'
 import { SOURCES } from '../sources'
 import type { FileImportRequest } from '../types'
-import { FileStatusList, sessionRows } from './FileStatusList'
+import { CourseFilePicker } from './CourseFilePicker'
+import { type FileRow, FileStatusList, sessionRows } from './FileStatusList'
 import { SUCCESS_HOLD_MS } from './SessionView'
 
 /** Upload takes the first fifth of the bar; the extraction job fills the rest. */
@@ -30,11 +37,16 @@ function uploadFile(file: File, signal: AbortSignal, onProgress: (loaded: number
   return postWithProgress<Upload>('/imports/uploads', form, { signal, onProgress })
 }
 
-/** Uploads the files one by one, then starts the session (ICS is parsed right away). */
+/**
+ * Uploads the files one by one, then starts the session (ICS is parsed right away). Picked course
+ * files are not uploaded: the session reads them from M07.
+ */
 async function uploadAndCreate(
   request: FileImportRequest,
   files: File[],
+  fileItemIds: string[],
   text: string | null,
+  sourceMeta: Record<string, unknown>,
   signal: AbortSignal,
   onUploaded: (bytes: number, count: number) => void,
 ) {
@@ -55,8 +67,9 @@ async function uploadAndCreate(
       source_kind: request.source,
       target: request.target,
       upload_ids: uploadIds,
+      file_item_ids: fileItemIds,
       text,
-      source_meta: request.sourceMeta ?? {},
+      source_meta: sourceMeta,
     },
     throwOnError: true,
   })
@@ -67,6 +80,13 @@ async function uploadAndCreate(
  * The first step of a file or text import (M08 §6.2). The "Read" button is the progress bar for the
  * whole start: uploading the files, then the extraction job, then a check before `onFinished`
  * opens the review. The body keeps listing the files with their state while it runs.
+ */
+/**
+ * The first step of a file or text import (M08 §6.2). The "Read" button is the progress bar for the
+ * whole start: uploading the files, then the extraction job, then a check before `onFinished`
+ * opens the review. The drop zone keeps its height throughout and the files below it show their
+ * own state (each upload with its bar), so nothing moves while the import starts. A syllabus for
+ * a course can also be read from the course's files instead of uploading it again.
  */
 export function SourcePicker({
   request,
@@ -80,10 +100,20 @@ export function SourcePicker({
   onStarted: (sessionId: string) => void
   onFinished: () => void
 }) {
-  const inputId = useId()
+  const keepId = useId()
   const queryClient = useQueryClient()
   const spec = SOURCES[request.source]
+  const maxBytes = useFilesUsage().data?.max_upload_bytes
+  const courseId =
+    request.source === 'syllabus' && request.target.kind === 'course'
+      ? request.target.course_id
+      : null
+  const [from, setFrom] = useState<'upload' | 'course'>(
+    courseId && request.fileItemIds?.length ? 'course' : 'upload',
+  )
   const [files, setFiles] = useState<File[]>([])
+  const [picked, setPicked] = useState<string[]>(request.fileItemIds ?? [])
+  const [keepFiles, setKeepFiles] = useState(true)
   const [text, setText] = useState('')
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'creating'>('idle')
   const [uploaded, setUploaded] = useState({ bytes: 0, count: 0 })
@@ -104,7 +134,13 @@ export function SourcePicker({
       abort.current?.abort()
     }
   }, [])
-  const ready = spec.accept ? files.length > 0 : text.trim().length > 0
+  const fromCourse = from === 'course'
+  const sending = fromCourse ? [] : files
+  const ready = fromCourse
+    ? picked.length > 0
+    : spec.accept
+      ? files.length > 0
+      : text.trim().length > 0
 
   const extracting = session?.status === 'extracting'
   const starting = phase !== 'idle'
@@ -132,15 +168,15 @@ export function SourcePicker({
     return () => window.clearTimeout(timer)
   }, [state, onFinished])
 
-  const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+  const totalBytes = sending.reduce((sum, file) => sum + file.size, 0)
   let progress = UPLOAD_SHARE
   let stageLabel: string | undefined
   if (phase === 'uploading') {
     progress = totalBytes > 0 ? (UPLOAD_SHARE * uploaded.bytes) / totalBytes : 0
     stageLabel = m.job_stage_count({
       stage: m.imports_uploading(),
-      current: Math.min(uploaded.count + 1, files.length),
-      total: files.length,
+      current: Math.min(uploaded.count + 1, sending.length),
+      total: sending.length,
     })
   } else if (extracting) {
     progress = UPLOAD_SHARE + ((100 - UPLOAD_SHARE) * job.progress) / 100
@@ -159,16 +195,23 @@ export function SourcePicker({
     setStartError(null)
     setStopping(false)
     setUploaded({ bytes: 0, count: 0 })
-    setPhase(files.length > 0 ? 'uploading' : 'creating')
+    setPhase(sending.length > 0 ? 'uploading' : 'creating')
+    const sourceMeta = {
+      ...request.sourceMeta,
+      // An uploaded syllabus is filed into the course on commit unless the box was unticked.
+      ...(sending.length > 0 && !keepFiles ? { keep_files: false } : {}),
+    }
     uploadAndCreate(
       request,
-      files,
+      sending,
+      fromCourse ? picked : [],
       spec.accept ? null : text,
+      sourceMeta,
       controller.signal,
       (bytes, count) => {
         if (!mounted.current) return
         setUploaded({ bytes, count })
-        if (count === files.length) setPhase('creating')
+        if (count === sending.length) setPhase('creating')
       },
     )
       .then((created) => {
@@ -202,6 +245,19 @@ export function SourcePicker({
     if (session) void discard(session.id).finally(() => setStopping(false))
   }
 
+  const addFiles = (added: File[]) =>
+    setFiles((current) => (spec.multiple ? [...current, ...added] : added.slice(0, 1)))
+  const dropzone = useDropzone({
+    accept: spec.accept,
+    multiple: spec.multiple ?? false,
+    disabled: locked || !spec.accept,
+    onDropAccepted: addFiles,
+    onDropRejected: (rejected) => {
+      for (const { file } of rejected)
+        toast.error(m.imports_file_type_unsupported({ name: file.name }))
+    },
+  })
+
   const action = (
     <AiAction
       state={state}
@@ -217,102 +273,65 @@ export function SourcePicker({
     />
   )
 
-  const addFiles = (added: File[]) =>
-    setFiles((current) => (spec.multiple ? [...current, ...added] : added.slice(0, 1)))
-  const rows = session?.status === 'extracting' ? sessionRows(session.source_refs) : null
+  // Once started the rows follow the server: first the uploads, then reading each file.
+  let rows: FileRow[]
+  if (session?.status === 'extracting') {
+    rows = sessionRows(
+      session.source_refs,
+      sending.map((file) => file.size),
+    )
+  } else if (fromCourse) {
+    rows = []
+  } else {
+    let before = 0
+    rows = files.map((file, index) => {
+      const sentBefore = before
+      before += file.size
+      let status: FileRow['status'] = 'picked'
+      if (locked) {
+        status =
+          (session && state === 'success') || index < uploaded.count
+            ? 'done'
+            : phase === 'uploading' && index === uploaded.count
+              ? 'uploading'
+              : 'pending'
+      }
+      return {
+        // Files have no ids; the list only grows or loses entries by position.
+        key: `${file.name}-${index}`,
+        name: file.name,
+        size: file.size,
+        status,
+        loaded: Math.max(0, uploaded.bytes - sentBefore),
+        onRemove: locked
+          ? undefined
+          : () => setFiles((current) => current.filter((_, i) => i !== index)),
+      }
+    })
+  }
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-        {spec.accept ? (
-          <>
-            {locked ? null : (
-              // Dropping files on the picker is a shortcut; the file input inside is the control.
-              // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-              <label
-                htmlFor={inputId}
-                className={cn(
-                  'flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed text-sm text-muted-foreground hover:bg-muted/50',
-                  files.length === 0 ? 'min-h-40 flex-1 flex-col' : 'flex-row px-4 py-3',
-                )}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  addFiles([...event.dataTransfer.files])
-                }}
-              >
-                <FileUp aria-hidden className={files.length === 0 ? 'size-6' : 'size-4'} />
-                {files.length > 0
-                  ? spec.multiple
-                    ? m.imports_add_more()
-                    : m.imports_replace_file()
-                  : spec.multiple
-                    ? m.imports_pick_files()
-                    : m.imports_pick_file()}
-                <input
-                  id={inputId}
-                  type="file"
-                  className="sr-only"
-                  accept={spec.accept}
-                  multiple={spec.multiple}
-                  onChange={(event) => {
-                    addFiles([...(event.target.files ?? [])])
-                    event.target.value = ''
-                  }}
-                />
-              </label>
-            )}
-            {locked ? (
-              <FileStatusList
-                rows={
-                  rows ??
-                  files.map((file, index) => ({
-                    key: `${file.name}-${index}`,
-                    name: file.name,
-                    status:
-                      session && state === 'success'
-                        ? 'done'
-                        : index < uploaded.count
-                          ? 'done'
-                          : phase === 'uploading' && index === uploaded.count
-                            ? 'uploading'
-                            : 'pending',
-                  }))
-                }
-              />
-            ) : (
-              <ul className="space-y-1">
-                {files.map((file, index) => (
-                  <li
-                    // Files have no ids; the list only grows or loses entries by position.
-                    // oxlint-disable-next-line react/no-array-index-key
-                    key={`${file.name}-${index}`}
-                    className="flex items-center gap-2 rounded-xl px-2 py-1 text-sm hover:bg-muted/50"
-                  >
-                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={m.imports_remove_file({ name: file.name })}
-                            onClick={() =>
-                              setFiles((current) => current.filter((_, i) => i !== index))
-                            }
-                          />
-                        }
-                      >
-                        <X aria-hidden />
-                      </TooltipTrigger>
-                      <TooltipContent>{m.imports_remove_file({ name: file.name })}</TooltipContent>
-                    </Tooltip>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {courseId ? (
+          <ToggleGroup
+            value={[from]}
+            onValueChange={(value: string[]) => {
+              const next = value[0]
+              if (next === 'upload' || next === 'course') setFrom(next)
+            }}
+            disabled={locked}
+            className={SEGMENTED}
+          >
+            <ToggleGroupItem value="upload" className={SEGMENT}>
+              {m.imports_from_upload()}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="course" className={SEGMENT}>
+              {m.imports_from_course_files()}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        ) : null}
+        {!spec.accept ? (
           <Textarea
             aria-label={m.imports_source_text()}
             placeholder={m.imports_text_placeholder()}
@@ -321,7 +340,59 @@ export function SourcePicker({
             disabled={locked}
             onChange={(event) => setText(event.target.value)}
           />
+        ) : fromCourse && courseId && !extracting ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <CourseFilePicker
+              courseId={courseId}
+              picked={picked}
+              disabled={locked}
+              onChange={setPicked}
+            />
+          </div>
+        ) : (
+          <>
+            {fromCourse ? null : (
+              <div
+                {...dropzone.getRootProps({
+                  className: cn(
+                    'flex h-40 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 text-center text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                    dropzone.isDragActive && 'border-primary bg-primary/5',
+                    locked && 'pointer-events-none opacity-50',
+                  ),
+                })}
+              >
+                <input {...dropzone.getInputProps()} />
+                <span className="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
+                  <FileUp aria-hidden className="size-5" />
+                </span>
+                <span className="text-foreground">
+                  {spec.multiple ? m.imports_pick_files() : m.imports_pick_file()}
+                </span>
+                {maxBytes ? (
+                  <span className="text-xs">
+                    {m.imports_pick_limit({ max: formatBytes(maxBytes) })}
+                  </span>
+                ) : null}
+              </div>
+            )}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <FileStatusList rows={rows} />
+            </div>
+          </>
         )}
+        {request.source === 'syllabus' && !fromCourse ? (
+          <Field orientation="horizontal" className="w-fit">
+            <Checkbox
+              id={keepId}
+              checked={keepFiles}
+              disabled={locked}
+              onCheckedChange={setKeepFiles}
+            />
+            <FieldLabel htmlFor={keepId} className="font-normal">
+              {m.imports_keep_files()}
+            </FieldLabel>
+          </Field>
+        ) : null}
       </div>
       <DialogFooter className="items-start">
         {spec.purpose ? <AiRequired purpose={spec.purpose}>{action}</AiRequired> : action}

@@ -1,7 +1,7 @@
 import type { CourseResult } from '@semestra/api-client'
 import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calculator, Flag, MoreHorizontal, Plus, X } from 'lucide-react'
+import { Calculator, Flag, MoreHorizontal, X } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
@@ -18,8 +18,8 @@ import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateGrading } from '../queries'
+import { AddMenu } from './AddMenu'
 import { PlanBar } from './GradeTableCard'
-import { ImportMenu } from './ImportMenu'
 import { OfficialGradeDialog } from './OfficialGradeDialog'
 
 /** The header bar of the gradebook table; in plan mode it is the `PlanBar`. */
@@ -88,11 +88,7 @@ export function GradebookToolbar({
           {m.grading_group_by_category()}
         </Label>
       </div>
-      <ImportMenu programId={programId} courseId={result.course_id} />
-      <Button size="sm" onClick={onAdd}>
-        <Plus aria-hidden />
-        {m.grading_assessment_add()}
-      </Button>
+      <AddMenu programId={programId} courseId={result.course_id} onAdd={onAdd} />
       <MoreMenu result={result} />
     </div>
   )

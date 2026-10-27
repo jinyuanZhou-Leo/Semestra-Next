@@ -399,7 +399,8 @@ class SessionCreateInput(BaseModel):
         default_factory=dict,
         description=(
             "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps "
-            "just the field changes of the target course"
+            "just the field changes of the target course; {keep_files: false} does not save an "
+            "uploaded syllabus to the course files"
         ),
     )
 

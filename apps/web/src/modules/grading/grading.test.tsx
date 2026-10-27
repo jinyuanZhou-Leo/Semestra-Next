@@ -165,7 +165,7 @@ test('plan mode simulates the assumed scores and shows the result without saving
 test('plan mode replaces the toolbar; clearing the assumptions can be undone', async () => {
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
-  expect(screen.queryByRole('button', { name: 'Add assessment' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
   const assumed = await screen.findByRole('textbox', { name: 'Assumed score: Final exam' })
   await userEvent.type(assumed, '90')
   await userEvent.tab()
@@ -177,7 +177,7 @@ test('plan mode replaces the toolbar; clearing the assumptions can be undone', a
     expect(screen.getByRole('textbox', { name: 'Assumed score: Final exam' })).toHaveValue('90'),
   )
   await userEvent.click(screen.getByRole('button', { name: 'Exit plan mode' }))
-  expect(await screen.findByRole('button', { name: 'Add assessment' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: /Assumed score/ })).not.toBeInTheDocument()
 })
 

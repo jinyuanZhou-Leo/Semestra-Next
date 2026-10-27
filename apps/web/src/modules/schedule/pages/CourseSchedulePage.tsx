@@ -8,6 +8,7 @@ import { CalendarClock, CalendarOff, CalendarPlus, ChevronDown, Import, Plus } f
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
+import { ImportSourceItems } from '@/components/ImportSourceItems'
 import { toastError } from '@/lib/errors'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -24,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
@@ -109,6 +111,11 @@ function TermSchedule({
   )
   const conflicting = useConflictingIds(termId)
   const importers = useExtensions<MeetingImportSource>(MEETING_IMPORT_SOURCES)
+  const launchImport = (source: MeetingImportSource) =>
+    void source
+      .launch({ programId, courseId: course.id, termId })
+      .then(() => invalidateSchedule(queryClient))
+      .catch(toastError)
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
 
@@ -157,7 +164,7 @@ function TermSchedule({
             {m.schedule_add()}
             <ChevronDown aria-hidden data-icon="inline-end" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" className="w-72">
             <DropdownMenuItem onClick={() => setEditing('new')}>
               <CalendarClock aria-hidden />
               {m.schedule_add_meeting()}
@@ -166,33 +173,14 @@ function TermSchedule({
               <CalendarPlus aria-hidden />
               {m.schedule_add_event()}
             </DropdownMenuItem>
+            {importers.length > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <ImportSourceItems sources={importers} onPick={launchImport} />
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
-        {importers.length > 0 ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
-              <Import aria-hidden />
-              {m.schedule_import()}
-              <ChevronDown aria-hidden data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {importers.map((source) => (
-                <DropdownMenuItem
-                  key={source.id}
-                  onClick={() =>
-                    void source
-                      .launch({ programId, courseId: course.id, termId })
-                      .then(() => invalidateSchedule(queryClient))
-                      .catch(toastError)
-                  }
-                >
-                  <source.icon aria-hidden />
-                  {source.title()}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
       </div>
 
       {meetings.length === 0 ? (
@@ -204,11 +192,23 @@ function TermSchedule({
             <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
             <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
+          <EmptyContent className="flex-row justify-center">
             <Button size="sm" onClick={() => setEditing('new')}>
               <Plus aria-hidden />
               {m.schedule_meeting_add()}
             </Button>
+            {importers.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button size="sm" variant="ghost" />}>
+                  <Import aria-hidden />
+                  {m.common_add_from_sources()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-72">
+                  <ImportSourceItems sources={importers} onPick={launchImport} />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
           </EmptyContent>
         </Empty>
       ) : (

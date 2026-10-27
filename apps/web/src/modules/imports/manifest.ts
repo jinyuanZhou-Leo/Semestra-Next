@@ -1,6 +1,7 @@
 import { History, Import } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ACTIONS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
+import { FILE_ITEM_ACTIONS } from '@/modules/files/types'
 import { ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
 import { MEETING_IMPORT_SOURCES } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
@@ -8,6 +9,7 @@ import { ImportHost } from './components/ImportHost'
 import {
   courseInfoFromSyllabus,
   meetingSource,
+  readCourseFile,
   syllabusGradingSource,
   wizardSource,
 } from './entries'
@@ -21,8 +23,8 @@ const SESSION_EVENTS = [
 /**
  * M08 导入中心: import sessions from ICS files, syllabi, timetable screenshots and pasted text,
  * reviewed in one dialog before anything is written. Contributes import sources to the term
- * wizard, the gradebook and the course schedule, and "Update from syllabus" to the course info
- * card; the dialog itself is an overlay that `openImport()` opens.
+ * wizard, the gradebook and the course schedule, "Update from syllabus" to the course info card
+ * and "Read with AI…" to course files; the dialog itself is an overlay that `openImport()` opens.
  */
 export default defineModule({
   id: 'imports',
@@ -69,6 +71,7 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [syllabusGradingSource],
     [MEETING_IMPORT_SOURCES]: [meetingSource('ics'), meetingSource('timetable_image')],
     [COURSE_INFO_ACTIONS]: [courseInfoFromSyllabus],
+    [FILE_ITEM_ACTIONS]: [readCourseFile],
   },
   realtimeInvalidations: Object.fromEntries(
     SESSION_EVENTS.map((event) => [event, ['importsSessionGet', 'importsSessionList']]),

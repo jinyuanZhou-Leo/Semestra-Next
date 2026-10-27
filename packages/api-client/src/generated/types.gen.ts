@@ -8363,7 +8363,7 @@ export type SessionCreateInputBody = {
     /**
      * Source Meta
      *
-     * Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course
+     * Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course; {keep_files: false} does not save an uploaded syllabus to the course files
      */
     source_meta?: {
         [key: string]: unknown;

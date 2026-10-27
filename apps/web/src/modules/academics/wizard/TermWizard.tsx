@@ -5,6 +5,7 @@ import { useBlocker, useRouter } from '@tanstack/react-router'
 import { Check, ChevronDownIcon, Import, Plus, Repeat } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
+import { ImportSourceItems } from '@/components/ImportSourceItems'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatCredits, formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -21,12 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/ui/alert-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import { Calendar } from '@/ui/calendar'
 import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -338,24 +334,14 @@ export function TermWizard({
                   render={<Button variant="outline" size="sm" disabled={importing !== null} />}
                 >
                   <Import aria-hidden />
-                  {importing ? m.common_loading() : m.academics_wizard_import()}
+                  {importing ? m.common_loading() : m.common_add_from_sources()}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72">
-                  {sources.map((source) => (
-                    <DropdownMenuItem key={source.id} onClick={() => void launch(source)}>
-                      <source.icon aria-hidden />
-                      <span className="min-w-0">
-                        <span className="block">
-                          {source.Title ? <source.Title programId={programId} /> : source.title()}
-                        </span>
-                        {source.description ? (
-                          <span className="block text-xs text-muted-foreground">
-                            {source.description()}
-                          </span>
-                        ) : null}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
+                  <ImportSourceItems
+                    sources={sources}
+                    onPick={(source) => void launch(source)}
+                    titleProps={{ programId }}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}

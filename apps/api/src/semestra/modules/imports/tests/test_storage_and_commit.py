@@ -121,6 +121,28 @@ async def test_syllabus_is_filed_when_the_quota_fits_it_once(
     assert [i["display_name"] for i in files["items"]] == ["syllabus.pdf"]
 
 
+async def test_syllabus_is_not_filed_when_the_user_says_so(
+    app: FastAPI, api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    from semestra.modules.files.tests.conftest import make_pdf
+
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+    upload = await api.upload("syllabus.pdf", make_pdf(["APS105"]), "application/pdf")
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+        upload_ids=[upload], source_meta={"keep_files": False},
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    (task,) = by_type(session, "task")
+    await api.commit(session["id"], item_ids=[task["id"]])
+    files = await api.call("GET", f"/courses/{course['id']}/files")
+    assert files["items"] == []
+
+
 async def test_syllabus_not_filed_is_reported(
     app: FastAPI, api: Api, fake_ai: list[dict[str, Any]], run_jobs
 ):

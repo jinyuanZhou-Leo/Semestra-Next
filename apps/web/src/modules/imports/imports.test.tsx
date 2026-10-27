@@ -353,8 +353,8 @@ test('stopping during the upload shows no error and never creates the session', 
   await pickFile()
   await userEvent.click(screen.getByRole('button', { name: 'Read' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Stop' }))
-  // The drop zone is back and no reason is shown.
-  expect(await screen.findByText('Choose another file, or drop it here')).toBeInTheDocument()
+  // The file can be changed again and no reason is shown.
+  expect(await screen.findByRole('button', { name: 'Remove plan.ics' })).toBeInTheDocument()
   expect(screen.queryByText(/went wrong|failed/i)).toBeNull()
   expect(create).not.toHaveBeenCalled()
 })
@@ -439,7 +439,7 @@ test("a retry that fails shows its own reason, not the failed session's", async 
   ).toBeNull()
 })
 
-test('a single-file source offers to replace the file, a multi-file one to add more', async () => {
+test('a single-file source replaces the file, a multi-file one adds to the list', async () => {
   server.use(
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({ items: [{ purpose: 'extraction', available: true }] }),
@@ -448,14 +448,72 @@ test('a single-file source offers to replace the file, a multi-file one to add m
   const { unmount } = renderWithRouter(
     <ImportDialog request={icsRequest('syllabus')} onClose={() => {}} />,
   )
-  await screen.findByText('Choose files or drop them here')
+  await screen.findByText('Drop files here, or click to choose')
   await pickFile('a.pdf')
-  expect(await screen.findByText('Add more files, or drop them here')).toBeInTheDocument()
+  await pickFile('b.pdf')
+  expect(await screen.findByText('a.pdf')).toBeInTheDocument()
+  expect(screen.getByText('b.pdf')).toBeInTheDocument()
   unmount()
   renderWithRouter(<ImportDialog request={icsRequest('ics')} onClose={() => {}} />)
-  await screen.findByText('Choose a file or drop it here')
-  await pickFile()
-  expect(await screen.findByText('Choose another file, or drop it here')).toBeInTheDocument()
+  await screen.findByText('Drop a file here, or click to choose')
+  await pickFile('a.ics')
+  await pickFile('b.ics')
+  expect(await screen.findByText('b.ics')).toBeInTheDocument()
+  expect(screen.queryByText('a.ics')).toBeNull()
+})
+
+test('a course file is read where it is, without uploading it again', async () => {
+  let body: Record<string, unknown> | null = null
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({ items: [{ purpose: 'extraction', available: true }] }),
+    ),
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [],
+        items: [
+          {
+            id: 'f1',
+            course_id: 'c1',
+            folder_id: null,
+            kind: 'file',
+            display_name: 'syllabus.pdf',
+            original_name: 'syllabus.pdf',
+            mime_type: 'application/pdf',
+            size_bytes: 2048,
+            sha256: 'aa',
+            url: null,
+            pinned: false,
+            source_kind: 'upload',
+            source_ref: null,
+            doc_status: 'ready',
+            doc_error_code: null,
+            page_count: 3,
+            ocr_skipped_pages: 0,
+            job_id: null,
+            created_at: '2026-01-10T12:00:00Z',
+            updated_at: '2026-01-10T12:00:00Z',
+          },
+        ],
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${API}/programs/p1/imports`, async ({ request }) => {
+      body = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json(session({ status: 'extracting', job_id: 'j1', items: [] }))
+    }),
+  )
+  renderWithRouter(
+    <ImportDialog
+      request={{ ...icsRequest('syllabus'), fileItemIds: ['f1'] }}
+      onClose={() => {}}
+    />,
+  )
+  // "Read with AI…" on the file opens the course files with it ticked.
+  expect(await screen.findByRole('checkbox', { name: /syllabus\.pdf/ })).toBeChecked()
+  await userEvent.click(screen.getByRole('button', { name: 'Read' }))
+  await waitFor(() => expect(body).not.toBeNull())
+  expect(body).toMatchObject({ upload_ids: [], file_item_ids: ['f1'] })
 })
 
 test('a session started elsewhere shows its check before the review opens', async () => {
