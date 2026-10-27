@@ -1,5 +1,6 @@
 import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-client'
 import { agentSkillListOptions } from '@semestra/api-client/react-query'
+import { Popover } from '@base-ui/react/popover'
 import { useQuery } from '@tanstack/react-query'
 import { Extension, type JSONContent, type Range } from '@tiptap/core'
 import { Document } from '@tiptap/extension-document'
@@ -8,7 +9,7 @@ import { Mention } from '@tiptap/extension-mention'
 import { Paragraph } from '@tiptap/extension-paragraph'
 import { Text } from '@tiptap/extension-text'
 import { Placeholder, UndoRedo } from '@tiptap/extensions'
-import type { Node as PmNode } from '@tiptap/pm/model'
+import { Fragment, type Node as PmNode, type Schema, Slice } from '@tiptap/pm/model'
 import { type EditorState, Plugin } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import {
@@ -28,10 +29,11 @@ import {
   useImperativeHandle,
   useState,
 } from 'react'
+import { rank } from '@/app/commands/rank'
 import { courseLabel } from '@/modules/academics/color'
 import { courseTermId } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
-import { Command, CommandGroup, CommandItem, CommandList } from '@/ui/command'
+import { Command, CommandGroup, CommandItem, CommandList, CommandShortcut } from '@/ui/command'
 import { skillTitle } from '../labels'
 import { type Chip, chipNode, chipOf, type PromptValue, readPrompt } from '../prompt'
 import { termScope, useProgramEntities } from '../scope'
@@ -56,10 +58,11 @@ export type PromptEditorHandle = {
   startCompact: () => void
 }
 
-function matches(query: string, ...texts: (string | null | undefined)[]) {
-  const q = query.toLowerCase()
-  return texts.some((t) => t?.toLowerCase().includes(q))
-}
+/**
+ * `@` also works right after Chinese or Japanese text and full-width punctuation, where no space
+ * comes before it; `a@b` still does not open the menu.
+ */
+const AFTER_CJK = [' ', '\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef']
 
 function OptionLabel({ option }: { option: Option }) {
   const [icon, label, hint] =
@@ -78,7 +81,7 @@ function OptionLabel({ option }: { option: Option }) {
     <>
       {icon}
       <span className="truncate">{label}</span>
-      {hint ? <span className="ml-auto truncate text-xs text-muted-foreground">{hint}</span> : null}
+      {hint ? <CommandShortcut className="truncate tracking-normal">{hint}</CommandShortcut> : null}
     </>
   )
 }
@@ -127,11 +130,26 @@ const chipOfOption = (option: Option): Chip =>
         ? { kind: 'course', id: option.course.id, label: courseLabel(option.course) }
         : { kind: 'term', id: option.term.id, label: option.term.name }
 
+const isLead = (chip: Chip | null) => chip?.kind === 'skill' || chip?.kind === 'command'
+
+/**
+ * Pasted skills and `/compact` become text: they come from the `/` menu, first in the input. The
+ * rest of a paste only holds what the input does (paragraphs, line breaks, text and chips).
+ */
+function leadsAsText(content: Fragment, schema: Schema): Fragment {
+  const nodes: PmNode[] = []
+  content.forEach((node) => {
+    const chip = node.type.name === 'mention' ? chipOf(node.attrs) : null
+    if (chip && isLead(chip)) nodes.push(schema.text(`/${chip.label}`))
+    else nodes.push(node.isLeaf ? node : node.copy(leadsAsText(node.content, schema)))
+  })
+  return Fragment.fromArray(nodes)
+}
+
 /** The skill or `/compact` chip that starts the input. */
 function leadNode(doc: PmNode): PmNode | null {
   const first = doc.firstChild?.firstChild
-  const kind = first?.type.name === 'mention' ? chipOf(first.attrs)?.kind : null
-  return first && (kind === 'skill' || kind === 'command') ? first : null
+  return first?.type.name === 'mention' && isLead(chipOf(first.attrs)) ? first : null
 }
 
 /** After `/compact` with nothing else written: what the text is for. */
@@ -161,7 +179,7 @@ const CompactHint = Extension.create({
               return span
             }
             return DecorationSet.create(state.doc, [
-              Decoration.widget(1 + first.content.size, hint, { side: 1 }),
+              Decoration.widget(1 + first.content.size, hint, { side: 1, key: 'compact-hint' }),
             ])
           },
         },
@@ -185,6 +203,7 @@ export function PromptEditor({
   canCompact = false,
   disabled = false,
   initialContent,
+  menuSide = 'top',
   className,
   onChange,
   onEnter,
@@ -202,6 +221,8 @@ export function PromptEditor({
   disabled?: boolean
   /** What the input starts with. */
   initialContent?: JSONContent | null
+  /** Where the menu opens when there is room: above the input, or below it. */
+  menuSide?: 'top' | 'bottom'
   className?: string
   onChange: (value: PromptValue, doc: JSONContent) => void
   onEnter: () => void
@@ -217,19 +238,21 @@ export function PromptEditor({
     []
   const { terms, courses } = useProgramEntities(programId)
 
-  const trigger = (char: '/' | '@') => ({
+  // Chinese input methods type `、` for `/` and `＠` for `@` in their punctuation modes.
+  const trigger = (char: string, menuChar: '/' | '@') => ({
     char,
     items: () => [],
+    allowedPrefixes: menuChar === '@' ? AFTER_CJK : undefined,
     // A skill or `/compact` starts the input, and there is one at most.
     allow: ({ state, range }: { state: EditorState; range: Range }) =>
-      char === '@' || (slash && range.from === 1 && leadNode(state.doc) === null),
+      menuChar === '@' || (slash && range.from === 1 && leadNode(state.doc) === null),
     render: () => ({
       onStart: (props: { query: string; range: Range }) => {
-        setMenu({ char, query: props.query, range: props.range })
+        setMenu({ char: menuChar, query: props.query, range: props.range })
         setActive(0)
       },
       onUpdate: (props: { query: string; range: Range }) => {
-        setMenu({ char, query: props.query, range: props.range })
+        setMenu({ char: menuChar, query: props.query, range: props.range })
         setActive(0)
       },
       onExit: () => setMenu(null),
@@ -247,22 +270,33 @@ export function PromptEditor({
       ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
       Mention.extend({
         addNodeView: () => ReactNodeViewRenderer(ChipView, { as: 'span' }),
+        // Mentions copied from other apps stay their text: only this input's chips are chips.
+        parseHTML: () => [
+          {
+            tag: 'span[data-type="mention"]',
+            getAttrs: (element) =>
+              chipOf({ id: element.dataset.id, label: element.dataset.label }) ? null : false,
+          },
+        ],
       }).configure({
         deleteTriggerWithBackspace: true,
         renderText: ({ node }) => `${node.attrs.mentionSuggestionChar}${node.attrs.label}`,
-        suggestions: [trigger('/'), trigger('@')],
+        suggestions: [trigger('/', '/'), trigger('、', '/'), trigger('@', '@'), trigger('＠', '@')],
       }),
     ],
     content: initialContent ?? undefined,
     editable: !disabled,
     editorProps: {
+      transformPasted: (slice, view) =>
+        new Slice(leadsAsText(slice.content, view.state.schema), slice.openStart, slice.openEnd),
       attributes: {
         role: 'textbox',
         'aria-multiline': 'true',
+        'aria-autocomplete': 'list',
         'aria-label': label,
         'data-slot': 'input-group-control',
         class:
-          'max-h-48 min-h-12 w-full overflow-y-auto px-3 py-2.5 text-base leading-6 wrap-break-word whitespace-pre-wrap outline-none md:text-sm [&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-muted-foreground [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]',
+          'max-h-48 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 min-h-12 w-full overflow-y-auto px-3 py-2.5 text-base leading-6 wrap-break-word whitespace-pre-wrap outline-none md:text-sm [&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-muted-foreground [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]',
       },
     },
     onUpdate: ({ editor: e }) => {
@@ -271,42 +305,74 @@ export function PromptEditor({
     },
   })
 
-  const options: Option[] = []
+  // Matched like the command palette: prefixes first, then substrings and pinyin initials.
+  const candidates: { key: string; title: string; keywords: string[]; option: Option }[] = []
   if (menu?.char === '/') {
-    if (canCompact && matches(menu.query, COMPACT.slice(1), m.assistant_compact())) {
-      options.push({ id: 'compact', kind: 'compact' })
+    if (canCompact) {
+      const option: Option = { id: 'compact', kind: 'compact' }
+      candidates.push({
+        key: option.id,
+        title: m.assistant_compact(),
+        keywords: ['compact'],
+        option,
+      })
     }
     for (const s of skills) {
-      if (s.command && matches(menu.query, s.command.slice(1), skillTitle(s.title))) {
-        options.push({ id: `skill-${s.name}`, kind: 'skill', skill: s })
-      }
+      if (!s.command) continue
+      const option: Option = { id: `skill-${s.name}`, kind: 'skill', skill: s }
+      candidates.push({
+        key: option.id,
+        title: skillTitle(s.title, s.name),
+        keywords: [s.command.slice(1)],
+        option,
+      })
     }
   } else if (menu) {
     for (const course of courses) {
-      if (matches(menu.query, course.code, course.alias, course.title)) {
-        options.push({ id: `course-${course.id}`, kind: 'course', course })
-      }
+      const option: Option = { id: `course-${course.id}`, kind: 'course', course }
+      candidates.push({
+        key: option.id,
+        title: courseLabel(course),
+        keywords: [course.code ?? '', course.title, course.alias ?? ''],
+        option,
+      })
     }
     for (const term of terms) {
-      if (matches(menu.query, term.name))
-        options.push({ id: `term-${term.id}`, kind: 'term', term })
+      const option: Option = { id: `term-${term.id}`, kind: 'term', term }
+      candidates.push({ key: option.id, title: term.name, keywords: [], option })
     }
   }
-  const shown = options.slice(0, 8)
+  const shown = menu
+    ? rank(candidates, menu.query)
+        .slice(0, 8)
+        .map((c) => c.option)
+    : []
   const current = shown[Math.min(active, shown.length - 1)]
 
   // Tiptap keeps the editable state it was created with.
   useEffect(() => {
-    if (editor && editor.isEditable === disabled) editor.setEditable(!disabled, false)
+    if (!editor) return
+    if (editor.isEditable === disabled) editor.setEditable(!disabled, false)
+    if (disabled) editor.view.dom.setAttribute('aria-disabled', 'true')
+    else editor.view.dom.removeAttribute('aria-disabled')
   }, [editor, disabled])
 
-  // The menu is announced from the input while it is open.
+  // The menu and its highlighted choice are announced from the input while it is open.
+  const currentId = current?.id
   useEffect(() => {
     const dom = editor?.view.dom
     if (!dom) return
-    if (shown.length > 0) dom.setAttribute('aria-controls', `${id}-menu`)
+    const item =
+      currentId === undefined
+        ? null
+        : document
+            .getElementById(`${id}-menu`)
+            ?.querySelector(`[cmdk-item][data-value="${currentId}"]`)
+    if (currentId !== undefined) dom.setAttribute('aria-controls', `${id}-menu`)
     else dom.removeAttribute('aria-controls')
-  }, [editor, id, shown.length])
+    if (item?.id) dom.setAttribute('aria-activedescendant', item.id)
+    else dom.removeAttribute('aria-activedescendant')
+  }, [editor, id, currentId])
 
   useImperativeHandle(ref, () => ({
     focus: () => editor?.commands.focus('end'),
@@ -380,37 +446,54 @@ export function PromptEditor({
 
   return (
     <ChipCourses value={courses}>
-      {shown.length > 0 ? (
-        <Command
-          shouldFilter={false}
-          value={current?.id ?? ''}
-          className="absolute inset-x-0 bottom-full z-20 mb-2 h-auto rounded-2xl border shadow-md"
-        >
-          <CommandList
-            id={`${id}-menu`}
-            aria-label={
-              menu?.char === '/' ? m.assistant_skills_menu() : m.assistant_references_menu()
-            }
+      {/* Over the page, along the input box: a message being edited sits in a list that cuts off
+          what overflows it. Focus stays in the input. */}
+      <Popover.Root open={shown.length > 0}>
+        <Popover.Portal>
+          <Popover.Positioner
+            anchor={() => editor?.view.dom.closest('[data-slot="input-group"]') ?? null}
+            side={menuSide}
+            sideOffset={8}
+            className="isolate z-50"
           >
-            {menu?.char === '/' ? (
-              <>
-                <MenuGroup
-                  heading={m.assistant_commands_menu()}
-                  options={shown.filter((o) => o.kind === 'compact')}
-                  onPick={pick}
-                />
-                <MenuGroup
-                  heading={m.assistant_skills_menu()}
-                  options={shown.filter((o) => o.kind === 'skill')}
-                  onPick={pick}
-                />
-              </>
-            ) : (
-              <MenuGroup heading={m.assistant_references_menu()} options={shown} onPick={pick} />
-            )}
-          </CommandList>
-        </Command>
-      ) : null}
+            <Popover.Popup initialFocus={false} finalFocus={false} className="outline-none">
+              <Command
+                shouldFilter={false}
+                value={current?.id ?? ''}
+                className="h-auto w-(--anchor-width) rounded-2xl border shadow-md"
+              >
+                <CommandList
+                  id={`${id}-menu`}
+                  aria-label={
+                    menu?.char === '/' ? m.assistant_skills_menu() : m.assistant_references_menu()
+                  }
+                >
+                  {menu?.char === '/' ? (
+                    <>
+                      <MenuGroup
+                        heading={m.assistant_commands_menu()}
+                        options={shown.filter((o) => o.kind === 'compact')}
+                        onPick={pick}
+                      />
+                      <MenuGroup
+                        heading={m.assistant_skills_menu()}
+                        options={shown.filter((o) => o.kind === 'skill')}
+                        onPick={pick}
+                      />
+                    </>
+                  ) : (
+                    <MenuGroup
+                      heading={m.assistant_references_menu()}
+                      options={shown}
+                      onPick={pick}
+                    />
+                  )}
+                </CommandList>
+              </Command>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
       <EditorContent
         editor={editor}
         className={className}

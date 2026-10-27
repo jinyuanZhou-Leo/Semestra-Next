@@ -81,15 +81,19 @@ async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
 
 
 async def reference_blocks(ctx: Ctx, refs: Sequence[MessageReference]) -> list[dict[str, Any]]:
-    """`reference` blocks for the courses and terms picked with `@`; they must be the user's."""
+    """`reference` blocks for the courses and terms picked with `@` that are the user's.
+
+    One that is not (deleted since, or never theirs) is left out: the text still says `@<label>`.
+    """
     from semestra.modules.academics import service as academics
 
     blocks: list[dict[str, Any]] = []
     for ref in {(r.kind, r.id): r for r in refs}.values():
-        if ref.kind == "course":
-            await academics.get_course_row(ctx, ref.id)
-        else:
-            await academics.get_term_row(ctx, ref.id)
+        get = academics.get_course_row if ref.kind == "course" else academics.get_term_row
+        try:
+            await get(ctx, ref.id)
+        except AppError:
+            continue
         blocks.append({"type": "reference", "kind": ref.kind, "id": ref.id, "label": ref.label})
     return blocks
 

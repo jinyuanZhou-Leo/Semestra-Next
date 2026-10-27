@@ -202,7 +202,7 @@ class MessageReference(BaseModel):
     """A course or term picked with `@`; the text holds it as `@<label>`."""
 
     kind: Literal["course", "term"]
-    id: str
+    id: str = Field(min_length=1, max_length=64)
     label: str = Field(min_length=1, max_length=200)
 
 

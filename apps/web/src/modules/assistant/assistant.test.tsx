@@ -698,6 +698,47 @@ test('/ picks a skill and @ refers to a course, which works in its term', async 
   })
 })
 
+test('Chinese punctuation opens the menus, and @ works right after Chinese text', async () => {
+  srv.reply = () => sse([])
+  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  const input = await messageInput()
+  // Input methods type `、` for `/` in their Chinese punctuation mode.
+  await userEvent.type(input, '、gr')
+  expect(await screen.findByRole('option', { name: /Record grades/ })).toBeInTheDocument()
+  await userEvent.keyboard('{Enter}')
+  await userEvent.type(input, '这门课@MAT')
+  await userEvent.keyboard('{Enter}')
+  expect(input.querySelector('[data-chip=course]')).toHaveTextContent('MAT188H1')
+  await userEvent.type(input, '和＠Win')
+  await userEvent.keyboard('{Enter}')
+  expect(input.querySelector('[data-chip=term]')).toHaveTextContent('Winter 2026')
+})
+
+test('pasted mentions from elsewhere stay text, and a pasted skill becomes text', async () => {
+  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  const input = await messageInput()
+  await userEvent.click(input)
+  const html =
+    '<p>ask <span data-type="mention" data-id="42" data-label="Ann">@Ann</span> about ' +
+    '<span data-type="mention" data-id="skill:record-grades" data-label="Record grades" ' +
+    'data-mention-suggestion-char="/">/Record grades</span> in ' +
+    '<span data-type="mention" data-id="course:c2" data-label="MAT188H1" ' +
+    'data-mention-suggestion-char="@">@MAT188H1</span></p>'
+  const paste = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(paste, 'clipboardData', {
+    value: {
+      files: [],
+      types: ['text/html'],
+      getData: (t: string) => (t === 'text/html' ? html : ''),
+    },
+  })
+  input.dispatchEvent(paste)
+  await waitFor(() => expect(input).toHaveTextContent('ask @Ann about /Record grades in MAT188H1'))
+  expect(
+    [...input.querySelectorAll('[data-chip]')].map((c) => c.getAttribute('data-chip')),
+  ).toEqual(['course'])
+})
+
 test('the scope menu offers the whole program and the terms, the current one first', async () => {
   srv.reply = () => sse([])
   renderConversation({ program_id: 'p1', term_id: null, course_id: null })

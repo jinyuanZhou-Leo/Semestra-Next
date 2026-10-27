@@ -171,6 +171,7 @@ function UserMessage({
   savedFiles,
   canEdit,
   onEdit,
+  onScope,
 }: {
   item: Extract<ViewItem, { kind: 'user' }>
   programId: string | undefined
@@ -181,6 +182,8 @@ function UserMessage({
   canEdit: boolean
   /** Resolves false when the edit could not be sent; the editor stays open. */
   onEdit: (text: string, references: MessageReference[]) => Promise<boolean>
+  /** Picking a course or term with `@` moves the conversation there, as in the input below. */
+  onScope: (scope: AgentScope) => void
 }) {
   // What the editor starts with while editing; the editor reports `draft` as it changes.
   const [opened, setOpened] = useState<JSONContent | null>(null)
@@ -254,10 +257,12 @@ function UserMessage({
                 label={m.assistant_edit_label()}
                 programId={programId}
                 initialContent={opened}
+                menuSide="bottom"
                 className="w-full"
                 onChange={(value) => setDraft(value)}
                 onEnter={() => void save()}
                 onEscape={() => setOpened(null)}
+                onScope={onScope}
               />
               <InputGroupAddon align="block-end" className="justify-end gap-1.5">
                 <InputGroupButton variant="ghost" size="sm" onClick={() => setOpened(null)}>
@@ -783,6 +788,7 @@ export function Conversation({
                               setSent((n) => n + 1)
                               return chat.edit(item.id, text, references)
                             }}
+                            onScope={(next) => void changeScope(next)}
                           />
                         ) : (
                           <AssistantMessage

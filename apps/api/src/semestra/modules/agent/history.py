@@ -99,9 +99,9 @@ async def user_request(
             )
             revealed += [tools.tool_name(t) for t in block.get("tools", [])]
         elif kind == "reference":
+            label = json.dumps(f"@{block.get('label', '')}", ensure_ascii=False)
             content.append(
-                f"[`@{block.get('label', '')}` in the message is the {block.get('kind')} "
-                f"with id {block.get('id')}]"
+                f"[{label} in the message is the {block.get('kind')} with id {block.get('id')}]"
             )
         elif kind == "note":
             content.append(f"[Note] {block.get('text', '')}")

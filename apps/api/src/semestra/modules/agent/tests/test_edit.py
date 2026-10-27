@@ -144,19 +144,15 @@ async def test_references_reach_the_model_and_editing_replaces_them(agent: Agent
     program, course, _ = await agent.course_with_lab()
     [term] = (await agent.call("GET", f"/programs/{program['id']}/terms"))["items"]
     session = await agent.session()
-    out = await agent.stream(
-        f"/agent/sessions/{session['id']}/messages",
-        {"text": "@x", "references": [{"kind": "course", "id": "nope", "label": "x"}]},
-        status=404,
-    )
-    assert out[0][1]["error"]["code"] == "common.not_found"
 
     model.then(say("Sure."))
     ref = {"kind": "course", "id": course["id"], "label": "APS105H1"}
-    await agent.send(session["id"], "how is @APS105H1 going", references=[ref, ref])
+    # A course that is gone (or never was the user's) is left out; the message still goes.
+    gone = {"kind": "course", "id": "nope", "label": "Gone"}
+    await agent.send(session["id"], "how is @APS105H1 going", references=[ref, ref, gone])
     assert model.prompts(-1)[-1][1:] == [
         "how is @APS105H1 going",
-        f"[`@APS105H1` in the message is the course with id {course['id']}]",
+        f'["@APS105H1" in the message is the course with id {course["id"]}]',
     ]
     first = (await agent.detail(session["id"]))["messages"][0]
     assert first["content"][1:] == [{"type": "reference", **ref}]
