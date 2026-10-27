@@ -25,6 +25,12 @@ export function CourseFilePicker({
 }) {
   const query = useCourseFiles(courseId)
   const files = (query.data?.items ?? []).filter(readableCourseFile)
+  const folders = new Map((query.data?.folders ?? []).map((f) => [f.id, f]))
+  // The folder path tells apart files of the same name (every week's slides.pdf).
+  const folderPath = (folderId: string | null): string[] => {
+    const folder = folderId ? folders.get(folderId) : undefined
+    return folder ? [...folderPath(folder.parent_id), folder.name] : []
+  }
   if (query.isPending) {
     return (
       <div className="flex flex-col gap-2">
@@ -71,7 +77,16 @@ export function CourseFilePicker({
               <FieldContent className="min-w-0">
                 <span className="truncate font-normal">{file.display_name}</span>
                 <FieldDescription className="truncate text-xs">
-                  {[formatBytes(file.size_bytes), formatDate(file.created_at)].join(' · ')}
+                  {[
+                    folderPath(file.folder_id).join(' / '),
+                    file.doc_status === 'pending' || file.doc_status === 'processing'
+                      ? m.files_status_processing()
+                      : '',
+                    formatBytes(file.size_bytes),
+                    formatDate(file.created_at),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </FieldDescription>
               </FieldContent>
             </Field>

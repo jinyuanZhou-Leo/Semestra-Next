@@ -79,11 +79,6 @@ async function uploadAndCreate(
 /**
  * The first step of a file or text import (M08 §6.2). The "Read" button is the progress bar for the
  * whole start: uploading the files, then the extraction job, then a check before `onFinished`
- * opens the review. The body keeps listing the files with their state while it runs.
- */
-/**
- * The first step of a file or text import (M08 §6.2). The "Read" button is the progress bar for the
- * whole start: uploading the files, then the extraction job, then a check before `onFinished`
  * opens the review. The drop zone keeps its height throughout and the files below it show their
  * own state (each upload with its bar), so nothing moves while the import starts. A syllabus for
  * a course can also be read from the course's files instead of uploading it again.
@@ -252,9 +247,18 @@ export function SourcePicker({
     multiple: spec.multiple ?? false,
     disabled: locked || !spec.accept,
     onDropAccepted: addFiles,
+    maxSize: maxBytes,
     onDropRejected: (rejected) => {
-      for (const { file } of rejected)
-        toast.error(m.imports_file_type_unsupported({ name: file.name }))
+      for (const { file, errors } of rejected) {
+        const code = errors[0]?.code
+        // A single-file source keeps the first file and drops the rest without a word.
+        if (code === 'too-many-files') continue
+        toast.error(
+          code === 'file-too-large' && maxBytes
+            ? m.files_upload_too_large({ name: file.name, max: formatBytes(maxBytes) })
+            : m.imports_file_type_unsupported({ name: file.name }),
+        )
+      }
     },
   })
 

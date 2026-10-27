@@ -126,7 +126,7 @@ grading_assessments
 ### 5.1 课程 Page `grades`（课程作用域）
 - 摘要：最终/当前百分比与 GPA（字母）、权重合计（不足 100 时警告条显示差额，计算指标显示"—"）、目标绩点与所需平均分、预测值（auto 模式）、"录入官方成绩"（覆盖值，显示"已覆盖"标记，可清除）。布局见实现说明（成绩构成卡 + 目标卡）。
 - 考核表格（TanStack Table）：分类徽章、标题、截止（相对时间 + 逾期高亮）、权重、得分（单元格内联编辑；输入 `18/20` 自动识别为分数制）、操作菜单。支持按截止/分类/权重/标题排序（偏好存 `useUiPref('grading.sort')`），按分类分组折叠。
-- 添加考核：行内快速添加（标题 + 回车，默认分类与权重 0）+ 完整对话框；"从…导入"菜单列出扩展点 **`grading.assessmentImportSources`**（M09 贡献 LMS 作业，M08 贡献 syllabus 成绩构成）。
+- 添加考核：行内快速添加（标题 + 回车，默认分类与权重 0）+ 完整对话框；"添加"菜单下方的"从已有资料添加"分组（`components/ImportSourceItems.tsx`，每项带一行说明）列出扩展点 **`grading.assessmentImportSources`**（M09 贡献 LMS 作业，M08 贡献 syllabus 成绩构成）。
 - **计划模式**开关：未出分的考核得分列变为假设输入（不同底色），顶部显示预测结果与目标达成情况；"自动填充"调用 `grading.score.suggest`；目标输入可切换"绩点/百分比"；假设分数存 `useUiPref('grading.whatif.<courseId>')`。
 - 课程设置分区（course 级）："成绩"：计分方式（百分比/Pass-Fail）、是否使用成绩簿（关闭则只填最终成绩）、预测模型、分类管理（增删改名、颜色、归档、排序）。
 
@@ -200,7 +200,7 @@ grading_assessments
 - 计划模式中间的规划值只取模拟结果的最终成绩或预测；两者都没有时显示"—"和"还有 N 项没有假设分数"，不拿已出分部分的平均冒充规划成绩。
 - 所有数字输入（权重、目标、官方成绩、手填成绩、学期目标 GPA）用 `score.ts` 的 `parseDecimal`：只接受数字、小数点或逗号和可选的 `%`。
 - 内置分类名（Quiz、Exam…）没改过名时按界面语言显示；改过名就显示用户的名字。
-- 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, icon, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页的"从…导入"菜单列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
+- 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, Title?, query?, icon, description?, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页"添加"菜单的"从已有资料添加"分组列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
 - 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放，所以标签写成与满分无关的比例：「≥ 满分的 87.5%」「≥ 满分的 75%」。
 - UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
 - 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。
