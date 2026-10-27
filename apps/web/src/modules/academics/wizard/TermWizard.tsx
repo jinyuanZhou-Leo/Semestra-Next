@@ -2,7 +2,7 @@ import type { CourseFields, TermCreateResult } from '@semestra/api-client'
 import { academicsTermCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useRouter } from '@tanstack/react-router'
-import { Check, ChevronDownIcon, Import, Plus, Repeat, Trash2 } from 'lucide-react'
+import { Check, ChevronDownIcon, Import, Plus, Repeat } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -32,20 +32,22 @@ import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet 
 import { Input } from '@/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Switch } from '@/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseLabel } from '../color'
 import { BreaksEditor, completeBreaks } from '../components/BreaksEditor'
 import { termPath } from '../paths'
 import { invalidateAcademics, useCourses, useProgram, useTerms } from '../queries'
 import { TERM_WIZARD_IMPORT_SOURCES, type TermWizardImportSource } from '../types'
+import { CourseRowsTable } from './CourseRowsTable'
 import {
   type DraftRow,
   type WizardDraft,
   clearDraft,
   continuationCandidates,
+  creditsProblem,
   isDirty,
   loadDraft,
   newRowKey,
+  rowIsEmpty,
   saveDraft,
   suggestTermName,
 } from './draft'
@@ -57,16 +59,6 @@ const STEPS = [
 ]
 
 const day = (iso: string) => formatDate(`${iso}T00:00`)
-
-function rowIsEmpty(row: DraftRow) {
-  return !row.code.trim() && !row.title.trim() && !row.credits.trim()
-}
-
-function creditsProblem(text: string): boolean {
-  if (text.trim() === '') return false
-  const n = Number(text)
-  return !(n >= 0 && n <= 100)
-}
 
 function basicsProblems(draft: WizardDraft) {
   return {
@@ -403,87 +395,13 @@ export function TermWizard({
           ) : null}
 
           <div className="overflow-x-auto rounded-2xl border border-border">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
-                    {m.academics_course_code()}
-                  </TableHead>
-                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
-                    {m.academics_course_title()}
-                  </TableHead>
-                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
-                    {m.academics_course_credits()}
-                  </TableHead>
-                  <TableHead scope="col" className="h-auto py-2 text-muted-foreground">
-                    {m.academics_course_year_long_short()}
-                  </TableHead>
-                  <TableHead scope="col" className="h-auto w-10 py-2">
-                    <span className="sr-only">{m.common_remove()}</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {draft.rows.map((row, index) => {
-                  const titleMissing = touched && !rowIsEmpty(row) && !row.title.trim()
-                  const creditsBad = touched && creditsProblem(row.credits)
-                  return (
-                    <TableRow key={row.key} className="hover:bg-transparent">
-                      <TableCell className="px-2 py-1.5">
-                        <Input
-                          aria-label={m.academics_wizard_row_code({ row: index + 1 })}
-                          placeholder="APS105H1"
-                          className="w-32"
-                          value={row.code}
-                          onChange={(event) => updateRow(row.key, { code: event.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        <Input
-                          aria-label={m.academics_wizard_row_title({ row: index + 1 })}
-                          aria-invalid={titleMissing || undefined}
-                          value={row.title}
-                          onChange={(event) => updateRow(row.key, { title: event.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          step="any"
-                          min={0}
-                          aria-label={m.academics_wizard_row_credits({ row: index + 1 })}
-                          aria-invalid={creditsBad || undefined}
-                          placeholder={String(defaultCredits)}
-                          className="w-24"
-                          value={row.credits}
-                          onChange={(event) => updateRow(row.key, { credits: event.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell className="py-1.5">
-                        <Checkbox
-                          aria-label={m.academics_wizard_row_year_long({ row: index + 1 })}
-                          checked={row.yearLong}
-                          onCheckedChange={(on) => updateRow(row.key, { yearLong: on })}
-                        />
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        <Button
-                          variant="destructive"
-                          size="icon-sm"
-                          aria-label={m.academics_wizard_row_remove({ row: index + 1 })}
-                          onClick={() =>
-                            patch({ rows: draft.rows.filter((r) => r.key !== row.key) })
-                          }
-                        >
-                          <Trash2 aria-hidden />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <CourseRowsTable
+              rows={draft.rows}
+              touched={touched}
+              defaultCredits={defaultCredits}
+              onChange={updateRow}
+              onRemove={(key) => patch({ rows: draft.rows.filter((r) => r.key !== key) })}
+            />
             <div className="border-t border-border p-2">
               <Button variant="ghost" size="sm" onClick={addRow}>
                 <Plus aria-hidden />

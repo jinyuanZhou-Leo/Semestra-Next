@@ -1,8 +1,18 @@
 import type { FileMeta, Folder as FolderOut } from '@semestra/api-client'
 import { lmsFileSearchOptions, lmsFolderGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { File, Folder, FolderOpen, Lock, Search } from 'lucide-react'
+import {
+  type CellContext,
+  type SortingState,
+  createColumnHelper,
+  createSortedRowModel,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
+import { ArrowDown, ArrowUp, File, Folder, FolderOpen, Lock, Search } from 'lucide-react'
 import { Fragment, useState } from 'react'
+import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useDebounced } from '@/modules/files/hooks'
 import { m } from '@/paraglide/messages'
@@ -15,14 +25,87 @@ import {
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Button } from '@/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { FileActions } from './FilePreview'
 
 /** Canvas needs two characters to search (`search_term`). */
 const MIN_TERM = 2
+
+const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
+const column = createColumnHelper<typeof features, FileMeta>()
+type CellProps = CellContext<typeof features, FileMeta>
+
+function compareText(a: string, b: string) {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+function NameCell({ row }: CellProps) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <File aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <span className="truncate">{row.original.name}</span>
+    </span>
+  )
+}
+
+const SizeCell = ({ row }: CellProps) =>
+  row.original.size_bytes == null ? '—' : formatBytes(row.original.size_bytes)
+
+const UpdatedCell = ({ row }: CellProps) =>
+  row.original.updated_at ? formatDateTime(row.original.updated_at) : '—'
+
+function ActionsCell({ row }: CellProps) {
+  const f = row.original
+  return f.locked ? <LockedMark /> : <FileActions fileId={f.external_id} name={f.name} />
+}
+
+/** Sits where the first action button would, so locked and open rows line up. */
+function LockedMark() {
+  return (
+    <span className="flex size-8 items-center justify-center">
+      <Lock aria-label={m.canvas_tab_item_locked()} className="size-3.5 text-muted-foreground" />
+    </span>
+  )
+}
+
+const columns = column.columns([
+  column.accessor((f) => f.name, {
+    id: 'name',
+    header: () => m.canvas_tab_column_name(),
+    sortFn: (a, b) => compareText(a.original.name, b.original.name),
+    cell: NameCell,
+  }),
+  column.accessor((f) => f.size_bytes, {
+    id: 'size',
+    header: () => m.canvas_tab_column_size(),
+    sortFn: (a, b) => (a.original.size_bytes ?? -1) - (b.original.size_bytes ?? -1),
+    cell: SizeCell,
+  }),
+  column.accessor((f) => f.updated_at, {
+    id: 'updated',
+    header: () => m.canvas_tab_column_updated(),
+    sortFn: (a, b) => compareText(a.original.updated_at ?? '', b.original.updated_at ?? ''),
+    cell: UpdatedCell,
+  }),
+  column.display({
+    id: 'actions',
+    header: () => <span className="sr-only">{m.canvas_tab_column_actions()}</span>,
+    cell: ActionsCell,
+    enableSorting: false,
+  }),
+])
+
+const WIDTHS: Record<string, string> = { size: 'w-24', updated: 'w-44', actions: 'w-28' }
+const CELL_CLASS: Record<string, string> = {
+  size: 'text-muted-foreground tabular-nums',
+  updated: 'text-muted-foreground tabular-nums',
+}
+
+const DEFAULT_SORT: SortingState = [{ id: 'name', desc: false }]
 
 /**
  * The course's Files tab (M16 §4): folders as Canvas has them (`selected` is the open folder,
@@ -77,18 +160,11 @@ function FolderView({ folderId }: { folderId?: string }) {
               </EmptyHeader>
             </Empty>
           ) : (
-            <ItemGroup className="gap-1">
-              {data.folders.map((f) => (
-                <FolderRow
-                  key={f.external_id}
-                  folder={f}
-                  onOpen={() => go({ tab: 'files', ref: f.external_id })}
-                />
-              ))}
-              {data.files.map((f) => (
-                <FileRow key={f.external_id} file={f} />
-              ))}
-            </ItemGroup>
+            <FileTable
+              folders={data.folders}
+              files={data.files}
+              onOpenFolder={(f) => go({ tab: 'files', ref: f.external_id })}
+            />
           )}
           {data.truncated ? (
             <p className="text-xs text-muted-foreground">{m.canvas_tab_files_truncated()}</p>
@@ -138,62 +214,105 @@ function Trail({ trail }: { trail: FolderOut[] }) {
   )
 }
 
-function FolderRow({ folder: f, onOpen }: { folder: FolderOut; onOpen: () => void }) {
+/**
+ * Folders (in Canvas's order) above the files, which sort by the column the user picks, like the
+ * course files page (M07 §6.1).
+ */
+function FileTable({
+  folders = [],
+  files,
+  onOpenFolder,
+}: {
+  folders?: FolderOut[]
+  files: FileMeta[]
+  onOpenFolder?: (folder: FolderOut) => void
+}) {
+  const [sorting, setSorting] = useUiPref<SortingState>('canvas-tab.files_sort', DEFAULT_SORT)
+  const table = useTable({
+    features,
+    columns,
+    data: files,
+    getRowId: (f) => f.external_id,
+    state: { sorting },
+    onSortingChange: (updater) =>
+      setSorting(typeof updater === 'function' ? updater(sorting) : updater),
+  })
   return (
-    <Item
-      size="sm"
-      render={
-        // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Item's children label it
-        <button type="button" className="w-full text-left hover:bg-muted/50" onClick={onOpen} />
-      }
-    >
-      <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <ItemContent>
-        <ItemTitle className="line-clamp-1">{f.name}</ItemTitle>
-        <ItemDescription>
-          {m.canvas_tab_folder_counts({
-            files: f.files_count ?? 0,
-            folders: f.folders_count ?? 0,
-          })}
-        </ItemDescription>
-      </ItemContent>
-      {f.locked ? (
-        <ItemActions>
-          <Lock
-            aria-label={m.canvas_tab_item_locked()}
-            className="size-3.5 text-muted-foreground"
-          />
-        </ItemActions>
-      ) : null}
-    </Item>
-  )
-}
-
-function FileRow({ file: f }: { file: FileMeta }) {
-  const meta = [
-    f.size_bytes == null ? null : formatBytes(f.size_bytes),
-    f.updated_at ? m.canvas_tab_updated_at({ time: formatDateTime(f.updated_at) }) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  return (
-    <Item size="sm">
-      <File aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <ItemContent>
-        <ItemTitle className="line-clamp-1">{f.name}</ItemTitle>
-        {meta ? <ItemDescription>{meta}</ItemDescription> : null}
-      </ItemContent>
-      <ItemActions>
-        {f.locked ? (
-          <Lock
-            aria-label={m.canvas_tab_item_locked()}
-            className="size-3.5 text-muted-foreground"
-          />
-        ) : (
-          <FileActions fileId={f.external_id} name={f.name} />
-        )}
-      </ItemActions>
-    </Item>
+    <Table className="min-w-xl table-fixed">
+      <TableHeader>
+        {table.getHeaderGroups().map((group) => (
+          <TableRow key={group.id} className="hover:bg-transparent">
+            {group.headers.map((h) => {
+              const sorted = h.column.getIsSorted()
+              return (
+                <TableHead
+                  key={h.id}
+                  scope="col"
+                  aria-sort={
+                    sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined
+                  }
+                  className={WIDTHS[h.column.id]}
+                >
+                  {h.column.getCanSort() ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={h.column.getToggleSortingHandler()}
+                      className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <table.FlexRender header={h} />
+                      {sorted === 'asc' ? (
+                        <ArrowUp aria-hidden className="size-3" />
+                      ) : sorted === 'desc' ? (
+                        <ArrowDown aria-hidden className="size-3" />
+                      ) : null}
+                    </Button>
+                  ) : (
+                    <table.FlexRender header={h} />
+                  )}
+                </TableHead>
+              )
+            })}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {folders.map((f) => (
+          <TableRow key={f.external_id}>
+            <TableCell>
+              <button
+                type="button"
+                onClick={() => onOpenFolder?.(f)}
+                className="flex max-w-full min-w-0 items-center gap-2.5 font-medium hover:underline"
+              >
+                <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{f.name}</span>
+              </button>
+            </TableCell>
+            <TableCell colSpan={2} className="truncate text-muted-foreground">
+              {m.canvas_tab_folder_counts({
+                files: f.files_count ?? 0,
+                folders: f.folders_count ?? 0,
+              })}
+            </TableCell>
+            <TableCell>
+              {/* As tall as the action buttons, so every row has the same height. */}
+              {f.locked ? <LockedMark /> : <span aria-hidden className="block size-8" />}
+            </TableCell>
+          </TableRow>
+        ))}
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id}>
+            {row.getAllCells().map((cell) => (
+              <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
+                <table.FlexRender cell={cell} />
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -221,11 +340,7 @@ function SearchResults({ term }: { term: string }) {
     >
       {(data) => (
         <div className="space-y-2">
-          <ItemGroup className="gap-1">
-            {data.items.map((f) => (
-              <FileRow key={f.external_id} file={f} />
-            ))}
-          </ItemGroup>
+          <FileTable files={data.items} />
           {data.truncated ? (
             <p className="text-xs text-muted-foreground">{m.canvas_tab_files_truncated()}</p>
           ) : null}
