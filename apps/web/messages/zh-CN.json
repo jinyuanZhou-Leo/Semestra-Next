@@ -1033,6 +1033,8 @@
   "ai_usage_range": "时间范围",
   "ai_usage_range_days": "{days} 天",
   "ai_usage_range_all": "全部",
+  "ai_usage_range_today": "今天",
+  "ai_usage_empty_today": "今天还没有 AI 请求。",
   "ai_usage_chart_title_weekly": "每周 token",
   "ai_usage_chart_hint": "点一根柱子，明细只看这段时间。",
   "ai_usage_empty_all": "还没有 AI 请求。",

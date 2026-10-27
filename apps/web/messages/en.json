@@ -1033,6 +1033,8 @@
   "ai_usage_range": "Time range",
   "ai_usage_range_days": "{days} days",
   "ai_usage_range_all": "All time",
+  "ai_usage_range_today": "Today",
+  "ai_usage_empty_today": "No AI requests today.",
   "ai_usage_chart_title_weekly": "Tokens per week",
   "ai_usage_chart_hint": "Click a bar to see only that period in the details.",
   "ai_usage_empty_all": "No AI requests yet.",
