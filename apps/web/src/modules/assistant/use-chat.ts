@@ -9,6 +9,7 @@ import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useEffect, useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
 import { MEMORY_QUERIES } from './memory'
+import type { MessageReference } from './prompt'
 import { type AgentEvent, followAgent, streamAgent } from './stream'
 import {
   applyEvent,
@@ -24,6 +25,8 @@ export type SendInput = {
   text: string
   attachmentIds?: string[]
   skill?: { name: string; title: Record<string, string> } | null
+  /** Courses and terms picked with `@`, written as `@<label>` in the text. */
+  references?: MessageReference[]
   scope?: AgentScope | null
   /** A new conversation that neither reads nor writes memories. */
   temporary?: boolean
@@ -347,6 +350,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     if (input.skill)
       blocks.push({ type: 'skill', name: input.skill.name, title: input.skill.title })
     if (input.text.trim()) blocks.push({ type: 'text', text: input.text.trim() })
+    for (const ref of input.references ?? []) blocks.push({ type: 'reference', ...ref })
     const attachments = queryClient.getQueryData<AgentSessionDetail>(keyOf(id))?.attachments ?? []
     for (const attId of input.attachmentIds ?? []) {
       const att = attachments.find((a) => a.id === attId)
@@ -364,6 +368,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       attachment_ids: input.attachmentIds ?? [],
       scope: input.scope ?? null,
       skill: input.skill?.name ?? null,
+      references: input.references ?? [],
     })
   }
 
@@ -409,12 +414,15 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   }
 
   /** Replaces the text of a sent message; everything after it is dropped and answered again. */
-  function edit(messageId: string, text: string) {
+  function edit(messageId: string, text: string, references: MessageReference[]) {
     if (!sessionId) return Promise.resolve(false)
     queryClient.setQueryData<AgentSessionDetail>(keyOf(sessionId), (current) =>
-      current ? withEditedMessage(current, messageId, text.trim()) : current,
+      current ? withEditedMessage(current, messageId, text.trim(), references) : current,
     )
-    return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:edit`, { text })
+    return run(sessionId, `/agent/sessions/${sessionId}/messages/${messageId}:edit`, {
+      text,
+      references,
+    })
   }
 
   /**

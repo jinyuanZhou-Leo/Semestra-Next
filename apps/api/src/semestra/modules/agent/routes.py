@@ -155,6 +155,7 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         )
     if text:
         blocks.append({"type": "text", "text": text})
+    blocks += await service.reference_blocks(ctx, body.references)
     owned = {a.id: a for a in await service.attachments(ctx, session.id)}
     for att_id in dict.fromkeys(body.attachment_ids):
         att = owned.get(att_id)
@@ -284,7 +285,7 @@ async def edit_message(
     await _check_ai(ctx, rt)
     claim = rt.claim(ctx.user_id, session.id)
     try:
-        await service.edit_message(ctx, session, message_id, body.text)
+        await service.edit_message(ctx, session, message_id, body.text, body.references)
         await ctx.db.commit()
     except BaseException:
         claim.release()

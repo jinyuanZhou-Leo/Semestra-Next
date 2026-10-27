@@ -127,3 +127,13 @@ class AccountDeleteJobInput(BaseModel):
 
 class AccountDeleteJobResult(BaseModel):
     user_id: str
+
+
+class DataCounts(BaseModel):
+    tables: dict[str, int] = Field(
+        description="Rows the user has in each table the portability adapters cover (the user "
+        "data purged with the account, exported or not), by table name"
+    )
+    limits: dict[str, int] = Field(
+        description="Most rows a user may have, for the tables a module caps, by table name"
+    )

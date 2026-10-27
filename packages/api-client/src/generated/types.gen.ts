@@ -3074,6 +3074,44 @@ export type CourseUpdateInputBody = {
 };
 
 /**
+ * CourseUsage
+ */
+export type CourseUsage = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Program Name
+     */
+    program_name: string;
+    /**
+     * Name
+     *
+     * The course's alias, else its code, else its title
+     */
+    name: string;
+    /**
+     * Color
+     *
+     * The course's resolved color (see Course.resolved_color)
+     */
+    color: string;
+    /**
+     * Files
+     */
+    files: number;
+    /**
+     * Bytes
+     */
+    bytes: number;
+};
+
+/**
  * CoursesImportInputBody
  */
 export type CoursesImportInputBody = {
@@ -3107,6 +3145,28 @@ export type CoursesImportInputBody = {
      * App wizard only: last day of the term
      */
     end_date?: string | null;
+};
+
+/**
+ * DataCounts
+ */
+export type DataCounts = {
+    /**
+     * Tables
+     *
+     * Rows the user has in each table the portability adapters cover (the user data purged with the account, exported or not), by table name
+     */
+    tables: {
+        [key: string]: number;
+    };
+    /**
+     * Limits
+     *
+     * Most rows a user may have, for the tables a module caps, by table name
+     */
+    limits: {
+        [key: string]: number;
+    };
 };
 
 /**
@@ -4101,6 +4161,22 @@ export type FilesItemList = {
      * Next Cursor
      */
     next_cursor: string | null;
+};
+
+/**
+ * FilesUsageBreakdown
+ *
+ * Course files by course and by type, largest first; links take no space and are left out.
+ */
+export type FilesUsageBreakdown = {
+    /**
+     * By Course
+     */
+    by_course: Array<CourseUsage>;
+    /**
+     * By Type
+     */
+    by_type: Array<TypeUsage>;
 };
 
 /**
@@ -10288,6 +10364,24 @@ export type TokenPair = {
 };
 
 /**
+ * TypeUsage
+ */
+export type TypeUsage = {
+    /**
+     * Type
+     */
+    type: 'pdf' | 'image' | 'office' | 'text' | 'other';
+    /**
+     * Files
+     */
+    files: number;
+    /**
+     * Bytes
+     */
+    bytes: number;
+};
+
+/**
  * UiStateEntry
  */
 export type UiStateEntry = {
@@ -14152,6 +14246,31 @@ export type FilesLinkCreateResponses = {
 
 export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
 
+export type FilesUsageBreakdownData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/files-usage/breakdown';
+};
+
+export type FilesUsageBreakdownErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesUsageBreakdownError = FilesUsageBreakdownErrors[keyof FilesUsageBreakdownErrors];
+
+export type FilesUsageBreakdownResponses = {
+    /**
+     * Successful Response
+     */
+    200: FilesUsageBreakdown;
+};
+
+export type FilesUsageBreakdownResponse = FilesUsageBreakdownResponses[keyof FilesUsageBreakdownResponses];
+
 export type FilesUsageGetData = {
     body?: never;
     path?: never;
@@ -17305,6 +17424,31 @@ export type PomodoroSessionSummarizeResponses = {
 };
 
 export type PomodoroSessionSummarizeResponse = PomodoroSessionSummarizeResponses[keyof PomodoroSessionSummarizeResponses];
+
+export type PortabilityDataCountGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/data-counts';
+};
+
+export type PortabilityDataCountGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type PortabilityDataCountGetError = PortabilityDataCountGetErrors[keyof PortabilityDataCountGetErrors];
+
+export type PortabilityDataCountGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DataCounts;
+};
+
+export type PortabilityDataCountGetResponse = PortabilityDataCountGetResponses[keyof PortabilityDataCountGetResponses];
 
 export type PortabilityExportListData = {
     body?: never;

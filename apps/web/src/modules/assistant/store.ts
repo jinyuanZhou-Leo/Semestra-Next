@@ -1,3 +1,4 @@
+import type { JSONContent } from '@tiptap/core'
 import { useSyncExternalStore } from 'react'
 
 /**
@@ -14,8 +15,8 @@ export type PanelState = {
   view: number
   /** Whether a new conversation in the panel starts as a temporary chat. */
   temporary: boolean
-  /** Text typed on the full page, which the panel's input starts with. */
-  draft: string
+  /** What was written on the full page, which the panel's input starts with. */
+  draft: JSONContent | null
 }
 
 const INITIAL: PanelState = {
@@ -24,14 +25,14 @@ const INITIAL: PanelState = {
   question: null,
   view: 0,
   temporary: false,
-  draft: '',
+  draft: null,
 }
 let state: PanelState = INITIAL
 // What the full page shows, so `open` can hand it to the panel; null while the page is closed.
 let page: { sessionId: string | null; temporary: boolean } | null = null
 // The last page outside the assistant, where the hand-over goes back to.
 let returnTo: string | null = null
-let pageDraft = ''
+let pageDraft: JSONContent | null = null
 const listeners = new Set<() => void>()
 
 function set(next: Partial<PanelState>) {
@@ -57,7 +58,7 @@ export const panel = {
         sessionId: null,
         question: { text: question.trim(), key: Date.now() },
         temporary: false,
-        draft: '',
+        draft: null,
         view: state.view + 1,
       })
     } else {
@@ -65,7 +66,7 @@ export const panel = {
     }
   },
   /** Shows an open conversation in the panel (the full page hands its conversation over). */
-  moveHere(sessionId: string | null, temporary: boolean, draft: string) {
+  moveHere(sessionId: string | null, temporary: boolean, draft: JSONContent | null) {
     set({ open: true, sessionId, temporary, draft, question: null, view: state.view + 1 })
   },
   page: () => page,
@@ -73,8 +74,8 @@ export const panel = {
     page = next
   },
   pageDraft: () => pageDraft,
-  setPageDraft(text: string) {
-    pageDraft = text
+  setPageDraft(doc: JSONContent | null) {
+    pageDraft = doc
   },
   returnTo: () => returnTo,
   setReturnTo(href: string) {
@@ -84,7 +85,7 @@ export const panel = {
     set({ open: false })
   },
   show(sessionId: string | null) {
-    set({ sessionId, temporary: false, draft: '', question: null, view: state.view + 1 })
+    set({ sessionId, temporary: false, draft: null, question: null, view: state.view + 1 })
   },
   /** A new conversation was created by its first message. */
   created(sessionId: string) {
@@ -92,7 +93,7 @@ export const panel = {
   },
   /** The panel's input took the carried-over text; it is not offered again on a reopen. */
   takeDraft() {
-    if (state.draft) set({ draft: '' })
+    if (state.draft) set({ draft: null })
   },
   takeQuestion() {
     const question = state.question
@@ -103,7 +104,7 @@ export const panel = {
   reset() {
     state = INITIAL
     page = null
-    pageDraft = ''
+    pageDraft = null
     returnTo = null
   },
 }

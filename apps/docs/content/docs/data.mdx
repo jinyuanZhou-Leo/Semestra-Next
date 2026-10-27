@@ -4,8 +4,34 @@ description: Back up your data, restore it on this or another instance, and dele
 icon: DatabaseBackup
 ---
 
-Everything here is in **Settings → Data**. These actions are available in the app and over HTTP
-with a session or access token, but not to Sem or MCP clients, and API tokens cannot call them.
+Everything here is in **Settings → Data**. Export, restore and account deletion are available in
+the app and over HTTP with a session or access token, but not to Sem or MCP clients, and API
+tokens cannot call them.
+
+## Storage and data
+
+**Storage and data**, at the top of the page, shows how much of your storage quota is used:
+
+- A ring with the share used, and how much each part takes: course files, Sem attachments, files
+  waiting in an unfinished import, and what is free. Backups do not count against the quota.
+  Self-hosted servers without a quota show only how much is used.
+- **Usage details** lists the space by course (the five largest, then the rest together) or by
+  file type (PDF, images, Office documents, text, other), then what Sem attachments take.
+- **Data overview** counts your Programs, terms, courses, assessments, tasks, events, files and
+  Sem chats, and how many of Sem's memories are in use.
+
+To free up space, delete course files you no longer need, or Sem chats with attachments.
+
+| Request                       | Does                                                  |
+| ----------------------------- | ----------------------------------------------------- |
+| `GET /storage/usage`          | Bytes used, the quota, and the bytes of each module   |
+| `GET /files-usage/breakdown`  | Course files by course and by type                    |
+| `GET /me/data-counts`         | How many rows you have in each table of your data     |
+
+`GET /me/data-counts` counts every table that holds your data and is removed with your account,
+including what a backup leaves out (Sem chats, attachments, import drafts), and returns the caps
+some tables have (Sem memories). `GET /storage/usage` is also open to Sem, MCP clients and API
+tokens; the other two are not.
 
 ## Export
 

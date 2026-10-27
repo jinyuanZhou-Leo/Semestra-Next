@@ -10,8 +10,6 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Cards in board edit mode (M10 §5.2); off with reduced motion via motion-reduce:. */
-  --animate-jiggle: jiggle 0.36s ease-in-out infinite alternate;
   /* The bar at the top while a page's code loads (NavigationProgress). */
   --animate-navigation-progress: navigation-progress 1.1s ease-in-out infinite;
   --font-heading: 'Figtree Variable', sans-serif;
@@ -348,15 +346,6 @@
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   transition-delay: 0s !important;
-}
-
-@keyframes jiggle {
-  from {
-    rotate: -0.35deg;
-  }
-  to {
-    rotate: 0.35deg;
-  }
 }
 
 @keyframes navigation-progress {
