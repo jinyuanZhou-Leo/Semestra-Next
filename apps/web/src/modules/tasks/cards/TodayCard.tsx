@@ -9,7 +9,7 @@ import { useProgramToday, useTodayTasks } from '../queries'
 export default function TodayCard({ scope, size }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const tasks = useTodayTasks(scope.programId, termId).data?.items
-  const actions = useTaskActions()
+  const { actions } = useTaskActions()
   const today = useProgramToday(scope.programId)
   if (!tasks) return null
   return (

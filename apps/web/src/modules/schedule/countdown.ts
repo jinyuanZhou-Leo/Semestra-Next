@@ -1,9 +1,9 @@
-import { getLocale } from '@/paraglide/runtime'
+import { intl } from '@/lib/format'
 
 /** "in 25 minutes" / "in 2 hours" for a start time after `now`. */
 export function countdown(startAt: string, now: number): string {
   const diff = Math.max(0, new Date(startAt).getTime() - now)
-  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' })
+  const rtf = intl(Intl.RelativeTimeFormat, { numeric: 'auto' })
   const minutes = Math.round(diff / 60_000)
   if (minutes < 60) return rtf.format(minutes, 'minute')
   const hours = Math.round(minutes / 6) / 10

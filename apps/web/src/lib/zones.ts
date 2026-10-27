@@ -1,4 +1,4 @@
-import { getFormatPreferences } from '@/lib/format'
+import { getFormatPreferences, intl } from '@/lib/format'
 import enZoneNames from './zone-names.en.json'
 import zhZoneNames from './zone-names.zh.json'
 
@@ -163,30 +163,34 @@ export function formatZoneTime(
   locale: string,
   options: { seconds?: boolean } = {},
 ): string {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: tz,
-    hour: 'numeric',
-    minute: '2-digit',
-    ...(options.seconds ? { second: '2-digit' as const } : {}),
-    ...hourCycle(),
-  }).format(date)
+  return intl(
+    Intl.DateTimeFormat,
+    {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(options.seconds ? { second: '2-digit' as const } : {}),
+      ...hourCycle(),
+    },
+    locale,
+  ).format(date)
 }
 
 export function formatZoneDate(date: Date, tz: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: tz,
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
+  return intl(
+    Intl.DateTimeFormat,
+    { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' },
+    locale,
+  ).format(date)
 }
 
 /** UTC offset of `tz` at `date`, in minutes (+330 for India). */
 export function offsetMinutes(date: Date, tz: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    timeZoneName: 'longOffset',
-  }).formatToParts(date)
+  const parts = intl(
+    Intl.DateTimeFormat,
+    { timeZone: tz, timeZoneName: 'longOffset' },
+    'en-US',
+  ).formatToParts(date)
   const name = parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT'
   const match = /GMT(?:([+-])(\d{1,2})(?::(\d{2}))?)?/.exec(name)
   if (!match?.[1]) return 0

@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Course, Task, TaskUpdateInputBody } from '@semestra/api-client'
 import { Flag, GripVertical, MoreHorizontal, PanelRight, Trash2 } from 'lucide-react'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -286,15 +286,17 @@ type Props = {
   /** The Program's today (`useProgramToday`), for "Today"/"Tomorrow" labels. */
   today: string
   selected: boolean
-  onSelect: () => void
+  // The callbacks take the task's id, so one function serves every row and a row whose own
+  // props are unchanged is skipped when the list re-renders (`memo`).
+  onSelect: (taskId: string) => void
   /** Set while the row is open for editing in place; only one row is open at a time. */
   editing: EditFocus | null
-  onStartEdit: (focus: EditFocus) => void
-  onStopEdit: () => void
+  onStartEdit: (taskId: string, focus: EditFocus) => void
+  onStopEdit: (taskId: string) => void
   /** Opens the task in the side panel. */
-  onEdit: () => void
+  onEdit: (taskId: string) => void
   /** Asks to delete the task. */
-  onDelete: () => void
+  onDelete: (taskId: string) => void
   actions: TaskActions
   /** Set while the list can be reordered by dragging. */
   sortable?: Sortable
@@ -309,7 +311,7 @@ type Props = {
  * title or the note opens the row in place (`RowEditor`); the ⋯ menu opens the side panel with
  * every field, changes the priority and deletes.
  */
-export function TaskRow({
+export const TaskRow = memo(function TaskRow({
   task,
   courses,
   today,
@@ -334,16 +336,19 @@ export function TaskRow({
   const hasMeta = Boolean(note) || task.due_date !== null || (course !== undefined && !hideCourse)
   const start = (field: EditFocus['field']) => (event: React.MouseEvent) => {
     event.stopPropagation()
-    onSelect()
-    onStartEdit({ field, caret: caretAt(event) })
+    onSelect(task.id)
+    onStartEdit(task.id, { field, caret: caretAt(event) })
   }
+  // Bound once per row: a new ref callback each render would have the list measure it again.
+  const setNodeRef = sortable?.setNodeRef
+  const measure = virtual?.measure
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- the row selects; every control in it is a real button
     <li
       ref={(node) => {
         rowRef.current = node
-        sortable?.setNodeRef(node)
-        virtual?.measure(node)
+        setNodeRef?.(node)
+        measure?.(node)
       }}
       data-index={virtual?.index}
       aria-setsize={virtual?.count}
@@ -352,7 +357,7 @@ export function TaskRow({
       data-selected={selected || undefined}
       data-editing={editing ? true : undefined}
       data-task-id={task.id}
-      onClick={onSelect}
+      onClick={() => onSelect(task.id)}
       className={cn(
         'group/row flex items-start gap-3 rounded-2xl px-3 py-2.5 hover:bg-muted/40 data-selected:bg-muted/70 data-editing:bg-muted/70',
         sortable?.dragging && 'relative z-10 bg-card shadow-md ring-1 ring-foreground/10',
@@ -365,7 +370,7 @@ export function TaskRow({
         onClick={(event) => event.stopPropagation()}
         onCheckedChange={(checked) => {
           // The row leaves the list; the editor saves what was typed as it goes.
-          if (editing) onStopEdit()
+          if (editing) onStopEdit(task.id)
           void actions.complete(task.id, checked)
         }}
       />
@@ -381,7 +386,7 @@ export function TaskRow({
             actions={actions}
             onClose={(refocus) => {
               refocusTitle.current = refocus
-              onStopEdit()
+              onStopEdit(task.id)
             }}
           />
         ) : (
@@ -461,12 +466,17 @@ export function TaskRow({
             <TooltipContent>{task.flagged ? m.tasks_unflag() : m.tasks_flag()}</TooltipContent>
           </Tooltip>
         )}
-        <RowMenu task={task} onEdit={onEdit} onDelete={onDelete} actions={actions} />
+        <RowMenu
+          task={task}
+          onEdit={() => onEdit(task.id)}
+          onDelete={() => onDelete(task.id)}
+          actions={actions}
+        />
         {sortable?.handle}
       </div>
     </li>
   )
-}
+})
 
 /**
  * The empty circle at the end of a list (M05 §5.1), like Reminders: a click turns it into a title
@@ -622,7 +632,7 @@ function RowMenu({
 }
 
 /** A row that can be dragged to a new place in the list. */
-export function SortableTaskRow(props: Omit<Props, 'sortable'>) {
+export const SortableTaskRow = memo(function SortableTaskRow(props: Omit<Props, 'sortable'>) {
   const {
     attributes,
     listeners,
@@ -664,4 +674,4 @@ export function SortableTaskRow(props: Omit<Props, 'sortable'>) {
       }}
     />
   )
-}
+})

@@ -90,7 +90,7 @@ export default function TasksPage({ scope }: PageProps) {
     scope: `${scopeId}.${key}`,
   })
   const settings = useTaskSettings(programId)
-  const actions = useTaskActions()
+  const { actions, pending } = useTaskActions()
   const lists = useTaskLists(programId)
   const counts = useTaskCounts(taskScope)
   const courses = useCourses(programId, termId).data?.items ?? []
@@ -149,24 +149,29 @@ export default function TasksPage({ scope }: PageProps) {
     setEditing(null)
   }
   const stopEditing = (id: string) => setEditing((current) => (current?.id === id ? null : current))
+  // The callbacks are shared by every row, so only the rows whose task, selection or editing
+  // changed render again.
+  const startEditing = (id: string, focus: EditFocus) => setEditing({ id, focus })
+  const editDetails = (id: string) => {
+    // The side panel takes over: the open row closes (saving what was typed) first.
+    stopEditing(id)
+    setSelectedId(id)
+    setDetailId(id)
+  }
+  const hideCourse = Boolean(courseId)
   const rowProps = (task: Task) => ({
     task,
     courses,
     today,
     selected: task.id === selectedId,
-    onSelect: () => setSelectedId(task.id),
+    onSelect: setSelectedId,
     editing: editing?.id === task.id ? editing.focus : null,
-    onStartEdit: (focus: EditFocus) => setEditing({ id: task.id, focus }),
-    onStopEdit: () => stopEditing(task.id),
-    onEdit: () => {
-      // The side panel takes over: the open row closes (saving what was typed) first.
-      stopEditing(task.id)
-      setSelectedId(task.id)
-      setDetailId(task.id)
-    },
-    onDelete: () => setDeleteId(task.id),
+    onStartEdit: startEditing,
+    onStopEdit: stopEditing,
+    onEdit: editDetails,
+    onDelete: setDeleteId,
     actions,
-    hideCourse: Boolean(courseId),
+    hideCourse,
   })
   const step = (delta: number) => {
     const index = open.findIndex((t) => t.id === selectedId)
@@ -478,7 +483,7 @@ export default function TasksPage({ scope }: PageProps) {
         title={m.tasks_clear_title()}
         description={m.tasks_clear_description({ count: doneTotal })}
         confirmLabel={m.tasks_clear_completed()}
-        pending={actions.pending}
+        pending={pending}
         onConfirm={() => {
           void actions.clearCompleted(programId, clearScope).then(() => setClearing(false))
         }}

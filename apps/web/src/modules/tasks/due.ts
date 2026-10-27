@@ -1,5 +1,5 @@
 import type { Task } from '@semestra/api-client'
-import { formatDate, formatTime } from '@/lib/format'
+import { formatDate, formatTime, intl } from '@/lib/format'
 import { toWall } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 
@@ -30,7 +30,7 @@ export function dueLabel(task: Pick<Task, 'due_date' | 'due_time'>, today: strin
   if (diff === 0) day = m.tasks_due_today()
   else if (diff === 1) day = m.tasks_due_tomorrow()
   else if (diff === -1) day = m.tasks_due_yesterday()
-  else if (diff > 1 && diff < 7) day = date.toLocaleDateString(undefined, { weekday: 'short' })
+  else if (diff > 1 && diff < 7) day = intl(Intl.DateTimeFormat, { weekday: 'short' }).format(date)
   else day = formatDate(date)
   return task.due_time ? `${day} ${formatTime(`${task.due_date}T${task.due_time}`)}` : day
 }
