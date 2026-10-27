@@ -33,7 +33,7 @@ import { useCards, useInstalledPluginsReady } from '../registry'
 import { AddCardDialog } from './AddCardDialog'
 import './board.css'
 import { BoardEditActions, useBoardEditHint } from './BoardToolbar'
-import { CardFrame } from './CardFrame'
+import { CardDialog, type CardDialogKind, CardFrame } from './CardFrame'
 import {
   applyLayout,
   COLS,
@@ -43,10 +43,10 @@ import {
   type LayoutItem,
   layoutAt,
   moveItem,
-  nearestSize,
   normalize,
   type PlacedCard,
   resizeItem,
+  stepSize,
   sameLayout,
   span,
 } from './layout'
@@ -167,8 +167,20 @@ function BoardView({
   const [selected, setSelected] = useState<string | null>(null)
   /** The card being resized by its corner, at the size it snapped to. */
   const [resizing, setResizing] = useState<{ id: string; size: CardSize } | null>(null)
-  // Where the running corner resize started (pointer and span), read in the pointer handlers.
-  const resizeStart = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  // Where the running corner resize started (pointer, size and layout), read in the pointer
+  // handlers: every step is worked out from there, so dragging back restores the layout.
+  const resizeStart = useRef<{
+    x: number
+    y: number
+    size: CardSize
+    items: LayoutItem[]
+  } | null>(null)
+  /** A card's settings or remove confirmation; kept after closing so the dialog animates out. */
+  const [dialog, setDialog] = useState<{
+    card: DraftCard
+    kind: CardDialogKind
+    open: boolean
+  } | null>(null)
   const editing = draft !== null
   // The page header (every scope page, Today included) hosts the edit controls; a board rendered without one keeps its own row.
   const headerHostsEdit = useHasHostAction('header.shown')
@@ -223,8 +235,15 @@ function BoardView({
     [],
   )
 
+  function stopResize() {
+    resizeStart.current = null
+    setResizing(null)
+  }
+
   function startEditing() {
-    if (canEdit) setDraft(saved)
+    if (!canEdit) return
+    stopResize()
+    setDraft(saved)
   }
 
   function finishEditing() {
@@ -232,6 +251,7 @@ function BoardView({
     const next = normalize(draft)
     setDraft(null)
     setSelected(null)
+    stopResize()
     void commit(next).catch(() => {})
   }
 
@@ -402,8 +422,7 @@ function BoardView({
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
-    const [w, h] = span(size, cols)
-    resizeStart.current = { x: event.clientX, y: event.clientY, w, h }
+    resizeStart.current = { x: event.clientX, y: event.clientY, size, items }
     setSelected(id)
     setResizing({ id, size })
   }
@@ -411,20 +430,25 @@ function BoardView({
   function moveResize(event: PointerEvent<HTMLElement>, sizes: readonly CardSize[]) {
     const start = resizeStart.current
     if (!start || !resizing) return
-    const column = (width - GAP * (cols - 1)) / cols + GAP
-    const w = Math.round(start.w + (event.clientX - start.x) / column)
-    const h = Math.round(start.h + (event.clientY - start.y) / (ROW + GAP))
-    const size = nearestSize(sizes, Math.min(Math.max(w, 1), cols), Math.max(h, 1))
+    // Cells dragged right and down; the larger one counts, so a card in the last column (with no
+    // room to the right) grows by dragging down.
+    const dx = (event.clientX - start.x) / ((width - GAP * (cols - 1)) / cols + GAP)
+    const dy = (event.clientY - start.y) / (ROW + GAP)
+    const size = stepSize(sizes, start.size, Math.round(Math.abs(dx) > Math.abs(dy) ? dx : dy))
     if (size === resizing.size) return
     const { id } = resizing
     setResizing({ id, size })
-    relayout((current) => resizeItem(current, id, size, cols))
+    relayout(() => (size === start.size ? start.items : resizeItem(start.items, id, size, cols)))
   }
 
-  function endResize() {
-    resizeStart.current = null
-    setResizing(null)
+  function removeCard(id: string) {
+    setSelected(null)
+    setDraft((current) => current?.filter((c) => c.id !== id) ?? current)
+    // The toolbar that opened the dialog is gone with the card: keep focus on the board.
+    container?.focus()
   }
+
+  const dialogContribution = dialog ? known.get(dialog.card.cardId) : undefined
 
   return (
     <div className="flex flex-1 flex-col gap-3" data-board={kind}>
@@ -479,6 +503,7 @@ function BoardView({
         // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
         <div
           ref={setContainer}
+          tabIndex={-1}
           className={cn(
             editing && 'rounded-2xl outline-2 outline-offset-8 outline-border outline-dashed',
           )}
@@ -516,7 +541,8 @@ function BoardView({
                   if (!contribution) return null
                   const at = position.get(card.id) ?? card
                   const [w] = span(at.size, cols)
-                  const sizing = resizing?.id === card.id ? resizing.size : undefined
+                  const sizing =
+                    editing && movable && resizing?.id === card.id ? resizing.size : undefined
                   return (
                     <div
                       key={card.id}
@@ -543,17 +569,7 @@ function BoardView({
                         onResize={(size) =>
                           relayout((current) => resizeItem(current, card.id, size, cols))
                         }
-                        onRemove={() => {
-                          setSelected(null)
-                          setDraft((current) => current?.filter((c) => c.id !== card.id) ?? current)
-                        }}
-                        onDraftSettings={(settings) =>
-                          setDraft(
-                            (current) =>
-                              current?.map((c) => (c.id === card.id ? { ...c, settings } : c)) ??
-                              current,
-                          )
-                        }
+                        onOpenDialog={(kind) => setDialog({ card, kind, open: true })}
                       />
                       {editing && movable && contribution.sizes.length > 1 ? (
                         <span
@@ -561,8 +577,8 @@ function BoardView({
                           className="board-resize-handle"
                           onPointerDown={(event) => startResize(event, card.id, card.size)}
                           onPointerMove={(event) => moveResize(event, contribution.sizes)}
-                          onPointerUp={endResize}
-                          onPointerCancel={endResize}
+                          // Also when the handle goes away mid-drag (edit mode ends, the board narrows).
+                          onLostPointerCapture={stopResize}
                         />
                       ) : null}
                     </div>
@@ -579,6 +595,28 @@ function BoardView({
         onOpenChange={setAdding}
         onAdd={(card) => void addCard(card)}
       />
+      {dialog && dialogContribution ? (
+        <CardDialog
+          key={dialog.card.id}
+          scope={scope}
+          card={cards.find((c) => c.id === dialog.card.id) ?? dialog.card}
+          contribution={dialogContribution}
+          dialog={dialog.kind}
+          open={dialog.open}
+          editing={editing}
+          onClose={() => setDialog({ ...dialog, open: false })}
+          onRemove={() => {
+            setDialog({ ...dialog, open: false })
+            removeCard(dialog.card.id)
+          }}
+          onDraftSettings={(settings) =>
+            setDraft(
+              (current) =>
+                current?.map((c) => (c.id === dialog.card.id ? { ...c, settings } : c)) ?? current,
+            )
+          }
+        />
+      ) : null}
     </div>
   )
 }

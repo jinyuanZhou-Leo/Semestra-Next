@@ -10,7 +10,6 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Cards in board edit mode (M10 §5.2); off with reduced motion via motion-reduce:. */
   /* The bar at the top while a page's code loads (NavigationProgress). */
   --animate-navigation-progress: navigation-progress 1.1s ease-in-out infinite;
   --font-heading: 'Figtree Variable', sans-serif;

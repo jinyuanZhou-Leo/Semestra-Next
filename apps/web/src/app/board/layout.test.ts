@@ -9,10 +9,10 @@ import {
   type LayoutItem,
   layoutAt,
   moveItem,
-  nearestSize,
   normalize,
   type PlacedCard,
   resizeItem,
+  stepSize,
 } from './layout'
 
 const at = (items: LayoutItem[]) =>
@@ -84,12 +84,20 @@ describe('moving', () => {
   })
 })
 
-describe('resizing by dragging', () => {
-  test('snaps to the closest size the card supports', () => {
-    expect(nearestSize(['s', 'm', 'l'], 2, 2)).toBe('l')
-    expect(nearestSize(['s', 'm', 'l'], 4, 2)).toBe('l')
-    expect(nearestSize(['m', 'xl'], 1, 1)).toBe('m')
-    expect(nearestSize(['s', 'l'], 2, 1)).toBe('s')
+describe('resizing by dragging the corner', () => {
+  test('walks the sizes by area, a cell right or down per step', () => {
+    expect(stepSize(['s', 'm', 'l', 'xl'], 's', 1)).toBe('m')
+    expect(stepSize(['xl', 'l', 's'], 's', 2)).toBe('xl')
+    expect(stepSize(['s', 'm', 'l'], 'l', -1)).toBe('m')
+    expect(stepSize(['s', 'm', 'l'], 'm', 5)).toBe('l')
+    expect(stepSize(['m', 'xl'], 'm', -1)).toBe('m')
+  })
+
+  test('a card in the last column that grows moves left', () => {
+    for (const cols of [4, 6, 8]) {
+      const grown = resizeItem([{ id: 'a', size: 's', x: cols - 1, y: 0 }], 'a', 'm', cols)
+      expect(grown).toEqual([{ id: 'a', size: 'm', x: cols - 2, y: 0 }])
+    }
   })
 })
 

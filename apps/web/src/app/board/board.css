@@ -44,8 +44,15 @@
   border-color: var(--primary);
 }
 
-/* The toolbar and the corner stay out of the way while a card is dragged. */
-.react-draggable-dragging [data-board-toolbar],
+/*
+ * A dragged card goes over the others (and over a selected one, z-20); every toolbar and the
+ * dragged card's corner stay out of the way meanwhile.
+ */
+.react-grid-item.react-draggable-dragging {
+  z-index: 40;
+}
+
+.react-grid-layout:has(.react-draggable-dragging) [data-board-toolbar],
 .react-draggable-dragging > .board-resize-handle {
   visibility: hidden;
 }

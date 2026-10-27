@@ -38,19 +38,20 @@ export function sizeOf(w: number, h: number): CardSize | undefined {
   return (Object.keys(SPANS) as CardSize[]).find((s) => SPANS[s][0] === w && SPANS[s][1] === h)
 }
 
-/** Of `sizes`, the one closest to w×h (ties go to the smaller one). */
-export function nearestSize(sizes: readonly CardSize[], w: number, h: number): CardSize {
-  let best: CardSize = sizes[0] ?? 's'
-  let distance = Infinity
-  for (const size of sizes) {
-    const [sw, sh] = SPANS[size]
-    const d = Math.abs(sw - w) + Math.abs(sh - h)
-    if (d < distance) {
-      best = size
-      distance = d
-    }
-  }
-  return best
+/**
+ * Where a corner resize lands: the card's sizes from smallest to largest area form a ladder, and
+ * dragging the corner `steps` cells right or down (negative: back) walks that many rungs from
+ * `from`. Walking one ladder instead of matching width and height apart lets a card in the last
+ * column grow by dragging down, and never sticks between two sizes equally far away.
+ */
+export function stepSize(sizes: readonly CardSize[], from: CardSize, steps: number): CardSize {
+  const ladder = [...sizes].sort((a, b) => {
+    const [aw, ah] = SPANS[a]
+    const [bw, bh] = SPANS[b]
+    return aw * ah - bw * bh || aw - bw
+  })
+  const at = Math.max(ladder.indexOf(from), 0)
+  return ladder[Math.min(Math.max(at + steps, 0), ladder.length - 1)] ?? from
 }
 
 export type LayoutItem = { id: string; size: CardSize; x: number; y: number }
