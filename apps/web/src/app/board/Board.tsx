@@ -8,9 +8,8 @@ import {
 } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { LayoutDashboard, Pencil } from 'lucide-react'
-import { type Ref, useEffect, useRef, useState } from 'react'
+import { type PointerEvent, useEffect, useRef, useState } from 'react'
 import { GridLayout, type Layout, type LayoutItem as GridItem } from 'react-grid-layout'
-import type { LayoutConstraint, ResizeHandleAxis } from 'react-grid-layout/core'
 import 'react-grid-layout/css/styles.css'
 import { toast } from 'sonner'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -49,7 +48,6 @@ import {
   type PlacedCard,
   resizeItem,
   sameLayout,
-  sizeOf,
   span,
 } from './layout'
 import { boardOptions, boardRef, type BoardRef, useBoard } from './queries'
@@ -60,11 +58,8 @@ const ROW = 160
 const GAP = 16
 const GRID_MARGIN = [GAP, GAP] as const
 const GRID_PADDING = [0, 0] as const
-// A card against the right edge cannot grow to the right (the grid stops a resize at its edge),
-// so it grows to the left from its bottom-left corner. Every card gets both corners and
-// `board.css` shows the one its `data-resize-corner` names: the grid keeps an item's handles
-// until its element changes, so per-item handles would lag a card that moved to or from the edge.
-const RESIZE_HANDLES = ['se', 'sw'] as const
+// Cards are resized by our own corner handle (see `startResize`).
+const RESIZE_OFF = { enabled: false }
 
 export type DraftCard = PlacedCard & {
   cardId: string
@@ -93,24 +88,6 @@ function changed(saved: readonly DraftCard[], draft: readonly DraftCard[]): bool
   return draft.some((c) => !samePositions(byId.get(c.id)?.positions ?? [], c.positions))
 }
 
-/** Resizing snaps to the sizes a card supports (one constraint per set of sizes). */
-const snaps = new Map<string, LayoutConstraint>()
-function snapTo(sizes: readonly CardSize[]): LayoutConstraint {
-  const key = sizes.join()
-  let constraint = snaps.get(key)
-  if (!constraint) {
-    constraint = {
-      name: `card-sizes:${key}`,
-      constrainSize: (_item, w, h, _handle, { cols }) => {
-        const [sw, sh] = span(nearestSize(sizes, w, h), cols)
-        return { w: sw, h: sh }
-      },
-    }
-    snaps.set(key, constraint)
-  }
-  return constraint
-}
-
 async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<BoardData> {
   const { data } = await layoutsBoardUpdate({
     path: ref,
@@ -128,15 +105,6 @@ async function saveLayout(ref: BoardRef, draft: readonly DraftCard[]): Promise<B
   })
   return data
 }
-
-/** The corner a card is resized by (react-grid-layout's handle, drawn with tokens). */
-const resizeHandle = (axis: ResizeHandleAxis, ref: Ref<HTMLElement>) => (
-  <span
-    ref={ref}
-    aria-hidden
-    className={`react-resizable-handle react-resizable-handle-${axis} board-resize-handle`}
-  />
-)
 
 /**
  * The editable card grid of an overview or the Today page (M10 §5.2). Outside edit mode it
@@ -197,8 +165,10 @@ function BoardView({
   /** Cards being created on the server: "Done" waits for them so none is left behind. */
   const [creating, setCreating] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
-  /** A card being dragged or resized: its toolbar hides; `size` is where a resize would snap. */
-  const [active, setActive] = useState<{ id: string; size?: CardSize } | null>(null)
+  /** The card being resized by its corner, at the size it snapped to. */
+  const [resizing, setResizing] = useState<{ id: string; size: CardSize } | null>(null)
+  // Where the running corner resize started (pointer and span), read in the pointer handlers.
+  const resizeStart = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
   const editing = draft !== null
   // The page header (every scope page, Today included) hosts the edit controls; a board rendered without one keeps its own row.
   const headerHostsEdit = useHasHostAction('header.shown')
@@ -405,44 +375,55 @@ function BoardView({
   // --- the grid --------------------------------------------------------------------------------
   const items = layoutAt(cards, cols)
   const layout: Layout = items.map((item) => {
-    const card = cards.find((c) => c.id === item.id)
-    const sizes = (card && known.get(card.cardId)?.sizes) ?? [item.size]
     const [w, h] = span(item.size, cols)
-    return {
-      i: item.id,
-      x: item.x,
-      y: item.y,
-      w,
-      h,
-      isResizable: editing && movable && sizes.length > 1,
-      constraints: [snapTo(sizes)],
-    }
+    return { i: item.id, x: item.x, y: item.y, w, h }
   })
   const position = new Map(items.map((i) => [i.id, i]))
 
-  /** Whether a card sits against the right edge and has a wider size to grow into. */
-  function growsLeft(item: LayoutItem, sizes: readonly CardSize[]): boolean {
-    const [w] = span(item.size, cols)
-    return item.x + w === cols && sizes.some((size) => span(size, cols)[0] > w)
-  }
-
-  /** The grid after a drag or resize: back into the draft, sizes from the snapped spans. */
-  function dropped(next: Layout) {
-    setActive(null)
+  /** The grid after a drag: back into the draft, and the dragged card is selected. */
+  function dropped(next: Layout, _old: GridItem | null, moved: GridItem | null) {
+    if (moved) setSelected(moved.i)
     relayout((current) =>
       current.map((item) => {
         const placed = next.find((l) => l.i === item.id)
-        if (!placed) return item
-        return { ...item, size: sizeOf(placed.w, placed.h) ?? item.size, x: placed.x, y: placed.y }
+        return placed ? { ...item, x: placed.x, y: placed.y } : item
       }),
     )
   }
 
-  // Called on every pointer move: only a new snapped size re-renders the board.
-  const resizing = (_layout: Layout, _old: GridItem | null, item: GridItem | null) => {
-    if (!item) return
-    const size = sizeOf(item.w, item.h)
-    setActive((a) => (a?.id === item.i && a.size === size ? a : { id: item.i, size }))
+  /*
+   * Resizing by the bottom-right corner is ours, not react-grid-layout's: the grid stops a resize
+   * at its right edge, so a card in the last column could never grow. The card jumps to the
+   * supported size nearest to the pointer, the same as picking it in the toolbar (a card that no
+   * longer fits moves left), so its content lays out once per size instead of on every move.
+   */
+  function startResize(event: PointerEvent<HTMLElement>, id: string, size: CardSize) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const [w, h] = span(size, cols)
+    resizeStart.current = { x: event.clientX, y: event.clientY, w, h }
+    setSelected(id)
+    setResizing({ id, size })
+  }
+
+  function moveResize(event: PointerEvent<HTMLElement>, sizes: readonly CardSize[]) {
+    const start = resizeStart.current
+    if (!start || !resizing) return
+    const column = (width - GAP * (cols - 1)) / cols + GAP
+    const w = Math.round(start.w + (event.clientX - start.x) / column)
+    const h = Math.round(start.h + (event.clientY - start.y) / (ROW + GAP))
+    const size = nearestSize(sizes, Math.min(Math.max(w, 1), cols), Math.max(h, 1))
+    if (size === resizing.size) return
+    const { id } = resizing
+    setResizing({ id, size })
+    relayout((current) => resizeItem(current, id, size, cols))
+  }
+
+  function endResize() {
+    resizeStart.current = null
+    setResizing(null)
   }
 
   return (
@@ -523,24 +504,10 @@ function BoardView({
                 threshold: 4,
                 cancel: '[data-board-toolbar], .board-resize-handle',
               }}
-              resizeConfig={{
-                enabled: editing && movable,
-                handles: RESIZE_HANDLES,
-                handleComponent: resizeHandle,
-              }}
-              onDragStart={(_layout, old) => {
-                if (!old) return
-                setSelected(old.i)
-                setActive({ id: old.i })
-              }}
+              resizeConfig={RESIZE_OFF}
+              // Nothing re-renders while a card is dragged (the toolbar hides by CSS); the board
+              // takes the new layout on drop.
               onDragStop={dropped}
-              onResizeStart={(_layout, old) => {
-                if (!old) return
-                setSelected(old.i)
-                setActive({ id: old.i, size: sizeOf(old.w, old.h) })
-              }}
-              onResize={resizing}
-              onResizeStop={dropped}
             >
               {[...cards]
                 .sort((a, b) => readingOrder(position.get(a.id) ?? a, position.get(b.id) ?? b))
@@ -549,12 +516,12 @@ function BoardView({
                   if (!contribution) return null
                   const at = position.get(card.id) ?? card
                   const [w] = span(at.size, cols)
+                  const sizing = resizing?.id === card.id ? resizing.size : undefined
                   return (
                     <div
                       key={card.id}
                       className={cn(selected === card.id && 'z-20')}
-                      // Which resize corner `board.css` shows (see RESIZE_HANDLES).
-                      data-resize-corner={growsLeft(at, contribution.sizes) ? 'sw' : 'se'}
+                      data-resizing={sizing ? '' : undefined}
                     >
                       <CardFrame
                         scope={scope}
@@ -563,10 +530,10 @@ function BoardView({
                         editing={editing}
                         movable={movable}
                         selected={editing && selected === card.id}
-                        toolbarHidden={active?.id === card.id}
+                        toolbarHidden={sizing !== undefined}
                         toolbarBelow={at.y === 0}
                         toolbarStart={at.x + w / 2 < cols / 2}
-                        resizingTo={active?.id === card.id ? active.size : undefined}
+                        resizingTo={sizing}
                         onSelect={(on) => setSelected(on ? card.id : null)}
                         onMove={(dx, dy) =>
                           relayout((current) =>
@@ -588,6 +555,16 @@ function BoardView({
                           )
                         }
                       />
+                      {editing && movable && contribution.sizes.length > 1 ? (
+                        <span
+                          aria-hidden
+                          className="board-resize-handle"
+                          onPointerDown={(event) => startResize(event, card.id, card.size)}
+                          onPointerMove={(event) => moveResize(event, contribution.sizes)}
+                          onPointerUp={endResize}
+                          onPointerCancel={endResize}
+                        />
+                      ) : null}
                     </div>
                   )
                 })}

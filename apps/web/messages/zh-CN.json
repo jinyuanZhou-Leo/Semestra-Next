@@ -1263,6 +1263,8 @@
   "board_card_settings_invalid": "有些值不符合要求。",
   "board_card_settings_short": "设置",
   "board_card_remove_short": "移除",
+  "board_card_remove_title": "移除“{card}”？",
+  "board_card_remove_description": "点“完成”保存布局后，这张卡片和里面的内容会被删除。",
   "board_card_keyboard": "按回车选中，方向键移动，Esc 取消选中。",
   "board_card_keyboard_narrow": "按回车选中，Esc 取消选中。",
   "board_card_selected": "已选中。按 Tab 进入尺寸、设置和移除，按 Esc 取消选中。",

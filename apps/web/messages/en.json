@@ -1263,6 +1263,8 @@
   "board_card_settings_invalid": "Some values aren't valid.",
   "board_card_settings_short": "Settings",
   "board_card_remove_short": "Remove",
+  "board_card_remove_title": "Remove {card}?",
+  "board_card_remove_description": "The card and what it holds are deleted when you save the layout with Done.",
   "board_card_keyboard": "Press Enter to select, arrow keys to move, Escape to deselect.",
   "board_card_keyboard_narrow": "Press Enter to select, Escape to deselect.",
   "board_card_selected": "Selected. Press Tab for size, settings and remove, Escape to deselect.",

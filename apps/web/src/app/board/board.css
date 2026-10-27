@@ -1,4 +1,4 @@
-/* react-grid-layout's placeholder and resize corner, drawn with the theme tokens. */
+/* react-grid-layout's placeholder and the corner a card is resized by, drawn with the theme tokens. */
 .react-grid-item.react-grid-placeholder {
   border: 2px dashed color-mix(in oklab, var(--primary) 50%, transparent);
   border-radius: var(--radius-2xl);
@@ -6,51 +6,48 @@
   opacity: 1;
 }
 
-.react-grid-item > .board-resize-handle {
+.board-resize-handle {
+  position: absolute;
   z-index: 10;
-  right: 2px;
-  bottom: 2px;
-  width: 22px;
-  height: 22px;
-  border-radius: calc(var(--radius) * 0.6);
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+  border-bottom-right-radius: var(--radius-2xl);
   cursor: nwse-resize;
+  touch-action: none;
   opacity: 0;
   transition: opacity 150ms;
 }
 
-.react-grid-item > .board-resize-handle::after {
-  right: 6px;
-  bottom: 6px;
-  width: 8px;
-  height: 8px;
+/* An arc that follows the card's rounded corner, 5px inside it. */
+.board-resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 14px;
+  height: 14px;
   border-right: 2px solid var(--muted-foreground);
   border-bottom: 2px solid var(--muted-foreground);
-  border-bottom-right-radius: 2px;
-}
-
-/* Cards against the right edge grow to the left, from the bottom-left corner; the others from
-   the bottom-right one. Every card has both (see Board.tsx). */
-.react-grid-item[data-resize-corner='se'] > .react-resizable-handle-sw,
-.react-grid-item[data-resize-corner='sw'] > .react-resizable-handle-se {
-  display: none;
-}
-
-.react-grid-item > .board-resize-handle.react-resizable-handle-sw {
-  right: auto;
-  left: 2px;
-  cursor: nesw-resize;
-  /* react-grid-layout turns this corner a quarter so the mark points down-left. */
+  border-bottom-right-radius: calc(var(--radius-2xl) - 5px);
 }
 
 .react-grid-item:hover > .board-resize-handle,
-.react-grid-item.resizing > .board-resize-handle,
+.react-grid-item[data-resizing] > .board-resize-handle,
 .react-grid-item:has([data-selected]) > .board-resize-handle {
   opacity: 1;
 }
 
 .react-grid-item:has([data-selected]) > .board-resize-handle::after,
-.react-grid-item.resizing > .board-resize-handle::after {
+.react-grid-item[data-resizing] > .board-resize-handle::after {
   border-color: var(--primary);
+}
+
+/* The toolbar and the corner stay out of the way while a card is dragged. */
+.react-draggable-dragging [data-board-toolbar],
+.react-draggable-dragging > .board-resize-handle {
+  visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -58,9 +55,4 @@
   .react-grid-layout {
     transition: none;
   }
-}
-
-/* The card being resized stays above its snapped placeholder. */
-.react-grid-item.resizing {
-  z-index: 3;
 }

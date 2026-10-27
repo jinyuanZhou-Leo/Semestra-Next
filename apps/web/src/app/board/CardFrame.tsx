@@ -1,5 +1,6 @@
 import { GripVertical, Settings2, Trash2 } from 'lucide-react'
 import { type KeyboardEvent, useId, useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
@@ -76,6 +77,7 @@ export function CardFrame({
   const hintId = useId()
   const frame = useRef<HTMLElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const { save } = useCardSettings<Record<string, unknown>>(card.id)
   const settings = parseCardSettings(contribution, card.settings)
   const Body = contribution.component
@@ -130,10 +132,9 @@ export function CardFrame({
         onKeyDown={editing ? onKeyDown : undefined}
         className={cn(
           'group/board-card relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10 outline-none',
-          editing &&
-            'animate-jiggle select-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:animate-none',
+          editing && 'select-none focus-visible:ring-2 focus-visible:ring-ring',
           editing && movable && 'cursor-grab active:cursor-grabbing',
-          selected && 'animate-none shadow-lg ring-2 ring-primary',
+          selected && 'shadow-lg ring-2 ring-primary',
         )}
       >
         <header className="flex h-9 shrink-0 items-center gap-1.5 px-4 pt-3 pb-1">
@@ -229,12 +230,23 @@ export function CardFrame({
               {m.board_card_settings_short()}
             </Button>
           ) : null}
-          <Button variant="destructive" size="sm" onClick={onRemove}>
+          <Button variant="destructive" size="sm" onClick={() => setRemoveOpen(true)}>
             <Trash2 aria-hidden />
             {m.board_card_remove_short()}
           </Button>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title={m.board_card_remove_title({ card: title })}
+        description={m.board_card_remove_description()}
+        confirmLabel={m.board_card_remove_short()}
+        onConfirm={() => {
+          setRemoveOpen(false)
+          onRemove()
+        }}
+      />
       {contribution.settings ? (
         <CardSettingsDialog
           card={contribution}
