@@ -824,6 +824,7 @@ async def usage_breakdown(ctx: Ctx) -> FilesUsageBreakdown:
                 CourseUsage(
                     course_id=course.id,
                     program_id=program_id,
+                    program_name=program.name,
                     name=course.alias or course.code or course.title,
                     color=course.resolved_color,
                     files=files,

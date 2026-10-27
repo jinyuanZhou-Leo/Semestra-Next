@@ -68,6 +68,8 @@ class Table:
     transform: Transform | None = None
     # Adds computed fields to an exported row (they reach `transform` on import).
     on_export: Callable[[Any, dict[str, Any]], dict[str, Any]] | None = None
+    # Most rows one user may have, when the module caps it; shown with the data overview's count.
+    limit: int | None = None
 
 
 def remap_value(value: Any, id_map: Mapping[str, str]) -> Any:
@@ -279,5 +281,6 @@ def table_adapter(
         purge=adapter.purge,
         purge_content=adapter.purge_content,
         tables=tuple(t.model.__tablename__ for t in tables),
+        limits={t.model.__tablename__: t.limit for t in tables if t.limit is not None},
     )
     return adapter

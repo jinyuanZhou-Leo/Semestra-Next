@@ -130,8 +130,9 @@ async def test_every_user_table_has_an_adapter_and_purge_empties_it(
         assert await _count(app, table, user.id) > 0, f"the dataset leaves {table.name} empty"
     # The data overview counts every covered table, and only the user's own rows.
     async with system_ctx(app.state, user.id) as ctx:
-        counts = (await service.data_counts(ctx)).tables
-    assert counts == {t.name: await _count(app, t, user.id) for t in tables}
+        counts = await service.data_counts(ctx)
+    assert counts.tables == {t.name: await _count(app, t, user.id) for t in tables}
+    assert counts.limits == {"agent_memories": 60}
 
     async with system_ctx(app.state, user.id) as ctx:
         for adapter in reversed(registry.adapters()):

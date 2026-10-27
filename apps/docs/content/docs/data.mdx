@@ -4,8 +4,9 @@ description: Back up your data, restore it on this or another instance, and dele
 icon: DatabaseBackup
 ---
 
-Everything here is in **Settings → Data**. These actions are available in the app and over HTTP
-with a session or access token, but not to Sem or MCP clients, and API tokens cannot call them.
+Everything here is in **Settings → Data**. Export, restore and account deletion are available in
+the app and over HTTP with a session or access token, but not to Sem or MCP clients, and API
+tokens cannot call them.
 
 ## Storage and data
 
@@ -25,7 +26,12 @@ To free up space, delete course files you no longer need, or Sem chats with atta
 | ----------------------------- | ----------------------------------------------------- |
 | `GET /storage/usage`          | Bytes used, the quota, and the bytes of each module   |
 | `GET /files-usage/breakdown`  | Course files by course and by type                    |
-| `GET /me/data-counts`         | How many rows you have in each table a backup covers  |
+| `GET /me/data-counts`         | How many rows you have in each table of your data     |
+
+`GET /me/data-counts` counts every table that holds your data and is removed with your account,
+including what a backup leaves out (Sem chats, attachments, import drafts), and returns the caps
+some tables have (Sem memories). `GET /storage/usage` is also open to Sem, MCP clients and API
+tokens; the other two are not.
 
 ## Export
 

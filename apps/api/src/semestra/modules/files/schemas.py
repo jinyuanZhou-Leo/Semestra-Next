@@ -305,6 +305,7 @@ FileType = Literal["pdf", "image", "office", "text", "other"]
 class CourseUsage(BaseModel):
     course_id: Id
     program_id: Id
+    program_name: str
     name: str = Field(description="The course's alias, else its code, else its title")
     color: str = Field(description="The course's resolved color (see Course.resolved_color)")
     files: int

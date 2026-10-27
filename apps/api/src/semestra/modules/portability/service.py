@@ -11,7 +11,7 @@ from typing import Any
 import anyio
 import structlog
 from fastapi import UploadFile
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, literal, select, union_all
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.datastructures import State
 
@@ -648,18 +648,20 @@ async def discard_import(ctx: Ctx, archive_id: str) -> None:
 
 
 async def data_counts(ctx: Ctx) -> DataCounts:
-    """How many rows the user has in every table the adapters cover (M13 §7, data overview)."""
-    tables: dict[str, int] = {}
-    for adapter in adapters():
-        for name in adapter.tables:
-            table = Base.metadata.tables[name]
-            tables[name] = (
-                await ctx.db.scalar(
-                    select(func.count()).select_from(table).where(table.c.user_id == ctx.user_id)
-                )
-                or 0
-            )
-    return DataCounts(tables=tables)
+    """How many rows the user has in every table the adapters cover, exported or not (the user
+    data purged with the account), in one query; for the data overview (M13 §7)."""
+    every = adapters()
+    parts = [
+        select(literal(name).label("name"), func.count().label("n"))
+        .select_from(table)
+        .where(table.c.user_id == ctx.user_id)
+        for name, table in ((n, Base.metadata.tables[n]) for a in every for n in a.tables)
+    ]
+    rows = (await ctx.db.execute(union_all(*parts))).all() if parts else []
+    return DataCounts(
+        tables={name: n for name, n in rows},
+        limits={name: cap for a in every for name, cap in a.limits.items()},
+    )
 
 
 # --- account deletion -----------------------------------------------------------------------

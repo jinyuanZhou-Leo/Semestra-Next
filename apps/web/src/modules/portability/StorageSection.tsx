@@ -1,12 +1,11 @@
 import type { DataCounts, FilesUsageBreakdown, StorageUsage } from '@semestra/api-client'
 import {
-  agentMemoryListOptions,
   coreStorageGetOptions,
   filesUsageBreakdownOptions,
   portabilityDataCountGetOptions,
 } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
+import { createColumnHelper } from '@tanstack/react-table'
 import {
   Bot,
   CalendarCheck,
@@ -18,7 +17,13 @@ import {
 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { Label, Pie, PieChart } from 'recharts'
-import { SettingsBlock, SettingsGroup, SettingsNote } from '@/app/settings'
+import {
+  SettingsBlock,
+  SettingsGroup,
+  SettingsNote,
+  SettingsTable,
+  settingsTableFeatures,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatBytes, formatCount, formatPercent } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
@@ -28,7 +33,6 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
 import { Progress } from '@/ui/progress'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 
 // Account settings → Data → storage against the quota and how much data the account holds
@@ -133,9 +137,12 @@ function StorageRing({ usage }: { usage: StorageUsage }) {
   const config: ChartConfig = Object.fromEntries(
     parts.map((p) => [p.key, { label: p.label, color: p.fill }]),
   )
-  const center = limited
-    ? formatPercent(usage.used_bytes / usage.quota_bytes, 0)
-    : formatBytes(usage.used_bytes)
+  const ratio = limited ? usage.used_bytes / usage.quota_bytes : 0
+  const center = !limited
+    ? formatBytes(usage.used_bytes)
+    : ratio > 0 && ratio < 0.01
+      ? `<${formatPercent(0.01, 0)}`
+      : formatPercent(ratio, 0)
   const used = formatBytes(usage.used_bytes)
   return (
     <figure>
@@ -227,6 +234,8 @@ const TYPE_COLORS: Record<keyof typeof TYPE_TITLES, string> = {
 type UsageRow = {
   key: string
   name: string
+  /** The course's Program, when the account has more than one. */
+  detail?: string
   color: string
   files: number | null
   bytes: number
@@ -244,10 +253,12 @@ function usageRows(
   if (grouping === 'course') {
     const courses = breakdown.by_course
     const shown = courses.length > SHOWN_COURSES + 1 ? courses.slice(0, SHOWN_COURSES) : courses
+    const programs = new Set(courses.map((c) => c.program_id)).size
     for (const c of shown) {
       rows.push({
         key: c.course_id,
         name: c.name,
+        detail: programs > 1 ? c.program_name : undefined,
         color: subjectColor(c.color),
         files: c.files,
         bytes: c.bytes,
@@ -294,8 +305,7 @@ function usageRows(
   return rows
 }
 
-const features = tableFeatures({})
-const column = createColumnHelper<typeof features, UsageRow>()
+const column = createColumnHelper<typeof settingsTableFeatures, UsageRow>()
 
 /** The table's grouping, for the first column's header; the columns live outside the table. */
 const GroupingContext = createContext<Grouping>('course')
@@ -306,14 +316,19 @@ function NameHeader() {
     : m.portability_storage_col_type()
 }
 
-const columns = column.columns([
+const columns = [
   column.accessor((r) => r.name, {
     id: 'name',
     header: NameHeader,
     cell: ({ row }) => (
-      <div className="flex min-w-0 items-center gap-2 font-medium">
+      <div className="flex min-w-0 items-center gap-2">
         <Swatch color={row.original.color} />
-        <span className="truncate">{row.original.name}</span>
+        <div className="min-w-0">
+          <div className="truncate font-medium">{row.original.name}</div>
+          {row.original.detail ? (
+            <div className="truncate text-xs text-muted-foreground">{row.original.detail}</div>
+          ) : null}
+        </div>
       </div>
     ),
   }),
@@ -338,51 +353,25 @@ const columns = column.columns([
     header: () => m.portability_storage_col_size(),
     cell: ({ row }) => formatBytes(row.original.bytes),
   }),
-])
+]
 
-const CELL_CLASS: Record<string, string> = {
-  name: 'w-full max-w-0 pl-4',
+const COLUMN_CLASS: Record<string, string> = {
+  name: 'w-full max-w-0',
   files: 'text-right tabular-nums',
   share: 'w-40 min-w-28',
-  bytes: 'pr-4 text-right whitespace-nowrap tabular-nums',
+  bytes: 'text-right whitespace-nowrap tabular-nums',
 }
 
-function UsageTable({ rows, grouping }: { rows: UsageRow[]; grouping: Grouping }) {
-  const table = useTable({ features, columns, data: rows, getRowId: (row) => row.key })
-  return (
-    <GroupingContext value={grouping}>
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id}>
-              {group.headers.map((h) => (
-                <TableHead key={h.id} className={CELL_CLASS[h.column.id]}>
-                  <table.FlexRender header={h} />
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getAllCells().map((cell) => (
-                <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
-                  <table.FlexRender cell={cell} />
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </GroupingContext>
-  )
-}
-
-function UsageDetails({ usage }: { usage: StorageUsage }) {
+function UsageDetails({
+  usage,
+  breakdown,
+  counts,
+}: {
+  usage: StorageUsage
+  breakdown: UseQueryResult<FilesUsageBreakdown, unknown>
+  counts: DataCounts | undefined
+}) {
   const [grouping, setGrouping] = useState<Grouping>('course')
-  const breakdown = useQuery({ ...filesUsageBreakdownOptions(), ...FRESH })
-  const counts = useQuery({ ...portabilityDataCountGetOptions(), ...FRESH })
   return (
     <SettingsBlock
       title={m.portability_storage_details()}
@@ -418,12 +407,15 @@ function UsageDetails({ usage }: { usage: StorageUsage }) {
       ) : (
         <AsyncBoundary query={breakdown}>
           {(data) => (
-            <div className="overflow-hidden rounded-2xl border">
-              <UsageTable
-                grouping={grouping}
-                rows={usageRows(grouping, usage, data, counts.data)}
+            <GroupingContext value={grouping}>
+              <SettingsTable
+                label={m.portability_storage_details()}
+                data={usageRows(grouping, usage, data, counts)}
+                columns={columns}
+                getRowId={(row) => row.key}
+                columnClassName={COLUMN_CLASS}
               />
-            </div>
+            </GroupingContext>
           )}
         </AsyncBoundary>
       )}
@@ -494,9 +486,19 @@ function countLine(counts: DataCounts, tables: OverviewRow['tables']): string[] 
   )
 }
 
-function DataOverview() {
-  const counts = useQuery({ ...portabilityDataCountGetOptions(), ...FRESH })
-  const memories = useQuery({ ...agentMemoryListOptions(), ...FRESH })
+/** Sem memories against their cap, when the counts carry one. */
+function memoryUse(counts: DataCounts): { used: number; limit: number; text: string } | null {
+  const limit = counts.limits.agent_memories
+  if (!limit) return null
+  const used = counts.tables.agent_memories ?? 0
+  const text = m.portability_storage_memories({
+    count: formatCount(used),
+    limit: formatCount(limit),
+  })
+  return { used, limit, text }
+}
+
+function DataOverview({ counts }: { counts: UseQueryResult<DataCounts, unknown> }) {
   return (
     <SettingsBlock
       title={m.portability_storage_overview()}
@@ -508,15 +510,8 @@ function DataOverview() {
             {OVERVIEW.map((row) => {
               const Icon = row.icon
               const parts = countLine(data, row.tables)
-              const memory = row.id === 'sem' ? memories.data : undefined
-              if (memory) {
-                parts.push(
-                  m.portability_storage_memories({
-                    count: formatCount(memory.items.length),
-                    limit: formatCount(memory.limit),
-                  }),
-                )
-              }
+              const memory = row.id === 'sem' ? memoryUse(data) : null
+              if (memory) parts.push(memory.text)
               return (
                 <Item key={row.id}>
                   <ItemMedia variant="icon">
@@ -529,11 +524,8 @@ function DataOverview() {
                   {memory ? (
                     <ItemActions className="w-32">
                       <Progress
-                        value={(memory.items.length / memory.limit) * 100}
-                        aria-label={m.portability_storage_memories({
-                          count: formatCount(memory.items.length),
-                          limit: formatCount(memory.limit),
-                        })}
+                        value={(memory.used / memory.limit) * 100}
+                        aria-label={memory.text}
                         className="h-1.5 w-full"
                       />
                     </ItemActions>
@@ -549,16 +541,21 @@ function DataOverview() {
 }
 
 export function StorageSection() {
+  // All three start together; the details wait for the usage they are shares of.
   const usage = useQuery({ ...coreStorageGetOptions(), ...FRESH })
+  const breakdown = useQuery({ ...filesUsageBreakdownOptions(), ...FRESH })
+  const counts = useQuery({ ...portabilityDataCountGetOptions(), ...FRESH })
   return (
-    <AsyncBoundary query={usage}>
-      {(data) => (
-        <div className="space-y-6">
-          <StorageSummary usage={data} />
-          <UsageDetails usage={data} />
-          <DataOverview />
-        </div>
-      )}
-    </AsyncBoundary>
+    <div className="space-y-6">
+      <AsyncBoundary query={usage}>
+        {(data) => (
+          <div className="space-y-6">
+            <StorageSummary usage={data} />
+            <UsageDetails usage={data} breakdown={breakdown} counts={counts.data} />
+          </div>
+        )}
+      </AsyncBoundary>
+      <DataOverview counts={counts} />
+    </div>
   )
 }

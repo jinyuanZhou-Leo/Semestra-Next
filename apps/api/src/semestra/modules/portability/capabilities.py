@@ -28,7 +28,9 @@ class Discarded(BaseModel):
 @capability(
     name="portability.data_count.get",
     summary="Count the user's data: rows per table, for the data settings overview.",
-    description="Only tables a backup covers. Not for agents.",
+    description="""Every table the portability adapters cover (the user data purged with the
+account, whether or not a backup exports it), and the caps some modules put on a table. Not for
+agents.""",
     effect="read",
     http=Http("GET", "/me/data-counts"),
     expose=HTTP_ONLY,

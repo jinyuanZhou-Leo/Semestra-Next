@@ -3080,6 +3080,10 @@ export type CourseUsage = {
      */
     program_id: string;
     /**
+     * Program Name
+     */
+    program_name: string;
+    /**
      * Name
      *
      * The course's alias, else its code, else its title
@@ -3144,9 +3148,17 @@ export type DataCounts = {
     /**
      * Tables
      *
-     * Rows the user has in each table that a backup covers, by table name
+     * Rows the user has in each table the portability adapters cover (the user data purged with the account, exported or not), by table name
      */
     tables: {
+        [key: string]: number;
+    };
+    /**
+     * Limits
+     *
+     * Most rows a user may have, for the tables a module caps, by table name
+     */
+    limits: {
         [key: string]: number;
     };
 };

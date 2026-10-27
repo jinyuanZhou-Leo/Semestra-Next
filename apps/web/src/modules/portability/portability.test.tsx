@@ -96,8 +96,7 @@ function mount(group: 'data' = 'data', signOut: AuthState['signOut'] = async () 
     http.get(`${API}/files-usage/breakdown`, () =>
       HttpResponse.json({ by_course: [], by_type: [] }),
     ),
-    http.get(`${API}/me/data-counts`, () => HttpResponse.json({ tables: {} })),
-    http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: [], limit: 60 })),
+    http.get(`${API}/me/data-counts`, () => HttpResponse.json({ tables: {}, limits: {} })),
   )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
@@ -127,6 +126,7 @@ test('shows the quota used and what takes it; without a quota, only the bytes us
           {
             course_id: 'c1',
             program_id: 'p1',
+            program_name: 'Math',
             name: 'MAT237',
             color: 'subject-1',
             files: 4,
@@ -137,7 +137,10 @@ test('shows the quota used and what takes it; without a quota, only the bytes us
       }),
     ),
     http.get(`${API}/me/data-counts`, () =>
-      HttpResponse.json({ tables: { agent_attachments: 2, academics_courses: 7 } }),
+      HttpResponse.json({
+        tables: { agent_attachments: 2, academics_courses: 7, agent_memories: 3 },
+        limits: { agent_memories: 60 },
+      }),
     ),
   )
 
@@ -150,6 +153,7 @@ test('shows the quota used and what takes it; without a quota, only the bytes us
   await userEvent.click(screen.getByRole('button', { name: 'By type' }))
   expect(within(table).getAllByRole('row')[1]).toHaveTextContent(/^PDF4/)
   expect(await screen.findByText(/Courses 7/)).toBeInTheDocument()
+  expect(screen.getByText(/Memories 3 \/ 60/)).toBeInTheDocument()
 
   view.unmount()
   mount()

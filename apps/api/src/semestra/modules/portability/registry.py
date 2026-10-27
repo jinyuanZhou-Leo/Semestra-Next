@@ -100,6 +100,8 @@ class Adapter:
     purge_content: PurgeContentFn
     tables: tuple[str, ...]
     prepare: PrepareFn | None = None
+    # Row caps by table name (e.g. Sem memories), for the data overview.
+    limits: Mapping[str, int] = field(default_factory=lambda: {})
 
 
 _adapters: dict[str, Adapter] = {}
@@ -117,6 +119,7 @@ def register_portability(
     purge_content: PurgeContentFn | None = None,
     tables: tuple[str, ...] = (),
     prepare: PrepareFn | None = None,
+    limits: Mapping[str, int] | None = None,
 ) -> None:
     if module in _adapters:
         raise ValueError(f"duplicate portability adapter {module!r}")
@@ -136,6 +139,7 @@ def register_portability(
         purge_content=purge_content or purge_all,
         tables=tuple(tables),
         prepare=prepare,
+        limits=dict(limits or {}),
     )
 
 
