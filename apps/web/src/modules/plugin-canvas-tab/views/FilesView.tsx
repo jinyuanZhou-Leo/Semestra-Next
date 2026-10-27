@@ -24,8 +24,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Button } from '@/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary } from '../CanvasBoundary'
@@ -88,6 +88,8 @@ const columns = column.columns([
   column.accessor((f) => f.updated_at, {
     id: 'updated',
     header: () => m.canvas_tab_column_updated(),
+    // The most recent first on the first click; dates are strings, which default to ascending.
+    sortDescFirst: true,
     sortFn: (a, b) => compareText(a.original.updated_at ?? '', b.original.updated_at ?? ''),
     cell: UpdatedCell,
   }),
