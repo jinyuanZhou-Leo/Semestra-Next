@@ -9,7 +9,8 @@
       /* The boot screen: shown from the first paint until the first page has rendered (main.tsx
          removes it). theme-init.js picks the variant in data-boot: the shell's frame on Program
          pages (`shell`, or `rail` with the sidebar collapsed), the brand mark elsewhere. Colors
-         are the app's tokens: the stylesheet Vite links in the head blocks the first paint. */
+         are the app's tokens: in a build the stylesheet Vite links in the head blocks the first
+         paint. Under `pnpm dev` styles are injected by JS, so the tokens are missing at first. */
       #boot { position: fixed; inset: 0; z-index: 50; display: flex; background: var(--background); }
       #boot .shell { display: none; flex: 1; }
       :root[data-boot='shell'] #boot .shell, :root[data-boot='rail'] #boot .shell { display: flex; }
@@ -29,6 +30,7 @@
       #boot .grow { flex: 1; }
       #boot .rule { border-top: 1px solid var(--sidebar-border); margin-bottom: 8px; }
       #boot .toolbar { height: 64px; display: flex; align-items: center; padding: 0 20px; }
+      :root[data-boot='rail'] #boot .toolbar { height: 48px; }
       #boot .toolbar .bar { width: 16px; height: 16px; border-radius: 4px; background: color-mix(in oklch, var(--foreground) 7%, transparent); }
       #boot .mark { margin: auto; display: flex; align-items: center; gap: 10px; color: var(--foreground); font: 600 22px/1 'Figtree Variable', system-ui, sans-serif; }
       #boot .mark svg { width: 30px; height: 30px; color: var(--primary); }
