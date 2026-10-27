@@ -9,7 +9,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { DetailHeader, OpenInCanvas, useInternalLinks } from './common'
+import { DetailHeader, OpenInCanvasIcon, useFileImages, useInternalLinks } from './common'
 
 /** The course's pages; `selected` (a page ref) opens one in place (M16 §4). */
 export function PagesView({ selected }: { selected?: string }) {
@@ -78,6 +78,7 @@ function PageList() {
 export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: boolean }) {
   const { courseId, go } = useCanvasPage()
   const onLink = useInternalLinks()
+  const images = useFileImages()
   const page = useQuery({
     ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef } }),
     placeholderData: keepPreviousData,
@@ -85,7 +86,7 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
   return (
     <CanvasBoundary query={page}>
       {(p) => (
-        <article className="space-y-4">
+        <article className="flex flex-1 flex-col gap-4">
           {withBack ? (
             <DetailHeader
               title={p.title}
@@ -100,7 +101,7 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
           ) : (
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-heading text-lg font-semibold">{p.title}</h2>
-              {p.web_url ? <OpenInCanvas href={p.web_url} /> : null}
+              {p.web_url ? <OpenInCanvasIcon href={p.web_url} /> : null}
             </div>
           )}
           {p.locked ? (
@@ -116,7 +117,7 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
               </EmptyHeader>
             </Empty>
           ) : p.html ? (
-            <SafeHtml html={p.html} onInternalLink={onLink} />
+            <SafeHtml html={p.html} onInternalLink={onLink} imageSrc={images} />
           ) : (
             <p className="text-sm text-muted-foreground">{m.canvas_tab_page_blank()}</p>
           )}

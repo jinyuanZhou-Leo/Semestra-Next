@@ -97,6 +97,9 @@ export function AiAction({
   // Screen readers get the real value; the smoothed one is only visual.
   const statusText = running && hasProgress ? `${text}, ${Math.round(progress)}%` : text
   const clickable = !disabled && (shown === 'idle' || shown === 'error') && onClick != null
+  // Running and success are not clickable either but keep full colour; a caller's `disabled`
+  // on a ready action looks disabled.
+  const solid = !disabled || running || shown === 'success'
   const fill = shown === 'success' ? 100 : running ? displayed : 0
   const showCancel = running && onCancel != null
   // Re-key by the text without numbers so counts like 3/12 don't re-run the enter animation.
@@ -120,7 +123,10 @@ export function AiAction({
           variant="ghost"
           disabled={!clickable}
           onClick={onClick}
-          className="h-10 w-full justify-start rounded-none px-3 disabled:opacity-100"
+          className={cn(
+            'h-10 w-full justify-start rounded-none px-3',
+            solid && 'disabled:opacity-100',
+          )}
           aria-label={statusText}
         >
           <span
@@ -161,7 +167,8 @@ export function AiAction({
         disabled={!clickable}
         onClick={onClick}
         className={cn(
-          'h-10 w-48 justify-start gap-2.5 px-2.5 disabled:opacity-100',
+          'h-10 w-48 justify-start gap-2.5 px-2.5',
+          solid && 'disabled:opacity-100',
           running && 'border-primary/35 bg-primary/[0.035]',
           shown === 'success' && 'border-emerald-600/25 text-emerald-700 dark:text-emerald-400',
           shown === 'error' &&
@@ -195,7 +202,8 @@ export function AiAction({
         disabled={!clickable}
         onClick={onClick}
         className={cn(
-          'relative h-10 w-auto justify-center overflow-hidden px-3 transition-[background-color,border-color,color,box-shadow] duration-300 disabled:opacity-100 motion-reduce:transition-none',
+          'relative h-10 w-auto justify-center overflow-hidden px-3 transition-[background-color,border-color,color,box-shadow] duration-300 motion-reduce:transition-none',
+          solid && 'disabled:opacity-100',
           EASE,
           running && 'bg-primary/90',
           shown === 'success' &&

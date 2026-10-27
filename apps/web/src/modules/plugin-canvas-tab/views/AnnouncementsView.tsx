@@ -9,12 +9,21 @@ import { Megaphone } from 'lucide-react'
 import { useEffect } from 'react'
 import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { DetailHeader, useInternalLinks } from './common'
+import { DetailHeader, useFileImages, useInternalLinks } from './common'
+
+/** The first words of an announcement, as plain text, for its row in the list. */
+function excerpt(html: string): string {
+  // Blocks and line breaks end with a space, or their words run together.
+  const spaced = html.replace(/<(br|\/p|\/div|\/li|\/h\d)\b[^>]*>/gi, '$& ')
+  const text = new DOMParser().parseFromString(spaced, 'text/html').body.textContent ?? ''
+  return text.replace(/\s+/g, ' ').trim()
+}
 
 /** The account setting `lms.allow_writes`: may Semestra change things on the platform (M09). */
 function useWritesAllowed(): boolean {
@@ -57,6 +66,7 @@ function useMarkRead(courseId: string, id: string | undefined, unread: boolean) 
 export function AnnouncementsView({ selected }: { selected?: string }) {
   const { courseId, go } = useCanvasPage()
   const onLink = useInternalLinks()
+  const images = useFileImages()
   const list = useQuery({
     ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -85,14 +95,16 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
             .filter(Boolean)
             .join(' · ')
           return (
-            <article className="space-y-4">
+            <article className="flex flex-1 flex-col gap-4">
               <DetailHeader
                 title={open.title}
                 meta={meta}
                 webUrl={open.web_url}
                 onBack={() => go({ tab: 'announcements' })}
               />
-              {open.html ? <SafeHtml html={open.html} onInternalLink={onLink} /> : null}
+              {open.html ? (
+                <SafeHtml html={open.html} onInternalLink={onLink} imageSrc={images} />
+              ) : null}
             </article>
           )
         }
@@ -111,16 +123,21 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                   />
                 }
               >
-                <ItemContent>
-                  <ItemTitle className="line-clamp-1">
-                    {a.unread ? (
-                      <span className="size-2 shrink-0 rounded-full bg-primary">
-                        <span className="sr-only">{m.canvas_tab_unread()}</span>
-                      </span>
-                    ) : null}{' '}
+                <span className="flex h-5 w-2 shrink-0 items-center self-start">
+                  {a.unread ? (
+                    <span className="size-2 rounded-full bg-primary">
+                      <span className="sr-only">{m.canvas_tab_unread()}</span>
+                    </span>
+                  ) : null}
+                </span>
+                <ItemContent className="min-w-0">
+                  <ItemTitle className={cn('line-clamp-1', a.unread && 'font-semibold')}>
                     {a.title}
                   </ItemTitle>
-                  <ItemDescription>
+                  {a.html ? (
+                    <p className="line-clamp-1 text-sm text-muted-foreground">{excerpt(a.html)}</p>
+                  ) : null}
+                  <ItemDescription className="text-xs">
                     {[a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
                       .filter(Boolean)
                       .join(' · ')}

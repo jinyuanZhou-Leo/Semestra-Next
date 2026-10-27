@@ -1,8 +1,8 @@
-import { lmsFileSaveToCourse } from '@semestra/api-client'
+import { type FileMeta, lmsFileContent, lmsFileSaveToCourse } from '@semestra/api-client'
 import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
@@ -18,10 +18,11 @@ import {
   DialogTitle,
 } from '@/ui/dialog'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { fileContentUrl } from '../open-in-canvas'
+import { IconAction, LockNote } from './common'
 
 /** What the browser shows inline; the backend streams anything else as a download (M09). */
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
@@ -35,6 +36,26 @@ const AS_TEXT = new Set([
   'text/markdown',
 ])
 const AS_TEXT_NAME = /\.(docx|pptx|xlsx|csv|md)$/i
+
+/** The kind of a file as people name it ("Word document"), from its type or extension. */
+export function fileKindLabel(file: { name: string; mime_type?: string | null }): string | null {
+  const mime = file.mime_type ?? ''
+  const ext = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase() ?? ''
+  if (mime === 'application/pdf' || ext === 'pdf') return m.canvas_tab_file_kind_pdf()
+  if (/wordprocessingml|msword/.test(mime) || ext === 'docx' || ext === 'doc')
+    return m.canvas_tab_file_kind_word()
+  if (/presentationml|powerpoint/.test(mime) || ext === 'pptx' || ext === 'ppt')
+    return m.canvas_tab_file_kind_slides()
+  if (/spreadsheetml|ms-excel/.test(mime) || ext === 'xlsx' || ext === 'xls')
+    return m.canvas_tab_file_kind_sheet()
+  if (mime.startsWith('image/')) return m.canvas_tab_file_kind_image()
+  if (mime.startsWith('video/')) return m.canvas_tab_file_kind_video()
+  if (mime.startsWith('audio/')) return m.canvas_tab_file_kind_audio()
+  if (/zip|compressed|x-tar|gzip/.test(mime) || ['zip', 'gz', 'tar', '7z', 'rar'].includes(ext))
+    return m.canvas_tab_file_kind_archive()
+  if (mime === 'text/plain' || ext === 'txt') return m.canvas_tab_file_kind_text()
+  return ext ? m.canvas_tab_file_kind_other({ ext: ext.toUpperCase() }) : null
+}
 
 function previewKind(file: { name: string; mime_type?: string | null }) {
   const mime = file.mime_type ?? ''
@@ -86,6 +107,36 @@ function TextPreview({ fileId }: { fileId: string }) {
   )
 }
 
+/**
+ * An inline preview loads the file in an `<img>` or `<iframe>`, which can't tell a failed load:
+ * the proxy is asked first whether the file opens (`check`, no content), so a locked file or an
+ * unreachable Canvas shows the same message as the other reads instead of an error page.
+ */
+function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode }) {
+  const { courseId } = useCanvasPage()
+  const check = useQuery({
+    queryKey: ['canvas-tab', 'content-check', courseId, file.external_id],
+    queryFn: async ({ signal }) => {
+      await lmsFileContent({
+        path: { course_id: courseId, file_id: file.external_id },
+        query: { check: true },
+        signal,
+        throwOnError: true,
+      })
+      return true
+    },
+    enabled: !file.locked,
+    retry: false,
+    staleTime: 5 * 60_000,
+  })
+  if (file.locked) return <LockNote title={m.canvas_tab_item_locked()} />
+  return (
+    <CanvasBoundary query={check} skeleton={<Skeleton className="h-[65vh] w-full rounded-lg" />}>
+      {() => children}
+    </CanvasBoundary>
+  )
+}
+
 /** "Save to course files": the file is copied into the course's files (M07) and processed there. */
 function useSaveToCourse(fileId: string, name: string) {
   const { courseId } = useCanvasPage()
@@ -113,41 +164,34 @@ function useSaveToCourse(fileId: string, name: string) {
   return { saving, save }
 }
 
-function IconAction({
-  label,
-  children,
-  ...props
-}: { label: string; children: ReactNode } & ComponentProps<typeof Button>) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={label} {...props} />}
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 /** Preview, download and save buttons of a file in a module. */
 export function FileActions({ fileId, name }: { fileId: string; name: string }) {
   const { courseId, openFile } = useCanvasPage()
   const { saving, save } = useSaveToCourse(fileId, name)
   return (
     <div className="flex shrink-0 items-center">
-      <IconAction label={m.canvas_tab_file_preview({ name })} onClick={() => openFile(fileId)}>
+      <IconAction
+        label={m.canvas_tab_file_preview({ name })}
+        tooltip={m.canvas_tab_file_preview_short()}
+        onClick={() => openFile(fileId)}
+      >
         <Eye aria-hidden />
       </IconAction>
       <IconAction
         label={m.canvas_tab_file_download({ name })}
+        tooltip={m.canvas_tab_file_download_short()}
         nativeButton={false}
         // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
         render={<a href={fileContentUrl(courseId, fileId, true)} download={name} />}
       >
         <Download aria-hidden />
       </IconAction>
-      <IconAction label={m.canvas_tab_file_save({ name })} disabled={saving} onClick={save}>
+      <IconAction
+        label={m.canvas_tab_file_save({ name })}
+        tooltip={m.canvas_tab_file_save_short()}
+        disabled={saving}
+        onClick={save}
+      >
         <FolderInput aria-hidden />
       </IconAction>
     </div>
@@ -176,10 +220,14 @@ function PreviewBody({ fileId }: { fileId: string }) {
   const meta = useQuery(lmsFileGetOptions({ path: { course_id: courseId, file_id: fileId } }))
   const name = meta.data?.name ?? ''
   const { saving, save } = useSaveToCourse(fileId, name)
-  const mime = meta.data?.mime_type ?? ''
   const src = fileContentUrl(courseId, fileId)
   const size = meta.data?.size_bytes
-  const details = [mime, size == null ? '' : formatBytes(size)].filter(Boolean).join(' · ')
+  const details = [
+    meta.data ? fileKindLabel(meta.data) : null,
+    size == null ? null : formatBytes(size),
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <>
       <DialogHeader>
@@ -192,19 +240,27 @@ function PreviewBody({ fileId }: { fileId: string }) {
             const kind = previewKind(file)
             if (kind === 'image') {
               return (
-                <img
-                  src={src}
-                  alt={file.name}
-                  className="mx-auto max-h-[65vh] max-w-full object-contain"
-                />
+                <ContentCheck file={file}>
+                  <img
+                    src={src}
+                    alt={file.name}
+                    className="mx-auto max-h-[65vh] max-w-full object-contain"
+                  />
+                </ContentCheck>
               )
             }
             if (kind === 'frame') {
               return (
-                // The API serves it with `Content-Security-Policy: default-src 'none'`; a sandbox
-                // would stop the browser's PDF viewer.
-                // oxlint-disable-next-line react/iframe-missing-sandbox
-                <iframe src={src} title={file.name} className="h-[65vh] w-full rounded-lg border" />
+                <ContentCheck file={file}>
+                  {/* The API serves it with `Content-Security-Policy: default-src 'none'`; a
+                      sandbox would stop the browser's PDF viewer. */}
+                  {/* oxlint-disable-next-line react/iframe-missing-sandbox */}
+                  <iframe
+                    src={src}
+                    title={file.name}
+                    className="h-[65vh] w-full rounded-lg border"
+                  />
+                </ContentCheck>
               )
             }
             if (kind === 'text') return <TextPreview fileId={fileId} />

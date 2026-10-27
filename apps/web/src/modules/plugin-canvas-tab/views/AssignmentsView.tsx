@@ -7,7 +7,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
+import { ChevronDown, ChevronRight, ClipboardList, Lock } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
 import { AiAction } from '@/components/AiAction'
 import { toastError } from '@/lib/errors'
@@ -22,9 +22,11 @@ import { Badge } from '@/ui/badge'
 import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { AssignmentDetail } from './AssignmentDetail'
+import { ScoreText, SubmissionStatus } from './common'
 import { useScrollIntoView } from './scroll'
 
 const features = tableFeatures({})
@@ -34,6 +36,8 @@ type CellProps = CellContext<typeof features, AssignmentOut>
 type TableState = {
   selected: ReadonlySet<string>
   toggle: (id: string, on: boolean) => void
+  /** Read once, so "due in 3 days" doesn't change between renders. */
+  now: number
 }
 const TableContext = createContext<TableState | null>(null)
 
@@ -57,7 +61,28 @@ function SelectCell({ row }: CellProps) {
   )
 }
 
-const NameCell = ({ row }: CellProps) => <span className="font-medium">{row.original.name}</span>
+function NameCell({ row }: CellProps) {
+  const a = row.original
+  const why = a.lock_explanation || m.canvas_tab_item_locked()
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <span className="font-medium">{a.name}</span>
+      {a.locked ? (
+        <Tooltip>
+          <TooltipTrigger
+            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label={why}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Lock aria-hidden className="size-3.5 text-muted-foreground" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{why}</TooltipContent>
+        </Tooltip>
+      ) : null}
+      {a.imported_as.length > 0 ? <Badge variant="secondary">{m.lms_imported()}</Badge> : null}
+    </span>
+  )
+}
 
 const DueCell = ({ row }: CellProps) => (
   <span className="whitespace-nowrap">
@@ -65,42 +90,26 @@ const DueCell = ({ row }: CellProps) => (
   </span>
 )
 
-const PointsCell = ({ row }: CellProps) => (
-  <span className="tabular-nums">{row.original.points ?? '—'}</span>
+const ScoreCell = ({ row }: CellProps) => (
+  <ScoreText score={row.original.submission?.score} points={row.original.points} />
 )
 
-function submissionLabel(a: AssignmentOut): string {
-  const s = a.submission
-  if (!s) return '—'
-  if (s.missing) return m.canvas_tab_submission_missing()
-  if (s.state === 'graded') return m.canvas_tab_submission_graded()
-  if (s.submitted_at || s.state === 'submitted' || s.state === 'pending_review') {
-    return s.late ? m.canvas_tab_submission_late() : m.canvas_tab_submission_submitted()
-  }
-  return m.canvas_tab_submission_unsubmitted()
+function StatusCell({ row }: CellProps) {
+  const { now } = useTableState()
+  return (
+    <SubmissionStatus submission={row.original.submission} dueAt={row.original.due_at} now={now} />
+  )
 }
-
-const SubmissionCell = ({ row }: CellProps) => (
-  <span className="whitespace-nowrap">{submissionLabel(row.original)}</span>
-)
-
-const ImportedCell = ({ row }: CellProps) =>
-  row.original.imported_as.length > 0 ? <Badge variant="secondary">{m.lms_imported()}</Badge> : null
 
 const columns = column.columns([
   column.display({ id: 'select', header: () => null, cell: SelectCell }),
   column.display({ id: 'name', header: () => m.canvas_tab_column_name(), cell: NameCell }),
   column.display({ id: 'due', header: () => m.canvas_tab_column_due(), cell: DueCell }),
-  column.display({ id: 'points', header: () => m.canvas_tab_column_points(), cell: PointsCell }),
+  column.display({ id: 'score', header: () => m.canvas_tab_column_score(), cell: ScoreCell }),
   column.display({
     id: 'submission',
     header: () => m.canvas_tab_column_submission(),
-    cell: SubmissionCell,
-  }),
-  column.display({
-    id: 'imported',
-    header: () => m.canvas_tab_column_imported(),
-    cell: ImportedCell,
+    cell: StatusCell,
   }),
 ])
 
@@ -159,6 +168,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
+  const [now] = useState(Date.now)
   const focusedRef = useScrollIntoView<HTMLTableRowElement>(focused)
   const table = useTable({ features, columns, data: items, getRowId: (a) => a.external_id })
   const rows = new Map(table.getRowModel().rows.map((row) => [row.id, row]))
@@ -169,6 +179,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
   const picked = [...selected].filter((id) => importable.has(id))
 
   const state: TableState = {
+    now,
     selected,
     toggle: (id, on) =>
       setSelected((current) => {
@@ -298,7 +309,12 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
                               }
                             >
                               {row.getAllCells().map((cell) => (
-                                <TableCell key={cell.id}>
+                                <TableCell
+                                  key={cell.id}
+                                  className={
+                                    cell.column.id === 'name' ? 'whitespace-normal' : undefined
+                                  }
+                                >
                                   <table.FlexRender cell={cell} />
                                 </TableCell>
                               ))}

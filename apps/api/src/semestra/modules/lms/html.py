@@ -3,7 +3,9 @@ every provider gets the same treatment (M09 §2.1).
 
 Allowed: basic formatting, lists, tables, images and links. Links open in a new tab with
 `rel="noopener noreferrer"`; a platform link the provider recognizes also carries
-`data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app.
+`data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An image of a
+course file is marked the same way: its own address needs a platform session, so the Canvas tab
+loads it through the file proxy instead.
 """
 
 import html as htmllib
@@ -23,7 +25,7 @@ TAGS = {
 }  # fmt: skip
 ATTRIBUTES = {
     "a": {"href", "title", "target", "data-lms-kind", "data-lms-ref"},
-    "img": {"src", "alt", "title", "width", "height"},
+    "img": {"src", "alt", "title", "width", "height", "data-lms-kind", "data-lms-ref"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
     "col": {"span"},
@@ -34,19 +36,21 @@ URL_SCHEMES = {"http", "https", "mailto"}
 
 Rewriter = Callable[[str], InternalRef | None]
 
-_HREF = re.compile(r"""<a\b([^>]*?)\bhref\s*=\s*("([^"]*)"|'([^']*)')""", re.I)
+_HREF = re.compile(r"""<(a)\b([^>]*?)\b(href)\s*=\s*("([^"]*)"|'([^']*)')""", re.I)
+_SRC = re.compile(r"""<(img)\b([^>]*?)\b(src)\s*=\s*("([^"]*)"|'([^']*)')""", re.I)
 
 
 def _mark_internal(raw: str, rewrite: Rewriter) -> str:
     def repl(match: re.Match[str]) -> str:
-        href = htmllib.unescape(match.group(3) if match.group(3) is not None else match.group(4))
-        ref = rewrite(href)
-        if ref is None:
+        tag, before, attr, quoted = match.group(1, 2, 3, 4)
+        url = htmllib.unescape(match.group(5) if match.group(5) is not None else match.group(6))
+        ref = rewrite(url)
+        if ref is None or (tag.lower() == "img" and ref.kind != "file"):
             return match.group(0)
         extra = f' data-lms-kind="{ref.kind}" data-lms-ref="{htmllib.escape(ref.ref)}"'
-        return f"<a{match.group(1)}{extra} href={match.group(2)}"
+        return f"<{tag}{before}{extra} {attr}={quoted}"
 
-    return _HREF.sub(repl, raw)
+    return _SRC.sub(repl, _HREF.sub(repl, raw))
 
 
 def clean(raw: str | None, rewrite: Rewriter | None = None) -> str | None:

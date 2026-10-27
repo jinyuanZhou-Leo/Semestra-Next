@@ -349,10 +349,8 @@ test('an item this account may not see points to Canvas, not to the API token', 
   expect(screen.queryByRole('button', { name: 'Open connection settings' })).toBeNull()
 })
 
-test('external tools get a launch card and unknown tabs open in Canvas', async () => {
-  renderPage()
-  const nav = await screen.findByRole('navigation', { name: 'Course menu' })
-  await userEvent.click(within(nav).getByRole('button', { name: 'Piazza' }))
+test('tabs the app cannot show open straight in Canvas; a link to one gets a launch card', async () => {
+  renderPage('/?tab=tab:context_external_tool_7')
   expect(
     await screen.findByText('This is an external tool. It only runs inside Canvas.'),
   ).toBeInTheDocument()
@@ -360,8 +358,11 @@ test('external tools get a launch card and unknown tabs open in Canvas', async (
     'href',
     'https://q.utoronto.ca/courses/101/external',
   )
-  await userEvent.click(within(nav).getByRole('button', { name: 'Collaborations' }))
-  expect(await screen.findByText("This page can't be shown here yet")).toBeInTheDocument()
+  const nav = screen.getByRole('navigation', { name: 'Course menu' })
+  expect(within(nav).getByRole('button', { name: 'Collaborations' })).toHaveAttribute(
+    'href',
+    'https://q.utoronto.ca/courses/101/unknown',
+  )
 })
 
 test('the remembered place is restored and put in the URL', async () => {
@@ -681,7 +682,8 @@ test('Refresh drops the course cache once; later reads use the cache again', asy
   )
   renderPage('/?tab=announcements')
   await screen.findByRole('button', { name: /^Unread Midterm room change/ })
-  await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  const nav = screen.getByRole('navigation', { name: 'Course menu' })
+  await userEvent.click(within(nav).getByRole('button', { name: 'Refresh' }))
   await waitFor(() => expect(reads).toHaveLength(2))
   expect(refreshes).toHaveBeenCalledOnce()
   expect(reads).toEqual(['', ''])

@@ -32,7 +32,12 @@ from semestra.modules.lms.models import (
     LmsProgramBinding,
 )
 from semestra.modules.lms.providers import Io, LmsProvider, all_providers, get_provider
-from semestra.modules.lms.schemas.dto import WRITE_FEATURES, ConnectionSummary, LmsFeature
+from semestra.modules.lms.schemas.dto import (
+    INTERNAL,
+    WRITE_FEATURES,
+    ConnectionSummary,
+    LmsFeature,
+)
 from semestra.modules.lms.schemas.io import (
     BindingSetInput,
     Connection,
@@ -478,8 +483,10 @@ async def cached(
 
 
 def _dump(value: Any) -> Any:
+    """JSON form for the cache, with the fields kept from clients (`dto.INTERNAL`), nested
+    DTOs included: the cache is server-side, and reads rebuild their DTOs from it."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
+        return value.model_dump(mode="json", context=INTERNAL)
     if isinstance(value, list):
         return [_dump(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
     return value

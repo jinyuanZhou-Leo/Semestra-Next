@@ -64,6 +64,16 @@ export function formatTimeAgo(value: string | Date, now: number = Date.now()): s
   return rtf.format(0, 'second')
 }
 
+/** "today", "tomorrow", "in 5 days": how many calendar days until a moment. */
+export function formatDaysUntil(value: string | Date, now: number = Date.now()): string {
+  const day = new Date(value)
+  day.setHours(0, 0, 0, 0)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  const days = Math.round((day.getTime() - today.getTime()) / 86_400_000)
+  return new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' }).format(days, 'day')
+}
+
 /**
  * A calendar day: a Date, an ISO timestamp, or a date-only `YYYY-MM-DD` from the API. `short`
  * leaves out the year ("Jan 15"), for chart axes and labels within one recent range.

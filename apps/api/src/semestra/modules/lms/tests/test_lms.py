@@ -174,6 +174,7 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert "alert" not in html
     assert 'data-lms-kind="page"' in html
     assert 'data-lms-ref="intro"' in html
+    assert '<img data-lms-kind="file" data-lms-ref="77"' in html  # loaded through the proxy
     assert 'rel="noopener noreferrer"' in html
     assert 'target="_blank"' in html
     page = await api.call("GET", f"/courses/{course}/lms/pages/intro")
@@ -199,6 +200,9 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert r.headers["content-disposition"].startswith("inline")
     r = await api.client.get(f"/courses/{course}/lms/files/f1/content?download=true")
     assert r.headers["content-disposition"].startswith("attachment")
+    r = await api.client.get(f"/courses/{course}/lms/files/f1/content?check=true")
+    assert r.status_code == 204
+    assert r.content == b""
 
 
 async def test_unsupported_feature(api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch):

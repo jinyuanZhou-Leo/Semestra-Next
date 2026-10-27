@@ -93,6 +93,7 @@ async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
         return {
             "course": course.model_dump(mode="json"),
             "navigation": [t.model_dump(mode="json") for t in nav],
+            "fetched_at": ctx.now.isoformat(),
         }
 
     data, truncated = await service.cached(
@@ -107,6 +108,7 @@ async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
             "course": data["course"],
             "navigation": data["navigation"],
             "default_view": data["course"].get("default_view"),
+            "fetched_at": data.get("fetched_at"),
             "truncated": truncated,
         }
     )

@@ -10,13 +10,13 @@ import {
 import { ExternalLink, ListChecks, Lock } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
+import { Badge } from '@/ui/badge'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { attemptsLabel } from './common'
+import { IconAction, ScoreText, attemptsLabel } from './common'
 import { useScrollIntoView } from './scroll'
 
 /** A quiz with the user's submission of its assignment (graded quizzes have one). */
@@ -62,11 +62,13 @@ const AttemptsCell = ({ row }: CellProps) => {
   )
 }
 function ScoreCell({ row }: CellProps) {
-  const score = row.original.mine?.score
-  const points = row.original.points
+  const mine = row.original.mine
   return (
-    <span className="tabular-nums">
-      {score == null ? (points ?? '—') : points == null ? score : `${score} / ${points}`}
+    <span className="flex items-center gap-2">
+      <ScoreText score={mine?.score} points={row.original.points} />
+      {mine?.missing ? (
+        <Badge variant="destructive">{m.canvas_tab_submission_missing()}</Badge>
+      ) : null}
     </span>
   )
 }
@@ -77,16 +79,15 @@ function OpenCell({ row }: CellProps) {
   const url = row.original.web_url
   if (!url) return null
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.canvas_tab_open_item_in_canvas({ name: row.original.title })}
-      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
-      render={<a href={url} target="_blank" rel="noopener noreferrer" />}
+    <IconAction
+      label={m.canvas_tab_open_item_in_canvas({ name: row.original.title })}
+      tooltip={m.canvas_tab_open_in_canvas()}
       nativeButton={false}
+      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+      render={<a href={url} target="_blank" rel="noopener noreferrer" />}
     >
       <ExternalLink aria-hidden />
-    </Button>
+    </IconAction>
   )
 }
 
