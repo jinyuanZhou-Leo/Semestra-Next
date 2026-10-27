@@ -2,6 +2,7 @@
 "@semestra/web": patch
 ---
 
+<!-- area: general -->
 <!-- en -->
 Pages stay responsive in the seconds after they load, and changing a preference no longer reloads your preferences twice.
 <!-- zh -->
