@@ -24,8 +24,8 @@ export default defineConfig({
   },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
   plugins: [
-    // The router plugin must come before the React plugin.
-    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    // The router plugin must come before the React plugin. Tests next to route files are not routes.
+    tanstackRouter({ target: 'react', autoCodeSplitting: true, routeFileIgnorePattern: '\\.test\\.tsx?$' }),
     paraglideVitePlugin({
       project: './project.inlang',
       outdir: './src/paraglide',
